@@ -74,6 +74,44 @@ public static class DatabaseInitialization
             );
             """, ct);
 
+        // FTS5 triggers to keep catalog_search in sync with catalog_nodes
+        // (audit defect D28 — the FTS table was created but never populated).
+        // Column names are PascalCase (EF Core default for SQLite).
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TRIGGER IF NOT EXISTS catalog_search_ai
+            AFTER INSERT ON catalog_nodes
+            BEGIN
+                INSERT INTO catalog_search(display_name, relative_path, library_id, node_id)
+                VALUES (new.DisplayName, new.RelativePath, new.LibraryId, new.Id);
+            END;
+            """, ct);
+
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TRIGGER IF NOT EXISTS catalog_search_au
+            AFTER UPDATE ON catalog_nodes
+            BEGIN
+                DELETE FROM catalog_search WHERE node_id = old.Id;
+                INSERT INTO catalog_search(display_name, relative_path, library_id, node_id)
+                VALUES (new.DisplayName, new.RelativePath, new.LibraryId, new.Id);
+            END;
+            """, ct);
+
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TRIGGER IF NOT EXISTS catalog_search_ad
+            AFTER DELETE ON catalog_nodes
+            BEGIN
+                DELETE FROM catalog_search WHERE node_id = old.Id;
+            END;
+            """, ct);
+
+        // One-time backfill for nodes created before the triggers existed
+        await db.Database.ExecuteSqlRawAsync("""
+            INSERT INTO catalog_search(display_name, relative_path, library_id, node_id)
+            SELECT DisplayName, RelativePath, LibraryId, Id
+            FROM catalog_nodes
+            WHERE Id NOT IN (SELECT node_id FROM catalog_search);
+            """, ct);
+
         // Set the schema version so startup validation can detect incompatible databases
         await SetSchemaVersionAsync(db, CurrentSchemaVersion, ct);
     }

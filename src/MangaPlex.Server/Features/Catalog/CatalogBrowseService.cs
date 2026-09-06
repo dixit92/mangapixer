@@ -264,13 +264,33 @@ public sealed class CatalogBrowseService
             };
         }
 
+        // If a specific library is requested, verify access and narrow the filter
+        if (libraryId.HasValue)
+        {
+            if (!accessibleLibs.Contains(libraryId.Value))
+            {
+                return new SearchResultsDto
+                {
+                    Query = query,
+                    Items = [],
+                    TotalCount = 0,
+                    NextCursor = null,
+                    HasMore = false,
+                };
+            }
+            accessibleLibs = [libraryId.Value];
+        }
+
         // Build the FTS5 query — treat user text as literal, escape FTS syntax
         var ftsQuery = BuildFtsQuery(query);
 
+        // Build the library IDs parameter list
+        var libIds = string.Join(",", accessibleLibs);
+
         // Query the FTS5 index joined with catalog nodes and their parents/libraries
-        // to project public IDs (audit defect D29). ParentId and LibraryId in the
-        // DTO are the PublicId of the parent node and library, not encoded row IDs.
-        var ftsSql = """
+        // to project public IDs (audit defect D29). Keyset pagination on SortKey
+        // (audit defect D6/D28 — search now returns real results with proper paging).
+        var ftsSql = $"""
             SELECT cn.Id, cn.PublicId, cn.Kind,
                    cn.DisplayName, cn.Availability, cn.SortKey,
                    parent.PublicId AS ParentPublicId,
@@ -281,22 +301,21 @@ public sealed class CatalogBrowseService
             JOIN libraries lib ON cn.LibraryId = lib.Id
             WHERE catalog_search MATCH @query
             AND cn.Availability != 5
-            AND cn.LibraryId IN ({0})
+            AND cn.LibraryId IN ({libIds})
+            {(cursor is not null ? "AND cn.SortKey > @cursor" : "")}
             ORDER BY cn.SortKey
             LIMIT @limit
             """;
-
-        // Build the library IDs parameter list
-        var libIds = string.Join(",", accessibleLibs);
-        var sql = ftsSql.Replace("{0}", libIds);
 
         var results = new List<CatalogNodeDto>();
         using var connection = _db.Database.GetDbConnection();
         await connection.OpenAsync(ct);
         using var command = connection.CreateCommand();
-        command.CommandText = sql;
+        command.CommandText = ftsSql;
         command.Parameters.Add(new Microsoft.Data.Sqlite.SqliteParameter("@query", ftsQuery));
         command.Parameters.Add(new Microsoft.Data.Sqlite.SqliteParameter("@limit", pageSize + 1));
+        if (cursor is not null)
+            command.Parameters.Add(new Microsoft.Data.Sqlite.SqliteParameter("@cursor", cursor));
 
         using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
@@ -318,12 +337,37 @@ public sealed class CatalogBrowseService
         if (hasMore)
             results = results.Take(pageSize).ToList();
 
+        // Compute total count with a separate query (audit defect D6/D28)
+        var countSql = $"""
+            SELECT COUNT(*)
+            FROM catalog_search cs
+            JOIN catalog_nodes cn ON cs.node_id = cn.Id
+            WHERE catalog_search MATCH @query
+            AND cn.Availability != 5
+            AND cn.LibraryId IN ({libIds})
+            """;
+        using var countCommand = connection.CreateCommand();
+        countCommand.CommandText = countSql;
+        countCommand.Parameters.Add(new Microsoft.Data.Sqlite.SqliteParameter("@query", ftsQuery));
+        var totalCount = Convert.ToInt32(await countCommand.ExecuteScalarAsync(ct));
+
+        // Next cursor is the SortKey of the last result
+        string? nextCursor = null;
+        if (hasMore && results.Count > 0)
+        {
+            var lastId = results[^1].Id;
+            using var cursorCommand = connection.CreateCommand();
+            cursorCommand.CommandText = "SELECT SortKey FROM catalog_nodes WHERE PublicId = @pubId";
+            cursorCommand.Parameters.Add(new Microsoft.Data.Sqlite.SqliteParameter("@pubId", lastId));
+            nextCursor = (string?)await cursorCommand.ExecuteScalarAsync(ct);
+        }
+
         return new SearchResultsDto
         {
             Query = query,
             Items = results,
-            TotalCount = results.Count, // FTS count is approximate; use returned count
-            NextCursor = hasMore ? results[^1].Id : null,
+            TotalCount = totalCount,
+            NextCursor = nextCursor,
             HasMore = hasMore,
         };
     }
