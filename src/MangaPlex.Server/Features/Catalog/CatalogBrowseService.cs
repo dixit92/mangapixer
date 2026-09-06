@@ -87,14 +87,16 @@ public sealed class CatalogBrowseService
         // Get total count (with authorization filter already applied)
         var totalCount = await query.CountAsync(ct);
 
-        // Page the results
+        // Page the results — project ParentId as the parent's PublicId and
+        // LibraryId as the Library's PublicId (audit defect D29). Clients
+        // must be able to round-trip parentId back into browse?parentId=.
         var nodes = await query
             .Take(pageSize + 1) // +1 to check hasMore
             .Select(n => new CatalogNodeDto
             {
                 Id = n.PublicId,
-                ParentId = n.ParentId.HasValue ? OpaqueId.Encode(n.ParentId.Value) : "",
-                LibraryId = OpaqueId.Encode(n.LibraryId),
+                ParentId = n.Parent != null ? n.Parent.PublicId : "",
+                LibraryId = n.Library != null ? n.Library.PublicId : "",
                 Kind = (CatalogNodeKind)n.Kind,
                 DisplayName = n.DisplayName,
                 Availability = (CatalogNodeAvailability)n.Availability,
@@ -110,7 +112,7 @@ public sealed class CatalogBrowseService
         if (hasMore && nodes.Count > 0)
         {
             // The cursor is the sort key of the last item
-            var lastId = nodes[ nodes.Count - 1].Id;
+            var lastId = nodes[nodes.Count - 1].Id;
             var lastNode = await _db.CatalogNodes
                 .Where(n => n.PublicId == lastId)
                 .Select(n => n.SortKey)
@@ -265,12 +267,18 @@ public sealed class CatalogBrowseService
         // Build the FTS5 query — treat user text as literal, escape FTS syntax
         var ftsQuery = BuildFtsQuery(query);
 
-        // Query the FTS5 index joined with catalog nodes
+        // Query the FTS5 index joined with catalog nodes and their parents/libraries
+        // to project public IDs (audit defect D29). ParentId and LibraryId in the
+        // DTO are the PublicId of the parent node and library, not encoded row IDs.
         var ftsSql = """
-            SELECT cn.Id, cn.PublicId, cn.ParentId, cn.LibraryId, cn.Kind,
-                   cn.DisplayName, cn.Availability, cn.SortKey
+            SELECT cn.Id, cn.PublicId, cn.Kind,
+                   cn.DisplayName, cn.Availability, cn.SortKey,
+                   parent.PublicId AS ParentPublicId,
+                   lib.PublicId AS LibraryPublicId
             FROM catalog_search cs
             JOIN catalog_nodes cn ON cs.node_id = cn.Id
+            LEFT JOIN catalog_nodes parent ON cn.ParentId = parent.Id
+            JOIN libraries lib ON cn.LibraryId = lib.Id
             WHERE catalog_search MATCH @query
             AND cn.Availability != 5
             AND cn.LibraryId IN ({0})
@@ -296,10 +304,10 @@ public sealed class CatalogBrowseService
             results.Add(new CatalogNodeDto
             {
                 Id = reader.GetString(reader.GetOrdinal("PublicId")),
-                ParentId = reader.IsDBNull(reader.GetOrdinal("ParentId"))
+                ParentId = reader.IsDBNull(reader.GetOrdinal("ParentPublicId"))
                     ? ""
-                    : OpaqueId.Encode(reader.GetInt64(reader.GetOrdinal("ParentId"))),
-                LibraryId = OpaqueId.Encode(reader.GetInt64(reader.GetOrdinal("LibraryId"))),
+                    : reader.GetString(reader.GetOrdinal("ParentPublicId")),
+                LibraryId = reader.GetString(reader.GetOrdinal("LibraryPublicId")),
                 Kind = (CatalogNodeKind)reader.GetInt32(reader.GetOrdinal("Kind")),
                 DisplayName = reader.GetString(reader.GetOrdinal("DisplayName")),
                 Availability = (CatalogNodeAvailability)reader.GetInt32(reader.GetOrdinal("Availability")),
@@ -328,7 +336,11 @@ public sealed class CatalogBrowseService
         string publicId,
         CancellationToken ct = default)
     {
-        var node = await _db.CatalogNodes.FirstOrDefaultAsync(n => n.PublicId == publicId, ct);
+        var node = await _db.CatalogNodes
+            .Include(n => n.Parent)
+            .Include(n => n.Library)
+            .Include(n => n.ArchiveItem)
+            .FirstOrDefaultAsync(n => n.PublicId == publicId, ct);
         if (node is null)
             return null;
 
@@ -340,8 +352,8 @@ public sealed class CatalogBrowseService
         return new CatalogNodeDto
         {
             Id = node.PublicId,
-            ParentId = node.ParentId.HasValue ? OpaqueId.Encode(node.ParentId.Value) : "",
-            LibraryId = OpaqueId.Encode(node.LibraryId),
+            ParentId = node.Parent != null ? node.Parent.PublicId : "",
+            LibraryId = node.Library != null ? node.Library.PublicId : "",
             Kind = (CatalogNodeKind)node.Kind,
             DisplayName = node.DisplayName,
             Availability = (CatalogNodeAvailability)node.Availability,

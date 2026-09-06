@@ -50,7 +50,8 @@ public sealed class LibraryScanCoordinator
 
     /// <summary>
     /// Runs a complete scan: observation, reconciliation, and tombstoning.
-    /// Returns the scan result with counts.
+    /// Returns the scan result with counts. The cancellation token is checked
+    /// at every entry and during reconciliation (audit defect D34).
     /// </summary>
     public async Task<ScanResult> ScanAsync(CancellationToken ct = default)
     {
@@ -64,9 +65,12 @@ public sealed class LibraryScanCoordinator
             };
         }
 
-        // Phase 1: Bounded observation — enumerate the filesystem
+        // Phase 1: Bounded observation — enumerate the filesystem.
+        // ParentPathKey is the relative path of the parent directory ("" for root),
+        // which lets ReconcileAsync establish parent-child relationships after
+        // nodes are created (audit defect D1).
         var observations = new List<ScanObservationEntity>();
-        await ObserveAsync("", null, observations, ct);
+        await ObserveAsync("", "", observations, ct);
 
         // Phase 2: Reconcile observations against existing catalog nodes
         var reconciliation = await ReconcileAsync(observations, ct);
@@ -95,7 +99,7 @@ public sealed class LibraryScanCoordinator
 
     private async Task ObserveAsync(
         string relativePath,
-        long? parentNodeId,
+        string parentPathKey,
         List<ScanObservationEntity> observations,
         CancellationToken ct)
     {
@@ -118,13 +122,14 @@ public sealed class LibraryScanCoordinator
                     PathKey = entry.RelativePath,
                     Kind = 0, // folder
                     DisplayName = entry.Name,
-                    ParentNodeId = parentNodeId,
+                    ParentPathKey = parentPathKey,
                     ObservationStatus = 0,
                 };
                 observations.Add(dirObs);
 
-                // Recurse into the directory
-                await ObserveAsync(entry.RelativePath, parentNodeId, observations, ct);
+                // Recurse into the directory — the directory's own PathKey
+                // becomes the ParentPathKey for its children (D1 fix).
+                await ObserveAsync(entry.RelativePath, entry.RelativePath, observations, ct);
             }
             else if (entry.Kind == EntryKind.File)
             {
@@ -140,7 +145,7 @@ public sealed class LibraryScanCoordinator
                     PathKey = entry.RelativePath,
                     Kind = 1, // archive
                     DisplayName = entry.Name,
-                    ParentNodeId = parentNodeId,
+                    ParentPathKey = parentPathKey,
                     ByteLength = stamp.ByteLength,
                     ModificationTicks = stamp.LastWriteTicks,
                     ObservationStatus = 0,
@@ -156,18 +161,45 @@ public sealed class LibraryScanCoordinator
     {
         var result = new ReconciliationResult();
 
-        // Load existing nodes for this library
+        // Sort observations by path depth (parents first) so that parent
+        // nodes are created before children. This lets us build a
+        // pathKey→nodeId map incrementally (audit defect D1).
+        var sorted = observations
+            .OrderBy(o => o.PathKey.Count(c => c == '/' || c == '\\'))
+            .ThenBy(o => o.PathKey)
+            .ToList();
+
+        // Load existing nodes for this library into a pathKey→node map
         var existingNodes = await _db.CatalogNodes
             .Where(n => n.LibraryId == _libraryId)
             .ToDictionaryAsync(n => n.PathKey, ct);
 
+        // pathKey→nodeId map, seeded from existing nodes and filled as new
+        // nodes are saved. Used to resolve ParentPathKey → ParentId.
+        var pathToNodeId = new Dictionary<string, long>();
+        foreach (var kvp in existingNodes)
+        {
+            pathToNodeId[kvp.Key] = kvp.Value.Id;
+        }
+
         var observedPathKeys = new HashSet<string>();
 
-        foreach (var obs in observations)
+        foreach (var obs in sorted)
         {
             ct.ThrowIfCancellationRequested();
 
             observedPathKeys.Add(obs.PathKey);
+
+            // Resolve parent ID from the path map
+            long? parentId = null;
+            if (!string.IsNullOrEmpty(obs.ParentPathKey))
+            {
+                if (pathToNodeId.TryGetValue(obs.ParentPathKey, out var parentIdValue))
+                    parentId = parentIdValue;
+                // If the parent path key is not in the map, the parent was
+                // filtered out (e.g., not traversed). Leave parentId null so
+                // the node appears at the root of its accessible subtree.
+            }
 
             if (existingNodes.TryGetValue(obs.PathKey, out var existing))
             {
@@ -189,6 +221,14 @@ public sealed class LibraryScanCoordinator
                 if (existing.Availability == 5) // was tombstoned
                 {
                     existing.Availability = 0; // available again
+                    needsUpdate = true;
+                }
+
+                // Repair parent ID if it differs (fixes libraries scanned
+                // before the D1 hierarchy fix)
+                if (existing.ParentId != parentId)
+                {
+                    existing.ParentId = parentId;
                     needsUpdate = true;
                 }
 
@@ -223,7 +263,7 @@ public sealed class LibraryScanCoordinator
                 {
                     PublicId = OpaqueId.Encode(Random.Shared.NextInt64(1, long.MaxValue)),
                     LibraryId = _libraryId,
-                    ParentId = obs.ParentNodeId,
+                    ParentId = parentId,
                     Kind = obs.Kind,
                     DisplayName = obs.DisplayName,
                     RelativePath = obs.RelativePath,
@@ -235,6 +275,9 @@ public sealed class LibraryScanCoordinator
                 };
                 _db.CatalogNodes.Add(node);
                 await _db.SaveChangesAsync(ct); // Save to get the auto-generated Id
+
+                // Register in the path map so children can resolve this as parent
+                pathToNodeId[node.PathKey] = node.Id;
 
                 result.NodesAdded++;
 

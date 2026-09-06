@@ -3,6 +3,7 @@ namespace com.lifepixer.mangaplex.Server.Features.Reading;
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Server.Features.Auth;
+using com.lifepixer.mangaplex.Server.Features.Catalog;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,13 +17,16 @@ using Microsoft.AspNetCore.Mvc;
 public sealed class ReadingController : ControllerBase
 {
     private readonly ReadingStateService _stateService;
+    private readonly CatalogIdResolver _idResolver;
     private readonly ILogger<ReadingController> _logger;
 
     public ReadingController(
         ReadingStateService stateService,
+        CatalogIdResolver idResolver,
         ILogger<ReadingController> logger)
     {
         _stateService = stateService;
+        _idResolver = idResolver;
         _logger = logger;
     }
 
@@ -32,8 +36,11 @@ public sealed class ReadingController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var itemIdLong = OpaqueId.Decode(itemId);
-        var progress = await _stateService.GetProgressAsync(userId.Value, itemIdLong, ct);
+        // Resolve public ID to internal ID (audit defect D5/D29)
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
+        var progress = await _stateService.GetProgressAsync(userId.Value, node.Id, ct);
         if (progress is null) return NotFound();
 
         return Ok(progress);
@@ -48,10 +55,13 @@ public sealed class ReadingController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var itemIdLong = OpaqueId.Decode(itemId);
+        // Resolve public ID to internal ID (audit defect D5/D29)
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
         var result = await _stateService.UpdateProgressAsync(
             userId.Value,
-            itemIdLong,
+            node.Id,
             request.PageIndex,
             request.ExpectedContentVersion,
             mutationId: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
@@ -74,8 +84,11 @@ public sealed class ReadingController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var itemIdLong = OpaqueId.Decode(itemId);
-        var success = await _stateService.ResetProgressAsync(userId.Value, itemIdLong, ct);
+        // Resolve public ID to internal ID (audit defect D5/D29)
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
+        var success = await _stateService.ResetProgressAsync(userId.Value, node.Id, ct);
         if (!success) return Unauthorized();
 
         return NoContent();
@@ -121,8 +134,11 @@ public sealed class ReadingController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var itemIdLong = OpaqueId.Decode(itemId);
-        var bookmarks = await _stateService.GetBookmarksAsync(userId.Value, itemIdLong, ct);
+        // Resolve public ID to internal ID (audit defect D5/D29)
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
+        var bookmarks = await _stateService.GetBookmarksAsync(userId.Value, node.Id, ct);
         return Ok(bookmarks);
     }
 
@@ -135,9 +151,12 @@ public sealed class ReadingController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var itemIdLong = OpaqueId.Decode(itemId);
+        // Resolve public ID to internal ID (audit defect D5/D29)
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
         var bookmarkId = await _stateService.AddBookmarkAsync(
-            userId.Value, itemIdLong, request.Ordinal, request.NormalizedAnchor, request.Label, ct);
+            userId.Value, node.Id, request.Ordinal, request.NormalizedAnchor, request.Label, ct);
         if (bookmarkId is null) return Unauthorized();
 
         return Ok(new { id = bookmarkId });

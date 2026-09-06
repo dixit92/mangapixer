@@ -244,7 +244,9 @@ public sealed class ManifestController : ControllerBase
             db.PageEntries.RemoveRange(archiveItem.Pages);
         }
 
-        // Persist new pages
+        // Persist new pages — entry keys are deterministic ordinals, not
+        // random strings, so page URLs are stable across re-analyses
+        // (audit defect D4).
         foreach (var page in analyzeResult.Pages)
         {
             db.PageEntries.Add(new PageEntryEntity
@@ -252,7 +254,7 @@ public sealed class ManifestController : ControllerBase
                 ItemId = nodeId,
                 ContentVersion = archiveItem.ContentVersion,
                 Ordinal = page.Ordinal,
-                EntryKey = OpaqueId.Encode(Random.Shared.NextInt64(1, long.MaxValue)),
+                EntryKey = new PageEntryKey(page.Ordinal).ToOpaque(),
                 SourceEntryLocator = page.SourceEntryKey,
                 MediaType = page.MediaType,
                 Width = page.Width > 0 ? page.Width : null,

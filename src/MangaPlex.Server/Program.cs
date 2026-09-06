@@ -94,6 +94,7 @@ public sealed partial class Program
             // Catalog and reading services
             builder.Services.AddScoped<CatalogBrowseService>();
             builder.Services.AddScoped<ReadingStateService>();
+            builder.Services.AddScoped<CatalogIdResolver>();
 
             // Operations services
             builder.Services.AddScoped<BackupService>();
@@ -102,9 +103,26 @@ public sealed partial class Program
             // Data Protection — persist keys in application-owned data so
             // cookies survive container recreate. Set a stable application name
             // so the key ring is not tied to the content root path.
-            builder.Services.AddDataProtection()
+            // On Windows, DPAPI encrypts keys at rest. On Linux there is no
+            // DPAPI; keys are stored unencrypted inside the private data root
+            // with owner-only permissions (set by entrypoint.sh). This is
+            // disclosed honestly rather than claiming encryption at rest
+            // (audit defect D16).
+            var dataProtection = builder.Services.AddDataProtection()
                 .PersistKeysToFileSystem(new DirectoryInfo(keysRoot))
                 .SetApplicationName("MangaPlex");
+
+            if (OperatingSystem.IsWindows())
+            {
+                dataProtection.ProtectKeysWithDpapi();
+                Log.Logger.Information("Data Protection keys encrypted at rest with DPAPI");
+            }
+            else
+            {
+                Log.Logger.Information(
+                    "Data Protection keys stored unencrypted inside the private data root " +
+                    "with owner-only permissions (Linux has no DPAPI; entrypoint.sh chmod 700)");
+            }
 
             // Anti-forgery — double-submit token via X-MangaPlex-Csrf header.
             // The cookie is issued by GET /auth/csrf; unsafe methods must echo

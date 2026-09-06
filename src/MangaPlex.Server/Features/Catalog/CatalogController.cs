@@ -18,15 +18,18 @@ using Microsoft.EntityFrameworkCore;
 public sealed class CatalogController : ControllerBase
 {
     private readonly CatalogBrowseService _browseService;
+    private readonly CatalogIdResolver _idResolver;
     private readonly MangaPlexDbContext _db;
     private readonly ILogger<CatalogController> _logger;
 
     public CatalogController(
         CatalogBrowseService browseService,
+        CatalogIdResolver idResolver,
         MangaPlexDbContext db,
         ILogger<CatalogController> logger)
     {
         _browseService = browseService;
+        _idResolver = idResolver;
         _db = db;
         _logger = logger;
     }
@@ -51,18 +54,33 @@ public sealed class CatalogController : ControllerBase
             query = query.Where(l => grantedLibIds.Contains(l.Id));
         }
 
-        var libraries = await query
-            .Select(l => new LibraryDto
-            {
-                Id = l.PublicId,
-                Name = l.DisplayName,
-                IsScanning = false,
-                ItemCount = null,
-                LastScanCompleted = l.LastScanCompleted,
-            })
-            .ToListAsync(ct);
+        var libraries = await query.ToListAsync(ct);
 
-        return Ok(libraries);
+        // Compute IsScanning and ItemCount for each library — the list
+        // endpoint previously hard-coded these to false/null (audit defect D30).
+        var scanningLibIds = await _db.ScanRuns
+            .Where(s => s.Status == 1)
+            .Select(s => s.LibraryId)
+            .Distinct()
+            .ToListAsync(ct);
+        var scanningSet = new HashSet<long>(scanningLibIds);
+
+        var itemCounts = await _db.CatalogNodes
+            .Where(n => n.Kind == 1 && n.Availability != 5)
+            .GroupBy(n => n.LibraryId)
+            .Select(g => new { LibraryId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.LibraryId, x => x.Count, ct);
+
+        var dtos = libraries.Select(l => new LibraryDto
+        {
+            Id = l.PublicId,
+            Name = l.DisplayName,
+            IsScanning = scanningSet.Contains(l.Id),
+            ItemCount = itemCounts.TryGetValue(l.Id, out var count) ? count : 0,
+            LastScanCompleted = l.LastScanCompleted,
+        }).ToList();
+
+        return Ok(dtos);
     }
 
     [HttpGet("libraries/{libraryId}")]
@@ -112,11 +130,20 @@ public sealed class CatalogController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var libId = OpaqueId.Decode(libraryId);
-        long? parentIdLong = parentId is not null ? OpaqueId.Decode(parentId) : null;
+        // Resolve public IDs to internal IDs (audit defect D5/D29)
+        var library = await _idResolver.ResolveLibraryAsync(libraryId, ct);
+        if (library is null) return NotFound();
+
+        long? parentIdLong = null;
+        if (parentId is not null)
+        {
+            var parent = await _idResolver.ResolveNodeAsync(parentId, ct);
+            if (parent is null) return NotFound();
+            parentIdLong = parent.Id;
+        }
 
         var result = await _browseService.BrowseAsync(
-            userId.Value, libId, parentIdLong, cursor, pageSize, ct: ct);
+            userId.Value, library.Id, parentIdLong, cursor, pageSize, ct: ct);
 
         return Ok(result);
     }
@@ -139,8 +166,11 @@ public sealed class CatalogController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var nodeIdLong = OpaqueId.Decode(nodeId);
-        var result = await _browseService.GetBreadcrumbsAsync(userId.Value, nodeIdLong, ct);
+        // Resolve public ID to internal ID (audit defect D5/D29)
+        var node = await _idResolver.ResolveNodeAsync(nodeId, ct);
+        if (node is null) return NotFound();
+
+        var result = await _browseService.GetBreadcrumbsAsync(userId.Value, node.Id, ct);
         if (result is null) return NotFound();
 
         return Ok(result);
@@ -152,8 +182,11 @@ public sealed class CatalogController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var nodeIdLong = OpaqueId.Decode(nodeId);
-        var result = await _browseService.GetNeighborsAsync(userId.Value, nodeIdLong, ct);
+        // Resolve public ID to internal ID (audit defect D5/D29)
+        var node = await _idResolver.ResolveNodeAsync(nodeId, ct);
+        if (node is null) return NotFound();
+
+        var result = await _browseService.GetNeighborsAsync(userId.Value, node.Id, ct);
         if (result is null) return NotFound();
 
         return Ok(result);
@@ -168,7 +201,14 @@ public sealed class CatalogController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        long? libId = libraryId is not null ? OpaqueId.Decode(libraryId) : null;
+        // Resolve public ID to internal ID (audit defect D5/D29)
+        long? libId = null;
+        if (libraryId is not null)
+        {
+            var library = await _idResolver.ResolveLibraryAsync(libraryId, ct);
+            if (library is null) return NotFound();
+            libId = library.Id;
+        }
 
         var result = await _browseService.SearchAsync(userId.Value, q, libId, ct: ct);
         return Ok(result);

@@ -95,11 +95,20 @@ public sealed class MangaPlexWebApplicationFactory : WebApplicationFactory<Progr
     /// Logs in as admin, changes the password, re-logs in, and returns the
     /// authenticated client. Many endpoints require ForcePasswordChange to be
     /// cleared first.
+    ///
+    /// The authenticated client is cached per factory instance so that
+    /// multiple test methods in the same IClassFixture class can reuse it
+    /// without re-attempting the password change (which would fail on the
+    /// second call because the password was already changed on the first).
     /// </summary>
     public async Task<HttpClient> LoginAsAdminWithChangedPasswordAsync(
         string currentPassword = "MangaPlex-Change-Me-Now!",
         string newPassword = "TestPassword123!")
     {
+        // Return cached client if already authenticated
+        if (_cachedAdminClient is not null)
+            return _cachedAdminClient;
+
         var client = await LoginAsAdminAsync(currentPassword);
 
         // Change password
@@ -126,8 +135,11 @@ public sealed class MangaPlexWebApplicationFactory : WebApplicationFactory<Progr
         Assert.NotNull(csrf);
         freshClient.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
 
+        _cachedAdminClient = freshClient;
         return freshClient;
     }
+
+    private HttpClient? _cachedAdminClient;
 
     protected override void Dispose(bool disposing)
     {

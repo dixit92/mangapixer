@@ -29,6 +29,7 @@ public sealed class AdminController : ControllerBase
     private readonly ScanLeaseService _leaseService;
     private readonly LibraryMaintenanceService _maintenance;
     private readonly LibraryScanPolicy _scanPolicy;
+    private readonly ScanRunRegistry _scanRunRegistry;
     private readonly UserManager<UserEntity> _userManager;
     private readonly LastAdminProtectionService _lastAdminProtection;
     private readonly LibraryAuthorizationService _libraryAuth;
@@ -43,6 +44,7 @@ public sealed class AdminController : ControllerBase
         ScanLeaseService leaseService,
         LibraryMaintenanceService maintenance,
         LibraryScanPolicy scanPolicy,
+        ScanRunRegistry scanRunRegistry,
         UserManager<UserEntity> userManager,
         LastAdminProtectionService lastAdminProtection,
         LibraryAuthorizationService libraryAuth,
@@ -56,6 +58,7 @@ public sealed class AdminController : ControllerBase
         _leaseService = leaseService;
         _maintenance = maintenance;
         _scanPolicy = scanPolicy;
+        _scanRunRegistry = scanRunRegistry;
         _userManager = userManager;
         _lastAdminProtection = lastAdminProtection;
         _libraryAuth = libraryAuth;
@@ -137,6 +140,10 @@ public sealed class AdminController : ControllerBase
         if (lease is null)
             return Conflict(new ApiError { Error = "scan_in_progress", Message = "A scan is already running for this library." });
 
+        // Register a cancellation token so CancelScan can cooperatively
+        // cancel the background scan (audit defect D34).
+        var scanCt = _scanRunRegistry.Register(lease.Id);
+
         // Run scan on a background task — the HTTP request returns 202 immediately.
         // Use a dedicated DI scope so scoped services (DbContext, etc.) are not
         // disposed when the controller's request scope ends.
@@ -152,6 +159,7 @@ public sealed class AdminController : ControllerBase
             var scopedDb = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
             var scopedMaintenance = scope.ServiceProvider.GetRequiredService<LibraryMaintenanceService>();
             var scopedLeaseService = scope.ServiceProvider.GetRequiredService<ScanLeaseService>();
+            var scopedJobScheduler = scope.ServiceProvider.GetRequiredService<JobScheduler>();
             try
             {
                 await scopedMaintenance.EnterMaintenanceAsync(libraryId);
@@ -159,21 +167,140 @@ public sealed class AdminController : ControllerBase
                 var coordinator = new LibraryScanCoordinator(
                     scopedDb, fs, _scanPolicy, libraryId, scanRevision, leaseOwner,
                     _loggerFactory.CreateLogger<LibraryScanCoordinator>());
-                var result = await coordinator.ScanAsync();
+                var result = await coordinator.ScanAsync(scanCt);
+
+                // Persist scan counters to ScanRunEntity (audit defect D8).
+                // Previously TriggerScan logged result.NodesAdded but never
+                // wrote counts to the ScanRun, so GET /scans reported zeros.
+                var scanRun = await scopedDb.ScanRuns.FirstOrDefaultAsync(s => s.Id == leaseId, scanCt);
+                if (scanRun is not null)
+                {
+                    scanRun.NodesObserved = result.NodesObserved;
+                    scanRun.NodesAdded = result.NodesAdded;
+                    scanRun.NodesUpdated = result.NodesUpdated;
+                    scanRun.NodesTombstoned = result.NodesTombstoned;
+                    scanRun.Status = result.Success ? 2 : 3;
+                    scanRun.CompletedAt = DateTimeOffset.UtcNow;
+                    await scopedDb.SaveChangesAsync(scanCt);
+                }
+
                 await scopedLeaseService.ReleaseLeaseAsync(leaseId, result.Success, result.Error);
                 await scopedMaintenance.ExitMaintenanceAsync(libraryId);
                 _logger.LogInformation("Scan completed for library {LibraryId}: {Added} added, {Tombstoned} tombstoned",
                     libraryId, result.NodesAdded, result.NodesTombstoned);
+
+                // Enqueue analysis for pending archive items after a successful
+                // scan (audit defect D33). Previously items were only analyzed
+                // when a reader opened them, so page counts never appeared
+                // after a scan.
+                if (result.Success)
+                {
+                    await EnqueueAnalysisForPendingItemsAsync(scopedDb, scopedJobScheduler, libraryId, scanCt);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Scan was cancelled via CancelScan (audit defect D34).
+                var scanRun = await scopedDb.ScanRuns.FirstOrDefaultAsync(s => s.Id == leaseId);
+                if (scanRun is not null)
+                {
+                    scanRun.Status = 4; // cancelled
+                    scanRun.CompletedAt = DateTimeOffset.UtcNow;
+                    await scopedDb.SaveChangesAsync();
+                }
+                await scopedLeaseService.ReleaseLeaseAsync(leaseId, false, "cancelled");
+                await scopedMaintenance.ExitMaintenanceAsync(libraryId);
+                _logger.LogInformation("Scan cancelled for library {LibraryId}", libraryId);
             }
             catch (Exception ex)
             {
+                var scanRun = await scopedDb.ScanRuns.FirstOrDefaultAsync(s => s.Id == leaseId);
+                if (scanRun is not null)
+                {
+                    scanRun.Status = 3; // failed
+                    scanRun.SanitizedError = ex.GetType().Name;
+                    scanRun.CompletedAt = DateTimeOffset.UtcNow;
+                    await scopedDb.SaveChangesAsync();
+                }
                 await scopedLeaseService.ReleaseLeaseAsync(leaseId, false, ex.GetType().Name);
                 await scopedMaintenance.ExitMaintenanceAsync(libraryId);
                 _logger.LogWarning("Scan failed for library {LibraryId}: {Error}", libraryId, ex.GetType().Name);
             }
+            finally
+            {
+                _scanRunRegistry.Complete(leaseId);
+            }
         }, CancellationToken.None);
 
         return Accepted(new ScanTriggeredDto { ScanRunId = OpaqueId.Encode(lease.Id) });
+    }
+
+    /// <summary>
+    /// Enqueues analysis jobs for archive items in a library that are in the
+    /// pending analysis state (audit defect D33). Bounded to parallelism 2
+    /// to avoid flooding the worker pool.
+    /// </summary>
+    private async Task EnqueueAnalysisForPendingItemsAsync(
+        MangaPlexDbContext db,
+        JobScheduler scheduler,
+        long libraryId,
+        CancellationToken ct)
+    {
+        try
+        {
+            var pendingItems = await db.CatalogNodes
+                .Where(n => n.LibraryId == libraryId && n.Kind == 1 && n.Availability != 5)
+                .Join(db.ArchiveItems.Where(a => a.AnalysisState == 1),
+                      n => n.Id, a => a.NodeId,
+                      (n, a) => new { Node = n, Item = a })
+                .ToListAsync(ct);
+
+            if (pendingItems.Count == 0)
+                return;
+
+            _logger.LogInformation("Enqueuing analysis for {Count} pending items in library {LibraryId}",
+                pendingItems.Count, libraryId);
+
+            // Enqueue at Background priority — scan-triggered analysis is not
+            // interactive and should not block reader-triggered analysis.
+            foreach (var entry in pendingItems)
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    // Resolve the source path via the library root + relative path.
+                    // The scheduler stores this for the worker; the path is never
+                    // echoed in any API response.
+                    var library = await db.Libraries.FirstAsync(l => l.Id == entry.Node.LibraryId, ct);
+                    var sourcePath = Path.Combine(library.RootPath, entry.Node.RelativePath);
+                    var fileInfo = new FileInfo(sourcePath);
+                    if (!fileInfo.Exists)
+                        continue;
+
+                    await scheduler.EnqueueAsync(
+                        itemId: entry.Node.Id,
+                        contentVersion: entry.Item.ContentVersion,
+                        operation: JobOperation.Analyze,
+                        priority: JobPriority.Background,
+                        archivePath: sourcePath,
+                        expectedLastWriteTicks: fileInfo.LastWriteTimeUtc.Ticks,
+                        expectedByteLength: fileInfo.Length,
+                        callerToken: ct);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("Failed to enqueue analysis for item {ItemId}: {Error}",
+                        entry.Node.Id, ex.GetType().Name);
+                }
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Post-scan analysis enqueue failed for library {LibraryId}: {Error}",
+                libraryId, ex.GetType().Name);
+        }
     }
 
     [HttpPost("scans/{scanRunId}/cancel")]
@@ -186,12 +313,11 @@ public sealed class AdminController : ControllerBase
         if (scanRun.Status != 1)
             return Conflict(new ApiError { Error = "not_running", Message = "Scan is not currently running." });
 
-        // Mark as cancelled — the background task checks status and exits.
-        scanRun.Status = 4; // cancelled
-        scanRun.CompletedAt = DateTimeOffset.UtcNow;
-        await _db.SaveChangesAsync(ct);
+        // Cooperatively cancel the background scan via the registry (audit defect D34).
+        // The background task's catch (OperationCanceledException) marks the run
+        // cancelled, releases the lease, and exits maintenance.
+        _scanRunRegistry.Cancel(runId);
 
-        await _maintenance.ExitMaintenanceAsync(scanRun.LibraryId);
         return NoContent();
     }
 
@@ -203,7 +329,8 @@ public sealed class AdminController : ControllerBase
 
         var scans = await _db.ScanRuns
             .Where(s => s.LibraryId == library.Id)
-            .Take(50)
+            .OrderByDescending(s => s.StartedAt)
+            .Take(20)
             .Select(s => new ScanRunDto
             {
                 Id = OpaqueId.Encode(s.Id),
@@ -216,9 +343,6 @@ public sealed class AdminController : ControllerBase
                 Error = s.SanitizedError,
             })
             .ToListAsync(ct);
-
-        // Sort on the client — SQLite doesn't support DateTimeOffset in ORDER BY
-        scans = scans.OrderByDescending(s => s.StartedAt).Take(20).ToList();
 
         return Ok(scans);
     }

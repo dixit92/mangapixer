@@ -67,7 +67,7 @@ public sealed class AuthIntegrationTests : IDisposable
     {
         var (db, userManager) = await SetupAsync();
 
-        var bootstrap = new DefaultAdminBootstrap(db, userManager, new DefaultAdminOptions(), 
+        var bootstrap = new DefaultAdminBootstrap(db, userManager, new DefaultAdminOptions(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<DefaultAdminBootstrap>.Instance);
 
         var created = await bootstrap.BootstrapAsync();

@@ -358,6 +358,18 @@ public sealed class ScanObservationEntity
     public string PathKey { get; set; } = string.Empty;
     public int Kind { get; set; } // 0=folder, 1=archive
     public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Relative path of the parent directory; empty string for root-level
+    /// entries. Replaces <see cref="ParentNodeId"/> which could not express
+    /// parentage before reconciliation (audit defect D1).
+    /// </summary>
+    public string ParentPathKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Legacy field — unused after the D1 hierarchy fix. Retained for
+    /// schema compatibility with pre-release databases.
+    /// </summary>
     public long? ParentNodeId { get; set; }
 
     public long ByteLength { get; set; }
