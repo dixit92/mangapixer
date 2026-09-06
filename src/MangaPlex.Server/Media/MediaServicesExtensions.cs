@@ -9,7 +9,8 @@ using Microsoft.Extensions.Logging;
 public static class MediaServicesExtensions
 {
     /// <summary>
-    /// Registers the media worker pool, job scheduler, and scratch workspace manager.
+    /// Registers the media worker pool, job scheduler, scratch workspace manager,
+    /// cache service, and page delivery service.
     /// </summary>
     public static IServiceCollection AddMangaPlexMedia(this IServiceCollection services, Action<WorkerPoolOptions> configure)
     {
@@ -21,6 +22,9 @@ public static class MediaServicesExtensions
             new ScratchWorkspaceManager(options.ScratchRoot, options.ScratchBudgetBytes));
         services.AddSingleton<JobScheduler>(sp =>
             new JobScheduler(options));
+        services.AddSingleton<CacheService>(sp =>
+            new CacheService(options.CacheRoot, options.CacheBudgetBytes,
+                sp.GetService<ILogger<CacheService>>()));
         services.AddSingleton<MediaWorkerPool>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<MediaWorkerPool>>();
