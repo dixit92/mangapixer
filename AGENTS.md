@@ -31,6 +31,7 @@ All verification is script-driven. Skills and CI call the same scripts.
 | Full | `pwsh ./scripts/Verify.ps1 -Configuration Release` | Before declaring a package complete |
 | Contracts | `pwsh ./scripts/Verify-Contracts.ps1` | API/DTO/migration/protocol/version changes |
 | Packaging | `pwsh ./scripts/Verify-Packaging.ps1` | P16 and release candidates |
+| Smoke | `pwsh ./scripts/Smoke-Container.ps1` | Full container HTTP smoke flow |
 | Safety review | `pwsh ./scripts/Review-Safety.ps1` | Read-only diff safety review |
 
 ### Container-based build (when host SDKs are unavailable)
@@ -48,6 +49,12 @@ docker run --rm -v "D:\dev\lp-mangaplex:/workspace" -w /workspace mcr.microsoft.
 # Angular build (requires npm ci first)
 docker run --rm -v "D:\dev\lp-mangaplex\web:/workspace/web" -w /workspace/web node:24-bookworm-slim \
     sh -c "npm ci && npm run build"
+
+# Container smoke test (when host lacks pwsh; requires Docker socket)
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+    -v "D:\dev\lp-mangaplex:/workspace" -w /workspace \
+    mcr.microsoft.com/powershell:7.5 \
+    pwsh ./scripts/Smoke-Container.ps1
 ```
 
 ### Direct .NET commands (when SDK is available)

@@ -82,6 +82,17 @@ else {
     $results.Add([PSCustomObject]@{ Stage = "win-x64 publish"; Status = "SKIPPED"; Duration = "n/a"; Error = "Not running on Windows; requires Windows runner" })
 }
 
+# Stage 4: Container smoke test (audit defect D19/D20)
+if ($dockerAvailable) {
+    Invoke-Stage "Container smoke test" {
+        & "$repoRoot/scripts/Smoke-Container.ps1" 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "Container smoke test failed" }
+    }
+}
+else {
+    $results.Add([PSCustomObject]@{ Stage = "Container smoke"; Status = "SKIPPED"; Duration = "n/a"; Error = "docker not on PATH" })
+}
+
 # Summary
 Write-Host "`n=== Verify-Packaging Summary ===" -ForegroundColor Cyan
 $results | Format-Table -AutoSize
