@@ -10,6 +10,8 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CatalogNodeDto, ReadingProgressDto } from '../../core/api/api-types';
+import { WebtoonReaderComponent } from './webtoon-reader.component';
+import { SpreadReaderComponent } from './spread-reader.component';
 
 /**
  * Paged reader component. Supports LTR/RTL navigation, zoom/fit modes,
@@ -31,6 +33,8 @@ import { CatalogNodeDto, ReadingProgressDto } from '../../core/api/api-types';
     MatToolbarModule,
     MatMenuModule,
     MatSnackBarModule,
+    WebtoonReaderComponent,
+    SpreadReaderComponent,
   ],
   template: `
     <div class="reader-container" [class.rtl]="direction() === 'rtl'">
@@ -49,32 +53,46 @@ import { CatalogNodeDto, ReadingProgressDto } from '../../core/api/api-types';
           <button mat-menu-item (click)="setFitMode('height')">Fit Height</button>
           <button mat-menu-item (click)="setFitMode('original')">Original</button>
         </mat-menu>
+        <button mat-icon-button [matMenuTriggerFor]="modeMenu">
+          <mat-icon>view_carousel</mat-icon>
+        </button>
+        <mat-menu #modeMenu="matMenu">
+          <button mat-menu-item (click)="setReaderMode('paged')">Paged</button>
+          <button mat-menu-item (click)="setReaderMode('webtoon')">Webtoon</button>
+          <button mat-menu-item (click)="setReaderMode('spread')">Spread</button>
+        </mat-menu>
       </mat-toolbar>
 
-      <div class="reader-viewport" (swipeleft)="onSwipeLeft()" (swiperight)="onSwipeRight()">
-        @if (loading()) {
-          <div class="loading">Loading page...</div>
-        } @else if (error()) {
-          <div class="error">{{ error() }}</div>
-        } @else {
-          <img
-            [src]="pageUrl()"
-            [class.fit-width]="fitMode() === 'fit'"
-            [class.fit-height]="fitMode() === 'height'"
-            [class.original]="fitMode() === 'original'"
-            alt="Page {{ currentPage() + 1 }}"
-          />
-        }
-      </div>
+      @if (readerMode() === 'webtoon') {
+        <app-webtoon-reader [itemId]="itemId()" [pageCount]="pageCount()" />
+      } @else if (readerMode() === 'spread') {
+        <app-spread-reader [itemId]="itemId()" [pageCount]="pageCount()" [direction]="direction()" />
+      } @else {
+        <div class="reader-viewport" (swipeleft)="onSwipeLeft()" (swiperight)="onSwipeRight()">
+          @if (loading()) {
+            <div class="loading">Loading page...</div>
+          } @else if (error()) {
+            <div class="error">{{ error() }}</div>
+          } @else {
+            <img
+              [src]="pageUrl()"
+              [class.fit-width]="fitMode() === 'fit'"
+              [class.fit-height]="fitMode() === 'height'"
+              [class.original]="fitMode() === 'original'"
+              alt="Page {{ currentPage() + 1 }}"
+            />
+          }
+        </div>
 
-      <div class="reader-controls">
-        <button mat-fab (click)="prevPage()" [disabled]="currentPage() === 0">
-          <mat-icon>chevron_left</mat-icon>
-        </button>
-        <button mat-fab (click)="nextPage()" [disabled]="currentPage() >= pageCount() - 1">
-          <mat-icon>chevron_right</mat-icon>
-        </button>
-      </div>
+        <div class="reader-controls">
+          <button mat-fab (click)="prevPage()" [disabled]="currentPage() === 0">
+            <mat-icon>chevron_left</mat-icon>
+          </button>
+          <button mat-fab (click)="nextPage()" [disabled]="currentPage() >= pageCount() - 1">
+            <mat-icon>chevron_right</mat-icon>
+          </button>
+        </div>
+      }
     </div>
   `,
   styles: [`
@@ -135,6 +153,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
   readonly direction = signal<'ltr' | 'rtl'>('ltr');
   readonly isFullscreen = signal(false);
   readonly pageUrl = signal<string>('');
+  readonly readerMode = signal<'paged' | 'webtoon' | 'spread'>('paged');
 
   private contentVersion = 0;
   private progressSaved = false;
@@ -220,6 +239,10 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
   setFitMode(mode: 'fit' | 'height' | 'original'): void {
     this.fitMode.set(mode);
+  }
+
+  setReaderMode(mode: 'paged' | 'webtoon' | 'spread'): void {
+    this.readerMode.set(mode);
   }
 
   onSwipeLeft(): void {
