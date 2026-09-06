@@ -12,6 +12,13 @@ if [ "$(id -u)" = "0" ]; then
             chown -R 1000:1000 "$dir" 2>/dev/null || true
         fi
     done
+    # Restrict Data Protection key directory to owner-only access.
+    # Linux has no DPAPI, so keys are stored unencrypted inside the private
+    # data root; owner-only permissions are the at-rest protection boundary
+    # (audit defect D16).
+    if [ -d "/data/keys" ]; then
+        chmod 700 /data/keys 2>/dev/null || true
+    fi
     # Drop to non-root user using gosu
     exec gosu 1000:1000 dotnet server/MangaPlex.Server.dll
 else

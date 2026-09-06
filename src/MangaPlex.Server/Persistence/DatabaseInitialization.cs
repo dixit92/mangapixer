@@ -112,6 +112,13 @@ public static class DatabaseInitialization
     /// <summary>
     /// Current application schema version. Incremented when migrations change.
     /// The startup coordinator rejects databases with a higher schema version.
+    ///
+    /// Version 2: <c>DateTimeOffset</c> columns are now stored as a comparable
+    /// <c>long</c> via <see cref="Microsoft.EntityFrameworkCore.Storage.ValueConversion.DateTimeOffsetToBinaryConverter"/>
+    /// so EF Core SQLite can translate comparisons on <c>DateTimeOffset</c>
+    /// columns (audit defect D26). Pre-release databases created under
+    /// version 1 must be recreated; <see cref="JobRecoveryService.ValidateSchemaAsync"/>
+    /// logs a clear warning when <c>user_version</c> is 1.
     /// </summary>
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 }

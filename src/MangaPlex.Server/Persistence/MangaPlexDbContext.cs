@@ -2,6 +2,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence;
 
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 /// <summary>
 /// EF Core DbContext for MangaPlex. Uses SQLite with WAL mode, foreign keys,
@@ -18,6 +19,20 @@ public sealed class MangaPlexDbContext : DbContext
 {
     public MangaPlexDbContext(DbContextOptions<MangaPlexDbContext> options) : base(options)
     {
+    }
+
+    /// <summary>
+    /// Configures model conventions. Every <see cref="DateTimeOffset"/> property
+    /// is stored as a comparable <c>long</c> (binary representation) so that
+    /// EF Core SQLite can translate <c>OrderBy</c>/<c>Where</c> comparisons on
+    /// DateTimeOffset columns server-side. Without this, queries like
+    /// <c>s.ExpiresAt &lt; now</c> throw <c>InvalidOperationException</c>
+    /// during SQL translation (audit defect D26).
+    /// </summary>
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        configurationBuilder.Properties<DateTimeOffset>()
+            .HaveConversion<DateTimeOffsetToBinaryConverter>();
     }
 
     public DbSet<LibraryEntity> Libraries => Set<LibraryEntity>();

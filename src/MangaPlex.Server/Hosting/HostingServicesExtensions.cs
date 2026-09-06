@@ -27,6 +27,7 @@ public static class HostingServicesExtensions
         services.AddScoped<ScanLeaseService>();
         services.AddScoped<LibraryMaintenanceService>();
         services.AddSingleton<LibraryScanPolicy>();
+        services.AddSingleton<ScanRunRegistry>();
         services.AddSingleton<AppRootOptions>(sp =>
         {
             var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
@@ -45,6 +46,12 @@ public static class HostingServicesExtensions
 
         // WriteCoordinator for serialized DB writes.
         services.AddScoped<WriteCoordinator>();
+
+        // JobRecoveryService — used by StartupRecoveryHostedService to recover
+        // interrupted jobs, analyses, and scratch workspaces. Was missing in
+        // the I01 wiring, which caused "No service for type JobRecoveryService"
+        // at startup (audit defect D15/D25).
+        services.AddScoped<JobRecoveryService>();
 
         // Hosted services — order matters for startup recovery, which runs
         // before the worker pool starts dispatching.

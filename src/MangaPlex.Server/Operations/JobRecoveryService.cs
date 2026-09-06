@@ -123,6 +123,8 @@ public sealed class JobRecoveryService
 
     /// <summary>
     /// Validates the database schema version. Rejects incompatible versions.
+    /// Compares against <see cref="DatabaseInitialization.CurrentSchemaVersion"/>
+    /// rather than a private constant so the two cannot drift (audit defect D15/D25).
     /// </summary>
     public async Task<SchemaValidationResult> ValidateSchemaAsync(CancellationToken ct = default)
     {
@@ -130,14 +132,23 @@ public sealed class JobRecoveryService
         if (version is null)
             return SchemaValidationResult.Failed("Database schema version not found.");
 
-        const int expectedVersion = 1; // Current schema version
+        var expectedVersion = DatabaseInitialization.CurrentSchemaVersion;
         if (version > expectedVersion)
             return SchemaValidationResult.Failed(
                 $"Database schema version {version} is newer than expected {expectedVersion}.");
 
         if (version < expectedVersion)
+        {
+            // Pre-release databases created under version 1 must be recreated
+            // because the DateTimeOffset storage format changed in version 2.
+            if (version == 1)
+                _logger?.LogWarning(
+                    "Database schema version {Found} is older than expected {Expected}. " +
+                    "Pre-release database must be recreated (DateTimeOffset storage format changed).",
+                    version, expectedVersion);
             return SchemaValidationResult.Failed(
                 $"Database schema version {version} is older than expected {expectedVersion}.");
+        }
 
         return SchemaValidationResult.Success(version.Value);
     }

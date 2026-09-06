@@ -25,11 +25,15 @@ RUN dotnet publish src/MangaPlex.MediaWorker/MangaPlex.MediaWorker.csproj -c Rel
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# Install native dependencies: libgdiplus for Magick.NET, p7zip for archive extraction,
-# ca-certificates for HTTPS, gosu for privilege dropping in entrypoint
+# Install native dependencies:
+# - libgdiplus: native backing for Magick.NET image probing/transcoding.
+#   Kept until C04 process tests confirm the worker runs without it; remove
+#   only after that evidence exists (audit defect D37).
+# - ca-certificates for HTTPS, gosu for privilege dropping in entrypoint.
+# p7zip-full was removed: SharpCompress is managed and the worker never shells
+# out to 7z (audit defect D37).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgdiplus \
-    p7zip-full \
     ca-certificates \
     gosu \
     curl \

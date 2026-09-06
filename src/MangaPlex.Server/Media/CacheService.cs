@@ -275,12 +275,39 @@ public sealed class CacheService
 
     /// <summary>
     /// Handles disk-full errors by stopping new derived work safely.
-    /// Does not corrupt the database or delete unrelated files.
+    /// Does not corrupt the database or delete unrelated files. Reserved for
+    /// real <see cref="IOException"/> disk-full paths; routine over-budget
+    /// eviction should use <see cref="EvictOverBudget"/> instead (audit defect D27).
     /// </summary>
     public void HandleDiskFull()
     {
         _logger?.LogWarning("Cache disk full — evicting least-recently-accessed entries");
         TryEvict();
+    }
+
+    /// <summary>
+    /// Routine over-budget eviction pass. Evicts least-recently-accessed
+    /// entries until usage is at or below the configured budget. Returns the
+    /// number of bytes freed. Does not log at <c>Warning</c> level — this is
+    /// the normal maintenance path, not a disk-full event (audit defect D27).
+    /// </summary>
+    public long EvictOverBudget()
+    {
+        var usageBefore = GetCurrentUsageBytes();
+        if (usageBefore <= _budgetBytes)
+            return 0;
+
+        TryEvict();
+
+        var usageAfter = GetCurrentUsageBytes();
+        var freed = usageBefore - usageAfter;
+        if (freed > 0)
+        {
+            _logger?.LogInformation(
+                "Cache over-budget eviction freed {Bytes} bytes ({Before} -> {After})",
+                freed, usageBefore, usageAfter);
+        }
+        return freed;
     }
 
     private static void TryDeleteFile(string path)

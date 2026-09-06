@@ -74,7 +74,10 @@ public sealed class MaintenanceHostedService : IHostedService, IAsyncDisposable
     {
         using var scope = _services.CreateScope();
         var cache = scope.ServiceProvider.GetRequiredService<CacheService>();
-        cache.HandleDiskFull(); // drives a bounded LRU pass when over budget
+        // Routine over-budget eviction — does not log a disk-full warning
+        // (audit defect D27). HandleDiskFull is reserved for real IOException
+        // disk-full paths.
+        cache.EvictOverBudget();
         await Task.CompletedTask;
     }
 }

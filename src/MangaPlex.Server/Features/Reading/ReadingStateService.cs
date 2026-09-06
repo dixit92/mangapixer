@@ -186,14 +186,18 @@ public sealed class ReadingStateService
     {
         var accessibleLibs = await _auth.GetAccessibleLibraryIdsAsync(userId, ct);
 
-        // SQLite doesn't support DateTimeOffset in ORDER BY, so fetch first, sort on client
-        var entries = await (
+        // DateTimeOffset is stored as a comparable long via
+        // DateTimeOffsetToBinaryConverter (see MangaPlexDbContext.ConfigureConventions),
+        // so ORDER BY is now translated server-side. The previous client-side
+        // sort workaround (audit defect D26) has been removed.
+        return await (
             from p in _db.ReadingProgress
             join n in _db.CatalogNodes on p.ItemId equals n.Id
             where p.UserId == userId
                && p.State == (int)ReadingState.InProgress
                && accessibleLibs.Contains(n.LibraryId)
                && n.Availability != (int)CatalogNodeAvailability.Tombstoned
+            orderby p.UpdatedAt descending
             select new ContinueReadingEntry
             {
                 ItemId = n.PublicId,
@@ -202,12 +206,8 @@ public sealed class ReadingStateService
                 ContentVersion = p.ContentVersion,
                 UpdatedAt = p.UpdatedAt,
             })
-            .ToListAsync(ct);
-
-        return entries
-            .OrderByDescending(e => e.UpdatedAt)
             .Take(limit)
-            .ToList();
+            .ToListAsync(ct);
     }
 
     /// <summary>
