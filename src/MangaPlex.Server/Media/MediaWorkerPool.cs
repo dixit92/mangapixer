@@ -59,18 +59,18 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     /// Dispatches a job to an available worker. If no worker is available and
     /// the pool has not reached MaxConcurrentJobs, starts a new worker.
     /// Otherwise, the job remains in the scheduler queue.
+    ///
+    /// Audit defect D12: reserve a slot BEFORE dequeuing. If no slot is
+    /// available, return without touching the queue so the job remains
+    /// pending for the next dispatch cycle. Never fail a job for lack
+    /// of a worker slot.
     /// </summary>
     public async Task DispatchAsync(CancellationToken ct = default)
     {
         if (_isShuttingDown)
             return;
 
-        // Try to dequeue a job
-        var job = _scheduler.Dequeue();
-        if (job is null)
-            return;
-
-        // Find an available worker slot
+        // Reserve a slot BEFORE dequeuing (audit defect D12)
         WorkerSlot? slot = null;
         lock (_poolLock)
         {
@@ -79,7 +79,9 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             {
                 // Start a new worker — but only if this is a reader-demand job
                 // Background analysis should not occupy both slots by default
-                if (job.Priority > JobPriority.Background || _workers.Count == 0)
+                // We don't know the priority yet, so only start a new worker
+                // if we have no workers at all. Otherwise, wait for a slot.
+                if (_workers.Count == 0)
                 {
                     slot = new WorkerSlot
                     {
@@ -93,15 +95,22 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 
         if (slot is null)
         {
-            // No available slot — re-enqueue the job
-            // Put it back by enqueuing a new completion source
-            // Actually, we should not have dequeued it. Let's handle this properly.
-            // For now, re-add to scheduler by completing with a retry indication.
-            _scheduler.FailJob(job.DedupKey,
-                new InvalidOperationException("No available worker slot"));
+            // No available slot — leave the job in the queue (D12)
             return;
         }
 
+        // Now that we have a slot, dequeue a job
+        var job = _scheduler.Dequeue();
+        if (job is null)
+        {
+            // No job to process — release the slot reservation
+            // (slot.IsBusy is still false, so no cleanup needed)
+            return;
+        }
+
+        // If we need a new worker for a background job but only have one,
+        // and this is a background job, we should not start a second worker.
+        // The slot we reserved is sufficient.
         await ProcessJobAsync(slot, job, ct);
     }
 
