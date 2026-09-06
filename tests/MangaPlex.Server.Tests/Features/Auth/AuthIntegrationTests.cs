@@ -63,29 +63,40 @@ public sealed class AuthIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task DefaultAdminBootstrap_CreatesAdmin_WhenNoUsersExist()
+    public async Task FirstRunSetup_RequiredOnFreshDb_WithNoDefaultCredential()
     {
         var (db, userManager) = await SetupAsync();
+        var setup = new FirstRunSetupService(db, userManager);
 
-        var bootstrap = new DefaultAdminBootstrap(db, userManager, new DefaultAdminOptions(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<DefaultAdminBootstrap>.Instance);
-
-        var created = await bootstrap.BootstrapAsync();
-        Assert.True(created);
-
-        var admin = await db.Users.FirstOrDefaultAsync(u => u.UserName == "admin");
-        Assert.NotNull(admin);
-        Assert.True(admin!.IsAdmin);
-        Assert.True(admin.ForcePasswordChange);
-        Assert.True(admin.IsActive);
+        // Fresh instance: setup is required and no user (least of all a known
+        // default "admin") exists (audit finding F2 — no default credential).
+        Assert.True(await setup.IsSetupRequiredAsync());
+        Assert.Equal(0, await db.Users.CountAsync());
+        Assert.Null(await db.Users.FirstOrDefaultAsync(u => u.UserName == "admin"));
     }
 
     [Fact]
-    public async Task DefaultAdminBootstrap_DoesNotCreateAdmin_WhenUsersExist()
+    public async Task FirstRunSetup_CreatesFirstAdmin_WhenNoUsersExist()
+    {
+        var (db, userManager) = await SetupAsync();
+        var setup = new FirstRunSetupService(db, userManager);
+
+        var result = await setup.CreateFirstAdminAsync("owner", "correct horse battery");
+        Assert.Equal(FirstAdminStatus.Created, result.Status);
+
+        var admin = await db.Users.FirstOrDefaultAsync(u => u.UserName == "owner");
+        Assert.NotNull(admin);
+        Assert.True(admin!.IsAdmin);
+        Assert.False(admin.ForcePasswordChange); // user chose the password; no forced change
+        Assert.True(admin.IsActive);
+        Assert.False(await setup.IsSetupRequiredAsync());
+    }
+
+    [Fact]
+    public async Task FirstRunSetup_RejectedWithConflict_WhenUsersExist()
     {
         var (db, userManager) = await SetupAsync();
 
-        // Create a user first
         var existingUser = new UserEntity
         {
             PublicId = "u-existing",
@@ -98,14 +109,25 @@ public sealed class AuthIntegrationTests : IDisposable
         db.Users.Add(existingUser);
         await db.SaveChangesAsync();
 
-        var bootstrap = new DefaultAdminBootstrap(db, userManager, new DefaultAdminOptions(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<DefaultAdminBootstrap>.Instance);
+        var setup = new FirstRunSetupService(db, userManager);
+        var result = await setup.CreateFirstAdminAsync("owner", "correct horse battery");
 
-        var created = await bootstrap.BootstrapAsync();
-        Assert.False(created);
+        Assert.Equal(FirstAdminStatus.AlreadyInitialized, result.Status);
+        Assert.Equal(0, await db.Users.CountAsync(u => u.UserName == "owner"));
+        Assert.False(await setup.IsSetupRequiredAsync());
+    }
 
-        var adminCount = await db.Users.CountAsync(u => u.UserName == "admin");
-        Assert.Equal(0, adminCount);
+    [Fact]
+    public async Task FirstRunSetup_RejectsWeakPassword()
+    {
+        var (db, userManager) = await SetupAsync();
+        var setup = new FirstRunSetupService(db, userManager);
+
+        var result = await setup.CreateFirstAdminAsync("owner", "short");
+
+        Assert.Equal(FirstAdminStatus.Invalid, result.Status);
+        Assert.Equal(0, await db.Users.CountAsync());
+        Assert.True(await setup.IsSetupRequiredAsync());
     }
 
     [Fact]

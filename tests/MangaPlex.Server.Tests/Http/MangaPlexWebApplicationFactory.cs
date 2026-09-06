@@ -65,23 +65,40 @@ public sealed class MangaPlexWebApplicationFactory : WebApplicationFactory<Progr
     }
 
     /// <summary>
-    /// Logs in as the default admin and returns an HttpClient with the auth
-    /// cookie and CSRF header set. The CSRF token is fetched AFTER login
-    /// because antiforgery tokens are tied to the user identity.
+    /// Ensures the admin account exists via first-run setup (no default
+    /// credential ships — audit finding F2), then returns an HttpClient with the
+    /// auth cookie and CSRF header set. On a fresh DB the setup call both creates
+    /// the admin and signs in; if a user already exists it falls back to login.
+    /// The CSRF token is fetched AFTER sign-in because antiforgery tokens are
+    /// tied to the user identity.
     /// </summary>
     public async Task<HttpClient> LoginAsAdminAsync(string password = "MangaPlex-Change-Me-Now!")
     {
         var client = CreateClient();
 
-        // Login first — login is [IgnoreAntiforgeryToken] so no CSRF header needed.
-        var loginResponse = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest
+        // Setup and login are both [IgnoreAntiforgeryToken] so no CSRF header needed.
+        var setupResponse = await client.PostAsJsonAsync("/api/v1/auth/setup", new SetupRequest
         {
             Username = "admin",
             Password = password,
         });
-        loginResponse.EnsureSuccessStatusCode();
 
-        // Get CSRF token AFTER login — the token is tied to the authenticated identity.
+        if (setupResponse.StatusCode == HttpStatusCode.Conflict)
+        {
+            // Admin already created by an earlier call — sign in normally.
+            var loginResponse = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest
+            {
+                Username = "admin",
+                Password = password,
+            });
+            loginResponse.EnsureSuccessStatusCode();
+        }
+        else
+        {
+            setupResponse.EnsureSuccessStatusCode();
+        }
+
+        // Get CSRF token AFTER sign-in — the token is tied to the authenticated identity.
         var csrfResponse = await client.GetAsync("/api/v1/auth/csrf");
         csrfResponse.EnsureSuccessStatusCode();
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();

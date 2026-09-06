@@ -58,6 +58,10 @@ public sealed class CsrfEnforcementTests : IDisposable
     [Fact]
     public async Task LoginWithoutCsrfHeader_StillSucceeds()
     {
+        // Seed the admin via first-run setup, then verify login itself needs no
+        // CSRF header ([IgnoreAntiforgeryToken]).
+        await _factory.LoginAsAdminAsync();
+
         var client = _factory.CreateClient();
         var response = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest
         {

@@ -1,46 +1,37 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 
+import { CsrfTokenService } from './csrf-token.service';
+
 /**
- * XSRF interceptor. Reads the XSRF token from the cookie set by the server
- * and adds it as a header to all mutating requests.
+ * Attaches the antiforgery request token to mutating requests as the
+ * `X-MangaPlex-Csrf` header — the header name the server validates via its
+ * global `AutoValidateAntiforgeryTokenAttribute` (see Program.cs).
  *
- * The token cookie is httpOnly-readable only by the server; the XSRF token
- * cookie is readable by JavaScript for the explicit purpose of sending it
- * back as a header. This is the double-submit cookie pattern.
+ * The token comes from {@link CsrfTokenService} (in memory), NOT from a cookie:
+ * the antiforgery cookie is httpOnly and unreadable to JS by design. The token
+ * is sent back as a header while the browser returns the cookie automatically,
+ * completing the double-submit pair.
+ *
+ * Safe methods (GET/HEAD/OPTIONS) are never modified. If no token has been
+ * fetched yet the request proceeds without the header; the server rejects it
+ * and the caller surfaces the error. Fixes audit finding A0 (the previous
+ * interceptor read `document.cookie` and sent the wrong header name).
  */
 export const xsrfInterceptor: HttpInterceptorFn = (req, next) => {
-  // Only add XSRF token to mutating requests
   const method = req.method.toUpperCase();
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
     return next(req);
   }
 
-  // Read the XSRF token from the cookie
-  const token = getXsrfTokenFromCookie();
-  if (token) {
-    const cloned = req.clone({
-      setHeaders: { 'X-XSRF-TOKEN': token },
-    });
-    return next(cloned);
+  const token = inject(CsrfTokenService).getToken();
+  if (!token) {
+    return next(req);
   }
 
-  return next(req);
+  return next(
+    req.clone({
+      setHeaders: { 'X-MangaPlex-Csrf': token },
+    }),
+  );
 };
-
-/**
- * Reads the XSRF token from the cookie named 'mangaplex-xsrf'.
- * This cookie is deliberately NOT httpOnly so client JS can read it.
- */
-function getXsrfTokenFromCookie(): string | null {
-  if (typeof document === 'undefined') return null;
-
-  const cookies = document.cookie.split(';');
-  for (const cookie of cookies) {
-    const [name, value] = cookie.trim().split('=');
-    if (name === 'mangaplex-xsrf') {
-      return decodeURIComponent(value);
-    }
-  }
-  return null;
-}

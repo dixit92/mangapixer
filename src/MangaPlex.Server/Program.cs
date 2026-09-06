@@ -167,8 +167,12 @@ public sealed partial class Program
                     db.Database.EnsureCreated();
                     DatabaseInitialization.ConfigureDatabaseAsync(db).GetAwaiter().GetResult();
 
-                    var bootstrap = scope.ServiceProvider.GetRequiredService<DefaultAdminBootstrap>();
-                    bootstrap.BootstrapAsync().GetAwaiter().GetResult();
+                    // No default credential is created (audit finding F2). On a
+                    // fresh instance the first admin is created by the user via
+                    // POST /api/v1/auth/setup; just log that setup is pending.
+                    var setup = scope.ServiceProvider.GetRequiredService<FirstRunSetupService>();
+                    if (setup.IsSetupRequiredAsync().GetAwaiter().GetResult())
+                        Log.Logger.Information("First-run setup required: no users exist. Create the admin via the setup screen.");
                 }
                 catch (Exception ex)
                 {

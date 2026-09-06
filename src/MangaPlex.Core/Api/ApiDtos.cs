@@ -244,6 +244,24 @@ public sealed record CsrfTokenDto
 }
 
 /// <summary>
+/// Whether the instance still needs first-run setup (no users exist yet).
+/// </summary>
+public sealed record SetupStatusDto
+{
+    public required bool SetupRequired { get; init; }
+}
+
+/// <summary>
+/// First-run setup request: the admin username and password chosen by the user.
+/// Accepted only while no user exists (audit finding F2 — no default credential).
+/// </summary>
+public sealed record SetupRequest
+{
+    public required string Username { get; init; }
+    public required string Password { get; init; }
+}
+
+/// <summary>
 /// API DTO for login request.
 /// </summary>
 public sealed record LoginRequest

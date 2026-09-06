@@ -24,6 +24,7 @@ public sealed class AuthController : ControllerBase
     private readonly SessionService _sessionService;
     private readonly LoginRateLimiter _rateLimiter;
     private readonly LastAdminProtectionService _lastAdminProtection;
+    private readonly FirstRunSetupService _setup;
     private readonly IAntiforgery _antiforgery;
     private readonly MangaPlexDbContext _db;
     private readonly ILogger<AuthController> _logger;
@@ -34,6 +35,7 @@ public sealed class AuthController : ControllerBase
         SessionService sessionService,
         LoginRateLimiter rateLimiter,
         LastAdminProtectionService lastAdminProtection,
+        FirstRunSetupService setup,
         IAntiforgery antiforgery,
         MangaPlexDbContext db,
         ILogger<AuthController> logger)
@@ -43,9 +45,55 @@ public sealed class AuthController : ControllerBase
         _sessionService = sessionService;
         _rateLimiter = rateLimiter;
         _lastAdminProtection = lastAdminProtection;
+        _setup = setup;
         _antiforgery = antiforgery;
         _db = db;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Reports whether first-run setup is required (no users exist yet).
+    /// Anonymous and safe so the SPA can decide between /setup and /login
+    /// before any credential exists.
+    /// </summary>
+    [HttpGet("setup-status")]
+    [AllowAnonymous]
+    [IgnoreAntiforgeryToken]
+    public async Task<IActionResult> GetSetupStatus(CancellationToken ct)
+    {
+        return Ok(new SetupStatusDto { SetupRequired = await _setup.IsSetupRequiredAsync(ct) });
+    }
+
+    /// <summary>
+    /// Creates the first admin account on a fresh instance and signs it in.
+    /// Succeeds only while no user exists; returns 409 afterwards so it cannot
+    /// be reused to create a second admin (audit finding F2).
+    /// </summary>
+    [HttpPost("setup")]
+    [AllowAnonymous]
+    [IgnoreAntiforgeryToken]
+    public async Task<IActionResult> Setup([FromBody] SetupRequest request, CancellationToken ct)
+    {
+        var result = await _setup.CreateFirstAdminAsync(request.Username, request.Password, ct);
+        switch (result.Status)
+        {
+            case FirstAdminStatus.AlreadyInitialized:
+                return Conflict(new ApiError { Error = "setup_already_completed", Message = result.Error ?? "Setup has already been completed." });
+            case FirstAdminStatus.Invalid:
+                return BadRequest(new ApiError { Error = "invalid_request", Message = result.Error ?? "Invalid setup request." });
+        }
+
+        var admin = result.User!;
+        await SignInUserAsync(admin, ct);
+        _logger.LogInformation("First admin {UserName} signed in after setup", admin.UserName);
+
+        return Ok(new AuthUserDto
+        {
+            Id = admin.PublicId,
+            Username = admin.UserName ?? "",
+            Role = "admin",
+            IsAdmin = true,
+        });
     }
 
     [HttpGet("csrf")]
@@ -105,28 +153,7 @@ public sealed class AuthController : ControllerBase
         user.LastLoginAt = DateTimeOffset.UtcNow;
         await _userManager.UpdateAsync(user);
 
-        // Create session
-        var session = await _sessionService.CreateSessionAsync(user, ct);
-
-        // Sign in using cookie auth with the session ticket ID in properties
-        var claims = new List<System.Security.Claims.Claim>
-        {
-            new(System.Security.Claims.ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(System.Security.Claims.ClaimTypes.Name, user.UserName ?? ""),
-            new(System.Security.Claims.ClaimTypes.Role, user.IsAdmin ? "admin" : "reader"),
-        };
-        var identity = new System.Security.Claims.ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-        var principal = new System.Security.Claims.ClaimsPrincipal(identity);
-
-        await HttpContext.SignInAsync(
-            CookieAuthenticationDefaults.AuthenticationScheme,
-            principal,
-            new Microsoft.AspNetCore.Authentication.AuthenticationProperties
-            {
-                IsPersistent = true,
-                ExpiresUtc = session.ExpiresAt,
-                Items = { { ".MangaPlex.ticket", session.TicketId } },
-            });
+        await SignInUserAsync(user, ct);
 
         _logger.LogInformation("User {UserName} logged in successfully", request.Username);
 
@@ -213,7 +240,36 @@ public sealed class AuthController : ControllerBase
         if (user is null)
             return Unauthorized();
 
-        return Ok(new { required = user.ForcePasswordChange, message = user.ForcePasswordChange ? DefaultAdminDefaults.ForcePasswordChangeMessage : null });
+        return Ok(new { required = user.ForcePasswordChange, message = user.ForcePasswordChange ? FirstRunSetupService.ForcePasswordChangeMessage : null });
+    }
+
+    /// <summary>
+    /// Issues a server session and signs the user in via the auth cookie,
+    /// storing the session ticket in the auth properties. Shared by login and
+    /// first-run setup.
+    /// </summary>
+    private async Task SignInUserAsync(UserEntity user, CancellationToken ct)
+    {
+        var session = await _sessionService.CreateSessionAsync(user, ct);
+
+        var claims = new List<System.Security.Claims.Claim>
+        {
+            new(System.Security.Claims.ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(System.Security.Claims.ClaimTypes.Name, user.UserName ?? ""),
+            new(System.Security.Claims.ClaimTypes.Role, user.IsAdmin ? "admin" : "reader"),
+        };
+        var identity = new System.Security.Claims.ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var principal = new System.Security.Claims.ClaimsPrincipal(identity);
+
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            principal,
+            new Microsoft.AspNetCore.Authentication.AuthenticationProperties
+            {
+                IsPersistent = true,
+                ExpiresUtc = session.ExpiresAt,
+                Items = { { ".MangaPlex.ticket", session.TicketId } },
+            });
     }
 
     private async Task<UserEntity?> GetCurrentUserAsync(CancellationToken ct)

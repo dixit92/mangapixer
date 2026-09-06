@@ -52,8 +52,22 @@ public sealed class AuthHttpTests : IDisposable
     }
 
     [Fact]
-    public async Task Login_WithDefaultAdmin_ReturnsOk()
+    public async Task SetupStatus_OnFreshInstance_ReportsSetupRequired()
     {
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/api/v1/auth/setup-status");
+        response.EnsureSuccessStatusCode();
+
+        var status = await response.Content.ReadFromJsonAsync<SetupStatusDto>();
+        Assert.NotNull(status);
+        Assert.True(status!.SetupRequired);
+    }
+
+    [Fact]
+    public async Task NoDefaultCredential_LoginFails_OnFreshInstance()
+    {
+        // Audit finding F2: a fresh instance ships no default credential, so the
+        // former default admin cannot sign in before the user runs setup.
         var client = _factory.CreateClient();
         var response = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest
         {
@@ -61,11 +75,52 @@ public sealed class AuthHttpTests : IDisposable
             Password = "MangaPlex-Change-Me-Now!",
         });
 
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Setup_CreatesFirstAdmin_AndSignsIn()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/v1/auth/setup", new SetupRequest
+        {
+            Username = "admin",
+            Password = "ChosenPassword123!",
+        });
+
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var user = await response.Content.ReadFromJsonAsync<AuthUserDto>();
         Assert.NotNull(user);
         Assert.Equal("admin", user!.Username);
         Assert.True(user.IsAdmin);
+
+        // Setup already signed the client in — /auth/me works without a login.
+        var me = await client.GetAsync("/api/v1/auth/me");
+        me.EnsureSuccessStatusCode();
+
+        // Setup is now complete and cannot be reused.
+        var status = await (await client.GetAsync("/api/v1/auth/setup-status"))
+            .Content.ReadFromJsonAsync<SetupStatusDto>();
+        Assert.False(status!.SetupRequired);
+    }
+
+    [Fact]
+    public async Task Setup_Rejected_OnceUserExists_Returns409()
+    {
+        var client = _factory.CreateClient();
+        var first = await client.PostAsJsonAsync("/api/v1/auth/setup", new SetupRequest
+        {
+            Username = "admin",
+            Password = "ChosenPassword123!",
+        });
+        first.EnsureSuccessStatusCode();
+
+        var second = await _factory.CreateClient().PostAsJsonAsync("/api/v1/auth/setup", new SetupRequest
+        {
+            Username = "intruder",
+            Password = "AnotherPassword123!",
+        });
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
     }
 
     [Fact]
@@ -102,17 +157,11 @@ public sealed class AuthHttpTests : IDisposable
     }
 
     [Fact]
-    public async Task Libraries_WithoutChangedPassword_Returns401()
+    public async Task Libraries_AfterSetup_Returns200Empty()
     {
+        // The first admin created via setup chose its own password, so there is
+        // no forced password change gating access (audit finding F2).
         var client = await _factory.LoginAsAdminAsync();
-        var response = await client.GetAsync("/api/v1/libraries");
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Libraries_AfterPasswordChange_Returns200Empty()
-    {
-        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
         var response = await client.GetAsync("/api/v1/libraries");
         response.EnsureSuccessStatusCode();
 

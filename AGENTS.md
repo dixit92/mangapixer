@@ -16,6 +16,7 @@ The Angular package name is `com.lifepixer.mangaplex.web`.
 - **No Git remote.** Do not configure a remote, push, or create commits by default.
 - **No Gradle.** The backend build graph is .NET SDK/MSBuild. The frontend build graph is npm + Angular CLI. PowerShell 7 scripts provide orchestration.
 - **No personal data in tracked files.** No real collection paths, credentials, user state, or machine-specific configuration.
+- **No default credentials.** The server must never ship a known username/password. A fresh instance starts with zero users; the first admin is created only by the user via `POST /api/v1/auth/setup` (guarded by the first-run setup screen) and that endpoint refuses once any user exists.
 - **`.devin/config.local.json` is ignored.** Never inspect or publish its contents.
 - **No host SDK installation.** Use container-based builds if host .NET/Node SDKs are unavailable.
 - **Wiring is part of the deliverable.** A service is not done until it is registered in DI, reachable (controller route or hosted service), and covered by at least one test through that public surface (`WebApplicationFactory`, spawned worker process, or Playwright). Service-level tests alone do not satisfy a package's "Done when". See plan section 12.2 for why.

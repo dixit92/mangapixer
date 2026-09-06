@@ -108,13 +108,10 @@ public static class AuthServicesExtensions
             config?.GetSection("MangaPlex:Security:RateLimit").Bind(options);
             return options;
         });
-        services.Configure<DefaultAdminOptions>(options =>
-        {
-            options.UserName = DefaultAdminDefaults.DefaultUserName;
-            options.Password = DefaultAdminDefaults.DefaultPassword;
-        });
-        services.AddScoped<DefaultAdminBootstrap>();
-        services.AddScoped(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DefaultAdminOptions>>().Value);
+        // First-run setup. No default credential is created at startup
+        // (audit finding F2); the first admin is created only via
+        // POST /api/v1/auth/setup while no user exists.
+        services.AddScoped<FirstRunSetupService>();
 
         // Register authorization handlers
         services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, MangaPlexAuthorizationHandler>();

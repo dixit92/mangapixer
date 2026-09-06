@@ -113,6 +113,15 @@ export interface CsrfTokenDto {
   token: string;
 }
 
+export interface SetupStatusDto {
+  setupRequired: boolean;
+}
+
+export interface SetupRequest {
+  username: string;
+  password: string;
+}
+
 export interface LoginRequest {
   username: string;
   password: string;

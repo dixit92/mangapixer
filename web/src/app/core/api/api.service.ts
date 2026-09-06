@@ -22,6 +22,8 @@ import {
   ScanRunDto,
   ScanTriggeredDto,
   SearchResultsDto,
+  SetupRequest,
+  SetupStatusDto,
   UpdateLibraryRequest,
   UpdateProgressRequest,
   UpdateUserRequest,
@@ -42,6 +44,14 @@ export class ApiService {
 
   getCsrfToken(): Observable<CsrfTokenDto> {
     return this.get<CsrfTokenDto>('/auth/csrf');
+  }
+
+  getSetupStatus(): Observable<SetupStatusDto> {
+    return this.get<SetupStatusDto>('/auth/setup-status');
+  }
+
+  setup(request: SetupRequest): Observable<AuthUserDto> {
+    return this.post<AuthUserDto>('/auth/setup', request);
   }
 
   login(request: LoginRequest): Observable<AuthUserDto> {
