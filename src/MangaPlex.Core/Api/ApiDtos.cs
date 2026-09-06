@@ -279,6 +279,31 @@ public sealed record ChangePasswordRequest
     public required string NewPassword { get; init; }
 }
 
+/// <summary>
+/// One browsable directory entry under the media browse root. Admin-only.
+/// </summary>
+public sealed record DirectoryEntryDto
+{
+    public required string Name { get; init; }
+    public required string Path { get; init; }
+    public required bool HasChildren { get; init; }
+}
+
+/// <summary>
+/// A directory listing confined to the configured media browse root, used by the
+/// admin library-registration path picker. When <see cref="Available"/> is false
+/// no browse root is configured/accessible and the admin must type a path.
+/// Absolute paths are returned only to admins and only within the browse root.
+/// </summary>
+public sealed record DirectoryListingDto
+{
+    public required bool Available { get; init; }
+    public string? Root { get; init; }
+    public string? Current { get; init; }
+    public string? Parent { get; init; }
+    public IReadOnlyList<DirectoryEntryDto> Entries { get; init; } = [];
+}
+
 // --- Admin DTOs ---
 
 /// <summary>

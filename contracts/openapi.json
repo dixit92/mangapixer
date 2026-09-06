@@ -818,6 +818,27 @@
         }
       }
     },
+    "/api/v1/admin/libraries/browse": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/libraries": {
       "post": {
         "tags": [

@@ -13,6 +13,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/api/api.service';
 import {
   AdminUserDto,
+  DirectoryListingDto,
   LibraryDto,
   RegisterLibraryRequest,
   CreateUserRequest,
@@ -77,9 +78,62 @@ import {
           <mat-label>Root Path (server-side mount)</mat-label>
           <input matInput [(ngModel)]="newLibPath" placeholder="/media/library1">
         </mat-form-field>
+        <button mat-stroked-button type="button" class="browse-btn" (click)="toggleBrowser()">
+          <mat-icon>folder_open</mat-icon> {{ browserOpen() ? 'Hide browser' : 'Browse…' }}
+        </button>
         <button mat-raised-button color="primary" (click)="registerLibrary()" [disabled]="!newLibName() || !newLibPath()">
           Register
         </button>
+
+        @if (browserOpen()) {
+          <div class="browser">
+            @if (browseLoading()) {
+              <p>Loading…</p>
+            } @else if (listing() && !listing()!.available) {
+              <p class="browser-hint">
+                No media browse root is configured or accessible on the server.
+                Mount your media read-only (e.g. at <code>/media</code>) or set
+                <code>MangaPlex:Storage:MediaRoot</code>, then reload — or type the
+                path above directly.
+              </p>
+            } @else if (listing()) {
+              <div class="browser-bar">
+                <button mat-icon-button type="button" (click)="browseUp()"
+                        [disabled]="listing()!.parent === null" aria-label="Up one folder">
+                  <mat-icon>arrow_upward</mat-icon>
+                </button>
+                <span class="browser-path" [title]="listing()!.current || ''">{{ listing()!.current }}</span>
+                <button mat-flat-button color="primary" type="button" (click)="useCurrentFolder()">
+                  Use this folder
+                </button>
+              </div>
+              @if (listing()!.entries.length === 0) {
+                <p class="browser-hint">No subfolders here.</p>
+              } @else {
+                <mat-list class="browser-list">
+                  @for (entry of listing()!.entries; track entry.path) {
+                    <mat-list-item>
+                      <mat-icon matListItemIcon>folder</mat-icon>
+                      <div matListItemTitle class="browser-entry"
+                           (click)="entry.hasChildren ? browseInto(entry.path) : useFolder(entry.path)">
+                        {{ entry.name }}
+                      </div>
+                      <span matListItemMeta class="browser-actions">
+                        <button mat-button type="button" (click)="useFolder(entry.path)">Select</button>
+                        @if (entry.hasChildren) {
+                          <button mat-icon-button type="button"
+                                  (click)="browseInto(entry.path)" aria-label="Open folder">
+                            <mat-icon>chevron_right</mat-icon>
+                          </button>
+                        }
+                      </span>
+                    </mat-list-item>
+                  }
+                </mat-list>
+              }
+            }
+          </div>
+        }
       </mat-card-content>
     </mat-card>
 
@@ -133,6 +187,32 @@ import {
     mat-form-field { margin-right: 12px; width: 200px; }
     mat-divider { margin: 16px 0; }
     h4 { margin: 8px 0; }
+    .browse-btn { margin-right: 12px; }
+    .browser {
+      margin-top: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 8px 12px;
+      max-width: 640px;
+    }
+    .browser-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .browser-path {
+      flex: 1;
+      font-family: monospace;
+      font-size: 13px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      opacity: 0.85;
+    }
+    .browser-hint { font-size: 13px; opacity: 0.8; }
+    .browser-list { max-height: 260px; overflow-y: auto; }
+    .browser-entry { cursor: pointer; }
+    .browser-actions { display: inline-flex; align-items: center; gap: 4px; }
   `],
 })
 export class AdminComponent implements OnInit {
@@ -146,6 +226,12 @@ export class AdminComponent implements OnInit {
 
   readonly newLibName = signal('');
   readonly newLibPath = signal('');
+
+  // Directory browser state for the library-registration path picker.
+  readonly browserOpen = signal(false);
+  readonly browseLoading = signal(false);
+  readonly listing = signal<DirectoryListingDto | null>(null);
+
   readonly newUsername = signal('');
   readonly newUserPassword = signal('');
   readonly newUserIsAdmin = signal(false);
@@ -188,6 +274,48 @@ export class AdminComponent implements OnInit {
         this.snackBar.open(`Library "${lib.name}" registered`, 'Close', { duration: 3000 });
       },
       error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 5000 }),
+    });
+  }
+
+  toggleBrowser(): void {
+    const opening = !this.browserOpen();
+    this.browserOpen.set(opening);
+    if (opening && this.listing() === null) {
+      // Start at the current typed path if any, else the browse root.
+      this.load(this.newLibPath() || undefined);
+    }
+  }
+
+  browseInto(path: string): void {
+    this.load(path);
+  }
+
+  browseUp(): void {
+    const parent = this.listing()?.parent;
+    if (parent) this.load(parent);
+  }
+
+  useFolder(path: string): void {
+    this.newLibPath.set(path);
+    this.browserOpen.set(false);
+  }
+
+  useCurrentFolder(): void {
+    const current = this.listing()?.current;
+    if (current) this.useFolder(current);
+  }
+
+  private load(path?: string): void {
+    this.browseLoading.set(true);
+    this.api.browseLibraryPaths(path).subscribe({
+      next: (listing) => {
+        this.listing.set(listing);
+        this.browseLoading.set(false);
+      },
+      error: (err) => {
+        this.browseLoading.set(false);
+        this.snackBar.open(`Browse failed: ${err.message}`, 'Close', { duration: 5000 });
+      },
     });
   }
 

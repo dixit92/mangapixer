@@ -11,6 +11,7 @@ import {
   ChangePasswordRequest,
   CreateUserRequest,
   CsrfTokenDto,
+  DirectoryListingDto,
   ItemManifest,
   ItemReadiness,
   LibraryDto,
@@ -135,6 +136,12 @@ export class ApiService {
 
   registerLibrary(request: RegisterLibraryRequest): Observable<LibraryDto> {
     return this.post<LibraryDto>('/admin/libraries', request);
+  }
+
+  browseLibraryPaths(path?: string): Observable<DirectoryListingDto> {
+    let params = new HttpParams();
+    if (path) params = params.set('path', path);
+    return this.get<DirectoryListingDto>('/admin/libraries/browse', params);
   }
 
   getLibrary(id: string): Observable<LibraryDto> {

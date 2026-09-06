@@ -26,6 +26,7 @@ using System.Security.Cryptography;
 public sealed class AdminController : ControllerBase
 {
     private readonly LibraryRegistrationService _registration;
+    private readonly FilesystemBrowseService _browse;
     private readonly ScanLeaseService _leaseService;
     private readonly LibraryMaintenanceService _maintenance;
     private readonly LibraryScanPolicy _scanPolicy;
@@ -41,6 +42,7 @@ public sealed class AdminController : ControllerBase
 
     public AdminController(
         LibraryRegistrationService registration,
+        FilesystemBrowseService browse,
         ScanLeaseService leaseService,
         LibraryMaintenanceService maintenance,
         LibraryScanPolicy scanPolicy,
@@ -55,6 +57,7 @@ public sealed class AdminController : ControllerBase
         IServiceScopeFactory scopeFactory)
     {
         _registration = registration;
+        _browse = browse;
         _leaseService = leaseService;
         _maintenance = maintenance;
         _scanPolicy = scanPolicy;
@@ -70,6 +73,18 @@ public sealed class AdminController : ControllerBase
     }
 
     // --- Libraries ---
+
+    /// <summary>
+    /// Lists directories under the configured media browse root so an admin can
+    /// pick a library root instead of typing a server-side path. Confined to the
+    /// browse root (traversal-proof); directories only. Admin-only via the
+    /// controller policy.
+    /// </summary>
+    [HttpGet("libraries/browse")]
+    public IActionResult BrowseLibraryPaths([FromQuery] string? path)
+    {
+        return Ok(_browse.Browse(path));
+    }
 
     [HttpPost("libraries")]
     public async Task<IActionResult> RegisterLibrary([FromBody] RegisterLibraryRequest request, CancellationToken ct)

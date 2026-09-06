@@ -40,6 +40,19 @@ public static class HostingServicesExtensions
         });
         services.AddScoped<IdentityRelinkService>();
 
+        // Admin directory browser for the library-registration path picker.
+        // Confined to the configured media browse root (default /media).
+        services.AddSingleton<MediaBrowseOptions>(sp =>
+        {
+            var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var configured = config["MangaPlex:Storage:MediaRoot"];
+            return new MediaBrowseOptions
+            {
+                Root = string.IsNullOrWhiteSpace(configured) ? "/media" : configured,
+            };
+        });
+        services.AddScoped<FilesystemBrowseService>();
+
         // Page delivery depends on DbContext + CacheService + JobScheduler,
         // all of which are registered by AddMangaPlexAuth/AddMangaPlexMedia.
         services.AddScoped<PageDeliveryService>();

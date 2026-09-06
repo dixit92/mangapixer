@@ -132,6 +132,20 @@ export interface ChangePasswordRequest {
   newPassword: string;
 }
 
+export interface DirectoryEntryDto {
+  name: string;
+  path: string;
+  hasChildren: boolean;
+}
+
+export interface DirectoryListingDto {
+  available: boolean;
+  root: string | null;
+  current: string | null;
+  parent: string | null;
+  entries: DirectoryEntryDto[];
+}
+
 // --- Admin DTOs ---
 
 export interface RegisterLibraryRequest {
