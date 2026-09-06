@@ -1,6 +1,7 @@
 # MangaPlex production Dockerfile
 # Multi-stage build: Angular SPA + .NET server + MediaWorker
 # Uses official Debian-based .NET images (no Alpine/musl in release one).
+# Produces a non-root, read-only-media container with bounded logging.
 
 # --- Stage 1: Build Angular SPA ---
 FROM node:24-bookworm-slim AS web-build
@@ -24,9 +25,10 @@ RUN dotnet publish src/MangaPlex.MediaWorker/MangaPlex.MediaWorker.csproj -c Rel
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# Install native dependencies for Magick.NET (libgdiplus, etc.)
+# Install native dependencies: libgdiplus for Magick.NET, p7zip for archive extraction, ca-certificates for HTTPS
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgdiplus \
+    p7zip-full \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -43,6 +45,7 @@ USER mangaplex
 
 ENV ASPNETCORE_URLS=http://+:8080
 ENV DOTNET_RUNNING_IN_CONTAINER=true
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=true
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

@@ -1,18 +1,20 @@
 # MangaPlex production Compose file (template)
 # Real library mounts and app-data paths are supplied through ignored local overrides.
 # No mutable 'latest' tag until a stable release policy is approved.
+# Loopback-only publication by default; reverse proxies handle external access.
 
 services:
   mangaplex:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    image: mangaplex:${MANGAPLEX_VERSION:-0.1.0-dev.0}
+    image: mangaplex:${MANGAPLEX_VERSION:-0.1.0-dev.10}
     ports:
       - "127.0.0.1:8080:8080"
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       DOTNET_RUNNING_IN_CONTAINER: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
       MangaPlex__Storage__DataRoot: "/data"
       MangaPlex__Storage__CacheRoot: "/cache"
       MangaPlex__Storage__ScratchRoot: "/scratch"
@@ -21,6 +23,7 @@ services:
       - mangaplex-cache:/cache
       - mangaplex-scratch:/scratch
       # Media mounts are supplied through compose.override.yaml (ignored)
+      # Source media is mounted read-only to enforce the read-only invariant
     restart: unless-stopped
     logging:
       driver: local
@@ -32,6 +35,11 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    labels:
+      org.opencontainers.image.title: "MangaPlex"
+      org.opencontainers.image.description: "Folder-native comic/manga server and Angular web reader"
+      org.opencontainers.image.version: "${MANGAPLEX_VERSION:-0.1.0-dev.10}"
+      org.opencontainers.image.licenses: "proprietary"
 
 volumes:
   mangaplex-data:
