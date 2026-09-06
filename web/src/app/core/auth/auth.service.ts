@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { Observable, tap, BehaviorSubject } from 'rxjs';
+import { Observable, tap, catchError, of } from 'rxjs';
 
 import { ApiService } from '../api/api.service';
 import { AuthUserDto, LoginRequest, ChangePasswordRequest } from '../api/api-types';
@@ -32,13 +32,16 @@ export class AuthService {
 
   /**
    * Initializes auth state by checking the current session.
-   * Called on app startup.
+   * Called on app startup. Returns null on error (not authenticated)
+   * so the app initializer completes successfully and routing can
+   * redirect to /login.
    */
   initialize(): Observable<AuthUserDto | null> {
     return this.api.getCurrentUser().pipe(
-      tap({
-        next: (user) => this.setUser(user),
-        error: () => this.clearUser(),
+      tap((user) => this.setUser(user)),
+      catchError(() => {
+        this.clearUser();
+        return of(null);
       }),
     );
   }

@@ -4,6 +4,8 @@ using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -47,10 +49,12 @@ public sealed class AuthController : ControllerBase
     public IActionResult GetCsrfToken()
     {
         var token = GenerateCsrfToken();
+        var isLocal = HttpContext.Request.Host.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+            || HttpContext.Request.Host.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
         Response.Cookies.Append(".MangaPlex.Csrf", token, new CookieOptions
         {
             HttpOnly = false, // JavaScript needs to read this to send it in headers
-            Secure = true,
+            Secure = HttpContext.Request.IsHttps || !isLocal,
             SameSite = SameSiteMode.Strict,
             Path = "/",
             Expires = DateTimeOffset.UtcNow.AddHours(1),
@@ -106,22 +110,32 @@ public sealed class AuthController : ControllerBase
         // Create session
         var session = await _sessionService.CreateSessionAsync(user, ct);
 
-        // Set auth cookie
-        Response.Cookies.Append(".MangaPlex.Auth", session.TicketId, new CookieOptions
+        // Sign in using cookie auth with the session ticket ID in properties
+        var claims = new List<System.Security.Claims.Claim>
         {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.Strict,
-            Path = "/",
-            Expires = session.ExpiresAt,
-        });
+            new(System.Security.Claims.ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(System.Security.Claims.ClaimTypes.Name, user.UserName ?? ""),
+            new("role", user.IsAdmin ? "admin" : "reader"),
+        };
+        var identity = new System.Security.Claims.ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var principal = new System.Security.Claims.ClaimsPrincipal(identity);
+
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            principal,
+            new Microsoft.AspNetCore.Authentication.AuthenticationProperties
+            {
+                IsPersistent = true,
+                ExpiresUtc = session.ExpiresAt,
+                Items = { { ".MangaPlex.ticket", session.TicketId } },
+            });
 
         _logger.LogInformation("User {UserName} logged in successfully", request.Username);
 
         return Ok(new AuthUserDto
         {
             Id = user.PublicId,
-            Username = user.UserName,
+            Username = user.UserName ?? "",
             Role = user.IsAdmin ? "admin" : "reader",
             IsAdmin = user.IsAdmin,
         });
@@ -151,7 +165,7 @@ public sealed class AuthController : ControllerBase
         return Ok(new AuthUserDto
         {
             Id = user.PublicId,
-            Username = user.UserName,
+            Username = user.UserName ?? "",
             Role = user.IsAdmin ? "admin" : "reader",
             IsAdmin = user.IsAdmin,
         });

@@ -17,6 +17,9 @@ public static class AuthServicesExtensions
     /// </summary>
     public static IServiceCollection AddMangaPlexAuth(this IServiceCollection services, string databasePath)
     {
+        // IHttpContextAccessor — required by SignInManager
+        services.AddHttpContextAccessor();
+
         // Configure DbContext
         var connectionString = DatabaseInitialization.BuildConnectionString(databasePath);
         services.AddDbContext<MangaPlexDbContext>(options =>
@@ -38,10 +41,12 @@ public static class AuthServicesExtensions
             options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
         })
         .AddUserStore<MangaPlexUserStore>()
-        .AddDefaultTokenProviders();
+        .AddClaimsPrincipalFactory<Microsoft.AspNetCore.Identity.UserClaimsPrincipalFactory<UserEntity>>()
+        .AddDefaultTokenProviders()
+        .AddSignInManager();
 
-        // Configure sign-in manager
-        services.AddScoped<SignInManager<UserEntity>>();
+        // IdentityOptions — required by SignInManager
+        services.Configure<Microsoft.AspNetCore.Identity.IdentityOptions>(options => { });
 
         // Configure cookie authentication
         services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -49,7 +54,7 @@ public static class AuthServicesExtensions
             {
                 options.Cookie.Name = ".MangaPlex.Auth";
                 options.Cookie.HttpOnly = true;
-                options.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
+                options.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.SameAsRequest;
                 options.Cookie.SameSite = SameSiteMode.Strict;
                 options.ExpireTimeSpan = TimeSpan.FromDays(7);
                 options.SlidingExpiration = true;
@@ -103,6 +108,7 @@ public static class AuthServicesExtensions
             options.Password = DefaultAdminDefaults.DefaultPassword;
         });
         services.AddScoped<DefaultAdminBootstrap>();
+        services.AddScoped(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DefaultAdminOptions>>().Value);
 
         // Register authorization handlers
         services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, MangaPlexAuthorizationHandler>();

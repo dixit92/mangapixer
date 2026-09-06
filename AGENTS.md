@@ -18,6 +18,8 @@ The Angular package name is `com.lifepixer.mangaplex.web`.
 - **No personal data in tracked files.** No real collection paths, credentials, user state, or machine-specific configuration.
 - **`.devin/config.local.json` is ignored.** Never inspect or publish its contents.
 - **No host SDK installation.** Use container-based builds if host .NET/Node SDKs are unavailable.
+- **Wiring is part of the deliverable.** A service is not done until it is registered in DI, reachable (controller route or hosted service), and covered by at least one test through that public surface (`WebApplicationFactory`, spawned worker process, or Playwright). Service-level tests alone do not satisfy a package's "Done when". See plan section 12.2 for why.
+- **Report tests by kind.** When reporting results, break counts down into unit / service-with-DB / HTTP / process / browser so integration coverage is visible.
 
 ## Build and verification commands
 

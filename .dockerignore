@@ -38,8 +38,8 @@ logs/
 *.db-shm
 
 # Build output and artifacts
-bin/
-obj/
+**/bin/
+**/obj/
 artifacts/
 publish/
 *.binlog
@@ -47,13 +47,13 @@ publish/
 *.suo
 
 # Node/Angular build output
-node_modules/
-.angular/
-dist/
-.cache/
-coverage/
-.nyc_output/
-*.tsbuildinfo
+**/node_modules/
+**/.angular/
+**/dist/
+**/.cache/
+**/coverage/
+**/.nyc_output/
+**/*.tsbuildinfo
 
 # IDE and editor state
 .vs/
