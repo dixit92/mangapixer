@@ -90,6 +90,7 @@ public sealed class CatalogBrowseService
         // Page the results — project ParentId as the parent's PublicId and
         // LibraryId as the Library's PublicId (audit defect D29). Clients
         // must be able to round-trip parentId back into browse?parentId=.
+        // CoverUrl is set for archives (D17); folders get cover from first child.
         var nodes = await query
             .Take(pageSize + 1) // +1 to check hasMore
             .Select(n => new CatalogNodeDto
@@ -101,8 +102,35 @@ public sealed class CatalogBrowseService
                 DisplayName = n.DisplayName,
                 Availability = (CatalogNodeAvailability)n.Availability,
                 PageCount = n.ArchiveItem != null ? n.ArchiveItem.PageCount : null,
+                // Archives get a cover URL; folders get null here (resolved below)
+                CoverUrl = n.Kind == 1 ? "/api/v1/items/" + n.PublicId + "/cover" : null,
             })
             .ToListAsync(ct);
+
+        // For folders, resolve CoverUrl from the first archive child by SortKey (D17)
+        var folderIds = nodes.Where(n => n.Kind == CatalogNodeKind.Folder).Select(n => n.Id).ToList();
+        if (folderIds.Count > 0)
+        {
+            var folderCovers = await _db.CatalogNodes
+                .Where(n => folderIds.Contains(n.Parent != null ? n.Parent.PublicId : ""))
+                .Where(n => n.Kind == 1)
+                .Where(n => n.Availability != (int)CatalogNodeAvailability.Tombstoned)
+                .OrderBy(n => n.SortKey)
+                .Select(n => new { ParentPublicId = n.Parent != null ? n.Parent.PublicId : "", ChildPublicId = n.PublicId })
+                .GroupBy(x => x.ParentPublicId)
+                .Select(g => new { ParentId = g.Key, FirstChildId = g.First().ChildPublicId })
+                .ToDictionaryAsync(x => x.ParentId, x => x.FirstChildId, ct);
+
+            // Rebuild folder nodes with CoverUrl (init-only property)
+            nodes = nodes.Select(n =>
+            {
+                if (n.Kind != CatalogNodeKind.Folder)
+                    return n;
+                if (folderCovers.TryGetValue(n.Id, out var firstChildId))
+                    return n with { CoverUrl = $"/api/v1/items/{firstChildId}/cover" };
+                return n;
+            }).ToList();
+        }
 
         var hasMore = nodes.Count > pageSize;
         if (hasMore)

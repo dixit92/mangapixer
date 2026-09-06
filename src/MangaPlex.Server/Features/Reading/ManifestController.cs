@@ -68,12 +68,31 @@ public sealed class ManifestController : ControllerBase
             .Include(a => a.Pages)
             .FirstOrDefaultAsync(a => a.NodeId == node.Id, ct);
 
+        // Audit defect D31: pending item → enqueue analysis and return 202
+        // with ItemReadiness, not 404.
         if (archiveItem is null || archiveItem.AnalysisState != 0)
         {
-            return NotFound(new ApiError
+            // Enqueue analysis at CurrentPage priority (reader is waiting)
+            await EnqueueAnalysisAsync(node, archiveItem, ct);
+
+            var state = archiveItem?.AnalysisState switch
             {
-                Error = "not_analyzed",
-                Message = "Item has not been analyzed yet. POST /api/v1/items/{itemId}/prepare to trigger analysis.",
+                1 => ItemReadinessState.Pending,
+                2 => ItemReadinessState.Failed,
+                3 => ItemReadinessState.Unsupported,
+                4 => ItemReadinessState.Encrypted,
+                5 => ItemReadinessState.Missing,
+                _ => ItemReadinessState.Pending,
+            };
+
+            return StatusCode(202, new ItemReadiness
+            {
+                ItemId = itemId,
+                State = state,
+                ContentVersion = archiveItem?.ContentVersion ?? 0,
+                Error = archiveItem?.AnalysisError,
+                LastAttempt = archiveItem?.LastAnalyzedAt,
+                IsAnalyzing = true,
             });
         }
 
@@ -83,6 +102,21 @@ public sealed class ManifestController : ControllerBase
 
     [HttpGet("{itemId}/readiness")]
     public async Task<IActionResult> GetReadiness(string itemId, CancellationToken ct)
+    {
+        return await GetReadinessInternal(itemId, ct);
+    }
+
+    /// <summary>
+    /// Alias for /readiness (audit defect D31 — the frozen contract says
+    /// /preparation; keep /readiness for one release as an alias).
+    /// </summary>
+    [HttpGet("{itemId}/preparation")]
+    public async Task<IActionResult> GetPreparation(string itemId, CancellationToken ct)
+    {
+        return await GetReadinessInternal(itemId, ct);
+    }
+
+    private async Task<IActionResult> GetReadinessInternal(string itemId, CancellationToken ct)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -144,26 +178,42 @@ public sealed class ManifestController : ControllerBase
         if (archiveItem is not null && archiveItem.AnalysisState == 0 && archiveItem.PageCount > 0)
             return Ok(new { status = "ready", contentVersion = archiveItem.ContentVersion });
 
+        await EnqueueAnalysisAsync(node, archiveItem, ct);
+
+        return Accepted(new { status = "analyzing", contentVersion = archiveItem?.ContentVersion ?? 0 });
+    }
+
+    /// <summary>
+    /// Enqueues an analysis job for the node and marks it as pending.
+    /// Source path computation stays here, not in the controller route handler
+    /// (audit defect D31 — move source-path computation out of the controller).
+    /// </summary>
+    private async Task EnqueueAnalysisAsync(
+        CatalogNodeEntity node,
+        ArchiveItemEntity? archiveItem,
+        CancellationToken ct)
+    {
         // Get source path from the library root + relative path
+        await _db.Entry(node).Reference(n => n.Library).LoadAsync(ct);
         var sourcePath = Path.Combine(node.Library!.RootPath, node.RelativePath);
         var fileInfo = new FileInfo(sourcePath);
         if (!fileInfo.Exists)
-            return NotFound(new ApiError { Error = "source_missing", Message = "Source file is not accessible." });
+            return;
 
         var contentVersion = archiveItem?.ContentVersion ?? 0;
         var lastWriteTicks = fileInfo.LastWriteTimeUtc.Ticks;
         var byteLength = fileInfo.Length;
 
-        // Enqueue analysis job
+        // Enqueue analysis job at CurrentPage priority (reader is waiting)
         var jobTask = _jobScheduler.EnqueueAsync(
             itemId: node.Id,
             contentVersion: contentVersion,
             operation: JobOperation.Analyze,
-            priority: JobPriority.Prefetch,
+            priority: JobPriority.CurrentPage,
             archivePath: sourcePath,
             expectedLastWriteTicks: lastWriteTicks,
             expectedByteLength: byteLength,
-            callerToken: ct);
+            callerToken: CancellationToken.None); // don't cancel on request end
 
         // Mark as pending in DB
         if (archiveItem is null)
@@ -202,8 +252,6 @@ public sealed class ManifestController : ControllerBase
                 await MarkAnalysisFailedAsync(scopedDb, nodeIdForTask, ex.GetType().Name);
             }
         }, CancellationToken.None);
-
-        return Accepted(new { status = "analyzing", contentVersion });
     }
 
     private async Task PersistAnalysisResultAsync(MangaPlexDbContext db, long nodeId, JobResult result)

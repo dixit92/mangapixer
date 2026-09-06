@@ -1,8 +1,8 @@
 namespace com.lifepixer.mangaplex.Server.Features.Reading;
 
-using System.IO.Compression;
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Server.Features.Catalog;
 using com.lifepixer.mangaplex.Server.Media;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
@@ -12,12 +12,16 @@ using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// Page and cover delivery endpoints.
-/// GET /api/v1/items/{itemId}/pages/{pageIndex} — page image (original or variant)
-/// GET /api/v1/items/{itemId}/pages/{pageIndex}/thumbnail — thumbnail variant
+/// GET /api/v1/items/{itemId}/pages/{entryKey} — page image (original or variant)
+/// GET /api/v1/items/{itemId}/pages/{entryKey}/thumbnail — thumbnail variant
 /// GET /api/v1/items/{itemId}/cover — cover image (first page)
 ///
 /// All endpoints check authorization before serving. Source paths are never
-/// exposed. Pages are extracted on-demand from ZIP archives and cached.
+/// exposed. Pages are extracted on-demand from archives and cached.
+///
+/// Audit defect D3: routes use entry keys (opaque page identifiers) instead
+/// of numeric page indices. Audit defect D9: every binary response sets
+/// Cache-Control and ETag headers.
 /// </summary>
 [ApiController]
 [Route("api/v1/items")]
@@ -26,44 +30,47 @@ public sealed class PageController : ControllerBase
 {
     private readonly MangaPlexDbContext _db;
     private readonly CacheService _cache;
+    private readonly CatalogIdResolver _idResolver;
     private readonly ILogger<PageController> _logger;
 
     public PageController(
         MangaPlexDbContext db,
         CacheService cache,
+        CatalogIdResolver idResolver,
         ILogger<PageController> logger)
     {
         _db = db;
         _cache = cache;
+        _idResolver = idResolver;
         _logger = logger;
     }
 
-    [HttpGet("{itemId}/pages/{pageIndex}")]
-    public async Task<IActionResult> GetPage(string itemId, int pageIndex, CancellationToken ct)
+    [HttpGet("{itemId}/pages/{entryKey}")]
+    public async Task<IActionResult> GetPage(string itemId, string entryKey, CancellationToken ct)
     {
-        return await GetPageInternal(itemId, pageIndex, "original", ct);
+        return await GetPageInternal(itemId, entryKey, "original", ct);
     }
 
-    [HttpGet("{itemId}/pages/{pageIndex}/thumbnail")]
-    public async Task<IActionResult> GetPageThumbnail(string itemId, int pageIndex, CancellationToken ct)
+    [HttpGet("{itemId}/pages/{entryKey}/thumbnail")]
+    public async Task<IActionResult> GetPageThumbnail(string itemId, string entryKey, CancellationToken ct)
     {
-        return await GetPageInternal(itemId, pageIndex, "thumbnail", ct);
+        return await GetPageInternal(itemId, entryKey, "thumbnail", ct);
     }
 
     [HttpGet("{itemId}/cover")]
     public async Task<IActionResult> GetCover(string itemId, CancellationToken ct)
     {
-        return await GetPageInternal(itemId, 0, "cover", ct);
+        // Cover = first page by ordinal (entry key resolved from PageEntries)
+        return await GetCoverInternal(itemId, ct);
     }
 
-    private async Task<IActionResult> GetPageInternal(string itemId, int pageIndex, string variant, CancellationToken ct)
+    private async Task<IActionResult> GetPageInternal(string itemId, string entryKey, string variant, CancellationToken ct)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var node = await _db.CatalogNodes
-            .Include(n => n.Library)
-            .FirstOrDefaultAsync(n => n.PublicId == itemId, ct);
+        // Resolve public ID to internal node ID (audit defect D5/D29)
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
         if (node is null) return NotFound();
 
         // Check library access
@@ -73,16 +80,17 @@ public sealed class PageController : ControllerBase
         if (node.Kind != 1)
             return BadRequest(new ApiError { Error = "not_readable", Message = "Item is not a readable archive." });
 
-        // Get the page entry
+        // Get the archive item
         var archiveItem = await _db.ArchiveItems.FirstOrDefaultAsync(a => a.NodeId == node.Id, ct);
         if (archiveItem is null || archiveItem.AnalysisState != 0)
             return NotFound(new ApiError { Error = "not_analyzed", Message = "Item has not been analyzed yet." });
 
+        // Look up page by entry key (audit defect D3 — was pageIndex)
         var pageEntry = await _db.PageEntries
-            .Where(p => p.ItemId == node.Id && p.Ordinal == pageIndex)
+            .Where(p => p.ItemId == node.Id && p.EntryKey == entryKey)
             .FirstOrDefaultAsync(ct);
         if (pageEntry is null)
-            return NotFound(new ApiError { Error = "page_not_found", Message = "Page index out of range." });
+            return NotFound(new ApiError { Error = "page_not_found", Message = "Page entry key not found." });
 
         // Try cache first
         var cacheKey = CacheService.BuildCacheKey(node.Id, archiveItem.ContentVersion, pageEntry.EntryKey, variant);
@@ -91,12 +99,17 @@ public sealed class PageController : ControllerBase
             var cachedStream = _cache.OpenRead(cacheKey);
             if (cachedStream is not null)
             {
+                SetCacheHeaders(cacheKey, pageEntry.MediaType);
                 return File(cachedStream, pageEntry.MediaType);
             }
         }
 
-        // Extract from archive directly (ZIP only for now)
-        var sourcePath = Path.Combine(node.Library!.RootPath, node.RelativePath);
+        // Extract from archive directly (ZIP only for now; worker handles other formats)
+        var library = await _db.Libraries.FirstOrDefaultAsync(l => l.Id == node.LibraryId, ct);
+        if (library is null)
+            return NotFound(new ApiError { Error = "source_missing", Message = "Source library is not accessible." });
+
+        var sourcePath = Path.Combine(library.RootPath, node.RelativePath);
         if (!System.IO.File.Exists(sourcePath))
             return NotFound(new ApiError { Error = "source_missing", Message = "Source file is not accessible." });
 
@@ -106,24 +119,66 @@ public sealed class PageController : ControllerBase
             if (stream is null)
                 return NotFound(new ApiError { Error = "extraction_failed", Message = "Could not extract page from archive." });
 
-            // Cache the extracted page (for original and cover variants)
+            // Cache the extracted page
             if (variant is "original" or "cover")
             {
                 await CachePageAsync(cacheKey, stream, mediaType, ct);
-                // Re-open from cache to get a fresh stream
                 var cachedStream = _cache.OpenRead(cacheKey);
                 if (cachedStream is not null)
+                {
+                    SetCacheHeaders(cacheKey, mediaType);
                     return File(cachedStream, mediaType);
+                }
             }
 
+            SetCacheHeaders(cacheKey, mediaType);
             return File(stream, mediaType);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning("Page extraction failed for item {ItemId} page {PageIndex}: {Error}",
-                node.Id, pageIndex, ex.GetType().Name);
+            _logger.LogWarning("Page extraction failed for item {ItemId} entry {EntryKey}: {Error}",
+                node.Id, entryKey, ex.GetType().Name);
             return StatusCode(500, new ApiError { Error = "extraction_error", Message = "Failed to extract page." });
         }
+    }
+
+    private async Task<IActionResult> GetCoverInternal(string itemId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
+        if (!await HasAccessAsync(userId.Value, node.LibraryId, ct))
+            return NotFound();
+
+        if (node.Kind != 1)
+            return BadRequest(new ApiError { Error = "not_readable", Message = "Item is not a readable archive." });
+
+        var archiveItem = await _db.ArchiveItems.FirstOrDefaultAsync(a => a.NodeId == node.Id, ct);
+        if (archiveItem is null || archiveItem.AnalysisState != 0)
+            return NotFound(new ApiError { Error = "not_analyzed", Message = "Item has not been analyzed yet." });
+
+        // Cover = first page by ordinal
+        var firstPage = await _db.PageEntries
+            .Where(p => p.ItemId == node.Id)
+            .OrderBy(p => p.Ordinal)
+            .FirstOrDefaultAsync(ct);
+        if (firstPage is null)
+            return NotFound(new ApiError { Error = "no_pages", Message = "Item has no analyzed pages." });
+
+        // Delegate to the page delivery path with the first page's entry key
+        return await GetPageInternal(itemId, firstPage.EntryKey, "cover", ct);
+    }
+
+    /// <summary>
+    /// Sets Cache-Control and ETag headers on the response (audit defect D9).
+    /// </summary>
+    private void SetCacheHeaders(string cacheKey, string mediaType)
+    {
+        Response.Headers.CacheControl = "private, no-store";
+        Response.Headers.ETag = $"\"{cacheKey}\"";
     }
 
     private static async Task<(Stream? Stream, string MediaType)> ExtractPageAsync(
@@ -137,7 +192,7 @@ public sealed class PageController : ControllerBase
             return (null, "application/octet-stream");
         }
 
-        using var zip = ZipFile.OpenRead(archivePath);
+        using var zip = System.IO.Compression.ZipFile.OpenRead(archivePath);
         var entry = zip.GetEntry(entryKey);
         if (entry is null)
             return (null, "application/octet-stream");
@@ -147,7 +202,7 @@ public sealed class PageController : ControllerBase
         if (variant == "thumbnail")
         {
             // For thumbnails, return the original for now.
-            // Image resizing will be added in a future iteration.
+            // Image resizing via the worker will be added in a future iteration.
             var thumbStream = new MemoryStream();
             using var entryStream = entry.Open();
             await entryStream.CopyToAsync(thumbStream, ct);
@@ -167,8 +222,11 @@ public sealed class PageController : ControllerBase
     {
         try
         {
-            // Write to a temp file then publish to cache
-            var tempPath = Path.Combine(Path.GetTempPath(), "mangaplex-page-" + Guid.NewGuid().ToString("N")[..8] + ".tmp");
+            // Write to a temp file under the scratch root, not Path.GetTempPath()
+            // (audit defect D11 — temp bytes should live under ScratchRoot)
+            var tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-pages");
+            Directory.CreateDirectory(tempDir);
+            var tempPath = Path.Combine(tempDir, "page-" + Guid.NewGuid().ToString("N")[..8] + ".tmp");
             using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: false))
             {
                 await stream.CopyToAsync(fs, ct);

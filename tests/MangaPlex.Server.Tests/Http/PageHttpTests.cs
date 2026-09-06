@@ -38,7 +38,9 @@ public sealed class PageHttpTests : IDisposable
     {
         var (client, itemId) = await SetupLibraryAndScanAsync();
 
-        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/0");
+        // Use a deterministic entry key that won't exist for unanalyzed items
+        var entryKey = new com.lifepixer.mangaplex.Core.Catalog.PageEntryKey(0).ToOpaque();
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -46,9 +48,9 @@ public sealed class PageHttpTests : IDisposable
     public async Task GetPage_Analyzed_ReturnsImage()
     {
         var (client, itemId) = await SetupLibraryAndScanAsync();
-        await PersistAnalysisResultAsync(itemId, pageCount: 3);
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 3);
 
-        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/0");
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}");
         response.EnsureSuccessStatusCode();
 
         Assert.Equal("image/png", response.Content.Headers.ContentType?.MediaType);
@@ -62,7 +64,9 @@ public sealed class PageHttpTests : IDisposable
         var (client, itemId) = await SetupLibraryAndScanAsync();
         await PersistAnalysisResultAsync(itemId, pageCount: 2);
 
-        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/99");
+        // Use a non-existent entry key
+        var fakeKey = new com.lifepixer.mangaplex.Core.Catalog.PageEntryKey(99).ToOpaque();
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{fakeKey}");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -84,9 +88,9 @@ public sealed class PageHttpTests : IDisposable
     public async Task GetPageThumbnail_ReturnsImage()
     {
         var (client, itemId) = await SetupLibraryAndScanAsync();
-        await PersistAnalysisResultAsync(itemId, pageCount: 2);
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 2);
 
-        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/0/thumbnail");
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}/thumbnail");
         response.EnsureSuccessStatusCode();
 
         Assert.Equal("image/png", response.Content.Headers.ContentType?.MediaType);
@@ -97,7 +101,8 @@ public sealed class PageHttpTests : IDisposable
     {
         var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
 
-        var response = await client.GetAsync("/api/v1/items/invalidid/pages/0");
+        var entryKey = new com.lifepixer.mangaplex.Core.Catalog.PageEntryKey(0).ToOpaque();
+        var response = await client.GetAsync($"/api/v1/items/invalidid/pages/{entryKey}");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -148,7 +153,7 @@ public sealed class PageHttpTests : IDisposable
         return (client, itemId);
     }
 
-    private async Task PersistAnalysisResultAsync(string itemPublicId, int pageCount)
+    private async Task<string> PersistAnalysisResultAsync(string itemPublicId, int pageCount)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
@@ -183,7 +188,7 @@ public sealed class PageHttpTests : IDisposable
             await db.SaveChangesAsync();
         }
 
-        // Add page entries with real entry keys matching the archive
+        // Add page entries with deterministic entry keys (audit defect D4)
         var entryNames = new[] { "page001.png", "page002.png", "page003.png" };
         for (int i = 0; i < pageCount; i++)
         {
@@ -192,7 +197,7 @@ public sealed class PageHttpTests : IDisposable
                 ItemId = node.Id,
                 ContentVersion = archiveItem.ContentVersion,
                 Ordinal = i,
-                EntryKey = com.lifepixer.mangaplex.Core.Catalog.OpaqueId.Encode(Random.Shared.NextInt64(1, long.MaxValue)),
+                EntryKey = new com.lifepixer.mangaplex.Core.Catalog.PageEntryKey(i).ToOpaque(),
                 SourceEntryLocator = entryNames[i],
                 MediaType = "image/png",
                 Width = 1,
@@ -203,5 +208,8 @@ public sealed class PageHttpTests : IDisposable
             });
         }
         await db.SaveChangesAsync();
+
+        // Return the first page's entry key for use in URLs
+        return new com.lifepixer.mangaplex.Core.Catalog.PageEntryKey(0).ToOpaque();
     }
 }

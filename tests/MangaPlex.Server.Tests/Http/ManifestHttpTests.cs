@@ -35,15 +35,13 @@ public sealed class ManifestHttpTests : IDisposable
     }
 
     [Fact]
-    public async Task GetManifest_NotAnalyzed_Returns404()
+    public async Task GetManifest_NotAnalyzed_Returns202()
     {
-        // Setup: register library, create archive, scan, but don't analyze
+        // Audit defect D31: pending item → 202 with ItemReadiness, not 404
         var (client, itemId) = await SetupLibraryAndScanAsync();
 
         var response = await client.GetAsync($"/api/v1/items/{itemId}/manifest");
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        var error = await response.Content.ReadFromJsonAsync<ApiError>();
-        Assert.Equal("not_analyzed", error?.Error);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
     }
 
     [Fact]
