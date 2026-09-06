@@ -91,3 +91,6 @@ e2e-results/
 *.epub
 # Narrow exception for synthetic test fixtures if binary fixtures are committed
 # Review each exception individually; prefer fixture generation at test time
+
+# Local demo media mount (not part of the app)
+.sample-media/
