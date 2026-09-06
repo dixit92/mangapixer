@@ -62,32 +62,38 @@ public sealed class JobRecoveryService
     }
 
     /// <summary>
-    /// Recovers interrupted archive analysis. Marks pending analysis as
-    /// needing retry. Does not re-run analysis automatically.
+    /// Clears stale analysis errors on items that are still pending
+    /// (<c>AnalysisState == 1</c>) so they re-analyze cleanly after a restart.
+    ///
+    /// The analysis state machine has no distinct "in progress" state — an item
+    /// is pending (1) until its result is persisted atomically as ready (0) or
+    /// failed (2/5). So an interruption leaves the item pending, and the scanner
+    /// re-enqueues pending items. The only real recovery action here is to drop a
+    /// leftover error string from a prior failed attempt so it does not surface
+    /// while the item is (re)queued. The previous version stamped a fabricated
+    /// "Interrupted by server restart" error on every pending item — including
+    /// freshly queued ones that were never interrupted — and counted them as
+    /// recovered (audit finding A3).
     /// </summary>
     public async Task<int> RecoverInterruptedAnalysisAsync(CancellationToken ct = default)
     {
-        // Find items with pending analysis state and mark them for retry
-        var pendingItems = await _db.ArchiveItems
-            .Where(a => a.AnalysisState == 1) // pending
+        var staleErrored = await _db.ArchiveItems
+            .Where(a => a.AnalysisState == 1 && a.AnalysisError != null)
             .ToListAsync(ct);
 
-        var recovered = 0;
-        foreach (var item in pendingItems)
+        foreach (var item in staleErrored)
         {
-            // Reset to "needs analysis" state — will be picked up on next scan
-            item.AnalysisState = 1; // keep pending, but clear any partial state
-            item.AnalysisError = "Interrupted by server restart";
-            recovered++;
+            item.AnalysisError = null;
         }
 
-        if (recovered > 0)
+        if (staleErrored.Count > 0)
         {
             await _db.SaveChangesAsync(ct);
-            _logger?.LogWarning("Recovered {Count} interrupted analysis jobs", recovered);
+            _logger?.LogInformation(
+                "Cleared stale analysis errors on {Count} pending items after restart", staleErrored.Count);
         }
 
-        return recovered;
+        return staleErrored.Count;
     }
 
     /// <summary>
