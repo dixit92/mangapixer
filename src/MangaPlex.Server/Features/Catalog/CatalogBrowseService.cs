@@ -267,14 +267,14 @@ public sealed class CatalogBrowseService
 
         // Query the FTS5 index joined with catalog nodes
         var ftsSql = """
-            SELECT cn.id, cn.public_id, cn.parent_id, cn.library_id, cn.kind,
-                   cn.display_name, cn.availability, cn.sort_key
+            SELECT cn.Id, cn.PublicId, cn.ParentId, cn.LibraryId, cn.Kind,
+                   cn.DisplayName, cn.Availability, cn.SortKey
             FROM catalog_search cs
-            JOIN catalog_nodes cn ON cs.node_id = cn.id
+            JOIN catalog_nodes cn ON cs.node_id = cn.Id
             WHERE catalog_search MATCH @query
-            AND cn.availability != 5
-            AND cn.library_id IN ({0})
-            ORDER BY cn.sort_key
+            AND cn.Availability != 5
+            AND cn.LibraryId IN ({0})
+            ORDER BY cn.SortKey
             LIMIT @limit
             """;
 
@@ -295,14 +295,14 @@ public sealed class CatalogBrowseService
         {
             results.Add(new CatalogNodeDto
             {
-                Id = reader.GetString(reader.GetOrdinal("public_id")),
-                ParentId = reader.IsDBNull(reader.GetOrdinal("parent_id"))
+                Id = reader.GetString(reader.GetOrdinal("PublicId")),
+                ParentId = reader.IsDBNull(reader.GetOrdinal("ParentId"))
                     ? ""
-                    : OpaqueId.Encode(reader.GetInt64(reader.GetOrdinal("parent_id"))),
-                LibraryId = OpaqueId.Encode(reader.GetInt64(reader.GetOrdinal("library_id"))),
-                Kind = (CatalogNodeKind)reader.GetInt32(reader.GetOrdinal("kind")),
-                DisplayName = reader.GetString(reader.GetOrdinal("display_name")),
-                Availability = (CatalogNodeAvailability)reader.GetInt32(reader.GetOrdinal("availability")),
+                    : OpaqueId.Encode(reader.GetInt64(reader.GetOrdinal("ParentId"))),
+                LibraryId = OpaqueId.Encode(reader.GetInt64(reader.GetOrdinal("LibraryId"))),
+                Kind = (CatalogNodeKind)reader.GetInt32(reader.GetOrdinal("Kind")),
+                DisplayName = reader.GetString(reader.GetOrdinal("DisplayName")),
+                Availability = (CatalogNodeAvailability)reader.GetInt32(reader.GetOrdinal("Availability")),
             });
         }
 
