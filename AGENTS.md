@@ -71,7 +71,7 @@ npm --prefix web run api:check
 ## Versioning
 
 - SemVer 2.0.0 from the first build.
-- Current version: `0.1.0-dev.0` (defined in `Version.props`).
+- Current version: `0.1.0-dev.2` (defined in `Version.props`).
 - `Version.props` is the single source of truth consumed by .NET builds.
 - `package.json` version must match `Version.props`.
 - Git release tags: `v<version>` (not created by default).
@@ -82,7 +82,7 @@ npm --prefix web run api:check
 - Page indices are zero-based throughout (`PageIndex` with `Value >= 0`).
 - `SortKey.EncodeName` produces a persisted sort key that matches `NaturalOrderComparer` ordering. Use `StringComparer.Ordinal` when sorting by sort key.
 - Worker protocol uses JSON-lines over stdin/stdout with `WorkerEnvelope` framing. Protocol version is `WorkerProtocolVersion.Current` (1).
-- No DTO exposes source paths. `AnalyzeRequest.ArchivePath` is the only DTO with a path field (scratch-side only). `BreadcrumbsDto.Trail` is used instead of `Path` to avoid the forbidden name.
+- No DTO exposes source paths. `AnalyzeRequest.ArchivePath` is the only DTO with a path field (private validated source locator for worker IPC, never a public HTTP DTO). `BreadcrumbsDto.Trail` is used instead of `Path` to avoid the forbidden name.
 - OpenAPI contract is at `contracts/openapi.json`. API prefix is `/api/v1`.
 - Content version mismatch rejects progress updates (`ProgressPreconditions.Validate`).
 

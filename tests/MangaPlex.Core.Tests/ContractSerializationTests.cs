@@ -149,8 +149,11 @@ public sealed class ContractSerializationTests
         var request = new AnalyzeRequest
         {
             JobId = "job1",
-            ArchivePath = "/scratch/archive.cbz",
+            ArchivePath = "/source/archive.cbz",
             ContentVersion = 1L,
+            ExpectedLastWriteTicks = 1234567890L,
+            ExpectedByteLength = 4096L,
+            ScratchWorkspacePath = "/scratch/ws-abc123",
             Deadline = DateTimeOffset.Parse("2026-01-01T00:02:00Z"),
             MaxUncompressedBytes = 512L * 1024 * 1024,
             MaxEntryCount = 5000,
@@ -177,11 +180,13 @@ public sealed class ContractSerializationTests
             IsEncrypted = false,
             Pages = new[]
             {
-                new AnalyzedPageEntry { Ordinal = 0, MediaType = "image/png", Width = 800, Height = 1200, ByteSize = 1024 },
-                new AnalyzedPageEntry { Ordinal = 1, MediaType = "image/jpeg", Width = 800, Height = 1200, ByteSize = 2048 },
+                new AnalyzedPageEntry { Ordinal = 0, SourceEntryKey = "page001.png", MediaType = "image/png", Width = 800, Height = 1200, ByteSize = 1024 },
+                new AnalyzedPageEntry { Ordinal = 1, SourceEntryKey = "page002.jpg", MediaType = "image/jpeg", Width = 800, Height = 1200, ByteSize = 2048 },
             },
             TotalUncompressedBytes = 3072L,
             ElapsedTime = TimeSpan.FromSeconds(1.5),
+            ObservedLastWriteTicks = 1234567890L,
+            ObservedByteLength = 4096L,
         };
 
         var json = JsonSerializer.Serialize(result, Options);

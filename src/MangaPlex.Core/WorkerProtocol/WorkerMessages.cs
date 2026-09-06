@@ -44,6 +44,7 @@ public sealed record WorkerEnvelope
 
 /// <summary>
 /// Server -> Worker: Analyze an archive and produce a manifest.
+/// The worker opens the source archive directly in read-only mode.
 /// </summary>
 public sealed record AnalyzeRequest
 {
@@ -53,9 +54,10 @@ public sealed record AnalyzeRequest
     public required string JobId { get; init; }
 
     /// <summary>
-    /// Absolute path to the archive file on the worker's filesystem.
-    /// This is a scratch-side path, never a source media path.
-    /// In production, the server copies or mounts the file for the worker.
+    /// Absolute path to the source archive file on the worker's filesystem.
+    /// This is a private validated source locator — the worker opens it read-only.
+    /// Never appears in public HTTP DTOs or logs. The server validates containment
+    /// and source identity before dispatching this request.
     /// </summary>
     public required string ArchivePath { get; init; }
 
@@ -65,19 +67,32 @@ public sealed record AnalyzeRequest
     public required long ContentVersion { get; init; }
 
     /// <summary>
+    /// Expected source stamp (last write ticks + byte length) for pre/post validation.
+    /// The worker discards results if the source changes during processing.
+    /// </summary>
+    public required long ExpectedLastWriteTicks { get; init; }
+    public required long ExpectedByteLength { get; init; }
+
+    /// <summary>
+    /// Scratch workspace path allocated by the server for this job attempt.
+    /// The worker writes only to this directory. Server-generated opaque name.
+    /// </summary>
+    public required string ScratchWorkspacePath { get; init; }
+
+    /// <summary>
     /// Deadline for the analysis operation.
     /// </summary>
     public required DateTimeOffset Deadline { get; init; }
 
     /// <summary>
-    /// Maximum uncompressed bytes to extract.
+    /// Maximum uncompressed bytes to extract (cumulative).
     /// </summary>
-    public long MaxUncompressedBytes { get; init; } = 2L * 1024 * 1024 * 1024;
+    public long MaxUncompressedBytes { get; init; } = 32L * 1024 * 1024 * 1024;
 
     /// <summary>
     /// Maximum number of entries to enumerate.
     /// </summary>
-    public int MaxEntryCount { get; init; } = 10_000;
+    public int MaxEntryCount { get; init; } = 50_000;
 
     /// <summary>
     /// Maximum image dimensions to probe.
@@ -97,6 +112,13 @@ public sealed record AnalyzeResult
     public required IReadOnlyList<AnalyzedPageEntry> Pages { get; init; }
     public required long TotalUncompressedBytes { get; init; }
     public required TimeSpan ElapsedTime { get; init; }
+
+    /// <summary>
+    /// Observed source stamp after processing. Server compares to expected stamp
+    /// to detect source changes during processing.
+    /// </summary>
+    public required long ObservedLastWriteTicks { get; init; }
+    public required long ObservedByteLength { get; init; }
 }
 
 /// <summary>
@@ -125,6 +147,12 @@ public sealed record AnalyzedPageEntry
     public required int Ordinal { get; init; }
 
     /// <summary>
+    /// Safe source entry key (the archive entry path/key). Private IPC data only.
+    /// The server maps this to an opaque EntryKey for public DTOs.
+    /// </summary>
+    public required string SourceEntryKey { get; init; }
+
+    /// <summary>
     /// Image media type, if the entry is an image.
     /// </summary>
     public required string MediaType { get; init; }
@@ -148,6 +176,11 @@ public sealed record AnalyzedPageEntry
     /// Source entry byte size.
     /// </summary>
     public long ByteSize { get; init; }
+
+    /// <summary>
+    /// Whether this entry is a supported, readable image page.
+    /// </summary>
+    public bool IsSupported { get; init; } = true;
 }
 
 /// <summary>
@@ -167,6 +200,16 @@ public sealed record WorkerProgress
     public required int EntriesProcessed { get; init; }
     public required int TotalEntries { get; init; }
     public required long BytesProcessed { get; init; }
+}
+
+/// <summary>
+/// Worker -> Server: State change notification (e.g., "waiting_for_storage", "processing").
+/// Used to surface internal/user-facing readiness state before and during processing.
+/// </summary>
+public sealed record WorkerState
+{
+    public required string JobId { get; init; }
+    public required string State { get; init; }
 }
 
 /// <summary>
