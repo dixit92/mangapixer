@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "MangaPlex API",
-    "version": "0.1.0-dev.0",
+    "version": "0.1.0-dev.16",
     "description": "Folder-native manga/comic/webtoon server API. Version 1.",
     "license": {
       "name": "Proprietary"
@@ -209,6 +209,80 @@
         "properties": {
           "currentPassword": { "type": "string" },
           "newPassword": { "type": "string", "minLength": 8, "maxLength": 256 }
+        }
+      },
+      "Library": {
+        "type": "object",
+        "required": ["id", "name", "isScanning", "itemCount"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "isScanning": { "type": "boolean" },
+          "itemCount": { "type": "integer", "nullable": true },
+          "lastScanCompleted": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "RegisterLibraryRequest": {
+        "type": "object",
+        "required": ["displayName", "rootPath"],
+        "properties": {
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "rootPath": { "type": "string", "minLength": 1, "maxLength": 1024 }
+        }
+      },
+      "UpdateLibraryRequest": {
+        "type": "object",
+        "required": ["displayName"],
+        "properties": {
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 256 }
+        }
+      },
+      "ScanRun": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "type": "string", "enum": ["running", "completed", "failed", "cancelled"] },
+          "startedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "completedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "nodesObserved": { "type": "integer", "nullable": true },
+          "nodesAdded": { "type": "integer", "nullable": true },
+          "nodesTombstoned": { "type": "integer", "nullable": true },
+          "error": { "type": "string", "nullable": true }
+        }
+      },
+      "AdminUser": {
+        "type": "object",
+        "required": ["id", "username", "isAdmin", "isActive", "createdAt"],
+        "properties": {
+          "id": { "type": "string" },
+          "username": { "type": "string" },
+          "isAdmin": { "type": "boolean" },
+          "isActive": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "lastLoginAt": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "CreateUserRequest": {
+        "type": "object",
+        "required": ["username", "password", "isAdmin"],
+        "properties": {
+          "username": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "password": { "type": "string", "minLength": 8, "maxLength": 256 },
+          "isAdmin": { "type": "boolean" }
+        }
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "properties": {
+          "isActive": { "type": "boolean", "nullable": true },
+          "isAdmin": { "type": "boolean", "nullable": true }
+        }
+      },
+      "ResetPasswordResponse": {
+        "type": "object",
+        "required": ["temporaryPassword"],
+        "properties": {
+          "temporaryPassword": { "type": "string" }
         }
       }
     }
@@ -472,12 +546,12 @@
         }
       }
     },
-    "/items/{id}/manifest": {
+    "/items/{itemId}/manifest": {
       "get": {
         "tags": ["reading"],
         "summary": "Get the page manifest for an item",
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
@@ -488,23 +562,23 @@
               }
             }
           },
-          "409": {
-            "description": "Item not ready (pending, failed, etc.)",
+          "404": {
+            "description": "Item not found or not analyzed",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ItemReadiness" }
+                "schema": { "$ref": "#/components/schemas/ApiError" }
               }
             }
           }
         }
       }
     },
-    "/items/{id}/preparation": {
+    "/items/{itemId}/readiness": {
       "get": {
         "tags": ["reading"],
         "summary": "Get readiness state for an item",
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
@@ -518,15 +592,26 @@
         }
       }
     },
-    "/items/{id}/pages/{entryKey}": {
+    "/items/{itemId}/prepare": {
+      "post": {
+        "tags": ["reading"],
+        "summary": "Trigger analysis for an item",
+        "parameters": [
+          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "202": { "description": "Analysis triggered" },
+          "200": { "description": "Item already ready" }
+        }
+      }
+    },
+    "/items/{itemId}/pages/{pageIndex}": {
       "get": {
         "tags": ["reading"],
-        "summary": "Get a single page image",
+        "summary": "Get a single page image by index",
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "entryKey", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "width", "in": "query", "schema": { "type": "integer" } },
-          { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["original", "webp", "avif"] } }
+          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "pageIndex", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 0 } }
         ],
         "responses": {
           "200": {
@@ -548,13 +633,32 @@
         }
       }
     },
-    "/items/{id}/cover": {
+    "/items/{itemId}/pages/{pageIndex}/thumbnail": {
       "get": {
         "tags": ["reading"],
-        "summary": "Get cover image for an item",
+        "summary": "Get a page thumbnail",
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "width", "in": "query", "schema": { "type": "integer" } }
+          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "pageIndex", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 0 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thumbnail image bytes",
+            "content": {
+              "image/*": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/items/{itemId}/cover": {
+      "get": {
+        "tags": ["reading"],
+        "summary": "Get cover image for an item (first page)",
+        "parameters": [
+          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
@@ -593,12 +697,12 @@
         }
       }
     },
-    "/items/{id}/progress": {
+    "/reading/progress/{itemId}": {
       "get": {
         "tags": ["reading"],
         "summary": "Get reading progress for an item",
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
@@ -615,7 +719,7 @@
         "tags": ["reading"],
         "summary": "Update reading progress",
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "requestBody": {
           "content": {
@@ -642,9 +746,38 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": ["reading"],
+        "summary": "Reset reading progress for an item",
+        "parameters": [
+          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Progress reset" }
+        }
       }
     },
-    "/preferences": {
+    "/reading/continue": {
+      "get": {
+        "tags": ["reading"],
+        "summary": "Get continue-reading list",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Continue-reading entries",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "type": "object" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reading/preferences": {
       "get": {
         "tags": ["preferences"],
         "summary": "Get current user preferences",
@@ -670,14 +803,283 @@
           }
         },
         "responses": {
+          "204": { "description": "Preferences updated" }
+        }
+      }
+    },
+    "/admin/libraries": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "List all libraries (admin only)",
+        "responses": {
           "200": {
-            "description": "Updated preferences",
+            "description": "Library list",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/UserPreferences" }
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Library" } }
               }
             }
           }
+        }
+      },
+      "post": {
+        "tags": ["admin"],
+        "summary": "Register a new library (admin only)",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterLibraryRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Library registered",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Library" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/libraries/{id}": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Get library details (admin only)",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Library details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Library" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["admin"],
+        "summary": "Unregister a library (admin only)",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Library unregistered" }
+        }
+      }
+    },
+    "/admin/libraries/{id}/update": {
+      "post": {
+        "tags": ["admin"],
+        "summary": "Update library display name (admin only)",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateLibraryRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Library updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Library" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/libraries/{id}/scan": {
+      "post": {
+        "tags": ["admin"],
+        "summary": "Trigger a library scan (admin only)",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "202": { "description": "Scan triggered" },
+          "409": {
+            "description": "Scan already in progress",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/libraries/{id}/scans": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Get scan history for a library (admin only)",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scan history",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ScanRun" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "List all users (admin only)",
+        "responses": {
+          "200": {
+            "description": "User list",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/AdminUser" } }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["admin"],
+        "summary": "Create a new user (admin only)",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateUserRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AdminUser" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/users/{id}": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Get user details (admin only)",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "User details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AdminUser" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/users/{id}/update": {
+      "post": {
+        "tags": ["admin"],
+        "summary": "Update user (admin only)",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateUserRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AdminUser" }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot modify last admin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/users/{id}/reset-password": {
+      "post": {
+        "tags": ["admin"],
+        "summary": "Reset user password (admin only)",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Temporary password",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ResetPasswordResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/users/{id}/sessions": {
+      "delete": {
+        "tags": ["admin"],
+        "summary": "Revoke all sessions for a user (admin only)",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Sessions revoked" }
+        }
+      }
+    },
+    "/admin/users/{userId}/grants/{libraryId}": {
+      "put": {
+        "tags": ["admin"],
+        "summary": "Grant library access to a user (admin only)",
+        "parameters": [
+          { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "libraryId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Access granted" }
+        }
+      },
+      "delete": {
+        "tags": ["admin"],
+        "summary": "Revoke library access from a user (admin only)",
+        "parameters": [
+          { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "libraryId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Access revoked" }
         }
       }
     }
