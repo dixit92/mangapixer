@@ -71,7 +71,7 @@ npm --prefix web run api:check
 ## Versioning
 
 - SemVer 2.0.0 from the first build.
-- Current version: `0.1.0-dev.3` (defined in `Version.props`).
+- Current version: `0.1.0-dev.4` (defined in `Version.props`).
 - `Version.props` is the single source of truth consumed by .NET builds.
 - `package.json` version must match `Version.props`.
 - Git release tags: `v<version>` (not created by default).
