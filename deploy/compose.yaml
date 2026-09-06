@@ -1,0 +1,39 @@
+# MangaPlex production Compose file (template)
+# Real library mounts and app-data paths are supplied through ignored local overrides.
+# No mutable 'latest' tag until a stable release policy is approved.
+
+services:
+  mangaplex:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: mangaplex:${MANGAPLEX_VERSION:-0.1.0-dev.0}
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      DOTNET_RUNNING_IN_CONTAINER: "true"
+      MangaPlex__Storage__DataRoot: "/data"
+      MangaPlex__Storage__CacheRoot: "/cache"
+      MangaPlex__Storage__ScratchRoot: "/scratch"
+    volumes:
+      - mangaplex-data:/data
+      - mangaplex-cache:/cache
+      - mangaplex-scratch:/scratch
+      # Media mounts are supplied through compose.override.yaml (ignored)
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: "20m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+volumes:
+  mangaplex-data:
+  mangaplex-cache:
+  mangaplex-scratch:

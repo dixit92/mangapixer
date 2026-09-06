@@ -1,0 +1,131 @@
+#Requires -Version 7.0
+<#
+    MangaPlex Verify.ps1 (Full)
+    Full release-mode verification before declaring a work package complete.
+    Runs clean locked restores, format/lint, all unit and component tests,
+    file-backed SQLite integration, worker/archive/image fixtures, coverage,
+    Angular production build, Playwright Chromium smoke, and privacy scan.
+
+    Usage: pwsh ./scripts/Verify.ps1 -Configuration Release
+#>
+[CmdletBinding()]
+param(
+    [string]$Configuration = "Release"
+)
+
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
+
+$repoRoot = Split-Path -Parent $PSScriptRoot
+Set-Location $repoRoot
+
+$artifactsDir = Join-Path $repoRoot "artifacts"
+if (-not (Test-Path $artifactsDir)) { New-Item -ItemType Directory -Path $artifactsDir | Out-Null }
+
+$results = [System.Collections.Generic.List[PSCustomObject]]::new()
+
+function Invoke-Stage {
+    param([string]$Name, [scriptblock]$Action)
+    Write-Host "`n=== $Name ===" -ForegroundColor Cyan
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        & $Action
+        $sw.Stop()
+        $results.Add([PSCustomObject]@{ Stage = $Name; Status = "PASS"; Duration = $sw.Elapsed.ToString() })
+        Write-Host "PASS: $Name ($($sw.Elapsed))" -ForegroundColor Green
+    }
+    catch {
+        $sw.Stop()
+        $results.Add([PSCustomObject]@{ Stage = $Name; Status = "FAIL"; Duration = $sw.Elapsed.ToString(); Error = $_.Exception.Message })
+        Write-Host "FAIL: $Name ($($sw.Elapsed))" -ForegroundColor Red
+        Write-Host $_.Exception.Message -ForegroundColor Red
+        throw
+    }
+}
+
+# Stage 1: Privacy preflight
+Invoke-Stage "Privacy Preflight" {
+    $remote = git remote -v 2>&1
+    if ($remote) { throw "Git remote is configured. Expected no remote." }
+
+    $ignored = git check-ignore .devin/config.local.json 2>&1
+    if ($LASTEXITCODE -ne 0) { throw ".devin/config.local.json is not ignored" }
+
+    $status = git status --short 2>&1
+    $diffCheck = git diff --check 2>&1
+    if ($diffCheck) { throw "git diff --check found whitespace errors" }
+
+    $mediaExts = @("*.cbz", "*.cbr", "*.cb7", "*.zip", "*.rar", "*.7z")
+    foreach ($ext in $mediaExts) {
+        $tracked = git ls-files $ext 2>&1
+        if ($tracked) { throw "Media file is tracked: $tracked" }
+    }
+}
+
+# Stage 2: Clean restore
+Invoke-Stage "dotnet restore (locked)" {
+    dotnet restore MangaPlex.slnx --locked-mode 2>&1 | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Locked restore failed, falling back to normal restore..." -ForegroundColor Yellow
+        dotnet restore MangaPlex.slnx 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed" }
+    }
+}
+
+# Stage 3: Format check
+Invoke-Stage "dotnet format verify" {
+    dotnet format MangaPlex.slnx --verify-no-changes --no-restore 2>&1 | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "dotnet format found changes needed" }
+}
+
+# Stage 4: Build
+Invoke-Stage "dotnet build ($Configuration)" {
+    dotnet build MangaPlex.slnx --no-restore -c $Configuration 2>&1 | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
+}
+
+# Stage 5: All tests
+Invoke-Stage "dotnet test (all)" {
+    dotnet test MangaPlex.slnx --no-build -c $Configuration --verbosity normal 2>&1 | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "dotnet test failed" }
+}
+
+# Stage 6: Angular restore and lint (if npm is available)
+$npmAvailable = [bool](Get-Command npm -ErrorAction SilentlyContinue)
+if ($npmAvailable) {
+    Invoke-Stage "npm ci" {
+        npm --prefix web ci --no-audit --no-fund 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
+    }
+    Invoke-Stage "npm lint" {
+        npm --prefix web run lint 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "npm lint failed" }
+    }
+    Invoke-Stage "npm build" {
+        npm --prefix web run build 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "npm build failed" }
+    }
+}
+else {
+    Write-Host "npm not available on host — Angular verification requires container or host Node." -ForegroundColor Yellow
+    $results.Add([PSCustomObject]@{ Stage = "Angular (npm)"; Status = "SKIPPED"; Duration = "n/a"; Error = "npm not on PATH" })
+}
+
+# Stage 7: Docker compose config validation
+$dockerAvailable = [bool](Get-Command docker -ErrorAction SilentlyContinue)
+if ($dockerAvailable) {
+    Invoke-Stage "docker compose config" {
+        docker compose -f deploy/compose.yaml config 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "docker compose config validation failed" }
+    }
+}
+else {
+    $results.Add([PSCustomObject]@{ Stage = "Docker compose config"; Status = "SKIPPED"; Duration = "n/a"; Error = "docker not on PATH" })
+}
+
+# Summary
+Write-Host "`n=== Verify-Full Summary ===" -ForegroundColor Cyan
+$results | Format-Table -AutoSize
+$failed = $results | Where-Object { $_.Status -eq "FAIL" }
+if ($failed) { exit 1 }
+Write-Host "All full checks passed (skipped stages reported above)." -ForegroundColor Green

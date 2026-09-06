@@ -1,0 +1,92 @@
+# MangaPlex .gitignore
+# Private local Devin settings and overrides
+.devin/config.local.json
+.devin/config.local.*
+.env
+.env.*
+*.env.local
+appsettings.*.Local.json
+appsettings.*.Development.json
+
+# Credentials, keys, and secrets
+*.pfx
+*.p12
+*.key
+*.pem
+*.crt
+*.cert
+*.snk
+*.pubxml.user
+secrets.json
+
+# Database and runtime state
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+cache/
+scratch/
+backups/
+logs/
+
+# .NET build output
+bin/
+obj/
+*.binlog
+artifacts/
+publish/
+*.user
+*.suo
+*.cache
+*.pidb
+*.swp
+
+# Node/Angular build output
+node_modules/
+.angular/
+dist/
+.cache/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# IDE and editor state
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Test and coverage reports
+TestResults/
+[Oo]ut/
+coverage-results/
+playwright-report/
+test-results/
+e2e-results/
+
+# Published bundles and packages
+*.nupkg
+*.snupkg
+*.zip
+*.tar.gz
+
+# Media and archive files (global exclusion)
+*.cbz
+*.cbr
+*.cb7
+*.cbt
+*.zip
+*.rar
+*.7z
+*.tar
+*.pdf
+*.epub
+# Narrow exception for synthetic test fixtures if binary fixtures are committed
+# Review each exception individually; prefer fixture generation at test time

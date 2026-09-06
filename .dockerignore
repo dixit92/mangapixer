@@ -1,0 +1,91 @@
+# MangaPlex .dockerignore
+# Exclude everything not needed for container builds to protect privacy and reduce context size
+
+# Git history and metadata
+.git/
+.gitignore
+.gitattributes
+
+# Local Devin settings and tool configuration
+.devin/config.local.json
+.devin/config.local.*
+
+# Secrets and local configuration
+.env
+.env.*
+*.pfx
+*.p12
+*.key
+*.pem
+*.crt
+*.cert
+secrets.json
+appsettings.*.Local.json
+appsettings.*.Development.json
+
+# Runtime application state (must never be in build context)
+data/
+cache/
+scratch/
+backups/
+logs/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Build output and artifacts
+bin/
+obj/
+artifacts/
+publish/
+*.binlog
+*.user
+*.suo
+
+# Node/Angular build output
+node_modules/
+.angular/
+dist/
+.cache/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# IDE and editor state
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Test results and reports
+TestResults/
+test-results/
+e2e-results/
+playwright-report/
+coverage-results/
+
+# Published packages
+*.nupkg
+*.snupkg
+
+# Media and archive files — never include in build context
+*.cbz
+*.cbr
+*.cb7
+*.cbt
+*.zip
+*.rar
+*.7z
+*.tar
+*.pdf
+*.epub
+
+# Documentation not needed at build time
+AGENTS.md

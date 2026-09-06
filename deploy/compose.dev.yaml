@@ -1,0 +1,29 @@
+# MangaPlex development Compose file
+# Provides reproducible build/test environment without host .NET/Node SDKs.
+# Real library mounts are supplied through ignored local overrides, not shared examples.
+
+services:
+  dev:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace:cached
+      - nuget-cache:/root/.nuget/packages
+    command: ["dotnet", "--version"]
+    environment:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+      DOTNET_NOLOGO: "true"
+
+  web-dev:
+    image: node:24-bookworm-slim
+    working_dir: /workspace/web
+    volumes:
+      - ../web:/workspace/web:cached
+      - npm-cache:/root/.npm
+    command: ["node", "--version"]
+    environment:
+      - CI=true
+
+volumes:
+  nuget-cache:
+  npm-cache:

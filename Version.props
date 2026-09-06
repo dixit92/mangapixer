@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Version.props — single source of truth for MangaPlex product version.
+  Consumed by Directory.Build.props. Angular reads generated build info from the same source.
+  SemVer 2.0.0: https://semver.org/
+-->
+<Project>
+  <PropertyGroup>
+    <!-- Developer baseline: 0.1.0-dev.0 -->
+    <MangaPlexVersionMajor>0</MangaPlexVersionMajor>
+    <MangaPlexVersionMinor>1</MangaPlexVersionMinor>
+    <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
+    <MangaPlexVersionPrerelease>dev.1</MangaPlexVersionPrerelease>
+
+    <!-- Composed SemVer without build metadata (used for PackageVersion) -->
+    <MangaPlexVersion>$(MangaPlexVersionMajor).$(MangaPlexVersionMinor).$(MangaPlexVersionPatch)</MangaPlexVersion>
+    <MangaPlexVersionFull Condition="'$(MangaPlexVersionPrerelease)' != ''">$(MangaPlexVersion)-$(MangaPlexVersionPrerelease)</MangaPlexVersionFull>
+    <MangaPlexVersionFull Condition="'$(MangaPlexVersionPrerelease)' == ''">$(MangaPlexVersion)</MangaPlexVersionFull>
+
+    <!-- Build counter for FileVersion (numeric only). Defaults to 0 for local builds. -->
+    <MangaPlexBuildCounter Condition="'$(MangaPlexBuildCounter)' == ''">0</MangaPlexBuildCounter>
+
+    <!-- AssemblyVersion stays at 0.1.0.0 through the 0.1 line to avoid binding churn -->
+    <MangaPlexAssemblyVersion>$(MangaPlexVersionMajor).$(MangaPlexVersionMinor).0.0</MangaPlexAssemblyVersion>
+  </PropertyGroup>
+</Project>

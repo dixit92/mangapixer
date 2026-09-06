@@ -1,0 +1,9 @@
+{
+  "rules": {},
+  "overrides": [
+    {
+      "files": ["*.ts"],
+      "rules": {}
+    }
+  ]
+}

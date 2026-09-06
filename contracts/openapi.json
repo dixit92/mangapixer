@@ -1,0 +1,685 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MangaPlex API",
+    "version": "0.1.0-dev.0",
+    "description": "Folder-native manga/comic/webtoon server API. Version 1.",
+    "license": {
+      "name": "Proprietary"
+    }
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "Same-origin server"
+    }
+  ],
+  "tags": [
+    { "name": "auth", "description": "Authentication and session management" },
+    { "name": "libraries", "description": "Library management and administration" },
+    { "name": "catalog", "description": "Browse and navigate the folder-native catalog tree" },
+    { "name": "search", "description": "Search across libraries" },
+    { "name": "reading", "description": "Reading manifests, pages, and progress" },
+    { "name": "preferences", "description": "User preferences and bookmarks" },
+    { "name": "admin", "description": "Administration: users, grants, jobs" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": ".MangaPlex.Auth"
+      }
+    },
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "required": ["error", "message"],
+        "properties": {
+          "error": { "type": "string" },
+          "message": { "type": "string" },
+          "detail": { "type": "string" },
+          "correlationId": { "type": "string" }
+        }
+      },
+      "CsrfToken": {
+        "type": "object",
+        "required": ["token"],
+        "properties": {
+          "token": { "type": "string" }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["username", "password"],
+        "properties": {
+          "username": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "password": { "type": "string", "minLength": 1, "maxLength": 256 }
+        }
+      },
+      "AuthUser": {
+        "type": "object",
+        "required": ["id", "username", "role", "isAdmin"],
+        "properties": {
+          "id": { "type": "string" },
+          "username": { "type": "string" },
+          "role": { "type": "string", "enum": ["admin", "reader"] },
+          "isAdmin": { "type": "boolean" }
+        }
+      },
+      "Library": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "isScanning": { "type": "boolean" },
+          "itemCount": { "type": "integer", "nullable": true },
+          "lastScanCompleted": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "CatalogNode": {
+        "type": "object",
+        "required": ["id", "parentId", "libraryId", "kind", "displayName", "availability"],
+        "properties": {
+          "id": { "type": "string" },
+          "parentId": { "type": "string" },
+          "libraryId": { "type": "string" },
+          "kind": { "type": "string", "enum": ["folder", "archive"] },
+          "displayName": { "type": "string" },
+          "availability": {
+            "type": "string",
+            "enum": ["available", "preparing", "unsupported", "corrupt", "unavailable", "tombstoned"]
+          },
+          "coverUrl": { "type": "string", "nullable": true },
+          "childFolderCount": { "type": "integer", "nullable": true },
+          "childArchiveCount": { "type": "integer", "nullable": true },
+          "pageCount": { "type": "integer", "nullable": true },
+          "readingState": {
+            "type": "string",
+            "enum": ["unread", "inProgress", "completed"],
+            "nullable": true
+          },
+          "lastReadPage": { "type": "integer", "nullable": true }
+        }
+      },
+      "Breadcrumbs": {
+        "type": "object",
+        "required": ["nodeId", "trail"],
+        "properties": {
+          "nodeId": { "type": "string" },
+          "trail": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "displayName"],
+              "properties": {
+                "id": { "type": "string" },
+                "displayName": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "SearchResults": {
+        "type": "object",
+        "required": ["query", "items", "totalCount"],
+        "properties": {
+          "query": { "type": "string" },
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/CatalogNode" } },
+          "totalCount": { "type": "integer" },
+          "nextCursor": { "type": "string", "nullable": true },
+          "hasMore": { "type": "boolean" }
+        }
+      },
+      "ItemManifest": {
+        "type": "object",
+        "required": ["itemId", "contentVersion", "manifestVersion", "archiveFormat", "pageCount", "pages"],
+        "properties": {
+          "itemId": { "type": "string" },
+          "contentVersion": { "type": "integer", "format": "int64" },
+          "manifestVersion": { "type": "integer" },
+          "archiveFormat": { "type": "string", "enum": ["zip", "rar4", "rar5", "sevenZip"] },
+          "pageCount": { "type": "integer" },
+          "pages": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ManifestPageEntry" }
+          },
+          "isSolid": { "type": "boolean" },
+          "hasAnimatedPages": { "type": "boolean" }
+        }
+      },
+      "ManifestPageEntry": {
+        "type": "object",
+        "required": ["entryKey", "pageIndex", "mediaType"],
+        "properties": {
+          "entryKey": { "type": "string" },
+          "pageIndex": { "type": "integer", "minimum": 0 },
+          "mediaType": { "type": "string" },
+          "width": { "type": "integer" },
+          "height": { "type": "integer" },
+          "animationState": { "type": "string", "enum": ["notAnimated", "animated", "animationError", "unknown"] },
+          "byteSize": { "type": "integer", "format": "int64" }
+        }
+      },
+      "ItemReadiness": {
+        "type": "object",
+        "required": ["itemId", "state", "contentVersion"],
+        "properties": {
+          "itemId": { "type": "string" },
+          "state": { "type": "string", "enum": ["ready", "pending", "failed", "unsupported", "encrypted", "missing"] },
+          "contentVersion": { "type": "integer", "format": "int64" },
+          "error": { "type": "string", "nullable": true },
+          "lastAttempt": { "type": "string", "format": "date-time", "nullable": true },
+          "isAnalyzing": { "type": "boolean" }
+        }
+      },
+      "ReadingProgress": {
+        "type": "object",
+        "required": ["itemId", "pageIndex", "contentVersion", "updatedAt", "state"],
+        "properties": {
+          "itemId": { "type": "string" },
+          "pageIndex": { "type": "integer", "minimum": 0 },
+          "contentVersion": { "type": "integer", "format": "int64" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "state": { "type": "string", "enum": ["unread", "inProgress", "completed"] },
+          "isStale": { "type": "boolean" }
+        }
+      },
+      "UpdateProgressRequest": {
+        "type": "object",
+        "required": ["pageIndex", "expectedContentVersion"],
+        "properties": {
+          "pageIndex": { "type": "integer", "minimum": 0 },
+          "expectedContentVersion": { "type": "integer", "format": "int64" }
+        }
+      },
+      "UserPreferences": {
+        "type": "object",
+        "properties": {
+          "defaultReaderMode": { "type": "string", "enum": ["pagedLtr", "pagedRtl", "doubleSpread", "verticalWebtoon"] },
+          "preferDoubleSpread": { "type": "boolean" },
+          "reducedMotion": { "type": "boolean" },
+          "preferredBackground": { "type": "string", "nullable": true }
+        }
+      },
+      "ChangePasswordRequest": {
+        "type": "object",
+        "required": ["currentPassword", "newPassword"],
+        "properties": {
+          "currentPassword": { "type": "string" },
+          "newPassword": { "type": "string", "minLength": 8, "maxLength": 256 }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/auth/csrf": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "Get CSRF token for cookie-authenticated requests",
+        "responses": {
+          "200": {
+            "description": "CSRF token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CsrfToken" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Login with username and password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthUser" }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Logout and invalidate session",
+        "responses": {
+          "204": { "description": "Logout successful" }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "Get current authenticated user",
+        "responses": {
+          "200": {
+            "description": "Current user",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthUser" }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/change-password": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Change password for current user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChangePasswordRequest" }
+            }
+          }
+        },
+        "responses": {
+          "204": { "description": "Password changed" },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/libraries": {
+      "get": {
+        "tags": ["libraries"],
+        "summary": "List libraries the current user can access",
+        "responses": {
+          "200": {
+            "description": "Libraries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Library" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/libraries/{id}": {
+      "get": {
+        "tags": ["libraries"],
+        "summary": "Get a single library",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Library",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Library" }
+              }
+            }
+          },
+          "403": {
+            "description": "Not authorized for this library",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" }
+              }
+            }
+          },
+          "404": {
+            "description": "Library not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/libraries/{id}/nodes": {
+      "get": {
+        "tags": ["catalog"],
+        "summary": "List child nodes of a library root or folder",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "parentId", "in": "query", "schema": { "type": "string" } },
+          { "name": "cursor", "in": "query", "schema": { "type": "string" } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "default": 50, "maximum": 200 } },
+          { "name": "direction", "in": "query", "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Child nodes (folders first, then archives, both in natural order)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["items", "totalCount"],
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/CatalogNode" } },
+                    "totalCount": { "type": "integer" },
+                    "nextCursor": { "type": "string", "nullable": true },
+                    "hasMore": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nodes/{id}": {
+      "get": {
+        "tags": ["catalog"],
+        "summary": "Get a single catalog node",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Node",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CatalogNode" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nodes/{id}/breadcrumbs": {
+      "get": {
+        "tags": ["catalog"],
+        "summary": "Get breadcrumbs from library root to a node",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Breadcrumbs",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Breadcrumbs" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search": {
+      "get": {
+        "tags": ["search"],
+        "summary": "Search across accessible libraries",
+        "parameters": [
+          { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 256 } },
+          { "name": "libraryId", "in": "query", "schema": { "type": "string" } },
+          { "name": "cursor", "in": "query", "schema": { "type": "string" } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "default": 50, "maximum": 200 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SearchResults" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/items/{id}/manifest": {
+      "get": {
+        "tags": ["reading"],
+        "summary": "Get the page manifest for an item",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Manifest",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ItemManifest" }
+              }
+            }
+          },
+          "409": {
+            "description": "Item not ready (pending, failed, etc.)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ItemReadiness" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/items/{id}/preparation": {
+      "get": {
+        "tags": ["reading"],
+        "summary": "Get readiness state for an item",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Readiness",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ItemReadiness" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/items/{id}/pages/{entryKey}": {
+      "get": {
+        "tags": ["reading"],
+        "summary": "Get a single page image",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "entryKey", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "width", "in": "query", "schema": { "type": "integer" } },
+          { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["original", "webp", "avif"] } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page image bytes",
+            "content": {
+              "image/*": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          },
+          "404": {
+            "description": "Page not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/items/{id}/cover": {
+      "get": {
+        "tags": ["reading"],
+        "summary": "Get cover image for an item",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "width", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cover image bytes",
+            "content": {
+              "image/*": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/items/{id}/neighbors": {
+      "get": {
+        "tags": ["catalog"],
+        "summary": "Get same-parent neighbors for navigation",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Neighbors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "previous": { "$ref": "#/components/schemas/CatalogNode", "nullable": true },
+                    "next": { "$ref": "#/components/schemas/CatalogNode", "nullable": true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/items/{id}/progress": {
+      "get": {
+        "tags": ["reading"],
+        "summary": "Get reading progress for an item",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Progress",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReadingProgress" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["reading"],
+        "summary": "Update reading progress",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateProgressRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated progress",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReadingProgress" }
+              }
+            }
+          },
+          "409": {
+            "description": "Content version mismatch",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/preferences": {
+      "get": {
+        "tags": ["preferences"],
+        "summary": "Get current user preferences",
+        "responses": {
+          "200": {
+            "description": "Preferences",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserPreferences" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["preferences"],
+        "summary": "Update current user preferences",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UserPreferences" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated preferences",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserPreferences" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
