@@ -173,11 +173,22 @@ public sealed class PageController : ControllerBase
     }
 
     /// <summary>
-    /// Sets Cache-Control and ETag headers on the response (audit defect D9).
+    /// Page images are immutable per content version: the cache key embeds the
+    /// item's <c>ContentVersion</c>, so a changed source yields a new URL rather
+    /// than new bytes at the same URL. That makes long-lived private validation
+    /// caching safe and correct (audit defect D9 / finding A1). The previous
+    /// <c>no-store</c> value contradicted the ETag and forced a full re-download
+    /// of every page on every view.
+    /// </summary>
+    private const int PageCacheMaxAgeSeconds = 86400; // 1 day
+
+    /// <summary>
+    /// Sets a coherent Cache-Control + ETag pair on binary page responses so the
+    /// browser can cache and revalidate (audit defect D9 / finding A1).
     /// </summary>
     private void SetCacheHeaders(string cacheKey, string mediaType)
     {
-        Response.Headers.CacheControl = "private, no-store";
+        Response.Headers.CacheControl = $"private, max-age={PageCacheMaxAgeSeconds}, immutable";
         Response.Headers.ETag = $"\"{cacheKey}\"";
     }
 
@@ -222,9 +233,10 @@ public sealed class PageController : ControllerBase
     {
         try
         {
-            // Write to a temp file under the scratch root, not Path.GetTempPath()
-            // (audit defect D11 — temp bytes should live under ScratchRoot)
-            var tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-pages");
+            // Write to a temp file under the app-managed cache scratch dir, not
+            // the system temp dir (audit finding A2 — temp bytes must stay under
+            // the scratch/cache boundary).
+            var tempDir = _cache.ScratchDirectory;
             Directory.CreateDirectory(tempDir);
             var tempPath = Path.Combine(tempDir, "page-" + Guid.NewGuid().ToString("N")[..8] + ".tmp");
             using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: false))

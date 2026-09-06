@@ -34,11 +34,19 @@ public sealed class CacheService
     }
 
     /// <summary>
-    /// Initializes the cache root directory.
+    /// Directory for short-lived temp bytes staged before publish. Lives UNDER
+    /// the app-managed cache root — never the system temp dir — so page bytes
+    /// stay within the scratch/cache boundary (audit finding A2).
+    /// </summary>
+    public string ScratchDirectory => Path.Combine(_cacheRoot, "_tmp");
+
+    /// <summary>
+    /// Initializes the cache root and scratch directories.
     /// </summary>
     public void Initialize()
     {
         Directory.CreateDirectory(_cacheRoot);
+        Directory.CreateDirectory(ScratchDirectory);
     }
 
     /// <summary>
