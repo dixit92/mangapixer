@@ -36,7 +36,10 @@ public sealed class ReadingStateService
 
     /// <summary>
     /// Gets the reading progress for a specific user and item.
-    /// Returns null if the user lacks access or no progress exists.
+    /// Returns null if the user lacks access.
+    /// For an item with no progress, returns 200 with State = Unread,
+    /// PageIndex = 0, Revision = 0 (audit defect D14/D32 — eliminates
+    /// the browser 404 for unread items).
     /// </summary>
     public async Task<ReadingProgressDto?> GetProgressAsync(
         long userId,
@@ -48,10 +51,24 @@ public sealed class ReadingStateService
 
         var progress = await _db.ReadingProgress
             .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == itemId, ct);
-        if (progress is null)
-            return null;
 
         var item = await _db.ArchiveItems.FirstOrDefaultAsync(a => a.NodeId == itemId, ct);
+
+        if (progress is null)
+        {
+            // No progress record — return unread state instead of null
+            return new ReadingProgressDto
+            {
+                ItemId = OpaqueId.Encode(itemId),
+                PageIndex = 0,
+                ContentVersion = item?.ContentVersion ?? 0,
+                UpdatedAt = DateTimeOffset.UtcNow,
+                State = ReadingState.Unread,
+                Revision = 0,
+                IsStale = false,
+            };
+        }
+
         var isStale = item is not null && progress.ContentVersion != item.ContentVersion;
 
         return new ReadingProgressDto
@@ -61,6 +78,7 @@ public sealed class ReadingStateService
             ContentVersion = progress.ContentVersion,
             UpdatedAt = progress.UpdatedAt,
             State = (ReadingState)progress.State,
+            Revision = progress.Revision,
             IsStale = isStale,
         };
     }
@@ -69,12 +87,18 @@ public sealed class ReadingStateService
     /// Updates reading progress. Revisioned and idempotent.
     /// Returns false if authorization fails or content version mismatch.
     /// </summary>
+    /// <param name="expectedRevision">
+    /// The revision the client believes the progress is at, or null for
+    /// the first write (If-None-Match: *). A mismatch returns
+    /// <see cref="UpdateStatus.PreconditionFailed"/> (audit defect D32).
+    /// </param>
     public async Task<UpdateProgressResult> UpdateProgressAsync(
         long userId,
         long itemId,
         int pageIndex,
         long expectedContentVersion,
-        long mutationId,
+        string mutationId,
+        long? expectedRevision = null,
         double normalizedAnchor = 0.0,
         CancellationToken ct = default)
     {
@@ -99,9 +123,18 @@ public sealed class ReadingStateService
         var progress = await _db.ReadingProgress
             .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == itemId, ct);
 
-        // Idempotency: if the mutation ID is the same or older, skip
-        if (progress is not null && mutationId <= progress.LastMutationId)
+        // Idempotency: if the mutation ID matches, skip (return current revision)
+        if (progress is not null && !string.IsNullOrEmpty(progress.LastMutationId)
+            && progress.LastMutationId == mutationId)
             return UpdateProgressResult.Success(progress.Revision, alreadyApplied: true);
+
+        // Optimistic concurrency: If-Match revision check (audit defect D32)
+        if (expectedRevision.HasValue)
+        {
+            var currentRevision = progress?.Revision ?? 0;
+            if (currentRevision != expectedRevision.Value)
+                return UpdateProgressResult.PreconditionFailed(currentRevision);
+        }
 
         var pageCount = item.PageCount ?? 0;
         var isCompleted = pageCount > 0 && pageIndex >= pageCount - 1;
@@ -367,6 +400,9 @@ public sealed record UpdateProgressResult
 
     public static UpdateProgressResult Invalid(string error) =>
         new() { Status = UpdateStatus.Invalid, Error = error };
+
+    public static UpdateProgressResult PreconditionFailed(long? currentRevision) =>
+        new() { Status = UpdateStatus.PreconditionFailed, Error = "Revision mismatch", Revision = currentRevision };
 }
 
 /// <summary>
@@ -379,6 +415,7 @@ public enum UpdateStatus
     NotFound = 2,
     StaleContent = 3,
     Invalid = 4,
+    PreconditionFailed = 5,
 }
 
 /// <summary>

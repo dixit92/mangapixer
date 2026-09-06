@@ -109,7 +109,7 @@ public sealed class ReadingStateTests : IDisposable
             var service = new ReadingStateService(db, auth);
 
             var result = await service.UpdateProgressAsync(userId, itemId, pageIndex: 3,
-                expectedContentVersion: 1, mutationId: 1);
+                expectedContentVersion: 1, mutationId: "mut-1");
 
             Assert.Equal(UpdateStatus.Success, result.Status);
             Assert.False(result.AlreadyApplied);
@@ -127,8 +127,8 @@ public sealed class ReadingStateTests : IDisposable
             var auth = new LibraryAuthorizationService(db);
             var service = new ReadingStateService(db, auth);
 
-            await service.UpdateProgressAsync(userId, itemId, 3, 1, mutationId: 100);
-            var result = await service.UpdateProgressAsync(userId, itemId, 3, 1, mutationId: 100);
+            await service.UpdateProgressAsync(userId, itemId, 3, 1, mutationId: "mut-100");
+            var result = await service.UpdateProgressAsync(userId, itemId, 3, 1, mutationId: "mut-100");
 
             Assert.Equal(UpdateStatus.Success, result.Status);
             Assert.True(result.AlreadyApplied);
@@ -146,7 +146,7 @@ public sealed class ReadingStateTests : IDisposable
             var service = new ReadingStateService(db, auth);
 
             var result = await service.UpdateProgressAsync(userId, itemId, 3,
-                expectedContentVersion: 999, mutationId: 1);
+                expectedContentVersion: 999, mutationId: "mut-1");
 
             Assert.Equal(UpdateStatus.StaleContent, result.Status);
         }
@@ -163,7 +163,7 @@ public sealed class ReadingStateTests : IDisposable
             var service = new ReadingStateService(db, auth);
 
             var result = await service.UpdateProgressAsync(userId, itemId, pageIndex: 9,
-                expectedContentVersion: 1, mutationId: 1);
+                expectedContentVersion: 1, mutationId: "mut-1");
 
             Assert.Equal(UpdateStatus.Success, result.Status);
 
@@ -183,9 +183,9 @@ public sealed class ReadingStateTests : IDisposable
             var service = new ReadingStateService(db, auth);
 
             // Complete
-            await service.UpdateProgressAsync(userId, itemId, 9, 1, mutationId: 1);
+            await service.UpdateProgressAsync(userId, itemId, 9, 1, mutationId: "mut-1");
             // Go back
-            await service.UpdateProgressAsync(userId, itemId, 3, 1, mutationId: 2);
+            await service.UpdateProgressAsync(userId, itemId, 3, 1, mutationId: "mut-2");
 
             var progress = await service.GetProgressAsync(userId, itemId);
             // Should still be completed
@@ -204,11 +204,16 @@ public sealed class ReadingStateTests : IDisposable
             var auth = new LibraryAuthorizationService(db);
             var service = new ReadingStateService(db, auth);
 
-            await service.UpdateProgressAsync(userId, itemId, 5, 1, mutationId: 1);
+            await service.UpdateProgressAsync(userId, itemId, 5, 1, mutationId: "mut-1");
             await service.ResetProgressAsync(userId, itemId);
 
+            // After reset, GetProgress returns Unread state (not null)
+            // (audit defect D14/D32 — eliminates browser 404 for unread items)
             var progress = await service.GetProgressAsync(userId, itemId);
-            Assert.Null(progress);
+            Assert.NotNull(progress);
+            Assert.Equal(ReadingState.Unread, progress!.State);
+            Assert.Equal(0, progress.PageIndex);
+            Assert.Equal(0, progress.Revision);
         }
         finally { await db.DisposeAsync(); }
     }
@@ -222,7 +227,7 @@ public sealed class ReadingStateTests : IDisposable
             var auth = new LibraryAuthorizationService(db);
             var service = new ReadingStateService(db, auth);
 
-            await service.UpdateProgressAsync(userId, itemId, 5, 1, mutationId: 1);
+            await service.UpdateProgressAsync(userId, itemId, 5, 1, mutationId: "mut-1");
 
             // Bump content version
             var item = await db.ArchiveItems.FirstAsync(a => a.NodeId == itemId);
@@ -258,8 +263,8 @@ public sealed class ReadingStateTests : IDisposable
             var auth = new LibraryAuthorizationService(db);
             var service = new ReadingStateService(db, auth);
 
-            await service.UpdateProgressAsync(userId, itemId, 3, 1, mutationId: 1);
-            await service.UpdateProgressAsync(user2.Id, itemId, 7, 1, mutationId: 1);
+            await service.UpdateProgressAsync(userId, itemId, 3, 1, mutationId: "mut-1");
+            await service.UpdateProgressAsync(user2.Id, itemId, 7, 1, mutationId: "mut-1");
 
             var p1 = await service.GetProgressAsync(userId, itemId);
             var p2 = await service.GetProgressAsync(user2.Id, itemId);
@@ -279,7 +284,7 @@ public sealed class ReadingStateTests : IDisposable
             var auth = new LibraryAuthorizationService(db);
             var service = new ReadingStateService(db, auth);
 
-            await service.UpdateProgressAsync(userId, itemId, 5, 1, mutationId: 1);
+            await service.UpdateProgressAsync(userId, itemId, 5, 1, mutationId: "mut-1");
 
             var result = await service.GetContinueReadingAsync(userId);
             Assert.Single(result);
@@ -387,7 +392,7 @@ public sealed class ReadingStateTests : IDisposable
             var auth = new LibraryAuthorizationService(db);
             var service = new ReadingStateService(db, auth);
 
-            var result = await service.UpdateProgressAsync(reader.Id, itemId, 3, 1, mutationId: 1);
+            var result = await service.UpdateProgressAsync(reader.Id, itemId, 3, 1, mutationId: "mut-1");
             Assert.Equal(UpdateStatus.Unauthorized, result.Status);
         }
         finally { await db.DisposeAsync(); }

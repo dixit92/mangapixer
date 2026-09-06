@@ -193,7 +193,7 @@ public sealed class PrivacyGateTests : IDisposable
         {
             var auth = new com.lifepixer.mangaplex.Server.Features.Auth.LibraryAuthorizationService(db);
             var service = new ReadingStateService(db, auth);
-            await service.UpdateProgressAsync(userId, nodeId, 0, 1, mutationId: 1);
+            await service.UpdateProgressAsync(userId, nodeId, 0, 1, mutationId: "mut-1");
             var progress = await service.GetProgressAsync(userId, nodeId);
             Assert.NotNull(progress);
             var json = System.Text.Json.JsonSerializer.Serialize(progress);
@@ -210,7 +210,7 @@ public sealed class PrivacyGateTests : IDisposable
         {
             var auth = new com.lifepixer.mangaplex.Server.Features.Auth.LibraryAuthorizationService(db);
             var service = new ReadingStateService(db, auth);
-            await service.UpdateProgressAsync(userId, nodeId, 5, 1, mutationId: 1);
+            await service.UpdateProgressAsync(userId, nodeId, 5, 1, mutationId: "mut-1");
             var entries = await service.GetContinueReadingAsync(userId);
             var json = System.Text.Json.JsonSerializer.Serialize(entries);
             Assert.DoesNotContain("/private", json);

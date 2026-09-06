@@ -117,6 +117,7 @@ public sealed class ContractSerializationTests
             ContentVersion = 10L,
             UpdatedAt = DateTimeOffset.Parse("2026-01-01T00:00:00Z"),
             State = ReadingState.InProgress,
+            Revision = 3,
             IsStale = true,
         };
 
@@ -134,6 +135,7 @@ public sealed class ContractSerializationTests
         {
             PageIndex = 10,
             ExpectedContentVersion = 42L,
+            MutationId = "test-mutation-1",
         };
 
         var json = JsonSerializer.Serialize(request, Options);

@@ -43,6 +43,10 @@ public sealed class ReadingController : ControllerBase
         var progress = await _stateService.GetProgressAsync(userId.Value, node.Id, ct);
         if (progress is null) return NotFound();
 
+        // Set ETag header so clients can use If-Match on subsequent PUTs
+        // (audit defect D32).
+        Response.Headers.ETag = $"\"{progress.Revision}\"";
+
         return Ok(progress);
     }
 
@@ -50,6 +54,8 @@ public sealed class ReadingController : ControllerBase
     public async Task<IActionResult> UpdateProgress(
         string itemId,
         [FromBody] UpdateProgressRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
+        [FromHeader(Name = "If-None-Match")] string? ifNoneMatch,
         CancellationToken ct)
     {
         var userId = GetUserId();
@@ -59,12 +65,29 @@ public sealed class ReadingController : ControllerBase
         var node = await _idResolver.ResolveNodeAsync(itemId, ct);
         if (node is null) return NotFound();
 
+        // Parse If-Match revision (audit defect D32)
+        // If-Match: "<revision>" or If-None-Match: * for first write
+        long? expectedRevision = null;
+        if (ifNoneMatch == "*")
+        {
+            expectedRevision = null; // First write — no precondition
+        }
+        else if (ifMatch is not null)
+        {
+            // Strip quotes and parse
+            var revStr = ifMatch.Trim('"');
+            if (long.TryParse(revStr, out var rev))
+                expectedRevision = rev;
+        }
+
         var result = await _stateService.UpdateProgressAsync(
             userId.Value,
             node.Id,
             request.PageIndex,
             request.ExpectedContentVersion,
-            mutationId: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            mutationId: request.MutationId,
+            expectedRevision: expectedRevision,
+            normalizedAnchor: request.NormalizedAnchor,
             ct: ct);
 
         return result.Status switch
@@ -73,6 +96,7 @@ public sealed class ReadingController : ControllerBase
             UpdateStatus.Unauthorized => Unauthorized(new ApiError { Error = "unauthorized", Message = result.Error ?? "Access denied" }),
             UpdateStatus.NotFound => NotFound(new ApiError { Error = "not_found", Message = result.Error ?? "Item not found" }),
             UpdateStatus.StaleContent => Conflict(new ApiError { Error = "stale_content", Message = result.Error ?? "Content version mismatch" }),
+            UpdateStatus.PreconditionFailed => StatusCode(412, new ApiError { Error = "precondition_failed", Message = result.Error ?? "Revision mismatch" }),
             UpdateStatus.Invalid => BadRequest(new ApiError { Error = "invalid", Message = result.Error ?? "Invalid request" }),
             _ => StatusCode(500, new ApiError { Error = "internal_error", Message = "Unexpected error" }),
         };

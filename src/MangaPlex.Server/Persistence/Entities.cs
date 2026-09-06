@@ -226,7 +226,13 @@ public sealed class ReadingProgressEntity
     /// </summary>
     public long Revision { get; set; }
 
-    public long LastMutationId { get; set; }
+    /// <summary>
+    /// Client-generated mutation ID (ULID or GUID string) for idempotent
+    /// retries. A duplicate mutation ID is a no-op. Stored as a string
+    /// (audit defect D32 — was long, but the contract requires a client-
+    /// generated string ID).
+    /// </summary>
+    public string LastMutationId { get; set; } = string.Empty;
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
 

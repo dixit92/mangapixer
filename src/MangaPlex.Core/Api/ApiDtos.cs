@@ -128,6 +128,13 @@ public sealed record ReadingProgressDto
     public required ReadingState State { get; init; }
 
     /// <summary>
+    /// Server-side revision number for optimistic concurrency.
+    /// Clients must send this as the ETag/If-Match value on subsequent
+    /// PUT updates. Starts at 0 for a new (unread) item.
+    /// </summary>
+    public required long Revision { get; init; }
+
+    /// <summary>
     /// Content version the progress was recorded against.
     /// If the current content version differs, the progress is stale.
     /// </summary>
@@ -146,6 +153,24 @@ public sealed record UpdateProgressRequest
     /// If this doesn't match the current version, the update is rejected.
     /// </summary>
     public required long ExpectedContentVersion { get; init; }
+
+    /// <summary>
+    /// Client-generated unique mutation ID (ULID or GUID string) for
+    /// idempotent updates. A duplicate mutation ID is a no-op that
+    /// returns the current revision without incrementing it.
+    /// </summary>
+    public required string MutationId { get; init; }
+
+    /// <summary>
+    /// Optional entry key for the current page (manifest page key).
+    /// Used to verify the client is on the correct page in the manifest.
+    /// </summary>
+    public string? EntryKey { get; init; }
+
+    /// <summary>
+    /// Normalized scroll/position anchor (0.0–1.0) for webtoon mode.
+    /// </summary>
+    public double NormalizedAnchor { get; init; }
 }
 
 /// <summary>

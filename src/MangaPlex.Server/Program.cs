@@ -128,11 +128,15 @@ public sealed partial class Program
             // The cookie is issued by GET /auth/csrf; unsafe methods must echo
             // the header. Login is exempt (the token is obtained from /csrf
             // immediately before). GET /auth/csrf is exempt (it issues the token).
+            //
+            // Cookie is HttpOnly (audit defect D2): the client obtains the token
+            // from GET /auth/csrf as a JSON response body, not by reading the
+            // cookie. This prevents XSS from stealing the cookie value.
             builder.Services.AddAntiforgery(options =>
             {
                 options.HeaderName = "X-MangaPlex-Csrf";
                 options.Cookie.Name = ".MangaPlex.Csrf";
-                options.Cookie.HttpOnly = false; // JS must read it to send the header
+                options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Strict;
                 options.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.SameAsRequest;
             });
