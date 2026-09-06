@@ -122,3 +122,53 @@ export interface ChangePasswordRequest {
   currentPassword: string;
   newPassword: string;
 }
+
+// --- Admin DTOs ---
+
+export interface RegisterLibraryRequest {
+  displayName: string;
+  rootPath: string;
+}
+
+export interface UpdateLibraryRequest {
+  displayName: string;
+}
+
+export interface ScanTriggeredDto {
+  scanRunId: string;
+}
+
+export interface ScanRunDto {
+  id: string;
+  status: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  nodesObserved: number | null;
+  nodesAdded: number | null;
+  nodesTombstoned: number | null;
+  error: string | null;
+}
+
+export interface AdminUserDto {
+  id: string;
+  username: string;
+  isAdmin: boolean;
+  isActive: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+}
+
+export interface CreateUserRequest {
+  username: string;
+  password: string;
+  isAdmin: boolean;
+}
+
+export interface UpdateUserRequest {
+  isActive?: boolean | null;
+  isAdmin?: boolean | null;
+}
+
+export interface ResetPasswordResponse {
+  temporaryPassword: string;
+}

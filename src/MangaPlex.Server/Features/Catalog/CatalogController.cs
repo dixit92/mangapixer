@@ -58,11 +58,47 @@ public sealed class CatalogController : ControllerBase
                 Name = l.DisplayName,
                 IsScanning = false,
                 ItemCount = null,
-                LastScanCompleted = null,
+                LastScanCompleted = l.LastScanCompleted,
             })
             .ToListAsync(ct);
 
         return Ok(libraries);
+    }
+
+    [HttpGet("libraries/{libraryId}")]
+    public async Task<IActionResult> GetLibrary(string libraryId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
+        if (user is null) return Unauthorized();
+
+        var library = await _db.Libraries.FirstOrDefaultAsync(l => l.PublicId == libraryId, ct);
+        if (library is null) return NotFound();
+
+        // Check access
+        if (!user.IsAdmin)
+        {
+            var hasGrant = await _db.LibraryGrants
+                .AnyAsync(g => g.UserId == userId && g.LibraryId == library.Id, ct);
+            if (!hasGrant) return NotFound();
+        }
+
+        var itemCount = await _db.CatalogNodes
+            .CountAsync(n => n.LibraryId == library.Id && n.Kind == 1 && n.Availability != 5, ct);
+
+        var isScanning = await _db.ScanRuns
+            .AnyAsync(s => s.LibraryId == library.Id && s.Status == 1, ct);
+
+        return Ok(new LibraryDto
+        {
+            Id = library.PublicId,
+            Name = library.DisplayName,
+            IsScanning = isScanning,
+            ItemCount = itemCount,
+            LastScanCompleted = library.LastScanCompleted,
+        });
     }
 
     [HttpGet("libraries/{libraryId}/browse")]

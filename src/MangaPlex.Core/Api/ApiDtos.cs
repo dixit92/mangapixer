@@ -230,3 +230,96 @@ public sealed record ChangePasswordRequest
     public required string CurrentPassword { get; init; }
     public required string NewPassword { get; init; }
 }
+
+// --- Admin DTOs ---
+
+/// <summary>
+/// Request to register a new library. The root path is server-side
+/// (the container mount path), never a client-side path.
+/// </summary>
+public sealed record RegisterLibraryRequest
+{
+    public required string DisplayName { get; init; }
+    public required string RootPath { get; init; }
+}
+
+/// <summary>
+/// Request to update a library's display name.
+/// </summary>
+public sealed record UpdateLibraryRequest
+{
+    public required string DisplayName { get; init; }
+}
+
+/// <summary>
+/// Response when a scan is triggered.
+/// </summary>
+public sealed record ScanTriggeredDto
+{
+    public required string ScanRunId { get; init; }
+}
+
+/// <summary>
+/// DTO for a scan run status.
+/// </summary>
+public sealed record ScanRunDto
+{
+    public required string Id { get; init; }
+    public required string Status { get; init; }
+    public DateTimeOffset? StartedAt { get; init; }
+    public DateTimeOffset? CompletedAt { get; init; }
+    public int? NodesObserved { get; init; }
+    public int? NodesAdded { get; init; }
+    public int? NodesTombstoned { get; init; }
+    public string? Error { get; init; }
+}
+
+/// <summary>
+/// DTO for a user in admin views. Never includes password hashes.
+/// </summary>
+public sealed record AdminUserDto
+{
+    public required string Id { get; init; }
+    public required string Username { get; init; }
+    public required bool IsAdmin { get; init; }
+    public required bool IsActive { get; init; }
+    public DateTimeOffset CreatedAt { get; init; }
+    public DateTimeOffset? LastLoginAt { get; init; }
+}
+
+/// <summary>
+/// Request to create a new user.
+/// </summary>
+public sealed record CreateUserRequest
+{
+    public required string Username { get; init; }
+    public required string Password { get; init; }
+    public bool IsAdmin { get; init; }
+}
+
+/// <summary>
+/// Request to update a user (enable/disable, admin flag).
+/// </summary>
+public sealed record UpdateUserRequest
+{
+    public bool? IsActive { get; init; }
+    public bool? IsAdmin { get; init; }
+}
+
+/// <summary>
+/// Response from a password reset. The temporary password is returned once
+/// and never stored in plaintext.
+/// </summary>
+public sealed record ResetPasswordResponse
+{
+    public required string TemporaryPassword { get; init; }
+}
+
+/// <summary>
+/// Request to grant or revoke library access.
+/// </summary>
+public sealed record LibraryGrantDto
+{
+    public required string UserId { get; init; }
+    public required string LibraryId { get; init; }
+}

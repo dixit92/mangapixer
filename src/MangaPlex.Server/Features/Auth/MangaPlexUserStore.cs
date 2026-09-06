@@ -39,7 +39,8 @@ public sealed class MangaPlexUserStore :
         ThrowIfDisposed();
         if (user is null) throw new ArgumentNullException(nameof(user));
 
-        user.PublicId ??= OpaqueId.Encode(user.Id > 0 ? user.Id : Random.Shared.NextInt64(1, long.MaxValue));
+        if (string.IsNullOrEmpty(user.PublicId))
+            user.PublicId = OpaqueId.Encode(Random.Shared.NextInt64(1, long.MaxValue));
         if (string.IsNullOrEmpty(user.SecurityStamp))
             user.SecurityStamp = Guid.NewGuid().ToString("N");
         user.CreatedAt = DateTimeOffset.UtcNow;

@@ -27,7 +27,16 @@ public static class HostingServicesExtensions
         services.AddScoped<ScanLeaseService>();
         services.AddScoped<LibraryMaintenanceService>();
         services.AddSingleton<LibraryScanPolicy>();
-        services.AddSingleton<AppRootOptions>();
+        services.AddSingleton<AppRootOptions>(sp =>
+        {
+            var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
+            return new AppRootOptions
+            {
+                DataRoot = config["MangaPlex:Storage:DataRoot"],
+                CacheRoot = config["MangaPlex:Storage:CacheRoot"],
+                ScratchRoot = config["MangaPlex:Storage:ScratchRoot"],
+            };
+        });
         services.AddScoped<IdentityRelinkService>();
 
         // Page delivery depends on DbContext + CacheService + JobScheduler,

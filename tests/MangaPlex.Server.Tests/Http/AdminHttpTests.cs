@@ -1,0 +1,500 @@
+namespace com.lifepixer.mangaplex.Tests.Server.Http;
+
+using System.Net;
+using System.Net.Http.Json;
+using com.lifepixer.mangaplex.Core.Api;
+using Xunit;
+
+/// <summary>
+/// HTTP integration tests for admin endpoints: library registration,
+/// user management, grants, and scan triggering.
+/// </summary>
+[Collection("HttpSerial")]
+public sealed class AdminHttpTests : IDisposable
+{
+    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly string _libRoot;
+
+    public AdminHttpTests()
+    {
+        _factory = new MangaPlexWebApplicationFactory();
+        // Library root must be OUTSIDE the data root to avoid the
+        // app-root separation check in LibraryRegistrationService.
+        _libRoot = Path.Combine(Path.GetTempPath(), "mangaplex-lib-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(_libRoot);
+    }
+
+    public void Dispose()
+    {
+        _factory.Dispose();
+        try { Directory.Delete(_libRoot, true); } catch { }
+    }
+
+    /// <summary>
+    /// Logs in as a user with ForcePasswordChange set, changes the password,
+    /// and re-logs in with the new password. Returns an authenticated client.
+    /// </summary>
+    private async Task<HttpClient> LoginAndChangePasswordAsync(string username, string oldPassword, string newPassword)
+    {
+        var client = _factory.CreateClient();
+        var loginResponse = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest
+        {
+            Username = username,
+            Password = oldPassword,
+        });
+        loginResponse.EnsureSuccessStatusCode();
+
+        var csrfResponse = await client.GetAsync("/api/v1/auth/csrf");
+        var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
+        client.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+
+        var changeResponse = await client.PostAsJsonAsync("/api/v1/auth/change-password", new ChangePasswordRequest
+        {
+            CurrentPassword = oldPassword,
+            NewPassword = newPassword,
+        });
+        changeResponse.EnsureSuccessStatusCode();
+
+        var freshClient = _factory.CreateClient();
+        var reLoginResponse = await freshClient.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest
+        {
+            Username = username,
+            Password = newPassword,
+        });
+        reLoginResponse.EnsureSuccessStatusCode();
+
+        var freshCsrf = await freshClient.GetAsync("/api/v1/auth/csrf");
+        var freshToken = await freshCsrf.Content.ReadFromJsonAsync<CsrfTokenDto>();
+        freshClient.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", freshToken!.Token);
+
+        return freshClient;
+    }
+
+    [Fact]
+    public async Task Admin_WithoutAdminRole_Returns403()
+    {
+        // Login as admin, change password, then create a non-admin user
+        var adminClient = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var createUserResponse = await adminClient.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "reader1",
+            Password = "ReaderPass123!",
+            IsAdmin = false,
+        });
+        createUserResponse.EnsureSuccessStatusCode();
+
+        // Login as the non-admin user (forced password change is set)
+        var readerClient = _factory.CreateClient();
+        var loginResponse = await readerClient.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest
+        {
+            Username = "reader1",
+            Password = "ReaderPass123!",
+        });
+        loginResponse.EnsureSuccessStatusCode();
+
+        // Get CSRF
+        var csrfResponse = await readerClient.GetAsync("/api/v1/auth/csrf");
+        var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
+        readerClient.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+
+        // Change password to clear ForcePasswordChange
+        var changeResponse = await readerClient.PostAsJsonAsync("/api/v1/auth/change-password", new ChangePasswordRequest
+        {
+            CurrentPassword = "ReaderPass123!",
+            NewPassword = "ReaderNewPass123!",
+        });
+        changeResponse.EnsureSuccessStatusCode();
+
+        // Re-login with new password
+        readerClient = _factory.CreateClient();
+        loginResponse = await readerClient.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest
+        {
+            Username = "reader1",
+            Password = "ReaderNewPass123!",
+        });
+        loginResponse.EnsureSuccessStatusCode();
+
+        // Try to access admin endpoint — should be 403 Forbidden
+        var adminResponse = await readerClient.GetAsync("/api/v1/admin/users");
+        Assert.Equal(HttpStatusCode.Forbidden, adminResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task RegisterLibrary_WithValidRoot_Returns201()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var response = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Test Library",
+            RootPath = _libRoot,
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var library = await response.Content.ReadFromJsonAsync<LibraryDto>();
+        Assert.NotNull(library);
+        Assert.Equal("Test Library", library!.Name);
+        Assert.False(string.IsNullOrEmpty(library.Id));
+    }
+
+    [Fact]
+    public async Task RegisterLibrary_WithNonExistentRoot_Returns400()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var response = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Missing",
+            RootPath = Path.Combine(_factory.DataRoot, "does-not-exist"),
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RegisterLibrary_InsideDataRoot_Returns400()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var response = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Inside Data",
+            RootPath = _factory.DataRoot,
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RegisterLibrary_DuplicateRoot_Returns400()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        // First registration succeeds
+        var first = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "First",
+            RootPath = _libRoot,
+        });
+        first.EnsureSuccessStatusCode();
+
+        // Second with same root fails
+        var second = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Second",
+            RootPath = _libRoot,
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, second.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetLibrary_AfterRegistration_ReturnsLibrary()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var regResponse = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Get Test",
+            RootPath = _libRoot,
+        });
+        regResponse.EnsureSuccessStatusCode();
+        var created = await regResponse.Content.ReadFromJsonAsync<LibraryDto>();
+        Assert.NotNull(created);
+        Assert.False(string.IsNullOrEmpty(created!.Id), $"Library ID was empty. Status: {regResponse.StatusCode}");
+
+        var getResponse = await client.GetAsync($"/api/v1/admin/libraries/{created.Id}");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+        var fetched = await getResponse.Content.ReadFromJsonAsync<LibraryDto>();
+        Assert.NotNull(fetched);
+        Assert.Equal(created.Id, fetched!.Id);
+        Assert.Equal("Get Test", fetched.Name);
+    }
+
+    [Fact]
+    public async Task UpdateLibrary_ChangesDisplayName()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var regResponse = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Original Name",
+            RootPath = _libRoot,
+        });
+        var created = await regResponse.Content.ReadFromJsonAsync<LibraryDto>();
+
+        var updateResponse = await client.PostAsJsonAsync(
+            $"/api/v1/admin/libraries/{created!.Id}/update",
+            new UpdateLibraryRequest { DisplayName = "Updated Name" });
+        updateResponse.EnsureSuccessStatusCode();
+
+        var updated = await updateResponse.Content.ReadFromJsonAsync<LibraryDto>();
+        Assert.Equal("Updated Name", updated!.Name);
+    }
+
+    [Fact]
+    public async Task UnregisterLibrary_Returns204()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var regResponse = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "To Delete",
+            RootPath = _libRoot,
+        });
+        var created = await regResponse.Content.ReadFromJsonAsync<LibraryDto>();
+
+        var delResponse = await client.DeleteAsync($"/api/v1/admin/libraries/{created!.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, delResponse.StatusCode);
+
+        // Second delete returns 404
+        var secondDel = await client.DeleteAsync($"/api/v1/admin/libraries/{created.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, secondDel.StatusCode);
+    }
+
+    [Fact]
+    public async Task ListUsers_ReturnsAdminUser()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var response = await client.GetAsync("/api/v1/admin/users");
+        response.EnsureSuccessStatusCode();
+
+        var users = await response.Content.ReadFromJsonAsync<List<AdminUserDto>>();
+        Assert.NotNull(users);
+        Assert.Contains(users!, u => u.Username == "admin");
+    }
+
+    [Fact]
+    public async Task CreateUser_Returns201()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var response = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "newuser",
+            Password = "NewUserPass123!",
+            IsAdmin = false,
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var user = await response.Content.ReadFromJsonAsync<AdminUserDto>();
+        Assert.Equal("newuser", user!.Username);
+        Assert.False(user.IsAdmin);
+    }
+
+    [Fact]
+    public async Task CreateUser_DuplicateUsername_Returns409()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var first = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "dupuser",
+            Password = "FirstPass123!",
+            IsAdmin = false,
+        });
+        first.EnsureSuccessStatusCode();
+
+        var second = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "dupuser",
+            Password = "SecondPass123!",
+            IsAdmin = false,
+        });
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateUser_WeakPassword_Returns400()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var response = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "weakuser",
+            Password = "short",
+            IsAdmin = false,
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateUser_DisableLastAdmin_Returns400()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        // Get admin user ID
+        var usersResponse = await client.GetAsync("/api/v1/admin/users");
+        var users = await usersResponse.Content.ReadFromJsonAsync<List<AdminUserDto>>();
+        var admin = users!.First(u => u.Username == "admin");
+        Assert.False(string.IsNullOrEmpty(admin.Id), "Admin user ID was empty");
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/v1/admin/users/{admin.Id}/update",
+            new UpdateUserRequest { IsActive = false });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ResetPassword_ReturnsTempPassword()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        // Create a user
+        var createResponse = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "resettest",
+            Password = "OriginalPass123!",
+            IsAdmin = false,
+        });
+        Assert.Equal(HttpStatusCode.OK, createResponse.StatusCode);
+        var createdUser = await createResponse.Content.ReadFromJsonAsync<AdminUserDto>();
+        Assert.NotNull(createdUser);
+
+        // Reset password
+        var resetResponse = await client.PostAsync(
+            $"/api/v1/admin/users/{createdUser!.Id}/reset-password", null);
+        Assert.Equal(HttpStatusCode.OK, resetResponse.StatusCode);
+
+        var result = await resetResponse.Content.ReadFromJsonAsync<ResetPasswordResponse>();
+        Assert.NotNull(result);
+        Assert.False(string.IsNullOrEmpty(result!.TemporaryPassword));
+    }
+
+    [Fact]
+    public async Task GrantAccess_ThenUserCanSeeLibrary()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        // Register library
+        var libResponse = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Granted Library",
+            RootPath = _libRoot,
+        });
+        var library = await libResponse.Content.ReadFromJsonAsync<LibraryDto>();
+
+        // Create non-admin user
+        var userResponse = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "granteduser",
+            Password = "GrantedPass123!",
+            IsAdmin = false,
+        });
+        var createdUser = await userResponse.Content.ReadFromJsonAsync<AdminUserDto>();
+
+        // Grant access
+        var grantResponse = await client.PutAsync(
+            $"/api/v1/admin/users/{createdUser!.Id}/grants/{library!.Id}", null);
+        Assert.Equal(HttpStatusCode.NoContent, grantResponse.StatusCode);
+
+        // Login as the user and verify they can see the library
+        var readerClient = await LoginAndChangePasswordAsync("granteduser", "GrantedPass123!", "GrantedNewPass123!");
+
+        var libsResponse = await readerClient.GetAsync("/api/v1/libraries");
+        libsResponse.EnsureSuccessStatusCode();
+
+        var libs = await libsResponse.Content.ReadFromJsonAsync<List<LibraryDto>>();
+        Assert.Contains(libs!, l => l.Id == library.Id);
+    }
+
+    [Fact]
+    public async Task RevokeAccess_ThenUserCannotSeeLibrary()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        // Setup: library + user + grant
+        var libResponse = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Revoke Library",
+            RootPath = _libRoot,
+        });
+        var library = await libResponse.Content.ReadFromJsonAsync<LibraryDto>();
+
+        var userResponse = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "revokeuser",
+            Password = "RevokePass123!",
+            IsAdmin = false,
+        });
+        var createdUser = await userResponse.Content.ReadFromJsonAsync<AdminUserDto>();
+
+        await client.PutAsync(
+            $"/api/v1/admin/users/{createdUser!.Id}/grants/{library!.Id}", null);
+
+        // Revoke
+        var revokeResponse = await client.DeleteAsync(
+            $"/api/v1/admin/users/{createdUser.Id}/grants/{library.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, revokeResponse.StatusCode);
+
+        // Login as user and verify library is not visible
+        var readerClient = await LoginAndChangePasswordAsync("revokeuser", "RevokePass123!", "RevokeNewPass123!");
+
+        var libsResponse = await readerClient.GetAsync("/api/v1/libraries");
+        libsResponse.EnsureSuccessStatusCode();
+
+        var libs = await libsResponse.Content.ReadFromJsonAsync<List<LibraryDto>>();
+        Assert.DoesNotContain(libs!, l => l.Id == library.Id);
+    }
+
+    [Fact]
+    public async Task TriggerScan_Returns202()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        // Add some content to the library root so scan has something to do
+        Directory.CreateDirectory(Path.Combine(_libRoot, "Series1"));
+
+        var libResponse = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Scan Library",
+            RootPath = _libRoot,
+        });
+        var library = await libResponse.Content.ReadFromJsonAsync<LibraryDto>();
+
+        var scanResponse = await client.PostAsync($"/api/v1/admin/libraries/{library!.Id}/scan", null);
+        Assert.Equal(HttpStatusCode.Accepted, scanResponse.StatusCode);
+
+        var result = await scanResponse.Content.ReadFromJsonAsync<ScanTriggeredDto>();
+        Assert.NotNull(result);
+        Assert.False(string.IsNullOrEmpty(result!.ScanRunId));
+    }
+
+    [Fact]
+    public async Task TriggerScan_NonExistentLibrary_Returns404()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var fakeId = com.lifepixer.mangaplex.Core.Catalog.OpaqueId.Encode(99999);
+        var response = await client.PostAsync($"/api/v1/admin/libraries/{fakeId}/scan", null);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetScanHistory_ReturnsList()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        Directory.CreateDirectory(Path.Combine(_libRoot, "Series"));
+        var libResponse = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "History Lib",
+            RootPath = _libRoot,
+        });
+        var library = await libResponse.Content.ReadFromJsonAsync<LibraryDto>();
+
+        // Trigger a scan
+        await client.PostAsync($"/api/v1/admin/libraries/{library!.Id}/scan", null);
+
+        // Give the background task a moment to complete
+        await Task.Delay(500);
+
+        var historyResponse = await client.GetAsync($"/api/v1/admin/libraries/{library.Id}/scans");
+        historyResponse.EnsureSuccessStatusCode();
+
+        var scans = await historyResponse.Content.ReadFromJsonAsync<List<ScanRunDto>>();
+        Assert.NotNull(scans);
+    }
+}

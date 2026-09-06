@@ -5,16 +5,24 @@ import { catchError } from 'rxjs/operators';
 
 import {
   ApiError,
+  AdminUserDto,
   AuthUserDto,
   CatalogNodeDto,
   ChangePasswordRequest,
+  CreateUserRequest,
   CsrfTokenDto,
   LibraryDto,
   LoginRequest,
   PageResponse,
   ReadingProgressDto,
+  RegisterLibraryRequest,
+  ResetPasswordResponse,
+  ScanRunDto,
+  ScanTriggeredDto,
   SearchResultsDto,
+  UpdateLibraryRequest,
   UpdateProgressRequest,
+  UpdateUserRequest,
   UserPreferencesDto,
 } from './api-types';
 
@@ -109,6 +117,68 @@ export class ApiService {
 
   setPreferences(request: UserPreferencesDto): Observable<void> {
     return this.put<void>('/reading/preferences', request);
+  }
+
+  // --- Admin ---
+
+  registerLibrary(request: RegisterLibraryRequest): Observable<LibraryDto> {
+    return this.post<LibraryDto>('/admin/libraries', request);
+  }
+
+  getLibrary(id: string): Observable<LibraryDto> {
+    return this.get<LibraryDto>(`/admin/libraries/${id}`);
+  }
+
+  updateLibrary(id: string, request: UpdateLibraryRequest): Observable<LibraryDto> {
+    return this.post<LibraryDto>(`/admin/libraries/${id}/update`, request);
+  }
+
+  unregisterLibrary(id: string): Observable<void> {
+    return this.delete<void>(`/admin/libraries/${id}`);
+  }
+
+  triggerScan(libraryId: string): Observable<ScanTriggeredDto> {
+    return this.post<ScanTriggeredDto>(`/admin/libraries/${libraryId}/scan`, {});
+  }
+
+  cancelScan(scanRunId: string): Observable<void> {
+    return this.post<void>(`/admin/scans/${scanRunId}/cancel`, {});
+  }
+
+  getScanHistory(libraryId: string): Observable<ScanRunDto[]> {
+    return this.get<ScanRunDto[]>(`/admin/libraries/${libraryId}/scans`);
+  }
+
+  listUsers(): Observable<AdminUserDto[]> {
+    return this.get<AdminUserDto[]>('/admin/users');
+  }
+
+  createUser(request: CreateUserRequest): Observable<AdminUserDto> {
+    return this.post<AdminUserDto>('/admin/users', request);
+  }
+
+  getUser(id: string): Observable<AdminUserDto> {
+    return this.get<AdminUserDto>(`/admin/users/${id}`);
+  }
+
+  updateUser(id: string, request: UpdateUserRequest): Observable<AdminUserDto> {
+    return this.post<AdminUserDto>(`/admin/users/${id}/update`, request);
+  }
+
+  resetUserPassword(id: string): Observable<ResetPasswordResponse> {
+    return this.post<ResetPasswordResponse>(`/admin/users/${id}/reset-password`, {});
+  }
+
+  revokeUserSessions(id: string): Observable<void> {
+    return this.delete<void>(`/admin/users/${id}/sessions`);
+  }
+
+  grantAccess(userId: string, libraryId: string): Observable<void> {
+    return this.put<void>(`/admin/users/${userId}/grants/${libraryId}`, {});
+  }
+
+  revokeAccess(userId: string, libraryId: string): Observable<void> {
+    return this.delete<void>(`/admin/users/${userId}/grants/${libraryId}`);
   }
 
   // --- HTTP helpers ---

@@ -113,7 +113,7 @@ public sealed class AuthController : ControllerBase
         {
             new(System.Security.Claims.ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(System.Security.Claims.ClaimTypes.Name, user.UserName ?? ""),
-            new("role", user.IsAdmin ? "admin" : "reader"),
+            new(System.Security.Claims.ClaimTypes.Role, user.IsAdmin ? "admin" : "reader"),
         };
         var identity = new System.Security.Claims.ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         var principal = new System.Security.Claims.ClaimsPrincipal(identity);
