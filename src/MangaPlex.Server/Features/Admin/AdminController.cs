@@ -36,6 +36,7 @@ public sealed class AdminController : ControllerBase
     private readonly MangaPlexDbContext _db;
     private readonly ILogger<AdminController> _logger;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public AdminController(
         LibraryRegistrationService registration,
@@ -48,7 +49,8 @@ public sealed class AdminController : ControllerBase
         SessionService sessionService,
         MangaPlexDbContext db,
         ILogger<AdminController> logger,
-        ILoggerFactory loggerFactory)
+        ILoggerFactory loggerFactory,
+        IServiceScopeFactory scopeFactory)
     {
         _registration = registration;
         _leaseService = leaseService;
@@ -61,6 +63,7 @@ public sealed class AdminController : ControllerBase
         _db = db;
         _logger = logger;
         _loggerFactory = loggerFactory;
+        _scopeFactory = scopeFactory;
     }
 
     // --- Libraries ---
@@ -135,26 +138,38 @@ public sealed class AdminController : ControllerBase
             return Conflict(new ApiError { Error = "scan_in_progress", Message = "A scan is already running for this library." });
 
         // Run scan on a background task — the HTTP request returns 202 immediately.
+        // Use a dedicated DI scope so scoped services (DbContext, etc.) are not
+        // disposed when the controller's request scope ends.
+        var libraryId = library.Id;
+        var libraryRootPath = library.RootPath;
+        var leaseId = lease.Id;
+        var scanRevision = lease.ScanRevision;
+        var leaseOwner = lease.LeaseOwner ?? "server";
+
         _ = Task.Run(async () =>
         {
+            using var scope = _scopeFactory.CreateScope();
+            var scopedDb = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var scopedMaintenance = scope.ServiceProvider.GetRequiredService<LibraryMaintenanceService>();
+            var scopedLeaseService = scope.ServiceProvider.GetRequiredService<ScanLeaseService>();
             try
             {
-                await _maintenance.EnterMaintenanceAsync(library.Id);
-                var fs = new ReadOnlyLibraryFileSystem(library.RootPath);
+                await scopedMaintenance.EnterMaintenanceAsync(libraryId);
+                var fs = new ReadOnlyLibraryFileSystem(libraryRootPath);
                 var coordinator = new LibraryScanCoordinator(
-                    _db, fs, _scanPolicy, library.Id, lease.ScanRevision, lease.LeaseOwner ?? "server",
+                    scopedDb, fs, _scanPolicy, libraryId, scanRevision, leaseOwner,
                     _loggerFactory.CreateLogger<LibraryScanCoordinator>());
                 var result = await coordinator.ScanAsync();
-                await _leaseService.ReleaseLeaseAsync(lease.Id, result.Success, result.Error);
-                await _maintenance.ExitMaintenanceAsync(library.Id);
+                await scopedLeaseService.ReleaseLeaseAsync(leaseId, result.Success, result.Error);
+                await scopedMaintenance.ExitMaintenanceAsync(libraryId);
                 _logger.LogInformation("Scan completed for library {LibraryId}: {Added} added, {Tombstoned} tombstoned",
-                    library.Id, result.NodesAdded, result.NodesTombstoned);
+                    libraryId, result.NodesAdded, result.NodesTombstoned);
             }
             catch (Exception ex)
             {
-                await _leaseService.ReleaseLeaseAsync(lease.Id, false, ex.GetType().Name);
-                await _maintenance.ExitMaintenanceAsync(library.Id);
-                _logger.LogWarning("Scan failed for library {LibraryId}: {Error}", library.Id, ex.GetType().Name);
+                await scopedLeaseService.ReleaseLeaseAsync(leaseId, false, ex.GetType().Name);
+                await scopedMaintenance.ExitMaintenanceAsync(libraryId);
+                _logger.LogWarning("Scan failed for library {LibraryId}: {Error}", libraryId, ex.GetType().Name);
             }
         }, CancellationToken.None);
 

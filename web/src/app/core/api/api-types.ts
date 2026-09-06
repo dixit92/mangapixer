@@ -172,3 +172,38 @@ export interface UpdateUserRequest {
 export interface ResetPasswordResponse {
   temporaryPassword: string;
 }
+
+// --- Manifest DTOs ---
+
+export interface ManifestPageEntry {
+  entryKey: string;
+  pageIndex: number;
+  mediaType: string;
+  width: number;
+  height: number;
+  animationState: string;
+  byteSize: number;
+}
+
+export interface ItemManifest {
+  itemId: string;
+  contentVersion: number;
+  manifestVersion: number;
+  archiveFormat: string;
+  pageCount: number;
+  pages: ManifestPageEntry[];
+  isSolid: boolean;
+  hasAnimatedPages: boolean;
+}
+
+export type ItemReadinessState =
+  | 'Ready' | 'Pending' | 'Failed' | 'Unsupported' | 'Encrypted' | 'Missing';
+
+export interface ItemReadiness {
+  itemId: string;
+  state: ItemReadinessState;
+  contentVersion: number;
+  error: string | null;
+  lastAttempt: string | null;
+  isAnalyzing: boolean;
+}

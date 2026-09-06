@@ -11,6 +11,8 @@ import {
   ChangePasswordRequest,
   CreateUserRequest,
   CsrfTokenDto,
+  ItemManifest,
+  ItemReadiness,
   LibraryDto,
   LoginRequest,
   PageResponse,
@@ -179,6 +181,20 @@ export class ApiService {
 
   revokeAccess(userId: string, libraryId: string): Observable<void> {
     return this.delete<void>(`/admin/users/${userId}/grants/${libraryId}`);
+  }
+
+  // --- Manifest / Readiness ---
+
+  getManifest(itemId: string): Observable<ItemManifest> {
+    return this.get<ItemManifest>(`/items/${itemId}/manifest`);
+  }
+
+  getReadiness(itemId: string): Observable<ItemReadiness> {
+    return this.get<ItemReadiness>(`/items/${itemId}/readiness`);
+  }
+
+  prepareItem(itemId: string): Observable<{ status: string; contentVersion: number }> {
+    return this.post<{ status: string; contentVersion: number }>(`/items/${itemId}/prepare`, {});
   }
 
   // --- HTTP helpers ---
