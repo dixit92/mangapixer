@@ -182,6 +182,11 @@ public sealed record UserPreferencesDto
     public bool PreferDoubleSpread { get; init; } = false;
     public bool ReducedMotion { get; init; } = false;
     public string? PreferredBackground { get; init; }
+
+    /// <summary>
+    /// Theme preference: "dark", "light", or "system" (audit defect D23).
+    /// </summary>
+    public string Theme { get; init; } = "dark";
 }
 
 /// <summary>

@@ -1,6 +1,6 @@
 {
   "name": "com.lifepixer.mangaplex.web",
-  "version": "0.1.0-dev.23",
+  "version": "0.1.0-dev.24",
   "description": "MangaPlex Angular web reader",
   "private": true,
   "scripts": {
@@ -25,6 +25,8 @@
     "@angular/platform-browser": "^22.0.0",
     "@angular/platform-browser-dynamic": "^22.0.0",
     "@angular/router": "^22.0.0",
+    "@fontsource/roboto": "^5.1.0",
+    "material-icons": "^1.13.12",
     "rxjs": "^7.8.0",
     "tslib": "^2.6.0",
     "zone.js": "^0.15.0"

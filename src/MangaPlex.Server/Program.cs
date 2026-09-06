@@ -150,6 +150,12 @@ public sealed partial class Program
                 options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
             });
 
+            // OpenAPI document (audit defect D35). The document contains no
+            // private data — routes, DTO shapes, and error codes only.
+            // Served unauthenticated at /openapi/v1.json so the contract drift
+            // test and `openapi-typescript` can fetch it without credentials.
+            builder.Services.AddOpenApi();
+
             var app = builder.Build();
 
             // Initialize database and bootstrap admin
@@ -180,6 +186,10 @@ public sealed partial class Program
 
             // API controllers
             app.MapControllers();
+
+            // OpenAPI endpoint (audit defect D35). Served at /openapi/v1.json.
+            // No private data is exposed — only route shapes and DTO schemas.
+            app.MapOpenApi("/openapi/v1.json");
 
             // Static files — serve Angular bundle from wwwroot/
             var wwwrootPath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
