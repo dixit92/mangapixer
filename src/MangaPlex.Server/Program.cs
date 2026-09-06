@@ -3,14 +3,20 @@ namespace com.lifepixer.mangaplex.Server;
 using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Features.Catalog;
 using com.lifepixer.mangaplex.Server.Features.Reading;
+using com.lifepixer.mangaplex.Server.Hosting;
 using com.lifepixer.mangaplex.Server.Media;
 using com.lifepixer.mangaplex.Server.Operations;
 using com.lifepixer.mangaplex.Server.Persistence;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
+using Serilog.Events;
 
 /// <summary>
-/// Server entry point. Wires up health checks, database, auth, media worker pool,
-/// API controllers, and static file serving for the Angular SPA.
+/// Server entry point. Wires up Serilog, health checks, database, auth,
+/// anti-forgery, Data Protection, media worker pool, hosted lifecycle
+/// services, API controllers, and static file serving for the Angular SPA.
 /// </summary>
 public sealed partial class Program
 {
@@ -18,112 +24,187 @@ public sealed partial class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // Determine data root and database path
-        var dataRoot = builder.Configuration["MangaPlex:Storage:DataRoot"];
-        if (string.IsNullOrWhiteSpace(dataRoot))
-            dataRoot = Path.Combine(builder.Environment.ContentRootPath, "data");
+        // Resolve storage roots from builder.Configuration so that
+        // WebApplicationFactory.ConfigureAppConfiguration is visible.
+        var dataRoot = ResolveRoot(builder.Configuration, "MangaPlex:Storage:DataRoot", "data");
+        var scratchRoot = ResolveRoot(builder.Configuration, "MangaPlex:Storage:ScratchRoot", "scratch");
+        var cacheRoot = ResolveRoot(builder.Configuration, "MangaPlex:Storage:CacheRoot", "cache");
         Directory.CreateDirectory(dataRoot);
-        var databasePath = Path.Combine(dataRoot, "mangaplex.db");
+        Directory.CreateDirectory(scratchRoot);
+        Directory.CreateDirectory(cacheRoot);
 
-        var scratchRoot = builder.Configuration["MangaPlex:Storage:ScratchRoot"];
-        if (string.IsNullOrWhiteSpace(scratchRoot))
-            scratchRoot = Path.Combine(builder.Environment.ContentRootPath, "scratch");
-        var cacheRoot = builder.Configuration["MangaPlex:Storage:CacheRoot"];
-        if (string.IsNullOrWhiteSpace(cacheRoot))
-            cacheRoot = Path.Combine(builder.Environment.ContentRootPath, "cache");
+        var logsRoot = Path.Combine(dataRoot, "logs");
+        Directory.CreateDirectory(logsRoot);
+        var keysRoot = Path.Combine(dataRoot, "keys");
+        Directory.CreateDirectory(keysRoot);
+
+        var databasePath = Path.Combine(dataRoot, "mangaplex.db");
         var workerExe = builder.Configuration["Media:WorkerExecutablePath"];
 
-        // Health checks
-        builder.Services.AddHealthChecks()
-            .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("MangaPlex server is running"));
+        // Serilog bootstrap — compact JSON in container, plain in dev.
+        var isContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+        var logConfig = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+            .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+            .Enrich.WithProperty("Application", "MangaPlex")
+            .Enrich.With<RedactingDestructuringPolicy>();
 
-        // Auth + database (registers DbContext, Identity, cookie auth, auth services)
-        builder.Services.AddMangaPlexAuth(databasePath);
-
-        // Media worker pool
-        builder.Services.AddMangaPlexMedia(options =>
+        if (isContainer)
         {
-            options.ScratchRoot = scratchRoot;
-            options.CacheRoot = cacheRoot;
-            options.WorkerExecutablePath = workerExe;
-        });
-
-        // Catalog and reading services
-        builder.Services.AddScoped<CatalogBrowseService>();
-        builder.Services.AddScoped<ReadingStateService>();
-        builder.Services.AddScoped<IdentityRelinkService>();
-
-        // Operations services
-        builder.Services.AddScoped<BackupService>();
-        builder.Services.AddScoped<DiagnosticsService>();
-        builder.Services.AddScoped<JobRecoveryService>();
-
-        // Controllers
-        builder.Services.AddControllers();
-
-        var app = builder.Build();
-
-        // Initialize database and bootstrap admin
-        using (var scope = app.Services.CreateScope())
+            logConfig.WriteTo.Console(new Serilog.Formatting.Compact.CompactJsonFormatter());
+        }
+        else
         {
-            try
-            {
-                var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
-                db.Database.EnsureCreated();
-                DatabaseInitialization.ConfigureDatabaseAsync(db).GetAwaiter().GetResult();
-
-                // Bootstrap default admin on first run
-                var bootstrap = scope.ServiceProvider.GetRequiredService<DefaultAdminBootstrap>();
-                bootstrap.BootstrapAsync().GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                // Log but don't crash — health checks should still work
-                var logger = scope.ServiceProvider.GetService<ILogger<Program>>();
-                logger?.LogWarning("Database initialization failed: {Error}. Health checks will still respond.", ex.GetType().Name);
-            }
+            logConfig.WriteTo.Console();
         }
 
-        // Health endpoints (before auth so they're always accessible)
-        app.MapHealthChecks("/health");
-        app.MapHealthChecks("/health/ready");
+        logConfig.WriteTo.File(
+            Path.Combine(logsRoot, "mangaplex-.log"),
+            rollingInterval: RollingInterval.Day,
+            retainedFileCountLimit: 7,
+            fileSizeLimitBytes: 20 * 1024 * 1024,
+            rollOnFileSizeLimit: true,
+            outputTemplate: "{Timestamp:O} [{Level:u}] {SourceContext} {Message:lj}{NewLine}{Exception}");
 
-        // Auth middleware
-        app.UseAuthentication();
-        app.UseAuthorization();
+        Log.Logger = logConfig.CreateLogger();
 
-        // API controllers
-        app.MapControllers();
-
-        // Static files — serve Angular bundle from wwwroot/
-        var wwwrootPath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
-        if (Directory.Exists(wwwrootPath))
+        try
         {
-            app.UseDefaultFiles();
-            app.UseStaticFiles();
+            builder.Host.UseSerilog();
 
-            // SPA fallback — serve index.html for non-API, non-file routes
-            app.MapFallback(context =>
+            // Health checks
+            builder.Services.AddHealthChecks()
+                .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("MangaPlex server is running"));
+
+            // Auth + database (registers DbContext, Identity, cookie auth, auth services)
+            builder.Services.AddMangaPlexAuth(databasePath);
+
+            // Media worker pool, scheduler, cache, scratch
+            builder.Services.AddMangaPlexMedia(options =>
             {
-                // Only serve index.html for non-API routes
-                if (context.Request.Path.StartsWithSegments("/api"))
+                options.ScratchRoot = scratchRoot;
+                options.CacheRoot = cacheRoot;
+                options.WorkerExecutablePath = workerExe;
+            });
+
+            // Hosted lifecycle services + storage/scanning/page-delivery registrations
+            builder.Services.AddMangaPlexHosting();
+
+            // Catalog and reading services
+            builder.Services.AddScoped<CatalogBrowseService>();
+            builder.Services.AddScoped<ReadingStateService>();
+
+            // Operations services
+            builder.Services.AddScoped<BackupService>();
+            builder.Services.AddScoped<DiagnosticsService>();
+
+            // Data Protection — persist keys in application-owned data so
+            // cookies survive container recreate. Set a stable application name
+            // so the key ring is not tied to the content root path.
+            builder.Services.AddDataProtection()
+                .PersistKeysToFileSystem(new DirectoryInfo(keysRoot))
+                .SetApplicationName("MangaPlex");
+
+            // Anti-forgery — double-submit token via X-MangaPlex-Csrf header.
+            // The cookie is issued by GET /auth/csrf; unsafe methods must echo
+            // the header. Login is exempt (the token is obtained from /csrf
+            // immediately before). GET /auth/csrf is exempt (it issues the token).
+            builder.Services.AddAntiforgery(options =>
+            {
+                options.HeaderName = "X-MangaPlex-Csrf";
+                options.Cookie.Name = ".MangaPlex.Csrf";
+                options.Cookie.HttpOnly = false; // JS must read it to send the header
+                options.Cookie.SameSite = SameSiteMode.Strict;
+                options.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.SameAsRequest;
+            });
+
+            // MVC controllers with a global auto-validate antiforgery filter.
+            // [IgnoreAntiforgeryToken] opts specific actions out (csrf issuer, login).
+            // AddControllersWithViews is required because AutoValidateAntiforgeryTokenAttribute
+            // is part of the view features pipeline.
+            builder.Services.AddControllersWithViews(options =>
+            {
+                options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
+            });
+
+            var app = builder.Build();
+
+            // Initialize database and bootstrap admin
+            using (var scope = app.Services.CreateScope())
+            {
+                try
                 {
+                    var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+                    db.Database.EnsureCreated();
+                    DatabaseInitialization.ConfigureDatabaseAsync(db).GetAwaiter().GetResult();
+
+                    var bootstrap = scope.ServiceProvider.GetRequiredService<DefaultAdminBootstrap>();
+                    bootstrap.BootstrapAsync().GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    Log.Logger.Warning(ex, "Database initialization failed; health checks will still respond");
+                }
+            }
+
+            // Health endpoints (before auth so they're always accessible)
+            app.MapHealthChecks("/health");
+            app.MapHealthChecks("/health/ready");
+
+            // Auth middleware
+            app.UseAuthentication();
+            app.UseAuthorization();
+
+            // API controllers
+            app.MapControllers();
+
+            // Static files — serve Angular bundle from wwwroot/
+            var wwwrootPath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
+            if (Directory.Exists(wwwrootPath))
+            {
+                app.UseDefaultFiles();
+                app.UseStaticFiles();
+
+                // SPA fallback — serve index.html for non-API, non-file routes
+                app.MapFallback(context =>
+                {
+                    if (context.Request.Path.StartsWithSegments("/api"))
+                    {
+                        context.Response.StatusCode = 404;
+                        return Task.CompletedTask;
+                    }
+
+                    var indexPath = Path.Combine(wwwrootPath, "index.html");
+                    if (File.Exists(indexPath))
+                    {
+                        context.Response.ContentType = "text/html";
+                        return context.Response.SendFileAsync(indexPath);
+                    }
+
                     context.Response.StatusCode = 404;
                     return Task.CompletedTask;
-                }
+                });
+            }
 
-                var indexPath = Path.Combine(wwwrootPath, "index.html");
-                if (File.Exists(indexPath))
-                {
-                    context.Response.ContentType = "text/html";
-                    return context.Response.SendFileAsync(indexPath);
-                }
-
-                context.Response.StatusCode = 404;
-                return Task.CompletedTask;
-            });
+            app.Run();
         }
+        catch (Exception ex)
+        {
+            Log.Logger.Fatal(ex, "MangaPlex server terminated unexpectedly");
+            throw;
+        }
+        finally
+        {
+            Log.CloseAndFlush();
+        }
+    }
 
-        app.Run();
+    private static string ResolveRoot(IConfiguration configuration, string key, string defaultName)
+    {
+        var value = configuration[key];
+        if (string.IsNullOrWhiteSpace(value))
+            return Path.Combine(AppContext.BaseDirectory, defaultName);
+        return Path.GetFullPath(value);
     }
 }

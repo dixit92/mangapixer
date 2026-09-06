@@ -19,6 +19,7 @@ using com.lifepixer.mangaplex.MediaWorker.Protocol;
 public sealed class WorkerSupervisor : IAsyncDisposable
 {
     private readonly string _workerExecutablePath;
+    private readonly string _workerArguments;
     private readonly WorkerPoolOptions _options;
     private readonly ILogger<WorkerSupervisor>? _logger;
 
@@ -46,8 +47,18 @@ public sealed class WorkerSupervisor : IAsyncDisposable
         string workerExecutablePath,
         WorkerPoolOptions options,
         ILogger<WorkerSupervisor>? logger = null)
+        : this(workerExecutablePath, string.Empty, options, logger)
+    {
+    }
+
+    public WorkerSupervisor(
+        string workerExecutablePath,
+        string workerArguments,
+        WorkerPoolOptions options,
+        ILogger<WorkerSupervisor>? logger = null)
     {
         _workerExecutablePath = workerExecutablePath;
+        _workerArguments = workerArguments ?? string.Empty;
         _options = options;
         _logger = logger;
     }
@@ -80,6 +91,15 @@ public sealed class WorkerSupervisor : IAsyncDisposable
             RedirectStandardError = true,
             CreateNoWindow = true,
         };
+
+        // When the resolved path is a managed .dll, launch via dotnet host.
+        // When arguments are supplied (e.g. the DLL path), add them verbatim.
+        if (!string.IsNullOrWhiteSpace(_workerArguments))
+        {
+            // Split on whitespace — arguments are a single DLL path in practice.
+            foreach (var arg in _workerArguments.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                startInfo.ArgumentList.Add(arg);
+        }
 
         _process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         _process.Exited += (_, _) => OnProcessExited(_process.ExitCode);

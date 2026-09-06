@@ -196,9 +196,55 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 
     private WorkerSupervisor CreateSupervisor()
     {
-        var exePath = _options.WorkerExecutablePath ?? DiscoverWorkerExecutable();
+        var (exePath, arguments) = ResolveWorkerLaunch();
         var supervisorLogger = _loggerFactory?.CreateLogger<WorkerSupervisor>();
-        return new WorkerSupervisor(exePath, _options, supervisorLogger);
+        return new WorkerSupervisor(exePath, arguments, _options, supervisorLogger);
+    }
+
+    /// <summary>
+    /// Resolves the worker executable and arguments. Discovery order:
+    /// 1. <c>Media:WorkerExecutablePath</c> (explicit; may be a .dll or native exe)
+    /// 2. Sibling <c>../worker/MangaPlex.MediaWorker.dll</c> (container layout)
+    /// 3. Same directory as the server assembly
+    /// 4. Dev sibling project output
+    /// When the result is a .dll, the launch command is <c>dotnet &lt;dll&gt;</c>.
+    /// </summary>
+    private (string FileName, string Arguments) ResolveWorkerLaunch()
+    {
+        const string workerDllName = "MangaPlex.MediaWorker.dll";
+        var assemblyDir = AppContext.BaseDirectory;
+
+        // 1. Explicit configuration
+        if (!string.IsNullOrWhiteSpace(_options.WorkerExecutablePath))
+        {
+            var configured = _options.WorkerExecutablePath!;
+            return Path.GetExtension(configured).Equals(".dll", StringComparison.OrdinalIgnoreCase)
+                ? ("dotnet", configured)
+                : (configured, string.Empty);
+        }
+
+        // 2. Container layout: /app/server/ + /app/worker/MangaPlex.MediaWorker.dll
+        var containerPath = Path.GetFullPath(Path.Combine(assemblyDir, "..", "worker", workerDllName));
+        if (File.Exists(containerPath))
+            return ("dotnet", containerPath);
+
+        // 3. Published alongside server
+        var siblingPath = Path.Combine(assemblyDir, workerDllName);
+        if (File.Exists(siblingPath))
+            return ("dotnet", siblingPath);
+
+        // 4. Dev: sibling project output (Release then Debug)
+        var devRelease = Path.GetFullPath(Path.Combine(assemblyDir, "..", "..", "..", "MangaPlex.MediaWorker", "bin", "Release", "net10.0", workerDllName));
+        if (File.Exists(devRelease))
+            return ("dotnet", devRelease);
+
+        var devDebug = Path.GetFullPath(Path.Combine(assemblyDir, "..", "..", "..", "MangaPlex.MediaWorker", "bin", "Debug", "net10.0", workerDllName));
+        if (File.Exists(devDebug))
+            return ("dotnet", devDebug);
+
+        // Fallback: assume the worker is a native executable on PATH.
+        _logger?.LogWarning("Worker executable not discovered; falling back to {Name} on PATH", "MangaPlex.MediaWorker");
+        return ("MangaPlex.MediaWorker", string.Empty);
     }
 
     private async Task ProcessJobAsync(WorkerSlot slot, PendingJob job, CancellationToken ct)
@@ -330,26 +376,6 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             slot.IsBusy = false;
             // Scratch workspace is cleaned up by the using statement
         }
-    }
-
-    private static string DiscoverWorkerExecutable()
-    {
-        // Try to find the worker executable relative to the server assembly
-        var assemblyDir = AppContext.BaseDirectory;
-        var workerName = "MangaPlex.MediaWorker";
-
-        // Development: check sibling project output
-        var devPath = Path.Combine(assemblyDir, "..", "..", "..", "MangaPlex.MediaWorker", "bin", "Release", "net10.0", workerName + ".dll");
-        if (File.Exists(devPath))
-            return "dotnet";
-
-        // Published: check alongside server
-        var pubPath = Path.Combine(assemblyDir, workerName + ".dll");
-        if (File.Exists(pubPath))
-            return "dotnet";
-
-        // Fallback: assume it's on PATH
-        return workerName;
     }
 
     public async ValueTask DisposeAsync()

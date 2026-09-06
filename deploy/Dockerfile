@@ -50,6 +50,10 @@ RUN chown -R 1000:1000 /app
 ENV ASPNETCORE_URLS=http://+:8080
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=true
+# Worker discovery: container layout is /app/server + /app/worker.
+# The server's ResolveWorkerLaunch checks ../worker/MangaPlex.MediaWorker.dll
+# automatically, so this env var is belt-and-braces.
+ENV Media__WorkerExecutablePath=/app/worker/MangaPlex.MediaWorker.dll
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

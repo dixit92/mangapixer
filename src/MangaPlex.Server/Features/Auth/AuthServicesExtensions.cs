@@ -101,7 +101,13 @@ public static class AuthServicesExtensions
         services.AddScoped<LibraryAuthorizationService>();
         services.AddScoped<LastAdminProtectionService>();
         services.AddSingleton<LoginRateLimiter>();
-        services.AddSingleton<LoginRateLimitOptions>();
+        services.AddSingleton<LoginRateLimitOptions>(sp =>
+        {
+            var config = sp.GetService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var options = new LoginRateLimitOptions();
+            config?.GetSection("MangaPlex:Security:RateLimit").Bind(options);
+            return options;
+        });
         services.Configure<DefaultAdminOptions>(options =>
         {
             options.UserName = DefaultAdminDefaults.DefaultUserName;

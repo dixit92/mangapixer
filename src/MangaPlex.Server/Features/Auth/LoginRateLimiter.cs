@@ -24,6 +24,9 @@ public sealed class LoginRateLimiter
     /// </summary>
     public bool AllowAttempt(string ipAddress, string username)
     {
+        if (_options.Disabled)
+            return true;
+
         var now = DateTimeOffset.UtcNow;
 
         if (!IsAllowed(_ipAttempts, $"ip:{ipAddress}", now, _options.MaxAttemptsPerIp, _options.Window))
@@ -125,4 +128,10 @@ public sealed class LoginRateLimitOptions
     public int MaxAttemptsPerIp { get; set; } = 10;
     public int MaxAttemptsPerUser { get; set; } = 5;
     public TimeSpan Window { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// When true, rate limiting is disabled entirely. Used in test environments
+    /// where many login attempts are expected.
+    /// </summary>
+    public bool Disabled { get; set; }
 }

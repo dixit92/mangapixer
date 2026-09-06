@@ -3,13 +3,13 @@ namespace com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Cryptography;
 
 /// <summary>
 /// Authentication endpoints: login, logout, current user, password change, CSRF token.
@@ -24,6 +24,7 @@ public sealed class AuthController : ControllerBase
     private readonly SessionService _sessionService;
     private readonly LoginRateLimiter _rateLimiter;
     private readonly LastAdminProtectionService _lastAdminProtection;
+    private readonly IAntiforgery _antiforgery;
     private readonly MangaPlexDbContext _db;
     private readonly ILogger<AuthController> _logger;
 
@@ -33,6 +34,7 @@ public sealed class AuthController : ControllerBase
         SessionService sessionService,
         LoginRateLimiter rateLimiter,
         LastAdminProtectionService lastAdminProtection,
+        IAntiforgery antiforgery,
         MangaPlexDbContext db,
         ILogger<AuthController> logger)
     {
@@ -41,28 +43,24 @@ public sealed class AuthController : ControllerBase
         _sessionService = sessionService;
         _rateLimiter = rateLimiter;
         _lastAdminProtection = lastAdminProtection;
+        _antiforgery = antiforgery;
         _db = db;
         _logger = logger;
     }
 
     [HttpGet("csrf")]
+    [IgnoreAntiforgeryToken]
     public IActionResult GetCsrfToken()
     {
-        var token = GenerateCsrfToken();
-        var isLocal = HttpContext.Request.Host.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
-            || HttpContext.Request.Host.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
-        Response.Cookies.Append(".MangaPlex.Csrf", token, new CookieOptions
-        {
-            HttpOnly = false, // JavaScript needs to read this to send it in headers
-            Secure = HttpContext.Request.IsHttps || !isLocal,
-            SameSite = SameSiteMode.Strict,
-            Path = "/",
-            Expires = DateTimeOffset.UtcNow.AddHours(1),
-        });
-        return Ok(new CsrfTokenDto { Token = token });
+        // Use the standard IAntiforgery service to generate and store the token.
+        // This replaces the hand-rolled generator — the token is validated by
+        // the global AutoValidateAntiforgeryTokenAttribute filter.
+        var tokens = _antiforgery.GetAndStoreTokens(HttpContext);
+        return Ok(new CsrfTokenDto { Token = tokens.RequestToken ?? string.Empty });
     }
 
     [HttpPost("login")]
+    [IgnoreAntiforgeryToken]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(request.Username) || string.IsNullOrEmpty(request.Password))
@@ -230,12 +228,5 @@ public sealed class AuthController : ControllerBase
     private string GetClientIpAddress()
     {
         return HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-    }
-
-    private static string GenerateCsrfToken()
-    {
-        Span<byte> bytes = stackalloc byte[32];
-        RandomNumberGenerator.Fill(bytes);
-        return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 }
