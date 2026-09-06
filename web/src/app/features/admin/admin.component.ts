@@ -70,11 +70,11 @@ import {
 
         <mat-divider></mat-divider>
         <h4>Register New Library</h4>
-        <mat-form-field appearance="outline">
+        <mat-form-field appearance="outline" floatLabel="always">
           <mat-label>Display Name</mat-label>
           <input matInput [(ngModel)]="newLibName" placeholder="My Manga Collection">
         </mat-form-field>
-        <mat-form-field appearance="outline">
+        <mat-form-field appearance="outline" floatLabel="always">
           <mat-label>Root Path (server-side mount)</mat-label>
           <input matInput [(ngModel)]="newLibPath" placeholder="/media/library1">
         </mat-form-field>

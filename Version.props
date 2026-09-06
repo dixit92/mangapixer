@@ -10,7 +10,7 @@
     <MangaPlexVersionMajor>0</MangaPlexVersionMajor>
     <MangaPlexVersionMinor>1</MangaPlexVersionMinor>
     <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
-    <MangaPlexVersionPrerelease>dev.29</MangaPlexVersionPrerelease>
+    <MangaPlexVersionPrerelease>dev.30</MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
     <MangaPlexVersion>$(MangaPlexVersionMajor).$(MangaPlexVersionMinor).$(MangaPlexVersionPatch)</MangaPlexVersion>
