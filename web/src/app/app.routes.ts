@@ -17,12 +17,27 @@ export const routes: Routes = [
       {
         path: 'libraries',
         loadComponent: () =>
-          import('./features/home/home.component').then((m) => m.HomeComponent),
+          import('./features/library/library-list.component').then((m) => m.LibraryListComponent),
+      },
+      {
+        path: 'libraries/:libraryId',
+        loadComponent: () =>
+          import('./features/library/library-browse.component').then((m) => m.LibraryBrowseComponent),
+      },
+      {
+        path: 'libraries/:libraryId/browse',
+        loadComponent: () =>
+          import('./features/library/library-browse.component').then((m) => m.LibraryBrowseComponent),
+      },
+      {
+        path: 'libraries/:libraryId/browse/:nodeId',
+        loadComponent: () =>
+          import('./features/library/library-browse.component').then((m) => m.LibraryBrowseComponent),
       },
       {
         path: 'search',
         loadComponent: () =>
-          import('./features/home/home.component').then((m) => m.HomeComponent),
+          import('./features/search/search.component').then((m) => m.SearchComponent),
       },
       {
         path: 'settings',
@@ -33,7 +48,7 @@ export const routes: Routes = [
         path: 'admin',
         canActivate: [adminGuard],
         loadComponent: () =>
-          import('./features/home/home.component').then((m) => m.HomeComponent),
+          import('./features/admin/admin.component').then((m) => m.AdminComponent),
       },
     ],
   },
