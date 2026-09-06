@@ -73,6 +73,9 @@ public static class DatabaseInitialization
                 tokenize='trigram'
             );
             """, ct);
+
+        // Set the schema version so startup validation can detect incompatible databases
+        await SetSchemaVersionAsync(db, CurrentSchemaVersion, ct);
     }
 
     /// <summary>
