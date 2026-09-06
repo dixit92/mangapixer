@@ -9,7 +9,7 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { CatalogNodeDto, ReadingProgressDto } from '../../core/api/api-types';
+import { ReadingProgressDto } from '../../core/api/api-types';
 import { WebtoonReaderComponent } from './webtoon-reader.component';
 import { SpreadReaderComponent } from './spread-reader.component';
 
@@ -259,15 +259,16 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     this.error.set(null);
 
-    this.api.getNode(this.itemId()).subscribe({
-      next: (node: CatalogNodeDto) => {
-        if (node.pageCount) this.pageCount.set(node.pageCount);
+    // Fetch manifest to get page count and content version
+    this.api.getManifest(this.itemId()).subscribe({
+      next: (manifest) => {
+        this.pageCount.set(manifest.pageCount);
+        this.contentVersion = manifest.contentVersion;
 
         // Load saved progress
         this.api.getProgress(this.itemId()).subscribe({
           next: (progress: ReadingProgressDto) => {
             this.currentPage.set(progress.pageIndex);
-            this.contentVersion = progress.contentVersion;
             this.loadPage();
           },
           error: () => {
@@ -278,8 +279,23 @@ export class ReaderComponent implements OnInit, OnDestroy {
         });
       },
       error: (err) => {
-        this.loading.set(false);
-        this.error.set(err.message || 'Failed to load item');
+        // Manifest not available — try prepare, then retry
+        if (err.error === 'not_analyzed') {
+          this.api.prepareItem(this.itemId()).subscribe({
+            next: () => {
+              this.error.set('Analyzing archive — please wait...');
+              // Retry after a delay
+              setTimeout(() => this.loadItemAndProgress(), 3000);
+            },
+            error: (prepErr) => {
+              this.loading.set(false);
+              this.error.set(prepErr.message || 'Failed to prepare item');
+            },
+          });
+        } else {
+          this.loading.set(false);
+          this.error.set(err.message || 'Failed to load item');
+        }
       },
     });
   }
