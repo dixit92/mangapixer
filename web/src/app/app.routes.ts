@@ -50,6 +50,11 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/admin.component').then((m) => m.AdminComponent),
       },
+      {
+        path: 'reader/:itemId',
+        loadComponent: () =>
+          import('./features/reader/reader.component').then((m) => m.ReaderComponent),
+      },
     ],
   },
   {
