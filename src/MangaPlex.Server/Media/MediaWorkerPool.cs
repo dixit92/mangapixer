@@ -3,6 +3,8 @@ namespace com.lifepixer.mangaplex.Server.Media;
 using System.Diagnostics;
 using com.lifepixer.mangaplex.Core.WorkerProtocol;
 using com.lifepixer.mangaplex.MediaWorker.Protocol;
+using com.lifepixer.mangaplex.Server.Persistence;
+using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Manages a small pool of media worker processes. Dispatches jobs from the
@@ -21,8 +23,11 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     private readonly ScratchWorkspaceManager _scratchManager;
     private readonly ILogger<MediaWorkerPool> _logger;
     private readonly ILoggerFactory? _loggerFactory;
+    private readonly IServiceScopeFactory? _scopeFactory;
+    private readonly AnalysisResultPersister? _persister;
     private readonly List<WorkerSlot> _workers = [];
     private readonly object _poolLock = new();
+    private readonly CancellationTokenSource _readCts = new();
     private bool _isStarted;
     private bool _isShuttingDown;
 
@@ -31,13 +36,17 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         JobScheduler scheduler,
         ScratchWorkspaceManager scratchManager,
         ILogger<MediaWorkerPool> logger,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        IServiceScopeFactory? scopeFactory = null,
+        AnalysisResultPersister? persister = null)
     {
         _options = options;
         _scheduler = scheduler;
         _scratchManager = scratchManager;
         _logger = logger;
         _loggerFactory = loggerFactory;
+        _scopeFactory = scopeFactory;
+        _persister = persister;
     }
 
     /// <summary>
@@ -127,6 +136,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     public async Task StopAsync(CancellationToken ct = default)
     {
         _isShuttingDown = true;
+        try { _readCts.Cancel(); } catch (ObjectDisposedException) { }
 
         List<WorkerSlot> workers;
         lock (_poolLock)
@@ -200,6 +210,12 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             {
                 _workers.Add(slot);
             }
+
+            // ONE persistent read loop per worker for its whole lifetime. Jobs only
+            // swap the OnMessageReceived handler; they must not start their own read
+            // loop, or competing readers would drop responses (a fast reply to job N
+            // could be consumed by job N-1's orphaned loop and lost).
+            slot.ReadLoop = Task.Run(() => supervisor.ReadMessagesAsync(_readCts.Token), _readCts.Token);
         }
         catch (Exception ex)
         {
@@ -344,9 +360,9 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 
             slot.Supervisor.OnMessageReceived += HandleMessage;
 
-            // Start reading messages BEFORE sending the request so the worker's
-            // response cannot be missed by a race between send and read.
-            var readTask = slot.Supervisor.ReadMessagesAsync(ct);
+            // The worker's persistent read loop (started in StartWorkerAsync)
+            // delivers responses to the handler registered above — this method must
+            // NOT start its own read loop.
 
             // Send the analyze request
             var requestEnvelope = WorkerProtocolFraming.CreateEnvelope("analyze", job.JobId, request);
@@ -359,6 +375,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 
             slot.Supervisor.OnMessageReceived -= HandleMessage;
 
+            JobResult finalResult;
             if (completedTask == timeoutTask)
             {
                 // Timeout — cancel the job
@@ -370,7 +387,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                 }
                 catch { /* best effort */ }
 
-                var failResult = new JobResult
+                finalResult = new JobResult
                 {
                     JobId = job.JobId,
                     Success = false,
@@ -378,23 +395,56 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                     ErrorMessage = "Job exceeded timeout",
                     Result = null,
                 };
-                _scheduler.CompleteJob(job.DedupKey, failResult);
+                _scheduler.CompleteJob(job.DedupKey, finalResult);
             }
             else
             {
-                var result = await completionTcs.Task;
-                _scheduler.CompleteJob(job.DedupKey, result);
+                finalResult = await completionTcs.Task;
+                _scheduler.CompleteJob(job.DedupKey, finalResult);
             }
+
+            // Persist the result for EVERY job (background and reader-demand), so a
+            // scanned library's covers/manifests populate without opening each item.
+            await PersistResultAsync(job.ItemId, finalResult);
         }
         catch (Exception ex)
         {
             _logger?.LogWarning(ex, "Job {JobId} (item {ItemId}) failed during processing", job.JobId, job.ItemId);
             _scheduler.FailJob(job.DedupKey, ex);
+            await PersistResultAsync(job.ItemId, new JobResult
+            {
+                JobId = job.JobId,
+                Success = false,
+                ErrorType = ex.GetType().Name,
+                ErrorMessage = ex.Message,
+                Result = null,
+            });
         }
         finally
         {
             slot.IsBusy = false;
             // Scratch workspace is cleaned up by the using statement
+        }
+    }
+
+    /// <summary>
+    /// Persists a completed job's result into the catalog using a fresh scope.
+    /// No-ops when the pool was constructed without a scope factory/persister
+    /// (e.g. in unit tests that exercise dispatch behaviour only).
+    /// </summary>
+    private async Task PersistResultAsync(long nodeId, JobResult result)
+    {
+        if (_scopeFactory is null || _persister is null)
+            return;
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            await _persister.PersistAsync(db, nodeId, result);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning("Persisting analysis for item {ItemId} failed: {Error}", nodeId, ex.GetType().Name);
         }
     }
 
@@ -408,5 +458,6 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         public int Id { get; init; }
         public required WorkerSupervisor Supervisor { get; init; }
         public bool IsBusy { get; set; }
+        public Task? ReadLoop { get; set; }
     }
 }

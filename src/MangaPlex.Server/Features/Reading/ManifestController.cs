@@ -30,22 +30,19 @@ public sealed class ManifestController : ControllerBase
     private readonly JobScheduler _jobScheduler;
     private readonly LibraryAuthorizationService _libraryAuth;
     private readonly ILogger<ManifestController> _logger;
-    private readonly IServiceScopeFactory _scopeFactory;
 
     public ManifestController(
         MangaPlexDbContext db,
         MediaWorkerPool workerPool,
         JobScheduler jobScheduler,
         LibraryAuthorizationService libraryAuth,
-        ILogger<ManifestController> logger,
-        IServiceScopeFactory scopeFactory)
+        ILogger<ManifestController> logger)
     {
         _db = db;
         _workerPool = workerPool;
         _jobScheduler = jobScheduler;
         _libraryAuth = libraryAuth;
         _logger = logger;
-        _scopeFactory = scopeFactory;
     }
 
     [HttpGet("{itemId}/manifest")]
@@ -234,112 +231,14 @@ public sealed class ManifestController : ControllerBase
         }
         await _db.SaveChangesAsync(ct);
 
-        // Dispatch to worker pool (fire-and-forget, but process the result)
-        var nodeIdForTask = node.Id;
-        _ = Task.Run(async () =>
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var scopedDb = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
-            try
-            {
-                await _workerPool.DispatchAsync(CancellationToken.None);
-                var result = await jobTask;
-                await PersistAnalysisResultAsync(scopedDb, nodeIdForTask, result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning("Prepare failed for item {ItemId}: {Error}", nodeIdForTask, ex.GetType().Name);
-                await MarkAnalysisFailedAsync(scopedDb, nodeIdForTask, ex.GetType().Name);
-            }
-        }, CancellationToken.None);
-    }
-
-    private async Task PersistAnalysisResultAsync(MangaPlexDbContext db, long nodeId, JobResult result)
-    {
-        var archiveItem = await db.ArchiveItems
-            .Include(a => a.Pages)
-            .FirstOrDefaultAsync(a => a.NodeId == nodeId);
-        if (archiveItem is null) return;
-
-        if (!result.Success || result.Result is null)
-        {
-            archiveItem.AnalysisState = result.ErrorType switch
-            {
-                "encrypted" => 4,
-                "unsupported" or "enumeration_error" => 3,
-                "source_changed" or "source_missing" => 5,
-                _ => 2,
-            };
-            archiveItem.AnalysisError = result.ErrorType;
-            archiveItem.LastAnalyzedAt = DateTimeOffset.UtcNow;
-            await db.SaveChangesAsync();
-            return;
-        }
-
-        var analyzeResult = (result.Result as AnalyzeResult);
-        if (analyzeResult is null)
-        {
-            archiveItem.AnalysisState = 2;
-            archiveItem.AnalysisError = "invalid_result";
-            archiveItem.LastAnalyzedAt = DateTimeOffset.UtcNow;
-            await db.SaveChangesAsync();
-            return;
-        }
-
-        // Clear old pages
-        if (archiveItem.Pages.Count > 0)
-        {
-            db.PageEntries.RemoveRange(archiveItem.Pages);
-        }
-
-        // Persist new pages — entry keys are deterministic ordinals, not
-        // random strings, so page URLs are stable across re-analyses
-        // (audit defect D4).
-        foreach (var page in analyzeResult.Pages)
-        {
-            db.PageEntries.Add(new PageEntryEntity
-            {
-                ItemId = nodeId,
-                ContentVersion = archiveItem.ContentVersion,
-                Ordinal = page.Ordinal,
-                EntryKey = new PageEntryKey(page.Ordinal).ToOpaque(),
-                SourceEntryLocator = page.SourceEntryKey,
-                MediaType = page.MediaType,
-                Width = page.Width > 0 ? page.Width : null,
-                Height = page.Height > 0 ? page.Height : null,
-                AnimationState = (int)page.AnimationState,
-                PageState = page.IsSupported ? 0 : 2,
-                ByteSize = page.ByteSize,
-            });
-        }
-
-        archiveItem.ArchiveFormat = (int)analyzeResult.ArchiveFormat;
-        archiveItem.PageCount = analyzeResult.Pages.Count;
-        archiveItem.AnalysisState = 0; // ready
-        archiveItem.AnalysisError = null;
-        archiveItem.LastAnalyzedAt = DateTimeOffset.UtcNow;
-        archiveItem.ByteLength = analyzeResult.ObservedByteLength;
-        archiveItem.ModificationTicks = analyzeResult.ObservedLastWriteTicks;
-
-        await db.SaveChangesAsync();
-        _logger.LogInformation("Analysis persisted for item {ItemId}: {PageCount} pages",
-            nodeId, analyzeResult.Pages.Count);
-    }
-
-    private async Task MarkAnalysisFailedAsync(MangaPlexDbContext db, long nodeId, string errorType)
-    {
-        try
-        {
-            var archiveItem = await db.ArchiveItems.FirstOrDefaultAsync(a => a.NodeId == nodeId);
-            if (archiveItem is not null)
-            {
-                archiveItem.AnalysisState = 2;
-                archiveItem.AnalysisError = errorType;
-                archiveItem.LastAnalyzedAt = DateTimeOffset.UtcNow;
-                await db.SaveChangesAsync();
-            }
-        }
-        catch { /* best effort */ }
+        // Kick the pool so reader-demand analysis dispatches promptly instead of
+        // waiting for the periodic dispatch loop. The pool persists the result
+        // itself (AnalysisResultPersister), so we neither await nor persist here —
+        // the reader observes readiness by polling. Observe the dedup task so a
+        // faulted job does not raise UnobservedTaskException.
+        _ = Task.Run(() => _workerPool.DispatchAsync(CancellationToken.None), CancellationToken.None);
+        _ = jobTask.ContinueWith(static t => { _ = t.Exception; },
+            CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
     }
 
     private static ItemManifest BuildManifest(string itemId, ArchiveItemEntity archiveItem)

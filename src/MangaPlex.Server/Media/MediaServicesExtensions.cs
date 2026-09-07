@@ -25,13 +25,16 @@ public static class MediaServicesExtensions
         services.AddSingleton<CacheService>(sp =>
             new CacheService(options.CacheRoot, options.CacheBudgetBytes,
                 sp.GetService<ILogger<CacheService>>()));
+        services.AddSingleton<AnalysisResultPersister>();
         services.AddSingleton<MediaWorkerPool>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<MediaWorkerPool>>();
             var loggerFactory = sp.GetService<ILoggerFactory>();
             var scheduler = sp.GetRequiredService<JobScheduler>();
             var scratch = sp.GetRequiredService<ScratchWorkspaceManager>();
-            return new MediaWorkerPool(options, scheduler, scratch, logger, loggerFactory);
+            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+            var persister = sp.GetRequiredService<AnalysisResultPersister>();
+            return new MediaWorkerPool(options, scheduler, scratch, logger, loggerFactory, scopeFactory, persister);
         });
 
         return services;
