@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
@@ -18,6 +18,7 @@ import {
   LibraryDto,
   LoginRequest,
   PageResponse,
+  ProgressUpdateResult,
   ReadingProgressDto,
   RegisterLibraryRequest,
   ResetPasswordResponse,
@@ -117,8 +118,22 @@ export class ApiService {
     return this.get<ReadingProgressDto>(`/reading/progress/${itemId}`);
   }
 
-  updateProgress(itemId: string, request: UpdateProgressRequest): Observable<ReadingProgressDto> {
-    return this.put<ReadingProgressDto>(`/reading/progress/${itemId}`, request);
+  updateProgress(
+    itemId: string,
+    request: UpdateProgressRequest,
+    revision = 0,
+  ): Observable<ProgressUpdateResult> {
+    // Optimistic concurrency (D32): If-Match the known revision, or If-None-Match:*
+    // for the first write against an unread item (revision 0).
+    const headers = revision > 0
+      ? new HttpHeaders({ 'If-Match': `"${revision}"` })
+      : new HttpHeaders({ 'If-None-Match': '*' });
+    return this.http
+      .put<ProgressUpdateResult>(`${this.baseUrl}/reading/progress/${itemId}`, request, {
+        headers,
+        withCredentials: true,
+      })
+      .pipe(catchError(this.handleError));
   }
 
   resetProgress(itemId: string): Observable<void> {

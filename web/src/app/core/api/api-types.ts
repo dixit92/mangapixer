@@ -70,12 +70,25 @@ export interface ReadingProgressDto {
   contentVersion: number;
   updatedAt: string;
   state: ReadingState;
+  /** Server revision for optimistic concurrency; sent back as If-Match on PUT. */
+  revision: number;
   isStale: boolean;
 }
 
 export interface UpdateProgressRequest {
   pageIndex: number;
   expectedContentVersion: number;
+  /** Client-generated unique id for idempotent updates (D32). */
+  mutationId: string;
+  /** Manifest entry key of the current page. */
+  entryKey?: string;
+  /** Normalized 0–1 scroll anchor (webtoon mode). */
+  normalizedAnchor?: number;
+}
+
+export interface ProgressUpdateResult {
+  revision: number;
+  alreadyApplied: boolean;
 }
 
 export type ReaderMode = 'PagedLtr' | 'PagedRtl' | 'DoubleSpread' | 'VerticalWebtoon';
