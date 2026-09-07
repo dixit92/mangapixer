@@ -54,6 +54,14 @@ RUN chown -R 1000:1000 /app
 ENV ASPNETCORE_URLS=http://+:8080
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=true
+# Point the storage roots at the mounted volumes. Without these the roots resolve
+# to AppContext.BaseDirectory/{data,cache,scratch} inside the image's writable
+# layer, so the /data, /cache, /scratch volume mounts are unused and all state
+# (database, keys, cache) is lost whenever the container is recreated.
+# .NET maps hierarchical config keys via '__' in env vars.
+ENV MangaPlex__Storage__DataRoot=/data
+ENV MangaPlex__Storage__CacheRoot=/cache
+ENV MangaPlex__Storage__ScratchRoot=/scratch
 # Worker discovery: container layout is /app/server + /app/worker.
 # The server's ResolveWorkerLaunch checks ../worker/MangaPlex.MediaWorker.dll
 # automatically, so this env var is belt-and-braces.
