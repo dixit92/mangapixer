@@ -217,6 +217,14 @@ export interface ResetPasswordResponse {
   temporaryPassword: string;
 }
 
+export interface UserGrantsDto {
+  userId: string;
+  /** Admins access every library regardless of explicit grants. */
+  isAdmin: boolean;
+  /** Public ids of libraries this user is explicitly granted. */
+  libraryIds: string[];
+}
+
 // --- Manifest DTOs ---
 
 export interface ManifestPageEntry {

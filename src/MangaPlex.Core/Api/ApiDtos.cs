@@ -396,3 +396,16 @@ public sealed record LibraryGrantDto
     public required string UserId { get; init; }
     public required string LibraryId { get; init; }
 }
+
+/// <summary>
+/// The set of libraries a user is currently granted access to, by public id.
+/// Admins implicitly access all libraries; for an admin this list still reflects
+/// only explicit grant rows (usually empty), with <see cref="IsAdmin"/> signalling
+/// that access is unrestricted regardless.
+/// </summary>
+public sealed record UserGrantsDto
+{
+    public required string UserId { get; init; }
+    public required bool IsAdmin { get; init; }
+    public required IReadOnlyList<string> LibraryIds { get; init; }
+}

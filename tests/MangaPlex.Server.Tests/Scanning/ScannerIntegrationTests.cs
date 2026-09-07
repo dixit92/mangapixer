@@ -269,6 +269,46 @@ public sealed class ScannerIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task ScanCancel_RunningScan_MarksCancelledNotFailed()
+    {
+        var (db, library) = await SetupAsync();
+        var leaseService = new ScanLeaseService(db);
+
+        var lease = await leaseService.AcquireLeaseAsync(library.Id, "test-worker", TimeSpan.FromMinutes(10));
+        Assert.NotNull(lease);
+
+        // Cancelling a running scan marks it cancelled (4), not failed (3).
+        // This is the terminal state the cancel handler must produce — a prior
+        // bug let a subsequent ReleaseLeaseAsync(success:false) overwrite it to
+        // failed (audit defect D34 / D39 cancel UX).
+        var cancelled = await leaseService.CancelScanAsync(lease!.Id);
+        Assert.True(cancelled);
+
+        var scanRun = await db.ScanRuns.FirstAsync(s => s.Id == lease.Id);
+        Assert.Equal(4, scanRun.Status); // cancelled
+        Assert.Null(scanRun.LeaseExpiry); // lease released
+    }
+
+    [Fact]
+    public async Task ScanCancel_CompletedScan_IsNoOp()
+    {
+        var (db, library) = await SetupAsync();
+        var leaseService = new ScanLeaseService(db);
+
+        var lease = await leaseService.AcquireLeaseAsync(library.Id, "test-worker", TimeSpan.FromMinutes(10));
+        await leaseService.ReleaseLeaseAsync(lease!.Id, success: true); // status = completed (2)
+
+        // A late cancel (e.g. only the post-scan analysis enqueue was cancelled)
+        // must not downgrade an already-completed scan. CancelScanAsync is guarded
+        // on Status==1, so it is a no-op here.
+        var cancelled = await leaseService.CancelScanAsync(lease.Id);
+        Assert.False(cancelled);
+
+        var scanRun = await db.ScanRuns.FirstAsync(s => s.Id == lease.Id);
+        Assert.Equal(2, scanRun.Status); // still completed
+    }
+
+    [Fact]
     public async Task ScanLease_ExpiredLease_RecoveredOnStartup()
     {
         var (db, library) = await SetupAsync();

@@ -216,14 +216,13 @@ public sealed class AdminController : ControllerBase
             catch (OperationCanceledException)
             {
                 // Scan was cancelled via CancelScan (audit defect D34).
-                var scanRun = await scopedDb.ScanRuns.FirstOrDefaultAsync(s => s.Id == leaseId);
-                if (scanRun is not null)
-                {
-                    scanRun.Status = 4; // cancelled
-                    scanRun.CompletedAt = DateTimeOffset.UtcNow;
-                    await scopedDb.SaveChangesAsync();
-                }
-                await scopedLeaseService.ReleaseLeaseAsync(leaseId, false, "cancelled");
+                // Use CancelScanAsync (status=cancelled, guarded on still-running)
+                // rather than ReleaseLeaseAsync(success:false), which would derive
+                // status purely from the boolean and mark a user-cancelled scan as
+                // "failed". The Status==1 guard also leaves an already-completed
+                // scan (whose only cancelled step was the post-scan analysis
+                // enqueue) as "completed" instead of downgrading it.
+                await scopedLeaseService.CancelScanAsync(leaseId);
                 await scopedMaintenance.ExitMaintenanceAsync(libraryId);
                 _logger.LogInformation("Scan cancelled for library {LibraryId}", libraryId);
             }
@@ -521,6 +520,34 @@ public sealed class AdminController : ControllerBase
     }
 
     // --- Grants ---
+
+    /// <summary>
+    /// Lists the libraries a user is currently granted access to (by public id).
+    /// Admins implicitly access every library; the returned <c>isAdmin</c> flag
+    /// signals that, so the client can present grants as read-only for admins.
+    /// </summary>
+    [HttpGet("users/{userId}/grants")]
+    public async Task<IActionResult> GetUserGrants(string userId, CancellationToken ct)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.PublicId == userId, ct);
+        if (user is null)
+            return NotFound(new ApiError { Error = "not_found", Message = "User not found." });
+
+        // Project grant rows to the corresponding library public ids. A join keeps
+        // this to a single query and naturally drops grants whose library no longer
+        // exists.
+        var libraryIds = await _db.LibraryGrants
+            .Where(g => g.UserId == user.Id)
+            .Join(_db.Libraries, g => g.LibraryId, l => l.Id, (g, l) => l.PublicId)
+            .ToListAsync(ct);
+
+        return Ok(new UserGrantsDto
+        {
+            UserId = user.PublicId,
+            IsAdmin = user.IsAdmin,
+            LibraryIds = libraryIds,
+        });
+    }
 
     [HttpPut("users/{userId}/grants/{libraryId}")]
     public async Task<IActionResult> GrantAccess(string userId, string libraryId, CancellationToken ct)

@@ -401,6 +401,45 @@ public sealed class AdminHttpTests : IDisposable
     }
 
     [Fact]
+    public async Task GetUserGrants_ReflectsGrantThenRevoke()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var libResponse = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Grants List Library",
+            RootPath = _libRoot,
+        });
+        var library = await libResponse.Content.ReadFromJsonAsync<LibraryDto>();
+
+        var userResponse = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "grantslistuser",
+            Password = "GrantsListPass123!",
+            IsAdmin = false,
+        });
+        var createdUser = await userResponse.Content.ReadFromJsonAsync<AdminUserDto>();
+
+        // Initially: no grants.
+        var before = await client.GetFromJsonAsync<UserGrantsDto>(
+            $"/api/v1/admin/users/{createdUser!.Id}/grants");
+        Assert.False(before!.IsAdmin);
+        Assert.Empty(before.LibraryIds);
+
+        // After grant: the library public id is listed.
+        await client.PutAsync($"/api/v1/admin/users/{createdUser.Id}/grants/{library!.Id}", null);
+        var afterGrant = await client.GetFromJsonAsync<UserGrantsDto>(
+            $"/api/v1/admin/users/{createdUser.Id}/grants");
+        Assert.Contains(library.Id, afterGrant!.LibraryIds);
+
+        // After revoke: back to empty.
+        await client.DeleteAsync($"/api/v1/admin/users/{createdUser.Id}/grants/{library.Id}");
+        var afterRevoke = await client.GetFromJsonAsync<UserGrantsDto>(
+            $"/api/v1/admin/users/{createdUser.Id}/grants");
+        Assert.DoesNotContain(library.Id, afterRevoke!.LibraryIds);
+    }
+
+    [Fact]
     public async Task RevokeAccess_ThenUserCannotSeeLibrary()
     {
         var client = await _factory.LoginAsAdminWithChangedPasswordAsync();

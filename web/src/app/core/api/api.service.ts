@@ -30,6 +30,7 @@ import {
   UpdateLibraryRequest,
   UpdateProgressRequest,
   UpdateUserRequest,
+  UserGrantsDto,
   UserPreferencesDto,
 } from './api-types';
 
@@ -211,6 +212,10 @@ export class ApiService {
 
   revokeUserSessions(id: string): Observable<void> {
     return this.delete<void>(`/admin/users/${id}/sessions`);
+  }
+
+  getUserGrants(userId: string): Observable<UserGrantsDto> {
+    return this.get<UserGrantsDto>(`/admin/users/${userId}/grants`);
   }
 
   grantAccess(userId: string, libraryId: string): Observable<void> {

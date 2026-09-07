@@ -1171,6 +1171,28 @@
         }
       }
     },
+    "/api/v1/admin/users/{userId}/grants": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/users/{userId}/grants/{libraryId}": {
       "put": {
         "tags": [

@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -8,6 +8,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { ApiService } from '../../core/api/api.service';
@@ -22,6 +24,10 @@ import {
 /**
  * Admin component. Shows library and user administration.
  * No file delete/rename controls are provided.
+ *
+ * Scan controls (audit defect D39): each library shows a live status chip;
+ * while a scan runs, the row polls library state and offers a Cancel control.
+ * User rows expose an inline library-access (grants) panel.
  */
 @Component({
   selector: 'app-admin',
@@ -36,6 +42,8 @@ import {
     MatFormFieldModule,
     MatInputModule,
     MatCheckboxModule,
+    MatTooltipModule,
+    MatProgressSpinnerModule,
   ],
   template: `
     <h2>Administration</h2>
@@ -58,11 +66,27 @@ import {
                 <div matListItemTitle>{{ lib.name }}</div>
                 <div matListItemLine>
                   @if (lib.itemCount !== null) { {{ lib.itemCount }} items }
-                  @if (lib.isScanning) { — Scanning... }
+                  @if (lib.lastScanCompleted && !lib.isScanning) {
+                    · last scan {{ lib.lastScanCompleted | date:'short' }}
+                  }
                 </div>
-                <button matListItemMetaIcon matIconButton (click)="triggerScan(lib.id)">
-                  <mat-icon>refresh</mat-icon>
-                </button>
+                <span matListItemMeta class="lib-meta">
+                  @if (lib.isScanning) {
+                    <span class="chip scanning">
+                      <mat-spinner diameter="14"></mat-spinner> Scanning…
+                    </span>
+                    <button mat-stroked-button color="warn" type="button"
+                            [disabled]="!scanRunId(lib.id) || cancelling().has(lib.id)"
+                            (click)="cancelScan(lib.id)">
+                      Cancel
+                    </button>
+                  } @else {
+                    <button mat-icon-button type="button" (click)="triggerScan(lib.id)"
+                            matTooltip="Scan now" aria-label="Scan now">
+                      <mat-icon>refresh</mat-icon>
+                    </button>
+                  }
+                </span>
               </mat-list-item>
             }
           </mat-list>
@@ -155,10 +179,42 @@ import {
                   {{ user.isAdmin ? 'Admin' : 'Reader' }}
                   @if (!user.isActive) { — Disabled }
                 </div>
-                <button matListItemMetaIcon matIconButton (click)="resetPassword(user.id)" matTooltip="Reset password">
-                  <mat-icon>vpn_key</mat-icon>
-                </button>
+                <span matListItemMeta class="user-meta">
+                  <button mat-icon-button type="button" (click)="toggleGrants(user)"
+                          matTooltip="Library access" aria-label="Library access">
+                    <mat-icon>{{ grantsOpenUserId() === user.id ? 'expand_less' : 'library_books' }}</mat-icon>
+                  </button>
+                  <button mat-icon-button type="button" (click)="resetPassword(user.id)"
+                          matTooltip="Reset password" aria-label="Reset password">
+                    <mat-icon>vpn_key</mat-icon>
+                  </button>
+                </span>
               </mat-list-item>
+
+              @if (grantsOpenUserId() === user.id) {
+                <div class="grants">
+                  @if (user.isAdmin) {
+                    <p class="grants-hint">
+                      <mat-icon inline>info</mat-icon>
+                      Admins can access every library. Grants apply to reader accounts only.
+                    </p>
+                  } @else if (grantsLoading()) {
+                    <p class="grants-hint">Loading access…</p>
+                  } @else if (libraries().length === 0) {
+                    <p class="grants-hint">No libraries to grant.</p>
+                  } @else {
+                    <p class="grants-hint">Select which libraries {{ user.username }} can read:</p>
+                    @for (lib of libraries(); track lib.id) {
+                      <mat-checkbox
+                        [checked]="grantedLibIds().has(lib.id)"
+                        [disabled]="grantBusy().has(lib.id)"
+                        (change)="setGrant(user.id, lib.id, $event.checked)">
+                        {{ lib.name }}
+                      </mat-checkbox>
+                    }
+                  }
+                </div>
+              }
             }
           </mat-list>
         }
@@ -188,6 +244,21 @@ import {
     mat-divider { margin: 16px 0; }
     h4 { margin: 8px 0; }
     .browse-btn { margin-right: 12px; }
+    .lib-meta, .user-meta { display: inline-flex; align-items: center; gap: 8px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px;
+    }
+    .chip.scanning { background: rgba(124, 77, 255, 0.18); color: #b39ddb; }
+    .chip mat-spinner { display: inline-block; }
+    .grants {
+      padding: 8px 16px 16px 72px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .grants-hint {
+      font-size: 13px; opacity: 0.8; margin: 0 0 4px;
+      display: flex; align-items: center; gap: 6px;
+    }
     .browser {
       margin-top: 12px;
       border: 1px solid rgba(255, 255, 255, 0.12);
@@ -215,7 +286,7 @@ import {
     .browser-actions { display: inline-flex; align-items: center; gap: 4px; }
   `],
 })
-export class AdminComponent implements OnInit {
+export class AdminComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
 
@@ -232,6 +303,18 @@ export class AdminComponent implements OnInit {
   readonly browseLoading = signal(false);
   readonly listing = signal<DirectoryListingDto | null>(null);
 
+  // Scan control state (D39). Maps libraryId -> running scanRunId so Cancel can
+  // target the active run. `cancelling` guards double-cancel clicks.
+  private readonly runningScans = signal<Map<string, string>>(new Map());
+  readonly cancelling = signal<Set<string>>(new Set());
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  // Grants panel state (D39).
+  readonly grantsOpenUserId = signal<string | null>(null);
+  readonly grantsLoading = signal(false);
+  readonly grantedLibIds = signal<Set<string>>(new Set());
+  readonly grantBusy = signal<Set<string>>(new Set());
+
   readonly newUsername = signal('');
   readonly newUserPassword = signal('');
   readonly newUserIsAdmin = signal(false);
@@ -241,13 +324,91 @@ export class AdminComponent implements OnInit {
     this.loadUsers();
   }
 
+  ngOnDestroy(): void {
+    this.stopPolling();
+  }
+
+  scanRunId(libraryId: string): string | undefined {
+    return this.runningScans().get(libraryId);
+  }
+
   private loadLibraries(): void {
     this.api.getLibraries().subscribe({
       next: (libs) => {
         this.libraries.set(libs);
         this.loadingLibs.set(false);
+        // Backfill scanRunIds for any library already scanning (e.g. a scan
+        // started before this page loaded, or from another tab), so Cancel works.
+        for (const lib of libs) {
+          if (lib.isScanning && !this.runningScans().get(lib.id)) {
+            this.backfillScanRunId(lib.id);
+          }
+        }
+        this.syncPolling();
       },
       error: () => this.loadingLibs.set(false),
+    });
+  }
+
+  /** Refresh library rows without touching the loading flag (used while polling). */
+  private refreshLibraries(): void {
+    this.api.getLibraries().subscribe({
+      next: (libs) => {
+        const previouslyScanning = new Set(
+          this.libraries().filter(l => l.isScanning).map(l => l.id),
+        );
+        this.libraries.set(libs);
+        // Detect scans that just finished to clear their running state + notify.
+        for (const id of previouslyScanning) {
+          const now = libs.find(l => l.id === id);
+          if (!now || !now.isScanning) {
+            this.clearRunningScan(id);
+            this.snackBar.open('Scan finished', 'Close', { duration: 3000 });
+          }
+        }
+        this.syncPolling();
+      },
+    });
+  }
+
+  private backfillScanRunId(libraryId: string): void {
+    this.api.getScanHistory(libraryId).subscribe({
+      next: (runs) => {
+        const running = runs.find(r => r.status === 'running');
+        if (running) {
+          this.runningScans.update(m => new Map(m).set(libraryId, running.id));
+        }
+      },
+    });
+  }
+
+  /** Starts the poll loop if any library is scanning; stops it once none are. */
+  private syncPolling(): void {
+    const anyScanning = this.libraries().some(l => l.isScanning);
+    if (anyScanning && this.pollTimer === null) {
+      this.pollTimer = setInterval(() => this.refreshLibraries(), 2500);
+    } else if (!anyScanning) {
+      this.stopPolling();
+    }
+  }
+
+  private stopPolling(): void {
+    if (this.pollTimer !== null) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+
+  private clearRunningScan(libraryId: string): void {
+    this.runningScans.update(m => {
+      const next = new Map(m);
+      next.delete(libraryId);
+      return next;
+    });
+    this.cancelling.update(s => {
+      const next = new Set(s);
+      next.delete(libraryId);
+      return next;
     });
   }
 
@@ -321,8 +482,91 @@ export class AdminComponent implements OnInit {
 
   triggerScan(libraryId: string): void {
     this.api.triggerScan(libraryId).subscribe({
-      next: () => this.snackBar.open('Scan triggered', 'Close', { duration: 3000 }),
+      next: (res) => {
+        this.runningScans.update(m => new Map(m).set(libraryId, res.scanRunId));
+        // Optimistically flip the row to scanning so the chip appears immediately;
+        // the poll loop keeps it accurate from here.
+        this.libraries.update(libs =>
+          libs.map(l => l.id === libraryId ? { ...l, isScanning: true } : l));
+        this.snackBar.open('Scan started', 'Close', { duration: 3000 });
+        this.syncPolling();
+      },
       error: (err) => this.snackBar.open(`Scan failed: ${err.message}`, 'Close', { duration: 5000 }),
+    });
+  }
+
+  cancelScan(libraryId: string): void {
+    const runId = this.runningScans().get(libraryId);
+    if (!runId) return;
+    this.cancelling.update(s => new Set(s).add(libraryId));
+    this.api.cancelScan(runId).subscribe({
+      next: () => {
+        this.snackBar.open('Cancelling scan…', 'Close', { duration: 3000 });
+        // The poll loop will observe isScanning flip to false and clear state.
+      },
+      error: (err) => {
+        this.cancelling.update(s => {
+          const next = new Set(s);
+          next.delete(libraryId);
+          return next;
+        });
+        this.snackBar.open(`Cancel failed: ${err.message}`, 'Close', { duration: 5000 });
+      },
+    });
+  }
+
+  // --- User grants (D39) ---
+
+  toggleGrants(user: AdminUserDto): void {
+    if (this.grantsOpenUserId() === user.id) {
+      this.grantsOpenUserId.set(null);
+      return;
+    }
+    this.grantsOpenUserId.set(user.id);
+    this.grantedLibIds.set(new Set());
+    if (user.isAdmin) return; // Admins access all; no grants to load.
+
+    this.grantsLoading.set(true);
+    this.api.getUserGrants(user.id).subscribe({
+      next: (grants) => {
+        this.grantedLibIds.set(new Set(grants.libraryIds));
+        this.grantsLoading.set(false);
+      },
+      error: (err) => {
+        this.grantsLoading.set(false);
+        this.snackBar.open(`Failed to load access: ${err.message}`, 'Close', { duration: 5000 });
+      },
+    });
+  }
+
+  setGrant(userId: string, libraryId: string, granted: boolean): void {
+    this.grantBusy.update(s => new Set(s).add(libraryId));
+    const call = granted
+      ? this.api.grantAccess(userId, libraryId)
+      : this.api.revokeAccess(userId, libraryId);
+    call.subscribe({
+      next: () => {
+        this.grantedLibIds.update(s => {
+          const next = new Set(s);
+          if (granted) next.add(libraryId); else next.delete(libraryId);
+          return next;
+        });
+        this.clearGrantBusy(libraryId);
+      },
+      error: (err) => {
+        this.clearGrantBusy(libraryId);
+        // Force a checkbox re-render at the previous state by cloning the set.
+        this.grantedLibIds.update(s => new Set(s));
+        this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 5000 });
+      },
+    });
+  }
+
+  private clearGrantBusy(libraryId: string): void {
+    this.grantBusy.update(s => {
+      const next = new Set(s);
+      next.delete(libraryId);
+      return next;
     });
   }
 
