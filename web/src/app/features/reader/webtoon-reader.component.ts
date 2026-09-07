@@ -105,7 +105,7 @@ export class WebtoonReaderComponent {
     this.scrollHeight.set(target.scrollHeight);
   }
 
-  onPageLoad(event: Event, page: { index: number; estimatedHeight: number }): void {
+  onPageLoad(event: Event, _page: { index: number; estimatedHeight: number }): void {
     const img = event.target as HTMLImageElement;
     const container = img.parentElement!;
     container.style.height = 'auto';

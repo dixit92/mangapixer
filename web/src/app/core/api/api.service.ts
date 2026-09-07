@@ -84,7 +84,7 @@ export class ApiService {
     libraryId: string,
     parentId: string | null,
     cursor: string | null = null,
-    pageSize: number = 50,
+    pageSize = 50,
   ): Observable<PageResponse<CatalogNodeDto>> {
     let params = new HttpParams().set('pageSize', pageSize.toString());
     if (cursor) params = params.set('cursor', cursor);
