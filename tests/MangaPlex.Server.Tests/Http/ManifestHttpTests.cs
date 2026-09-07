@@ -74,7 +74,7 @@ public sealed class ManifestHttpTests : IDisposable
 
         var readiness = await response.Content.ReadFromJsonAsync<ReadinessResponse>();
         Assert.NotNull(readiness);
-        Assert.Equal(1, readiness!.State); // Pending
+        Assert.Equal("Pending", readiness!.State);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class ManifestHttpTests : IDisposable
 
         var readiness = await response.Content.ReadFromJsonAsync<ReadinessResponse>();
         Assert.NotNull(readiness);
-        Assert.Equal(0, readiness!.State); // Ready
+        Assert.Equal("Ready", readiness!.State);
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class ManifestHttpTests : IDisposable
 
         var readiness = await response.Content.ReadFromJsonAsync<ReadinessResponse>();
         Assert.NotNull(readiness);
-        Assert.Equal(2, readiness!.State); // Failed
+        Assert.Equal("Failed", readiness!.State);
         Assert.Equal("enumeration_error", readiness.Error);
     }
 
@@ -297,7 +297,8 @@ public sealed class ManifestHttpTests : IDisposable
         public string ItemId { get; set; } = string.Empty;
         public long ContentVersion { get; set; }
         public int ManifestVersion { get; set; }
-        public int ArchiveFormat { get; set; }
+        // Enums serialize as their string names (e.g. "Zip").
+        public string ArchiveFormat { get; set; } = string.Empty;
         public int PageCount { get; set; }
         public List<ManifestPageResponse> Pages { get; set; } = [];
         public bool IsSolid { get; set; }
@@ -311,14 +312,16 @@ public sealed class ManifestHttpTests : IDisposable
         public string MediaType { get; set; } = string.Empty;
         public int Width { get; set; }
         public int Height { get; set; }
-        public int AnimationState { get; set; }
+        // Enum serializes as its string name (e.g. "None"/"Animated").
+        public string AnimationState { get; set; } = string.Empty;
         public long ByteSize { get; set; }
     }
 
     private sealed class ReadinessResponse
     {
         public string ItemId { get; set; } = string.Empty;
-        public int State { get; set; }
+        // ItemReadinessState serializes as its string name.
+        public string State { get; set; } = string.Empty;
         public long ContentVersion { get; set; }
         public string? Error { get; set; }
         public DateTimeOffset? LastAttempt { get; set; }

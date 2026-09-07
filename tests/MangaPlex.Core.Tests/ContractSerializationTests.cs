@@ -18,6 +18,9 @@ public sealed class ContractSerializationTests
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        // Enums travel as string names on the wire (JsonStringEnumConverter is
+        // registered in Program.cs); reflect that in the contract-freeze options.
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
     };
 
     [Fact]

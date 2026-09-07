@@ -147,7 +147,7 @@ public sealed class CsrfAndProgressHttpTests : IClassFixture<MangaPlexWebApplica
         var response = await client.GetAsync($"/api/v1/reading/progress/{publicId}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var progress = await response.Content.ReadFromJsonAsync<ReadingProgressDto>();
+        var progress = await response.Content.ReadFromJsonAsync<ReadingProgressDto>(TestJson.Web);
         Assert.NotNull(progress);
         Assert.Equal(ReadingState.Unread, progress!.State);
         Assert.Equal(0, progress.PageIndex);

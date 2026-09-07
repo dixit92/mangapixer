@@ -156,7 +156,7 @@ public sealed class SearchHttpTests : IClassFixture<MangaPlexWebApplicationFacto
         var response = await client.GetAsync("/api/v1/search?q=alpha");
         response.EnsureSuccessStatusCode();
 
-        var results = await response.Content.ReadFromJsonAsync<SearchResultsDto>();
+        var results = await response.Content.ReadFromJsonAsync<SearchResultsDto>(TestJson.Web);
         Assert.NotNull(results);
         // 4 archives with "Alpha" + 1 tombstoned (excluded) = 4
         // "Beta Alpha" also contains "Alpha" so it's included
@@ -172,7 +172,7 @@ public sealed class SearchHttpTests : IClassFixture<MangaPlexWebApplicationFacto
         var response = await client.GetAsync("/api/v1/search?q=Vol");
         response.EnsureSuccessStatusCode();
 
-        var results = await response.Content.ReadFromJsonAsync<SearchResultsDto>();
+        var results = await response.Content.ReadFromJsonAsync<SearchResultsDto>(TestJson.Web);
         Assert.NotNull(results);
         Assert.Equal(2, results!.TotalCount);
         Assert.All(results.Items, item => Assert.Equal(CatalogNodeKind.Folder, item.Kind));
@@ -198,7 +198,7 @@ public sealed class SearchHttpTests : IClassFixture<MangaPlexWebApplicationFacto
         var response = await client.GetAsync("/api/v1/search?q=Tombstoned");
         response.EnsureSuccessStatusCode();
 
-        var results = await response.Content.ReadFromJsonAsync<SearchResultsDto>();
+        var results = await response.Content.ReadFromJsonAsync<SearchResultsDto>(TestJson.Web);
         Assert.NotNull(results);
         // The tombstoned "Alpha Tombstoned.cbz" should NOT appear
         Assert.Equal(0, results!.TotalCount);
@@ -214,7 +214,7 @@ public sealed class SearchHttpTests : IClassFixture<MangaPlexWebApplicationFacto
         var response = await client.GetAsync("/api/v1/search?q=alpha&libraryId=searchlib1");
         response.EnsureSuccessStatusCode();
 
-        var results = await response.Content.ReadFromJsonAsync<SearchResultsDto>();
+        var results = await response.Content.ReadFromJsonAsync<SearchResultsDto>(TestJson.Web);
         Assert.NotNull(results);
         Assert.Equal(4, results!.TotalCount);
 

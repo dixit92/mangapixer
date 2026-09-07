@@ -148,6 +148,16 @@ public sealed partial class Program
             builder.Services.AddControllersWithViews(options =>
             {
                 options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
+            })
+            .AddJsonOptions(options =>
+            {
+                // Serialize enums as their string names ("Folder", "Available",
+                // "InProgress", …) rather than integers. The API contract and the
+                // Angular client are string-based; without this, enums leak as
+                // opaque integers and client comparisons (node.kind === 'Folder')
+                // silently fail.
+                options.JsonSerializerOptions.Converters.Add(
+                    new System.Text.Json.Serialization.JsonStringEnumConverter());
             });
 
             // OpenAPI document (audit defect D35). The document contains no
