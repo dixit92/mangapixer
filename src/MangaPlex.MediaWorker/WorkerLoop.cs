@@ -3,6 +3,7 @@ namespace com.lifepixer.mangaplex.MediaWorker;
 using System.Diagnostics;
 using System.Text.Json;
 using com.lifepixer.mangaplex.Core.Media;
+using com.lifepixer.mangaplex.Core.Ordering;
 using com.lifepixer.mangaplex.Core.WorkerProtocol;
 using com.lifepixer.mangaplex.MediaWorker.Archives;
 using com.lifepixer.mangaplex.MediaWorker.Images;
@@ -170,9 +171,16 @@ public sealed class WorkerLoop
             return;
         }
 
-        // Filter to image candidates, skip ignored entries
+        // Filter to image candidates, skip ignored entries, then order by natural
+        // reading order. SharpCompress yields entries in the archive's stored
+        // (central-directory / insertion) order, which frequently puts the cover
+        // last — so pages MUST be sorted by entry path before ordinals are
+        // assigned, using the same NaturalOrderComparer the scanner uses for
+        // folders/files (P02 ordering contract). Sorting by full path keeps
+        // chaptered archives (sub-folders) in the right sequence.
         var imageEntries = enumeration.Entries
             .Where(e => e.IsImageCandidate && !ImageExtensions.ShouldIgnore(e.EntryPath))
+            .OrderBy(e => e.EntryPath, NaturalOrderComparer.Instance)
             .ToList();
 
         // Probe each image entry

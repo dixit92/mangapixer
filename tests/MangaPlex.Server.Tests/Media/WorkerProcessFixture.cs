@@ -51,6 +51,16 @@ public sealed class WorkerProcessFixture : IDisposable
     public string CreateSimpleZip(string name = "simple.zip") =>
         ZipFixtureGenerator.CreateZip(FixtureDir, name, "page001.png", "page002.png", "page003.png");
 
+    /// <summary>
+    /// A ZIP whose entries are STORED out of natural order (the cover last, a
+    /// two-digit page before single-digit ones) — mimicking real CBZs that append
+    /// the cover last. The worker must re-order to natural reading order.
+    /// </summary>
+    public string CreateScrambledZip(string name = "scrambled.zip") =>
+        ZipFixtureGenerator.CreateZip(
+            FixtureDir, name,
+            "page010.png", "page002.png", "page001.png", "cover000.png");
+
     public string CreateLargeZip(string name = "large.zip", int entries = 2000)
     {
         var paths = new string[entries];

@@ -94,6 +94,61 @@ public sealed class WorkerProcessTests : IClassFixture<WorkerProcessFixture>, IA
         Assert.Equal(3, result!.Pages.Count);
     }
 
+    // Test 2b: Pages are returned in natural reading order regardless of the
+    // archive's stored entry order (page-ordering bug — cover appeared last).
+    [Fact]
+    public async Task Analyze_ScrambledEntryOrder_ReturnsNaturalPageOrder()
+    {
+        var zipPath = _fixture.CreateScrambledZip("analyze-scrambled.zip");
+        var fileInfo = new FileInfo(zipPath);
+
+        var sup = CreateSupervisor();
+        await sup.StartAsync();
+
+        var tcs = new TaskCompletionSource<AnalyzeResult?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        sup.OnMessageReceived += async envelope =>
+        {
+            if (envelope.Type == "analyze_result")
+                tcs.TrySetResult(WorkerProtocolFraming.GetPayload<AnalyzeResult>(envelope));
+            await Task.CompletedTask;
+        };
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var readTask = sup.ReadMessagesAsync(cts.Token);
+
+        var request = new AnalyzeRequest
+        {
+            JobId = "scramble-job",
+            ArchivePath = zipPath,
+            ContentVersion = 1,
+            ExpectedLastWriteTicks = fileInfo.LastWriteTimeUtc.Ticks,
+            ExpectedByteLength = fileInfo.Length,
+            ScratchWorkspacePath = Path.Combine(_fixture.ScratchRoot, "ws-scramble"),
+            Deadline = DateTimeOffset.UtcNow.AddSeconds(30),
+        };
+        Directory.CreateDirectory(request.ScratchWorkspacePath);
+
+        await sup.SendMessageAsync(WorkerProtocolFraming.CreateEnvelope("analyze", request.JobId, request));
+
+        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(20)));
+        Assert.True(completed == tcs.Task, "Analyze did not complete within 20 seconds");
+        var result = await tcs.Task;
+        Assert.NotNull(result);
+
+        // Stored order was page010, page002, page001, cover000. Natural order by
+        // entry path is cover000, page001, page002, page010.
+        var orderedKeys = result!.Pages
+            .OrderBy(p => p.Ordinal)
+            .Select(p => p.SourceEntryKey)
+            .ToList();
+        Assert.Equal(
+            new[] { "cover000.png", "page001.png", "page002.png", "page010.png" },
+            orderedKeys);
+        // Ordinals are a dense 0..n-1 sequence in that order.
+        Assert.Equal(Enumerable.Range(0, 4), result.Pages.OrderBy(p => p.Ordinal).Select(p => p.Ordinal));
+    }
+
     // Test 3: Kill worker mid-job → supervisor detects exit
     [Fact]
     public async Task WorkerKill_SupervisorDetectsExit()
