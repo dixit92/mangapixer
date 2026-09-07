@@ -70,26 +70,34 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         if (_isShuttingDown)
             return;
 
-        // Reserve a slot BEFORE dequeuing (audit defect D12)
-        WorkerSlot? slot = null;
+        // Reserve a slot BEFORE dequeuing (audit defect D12). Find a free worker;
+        // if none is free and we are under the concurrency cap, start ONE more
+        // (properly, via StartWorkerAsync, which performs the handshake). The old
+        // code only started a worker when the pool was completely empty, so a
+        // single stuck/busy worker would deadlock all further dispatch.
+        WorkerSlot? slot;
+        bool startAnother = false;
         lock (_poolLock)
         {
             slot = _workers.FirstOrDefault(w => !w.IsBusy);
             if (slot is null && _workers.Count < _options.MaxConcurrentJobs)
+                startAnother = true;
+        }
+
+        if (slot is null && startAnother)
+        {
+            try
             {
-                // Start a new worker — but only if this is a reader-demand job
-                // Background analysis should not occupy both slots by default
-                // We don't know the priority yet, so only start a new worker
-                // if we have no workers at all. Otherwise, wait for a slot.
-                if (_workers.Count == 0)
-                {
-                    slot = new WorkerSlot
-                    {
-                        Id = _workers.Count,
-                        Supervisor = CreateSupervisor(),
-                    };
-                    _workers.Add(slot);
-                }
+                await StartWorkerAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning("Failed to start additional worker: {Error}", ex.GetType().Name);
+                return;
+            }
+            lock (_poolLock)
+            {
+                slot = _workers.FirstOrDefault(w => !w.IsBusy);
             }
         }
 
@@ -99,18 +107,16 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             return;
         }
 
-        // Now that we have a slot, dequeue a job
+        // Reserve the slot before dequeuing so a concurrent dispatch cannot grab
+        // the same worker, then dequeue the highest-priority job.
+        slot.IsBusy = true;
         var job = _scheduler.Dequeue();
         if (job is null)
         {
-            // No job to process — release the slot reservation
-            // (slot.IsBusy is still false, so no cleanup needed)
+            slot.IsBusy = false;
             return;
         }
 
-        // If we need a new worker for a background job but only have one,
-        // and this is a background job, we should not start a second worker.
-        // The slot we reserved is sufficient.
         await ProcessJobAsync(slot, job, ct);
     }
 
@@ -260,6 +266,8 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     {
         slot.IsBusy = true;
         _scheduler.MarkInFlight(job);
+        _logger?.LogDebug("Dispatching {Operation} job {JobId} (item {ItemId}) to worker {Slot}",
+            job.Operation, job.JobId, job.ItemId, slot.Id);
 
         // Allocate scratch workspace
         using var workspace = _scratchManager.AllocateWorkspace();
@@ -336,12 +344,14 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 
             slot.Supervisor.OnMessageReceived += HandleMessage;
 
+            // Start reading messages BEFORE sending the request so the worker's
+            // response cannot be missed by a race between send and read.
+            var readTask = slot.Supervisor.ReadMessagesAsync(ct);
+
             // Send the analyze request
             var requestEnvelope = WorkerProtocolFraming.CreateEnvelope("analyze", job.JobId, request);
             await slot.Supervisor.SendMessageAsync(requestEnvelope, ct);
-
-            // Start reading messages (if not already reading)
-            var readTask = slot.Supervisor.ReadMessagesAsync(ct);
+            _logger?.LogDebug("Sent analyze request for job {JobId} (item {ItemId})", job.JobId, job.ItemId);
 
             // Wait for completion with timeout
             var timeoutTask = Task.Delay(_options.AnalysisTimeout + _options.SourceOpenTimeout, ct);
@@ -378,6 +388,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
         catch (Exception ex)
         {
+            _logger?.LogWarning(ex, "Job {JobId} (item {ItemId}) failed during processing", job.JobId, job.ItemId);
             _scheduler.FailJob(job.DedupKey, ex);
         }
         finally

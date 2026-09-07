@@ -292,7 +292,13 @@ public sealed class AdminController : ControllerBase
                     if (!fileInfo.Exists)
                         continue;
 
-                    await scheduler.EnqueueAsync(
+                    // Fire-and-forget: EnqueueAsync returns a Task that only
+                    // completes when the job is *analyzed*. Awaiting it here would
+                    // serialize the whole loop on each job's completion (and block
+                    // the background scan on the very first job). We only need the
+                    // job queued; the pool drains the queue at its own pace. Observe
+                    // the task so a faulted job does not raise UnobservedTaskException.
+                    _ = scheduler.EnqueueAsync(
                         itemId: entry.Node.Id,
                         contentVersion: entry.Item.ContentVersion,
                         operation: JobOperation.Analyze,
@@ -300,7 +306,11 @@ public sealed class AdminController : ControllerBase
                         archivePath: sourcePath,
                         expectedLastWriteTicks: fileInfo.LastWriteTimeUtc.Ticks,
                         expectedByteLength: fileInfo.Length,
-                        callerToken: ct);
+                        callerToken: CancellationToken.None)
+                        .ContinueWith(static t => { _ = t.Exception; },
+                            CancellationToken.None,
+                            TaskContinuationOptions.OnlyOnFaulted,
+                            TaskScheduler.Default);
                 }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex)
