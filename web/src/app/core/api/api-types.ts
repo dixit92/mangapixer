@@ -87,6 +87,14 @@ export interface UserPreferencesDto {
   preferredBackground: string | null;
 }
 
+export interface ContinueReadingEntry {
+  itemId: string;
+  displayName: string;
+  pageIndex: number;
+  contentVersion: number;
+  updatedAt: string;
+}
+
 export interface LibraryDto {
   id: string;
   name: string;

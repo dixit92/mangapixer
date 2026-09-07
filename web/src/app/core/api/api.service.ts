@@ -9,6 +9,7 @@ import {
   AuthUserDto,
   CatalogNodeDto,
   ChangePasswordRequest,
+  ContinueReadingEntry,
   CreateUserRequest,
   CsrfTokenDto,
   DirectoryListingDto,
@@ -122,6 +123,11 @@ export class ApiService {
 
   resetProgress(itemId: string): Observable<void> {
     return this.delete<void>(`/reading/progress/${itemId}`);
+  }
+
+  getContinueReading(limit = 20): Observable<ContinueReadingEntry[]> {
+    const params = new HttpParams().set('limit', limit.toString());
+    return this.get<ContinueReadingEntry[]>('/reading/continue', params);
   }
 
   getPreferences(): Observable<UserPreferencesDto> {
