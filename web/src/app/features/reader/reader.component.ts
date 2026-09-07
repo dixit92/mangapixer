@@ -1,27 +1,34 @@
-import { Component, inject, signal, computed, OnInit, OnDestroy, HostListener } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, OnDestroy, HostListener, ElementRef, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 
 import { ApiService } from '../../core/api/api.service';
-import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError } from '../../core/api/api-types';
+import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode } from '../../core/api/api-types';
 
 type ReaderPhase = 'preparing' | 'ready' | 'error';
+type ReaderView = 'paged' | 'spread' | 'webtoon';
+type FitMode = 'screen' | 'width' | 'height' | 'original';
 
 /**
- * Manifest-first paged reader (audit defects D3, D14, D36).
+ * Manifest-first reader (audit defects D3, D14, D36) with paged / double-spread /
+ * vertical-webtoon views. All views address pages by the manifest's opaque entry
+ * keys, never numeric indices.
  *
- * - Addresses pages by the manifest's opaque entry keys, never numeric indices.
- * - On an unanalyzed item the manifest endpoint returns 202; this polls with
- *   backoff (each poll also re-prioritizes analysis) until the manifest is ready
- *   or a terminal state is reached.
- * - Maps server error codes to human messages instead of raw HTTP status text.
- * - Loading state is tied to the actual <img> load/error, not a fake delay.
+ * Reader-view requirements (2026-09-07 review, see the MVP-gap checkpoint):
+ *  1. Fit-to-screen (contain) is the default image fit.
+ *  2. The prev/next chevron controls never swap position when direction flips —
+ *     left is always "previous", right always "next". Direction changes only
+ *     which physical page "next" advances to (and edge-tap / arrow-key mapping).
+ *  3. The fullscreen / fit / direction / mode controls are hidden in fullscreen.
+ *  4. Every control carries a tooltip AND an aria-label (tooltip is supplementary
+ *     so touch devices are not left without an affordance).
  */
 @Component({
   selector: 'app-reader',
@@ -32,29 +39,54 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     MatIconModule,
     MatToolbarModule,
     MatMenuModule,
+    MatTooltipModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
   ],
   template: `
-    <div class="reader-container" [class.rtl]="direction() === 'rtl'">
+    <div class="reader-container">
       <mat-toolbar class="reader-toolbar">
-        <button mat-icon-button (click)="goBack()" aria-label="Back"><mat-icon>arrow_back</mat-icon></button>
+        <button mat-icon-button (click)="goBack()" matTooltip="Back to library" aria-label="Back to library">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
         <span class="page-info">
           @if (phase() === 'ready') { {{ currentPage() + 1 }} / {{ pageCount() }} }
         </span>
         <span class="spacer"></span>
-        @if (phase() === 'ready') {
-          <button mat-icon-button (click)="toggleFullscreen()" aria-label="Fullscreen">
-            <mat-icon>{{ isFullscreen() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
+
+        <!-- Requirement 3: hide these controls in fullscreen -->
+        @if (phase() === 'ready' && !isFullscreen()) {
+          <button mat-icon-button [matMenuTriggerFor]="modeMenu" matTooltip="Reading mode" aria-label="Reading mode">
+            <mat-icon>{{ viewIcon() }}</mat-icon>
           </button>
-          <button mat-icon-button [matMenuTriggerFor]="fitMenu" aria-label="Fit"><mat-icon>aspect_ratio</mat-icon></button>
-          <mat-menu #fitMenu="matMenu">
-            <button mat-menu-item (click)="setFitMode('fit')">Fit width</button>
-            <button mat-menu-item (click)="setFitMode('height')">Fit height</button>
-            <button mat-menu-item (click)="setFitMode('original')">Original</button>
+          <mat-menu #modeMenu="matMenu">
+            <button mat-menu-item (click)="setView('paged')"><mat-icon>crop_portrait</mat-icon> Single page</button>
+            <button mat-menu-item (click)="setView('spread')"><mat-icon>import_contacts</mat-icon> Double spread</button>
+            <button mat-menu-item (click)="setView('webtoon')"><mat-icon>view_day</mat-icon> Vertical (webtoon)</button>
           </mat-menu>
-          <button mat-icon-button (click)="toggleDirection()" [title]="direction() === 'rtl' ? 'Right-to-left' : 'Left-to-right'">
-            <mat-icon>{{ direction() === 'rtl' ? 'format_textdirection_r_to_l' : 'format_textdirection_l_to_r' }}</mat-icon>
+
+          <button mat-icon-button [matMenuTriggerFor]="fitMenu" matTooltip="Image fit" aria-label="Image fit">
+            <mat-icon>aspect_ratio</mat-icon>
+          </button>
+          <mat-menu #fitMenu="matMenu">
+            <button mat-menu-item (click)="setFitMode('screen')">Fit screen</button>
+            <button mat-menu-item (click)="setFitMode('width')">Fit width</button>
+            <button mat-menu-item (click)="setFitMode('height')">Fit height</button>
+            <button mat-menu-item (click)="setFitMode('original')">Original size</button>
+          </mat-menu>
+
+          @if (view() !== 'webtoon') {
+            <button mat-icon-button (click)="toggleDirection()"
+                    [matTooltip]="direction() === 'rtl' ? 'Right-to-left (manga)' : 'Left-to-right'"
+                    [attr.aria-label]="direction() === 'rtl' ? 'Switch to left-to-right' : 'Switch to right-to-left'">
+              <mat-icon>{{ direction() === 'rtl' ? 'format_textdirection_r_to_l' : 'format_textdirection_l_to_r' }}</mat-icon>
+            </button>
+          }
+
+          <button mat-icon-button (click)="toggleFullscreen()"
+                  [matTooltip]="isFullscreen() ? 'Exit fullscreen' : 'Fullscreen'"
+                  [attr.aria-label]="isFullscreen() ? 'Exit fullscreen' : 'Enter fullscreen'">
+            <mat-icon>{{ isFullscreen() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
           </button>
         }
       </mat-toolbar>
@@ -70,30 +102,45 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
           <p>{{ statusMessage() }}</p>
           <button mat-stroked-button (click)="retry()">Try again</button>
         </div>
+      } @else if (view() === 'webtoon') {
+        <!-- Vertical continuous scroll; progress tracked by scroll position. -->
+        <div class="reader-viewport webtoon" #scroller (scroll)="onWebtoonScroll()">
+          @for (entry of pages(); track entry.entryKey) {
+            <img class="webtoon-page" [src]="pageUrlFor(entry)" loading="lazy"
+                 [attr.data-index]="$index" alt="Page {{ $index + 1 }}" />
+          }
+        </div>
       } @else {
+        <!-- Paged or double-spread: fixed viewport, one screen at a time. -->
         <div class="reader-viewport">
           @if (pageLoading()) {
             <mat-spinner class="page-spinner" diameter="36"></mat-spinner>
           }
-          <img
-            [src]="pageUrl()"
-            [class.fit-width]="fitMode() === 'fit'"
-            [class.fit-height]="fitMode() === 'height'"
-            [class.original]="fitMode() === 'original'"
-            [class.hidden]="pageLoading()"
-            (load)="onPageLoaded()"
-            (error)="onPageError()"
-            alt="Page {{ currentPage() + 1 }}"
-          />
-          <button class="edge prev" (click)="onEdge('prev')" aria-label="Previous page"></button>
-          <button class="edge next" (click)="onEdge('next')" aria-label="Next page"></button>
+          <div class="spread-row" [class.rtl-flow]="direction() === 'rtl'">
+            @for (entry of currentSpreadEntries(); track entry.entryKey) {
+              <img
+                [src]="pageUrlFor(entry)"
+                [class.fit-screen]="fitMode() === 'screen'"
+                [class.fit-width]="fitMode() === 'width'"
+                [class.fit-height]="fitMode() === 'height'"
+                [class.original]="fitMode() === 'original'"
+                [class.paired]="currentSpreadEntries().length > 1"
+                (load)="onPageLoaded()"
+                (error)="onPageError()"
+                alt="Page"
+              />
+            }
+          </div>
+          <button class="edge prev" (click)="onEdge('prev')" aria-label="Previous"></button>
+          <button class="edge next" (click)="onEdge('next')" aria-label="Next"></button>
         </div>
 
+        <!-- Requirement 2: left is ALWAYS previous, right ALWAYS next; no flip. -->
         <div class="reader-controls">
-          <button mat-fab (click)="prevPage()" [disabled]="currentPage() === 0" aria-label="Previous">
+          <button mat-fab (click)="prevPage()" [disabled]="atStart()" matTooltip="Previous" aria-label="Previous">
             <mat-icon>chevron_left</mat-icon>
           </button>
-          <button mat-fab (click)="nextPage()" [disabled]="currentPage() >= pageCount() - 1" aria-label="Next">
+          <button mat-fab (click)="nextPage()" [disabled]="atEnd()" matTooltip="Next" aria-label="Next">
             <mat-icon>chevron_right</mat-icon>
           </button>
         </div>
@@ -119,15 +166,24 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       flex: 1; position: relative;
       display: flex; justify-content: center; align-items: center; overflow: auto;
     }
-    .page-spinner { position: absolute; }
+    .page-spinner { position: absolute; z-index: 2; }
+    /* Double-spread row. rtl-flow puts the earlier page on the right. */
+    .spread-row { display: flex; align-items: center; justify-content: center; max-width: 100%; max-height: 100%; }
+    .spread-row.rtl-flow { flex-direction: row-reverse; }
     img { max-width: 100%; max-height: 100%; }
-    img.fit-width { width: 100%; height: auto; }
-    img.fit-height { height: 100%; width: auto; }
+    /* Requirement 1: fit-screen (contain) is the default. */
+    img.fit-screen { max-width: 100%; max-height: 100%; width: auto; height: auto; }
+    img.fit-width { width: 100%; height: auto; max-height: none; }
+    img.fit-height { height: 100%; width: auto; max-width: none; }
     img.original { max-width: none; max-height: none; }
-    img.hidden { visibility: hidden; }
+    /* When two pages are paired, each takes at most half the width. */
+    .spread-row img.paired { max-width: 50%; }
+    /* Webtoon: full-width column, natural vertical scroll. */
+    .reader-viewport.webtoon { flex-direction: column; align-items: center; }
+    .webtoon-page { width: 100%; max-width: 900px; height: auto; display: block; }
     .edge {
       position: absolute; top: 0; bottom: 0; width: 30%;
-      background: transparent; border: 0; cursor: pointer; padding: 0;
+      background: transparent; border: 0; cursor: pointer; padding: 0; z-index: 1;
     }
     .edge.prev { left: 0; }
     .edge.next { right: 0; }
@@ -135,7 +191,6 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
       display: flex; gap: 24px; z-index: 1001;
     }
-    .rtl .reader-controls { flex-direction: row-reverse; }
   `],
 })
 export class ReaderComponent implements OnInit, OnDestroy {
@@ -144,6 +199,8 @@ export class ReaderComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
 
+  private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
+
   readonly itemId = signal('');
   readonly phase = signal<ReaderPhase>('preparing');
   readonly statusMessage = signal('Loading…');
@@ -151,21 +208,50 @@ export class ReaderComponent implements OnInit, OnDestroy {
   readonly pageCount = computed(() => this.pages().length);
   readonly pages = signal<ManifestPageEntry[]>([]);
   readonly pageLoading = signal(true);
-  readonly fitMode = signal<'fit' | 'height' | 'original'>('fit');
+  readonly fitMode = signal<FitMode>('screen'); // Requirement 1
   readonly direction = signal<'ltr' | 'rtl'>('ltr');
+  readonly view = signal<ReaderView>('paged');
   readonly isFullscreen = signal(false);
-  readonly pageUrl = computed(() => {
-    const entry = this.pages()[this.currentPage()];
-    return entry ? `/api/v1/items/${this.itemId()}/pages/${encodeURIComponent(entry.entryKey)}` : '';
+  readonly coverIsStandalone = signal(true); // first page shown alone in spread view
+
+  readonly viewIcon = computed(() =>
+    this.view() === 'webtoon' ? 'view_day' : this.view() === 'spread' ? 'import_contacts' : 'crop_portrait');
+
+  /** The page indices shown together on the current screen (1 for paged, 1–2 for spread). */
+  readonly currentSpreadEntries = computed<ManifestPageEntry[]>(() => {
+    const all = this.pages();
+    if (all.length === 0) return [];
+    if (this.view() !== 'spread') {
+      const p = all[this.currentPage()];
+      return p ? [p] : [];
+    }
+    const spread = this.spreads().find((s) => s.includes(this.currentPage())) ?? [this.currentPage()];
+    return spread.map((i) => all[i]).filter(Boolean);
   });
+
+  /** Grouping of page indices into spreads (double-page view). */
+  readonly spreads = computed<number[][]>(() => this.computeSpreads());
+
+  readonly atStart = computed(() => this.currentPage() <= 0);
+  readonly atEnd = computed(() => this.currentPage() >= this.pageCount() - 1);
 
   private contentVersion = 0;
   private revision = 0;
   private pollAttempts = 0;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  private webtoonSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private destroyed = false;
 
+  pageUrlFor(entry: ManifestPageEntry | undefined): string {
+    return entry ? `/api/v1/items/${this.itemId()}/pages/${encodeURIComponent(entry.entryKey)}` : '';
+  }
+
   ngOnInit(): void {
+    // Honor the user's default reading mode/direction; failure falls back to paged LTR.
+    this.api.getPreferences().subscribe({
+      next: (prefs) => this.applyDefaultMode(prefs.defaultReaderMode),
+      error: () => { /* keep defaults */ },
+    });
     this.route.paramMap.subscribe((params) => {
       const id = params.get('itemId') ?? '';
       this.itemId.set(id);
@@ -177,7 +263,23 @@ export class ReaderComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroyed = true;
     this.clearPoll();
+    if (this.webtoonSaveTimer) clearTimeout(this.webtoonSaveTimer);
     this.saveProgress();
+  }
+
+  private applyDefaultMode(mode: ReaderMode): void {
+    switch (mode) {
+      case 'PagedRtl': this.view.set('paged'); this.direction.set('rtl'); break;
+      case 'DoubleSpread': this.view.set('spread'); break;
+      case 'VerticalWebtoon': this.view.set('webtoon'); break;
+      default: this.view.set('paged'); this.direction.set('ltr');
+    }
+  }
+
+  @HostListener('document:fullscreenchange')
+  onFullscreenChange(): void {
+    // Keep our signal in sync when the browser exits fullscreen via Esc.
+    this.isFullscreen.set(!!document.fullscreenElement);
   }
 
   @HostListener('window:keydown', ['$event'])
@@ -185,6 +287,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
     const target = event.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
     if (this.phase() !== 'ready') return;
+    if (this.view() === 'webtoon') return; // native scroll drives webtoon
 
     switch (event.key) {
       case 'ArrowLeft': this.direction() === 'rtl' ? this.nextPage() : this.prevPage(); break;
@@ -196,7 +299,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
     }
   }
 
-  // --- Loading / readiness ---
+  // --- Loading / readiness (unchanged manifest-first flow) ---
 
   private loadManifest(): void {
     this.phase.set('preparing');
@@ -204,7 +307,6 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
     this.api.getManifest(this.itemId()).subscribe({
       next: (res) => {
-        // getManifest returns the manifest (200) or a readiness body (202).
         if (this.looksLikeManifest(res)) {
           this.onManifestReady(res as ItemManifest);
         } else {
@@ -221,11 +323,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
   private onReadiness(readiness: ItemReadiness): void {
     const terminal = this.terminalReadinessMessage(readiness);
-    if (terminal) {
-      this.fail(terminal);
-      return;
-    }
-    // Still analyzing — poll again with capped backoff.
+    if (terminal) { this.fail(terminal); return; }
     this.scheduleRetry();
   }
 
@@ -236,8 +334,6 @@ export class ReaderComponent implements OnInit, OnDestroy {
       this.fail('This chapter has no readable pages.');
       return;
     }
-
-    // Restore saved progress, clamped to the available range.
     this.api.getProgress(this.itemId()).subscribe({
       next: (progress) => {
         this.revision = progress.revision;
@@ -252,14 +348,14 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.currentPage.set(index);
     this.pageLoading.set(true);
     this.phase.set('ready');
+    if (this.view() === 'webtoon') {
+      // Scroll the saved page into view once the DOM is present.
+      queueMicrotask(() => this.scrollWebtoonTo(index));
+    }
   }
 
   private onLoadError(err: ApiError): void {
-    // Some servers surface "not analyzed" as an error rather than a 202 body.
-    if (err?.error === 'not_analyzed' || err?.error === 'preparing') {
-      this.scheduleRetry();
-      return;
-    }
+    if (err?.error === 'not_analyzed' || err?.error === 'preparing') { this.scheduleRetry(); return; }
     this.fail(this.mapErrorCode(err?.error, err?.message));
   }
 
@@ -267,7 +363,6 @@ export class ReaderComponent implements OnInit, OnDestroy {
     if (this.destroyed) return;
     this.pollAttempts++;
     this.statusMessage.set('Preparing this chapter…');
-    // Backoff: 1s, 1.5s, 2s … capped at 5s; give up after ~2 minutes.
     if (this.pollAttempts > 40) {
       this.fail('Preparing is taking longer than expected. Please try again.');
       return;
@@ -278,13 +373,12 @@ export class ReaderComponent implements OnInit, OnDestroy {
   }
 
   private terminalReadinessMessage(r: ItemReadiness): string | null {
-    // state may arrive as a string enum or a number depending on serialization.
     const s = String(r.state);
-    if (s === 'Failed' || s === '2') return this.mapErrorCode(r.error, 'This chapter could not be analyzed.');
-    if (s === 'Unsupported' || s === '3') return 'This archive format is not supported.';
-    if (s === 'Encrypted' || s === '4') return 'This archive is password-protected and cannot be opened.';
-    if (s === 'Missing' || s === '5') return 'The source file is no longer available.';
-    return null; // Ready/Pending → keep polling (Ready would have had pages)
+    if (s === 'Failed') return this.mapErrorCode(r.error, 'This chapter could not be analyzed.');
+    if (s === 'Unsupported') return 'This archive format is not supported.';
+    if (s === 'Encrypted') return 'This archive is password-protected and cannot be opened.';
+    if (s === 'Missing') return 'The source file is no longer available.';
+    return null;
   }
 
   private mapErrorCode(code: string | null | undefined, fallback?: string | null): string {
@@ -309,15 +403,11 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.phase.set('error');
   }
 
-  retry(): void {
-    this.pollAttempts = 0;
-    this.loadManifest();
-  }
+  retry(): void { this.pollAttempts = 0; this.loadManifest(); }
 
   // --- Page image lifecycle ---
 
   onPageLoaded(): void { this.pageLoading.set(false); }
-
   onPageError(): void {
     this.pageLoading.set(false);
     this.snackBar.open('This page could not be loaded.', 'Dismiss', { duration: 4000 });
@@ -325,8 +415,20 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
   // --- Navigation ---
 
-  nextPage(): void { this.goToPage(this.currentPage() + 1); }
-  prevPage(): void { this.goToPage(this.currentPage() - 1); }
+  /** Advance toward the end (next screen). In spread view, jumps a whole spread. */
+  nextPage(): void { this.goToPage(this.nextIndexFrom(this.currentPage(), +1)); }
+  /** Advance toward the start (previous screen). */
+  prevPage(): void { this.goToPage(this.nextIndexFrom(this.currentPage(), -1)); }
+
+  /** Next index in reading order, spread-aware (steps over the current spread). */
+  private nextIndexFrom(from: number, dir: 1 | -1): number {
+    if (this.view() !== 'spread') return from + dir;
+    const groups = this.spreads();
+    const gi = groups.findIndex((g) => g.includes(from));
+    if (gi === -1) return from + dir;
+    const target = groups[gi + dir];
+    return target ? target[0] : from + dir;
+  }
 
   private goToPage(index: number): void {
     const clamped = Math.min(Math.max(index, 0), this.pageCount() - 1);
@@ -336,24 +438,66 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.saveProgress();
   }
 
+  /**
+   * Edge-tap navigation. The invisible left/right zones ARE direction-aware
+   * (tap the right side in RTL to go back) — this is expected reader behavior and
+   * distinct from requirement 2, which is about the visible chevron controls.
+   */
   onEdge(side: 'prev' | 'next'): void {
     const forward = side === 'next';
     (forward !== (this.direction() === 'rtl')) ? this.nextPage() : this.prevPage();
   }
 
-  goBack(): void {
-    this.saveProgress();
-    this.router.navigate(['/']);
-  }
+  goBack(): void { this.saveProgress(); this.router.navigate(['/']); }
 
   toggleFullscreen(): void {
-    this.isFullscreen.update((v) => !v);
-    if (this.isFullscreen()) document.documentElement.requestFullscreen?.();
-    else document.exitFullscreen?.();
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+    // isFullscreen() is updated by the fullscreenchange listener.
   }
 
-  setFitMode(mode: 'fit' | 'height' | 'original'): void { this.fitMode.set(mode); }
+  setFitMode(mode: FitMode): void { this.fitMode.set(mode); }
   toggleDirection(): void { this.direction.update((d) => (d === 'ltr' ? 'rtl' : 'ltr')); }
+
+  setView(view: ReaderView): void {
+    const wasWebtoon = this.view() === 'webtoon';
+    this.view.set(view);
+    if (view === 'webtoon' && !wasWebtoon) {
+      queueMicrotask(() => this.scrollWebtoonTo(this.currentPage()));
+    }
+  }
+
+  // --- Webtoon scroll tracking ---
+
+  onWebtoonScroll(): void {
+    const el = this.scroller()?.nativeElement;
+    if (!el) return;
+    // The "current" page is the one crossing the vertical center of the viewport.
+    const center = el.scrollTop + el.clientHeight / 2;
+    const imgs = el.querySelectorAll<HTMLElement>('.webtoon-page');
+    let idx = this.currentPage();
+    for (let i = 0; i < imgs.length; i++) {
+      const top = imgs[i].offsetTop;
+      const bottom = top + imgs[i].offsetHeight;
+      if (center >= top && center < bottom) { idx = i; break; }
+    }
+    if (idx !== this.currentPage()) {
+      this.currentPage.set(idx);
+      // Debounce progress writes while scrolling.
+      if (this.webtoonSaveTimer) clearTimeout(this.webtoonSaveTimer);
+      this.webtoonSaveTimer = setTimeout(() => this.saveProgress(), 600);
+    }
+  }
+
+  private scrollWebtoonTo(index: number): void {
+    const el = this.scroller()?.nativeElement;
+    if (!el) return;
+    const img = el.querySelectorAll<HTMLElement>('.webtoon-page')[index];
+    if (img) el.scrollTop = img.offsetTop;
+  }
 
   private clearPoll(): void {
     if (this.pollTimer) { clearTimeout(this.pollTimer); this.pollTimer = null; }
@@ -371,8 +515,6 @@ export class ReaderComponent implements OnInit, OnDestroy {
       next: (res) => { this.revision = res.revision; },
       error: (err: ApiError) => {
         if (err?.error === 'precondition_failed') {
-          // Our revision is stale (another device advanced). Re-sync silently so
-          // the next save uses the current revision.
           this.api.getProgress(this.itemId()).subscribe({
             next: (p) => { this.revision = p.revision; },
             error: () => { /* leave revision as-is */ },
@@ -385,5 +527,23 @@ export class ReaderComponent implements OnInit, OnDestroy {
   private newMutationId(): string {
     const c = globalThis.crypto as Crypto | undefined;
     return c?.randomUUID ? c.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  /**
+   * Group page indices into double-spread pairs. A standalone cover (page 0) and
+   * an odd trailing page each occupy a spread alone; everything else is paired.
+   * Indices are ascending within a pair — the template's `.rtl-flow` handles
+   * right-to-left placement, so navigation can step whole groups either way.
+   */
+  private computeSpreads(): number[][] {
+    const n = this.pageCount();
+    if (n === 0) return [];
+    const groups: number[][] = [];
+    let i = 0;
+    if (this.coverIsStandalone()) { groups.push([0]); i = 1; }
+    for (; i < n; i += 2) {
+      groups.push(i + 1 < n ? [i, i + 1] : [i]);
+    }
+    return groups;
   }
 }
