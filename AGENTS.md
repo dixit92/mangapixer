@@ -33,6 +33,7 @@ All verification is script-driven. Skills and CI call the same scripts.
 | Contracts | `pwsh ./scripts/Verify-Contracts.ps1` | API/DTO/migration/protocol/version changes |
 | Packaging | `pwsh ./scripts/Verify-Packaging.ps1` | P16 and release candidates |
 | Smoke | `pwsh ./scripts/Smoke-Container.ps1` | Full container HTTP smoke flow |
+| Release | `pwsh ./scripts/Package-Release.ps1` | Build the version-tagged image (immutable), SBOM (syft) + SHA-256 checksums into `artifacts/release/<version>` |
 | Safety review | `pwsh ./scripts/Review-Safety.ps1` | Read-only diff safety review |
 
 ### Container-based build (when host SDKs are unavailable)

@@ -16,6 +16,8 @@
 #>
 [CmdletBinding()]
 param(
+    # Throwaway tag by design — this is a test harness. Immutable, version-stamped
+    # release tagging lives in Package-Release.ps1 (audit finding F1).
     [string]$ImageName = "mangaplex-smoke",
     [string]$ContainerName = "mangaplex-smoke-run",
     [int]$HostPort = 18080

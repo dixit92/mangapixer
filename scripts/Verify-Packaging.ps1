@@ -93,6 +93,18 @@ else {
     $results.Add([PSCustomObject]@{ Stage = "Container smoke"; Status = "SKIPPED"; Duration = "n/a"; Error = "docker not on PATH" })
 }
 
+# Stage 5: Versioned release image + SBOM + checksums (audit finding F1, D20).
+# Idempotent: an existing version tag is reused, not overwritten.
+if ($dockerAvailable) {
+    Invoke-Stage "Release packaging (version tag + SBOM + checksums)" {
+        & "$repoRoot/scripts/Package-Release.ps1" 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "Package-Release failed" }
+    }
+}
+else {
+    $results.Add([PSCustomObject]@{ Stage = "Release packaging"; Status = "SKIPPED"; Duration = "n/a"; Error = "docker not on PATH" })
+}
+
 # Summary
 Write-Host "`n=== Verify-Packaging Summary ===" -ForegroundColor Cyan
 $results | Format-Table -AutoSize
