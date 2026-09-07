@@ -1,19 +1,11 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { MatCardModule } from '@angular/material/card';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
 
 import { ApiService } from '../../core/api/api.service';
-import {
-  CatalogNodeDto,
-  CatalogNodeKind,
-  CatalogNodeAvailability,
-  PageResponse,
-} from '../../core/api/api-types';
+import { CatalogNodeDto, PageResponse } from '../../core/api/api-types';
 
 /**
  * Library browse component. Shows the actual folder/archive tree
@@ -25,11 +17,8 @@ import {
   imports: [
     CommonModule,
     RouterLink,
-    MatCardModule,
     MatIconModule,
     MatButtonModule,
-    MatChipsModule,
-    MatProgressBarModule,
   ],
   template: `
     @if (breadcrumbs().length > 0) {
@@ -44,26 +33,25 @@ import {
 
     <div class="nodes-grid">
       @for (node of nodes(); track node.id) {
-        <mat-card class="node-card" [routerLink]="getNodeLink(node)">
-          <mat-card-content>
-            @if (node.kind === 'Folder') {
-              <mat-icon>folder</mat-icon>
-            } @else {
-              <mat-icon>menu_book</mat-icon>
+        <a class="node-card" [routerLink]="getNodeLink(node)">
+          <div class="cover">
+            @if (node.coverUrl) {
+              <img [src]="node.coverUrl" alt="" loading="lazy" (error)="onCoverError($event)">
             }
-            <h3>{{ node.displayName }}</h3>
-            @if (node.pageCount !== null) {
-              <p>{{ node.pageCount }} pages</p>
+            <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
+            @if (node.readingState === 'InProgress') {
+              <span class="badge reading">Reading</span>
+            } @else if (node.readingState === 'Completed') {
+              <span class="badge done">✓</span>
             }
-            @if (node.availability !== 'Available') {
-              <mat-chip-set>
-                <mat-chip [color]="getAvailabilityColor(node.availability)">
-                  {{ node.availability }}
-                </mat-chip>
-              </mat-chip-set>
-            }
-          </mat-card-content>
-        </mat-card>
+          </div>
+          <div class="node-title" [title]="node.displayName">{{ node.displayName }}</div>
+          <div class="node-sub">
+            @if (node.pageCount !== null) { {{ node.pageCount }} pages }
+            @else if (node.kind === 'Folder' && node.childArchiveCount !== null) { {{ node.childArchiveCount }} items }
+            @if (node.availability !== 'Available') { · {{ node.availability }} }
+          </div>
+        </a>
       } @empty {
         <p class="empty">This folder is empty.</p>
       }
@@ -79,13 +67,34 @@ import {
     .breadcrumbs { margin-bottom: 16px; a { text-decoration: none; color: #1976d2; } }
     .nodes-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 16px;
     }
-    .node-card { cursor: pointer; }
-    mat-icon { font-size: 40px; width: 40px; height: 40px; color: #666; }
-    h3 { margin: 8px 0 4px 0; font-size: 14px; }
-    p { margin: 0; color: #666; font-size: 12px; }
+    .node-card { cursor: pointer; text-decoration: none; color: inherit; display: block; }
+    .cover {
+      position: relative;
+      aspect-ratio: 2 / 3;
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.06);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cover img {
+      width: 100%; height: 100%; object-fit: cover;
+      position: relative; z-index: 1;
+    }
+    .cover-fallback { font-size: 44px; width: 44px; height: 44px; color: #777; position: absolute; z-index: 0; }
+    .badge {
+      position: absolute; top: 6px; right: 6px; z-index: 2;
+      font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px;
+      background: rgba(124, 77, 255, 0.9); color: #fff;
+    }
+    .badge.done { background: rgba(76, 175, 80, 0.9); }
+    .node-title {
+      margin-top: 6px; font-size: 13px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .node-sub { font-size: 12px; color: #999; }
     .empty { color: #999; padding: 32px; text-align: center; }
     .load-more { text-align: center; margin-top: 16px; }
   `],
@@ -125,12 +134,9 @@ export class LibraryBrowseComponent implements OnInit {
     return ['/reader', node.id];
   }
 
-  getAvailabilityColor(availability: CatalogNodeAvailability): 'primary' | 'accent' | 'warn' {
-    switch (availability) {
-      case 'Preparing': return 'primary';
-      case 'Corrupt': case 'Unavailable': case 'Tombstoned': return 'warn';
-      default: return 'accent';
-    }
+  onCoverError(event: Event): void {
+    // Hide the broken image so the folder/book icon fallback shows through.
+    (event.target as HTMLImageElement).style.display = 'none';
   }
 
   private loadNodes(): void {
