@@ -245,9 +245,10 @@ public sealed class StorageIntegrationTests : IDisposable
         var policy = new LibraryScanPolicy();
 
         Assert.True(policy.IsIgnoredDirectory(".yacreader"));
+        Assert.True(policy.IsIgnoredDirectory(".yacreaderlibrary")); // not in the name set, but hidden
         Assert.True(policy.IsIgnoredDirectory("$RECYCLE.BIN"));
         Assert.True(policy.IsIgnoredDirectory(".git"));
-        Assert.False(policy.IsIgnoredDirectory(".manga_collection")); // dot-prefixed but legitimate
+        Assert.True(policy.IsIgnoredDirectory(".manga_collection")); // hidden dirs are ignored (user requirement)
         Assert.False(policy.IsIgnoredDirectory("My Manga"));
     }
 

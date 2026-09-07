@@ -57,6 +57,10 @@ public sealed class FilesystemBrowseService
                 var name = Path.GetFileName(dir);
                 if (string.IsNullOrEmpty(name)) continue;
 
+                // Never offer hidden (dot-prefixed) directories as library roots —
+                // e.g. .yacreaderlibrary, .git (matches the scan policy).
+                if (name.StartsWith('.')) continue;
+
                 entries.Add(new DirectoryEntryDto
                 {
                     Name = name,
@@ -86,7 +90,10 @@ public sealed class FilesystemBrowseService
     {
         try
         {
-            return Directory.EnumerateDirectories(dir).Any();
+            // Only count visible subdirectories, so a folder whose only children
+            // are hidden (e.g. .yacreaderlibrary) is not shown as expandable.
+            return Directory.EnumerateDirectories(dir)
+                .Any(d => !Path.GetFileName(d).StartsWith('.'));
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
         {

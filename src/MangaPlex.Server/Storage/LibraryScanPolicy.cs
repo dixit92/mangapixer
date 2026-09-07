@@ -65,11 +65,15 @@ public sealed class LibraryScanPolicy
     }
 
     /// <summary>
-    /// Returns true if the directory name should be ignored.
-    /// Does NOT blanket-skip every dot-prefixed directory — only known bookkeeping.
+    /// Returns true if the directory name should be ignored: any hidden
+    /// (dot-prefixed) directory, plus the known bookkeeping names. Hidden
+    /// directories (e.g. <c>.yacreaderlibrary</c>, <c>.git</c>) are never shown
+    /// as manga folders.
     /// </summary>
     public bool IsIgnoredDirectory(string directoryName)
     {
+        if (string.IsNullOrEmpty(directoryName)) return true;
+        if (directoryName.StartsWith('.')) return true;
         return IgnoredDirectoryNames.Contains(directoryName);
     }
 

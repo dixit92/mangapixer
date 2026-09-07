@@ -69,6 +69,19 @@ public sealed class FilesystemBrowseServiceTests : IDisposable
     }
 
     [Fact]
+    public void Browse_HiddenDirectories_AreNotListed()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, ".yacreaderlibrary"));
+        Directory.CreateDirectory(Path.Combine(_root, ".git"));
+
+        var result = Service().Browse(null);
+
+        Assert.True(result.Available);
+        Assert.DoesNotContain(result.Entries, e => e.Name.StartsWith('.'));
+        Assert.Contains(result.Entries, e => e.Name == "Series A");
+    }
+
+    [Fact]
     public void Browse_NoRootConfigured_ReportsUnavailable()
     {
         var missing = new FilesystemBrowseService(
