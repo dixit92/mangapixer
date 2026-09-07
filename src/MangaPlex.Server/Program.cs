@@ -81,11 +81,18 @@ public sealed partial class Program
             builder.Services.AddMangaPlexAuth(databasePath);
 
             // Media worker pool, scheduler, cache, scratch
+            // Storage budgets are admin-configurable (bytes). Defaults live in
+            // WorkerPoolOptions (1 GiB cache / 1 GiB scratch); override via
+            // MangaPlex:Storage:CacheBudgetBytes / ScratchBudgetBytes.
+            var cacheBudget = ReadByteBudget(builder.Configuration, "MangaPlex:Storage:CacheBudgetBytes");
+            var scratchBudget = ReadByteBudget(builder.Configuration, "MangaPlex:Storage:ScratchBudgetBytes");
             builder.Services.AddMangaPlexMedia(options =>
             {
                 options.ScratchRoot = scratchRoot;
                 options.CacheRoot = cacheRoot;
                 options.WorkerExecutablePath = workerExe;
+                if (cacheBudget is > 0) options.CacheBudgetBytes = cacheBudget.Value;
+                if (scratchBudget is > 0) options.ScratchBudgetBytes = scratchBudget.Value;
             });
 
             // Hosted lifecycle services + storage/scanning/page-delivery registrations
@@ -252,5 +259,17 @@ public sealed partial class Program
         if (string.IsNullOrWhiteSpace(value))
             return Path.Combine(AppContext.BaseDirectory, defaultName);
         return Path.GetFullPath(value);
+    }
+
+    /// <summary>
+    /// Reads an optional byte budget from config. Returns null when unset/invalid
+    /// so the caller keeps the WorkerPoolOptions default. Accepts a plain byte
+    /// count (e.g. 268435456) — deployments can compute from MiB/GiB as needed.
+    /// </summary>
+    private static long? ReadByteBudget(IConfiguration configuration, string key)
+    {
+        var value = configuration[key];
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return long.TryParse(value.Trim(), out var bytes) && bytes > 0 ? bytes : null;
     }
 }

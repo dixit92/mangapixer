@@ -60,9 +60,12 @@ public sealed class WorkerPoolOptions
     public string ScratchRoot { get; set; } = string.Empty;
 
     /// <summary>
-    /// Total scratch budget in bytes. Default: 2 GiB.
+    /// Total scratch budget in bytes. Default: 1 GiB. Override via
+    /// MangaPlex:Storage:ScratchBudgetBytes. Only solid RAR/7z extraction uses
+    /// meaningful scratch (sequential decompression); ZIP page extraction is
+    /// random-access and uses almost none.
     /// </summary>
-    public long ScratchBudgetBytes { get; set; } = 2L * 1024 * 1024 * 1024;
+    public long ScratchBudgetBytes { get; set; } = 1L * 1024 * 1024 * 1024;
 
     /// <summary>
     /// Cache root directory for published derived artifacts.
@@ -70,9 +73,14 @@ public sealed class WorkerPoolOptions
     public string CacheRoot { get; set; } = string.Empty;
 
     /// <summary>
-    /// Total cache budget in bytes. Default: 10 GiB.
+    /// Total derived-cache budget in bytes. Default: 1 GiB. Override via
+    /// MangaPlex:Storage:CacheBudgetBytes. The cache holds individual page images
+    /// (per page, per variant) under LRU eviction — never whole archives — so this
+    /// bounds disk regardless of library size. At ~300 KB/page, 1 GiB is ~3,000
+    /// cached pages. A byte budget is used (not a page count) because page sizes
+    /// vary ~10x and each page can have several variants (original/webp/thumb/strip).
     /// </summary>
-    public long CacheBudgetBytes { get; set; } = 10L * 1024 * 1024 * 1024;
+    public long CacheBudgetBytes { get; set; } = 1L * 1024 * 1024 * 1024;
 }
 
 /// <summary>
