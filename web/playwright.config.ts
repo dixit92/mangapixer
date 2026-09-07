@@ -8,7 +8,10 @@ export default defineConfig({
   workers: 1,
   reporter: [['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://127.0.0.1:4200',
+    // Target a running MangaPlex instance. Defaults to the local dev container
+    // (deploy/Dockerfile on 127.0.0.1:8091); override with E2E_BASE_URL to point
+    // at `ng serve` (:4200) or any deployed instance.
+    baseURL: process.env['E2E_BASE_URL'] ?? 'http://127.0.0.1:8091',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

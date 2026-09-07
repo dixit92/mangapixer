@@ -10,7 +10,7 @@
     "watch": "ng build --watch --configuration development",
     "lint": "ng lint",
     "test": "ng test",
-    "test:ci": "ng test --watch=false --browsers=ChromeHeadlessCI",
+    "test:ci": "ng test",
     "e2e": "npx playwright test",
     "api:check": "node scripts/check-openapi-drift.mjs"
   },
@@ -39,6 +39,8 @@
     "@types/node": "^24.0.0",
     "angular-eslint": "^19.0.0",
     "eslint": "^9.15.0",
-    "typescript": "~6.0.0"
+    "jsdom": "^30.0.1",
+    "typescript": "~6.0.0",
+    "vitest": "^4.1.11"
   }
 }
