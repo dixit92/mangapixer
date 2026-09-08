@@ -178,13 +178,32 @@ public sealed partial class Program
 
             var app = builder.Build();
 
-            // Initialize database and bootstrap admin
+            // Migrate the schema to the latest EF migration. This is data-critical:
+            // a failure must STOP startup (fail-fast) rather than serve a
+            // half-migrated database, so it is deliberately OUTSIDE the
+            // degrade-to-health-only catch used for the rest of initialization. Any
+            // pre-migration backup taken by the orchestrator is preserved on the
+            // data volume for recovery.
+            using (var migrateScope = app.Services.CreateScope())
+            {
+                var db = migrateScope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+                var backup = migrateScope.ServiceProvider.GetRequiredService<BackupService>();
+                var dbLogger = migrateScope.ServiceProvider
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("MangaPlex.DatabaseInitialization");
+                DatabaseInitialization.MigrateToLatestAsync(
+                    db, dataRoot,
+                    async path => (await backup.BackupAsync(path)).Succeeded,
+                    dbLogger).GetAwaiter().GetResult();
+            }
+
+            // Post-migration configuration (idempotent PRAGMAs + FTS) and bootstrap.
+            // These may degrade to health-only if they fail.
             using (var scope = app.Services.CreateScope())
             {
                 try
                 {
                     var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
-                    db.Database.EnsureCreated();
                     DatabaseInitialization.ConfigureDatabaseAsync(db).GetAwaiter().GetResult();
 
                     // No default credential is created (audit finding F2). On a

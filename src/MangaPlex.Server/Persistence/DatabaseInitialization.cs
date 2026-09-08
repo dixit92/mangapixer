@@ -2,7 +2,10 @@ namespace com.lifepixer.mangaplex.Server.Persistence;
 
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Logging;
 using System.Data;
+using System.Data.Common;
 
 /// <summary>
 /// Database initialization and connection configuration.
@@ -159,4 +162,129 @@ public static class DatabaseInitialization
     /// logs a clear warning when <c>user_version</c> is 1.
     /// </summary>
     public const int CurrentSchemaVersion = 2;
+
+    // --- Migration orchestration (2026-09-08) ---
+    //
+    // Replaces the old EnsureCreated() path. EnsureCreated builds the schema only
+    // on a brand-new database and never evolves an existing one, so post-1.0 schema
+    // changes could not reach a deployed DB. We now use EF Core migrations, with a
+    // one-time "adopt" step that stamps databases originally built by EnsureCreated
+    // (every 1.0.0 instance) as already having the baseline migration applied — so
+    // their tables are not recreated and no data is lost.
+
+    /// <summary>
+    /// Brings the database schema to the latest EF Core migration, safely for both
+    /// fresh installs and EnsureCreated-era (pre-migrations) databases.
+    ///
+    /// 1. Adopt: an existing app schema (has <c>users</c>) with no
+    ///    <c>__EFMigrationsHistory</c> and a recognised schema version (>= 2, i.e. a
+    ///    real 1.0.0 DB) is stamped with the baseline migration as already applied.
+    /// 2. Back up: if real data is present and migrations are pending, take a
+    ///    consistent snapshot first (rollback point); abort the migrate if it fails.
+    /// 3. Migrate: apply any pending migrations.
+    /// Fresh installs skip 1 and 2 and migrate from empty.
+    /// </summary>
+    public static async Task MigrateToLatestAsync(
+        MangaPlexDbContext db,
+        string dataRoot,
+        Func<string, Task<bool>> backupAsync,
+        ILogger? logger = null,
+        CancellationToken ct = default)
+    {
+        var (hasAppSchema, hasHistory, schemaVersion) = await ReadSchemaStateAsync(db, ct);
+
+        if (hasAppSchema && !hasHistory && schemaVersion >= 2)
+        {
+            var baseline = db.Database.GetMigrations().FirstOrDefault()
+                ?? throw new InvalidOperationException(
+                    "No migrations found in the assembly; cannot adopt the existing database.");
+            await SeedMigrationsHistoryBaselineAsync(db, baseline, ct);
+            logger?.LogInformation(
+                "Adopted an existing pre-migrations database into the EF migration timeline (baseline {Baseline}).",
+                baseline);
+        }
+
+        var pending = (await db.Database.GetPendingMigrationsAsync(ct)).ToList();
+
+        // Only back up when there is real data to protect AND schema will change.
+        if (pending.Count > 0 && hasAppSchema)
+        {
+            var backupPath = Path.Combine(
+                dataRoot, "backups", $"pre-migration-{DateTime.UtcNow:yyyyMMdd-HHmmss}.db");
+            Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
+            logger?.LogInformation(
+                "Applying {Count} pending migration(s); backing up to {Path} first.", pending.Count, backupPath);
+            if (!await backupAsync(backupPath))
+                throw new InvalidOperationException(
+                    "Pre-migration backup failed; aborting migrate to protect existing data.");
+        }
+        else if (pending.Count > 0)
+        {
+            logger?.LogInformation("Applying {Count} migration(s) to a fresh database.", pending.Count);
+        }
+
+        await db.Database.MigrateAsync(ct);
+    }
+
+    /// <summary>
+    /// Reads whether the app schema exists (has <c>users</c>), whether the EF
+    /// migrations-history table exists, and the <c>PRAGMA user_version</c> — using a
+    /// single connection open.
+    /// </summary>
+    private static async Task<(bool HasAppSchema, bool HasHistory, int UserVersion)> ReadSchemaStateAsync(
+        MangaPlexDbContext db, CancellationToken ct)
+    {
+        var connection = db.Database.GetDbConnection();
+        var wasOpen = connection.State == ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync(ct);
+        try
+        {
+            var hasAppSchema = await TableExistsAsync(connection, "users", ct);
+            var hasHistory = await TableExistsAsync(connection, "__EFMigrationsHistory", ct);
+
+            int userVersion;
+            await using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "PRAGMA user_version;";
+                var result = await cmd.ExecuteScalarAsync(ct);
+                userVersion = result is long l ? (int)l : 0;
+            }
+            return (hasAppSchema, hasHistory, userVersion);
+        }
+        finally
+        {
+            if (!wasOpen) await connection.CloseAsync();
+        }
+    }
+
+    private static async Task<bool> TableExistsAsync(DbConnection connection, string tableName, CancellationToken ct)
+    {
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type IN ('table','view') AND name = $name;";
+        var p = cmd.CreateParameter();
+        p.ParameterName = "$name";
+        p.Value = tableName;
+        cmd.Parameters.Add(p);
+        var result = await cmd.ExecuteScalarAsync(ct);
+        return result is long l && l > 0;
+    }
+
+    /// <summary>
+    /// Creates the EF migrations-history table (if absent) and records the baseline
+    /// migration as already applied, without running its DDL — the tables already
+    /// exist (created by EnsureCreated). Idempotent via INSERT OR IGNORE.
+    /// </summary>
+    private static async Task SeedMigrationsHistoryBaselineAsync(
+        MangaPlexDbContext db, string migrationId, CancellationToken ct)
+    {
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+                "MigrationId" TEXT NOT NULL CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY,
+                "ProductVersion" TEXT NOT NULL
+            );
+            """, ct);
+        await db.Database.ExecuteSqlRawAsync(
+            """INSERT OR IGNORE INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion") VALUES ({0}, {1});""",
+            new object[] { migrationId, ProductInfo.GetVersion() }, ct);
+    }
 }
