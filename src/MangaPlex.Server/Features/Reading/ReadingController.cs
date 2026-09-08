@@ -18,16 +18,36 @@ public sealed class ReadingController : ControllerBase
 {
     private readonly ReadingStateService _stateService;
     private readonly CatalogIdResolver _idResolver;
+    private readonly ReaderModeResolver _modeResolver;
     private readonly ILogger<ReadingController> _logger;
 
     public ReadingController(
         ReadingStateService stateService,
         CatalogIdResolver idResolver,
+        ReaderModeResolver modeResolver,
         ILogger<ReadingController> logger)
     {
         _stateService = stateService;
         _idResolver = idResolver;
+        _modeResolver = modeResolver;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Resolves the effective default reader mode for an item (1.2.0): per-user item
+    /// override → nearest folder default → library default → user default → PagedLtr.
+    /// </summary>
+    [HttpGet("{itemId}/effective-mode")]
+    public async Task<IActionResult> GetEffectiveMode(string itemId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
+        var mode = await _modeResolver.ResolveAsync(userId.Value, node, ct);
+        return Ok(new EffectiveReaderModeDto { ReaderMode = mode });
     }
 
     [HttpGet("progress/{itemId}")]

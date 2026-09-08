@@ -2,6 +2,7 @@ namespace com.lifepixer.mangaplex.Server.Features.Admin;
 
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Core.Reading;
 using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Media;
 using com.lifepixer.mangaplex.Server.Persistence;
@@ -137,6 +138,65 @@ public sealed class AdminController : ControllerBase
 
         var success = await _registration.UnregisterAsync(library.Id, ct);
         if (!success) return NotFound();
+        return NoContent();
+    }
+
+    // --- Global default reader mode (1.2.0) ---
+    // Admin-set defaults applied to all users; overridable per folder, and by a
+    // user's own per-item override. See ReaderModeResolver for precedence.
+
+    [HttpPut("libraries/{id}/reader-default")]
+    public async Task<IActionResult> SetLibraryReaderDefault(string id, [FromBody] SetReaderModeRequest request, CancellationToken ct)
+    {
+        var library = await _db.Libraries.FirstOrDefaultAsync(l => l.PublicId == id, ct);
+        if (library is null) return NotFound();
+
+        library.DefaultReaderMode = (int)request.ReaderMode;
+        await _db.SaveChangesAsync(ct);
+        return Ok(ToLibraryDto(library));
+    }
+
+    [HttpDelete("libraries/{id}/reader-default")]
+    public async Task<IActionResult> ClearLibraryReaderDefault(string id, CancellationToken ct)
+    {
+        var library = await _db.Libraries.FirstOrDefaultAsync(l => l.PublicId == id, ct);
+        if (library is null) return NotFound();
+
+        library.DefaultReaderMode = null;
+        await _db.SaveChangesAsync(ct);
+        return Ok(ToLibraryDto(library));
+    }
+
+    [HttpPut("folders/{nodeId}/reader-default")]
+    public async Task<IActionResult> SetFolderReaderDefault(string nodeId, [FromBody] SetReaderModeRequest request, CancellationToken ct)
+    {
+        var node = await _db.CatalogNodes.FirstOrDefaultAsync(n => n.PublicId == nodeId, ct);
+        if (node is null) return NotFound();
+        if (node.Kind != (int)CatalogNodeKind.Folder)
+            return BadRequest(new ApiError { Error = "not_a_folder", Message = "A reader-mode override can only be set on a folder." });
+
+        var existing = await _db.FolderReaderDefaults.FirstOrDefaultAsync(f => f.NodeId == node.Id, ct);
+        if (existing is null)
+            _db.FolderReaderDefaults.Add(new FolderReaderDefaultEntity { NodeId = node.Id, ReaderMode = (int)request.ReaderMode });
+        else
+            existing.ReaderMode = (int)request.ReaderMode;
+
+        await _db.SaveChangesAsync(ct);
+        return Ok(new SetReaderModeRequest { ReaderMode = request.ReaderMode });
+    }
+
+    [HttpDelete("folders/{nodeId}/reader-default")]
+    public async Task<IActionResult> ClearFolderReaderDefault(string nodeId, CancellationToken ct)
+    {
+        var node = await _db.CatalogNodes.FirstOrDefaultAsync(n => n.PublicId == nodeId, ct);
+        if (node is null) return NotFound();
+
+        var existing = await _db.FolderReaderDefaults.FirstOrDefaultAsync(f => f.NodeId == node.Id, ct);
+        if (existing is not null)
+        {
+            _db.FolderReaderDefaults.Remove(existing);
+            await _db.SaveChangesAsync(ct);
+        }
         return NoContent();
     }
 
@@ -602,6 +662,7 @@ public sealed class AdminController : ControllerBase
         IsScanning = isScanning ?? false,
         ItemCount = itemCount,
         LastScanCompleted = library.LastScanCompleted,
+        DefaultReaderMode = (ReaderMode?)library.DefaultReaderMode,
     };
 
     private static string ScanStatusToString(int status) => status switch

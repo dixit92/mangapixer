@@ -190,6 +190,15 @@ public sealed record UserPreferencesDto
 }
 
 /// <summary>
+/// The resolved effective default reader mode for an item (1.2.0), after applying the
+/// per-user item override and the global folder/library defaults.
+/// </summary>
+public sealed record EffectiveReaderModeDto
+{
+    public required ReaderMode ReaderMode { get; init; }
+}
+
+/// <summary>
 /// API DTO for a library.
 /// </summary>
 public sealed record LibraryDto
@@ -211,6 +220,13 @@ public sealed record LibraryDto
     /// Last scan completion time, if any.
     /// </summary>
     public DateTimeOffset? LastScanCompleted { get; init; }
+
+    /// <summary>
+    /// Global default reader mode for the library (1.2.0), or null to inherit the
+    /// user's personal default. Admin-set; applies to all users, overridable per
+    /// folder.
+    /// </summary>
+    public ReaderMode? DefaultReaderMode { get; init; }
 }
 
 /// <summary>
@@ -330,6 +346,15 @@ public sealed record RegisterLibraryRequest
 public sealed record UpdateLibraryRequest
 {
     public required string DisplayName { get; init; }
+}
+
+/// <summary>
+/// Request to set a global default reader mode on a library or a folder (1.2.0).
+/// Clearing (inherit) is a DELETE, not this request.
+/// </summary>
+public sealed record SetReaderModeRequest
+{
+    public required ReaderMode ReaderMode { get; init; }
 }
 
 /// <summary>

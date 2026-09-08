@@ -43,6 +43,7 @@ public sealed class MangaPlexDbContext : DbContext
     public DbSet<ReadingProgressEntity> ReadingProgress => Set<ReadingProgressEntity>();
     public DbSet<ReaderPreferencesEntity> ReaderPreferences => Set<ReaderPreferencesEntity>();
     public DbSet<ItemReaderOverridesEntity> ItemReaderOverrides => Set<ItemReaderOverridesEntity>();
+    public DbSet<FolderReaderDefaultEntity> FolderReaderDefaults => Set<FolderReaderDefaultEntity>();
     public DbSet<BookmarkEntity> Bookmarks => Set<BookmarkEntity>();
     public DbSet<JobEntity> Jobs => Set<JobEntity>();
     public DbSet<ScanRunEntity> ScanRuns => Set<ScanRunEntity>();
@@ -64,6 +65,7 @@ public sealed class MangaPlexDbContext : DbContext
         ConfigurePageEntries(modelBuilder);
         ConfigureReadingProgress(modelBuilder);
         ConfigurePreferences(modelBuilder);
+        ConfigureFolderReaderDefaults(modelBuilder);
         ConfigureBookmarks(modelBuilder);
         ConfigureJobs(modelBuilder);
         ConfigureCacheEntries(modelBuilder);
@@ -234,6 +236,22 @@ public sealed class MangaPlexDbContext : DbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.Id).ValueGeneratedOnAdd();
             e.HasIndex(x => new { x.UserId, x.ItemId }).IsUnique();
+        });
+    }
+
+    private static void ConfigureFolderReaderDefaults(ModelBuilder mb)
+    {
+        mb.Entity<FolderReaderDefaultEntity>(e =>
+        {
+            e.ToTable("folder_reader_defaults");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            // One override row per folder node.
+            e.HasIndex(x => x.NodeId).IsUnique();
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

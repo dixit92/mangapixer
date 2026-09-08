@@ -36,8 +36,30 @@ public sealed class LibraryEntity
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastScanCompleted { get; set; }
 
+    /// <summary>
+    /// Global default reader mode for the whole library (1.2.0). Null = inherit
+    /// (fall through to the user's personal default). Stored as the ReaderMode enum's
+    /// int value. Admin-set; applies to all users. Overridable per folder — see
+    /// <see cref="FolderReaderDefaultEntity"/>.
+    /// </summary>
+    public int? DefaultReaderMode { get; set; }
+
     public ICollection<LibraryGrantEntity> Grants { get; set; } = [];
     public ICollection<CatalogNodeEntity> Nodes { get; set; } = [];
+}
+
+/// <summary>
+/// Global per-folder default reader mode override (1.2.0, admin-set). Applies to the
+/// folder and all its subfolders; during resolution the nearest ancestor with an
+/// override wins. One row per folder that has an explicit override — absence means
+/// "inherit". <see cref="ReaderMode"/> stored as its int value.
+/// </summary>
+public sealed class FolderReaderDefaultEntity
+{
+    public long Id { get; set; }
+    public long NodeId { get; set; }
+    public int ReaderMode { get; set; }
+    public CatalogNodeEntity? Node { get; set; }
 }
 
 /// <summary>

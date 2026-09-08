@@ -100,6 +100,7 @@ public sealed partial class Program
             builder.Services.AddScoped<CatalogBrowseService>();
             builder.Services.AddScoped<ReadingStateService>();
             builder.Services.AddScoped<CatalogIdResolver>();
+            builder.Services.AddScoped<ReaderModeResolver>();
 
             // Operations services
             builder.Services.AddScoped<BackupService>();
