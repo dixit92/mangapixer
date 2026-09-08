@@ -39,11 +39,18 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
  *     first page (0-1, 2-3…) and "Double page (offset cover)" keeps the cover
  *     standalone then pairs (1-2, 3-4…). Which a comic needs can't be inferred, so
  *     it's an explicit reader choice; see `coverIsStandalone` / `setSpread`.
- *  6. Immersive chrome (2026-09-08): the toolbar overlays the page and, with the
- *     bottom nav, auto-hides after ~3s idle so reading uses the full screen.
- *     Reveal by moving the mouse, tapping the centre zone (edges still navigate),
- *     or pressing `m`; a hovered toolbar / open menu pins it visible. A very thin
- *     progress rail stays pinned to the bottom as a persistent position cue.
+ *     A wide (landscape) page — typically a pre-stitched two-page spread — is never
+ *     paired; it renders solo, full width, in both double modes (see `isWide` /
+ *     `computeSpreads`). This also tends to self-correct the pairing cadence.
+ *  6. Immersive chrome (2026-09-08): immersion is fullscreen-only. In fullscreen the
+ *     toolbar overlays the page and, with the bottom nav, auto-hides after ~3s idle;
+ *     reveal by moving the mouse into the TOP hot-zone, tapping the centre zone
+ *     (edges still navigate), or pressing `m`; a hovered toolbar / open menu pins it
+ *     visible. Windowed reading keeps the toolbar in normal flow, always visible
+ *     (no auto-hide). A very thin progress rail stays pinned to the bottom (RTL
+ *     fills from the right). The tap zones are invisible in normal use; a Help
+ *     overlay (the '?' toolbar button or key) surfaces them prominently with the
+ *     keyboard shortcuts.
  */
 @Component({
   selector: 'app-reader',
@@ -61,7 +68,8 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
   ],
   template: `
     <div class="reader-container">
-      <mat-toolbar class="reader-toolbar" [class.chrome-hidden]="!chromeVisible()"
+      <mat-toolbar class="reader-toolbar" [class.immersive]="isFullscreen()"
+                   [class.chrome-hidden]="!chromeVisible()"
                    (mouseenter)="lockChrome(true)" (mouseleave)="lockChrome(false)">
         <button mat-icon-button (click)="goBack()" matTooltip="Back to library" aria-label="Back to library">
           <mat-icon>arrow_back</mat-icon>
@@ -113,6 +121,9 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
             </button>
           }
 
+          <button mat-icon-button (click)="toggleHelp()" matTooltip="Reading help" aria-label="Reading help">
+            <mat-icon>help_outline</mat-icon>
+          </button>
           <button mat-icon-button (click)="toggleFullscreen()"
                   [matTooltip]="isFullscreen() ? 'Exit fullscreen' : 'Fullscreen'"
                   [attr.aria-label]="isFullscreen() ? 'Exit fullscreen' : 'Enter fullscreen'">
@@ -162,8 +173,8 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
               />
             }
           </div>
-          <button class="edge prev" (click)="onEdge('prev')" aria-label="Previous"></button>
-          <button class="edge next" (click)="onEdge('next')" aria-label="Next"></button>
+          <button class="edge prev" (click)="onEdge('prev')" aria-label="Previous" tabindex="-1"></button>
+          <button class="edge next" (click)="onEdge('next')" aria-label="Next" tabindex="-1"></button>
           <!-- Center tap zone (Mihon-style): toggle chrome; edges still navigate. -->
           <button class="tap-toggle" (click)="toggleChrome()" tabindex="-1"
                   aria-label="Show or hide controls"></button>
@@ -181,10 +192,42 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
         </div>
       }
 
-      <!-- Persistent minimal cue: a very thin progress bar, always visible. -->
+      <!-- Persistent minimal cue: a very thin progress bar, always visible.
+           In RTL it fills from the right and recedes left as pages advance. -->
       @if (phase() === 'ready') {
-        <div class="progress-rail" aria-hidden="true">
+        <div class="progress-rail" [class.rtl]="direction() === 'rtl'" aria-hidden="true">
           <div class="progress-fill" [style.width.%]="progressPct()"></div>
+        </div>
+      }
+
+      <!-- Help overlay (toggled by the toolbar '?' button or the '?' key): shows the
+           otherwise-invisible tap zones prominently plus the keyboard shortcuts.
+           A full-size backdrop button dismisses it; zones/panel are click-through. -->
+      @if (helpVisible()) {
+        <div class="help-overlay" role="dialog" aria-modal="true" aria-label="Reader controls">
+          <button class="help-backdrop" (click)="closeHelp()" aria-label="Close help"></button>
+          @if (view() !== 'webtoon') {
+            <div class="help-zones" aria-hidden="true">
+              <div class="help-zone side"><mat-icon>chevron_left</mat-icon><span>{{ leftZoneLabel() }}</span></div>
+              <div class="help-zone center"><mat-icon>touch_app</mat-icon><span>Show / hide menu</span></div>
+              <div class="help-zone side"><mat-icon>chevron_right</mat-icon><span>{{ rightZoneLabel() }}</span></div>
+            </div>
+          }
+          <div class="help-panel">
+            <h3>Reader controls</h3>
+            <ul>
+              @if (view() !== 'webtoon') {
+                <li><kbd>←</kbd> <kbd>→</kbd> — previous / next page (follows reading direction)</li>
+                <li><kbd>Home</kbd> <kbd>End</kbd> — first / last page</li>
+              } @else {
+                <li>Scroll to read; tap the page to show or hide the toolbar</li>
+              }
+              <li><kbd>M</kbd> — show / hide the toolbar</li>
+              <li><kbd>F</kbd> — fullscreen · <kbd>Esc</kbd> — exit</li>
+              <li><kbd>?</kbd> — this help</li>
+            </ul>
+            <p class="help-dismiss">Tap anywhere to close</p>
+          </div>
         </div>
       }
     </div>
@@ -195,15 +238,17 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
       position: fixed; inset: 0;
       background: #101012; z-index: 1000;
     }
-    /* Immersive chrome: the toolbar OVERLAYS the viewport (absolute, not in flow)
-       so the page uses the full screen height and hiding the bar yields real
-       reading space. It slides up / fades out when chrome is hidden. */
     .reader-toolbar {
-      position: absolute; top: 0; left: 0; right: 0; z-index: 1001;
-      background: #1c1c1f; color: #eee;
+      background: #1c1c1f; color: #eee; flex-shrink: 0;
       transition: transform .2s ease, opacity .2s ease;
     }
-    .reader-toolbar.chrome-hidden {
+    /* Immersive (fullscreen only): the toolbar OVERLAYS the viewport so hiding it
+       frees the whole screen. Windowed reading keeps it in normal flow above the
+       page, always visible. */
+    .reader-toolbar.immersive {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 1001;
+    }
+    .reader-toolbar.immersive.chrome-hidden {
       transform: translateY(-100%); opacity: 0; pointer-events: none;
     }
     .page-info { margin-left: 8px; font-variant-numeric: tabular-nums; }
@@ -283,8 +328,47 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     .progress-rail {
       position: fixed; left: 0; right: 0; bottom: 0; height: 3px;
       background: rgba(255, 255, 255, 0.14); z-index: 1002; pointer-events: none;
+      display: flex;
     }
-    .progress-fill { height: 100%; background: #7c4dff; transition: width .2s ease; }
+    /* RTL: fill sits at the right edge and grows leftward as pages advance. */
+    .progress-rail.rtl { justify-content: flex-end; }
+    .progress-fill { height: 100%; flex: none; background: #7c4dff; transition: width .2s ease; }
+    /* The tap zones carry no visible affordance during reading (no focus ring, no
+       tap highlight). They are surfaced deliberately via the Help overlay instead. */
+    .edge, .tap-toggle { -webkit-tap-highlight-color: transparent; }
+    .edge:focus, .edge:focus-visible,
+    .tap-toggle:focus, .tap-toggle:focus-visible { outline: none; }
+    /* Help overlay: prominent, dismissible legend of the zones + shortcuts. */
+    .help-overlay { position: fixed; inset: 0; z-index: 1003; }
+    .help-backdrop {
+      position: absolute; inset: 0; z-index: 0;
+      background: rgba(0, 0, 0, 0.55); border: 0; padding: 0; cursor: pointer;
+    }
+    .help-zones {
+      position: absolute; inset: 0; z-index: 1; display: flex;
+      pointer-events: none; color: #fff;
+    }
+    .help-zone {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; font-weight: 600; text-align: center; padding: 0 8px;
+      border-inline: 1px dashed rgba(255, 255, 255, 0.35);
+    }
+    .help-zone mat-icon { font-size: 40px; width: 40px; height: 40px; }
+    .help-zone.side { flex: 0 0 30%; background: rgba(124, 77, 255, 0.22); }
+    .help-zone.center { flex: 0 0 40%; background: rgba(255, 255, 255, 0.10); }
+    .help-panel {
+      position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%);
+      z-index: 2; pointer-events: none; max-width: min(92vw, 440px);
+      background: rgba(20, 20, 22, 0.94); color: #eee;
+      border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 16px 20px;
+    }
+    .help-panel h3 { margin: 0 0 10px; }
+    .help-panel ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+    .help-panel kbd {
+      background: #333; border: 1px solid #555; border-radius: 4px;
+      padding: 1px 6px; font-family: monospace; font-size: 12px;
+    }
+    .help-dismiss { margin: 12px 0 0; opacity: 0.65; font-size: 13px; text-align: center; }
     @media (prefers-reduced-motion: reduce) {
       .reader-toolbar, .reader-controls, .progress-fill { transition: none; }
     }
@@ -325,6 +409,13 @@ export class ReaderComponent implements OnInit, OnDestroy {
   readonly progressPct = computed(() =>
     this.pageCount() > 0 ? ((this.currentPage() + 1) / this.pageCount()) * 100 : 0);
 
+  // Help overlay: reveals the (normally invisible) tap zones prominently and lists
+  // keyboard shortcuts. The zones are direction-aware — the physical left edge goes
+  // "back" in LTR but "forward" in RTL — so the labels follow `direction`.
+  readonly helpVisible = signal(false);
+  readonly leftZoneLabel = computed(() => this.direction() === 'rtl' ? 'Next page' : 'Previous page');
+  readonly rightZoneLabel = computed(() => this.direction() === 'rtl' ? 'Previous page' : 'Next page');
+
   readonly viewIcon = computed(() =>
     this.view() === 'webtoon' ? 'view_day'
       : this.view() === 'spread' ? (this.coverIsStandalone() ? 'auto_stories' : 'import_contacts')
@@ -356,6 +447,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private lastPointerReveal = 0;
   private static readonly ChromeIdleMs = 3000;
+  private static readonly RevealHotZonePx = 80;
   private destroyed = false;
 
   pageUrlFor(entry: ManifestPageEntry | undefined): string {
@@ -396,7 +488,12 @@ export class ReaderComponent implements OnInit, OnDestroy {
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
     // Keep our signal in sync when the browser exits fullscreen via Esc.
-    this.isFullscreen.set(!!document.fullscreenElement);
+    const fs = !!document.fullscreenElement;
+    this.isFullscreen.set(fs);
+    // Immersive auto-hide is fullscreen-only: entering starts the idle countdown,
+    // exiting pins the chrome back on so windowed reading always shows it.
+    if (fs) { this.scheduleChromeHide(); }
+    else { this.chromeVisible.set(true); this.clearHideTimer(); }
   }
 
   @HostListener('window:keydown', ['$event'])
@@ -404,6 +501,8 @@ export class ReaderComponent implements OnInit, OnDestroy {
     const target = event.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
     if (this.phase() !== 'ready') return;
+    if (event.key === '?') { this.toggleHelp(); return; }
+    if (this.helpVisible() && event.key === 'Escape') { this.closeHelp(); return; }
     if (event.key === 'm') { this.toggleChrome(); return; } // toggle chrome in any view
     if (this.view() === 'webtoon') return; // native scroll drives webtoon
 
@@ -428,8 +527,12 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.scheduleChromeHide();
   }
 
-  /** Center tap / 'm' key: flip chrome. When hiding, cancel the pending timer. */
+  /**
+   * Center tap / 'm' key: flip chrome. Hiding is fullscreen-only (immersive reading
+   * == fullscreen); windowed always keeps the chrome shown.
+   */
   toggleChrome(): void {
+    if (!this.isFullscreen()) { this.chromeVisible.set(true); return; }
     if (this.chromeVisible()) {
       this.chromeVisible.set(false);
       this.clearHideTimer();
@@ -449,9 +552,19 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.scheduleChromeHide();
   }
 
-  @HostListener('document:mousemove')
-  onPointerMove(): void {
+  toggleHelp(): void {
+    this.helpVisible.update((v) => !v);
+    if (this.helpVisible()) this.revealChrome(); // keep the toolbar up behind the overlay
+  }
+
+  closeHelp(): void { this.helpVisible.set(false); }
+
+  @HostListener('document:mousemove', ['$event'])
+  onPointerMove(e: MouseEvent): void {
     if (this.phase() !== 'ready') return;
+    // Only a move into the TOP hot-zone reveals chrome (desktop). Moving the mouse
+    // elsewhere while reading must not pop the bar; touch reveals via the centre tap.
+    if (e.clientY > ReaderComponent.RevealHotZonePx) return;
     const now = Date.now();
     if (now - this.lastPointerReveal < 120) return; // throttle change-detection churn
     this.lastPointerReveal = now;
@@ -465,7 +578,10 @@ export class ReaderComponent implements OnInit, OnDestroy {
   private scheduleChromeHide(): void {
     this.clearHideTimer();
     this.hideTimer = setTimeout(() => {
-      if (this.phase() === 'ready' && !this.chromeLocked()) this.chromeVisible.set(false);
+      // Auto-hide only while fullscreen; windowed reading keeps the chrome visible.
+      if (this.isFullscreen() && this.phase() === 'ready' && !this.chromeLocked()) {
+        this.chromeVisible.set(false);
+      }
     }, ReaderComponent.ChromeIdleMs);
   }
 
@@ -741,20 +857,38 @@ export class ReaderComponent implements OnInit, OnDestroy {
     return c?.randomUUID ? c.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 
+  /** A page counts as "wide" (a pre-stitched two-page spread) at/above this aspect. */
+  private static readonly WideAspect = 1.2;
+
+  private isWide(index: number): boolean {
+    const p = this.pages()[index];
+    return !!p && p.width > 0 && p.height > 0 && p.width / p.height >= ReaderComponent.WideAspect;
+  }
+
   /**
    * Group page indices into double-spread pairs. A standalone cover (page 0) and
    * an odd trailing page each occupy a spread alone; everything else is paired.
    * Indices are ascending within a pair — the template's `.rtl-flow` handles
    * right-to-left placement, so navigation can step whole groups either way.
+   *
+   * Wide pages (2026-09-08, owner "option A"): a landscape page is a stitched
+   * spread, so it is never paired — it forms its own group and pairing resumes
+   * after it. A wide page also resets the cadence, which tends to self-correct the
+   * offset. A portrait page immediately before a wide page renders solo (it has no
+   * portrait partner), which is expected.
    */
   private computeSpreads(): number[][] {
     const n = this.pageCount();
     if (n === 0) return [];
     const groups: number[][] = [];
     let i = 0;
-    if (this.coverIsStandalone()) { groups.push([0]); i = 1; }
-    for (; i < n; i += 2) {
-      groups.push(i + 1 < n ? [i, i + 1] : [i]);
+    // Offset: keep a (non-wide) cover standalone. A wide cover is solo regardless,
+    // handled by the loop below.
+    if (this.coverIsStandalone() && !this.isWide(0)) { groups.push([0]); i = 1; }
+    while (i < n) {
+      if (this.isWide(i)) { groups.push([i]); i += 1; continue; }
+      if (i + 1 < n && !this.isWide(i + 1)) { groups.push([i, i + 1]); i += 2; }
+      else { groups.push([i]); i += 1; }
     }
     return groups;
   }

@@ -107,16 +107,21 @@ describe('ReaderComponent double-spread pairing', () => {
     expect(c.spreads()).toEqual([[0], [1, 2], [3, 4]]);
   });
 
-  it('toggleChrome / revealChrome flip immersive chrome visibility', () => {
+  it('chrome only hides in fullscreen; windowed stays visible', () => {
     const c = create();
     expect(c.chromeVisible()).toBe(true); // shown on entry
+
+    // Windowed: toggling never hides — immersion is fullscreen-only.
+    c.isFullscreen.set(false);
     c.toggleChrome();
-    expect(c.chromeVisible()).toBe(false); // tap centre to hide
+    expect(c.chromeVisible()).toBe(true);
+
+    // Fullscreen: centre tap / 'm' hides, then shows again.
+    c.isFullscreen.set(true);
     c.toggleChrome();
-    expect(c.chromeVisible()).toBe(true); // tap again to show
-    c.chromeVisible.set(false);
-    c.revealChrome();
-    expect(c.chromeVisible()).toBe(true); // mouse-move reveal
+    expect(c.chromeVisible()).toBe(false);
+    c.toggleChrome();
+    expect(c.chromeVisible()).toBe(true);
   });
 
   it('progressPct reflects the current page within the chapter', () => {
@@ -126,6 +131,45 @@ describe('ReaderComponent double-spread pairing', () => {
     expect(c.progressPct()).toBe(25);
     c.currentPage.set(3);
     expect(c.progressPct()).toBe(100);
+  });
+
+  it('renders a wide (stitched-spread) page solo and resumes pairing after it', () => {
+    const c = create();
+    const pages = makePages(5);
+    pages[2] = { ...pages[2], width: 2000, height: 1200 }; // aspect 1.67 → wide
+    c.pages.set(pages);
+    c.view.set('spread');
+    c.coverIsStandalone.set(false);
+    expect(c.spreads()).toEqual([[0, 1], [2], [3, 4]]);
+  });
+
+  it('treats a wide cover as its own spread, then pairs the rest', () => {
+    const c = create();
+    const pages = makePages(3);
+    pages[0] = { ...pages[0], width: 2000, height: 1000 }; // wide cover
+    c.pages.set(pages);
+    c.view.set('spread');
+    c.coverIsStandalone.set(true);
+    expect(c.spreads()).toEqual([[0], [1, 2]]);
+  });
+
+  it('toggleHelp / closeHelp control the help overlay', () => {
+    const c = create();
+    expect(c.helpVisible()).toBe(false);
+    c.toggleHelp();
+    expect(c.helpVisible()).toBe(true);
+    c.closeHelp();
+    expect(c.helpVisible()).toBe(false);
+  });
+
+  it('help zone labels follow the reading direction', () => {
+    const c = create();
+    c.direction.set('ltr');
+    expect(c.leftZoneLabel()).toBe('Previous page');
+    expect(c.rightZoneLabel()).toBe('Next page');
+    c.direction.set('rtl');
+    expect(c.leftZoneLabel()).toBe('Next page');
+    expect(c.rightZoneLabel()).toBe('Previous page');
   });
 });
 
