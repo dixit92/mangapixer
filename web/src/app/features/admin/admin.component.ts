@@ -19,6 +19,7 @@ import {
   DirectoryListingDto,
   LibraryDto,
   LogLevel,
+  ReaderMode,
   RegisterLibraryRequest,
   CreateUserRequest,
 } from '../../core/api/api-types';
@@ -74,6 +75,16 @@ import {
                   }
                 </div>
                 <span matListItemMeta class="lib-meta">
+                  <mat-form-field appearance="outline" class="dir-select"
+                                  floatLabel="always" subscriptSizing="dynamic">
+                    <mat-label>Direction</mat-label>
+                    <mat-select [value]="lib.defaultReaderMode"
+                                (selectionChange)="setLibraryDirection(lib, $event.value)">
+                      @for (opt of directionOptions; track opt.label) {
+                        <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
                   @if (lib.isScanning) {
                     <span class="chip scanning">
                       <mat-spinner diameter="14"></mat-spinner> Scanning…
@@ -281,6 +292,7 @@ import {
     .register-actions { display: flex; gap: 12px; margin-top: 4px; }
     .browse-btn { margin-right: 12px; }
     .lib-meta, .user-meta { display: inline-flex; align-items: center; gap: 8px; }
+    .dir-select { width: 150px; }
     .chip {
       display: inline-flex; align-items: center; gap: 6px;
       font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px;
@@ -361,6 +373,14 @@ export class AdminComponent implements OnInit, OnDestroy {
   readonly newUserIsAdmin = signal(false);
 
   // Log-level control (section 9)
+  // Global default reading direction per library (1.2.0). null = inherit.
+  readonly directionOptions: { value: ReaderMode | null; label: string }[] = [
+    { value: null, label: 'Inherit' },
+    { value: 'PagedLtr', label: 'Left-to-right' },
+    { value: 'PagedRtl', label: 'Right-to-left' },
+    { value: 'VerticalWebtoon', label: 'Vertical' },
+  ];
+
   readonly logLevels: LogLevel[] = ['Verbose', 'Debug', 'Information', 'Warning', 'Error', 'Fatal'];
   logLevel = 'Information';
   private logLevelLoading = false;
@@ -482,6 +502,20 @@ export class AdminComponent implements OnInit, OnDestroy {
         this.snackBar.open(`Library "${lib.name}" registered`, 'Close', { duration: 3000 });
       },
       error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 5000 }),
+    });
+  }
+
+  /** Set (or clear, when mode is null) the library's global default reading direction. */
+  setLibraryDirection(lib: LibraryDto, mode: ReaderMode | null): void {
+    const call = mode
+      ? this.api.setLibraryReaderDefault(lib.id, mode)
+      : this.api.clearLibraryReaderDefault(lib.id);
+    call.subscribe({
+      next: (updated) => {
+        this.libraries.update(libs => libs.map(l => l.id === lib.id ? updated : l));
+        this.snackBar.open(`Reading direction updated for "${lib.name}"`, 'Close', { duration: 2500 });
+      },
+      error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 4000 }),
     });
   }
 

@@ -11,6 +11,8 @@ import {
   ChangePasswordRequest,
   ContinueReadingEntry,
   CreateUserRequest,
+  EffectiveReaderModeDto,
+  ReaderMode,
   CsrfTokenDto,
   DirectoryListingDto,
   ItemManifest,
@@ -156,6 +158,11 @@ export class ApiService {
     return this.put<void>('/reading/preferences', request);
   }
 
+  /** Resolved effective default reader mode for an item (1.2.0). */
+  getEffectiveReaderMode(itemId: string): Observable<EffectiveReaderModeDto> {
+    return this.get<EffectiveReaderModeDto>(`/reading/${itemId}/effective-mode`);
+  }
+
   // --- Admin ---
 
   registerLibrary(request: RegisterLibraryRequest): Observable<LibraryDto> {
@@ -178,6 +185,23 @@ export class ApiService {
 
   unregisterLibrary(id: string): Observable<void> {
     return this.delete<void>(`/admin/libraries/${id}`);
+  }
+
+  // Global default reader mode (1.2.0) — admin-set library/folder defaults.
+  setLibraryReaderDefault(libraryId: string, mode: ReaderMode): Observable<LibraryDto> {
+    return this.put<LibraryDto>(`/admin/libraries/${libraryId}/reader-default`, { readerMode: mode });
+  }
+
+  clearLibraryReaderDefault(libraryId: string): Observable<LibraryDto> {
+    return this.delete<LibraryDto>(`/admin/libraries/${libraryId}/reader-default`);
+  }
+
+  setFolderReaderDefault(nodeId: string, mode: ReaderMode): Observable<void> {
+    return this.put<void>(`/admin/folders/${nodeId}/reader-default`, { readerMode: mode });
+  }
+
+  clearFolderReaderDefault(nodeId: string): Observable<void> {
+    return this.delete<void>(`/admin/folders/${nodeId}/reader-default`);
   }
 
   triggerScan(libraryId: string): Observable<ScanTriggeredDto> {

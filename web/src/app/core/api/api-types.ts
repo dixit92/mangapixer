@@ -114,6 +114,13 @@ export interface LibraryDto {
   isScanning: boolean;
   itemCount: number | null;
   lastScanCompleted: string | null;
+  /** Global default reader mode for the library (1.2.0), or null to inherit. */
+  defaultReaderMode: ReaderMode | null;
+}
+
+/** Resolved effective default reader mode for an item (1.2.0). */
+export interface EffectiveReaderModeDto {
+  readerMode: ReaderMode;
 }
 
 export interface ApiError {

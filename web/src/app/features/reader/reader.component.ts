@@ -460,15 +460,17 @@ export class ReaderComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // Honor the user's default reading mode/direction; failure falls back to paged LTR.
-    this.api.getPreferences().subscribe({
-      next: (prefs) => this.applyDefaultMode(prefs.defaultReaderMode),
-      error: () => { /* keep defaults */ },
-    });
     this.route.paramMap.subscribe((params) => {
       const id = params.get('itemId') ?? '';
       this.itemId.set(id);
       this.pollAttempts = 0;
+      // Resolve the effective default reading mode for THIS item (1.2.0): per-user
+      // item override → nearest folder default → library default → user's personal
+      // default → paged LTR. Failure falls back to paged LTR.
+      this.api.getEffectiveReaderMode(id).subscribe({
+        next: (res) => this.applyDefaultMode(res.readerMode),
+        error: () => { /* keep defaults */ },
+      });
       this.loadManifest();
       this.loadNeighbors(id);
     });
