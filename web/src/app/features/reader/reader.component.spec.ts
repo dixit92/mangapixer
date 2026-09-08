@@ -92,3 +92,62 @@ describe('ReaderComponent double-spread pairing', () => {
     expect(c.currentSpreadEntries().map((e) => e.entryKey)).toEqual(['p3']);
   });
 });
+
+/**
+ * Render tests for the reader controls. detectChanges() runs ngOnInit (which
+ * fires HTTP calls to the testing backend — left pending, never flushed), then we
+ * drive phase/fit/fullscreen signals and assert the rendered DOM.
+ */
+describe('ReaderComponent controls rendering', () => {
+  function renderReady() {
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => 'item-1' }) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(ReaderComponent);
+    fixture.detectChanges(); // ngOnInit
+    const c = fixture.componentInstance;
+    c.pages.set(makePages(3));
+    c.view.set('paged');
+    c.phase.set('ready');
+    fixture.detectChanges();
+    return { fixture, c };
+  }
+
+  it('hides the bottom prev/next controls in fullscreen (bug fix)', () => {
+    const { fixture, c } = renderReady();
+    const el: HTMLElement = fixture.nativeElement;
+
+    c.isFullscreen.set(false);
+    fixture.detectChanges();
+    expect(el.querySelector('.reader-controls')).toBeTruthy();
+
+    c.isFullscreen.set(true);
+    fixture.detectChanges();
+    expect(el.querySelector('.reader-controls')).toBeNull();
+  });
+
+  it('applies the selected fit class to the page image', () => {
+    const { fixture, c } = renderReady();
+    const img = () => fixture.nativeElement.querySelector('.spread-row img') as HTMLElement;
+
+    c.setFitMode('screen');
+    fixture.detectChanges();
+    expect(img().classList.contains('fit-screen')).toBe(true);
+
+    c.setFitMode('width');
+    fixture.detectChanges();
+    expect(img().classList.contains('fit-width')).toBe(true);
+    expect(img().classList.contains('fit-screen')).toBe(false);
+
+    c.setFitMode('original');
+    fixture.detectChanges();
+    expect(img().classList.contains('original')).toBe(true);
+  });
+});

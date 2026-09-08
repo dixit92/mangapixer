@@ -148,15 +148,18 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
           <button class="edge next" (click)="onEdge('next')" aria-label="Next"></button>
         </div>
 
-        <!-- Requirement 2: left is ALWAYS previous, right ALWAYS next; no flip. -->
-        <div class="reader-controls">
-          <button mat-fab (click)="prevPage()" [disabled]="atStart()" matTooltip="Previous" aria-label="Previous">
-            <mat-icon>chevron_left</mat-icon>
-          </button>
-          <button mat-fab (click)="nextPage()" [disabled]="atEnd()" matTooltip="Next" aria-label="Next">
-            <mat-icon>chevron_right</mat-icon>
-          </button>
-        </div>
+        <!-- Requirement 2: left is ALWAYS previous, right ALWAYS next; no flip.
+             Requirement 3: hidden in fullscreen (navigate via edge-tap / keyboard). -->
+        @if (!isFullscreen()) {
+          <div class="reader-controls">
+            <button mat-fab (click)="prevPage()" [disabled]="atStart()" matTooltip="Previous" aria-label="Previous">
+              <mat-icon>chevron_left</mat-icon>
+            </button>
+            <button mat-fab (click)="nextPage()" [disabled]="atEnd()" matTooltip="Next" aria-label="Next">
+              <mat-icon>chevron_right</mat-icon>
+            </button>
+          </div>
+        }
       }
     </div>
   `,
@@ -176,21 +179,30 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     }
     .status.error mat-icon { font-size: 48px; width: 48px; height: 48px; color: #f4756a; }
     .reader-viewport {
-      flex: 1; position: relative;
-      display: flex; justify-content: center; align-items: center; overflow: auto;
+      flex: 1; min-height: 0; position: relative; overflow: auto;
+      display: flex;
     }
-    .page-spinner { position: absolute; z-index: 2; }
-    /* Double-spread row. rtl-flow puts the earlier page on the right. */
-    .spread-row { display: flex; align-items: center; justify-content: center; max-width: 100%; max-height: 100%; }
+    .page-spinner { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2; }
+    /* The spread row FILLS the viewport so the image's fit percentages resolve
+       against the viewport, not the image's own (content) size. 'safe center'
+       centers when the image fits but falls back to start when it overflows, so
+       fit-width/fit-height/original stay fully scrollable instead of clipping.
+       rtl-flow puts the earlier page on the right. */
+    .spread-row {
+      width: 100%; height: 100%;
+      display: flex; align-items: safe center; justify-content: safe center;
+    }
     .spread-row.rtl-flow { flex-direction: row-reverse; }
-    img { max-width: 100%; max-height: 100%; }
+    /* flex:0 0 auto stops flexbox from shrinking the image (which would defeat
+       fit-height / original and re-break fit-width). */
+    .spread-row img { display: block; flex: 0 0 auto; }
     /* Requirement 1: fit-screen (contain) is the default. */
-    img.fit-screen { max-width: 100%; max-height: 100%; width: auto; height: auto; }
-    img.fit-width { width: 100%; height: auto; max-height: none; }
-    img.fit-height { height: 100%; width: auto; max-width: none; }
-    img.original { max-width: none; max-height: none; }
+    img.fit-screen { max-width: 100%; max-height: 100%; }
+    img.fit-width  { width: 100%;  height: auto; }
+    img.fit-height { height: 100%; width: auto; }
+    img.original   { max-width: none; max-height: none; }
     /* When two pages are paired, each takes at most half the width. */
-    .spread-row img.paired { max-width: 50%; }
+    .spread-row.paired img, .spread-row img.paired { max-width: 50%; height: auto; }
     /* Webtoon: full-width column, natural vertical scroll. */
     .reader-viewport.webtoon { flex-direction: column; align-items: center; }
     /* Width is driven by the webtoon width slider (requirement 6), 30–100% of viewport. */
