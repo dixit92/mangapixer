@@ -6,11 +6,14 @@
 -->
 <Project>
   <PropertyGroup>
-    <!-- Developer baseline: 0.1.0-dev.0 -->
-    <MangaPlexVersionMajor>0</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>1</MangaPlexVersionMinor>
+    <!-- 1.0.0 — first stable MVP release. The 0.1.0-dev.N line (dev.0 … dev.41)
+         was the pre-1.0 development series; MVP is feature-complete with a frozen,
+         snapshot-tested API contract and all in-scope §2.2 acceptance criteria met,
+         so the prerelease tag is dropped for the 1.0.0 release (SemVer 2.0.0). -->
+    <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
+    <MangaPlexVersionMinor>0</MangaPlexVersionMinor>
     <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
-    <MangaPlexVersionPrerelease>dev.41</MangaPlexVersionPrerelease>
+    <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
     <MangaPlexVersion>$(MangaPlexVersionMajor).$(MangaPlexVersionMinor).$(MangaPlexVersionPatch)</MangaPlexVersion>
@@ -20,7 +23,8 @@
     <!-- Build counter for FileVersion (numeric only). Defaults to 0 for local builds. -->
     <MangaPlexBuildCounter Condition="'$(MangaPlexBuildCounter)' == ''">0</MangaPlexBuildCounter>
 
-    <!-- AssemblyVersion stays at 0.1.0.0 through the 0.1 line to avoid binding churn -->
+    <!-- AssemblyVersion stays at MAJOR.MINOR.0.0 (1.0.0.0 now) through a minor
+         line to avoid binding churn; patch/build vary in FileVersion only. -->
     <MangaPlexAssemblyVersion>$(MangaPlexVersionMajor).$(MangaPlexVersionMinor).0.0</MangaPlexAssemblyVersion>
   </PropertyGroup>
 </Project>
