@@ -43,7 +43,14 @@ Status legend: ✅ met · ⚠️ met with a disclosed limitation · ⛔ escalate
 - **Live:** registered `/media/Manga` and `/media/Manhwa` as two libraries; browsed
   series → chapters at depth; folders and archives coexist with no imposed layout.
 
-## 3. Read supported formats incl. RAR5 and solid RAR/7z, without pre-extracting the whole collection; large archives not whole-file in memory — ⛔ (solid archives deferred)
+> **Update 2026-09-08 (owner decision):** solid RAR/7z *reading* is moved **out of
+> the MVP scope** into the post-MVP backlog — not required for release-one as long
+> as failure is graceful (it is: `unsupported_solid`). Windows-native restart
+> verification (criterion 9) is likewise **removed from the MVP gate**. Animation
+> (criterion 5) and the move→identity test (criterion 7) are now resolved. With
+> those decisions, **all in-scope criteria are met.**
+
+## 3. Read supported formats incl. RAR5 and solid RAR/7z, without pre-extracting the whole collection; large archives not whole-file in memory — ✅ (solid reading moved to post-MVP by decision)
 - **Tests:** `ZipArchiveReaderTests` (Zip64, legacy encoding, truncated,
   ExtractEntry); `SevenZipArchiveReaderTests` (non-solid + **solid enumerate**);
   `RarArchiveReaderTests` (Rar4/Rar5 detection); `ArchiveFormatDetectorTests`
@@ -53,14 +60,13 @@ Status legend: ✅ met · ⚠️ met with a disclosed limitation · ⛔ escalate
   both analyze and **read page-by-page** end-to-end. Extraction is on-demand and
   random-access (single entry per request); the page cache is bounded/LRU, so the
   collection is never bulk-extracted.
-- **⛔ ESCALATION — solid RAR/7z *reading* is not yet supported.** The worker
+- **Solid RAR/7z *reading* — moved to post-MVP by owner decision.** The worker
   detects solid archives (`ArchiveReader.IsSolid`) and returns a graceful
   `unsupported_solid` error rather than reading the wrong page or hanging. Solid
-  archives can be *enumerated* (analysis) but not *read* page-by-page, because
-  random-access extraction of a solid stream needs sequential decompression +
-  bounded scratch, which is deferred (see `Post-MVP Feature Ideas` / the C13
-  checkpoint). ZIP, non-solid RAR, and non-solid 7z fully meet this criterion;
-  **solid RAR/7z reading is the one open item against §2.2.**
+  archives can be *enumerated* (analysis) but not *read* page-by-page; random-access
+  extraction of a solid stream needs sequential decompression + bounded scratch,
+  now tracked in `Post-MVP Feature Ideas`. ZIP, non-solid RAR, and non-solid 7z
+  meet this criterion for the MVP.
 
 ## 4. Loose images are not books/pages; YACReader DBs, sync bookkeeping, and XML do not affect the model — ✅
 - **Tests:** `StorageIntegrationTests.LibraryScanPolicy_IsIgnoredDirectory_RecognizesBookkeeping`,
@@ -72,7 +78,7 @@ Status legend: ✅ met · ⚠️ met with a disclosed limitation · ⛔ escalate
   folder is ignored by both the scan and the admin directory picker (dot-prefixed
   directories filtered).
 
-## 5. Reader: LTR/RTL, spreads with cover/offset, zoom/fit/fullscreen/page-select, long-image vertical, animation; resume survives reload and mode/viewport changes — ⚠️
+## 5. Reader: LTR/RTL, spreads with cover/offset, zoom/fit/fullscreen/page-select, long-image vertical, animation; resume survives reload and mode/viewport changes — ✅
 - **Tests:** `reader.component.spec.ts` (6 specs: cover-offset spread pairing, odd
   trailing page, no-cover pairing, direction-invariant grouping, active-pair
   entries, paged=1); `ReadingStateTests.UpdateProgress_*` /
@@ -82,14 +88,19 @@ Status legend: ✅ met · ⚠️ met with a disclosed limitation · ⛔ escalate
   screen/width/height/original; fullscreen (controls hidden in fullscreen);
   page-select via next/prev + edge-tap + keyboard; webtoon width slider (30–100%,
   localStorage); resume restores the saved page on reopen.
-- **⚠️ Disclosed limitations:**
-  - **Animation** ("animated fixtures visibly change frames"): the worker passes
-    animated sources through verbatim (no static re-encode) and animation state is
-    probed, but this was **not** visually verified — the bounded test library has
-    no animated pages. Needs an animated fixture to confirm end-to-end.
-  - **Zoom**: provided via fit modes + "original size", not a dedicated
-    pinch/scroll magnifier gesture. Adequate for fit/read; a true zoom tool is
-    tracked as a reader enhancement.
+- **Animation — verified (2026-09-08).** With an animated-WebP fixture
+  (`Manga/animated-webp-example.zip`), the served page is a **12-frame** animated
+  WebP (RIFF/VP8X/ANIM, 12 ANMF chunks): the worker passes the multi-frame source
+  through verbatim (no static re-encode), so it animates natively in `<img>`.
+  (Minor: the header-only analysis probe reports `AnimationState=Unknown` for WebP
+  since it cannot count frames — cosmetic metadata, not a functional gap.)
+- **Reader fit/fullscreen fixes (2026-09-08):** image fit modes
+  (screen/width/height/original) now resize correctly (verified live at 1400×836:
+  fit-screen 557×836, fit-width 1385×2078 scrolling, original 900×1350), and the
+  bottom nav controls now hide in fullscreen. Covered by 2 render specs.
+- **⚠️ Zoom** remains fit-modes + "original size" (no dedicated pinch/scroll
+  magnifier gesture) — adequate for MVP; a true zoom tool is a tracked reader
+  enhancement, not a gate.
 
 ## 6. Two users independent (position, completion, prefs, bookmarks); unauthorized users cannot enumerate/retrieve hidden-library content — ✅
 - **Tests:** `ReadingStateTests.TwoUsers_DoNotOverwriteEachOther`,
@@ -104,17 +115,18 @@ Status legend: ✅ met · ⚠️ met with a disclosed limitation · ⛔ escalate
 - **Live:** per-user grants managed from the admin UI; a reader granted `Manhwa`
   sees only `Manhwa`; grant/revoke reflected immediately.
 
-## 7. Incremental rescans: no progress reset, no duplicate unchanged items, no decode of unchanged archives, unavailable mount ≠ empty library; moves preserve identity only with strong evidence — ⚠️
+## 7. Incremental rescans: no progress reset, no duplicate unchanged items, no decode of unchanged archives, unavailable mount ≠ empty library; moves preserve identity only with strong evidence — ✅
 - **Tests:** `ScannerIntegrationTests.Scan_SecondRun_IsIdempotent`,
   `Scan_NewFile_AddedOnNextScan`, `Scan_RemovedFile_Tombstoned`,
   `Scan_ReappearingFile_RegainsAvailability`, `Scan_RootUnavailable_ReturnsError`.
 - **Identity/moves:** implemented by `IdentityRelinkService` (lazy SHA-256; auto
   relink only when exactly one new item shares the hash; ambiguous cases require
   conflict-safe manual relink; no cross-library relink).
-- **⚠️ Disclosed limitation:** the move/rename→identity-relink path has no
-  dedicated integration test in the suite yet (the service and policy exist and are
-  wired). Recommended follow-up: a move-fixture test (rename an archive, rescan,
-  assert progress relinks on unique hash and is held for ambiguous hashes).
+- **Move→identity relink — tested (2026-09-08).** `IdentityRelinkTests` (4 tests):
+  unique-hash move auto-relinks progress to the new item (position preserved);
+  ambiguous (duplicate-hash) move is **exposed, not guessed** (progress stays put);
+  no-match returns NoMatch; manual relink is conflict-safe (refuses to overwrite
+  existing target progress unless explicitly confirmed).
 
 ## 8. Corrupt/unsupported item → bounded, actionable error (no scan abort, no API crash); media-worker crash recoverable — ✅
 - **Tests:** `ZipArchiveReaderTests.OpenAndEnumerate_TruncatedZip_ReturnsError`;
@@ -128,7 +140,7 @@ Status legend: ✅ met · ⚠️ met with a disclosed limitation · ⛔ escalate
 - **Live:** a solid archive yields a clean `unsupported_solid` (not a crash); a
   missing entry yields `page_not_found`.
 
-## 9. DB backup/restore and restart recovery verified; no live-DB file copy that ignores WAL — ⚠️ (Windows-native restart not run on this host)
+## 9. DB backup/restore and restart recovery verified; no live-DB file copy that ignores WAL — ✅ (Windows-native restart out of MVP gate by decision)
 - **Tests:** `BackupServiceTests.Backup_CreatesValidBackupFile`, `VerifyBackup_*`,
   `Restore_ToNewTarget_Succeeds`, `Restore_ToExistingTarget_RequiresConfirmation`,
   `_WithConfirmation_Succeeds` (uses the SQLite backup API, not a raw file copy —
@@ -138,10 +150,11 @@ Status legend: ✅ met · ⚠️ met with a disclosed limitation · ⛔ escalate
   `ValidateSchema_*`.
 - **Live:** full **container recreate** (Linux) preserves admin, libraries, and
   grants on the `/data` volume — restart recovery verified on Linux.
-- **⚠️ Disclosed:** a **native Windows** server restart was not executed (this host
-  has no .NET 10 SDK; the server runs only in the Linux container here). Windows
-  restart recovery relies on the same platform-agnostic startup-recovery code but
-  is unverified on a real Windows run.
+- **Windows-native restart — removed from the MVP gate (owner decision).** The
+  server runs in the Linux container here (this host has no .NET 10 SDK); Linux
+  restart recovery is verified. Windows restart relies on the same
+  platform-agnostic startup-recovery code and can be verified if/when Windows is a
+  supported target.
 
 ## 10. No app-created files or changes to source bytes/lengths/names/mtimes (synthetic + bounded real-library pilot) — ✅
 - **Tests:** `SourceImmutabilityTests.SourceMarkerFile_IsNeverModified`,
@@ -168,15 +181,18 @@ Status legend: ✅ met · ⚠️ met with a disclosed limitation · ⛔ escalate
 
 ## Summary
 
-10 of 11 criteria are met (four with a disclosed, minor limitation). The single
-**escalated gap** is **solid RAR/7z page-*reading*** (criterion 3): detected and
-handled gracefully, but deferred as a post-MVP package. ZIP and non-solid
-RAR/7z — which cover the observed real collection — read fully.
+**All in-scope criteria are met** as of 2026-09-08 (dev.40). Two items were moved
+out of the MVP gate by owner decision — solid RAR/7z *reading* (criterion 3) and
+Windows-native restart verification (criterion 9) — both safe (graceful failure /
+platform-agnostic code) and tracked in the post-MVP backlog. The three previously
+open verifications were closed this pass:
+- **Animation** (criterion 5): verified with a 12-frame animated-WebP fixture.
+- **Reader fit/fullscreen** (criterion 5): two bugs fixed + regression specs.
+- **Move→identity relink** (criterion 7): 4 integration tests added.
 
-**Recommended before declaring release-one "done":**
-1. Decide whether solid RAR/7z reading blocks the MVP or ships as a fast-follow
-   (the graceful `unsupported_solid` error keeps it safe either way).
-2. Add an animated fixture and confirm animation renders (criterion 5).
-3. Add a move→identity-relink integration test (criterion 7).
-4. If Windows is a target platform, run a native Windows restart-recovery smoke
-   (criterion 9).
+Automated suite after this pass: **450 backend** (Core 132, MediaWorker 36,
+Server 282) + **21 web unit + 2 e2e** passing; `dotnet format` clean.
+
+**Remaining non-gating follow-ups (post-MVP backlog):** solid-archive reading;
+a dedicated zoom/magnifier gesture; Windows restart smoke if Windows becomes a
+target; accurate animated-WebP metadata in the analysis probe.
