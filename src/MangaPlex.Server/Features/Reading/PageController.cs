@@ -31,17 +31,24 @@ public sealed class PageController : ControllerBase
     private readonly MangaPlexDbContext _db;
     private readonly CacheService _cache;
     private readonly CatalogIdResolver _idResolver;
+    private readonly MediaWorkerPool _workerPool;
     private readonly ILogger<PageController> _logger;
+
+    // WebP transcode defaults (C13). Overridable later via preferences/config.
+    private const int ThumbnailMaxDimension = 320;
+    private const int WebpQuality = 82;
 
     public PageController(
         MangaPlexDbContext db,
         CacheService cache,
         CatalogIdResolver idResolver,
+        MediaWorkerPool workerPool,
         ILogger<PageController> logger)
     {
         _db = db;
         _cache = cache;
         _idResolver = idResolver;
+        _workerPool = workerPool;
         _logger = logger;
     }
 
@@ -92,19 +99,24 @@ public sealed class PageController : ControllerBase
         if (pageEntry is null)
             return NotFound(new ApiError { Error = "page_not_found", Message = "Page entry key not found." });
 
-        // Try cache first
-        var cacheKey = CacheService.BuildCacheKey(node.Id, archiveItem.ContentVersion, pageEntry.EntryKey, variant);
-        if (_cache.TryGet(cacheKey, out _))
+        // Map the requested variant to a worker variant. Pages and covers are
+        // served as WebP (C13); the thumbnail endpoint gets a downscaled WebP.
+        var workerVariant = variant == "thumbnail" ? "thumbnail" : "webp";
+
+        // Try cache first — serve the stored media type (handles animated passthrough).
+        var cacheKey = CacheService.BuildCacheKey(node.Id, archiveItem.ContentVersion, pageEntry.EntryKey, workerVariant);
+        if (_cache.TryGet(cacheKey, out var hit) && hit is not null)
         {
             var cachedStream = _cache.OpenRead(cacheKey);
             if (cachedStream is not null)
             {
-                SetCacheHeaders(cacheKey, pageEntry.MediaType);
-                return File(cachedStream, pageEntry.MediaType);
+                SetCacheHeaders(cacheKey, hit.MediaType);
+                return File(cachedStream, hit.MediaType);
             }
         }
 
-        // Extract from archive directly (ZIP only for now; worker handles other formats)
+        // Cache miss — extract + encode in the WORKER (the server never opens the
+        // archive itself; image decoding stays inside the worker fault boundary).
         var library = await _db.Libraries.FirstOrDefaultAsync(l => l.Id == node.LibraryId, ct);
         if (library is null)
             return NotFound(new ApiError { Error = "source_missing", Message = "Source library is not accessible." });
@@ -113,33 +125,61 @@ public sealed class PageController : ControllerBase
         if (!System.IO.File.Exists(sourcePath))
             return NotFound(new ApiError { Error = "source_missing", Message = "Source file is not accessible." });
 
+        Directory.CreateDirectory(_cache.ScratchDirectory);
+        var outputPath = Path.Combine(_cache.ScratchDirectory, "page-" + Guid.NewGuid().ToString("N")[..12] + ".bin");
+
+        var outcome = await _workerPool.ExtractPageAsync(
+            sourcePath, pageEntry.SourceEntryLocator, workerVariant,
+            archiveItem.ModificationTicks, archiveItem.ByteLength,
+            outputPath, ThumbnailMaxDimension, WebpQuality, ct);
+
+        if (!outcome.Success)
+        {
+            try { System.IO.File.Delete(outputPath); } catch { /* best effort */ }
+            return MapExtractionFailure(outcome, node.Id, entryKey);
+        }
+
         try
         {
-            var (stream, mediaType) = await ExtractPageAsync(sourcePath, pageEntry.SourceEntryLocator, variant, ct);
-            if (stream is null)
-                return NotFound(new ApiError { Error = "extraction_failed", Message = "Could not extract page from archive." });
-
-            // Cache the extracted page
-            if (variant is "original" or "cover")
-            {
-                await CachePageAsync(cacheKey, stream, mediaType, ct);
-                var cachedStream = _cache.OpenRead(cacheKey);
-                if (cachedStream is not null)
-                {
-                    SetCacheHeaders(cacheKey, mediaType);
-                    return File(cachedStream, mediaType);
-                }
-            }
-
-            SetCacheHeaders(cacheKey, mediaType);
-            return File(stream, mediaType);
+            await _cache.PublishAsync(cacheKey, outcome.OutputPath!, outcome.MediaType!, ct);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning("Page extraction failed for item {ItemId} entry {EntryKey}: {Error}",
-                node.Id, entryKey, ex.GetType().Name);
-            return StatusCode(500, new ApiError { Error = "extraction_error", Message = "Failed to extract page." });
+            _logger.LogDebug("Cache publish failed (non-fatal): {Error}", ex.GetType().Name);
         }
+        finally
+        {
+            try { System.IO.File.Delete(outputPath); } catch { /* best effort */ }
+        }
+
+        var published = _cache.OpenRead(cacheKey);
+        if (published is not null)
+        {
+            SetCacheHeaders(cacheKey, outcome.MediaType!);
+            return File(published, outcome.MediaType!);
+        }
+
+        // Publishing failed but extraction succeeded — this should be rare; report.
+        return StatusCode(500, new ApiError { Error = "extraction_error", Message = "Failed to serve page." });
+    }
+
+    /// <summary>
+    /// Maps a worker extraction failure to an HTTP response with a stable code.
+    /// </summary>
+    private IActionResult MapExtractionFailure(PageExtractionOutcome outcome, long nodeId, string entryKey)
+    {
+        _logger.LogWarning("Page extraction failed for item {ItemId} entry {EntryKey}: {Error}",
+            nodeId, entryKey, outcome.ErrorType);
+        return outcome.ErrorType switch
+        {
+            "page_not_found" => NotFound(new ApiError { Error = "page_not_found", Message = "Page not found in archive." }),
+            "encrypted" => StatusCode(422, new ApiError { Error = "encrypted", Message = "This archive is password-protected." }),
+            "unsupported_solid" => StatusCode(422, new ApiError { Error = "unsupported_solid", Message = "Solid archives are not yet supported for reading." }),
+            "source_changed" => Conflict(new ApiError { Error = "source_changed", Message = "The source changed; re-analysis is needed." }),
+            "source_missing" => NotFound(new ApiError { Error = "source_missing", Message = "The source file is no longer available." }),
+            "timeout" or "busy" => StatusCode(503, new ApiError { Error = "try_again", Message = "The page could not be prepared in time; please retry." }),
+            _ => StatusCode(500, new ApiError { Error = "extraction_error", Message = "Failed to extract page." }),
+        };
     }
 
     private async Task<IActionResult> GetCoverInternal(string itemId, CancellationToken ct)
@@ -190,82 +230,6 @@ public sealed class PageController : ControllerBase
     {
         Response.Headers.CacheControl = $"private, max-age={PageCacheMaxAgeSeconds}, immutable";
         Response.Headers.ETag = $"\"{cacheKey}\"";
-    }
-
-    private static async Task<(Stream? Stream, string MediaType)> ExtractPageAsync(
-        string archivePath, string entryKey, string variant, CancellationToken ct)
-    {
-        // Only ZIP is supported for direct server-side extraction.
-        // Other formats (7z, RAR) require the worker process.
-        if (!archivePath.EndsWith(".cbz", StringComparison.OrdinalIgnoreCase) &&
-            !archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-        {
-            return (null, "application/octet-stream");
-        }
-
-        using var zip = System.IO.Compression.ZipFile.OpenRead(archivePath);
-        var entry = zip.GetEntry(entryKey);
-        if (entry is null)
-            return (null, "application/octet-stream");
-
-        var mediaType = GetMediaType(entryKey);
-
-        if (variant == "thumbnail")
-        {
-            // For thumbnails, return the original for now.
-            // Image resizing via the worker will be added in a future iteration.
-            var thumbStream = new MemoryStream();
-            using var entryStream = entry.Open();
-            await entryStream.CopyToAsync(thumbStream, ct);
-            thumbStream.Position = 0;
-            return (thumbStream, mediaType);
-        }
-
-        // Original or cover — extract to memory
-        var ms = new MemoryStream();
-        using var es = entry.Open();
-        await es.CopyToAsync(ms, ct);
-        ms.Position = 0;
-        return (ms, mediaType);
-    }
-
-    private async Task CachePageAsync(string cacheKey, Stream stream, string mediaType, CancellationToken ct)
-    {
-        try
-        {
-            // Write to a temp file under the app-managed cache scratch dir, not
-            // the system temp dir (audit finding A2 — temp bytes must stay under
-            // the scratch/cache boundary).
-            var tempDir = _cache.ScratchDirectory;
-            Directory.CreateDirectory(tempDir);
-            var tempPath = Path.Combine(tempDir, "page-" + Guid.NewGuid().ToString("N")[..8] + ".tmp");
-            using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: false))
-            {
-                await stream.CopyToAsync(fs, ct);
-            }
-            stream.Position = 0;
-            await _cache.PublishAsync(cacheKey, tempPath, mediaType, ct);
-            try { System.IO.File.Delete(tempPath); } catch { }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug("Cache publish failed (non-fatal): {Error}", ex.GetType().Name);
-        }
-    }
-
-    private static string GetMediaType(string entryKey)
-    {
-        var ext = Path.GetExtension(entryKey).ToLowerInvariant();
-        return ext switch
-        {
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".png" => "image/png",
-            ".gif" => "image/gif",
-            ".webp" => "image/webp",
-            ".avif" => "image/avif",
-            ".bmp" => "image/bmp",
-            _ => "application/octet-stream",
-        };
     }
 
     private long? GetUserId()

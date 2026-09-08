@@ -3,6 +3,8 @@ namespace com.lifepixer.mangaplex.Tests.Server.Http;
 using System.Net;
 using System.Net.Http.Json;
 using com.lifepixer.mangaplex.Core.Api;
+using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Server.Media;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
 using com.lifepixer.mangaplex.TestSupport.Fixtures;
@@ -49,11 +51,15 @@ public sealed class PageHttpTests : IDisposable
     {
         var (client, itemId) = await SetupLibraryAndScanAsync();
         var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 3);
+        // The HTTP factory runs no worker, so seed the cache: this asserts the
+        // controller's cache-serve + headers path. Real worker extraction/encoding
+        // is covered by the Process-category WorkerProcessTests.
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp");
 
         var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}");
         response.EnsureSuccessStatusCode();
 
-        Assert.Equal("image/png", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("image/webp", response.Content.Headers.ContentType?.MediaType);
         var bytes = await response.Content.ReadAsByteArrayAsync();
         Assert.NotEmpty(bytes);
     }
@@ -76,10 +82,11 @@ public sealed class PageHttpTests : IDisposable
         var (client, itemId) = await SetupLibraryAndScanAsync();
         await PersistAnalysisResultAsync(itemId, pageCount: 3);
 
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp"); // cover = first page, webp
         var response = await client.GetAsync($"/api/v1/items/{itemId}/cover");
         response.EnsureSuccessStatusCode();
 
-        Assert.Equal("image/png", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("image/webp", response.Content.Headers.ContentType?.MediaType);
         var bytes = await response.Content.ReadAsByteArrayAsync();
         Assert.NotEmpty(bytes);
     }
@@ -89,11 +96,12 @@ public sealed class PageHttpTests : IDisposable
     {
         var (client, itemId) = await SetupLibraryAndScanAsync();
         var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 2);
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "thumbnail");
 
         var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}/thumbnail");
         response.EnsureSuccessStatusCode();
 
-        Assert.Equal("image/png", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("image/webp", response.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]
@@ -151,6 +159,30 @@ public sealed class PageHttpTests : IDisposable
         }
 
         return (client, itemId);
+    }
+
+    /// <summary>
+    /// Publishes a page image into the cache under the key the controller will look
+    /// up, so cache-serve behaviour can be tested without a running worker (the HTTP
+    /// factory removes the worker service). Bytes are placeholder; the test asserts
+    /// the served media type + headers, not pixel content.
+    /// </summary>
+    private async Task SeedCacheAsync(string itemPublicId, int ordinal, string variant)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var cache = scope.ServiceProvider.GetRequiredService<CacheService>();
+        cache.Initialize();
+
+        var node = await db.CatalogNodes.FirstAsync(n => n.PublicId == itemPublicId);
+        var archiveItem = await db.ArchiveItems.FirstAsync(a => a.NodeId == node.Id);
+        var entryKey = new PageEntryKey(ordinal).ToOpaque();
+        var cacheKey = CacheService.BuildCacheKey(node.Id, archiveItem.ContentVersion, entryKey, variant);
+
+        var tmp = Path.Combine(_libRoot, "seed-" + Guid.NewGuid().ToString("N")[..8] + ".webp");
+        await File.WriteAllBytesAsync(tmp, SyntheticImages.MinimalPng);
+        await cache.PublishAsync(cacheKey, tmp, "image/webp");
+        try { File.Delete(tmp); } catch { /* best effort */ }
     }
 
     private async Task<string> PersistAnalysisResultAsync(string itemPublicId, int pageCount)

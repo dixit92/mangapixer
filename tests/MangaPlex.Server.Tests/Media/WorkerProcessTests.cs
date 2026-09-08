@@ -149,6 +149,105 @@ public sealed class WorkerProcessTests : IClassFixture<WorkerProcessFixture>, IA
         Assert.Equal(Enumerable.Range(0, 4), result.Pages.OrderBy(p => p.Ordinal).Select(p => p.Ordinal));
     }
 
+    // Test 2c: Extract a page as a WebP variant (C13). The worker decodes the
+    // source image and re-encodes to WebP, writing to the server-provided path.
+    [Fact]
+    public async Task Extract_WebpVariant_ProducesWebpFile()
+    {
+        var zipPath = _fixture.CreateValidImageZip("extract-webp.zip");
+        var fileInfo = new FileInfo(zipPath);
+        var outputPath = Path.Combine(_fixture.ScratchRoot, "out-" + Guid.NewGuid().ToString("N")[..8] + ".webp");
+
+        var sup = CreateSupervisor();
+        await sup.StartAsync();
+
+        var tcs = new TaskCompletionSource<ExtractResult?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var errTcs = new TaskCompletionSource<ExtractError?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        sup.OnMessageReceived += async envelope =>
+        {
+            if (envelope.Type == "extract_result") tcs.TrySetResult(WorkerProtocolFraming.GetPayload<ExtractResult>(envelope));
+            else if (envelope.Type == "extract_error") errTcs.TrySetResult(WorkerProtocolFraming.GetPayload<ExtractError>(envelope));
+            await Task.CompletedTask;
+        };
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var readTask = sup.ReadMessagesAsync(cts.Token);
+
+        var request = new ExtractRequest
+        {
+            JobId = "extract-job",
+            ArchivePath = zipPath,
+            SourceEntryKey = "page001.png",
+            Variant = "webp",
+            ExpectedLastWriteTicks = fileInfo.LastWriteTimeUtc.Ticks,
+            ExpectedByteLength = fileInfo.Length,
+            OutputPath = outputPath,
+            Deadline = DateTimeOffset.UtcNow.AddSeconds(30),
+        };
+        await sup.SendMessageAsync(WorkerProtocolFraming.CreateEnvelope("extract", request.JobId, request));
+
+        var completed = await Task.WhenAny(tcs.Task, errTcs.Task, Task.Delay(TimeSpan.FromSeconds(20)));
+        if (errTcs.Task.IsCompleted)
+        {
+            var e = await errTcs.Task;
+            Assert.Fail($"extract_error: {e?.ErrorType}: {e?.ErrorMessage}");
+        }
+        Assert.True(completed == tcs.Task, "Extract did not return a result in time");
+        var result = await tcs.Task;
+        Assert.NotNull(result);
+        Assert.Equal("image/webp", result!.MediaType);
+        Assert.True(File.Exists(outputPath), "worker did not write the output file");
+
+        // Verify the RIFF/WEBP container signature.
+        var head = await File.ReadAllBytesAsync(outputPath);
+        Assert.True(head.Length > 12);
+        Assert.Equal("RIFF", System.Text.Encoding.ASCII.GetString(head, 0, 4));
+        Assert.Equal("WEBP", System.Text.Encoding.ASCII.GetString(head, 8, 4));
+    }
+
+    // Test 2d: Extracting a non-existent entry yields a graceful extract_error.
+    [Fact]
+    public async Task Extract_MissingEntry_ReturnsExtractError()
+    {
+        var zipPath = _fixture.CreateSimpleZip("extract-missing.zip");
+        var fileInfo = new FileInfo(zipPath);
+        var outputPath = Path.Combine(_fixture.ScratchRoot, "out-missing.webp");
+
+        var sup = CreateSupervisor();
+        await sup.StartAsync();
+
+        var errTcs = new TaskCompletionSource<ExtractError?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var okTcs = new TaskCompletionSource<ExtractResult?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        sup.OnMessageReceived += async envelope =>
+        {
+            if (envelope.Type == "extract_error") errTcs.TrySetResult(WorkerProtocolFraming.GetPayload<ExtractError>(envelope));
+            else if (envelope.Type == "extract_result") okTcs.TrySetResult(WorkerProtocolFraming.GetPayload<ExtractResult>(envelope));
+            await Task.CompletedTask;
+        };
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var readTask = sup.ReadMessagesAsync(cts.Token);
+
+        var request = new ExtractRequest
+        {
+            JobId = "extract-missing",
+            ArchivePath = zipPath,
+            SourceEntryKey = "does-not-exist.png",
+            Variant = "webp",
+            ExpectedLastWriteTicks = fileInfo.LastWriteTimeUtc.Ticks,
+            ExpectedByteLength = fileInfo.Length,
+            OutputPath = outputPath,
+            Deadline = DateTimeOffset.UtcNow.AddSeconds(30),
+        };
+        await sup.SendMessageAsync(WorkerProtocolFraming.CreateEnvelope("extract", request.JobId, request));
+
+        var completed = await Task.WhenAny(errTcs.Task, okTcs.Task, Task.Delay(TimeSpan.FromSeconds(20)));
+        Assert.True(completed == errTcs.Task, "Expected an extract_error for a missing entry");
+        var err = await errTcs.Task;
+        Assert.NotNull(err);
+        Assert.Equal("page_not_found", err!.ErrorType);
+    }
+
     // Test 3: Kill worker mid-job → supervisor detects exit
     [Fact]
     public async Task WorkerKill_SupervisorDetectsExit()

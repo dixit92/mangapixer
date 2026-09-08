@@ -130,6 +130,143 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     }
 
     /// <summary>
+    /// On-demand single-page extraction + variant encoding (C13). Borrows a worker
+    /// slot, sends an "extract" request, and awaits the encoded output written to
+    /// <paramref name="outputPath"/>. The server never opens the archive itself.
+    /// Returns an outcome the controller maps to an HTTP response; never throws for
+    /// worker-side failures.
+    /// </summary>
+    public async Task<PageExtractionOutcome> ExtractPageAsync(
+        string archivePath,
+        string sourceEntryKey,
+        string variant,
+        long expectedLastWriteTicks,
+        long expectedByteLength,
+        string outputPath,
+        int thumbnailMaxDimension,
+        int webpQuality,
+        CancellationToken ct = default)
+    {
+        if (_isShuttingDown)
+            return PageExtractionOutcome.Failed("unavailable", "Server is shutting down.");
+
+        // Acquire a worker slot, briefly waiting if all are busy (e.g. mid-scan).
+        var slot = await AcquireSlotAsync(ct);
+        if (slot is null)
+            return PageExtractionOutcome.Failed("busy", "No worker available; try again.");
+
+        var jobId = "extract-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            var request = new ExtractRequest
+            {
+                JobId = jobId,
+                ArchivePath = archivePath,
+                SourceEntryKey = sourceEntryKey,
+                Variant = variant,
+                ExpectedLastWriteTicks = expectedLastWriteTicks,
+                ExpectedByteLength = expectedByteLength,
+                OutputPath = outputPath,
+                Deadline = DateTimeOffset.UtcNow.Add(_options.AnalysisTimeout),
+                ThumbnailMaxDimension = thumbnailMaxDimension,
+                WebpQuality = webpQuality,
+            };
+
+            var tcs = new TaskCompletionSource<PageExtractionOutcome>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+            Task HandleMessage(WorkerEnvelope envelope)
+            {
+                if (envelope.CorrelationId != jobId) return Task.CompletedTask;
+                switch (envelope.Type)
+                {
+                    case "extract_result":
+                        {
+                            var r = WorkerProtocolFraming.GetPayload<ExtractResult>(envelope);
+                            tcs.TrySetResult(r is not null
+                                ? PageExtractionOutcome.Ok(r.OutputPath, r.MediaType, r.Width, r.Height, r.ByteSize)
+                                : PageExtractionOutcome.Failed("extraction_failed", "Empty extract result."));
+                            break;
+                        }
+                    case "extract_error":
+                        {
+                            var e = WorkerProtocolFraming.GetPayload<ExtractError>(envelope);
+                            tcs.TrySetResult(PageExtractionOutcome.Failed(
+                                e?.ErrorType ?? "extraction_failed", e?.ErrorMessage ?? "Extraction failed."));
+                            break;
+                        }
+                }
+                return Task.CompletedTask;
+            }
+
+            slot.Supervisor.OnMessageReceived += HandleMessage;
+            try
+            {
+                var envelope = WorkerProtocolFraming.CreateEnvelope("extract", jobId, request);
+                await slot.Supervisor.SendMessageAsync(envelope, ct);
+
+                var timeout = Task.Delay(_options.AnalysisTimeout + _options.SourceOpenTimeout, ct);
+                var done = await Task.WhenAny(tcs.Task, timeout);
+                if (done != tcs.Task)
+                    return PageExtractionOutcome.Failed("timeout", "Extraction timed out.");
+                return await tcs.Task;
+            }
+            finally
+            {
+                slot.Supervisor.OnMessageReceived -= HandleMessage;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return PageExtractionOutcome.Failed("cancelled", "Request cancelled.");
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning("Extract dispatch failed: {Error}", ex.GetType().Name);
+            return PageExtractionOutcome.Failed("extraction_failed", "Extraction failed.");
+        }
+        finally
+        {
+            slot.IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Finds a free worker slot, starting one if under the concurrency cap, and
+    /// otherwise waiting briefly for one to free up. Marks the returned slot busy.
+    /// </summary>
+    private async Task<WorkerSlot?> AcquireSlotAsync(CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow.Add(_options.SourceOpenTimeout);
+        while (!_isShuttingDown)
+        {
+            WorkerSlot? slot;
+            bool startAnother = false;
+            lock (_poolLock)
+            {
+                slot = _workers.FirstOrDefault(w => !w.IsBusy);
+                if (slot is not null) { slot.IsBusy = true; return slot; }
+                if (_workers.Count < _options.MaxConcurrentJobs) startAnother = true;
+            }
+
+            if (startAnother)
+            {
+                try { await StartWorkerAsync(ct); }
+                catch (Exception ex) { _logger?.LogWarning("Failed to start worker for extract: {Error}", ex.GetType().Name); }
+                lock (_poolLock)
+                {
+                    slot = _workers.FirstOrDefault(w => !w.IsBusy);
+                    if (slot is not null) { slot.IsBusy = true; return slot; }
+                }
+            }
+
+            if (DateTime.UtcNow >= deadline) return null;
+            try { await Task.Delay(100, ct); } catch (OperationCanceledException) { return null; }
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Stops all workers gracefully. Stops dispatch, allows bounded grace,
     /// then terminates remaining workers.
     /// </summary>
@@ -460,4 +597,27 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         public bool IsBusy { get; set; }
         public Task? ReadLoop { get; set; }
     }
+}
+
+/// <summary>
+/// Result of an on-demand page extraction (C13). On success the encoded image is
+/// at <see cref="OutputPath"/>; on failure <see cref="ErrorType"/> maps to an HTTP
+/// response (e.g. "unsupported_solid", "page_not_found", "encrypted", "timeout").
+/// </summary>
+public sealed record PageExtractionOutcome
+{
+    public required bool Success { get; init; }
+    public string? OutputPath { get; init; }
+    public string? MediaType { get; init; }
+    public int Width { get; init; }
+    public int Height { get; init; }
+    public long ByteSize { get; init; }
+    public string? ErrorType { get; init; }
+    public string? ErrorMessage { get; init; }
+
+    public static PageExtractionOutcome Ok(string outputPath, string mediaType, int width, int height, long byteSize) =>
+        new() { Success = true, OutputPath = outputPath, MediaType = mediaType, Width = width, Height = height, ByteSize = byteSize };
+
+    public static PageExtractionOutcome Failed(string errorType, string errorMessage) =>
+        new() { Success = false, ErrorType = errorType, ErrorMessage = errorMessage };
 }

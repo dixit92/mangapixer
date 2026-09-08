@@ -104,6 +104,13 @@ public sealed class WorkerLoop
                     await HandleAnalyzeAsync(envelope.CorrelationId, request);
                     break;
                 }
+            case "extract":
+                {
+                    var request = WorkerProtocolFraming.GetPayload<ExtractRequest>(envelope)
+                        ?? throw new InvalidDataException("Missing extract request payload");
+                    await HandleExtractAsync(envelope.CorrelationId, request);
+                    break;
+                }
             case "cancel":
                 {
                     // Cancellation is handled by the CancellationToken in the caller
@@ -286,6 +293,121 @@ public sealed class WorkerLoop
 
         var resultEnvelope = WorkerProtocolFraming.CreateEnvelope("analyze_result", correlationId, result);
         await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, resultEnvelope, _shutdownToken);
+    }
+
+    /// <summary>
+    /// Extracts one page image from the archive and encodes the requested variant
+    /// (C13). The worker is the only process that opens archives / decodes images.
+    /// Solid archives are deferred with a graceful, non-recoverable error.
+    /// </summary>
+    private async Task HandleExtractAsync(string correlationId, ExtractRequest request)
+    {
+        // Pre-validate source stamp — refuse if the file changed under us.
+        var preStamp = GetSourceStamp(request.ArchivePath);
+        if (preStamp.LastWriteTicks != request.ExpectedLastWriteTicks ||
+            preStamp.ByteLength != request.ExpectedByteLength)
+        {
+            await SendExtractErrorAsync(correlationId, "source_changed",
+                "Source file changed — extraction refused", recoverable: false);
+            return;
+        }
+
+        try
+        {
+            using var reader = await ArchiveReader.OpenAsync(request.ArchivePath, _shutdownToken);
+
+            // Solid archives need sequential decompression to reach entry N; that is
+            // a later package. Fail gracefully rather than hang or read the wrong page.
+            if (reader.IsSolid)
+            {
+                await SendExtractErrorAsync(correlationId, "unsupported_solid",
+                    "Solid archives are not yet supported for reading.", recoverable: false);
+                return;
+            }
+
+            byte[] bytes;
+            try
+            {
+                using var entryStream = await reader.ExtractEntryAsync(request.SourceEntryKey, _shutdownToken);
+                using var ms = new MemoryStream();
+                await entryStream.CopyToAsync(ms, _shutdownToken);
+                bytes = ms.ToArray();
+            }
+            catch (System.Security.Cryptography.CryptographicException)
+            {
+                await SendExtractErrorAsync(correlationId, "encrypted",
+                    "Archive is encrypted and cannot be read", recoverable: false);
+                return;
+            }
+            catch (FileNotFoundException)
+            {
+                await SendExtractErrorAsync(correlationId, "page_not_found",
+                    "Page entry not found in archive", recoverable: false);
+                return;
+            }
+
+            var outDir = Path.GetDirectoryName(request.OutputPath);
+            if (!string.IsNullOrEmpty(outDir)) Directory.CreateDirectory(outDir);
+
+            EncodedVariant encoded;
+            try
+            {
+                encoded = new ImageVariantEncoder().Encode(
+                    bytes, request.Variant, request.OutputPath,
+                    request.ThumbnailMaxDimension, request.WebpQuality);
+            }
+            catch (Exception ex)
+            {
+                await SendExtractErrorAsync(correlationId, "encode_failed",
+                    SanitizeErrorString(ex.Message), recoverable: false);
+                return;
+            }
+
+            // Post-validate: if the source changed mid-extract, discard the output.
+            var postStamp = GetSourceStamp(request.ArchivePath);
+            if (postStamp.LastWriteTicks != request.ExpectedLastWriteTicks ||
+                postStamp.ByteLength != request.ExpectedByteLength)
+            {
+                try { File.Delete(request.OutputPath); } catch { /* best effort */ }
+                await SendExtractErrorAsync(correlationId, "source_changed",
+                    "Source file changed during extraction — output discarded", recoverable: false);
+                return;
+            }
+
+            var result = new ExtractResult
+            {
+                JobId = request.JobId,
+                OutputPath = request.OutputPath,
+                MediaType = encoded.MediaType,
+                Width = encoded.Width,
+                Height = encoded.Height,
+                ByteSize = encoded.ByteSize,
+            };
+            var envelope = WorkerProtocolFraming.CreateEnvelope("extract_result", correlationId, result);
+            await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, envelope, _shutdownToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutdown/cancel — no response needed.
+        }
+        catch (Exception ex)
+        {
+            await SendExtractErrorAsync(correlationId, "extraction_failed",
+                SanitizeErrorString(ex.Message), recoverable: true);
+        }
+    }
+
+    private async Task SendExtractErrorAsync(string correlationId, string errorType, string message, bool recoverable)
+    {
+        var error = new ExtractError
+        {
+            JobId = correlationId,
+            ErrorType = errorType,
+            ErrorMessage = message,
+            Recoverable = recoverable,
+        };
+        var envelope = WorkerProtocolFraming.CreateEnvelope("extract_error", correlationId, error);
+        await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, envelope, _shutdownToken);
     }
 
     private async Task SendStateAsync(string jobId, string state)

@@ -25,17 +25,21 @@ public sealed class WorkerPoolOptionsTests
     }
 
     [Fact]
-    public void Defaults_ScratchBudgetIs2GiB()
+    public void Defaults_ScratchBudgetIs1GiB()
     {
+        // Lowered from 2 GiB — only solid RAR/7z sequential extraction uses scratch;
+        // overridable via MangaPlex:Storage:ScratchBudgetBytes.
         var options = new WorkerPoolOptions();
-        Assert.Equal(2L * 1024 * 1024 * 1024, options.ScratchBudgetBytes);
+        Assert.Equal(1L * 1024 * 1024 * 1024, options.ScratchBudgetBytes);
     }
 
     [Fact]
-    public void Defaults_CacheBudgetIs10GiB()
+    public void Defaults_CacheBudgetIs1GiB()
     {
+        // Lowered from 10 GiB — the cache holds individual page images under LRU
+        // eviction; overridable via MangaPlex:Storage:CacheBudgetBytes.
         var options = new WorkerPoolOptions();
-        Assert.Equal(10L * 1024 * 1024 * 1024, options.CacheBudgetBytes);
+        Assert.Equal(1L * 1024 * 1024 * 1024, options.CacheBudgetBytes);
     }
 
     [Fact]

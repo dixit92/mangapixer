@@ -38,6 +38,18 @@ public sealed class ArchiveReader : IDisposable
     }
 
     /// <summary>
+    /// The detected archive format.
+    /// </summary>
+    public ArchiveFormat Format => _format;
+
+    /// <summary>
+    /// Whether the archive is solid (entries share a compression stream, so reaching
+    /// entry N requires decompressing 0..N). Used to defer per-page random-access
+    /// extraction for solid archives (C13 — solid reading is a later package).
+    /// </summary>
+    public bool IsSolid => _archive?.IsSolid ?? false;
+
+    /// <summary>
     /// Enumerates all entries in the archive without extracting.
     /// Returns entry metadata only — no image bytes are read.
     /// </summary>

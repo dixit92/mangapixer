@@ -9,7 +9,9 @@ using System.Text.Json;
 /// </summary>
 public static class WorkerProtocolVersion
 {
-    public const int Current = 1;
+    // v2: added on-demand page extraction (extract / extract_result / extract_error)
+    // with worker-side WebP transcode + thumbnail variants (C13).
+    public const int Current = 2;
 }
 
 /// <summary>
@@ -181,6 +183,71 @@ public sealed record AnalyzedPageEntry
     /// Whether this entry is a supported, readable image page.
     /// </summary>
     public bool IsSupported { get; init; } = true;
+}
+
+/// <summary>
+/// Server -> Worker: extract a single page image and encode a variant (C13).
+/// The worker opens the source archive read-only, extracts exactly the one entry,
+/// transcodes it, and writes the encoded bytes to <see cref="OutputPath"/>. The
+/// server never opens the archive itself — this keeps image decoding (the
+/// untrusted-input risk) inside the worker's fault-isolation boundary.
+/// </summary>
+public sealed record ExtractRequest
+{
+    public required string JobId { get; init; }
+
+    /// <summary>Absolute path to the source archive (private locator, worker-side).</summary>
+    public required string ArchivePath { get; init; }
+
+    /// <summary>The archive-internal entry path/key to extract (private locator).</summary>
+    public required string SourceEntryKey { get; init; }
+
+    /// <summary>
+    /// Variant to produce: "webp" (full-size WebP), "thumbnail" (≤ThumbnailMaxDimension
+    /// WebP), or "original" (verbatim source bytes, no transcode).
+    /// </summary>
+    public required string Variant { get; init; }
+
+    /// <summary>Expected source stamp; the worker refuses if the source changed.</summary>
+    public required long ExpectedLastWriteTicks { get; init; }
+    public required long ExpectedByteLength { get; init; }
+
+    /// <summary>Absolute path the worker writes the encoded output to (server-owned).</summary>
+    public required string OutputPath { get; init; }
+
+    /// <summary>Deadline for the extraction.</summary>
+    public required DateTimeOffset Deadline { get; init; }
+
+    /// <summary>Longest edge (px) for the "thumbnail" variant.</summary>
+    public int ThumbnailMaxDimension { get; init; } = 320;
+
+    /// <summary>WebP quality (0–100) for lossy transcode.</summary>
+    public int WebpQuality { get; init; } = 82;
+}
+
+/// <summary>
+/// Worker -> Server: extraction succeeded; the encoded image is at OutputPath.
+/// </summary>
+public sealed record ExtractResult
+{
+    public required string JobId { get; init; }
+    public required string OutputPath { get; init; }
+    public required string MediaType { get; init; }
+    public int Width { get; init; }
+    public int Height { get; init; }
+    public long ByteSize { get; init; }
+}
+
+/// <summary>
+/// Worker -> Server: extraction failed (unsupported format, solid archive not yet
+/// supported, missing entry, decode error, or source changed).
+/// </summary>
+public sealed record ExtractError
+{
+    public required string JobId { get; init; }
+    public required string ErrorType { get; init; }
+    public required string ErrorMessage { get; init; }
+    public bool Recoverable { get; init; }
 }
 
 /// <summary>

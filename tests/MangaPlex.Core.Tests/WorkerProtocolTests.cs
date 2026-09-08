@@ -17,9 +17,10 @@ public sealed class WorkerProtocolTests
     };
 
     [Fact]
-    public void WorkerProtocolVersion_IsOne()
+    public void WorkerProtocolVersion_IsTwo()
     {
-        Assert.Equal(1, WorkerProtocolVersion.Current);
+        // v2 added on-demand page extraction (extract/extract_result/extract_error).
+        Assert.Equal(2, WorkerProtocolVersion.Current);
     }
 
     [Fact]

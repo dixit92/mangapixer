@@ -6,6 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSliderModule } from '@angular/material/slider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 
@@ -40,6 +41,7 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     MatToolbarModule,
     MatMenuModule,
     MatTooltipModule,
+    MatSliderModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
   ],
@@ -65,15 +67,25 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
             <button mat-menu-item (click)="setView('webtoon')"><mat-icon>view_day</mat-icon> Vertical (webtoon)</button>
           </mat-menu>
 
-          <button mat-icon-button [matMenuTriggerFor]="fitMenu" matTooltip="Image fit" aria-label="Image fit">
-            <mat-icon>aspect_ratio</mat-icon>
-          </button>
-          <mat-menu #fitMenu="matMenu">
-            <button mat-menu-item (click)="setFitMode('screen')">Fit screen</button>
-            <button mat-menu-item (click)="setFitMode('width')">Fit width</button>
-            <button mat-menu-item (click)="setFitMode('height')">Fit height</button>
-            <button mat-menu-item (click)="setFitMode('original')">Original size</button>
-          </mat-menu>
+          @if (view() === 'webtoon') {
+            <!-- Requirement 6: webtoon width slider replaces the inoperative fit menu. -->
+            <mat-icon class="slider-icon" aria-hidden="true">width_normal</mat-icon>
+            <mat-slider class="width-slider" min="30" max="100" step="5"
+                        matTooltip="Page width" aria-label="Webtoon page width">
+              <input matSliderThumb [value]="webtoonWidthPct()"
+                     (valueChange)="setWebtoonWidth($event)" aria-label="Webtoon page width">
+            </mat-slider>
+          } @else {
+            <button mat-icon-button [matMenuTriggerFor]="fitMenu" matTooltip="Image fit" aria-label="Image fit">
+              <mat-icon>aspect_ratio</mat-icon>
+            </button>
+            <mat-menu #fitMenu="matMenu">
+              <button mat-menu-item (click)="setFitMode('screen')">Fit screen</button>
+              <button mat-menu-item (click)="setFitMode('width')">Fit width</button>
+              <button mat-menu-item (click)="setFitMode('height')">Fit height</button>
+              <button mat-menu-item (click)="setFitMode('original')">Original size</button>
+            </mat-menu>
+          }
 
           @if (view() !== 'webtoon') {
             <button mat-icon-button (click)="toggleDirection()"
@@ -107,6 +119,7 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
         <div class="reader-viewport webtoon" #scroller (scroll)="onWebtoonScroll()">
           @for (entry of pages(); track entry.entryKey) {
             <img class="webtoon-page" [src]="pageUrlFor(entry)" loading="lazy"
+                 [style.width.%]="webtoonWidthPct()"
                  [attr.data-index]="$index" alt="Page {{ $index + 1 }}" />
           }
         </div>
@@ -180,7 +193,10 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     .spread-row img.paired { max-width: 50%; }
     /* Webtoon: full-width column, natural vertical scroll. */
     .reader-viewport.webtoon { flex-direction: column; align-items: center; }
-    .webtoon-page { width: 100%; max-width: 900px; height: auto; display: block; }
+    /* Width is driven by the webtoon width slider (requirement 6), 30–100% of viewport. */
+    .webtoon-page { height: auto; display: block; max-width: 100%; }
+    .width-slider { width: 140px; }
+    .slider-icon { opacity: 0.7; margin-right: 2px; }
     .edge {
       position: absolute; top: 0; bottom: 0; width: 30%;
       background: transparent; border: 0; cursor: pointer; padding: 0; z-index: 1;
@@ -213,6 +229,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
   readonly view = signal<ReaderView>('paged');
   readonly isFullscreen = signal(false);
   readonly coverIsStandalone = signal(true); // first page shown alone in spread view
+  readonly webtoonWidthPct = signal<number>(this.loadWebtoonWidth()); // requirement 6
 
   readonly viewIcon = computed(() =>
     this.view() === 'webtoon' ? 'view_day' : this.view() === 'spread' ? 'import_contacts' : 'crop_portrait');
@@ -461,6 +478,25 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
   setFitMode(mode: FitMode): void { this.fitMode.set(mode); }
   toggleDirection(): void { this.direction.update((d) => (d === 'ltr' ? 'rtl' : 'ltr')); }
+
+  // --- Webtoon width (requirement 6): per-device preference in localStorage ---
+
+  private static readonly WebtoonWidthKey = 'mangaplex-webtoon-width';
+
+  setWebtoonWidth(pct: number): void {
+    const clamped = Math.min(100, Math.max(30, Math.round(pct)));
+    this.webtoonWidthPct.set(clamped);
+    try { localStorage.setItem(ReaderComponent.WebtoonWidthKey, String(clamped)); } catch { /* private mode */ }
+  }
+
+  private loadWebtoonWidth(): number {
+    try {
+      const raw = localStorage.getItem(ReaderComponent.WebtoonWidthKey);
+      const n = raw ? parseInt(raw, 10) : NaN;
+      if (!Number.isNaN(n)) return Math.min(100, Math.max(30, n));
+    } catch { /* private mode / unavailable */ }
+    return 70; // sensible default
+  }
 
   setView(view: ReaderView): void {
     const wasWebtoon = this.view() === 'webtoon';
