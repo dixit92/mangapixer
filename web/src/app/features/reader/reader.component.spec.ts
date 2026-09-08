@@ -1,5 +1,6 @@
+import { vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
@@ -170,6 +171,40 @@ describe('ReaderComponent double-spread pairing', () => {
     c.direction.set('rtl');
     expect(c.leftZoneLabel()).toBe('Next page');
     expect(c.rightZoneLabel()).toBe('Previous page');
+  });
+
+  it('aspectRatioFor reserves the manifest aspect, or null when unknown', () => {
+    const c = create();
+    const [p] = makePages(1); // 800 x 1200
+    expect(c.aspectRatioFor(p)).toBe('800 / 1200');
+    expect(c.aspectRatioFor({ ...p, width: 0, height: 0 })).toBeNull();
+  });
+
+  it('auto-advances to the next chapter when paging past the last page', () => {
+    const c = create();
+    const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    c.pages.set(makePages(3));
+    c.view.set('paged');
+    c.phase.set('ready');
+    c.nextNeighbor.set({ id: 'next-item', displayName: 'Chapter 2' });
+    c.currentPage.set(2); // last page
+
+    c.nextPage();
+    expect(nav).toHaveBeenCalledWith(['/reader', 'next-item']);
+  });
+
+  it('does not navigate past the last page when there is no next chapter', () => {
+    const c = create();
+    const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    c.pages.set(makePages(3));
+    c.view.set('paged');
+    c.phase.set('ready');
+    c.nextNeighbor.set(null);
+    c.currentPage.set(2);
+
+    c.nextPage();
+    expect(nav).not.toHaveBeenCalled();
+    expect(c.currentPage()).toBe(2); // stays put
   });
 });
 

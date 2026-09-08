@@ -52,6 +52,13 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
  *     fills from the right). The tap zones are invisible in normal use; a Help
  *     overlay (the '?' toolbar button or key) surfaces them prominently with the
  *     keyboard shortcuts.
+ *  7. Webtoon load placeholders (2026-09-08): each vertical page reserves its box
+ *     from the manifest's intrinsic aspect ratio before it lazy-loads, so streaming
+ *     images don't jerk the scroll position; see `aspectRatioFor`.
+ *  8. Auto-advance (2026-09-08): the forward gesture (arrow key / edge tap) on the
+ *     last screen loads the next archive in the folder (`nextNeighbor` from the
+ *     catalog neighbor endpoint); with no next chapter it shows a brief notice.
+ *     Applies to paged / spread; webtoon (scroll-driven) is not auto-advanced.
  */
 @Component({
   selector: 'app-reader',
@@ -150,6 +157,7 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
           @for (entry of pages(); track entry.entryKey) {
             <img class="webtoon-page" [src]="pageUrlFor(entry)" loading="lazy"
                  [style.width.%]="webtoonWidthPct()"
+                 [style.aspect-ratio]="aspectRatioFor(entry)"
                  [attr.data-index]="$index" alt="Page {{ $index + 1 }}" />
           }
         </div>
@@ -291,7 +299,10 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     /* Webtoon: full-width column, natural vertical scroll. */
     .reader-viewport.webtoon { flex-direction: column; align-items: center; }
     /* Width is driven by the webtoon width slider (requirement 6), 30–100% of viewport. */
-    .webtoon-page { height: auto; display: block; max-width: 100%; }
+    /* height:auto + the per-page aspect-ratio (set inline from the manifest) reserves
+       each page's box before it lazy-loads; the faint background makes the reserved
+       placeholder visible while the image streams in. */
+    .webtoon-page { height: auto; display: block; max-width: 100%; background: rgba(255, 255, 255, 0.04); }
     .width-slider { width: 140px; }
     .slider-icon { opacity: 0.7; margin-right: 2px; }
     .edge {
@@ -398,6 +409,10 @@ export class ReaderComponent implements OnInit, OnDestroy {
   readonly leftZoneLabel = computed(() => this.direction() === 'rtl' ? 'Next page' : 'Previous page');
   readonly rightZoneLabel = computed(() => this.direction() === 'rtl' ? 'Previous page' : 'Next page');
 
+  // Next chapter (next archive in the same folder), for auto-advance past the last
+  // page. Fetched per item from the catalog's neighbor endpoint.
+  readonly nextNeighbor = signal<{ id: string; displayName: string } | null>(null);
+
   readonly viewIcon = computed(() =>
     this.view() === 'webtoon' ? 'view_day'
       : this.view() === 'spread' ? (this.coverIsStandalone() ? 'auto_stories' : 'import_contacts')
@@ -434,6 +449,16 @@ export class ReaderComponent implements OnInit, OnDestroy {
     return entry ? `/api/v1/items/${this.itemId()}/pages/${encodeURIComponent(entry.entryKey)}` : '';
   }
 
+  /**
+   * Reserve a webtoon page's height BEFORE it lazy-loads, from the manifest's
+   * intrinsic dimensions, so streaming images don't jerk the scroll position
+   * (original plan's first ask). Returns a CSS aspect-ratio, or null when a page's
+   * dimensions are unknown (then the image sizes itself on load, as before).
+   */
+  aspectRatioFor(entry: ManifestPageEntry): string | null {
+    return entry.width > 0 && entry.height > 0 ? `${entry.width} / ${entry.height}` : null;
+  }
+
   ngOnInit(): void {
     // Honor the user's default reading mode/direction; failure falls back to paged LTR.
     this.api.getPreferences().subscribe({
@@ -445,6 +470,16 @@ export class ReaderComponent implements OnInit, OnDestroy {
       this.itemId.set(id);
       this.pollAttempts = 0;
       this.loadManifest();
+      this.loadNeighbors(id);
+    });
+  }
+
+  /** Load the next archive in the folder so we can auto-advance past the last page. */
+  private loadNeighbors(itemId: string): void {
+    this.nextNeighbor.set(null);
+    this.api.getNeighbors(itemId).subscribe({
+      next: (n) => this.nextNeighbor.set(n.next),
+      error: () => { /* no neighbors / not available — auto-advance simply no-ops */ },
     });
   }
 
@@ -693,10 +728,41 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
   // --- Navigation ---
 
-  /** Advance toward the end (next screen). In spread view, jumps a whole spread. */
-  nextPage(): void { this.goToPage(this.nextIndexFrom(this.currentPage(), +1)); }
+  /**
+   * Advance toward the end (next screen). In spread view, jumps a whole spread.
+   * When already on the last screen, the forward gesture auto-advances to the next
+   * chapter (next archive in the folder), if there is one.
+   */
+  nextPage(): void {
+    if (this.isAtEnd()) { this.goToNextChapter(); return; }
+    this.goToPage(this.nextIndexFrom(this.currentPage(), +1));
+  }
   /** Advance toward the start (previous screen). */
   prevPage(): void { this.goToPage(this.nextIndexFrom(this.currentPage(), -1)); }
+
+  /** True when the current screen is the last page (paged) or last spread (spread). */
+  private isAtEnd(): boolean {
+    const n = this.pageCount();
+    if (n === 0) return false;
+    if (this.view() === 'spread') {
+      const groups = this.spreads();
+      const gi = groups.findIndex((g) => g.includes(this.currentPage()));
+      return gi !== -1 && gi === groups.length - 1;
+    }
+    return this.currentPage() >= n - 1;
+  }
+
+  /** Auto-advance to the next archive in the folder (or tell the reader there's none). */
+  private goToNextChapter(): void {
+    const next = this.nextNeighbor();
+    if (!next) {
+      this.snackBar.open('You’ve reached the end — no next chapter in this folder.', 'Dismiss', { duration: 3000 });
+      return;
+    }
+    this.saveProgress();
+    this.snackBar.open(`Next chapter: ${next.displayName}`, '', { duration: 2000 });
+    this.router.navigate(['/reader', next.id]);
+  }
 
   /** Next index in reading order, spread-aware (steps over the current spread). */
   private nextIndexFrom(from: number, dir: 1 | -1): number {
