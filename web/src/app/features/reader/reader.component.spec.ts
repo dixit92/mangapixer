@@ -106,6 +106,27 @@ describe('ReaderComponent double-spread pairing', () => {
     expect(c.coverIsStandalone()).toBe(true);
     expect(c.spreads()).toEqual([[0], [1, 2], [3, 4]]);
   });
+
+  it('toggleChrome / revealChrome flip immersive chrome visibility', () => {
+    const c = create();
+    expect(c.chromeVisible()).toBe(true); // shown on entry
+    c.toggleChrome();
+    expect(c.chromeVisible()).toBe(false); // tap centre to hide
+    c.toggleChrome();
+    expect(c.chromeVisible()).toBe(true); // tap again to show
+    c.chromeVisible.set(false);
+    c.revealChrome();
+    expect(c.chromeVisible()).toBe(true); // mouse-move reveal
+  });
+
+  it('progressPct reflects the current page within the chapter', () => {
+    const c = create();
+    c.pages.set(makePages(4));
+    c.currentPage.set(0);
+    expect(c.progressPct()).toBe(25);
+    c.currentPage.set(3);
+    expect(c.progressPct()).toBe(100);
+  });
 });
 
 /**

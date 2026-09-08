@@ -39,6 +39,11 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
  *     first page (0-1, 2-3…) and "Double page (offset cover)" keeps the cover
  *     standalone then pairs (1-2, 3-4…). Which a comic needs can't be inferred, so
  *     it's an explicit reader choice; see `coverIsStandalone` / `setSpread`.
+ *  6. Immersive chrome (2026-09-08): the toolbar overlays the page and, with the
+ *     bottom nav, auto-hides after ~3s idle so reading uses the full screen.
+ *     Reveal by moving the mouse, tapping the centre zone (edges still navigate),
+ *     or pressing `m`; a hovered toolbar / open menu pins it visible. A very thin
+ *     progress rail stays pinned to the bottom as a persistent position cue.
  */
 @Component({
   selector: 'app-reader',
@@ -56,7 +61,8 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
   ],
   template: `
     <div class="reader-container">
-      <mat-toolbar class="reader-toolbar">
+      <mat-toolbar class="reader-toolbar" [class.chrome-hidden]="!chromeVisible()"
+                   (mouseenter)="lockChrome(true)" (mouseleave)="lockChrome(false)">
         <button mat-icon-button (click)="goBack()" matTooltip="Back to library" aria-label="Back to library">
           <mat-icon>arrow_back</mat-icon>
         </button>
@@ -67,7 +73,8 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
 
         <!-- Requirement 3 (revised 2026-09-08): controls stay visible in fullscreen. -->
         @if (phase() === 'ready') {
-          <button mat-icon-button [matMenuTriggerFor]="modeMenu" matTooltip="Reading mode" aria-label="Reading mode">
+          <button mat-icon-button [matMenuTriggerFor]="modeMenu" matTooltip="Reading mode" aria-label="Reading mode"
+                  (menuOpened)="menuOpen.set(true)" (menuClosed)="onMenuClosed()">
             <mat-icon>{{ viewIcon() }}</mat-icon>
           </button>
           <mat-menu #modeMenu="matMenu">
@@ -86,7 +93,8 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
                      (valueChange)="setWebtoonWidth($event)" aria-label="Webtoon page width">
             </mat-slider>
           } @else {
-            <button mat-icon-button [matMenuTriggerFor]="fitMenu" matTooltip="Image fit" aria-label="Image fit">
+            <button mat-icon-button [matMenuTriggerFor]="fitMenu" matTooltip="Image fit" aria-label="Image fit"
+                    (menuOpened)="menuOpen.set(true)" (menuClosed)="onMenuClosed()">
               <mat-icon>aspect_ratio</mat-icon>
             </button>
             <mat-menu #fitMenu="matMenu">
@@ -126,7 +134,7 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
         </div>
       } @else if (view() === 'webtoon') {
         <!-- Vertical continuous scroll; progress tracked by scroll position. -->
-        <div class="reader-viewport webtoon" #scroller (scroll)="onWebtoonScroll()">
+        <div class="reader-viewport webtoon" #scroller (scroll)="onWebtoonScroll()" (click)="toggleChrome()">
           @for (entry of pages(); track entry.entryKey) {
             <img class="webtoon-page" [src]="pageUrlFor(entry)" loading="lazy"
                  [style.width.%]="webtoonWidthPct()"
@@ -156,17 +164,27 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
           </div>
           <button class="edge prev" (click)="onEdge('prev')" aria-label="Previous"></button>
           <button class="edge next" (click)="onEdge('next')" aria-label="Next"></button>
+          <!-- Center tap zone (Mihon-style): toggle chrome; edges still navigate. -->
+          <button class="tap-toggle" (click)="toggleChrome()" tabindex="-1"
+                  aria-label="Show or hide controls"></button>
         </div>
 
         <!-- Requirement 2: left is ALWAYS previous, right ALWAYS next; no flip.
              Requirement 3 (revised 2026-09-08): nav stays visible in fullscreen too. -->
-        <div class="reader-controls">
+        <div class="reader-controls" [class.chrome-hidden]="!chromeVisible()">
           <button mat-fab (click)="prevPage()" [disabled]="atStart()" matTooltip="Previous" aria-label="Previous">
             <mat-icon>chevron_left</mat-icon>
           </button>
           <button mat-fab (click)="nextPage()" [disabled]="atEnd()" matTooltip="Next" aria-label="Next">
             <mat-icon>chevron_right</mat-icon>
           </button>
+        </div>
+      }
+
+      <!-- Persistent minimal cue: a very thin progress bar, always visible. -->
+      @if (phase() === 'ready') {
+        <div class="progress-rail" aria-hidden="true">
+          <div class="progress-fill" [style.width.%]="progressPct()"></div>
         </div>
       }
     </div>
@@ -177,7 +195,17 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
       position: fixed; inset: 0;
       background: #101012; z-index: 1000;
     }
-    .reader-toolbar { background: #1c1c1f; color: #eee; flex-shrink: 0; }
+    /* Immersive chrome: the toolbar OVERLAYS the viewport (absolute, not in flow)
+       so the page uses the full screen height and hiding the bar yields real
+       reading space. It slides up / fades out when chrome is hidden. */
+    .reader-toolbar {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 1001;
+      background: #1c1c1f; color: #eee;
+      transition: transform .2s ease, opacity .2s ease;
+    }
+    .reader-toolbar.chrome-hidden {
+      transform: translateY(-100%); opacity: 0; pointer-events: none;
+    }
     .page-info { margin-left: 8px; font-variant-numeric: tabular-nums; }
     .spacer { flex: 1 1 auto; }
     .status {
@@ -240,6 +268,25 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     .reader-controls {
       position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
       display: flex; gap: 24px; z-index: 1001;
+      transition: opacity .2s ease, transform .2s ease;
+    }
+    .reader-controls.chrome-hidden {
+      opacity: 0; transform: translateX(-50%) translateY(24px); pointer-events: none;
+    }
+    /* Center tap zone: the ~40% between the 30%-wide edge nav zones. Toggles chrome. */
+    .tap-toggle {
+      position: absolute; top: 0; bottom: 0; left: 30%; right: 30%;
+      background: transparent; border: 0; padding: 0; z-index: 1; cursor: default;
+    }
+    /* Persistent minimal progress cue — a very thin bar pinned to the bottom edge,
+       shown regardless of chrome visibility so position is always readable. */
+    .progress-rail {
+      position: fixed; left: 0; right: 0; bottom: 0; height: 3px;
+      background: rgba(255, 255, 255, 0.14); z-index: 1002; pointer-events: none;
+    }
+    .progress-fill { height: 100%; background: #7c4dff; transition: width .2s ease; }
+    @media (prefers-reduced-motion: reduce) {
+      .reader-toolbar, .reader-controls, .progress-fill { transition: none; }
     }
   `],
 })
@@ -269,6 +316,15 @@ export class ReaderComponent implements OnInit, OnDestroy {
   readonly coverIsStandalone = signal(true);
   readonly webtoonWidthPct = signal<number>(this.loadWebtoonWidth()); // requirement 6
 
+  // Immersive chrome (2026-09-08): the toolbar + nav auto-hide while reading and
+  // reveal on interaction, matching well-known manga readers. `chromeVisible`
+  // drives both; `menuOpen`/`toolbarHover` lock it visible mid-interaction.
+  readonly chromeVisible = signal(true);
+  readonly menuOpen = signal(false);
+  readonly toolbarHover = signal(false);
+  readonly progressPct = computed(() =>
+    this.pageCount() > 0 ? ((this.currentPage() + 1) / this.pageCount()) * 100 : 0);
+
   readonly viewIcon = computed(() =>
     this.view() === 'webtoon' ? 'view_day'
       : this.view() === 'spread' ? (this.coverIsStandalone() ? 'auto_stories' : 'import_contacts')
@@ -297,6 +353,9 @@ export class ReaderComponent implements OnInit, OnDestroy {
   private pollAttempts = 0;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private webtoonSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private hideTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastPointerReveal = 0;
+  private static readonly ChromeIdleMs = 3000;
   private destroyed = false;
 
   pageUrlFor(entry: ManifestPageEntry | undefined): string {
@@ -321,6 +380,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.destroyed = true;
     this.clearPoll();
     if (this.webtoonSaveTimer) clearTimeout(this.webtoonSaveTimer);
+    this.clearHideTimer();
     this.saveProgress();
   }
 
@@ -344,6 +404,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
     const target = event.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
     if (this.phase() !== 'ready') return;
+    if (event.key === 'm') { this.toggleChrome(); return; } // toggle chrome in any view
     if (this.view() === 'webtoon') return; // native scroll drives webtoon
 
     switch (event.key) {
@@ -356,10 +417,70 @@ export class ReaderComponent implements OnInit, OnDestroy {
     }
   }
 
+  // --- Immersive chrome (auto-hide toolbar + nav) ---
+
+  /**
+   * Reveal chrome and (re)arm the idle-hide timer. Cheap enough to call on every
+   * mouse move (the signal only notifies when the value actually flips).
+   */
+  revealChrome(): void {
+    this.chromeVisible.set(true);
+    this.scheduleChromeHide();
+  }
+
+  /** Center tap / 'm' key: flip chrome. When hiding, cancel the pending timer. */
+  toggleChrome(): void {
+    if (this.chromeVisible()) {
+      this.chromeVisible.set(false);
+      this.clearHideTimer();
+    } else {
+      this.revealChrome();
+    }
+  }
+
+  /** Toolbar hover keeps chrome pinned; leaving resumes the idle countdown. */
+  lockChrome(hovering: boolean): void {
+    this.toolbarHover.set(hovering);
+    if (!hovering) this.scheduleChromeHide();
+  }
+
+  onMenuClosed(): void {
+    this.menuOpen.set(false);
+    this.scheduleChromeHide();
+  }
+
+  @HostListener('document:mousemove')
+  onPointerMove(): void {
+    if (this.phase() !== 'ready') return;
+    const now = Date.now();
+    if (now - this.lastPointerReveal < 120) return; // throttle change-detection churn
+    this.lastPointerReveal = now;
+    this.revealChrome();
+  }
+
+  private chromeLocked(): boolean {
+    return this.menuOpen() || this.toolbarHover();
+  }
+
+  private scheduleChromeHide(): void {
+    this.clearHideTimer();
+    this.hideTimer = setTimeout(() => {
+      if (this.phase() === 'ready' && !this.chromeLocked()) this.chromeVisible.set(false);
+    }, ReaderComponent.ChromeIdleMs);
+  }
+
+  private clearHideTimer(): void {
+    if (this.hideTimer) { clearTimeout(this.hideTimer); this.hideTimer = null; }
+  }
+
   // --- Loading / readiness (unchanged manifest-first flow) ---
 
   private loadManifest(): void {
     this.phase.set('preparing');
+    // Keep chrome visible while not reading (so Back stays reachable); the idle
+    // auto-hide only runs once a page is on screen.
+    this.chromeVisible.set(true);
+    this.clearHideTimer();
     this.statusMessage.set(this.pollAttempts === 0 ? 'Loading…' : 'Preparing this chapter…');
 
     this.api.getManifest(this.itemId()).subscribe({
@@ -405,6 +526,8 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.currentPage.set(index);
     this.pageLoading.set(true);
     this.phase.set('ready');
+    // Show the chrome briefly on entry, then let it auto-hide for immersion.
+    this.revealChrome();
     if (this.view() === 'webtoon') {
       // Scroll the saved page into view once the DOM is present.
       queueMicrotask(() => this.scrollWebtoonTo(index));
@@ -456,6 +579,8 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
   private fail(message: string): void {
     this.clearPoll();
+    this.clearHideTimer();
+    this.chromeVisible.set(true); // keep Back / retry reachable on the error screen
     this.statusMessage.set(message);
     this.phase.set('error');
   }
