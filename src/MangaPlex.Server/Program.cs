@@ -42,11 +42,10 @@ public sealed partial class Program
         var databasePath = Path.Combine(dataRoot, "mangaplex.db");
         var workerExe = builder.Configuration["Media:WorkerExecutablePath"];
 
-        // Serilog bootstrap — compact JSON in container, plain in dev.
+        // Serilog bootstrap — plain text console for both container and dev.
         // The default level is controlled by a LoggingLevelSwitch so an admin
         // can raise/lower verbosity at runtime without a restart (section 9).
         // The switch resets to Information on restart (ephemeral by design).
-        var isContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
         var levelSwitch = new LoggingLevelSwitch(LogEventLevel.Information);
         var logConfig = new LoggerConfiguration()
             .MinimumLevel.ControlledBy(levelSwitch)
@@ -55,14 +54,8 @@ public sealed partial class Program
             .Enrich.WithProperty("Application", "MangaPlex")
             .Enrich.With<RedactingDestructuringPolicy>();
 
-        if (isContainer)
-        {
-            logConfig.WriteTo.Console(new Serilog.Formatting.Compact.CompactJsonFormatter());
-        }
-        else
-        {
-            logConfig.WriteTo.Console();
-        }
+        logConfig.WriteTo.Console(
+            outputTemplate: "{Timestamp:O} [{Level:u}] {SourceContext} {Message:lj}{NewLine}{Exception}");
 
         logConfig.WriteTo.File(
             Path.Combine(logsRoot, "mangaplex-.log"),
