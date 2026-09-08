@@ -6,12 +6,16 @@
 -->
 <Project>
   <PropertyGroup>
-    <!-- 1.0.0 — first stable MVP release. The 0.1.0-dev.N line (dev.0 … dev.41)
-         was the pre-1.0 development series; MVP is feature-complete with a frozen,
-         snapshot-tested API contract and all in-scope §2.2 acceptance criteria met,
-         so the prerelease tag is dropped for the 1.0.0 release (SemVer 2.0.0). -->
+    <!-- 1.1.0 — first post-1.0 minor. Backward-compatible additive work on top of
+         1.0.0: the reader UX package (fit-screen, double-page/offset/wide-page modes,
+         immersive fullscreen chrome + help overlay, webtoon placeholders, auto-advance),
+         admin runtime log-level control (new /operations/logging endpoints), and the
+         EF Core migrations infrastructure that replaces EnsureCreated. No breaking API
+         or contract changes, so MINOR per SemVer 2.0.0.
+         (1.0.0 was the first stable MVP release; the 0.1.0-dev.N line dev.0…dev.41 was
+         the pre-1.0 development series.) -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>0</MangaPlexVersionMinor>
+    <MangaPlexVersionMinor>1</MangaPlexVersionMinor>
     <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
@@ -23,7 +27,7 @@
     <!-- Build counter for FileVersion (numeric only). Defaults to 0 for local builds. -->
     <MangaPlexBuildCounter Condition="'$(MangaPlexBuildCounter)' == ''">0</MangaPlexBuildCounter>
 
-    <!-- AssemblyVersion stays at MAJOR.MINOR.0.0 (1.0.0.0 now) through a minor
+    <!-- AssemblyVersion stays at MAJOR.MINOR.0.0 (1.1.0.0 now) through a minor
          line to avoid binding churn; patch/build vary in FileVersion only. -->
     <MangaPlexAssemblyVersion>$(MangaPlexVersionMajor).$(MangaPlexVersionMinor).0.0</MangaPlexAssemblyVersion>
   </PropertyGroup>
