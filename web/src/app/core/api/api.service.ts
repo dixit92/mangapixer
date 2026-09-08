@@ -16,6 +16,7 @@ import {
   ItemManifest,
   ItemReadiness,
   LibraryDto,
+  LogLevelDto,
   LoginRequest,
   PageResponse,
   ProgressUpdateResult,
@@ -28,6 +29,7 @@ import {
   SetupRequest,
   SetupStatusDto,
   UpdateLibraryRequest,
+  UpdateLogLevelRequest,
   UpdateProgressRequest,
   UpdateUserRequest,
   UserGrantsDto,
@@ -224,6 +226,16 @@ export class ApiService {
 
   revokeAccess(userId: string, libraryId: string): Observable<void> {
     return this.delete<void>(`/admin/users/${userId}/grants/${libraryId}`);
+  }
+
+  // --- Operations / Diagnostics ---
+
+  getLoggingLevel(): Observable<LogLevelDto> {
+    return this.get<LogLevelDto>('/operations/logging');
+  }
+
+  setLoggingLevel(level: string): Observable<LogLevelDto> {
+    return this.put<LogLevelDto>('/operations/logging', { level } as UpdateLogLevelRequest);
   }
 
   // --- Manifest / Readiness ---

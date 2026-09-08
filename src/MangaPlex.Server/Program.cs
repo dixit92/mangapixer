@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
+using Serilog.Core;
 using Serilog.Events;
 
 /// <summary>
@@ -42,9 +43,13 @@ public sealed partial class Program
         var workerExe = builder.Configuration["Media:WorkerExecutablePath"];
 
         // Serilog bootstrap — compact JSON in container, plain in dev.
+        // The default level is controlled by a LoggingLevelSwitch so an admin
+        // can raise/lower verbosity at runtime without a restart (section 9).
+        // The switch resets to Information on restart (ephemeral by design).
         var isContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+        var levelSwitch = new LoggingLevelSwitch(LogEventLevel.Information);
         var logConfig = new LoggerConfiguration()
-            .MinimumLevel.Information()
+            .MinimumLevel.ControlledBy(levelSwitch)
             .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
             .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
             .Enrich.WithProperty("Application", "MangaPlex")
@@ -106,6 +111,11 @@ public sealed partial class Program
             // Operations services
             builder.Services.AddScoped<BackupService>();
             builder.Services.AddScoped<DiagnosticsService>();
+
+            // Log-level control (section 9) — singleton so the switch survives
+            // across requests and mutates the live Serilog pipeline.
+            builder.Services.AddSingleton(levelSwitch);
+            builder.Services.AddSingleton<LogLevelSettingsService>();
 
             // Data Protection — persist keys in application-owned data so
             // cookies survive container recreate. Set a stable application name

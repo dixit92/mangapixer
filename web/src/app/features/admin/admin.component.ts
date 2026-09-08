@@ -10,6 +10,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { ApiService } from '../../core/api/api.service';
@@ -17,6 +18,7 @@ import {
   AdminUserDto,
   DirectoryListingDto,
   LibraryDto,
+  LogLevel,
   RegisterLibraryRequest,
   CreateUserRequest,
 } from '../../core/api/api-types';
@@ -44,6 +46,7 @@ import {
     MatCheckboxModule,
     MatTooltipModule,
     MatProgressSpinnerModule,
+    MatSelectModule,
   ],
   template: `
     <h2>Administration</h2>
@@ -241,6 +244,29 @@ import {
         </button>
       </mat-card-content>
     </mat-card>
+
+    <!-- Diagnostics: log-level control (section 9) -->
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Diagnostics</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="log-level-control">
+          <mat-form-field appearance="outline">
+            <mat-label>Log Level</mat-label>
+            <mat-select [(ngModel)]="logLevel" (selectionChange)="setLogLevel()">
+              @for (level of logLevels; track level) {
+                <mat-option [value]="level">{{ level }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <p class="log-level-hint">
+            <mat-icon inline>info</mat-icon>
+            Ephemeral — resets to Information on restart. Microsoft.* overrides stay at Warning.
+          </p>
+        </div>
+      </mat-card-content>
+    </mat-card>
   `,
   styles: [`
     mat-card { margin-bottom: 16px; }
@@ -294,6 +320,11 @@ import {
     .browser-list { max-height: 260px; overflow-y: auto; }
     .browser-entry { cursor: pointer; }
     .browser-actions { display: inline-flex; align-items: center; gap: 4px; }
+    .log-level-control { max-width: 400px; }
+    .log-level-hint {
+      font-size: 13px; opacity: 0.8; margin: 4px 0 0;
+      display: flex; align-items: center; gap: 6px;
+    }
   `],
 })
 export class AdminComponent implements OnInit, OnDestroy {
@@ -329,9 +360,15 @@ export class AdminComponent implements OnInit, OnDestroy {
   readonly newUserPassword = signal('');
   readonly newUserIsAdmin = signal(false);
 
+  // Log-level control (section 9)
+  readonly logLevels: LogLevel[] = ['Verbose', 'Debug', 'Information', 'Warning', 'Error', 'Fatal'];
+  logLevel: string = 'Information';
+  private logLevelLoading = false;
+
   ngOnInit(): void {
     this.loadLibraries();
     this.loadUsers();
+    this.loadLogLevel();
   }
 
   ngOnDestroy(): void {
@@ -602,6 +639,32 @@ export class AdminComponent implements OnInit, OnDestroy {
     this.api.resetUserPassword(userId).subscribe({
       next: (res) => {
         this.snackBar.open(`Temporary password: ${res.temporaryPassword}`, 'Close', { duration: 10000 });
+      },
+      error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 5000 }),
+    });
+  }
+
+  // --- Log-level control (section 9) ---
+
+  private loadLogLevel(): void {
+    this.logLevelLoading = true;
+    this.api.getLoggingLevel().subscribe({
+      next: (dto) => {
+        this.logLevel = dto.level;
+        this.logLevelLoading = false;
+      },
+      error: () => {
+        this.logLevelLoading = false;
+      },
+    });
+  }
+
+  setLogLevel(): void {
+    if (this.logLevelLoading) return;
+    this.api.setLoggingLevel(this.logLevel).subscribe({
+      next: (dto) => {
+        this.logLevel = dto.level;
+        this.snackBar.open(`Log level set to ${dto.level}`, 'Close', { duration: 3000 });
       },
       error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 5000 }),
     });

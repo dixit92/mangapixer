@@ -261,3 +261,15 @@ export interface ItemReadiness {
   lastAttempt: string | null;
   isAnalyzing: boolean;
 }
+
+// --- Operations DTOs ---
+
+export type LogLevel = 'Verbose' | 'Debug' | 'Information' | 'Warning' | 'Error' | 'Fatal';
+
+export interface LogLevelDto {
+  level: string;
+}
+
+export interface UpdateLogLevelRequest {
+  level: string;
+}

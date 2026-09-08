@@ -33,6 +33,15 @@ public sealed class CollectingSink : ILogEventSink
     }
 
     /// <summary>
+    /// Clears all collected events.
+    /// </summary>
+    public void Clear()
+    {
+        lock (_lock)
+            _events.Clear();
+    }
+
+    /// <summary>
     /// Returns true if any event message contains the given substring
     /// (case-insensitive).
     /// </summary>

@@ -34,6 +34,68 @@
         }
       }
     },
+    "/api/v1/operations/logging": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Operations"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateLogLevelRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateLogLevelRequest"
+                  }
+                ]
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateLogLevelRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/operations/backup": {
       "post": {
         "tags": [
@@ -1384,6 +1446,17 @@
         "properties": {
           "displayName": {
             "type": "string"
+          }
+        }
+      },
+      "UpdateLogLevelRequest": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
