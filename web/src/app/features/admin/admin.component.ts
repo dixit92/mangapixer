@@ -94,20 +94,24 @@ import {
 
         <mat-divider></mat-divider>
         <h4>Register New Library</h4>
-        <mat-form-field appearance="outline" floatLabel="always">
-          <mat-label>Display Name</mat-label>
-          <input matInput [(ngModel)]="newLibName" placeholder="My Manga Collection">
-        </mat-form-field>
-        <mat-form-field appearance="outline" floatLabel="always">
-          <mat-label>Root Path (server-side mount)</mat-label>
-          <input matInput [(ngModel)]="newLibPath" placeholder="/media/library1">
-        </mat-form-field>
-        <button mat-stroked-button type="button" class="browse-btn" (click)="toggleBrowser()">
-          <mat-icon>folder_open</mat-icon> {{ browserOpen() ? 'Hide browser' : 'Browse…' }}
-        </button>
-        <button mat-raised-button color="primary" (click)="registerLibrary()" [disabled]="!newLibName() || !newLibPath()">
-          Register
-        </button>
+        <div class="register-form">
+          <mat-form-field appearance="outline" floatLabel="always">
+            <mat-label>Display Name</mat-label>
+            <input matInput [(ngModel)]="newLibName" placeholder="My Manga Collection">
+          </mat-form-field>
+          <mat-form-field appearance="outline" floatLabel="always">
+            <mat-label>Root Path (server-side mount)</mat-label>
+            <input matInput [(ngModel)]="newLibPath" placeholder="/media/library1">
+          </mat-form-field>
+          <div class="register-actions">
+            <button mat-stroked-button type="button" class="browse-btn" (click)="toggleBrowser()">
+              <mat-icon>folder_open</mat-icon> {{ browserOpen() ? 'Hide browser' : 'Browse…' }}
+            </button>
+            <button mat-raised-button color="primary" (click)="registerLibrary()" [disabled]="!newLibName() || !newLibPath()">
+              Register
+            </button>
+          </div>
+        </div>
 
         @if (browserOpen()) {
           <div class="browser">
@@ -243,6 +247,12 @@ import {
     mat-form-field { margin-right: 12px; width: 200px; }
     mat-divider { margin: 16px 0; }
     h4 { margin: 8px 0; }
+    /* Register form: let the path/name fields span a sensible width (matching the
+       browser panel below) instead of the cramped default 200px shared with the
+       compact user-creation inputs. */
+    .register-form { max-width: 640px; }
+    .register-form mat-form-field { display: block; width: 100%; margin-right: 0; }
+    .register-actions { display: flex; gap: 12px; margin-top: 4px; }
     .browse-btn { margin-right: 12px; }
     .lib-meta, .user-meta { display: inline-flex; align-items: center; gap: 8px; }
     .chip {

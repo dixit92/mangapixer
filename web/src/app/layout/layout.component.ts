@@ -35,12 +35,20 @@ import { AuthService } from '../core/auth/auth.service';
           <mat-icon>account_circle</mat-icon>
         </button>
         <mat-menu #userMenu="matMenu">
-          <div class="user-info">{{ auth.currentUser()?.username }}</div>
-          <button mat-menu-item routerLink="/settings">Settings</button>
+          <div class="user-info">
+            <mat-icon>person</mat-icon>{{ auth.currentUser()?.username }}
+          </div>
+          <button mat-menu-item routerLink="/settings">
+            <mat-icon>vpn_key</mat-icon>Change Password
+          </button>
           @if (auth.isAdmin()) {
-            <button mat-menu-item routerLink="/admin">Admin</button>
+            <button mat-menu-item routerLink="/admin">
+              <mat-icon>admin_panel_settings</mat-icon>MangaPlex Administration
+            </button>
           }
-          <button mat-menu-item (click)="logout()">Logout</button>
+          <button mat-menu-item (click)="logout()">
+            <mat-icon>logout</mat-icon>Logout
+          </button>
         </mat-menu>
       } @else {
         <button mat-button routerLink="/login">Login</button>
@@ -60,7 +68,11 @@ import { AuthService } from '../core/auth/auth.service';
     }
     .spacer { flex: 1 1 auto; }
     .content { padding: 16px; max-width: 1200px; margin: 0 auto; }
-    .user-info { padding: 8px 16px; font-weight: 500; }
+    .user-info {
+      padding: 8px 16px; font-weight: 500;
+      display: flex; align-items: center; gap: 8px; opacity: 0.85;
+    }
+    .user-info mat-icon { font-size: 20px; width: 20px; height: 20px; }
   `],
 })
 export class LayoutComponent {

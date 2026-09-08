@@ -196,13 +196,21 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     /* flex:0 0 auto stops flexbox from shrinking the image (which would defeat
        fit-height / original and re-break fit-width). */
     .spread-row img { display: block; flex: 0 0 auto; }
-    /* Requirement 1: fit-screen (contain) is the default. */
-    img.fit-screen { max-width: 100%; max-height: 100%; }
+    /* Requirement 1: fit-screen (contain) is the default. Unlike max-* sizing —
+       which only ever shrinks an oversized page and leaves a small page at its
+       native size — giving the image a full-viewport box plus object-fit:contain
+       scales BOTH ways, so small pages are enlarged to fill the screen while the
+       aspect ratio is preserved. */
+    img.fit-screen { width: 100%; height: 100%; object-fit: contain; object-position: center; }
     img.fit-width  { width: 100%;  height: auto; }
     img.fit-height { height: 100%; width: auto; }
     img.original   { max-width: none; max-height: none; }
     /* When two pages are paired, each takes at most half the width. */
     .spread-row.paired img, .spread-row img.paired { max-width: 50%; height: auto; }
+    /* Paired + fit-screen: contain within half-width / full-height, still upscaling. */
+    .spread-row.paired img.fit-screen, .spread-row img.paired.fit-screen {
+      width: 50%; max-width: 50%; height: 100%; object-fit: contain;
+    }
     /* Webtoon: full-width column, natural vertical scroll. */
     .reader-viewport.webtoon { flex-direction: column; align-items: center; }
     /* Width is driven by the webtoon width slider (requirement 6), 30–100% of viewport. */
