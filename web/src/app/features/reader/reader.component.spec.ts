@@ -200,19 +200,14 @@ describe('ReaderComponent controls rendering', () => {
     return { fixture, c };
   }
 
-  it('keeps the bottom prev/next controls visible in fullscreen (2026-09-08 revision)', () => {
-    // Revised requirement 3: reader chrome no longer hides in fullscreen — the old
-    // behavior was inconsistent (Fullscreen API button hid it, F11 did not).
-    const { fixture, c } = renderReady();
+  it('has no on-screen prev/next chevrons; navigation is via edge zones + keyboard', () => {
+    // The FAB chevrons were removed (2026-09-08) as redundant with the edge tap
+    // zones (documented in the Help overlay) and keyboard arrows.
+    const { fixture } = renderReady();
     const el: HTMLElement = fixture.nativeElement;
-
-    c.isFullscreen.set(false);
-    fixture.detectChanges();
-    expect(el.querySelector('.reader-controls')).toBeTruthy();
-
-    c.isFullscreen.set(true);
-    fixture.detectChanges();
-    expect(el.querySelector('.reader-controls')).toBeTruthy();
+    expect(el.querySelector('.reader-controls')).toBeNull();
+    expect(el.querySelector('.edge.prev')).toBeTruthy();
+    expect(el.querySelector('.edge.next')).toBeTruthy();
   });
 
   it('applies the selected fit class to the page image', () => {

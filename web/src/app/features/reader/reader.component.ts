@@ -24,9 +24,10 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
  *
  * Reader-view requirements (2026-09-07 review, see the MVP-gap checkpoint):
  *  1. Fit-to-screen (contain) is the default image fit.
- *  2. The prev/next chevron controls never swap position when direction flips —
- *     left is always "previous", right always "next". Direction changes only
- *     which physical page "next" advances to (and edge-tap / arrow-key mapping).
+ *  2. Page navigation is via the invisible left/right edge tap zones and the arrow
+ *     keys; the on-screen prev/next chevron FABs were removed (2026-09-08) as
+ *     redundant with the zones. The edge zones are direction-aware (tap the right
+ *     side in RTL to go back), and the Help overlay labels them per direction.
  *  3. The reader controls (mode / fit / direction / fullscreen / nav) stay visible
  *     in fullscreen. (Revised 2026-09-08 per owner feedback: the earlier
  *     hide-in-fullscreen behavior was inconsistent — the Fullscreen API button
@@ -179,17 +180,6 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
           <button class="tap-toggle" (click)="toggleChrome()" tabindex="-1"
                   aria-label="Show or hide controls"></button>
         </div>
-
-        <!-- Requirement 2: left is ALWAYS previous, right ALWAYS next; no flip.
-             Requirement 3 (revised 2026-09-08): nav stays visible in fullscreen too. -->
-        <div class="reader-controls" [class.chrome-hidden]="!chromeVisible()">
-          <button mat-fab (click)="prevPage()" [disabled]="atStart()" matTooltip="Previous" aria-label="Previous">
-            <mat-icon>chevron_left</mat-icon>
-          </button>
-          <button mat-fab (click)="nextPage()" [disabled]="atEnd()" matTooltip="Next" aria-label="Next">
-            <mat-icon>chevron_right</mat-icon>
-          </button>
-        </div>
       }
 
       <!-- Persistent minimal cue: a very thin progress bar, always visible.
@@ -310,14 +300,6 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     }
     .edge.prev { left: 0; }
     .edge.next { right: 0; }
-    .reader-controls {
-      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-      display: flex; gap: 24px; z-index: 1001;
-      transition: opacity .2s ease, transform .2s ease;
-    }
-    .reader-controls.chrome-hidden {
-      opacity: 0; transform: translateX(-50%) translateY(24px); pointer-events: none;
-    }
     /* Center tap zone: the ~40% between the 30%-wide edge nav zones. Toggles chrome. */
     .tap-toggle {
       position: absolute; top: 0; bottom: 0; left: 30%; right: 30%;
@@ -370,7 +352,7 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     }
     .help-dismiss { margin: 12px 0 0; opacity: 0.65; font-size: 13px; text-align: center; }
     @media (prefers-reduced-motion: reduce) {
-      .reader-toolbar, .reader-controls, .progress-fill { transition: none; }
+      .reader-toolbar, .progress-fill { transition: none; }
     }
   `],
 })
@@ -436,8 +418,6 @@ export class ReaderComponent implements OnInit, OnDestroy {
   /** Grouping of page indices into spreads (double-page view). */
   readonly spreads = computed<number[][]>(() => this.computeSpreads());
 
-  readonly atStart = computed(() => this.currentPage() <= 0);
-  readonly atEnd = computed(() => this.currentPage() >= this.pageCount() - 1);
 
   private contentVersion = 0;
   private revision = 0;
