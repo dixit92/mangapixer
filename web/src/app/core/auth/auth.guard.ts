@@ -21,6 +21,12 @@ export const authGuard: CanActivateFn = () => {
   }
 
   if (auth.isAuthenticated()) {
+    // A signed-in account with a temporary password can only change it — the
+    // server rejects everything else, so route there instead of a broken shell.
+    if (auth.mustChangePassword()) {
+      router.navigate(['/password-change']);
+      return false;
+    }
     return true;
   }
 
@@ -43,6 +49,11 @@ export const adminGuard: CanActivateFn = () => {
 
   if (!auth.isAuthenticated()) {
     router.navigate(['/login']);
+    return false;
+  }
+
+  if (auth.mustChangePassword()) {
+    router.navigate(['/password-change']);
     return false;
   }
 
@@ -82,6 +93,28 @@ export const loginGuard: CanActivateFn = () => {
 
   if (auth.setupRequired()) {
     router.navigate(['/setup']);
+    return false;
+  }
+
+  return true;
+};
+
+/**
+ * Guards /password-change so it is reachable only by a signed-in account that
+ * actually must change its password. Everyone else is bounced to the right place,
+ * so the screen can't be used to change a password out of band.
+ */
+export const passwordChangeGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+
+  if (!auth.isAuthenticated()) {
+    router.navigate([auth.setupRequired() ? '/setup' : '/login']);
+    return false;
+  }
+
+  if (!auth.mustChangePassword()) {
+    router.navigate(['/']);
     return false;
   }
 

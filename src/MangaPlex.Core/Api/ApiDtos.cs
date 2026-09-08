@@ -233,6 +233,14 @@ public sealed record AuthUserDto
     public required string Username { get; init; }
     public required string Role { get; init; }
     public required bool IsAdmin { get; init; }
+
+    /// <summary>
+    /// True when the account must change its password before it can use the app
+    /// (admin-created accounts and admin password resets). While true, the server
+    /// rejects every non-auth request, so the client must route to the
+    /// change-password screen. Defaults false so existing sessions are unaffected.
+    /// </summary>
+    public bool ForcePasswordChange { get; init; }
 }
 
 /// <summary>

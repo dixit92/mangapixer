@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 
-import { authGuard, adminGuard, setupGuard, loginGuard } from './core/auth/auth.guard';
+import { authGuard, adminGuard, setupGuard, loginGuard, passwordChangeGuard } from './core/auth/auth.guard';
 
 export const routes: Routes = [
   {
@@ -68,5 +68,11 @@ export const routes: Routes = [
     canActivate: [loginGuard],
     loadComponent: () =>
       import('./features/auth/login.component').then((m) => m.LoginComponent),
+  },
+  {
+    path: 'password-change',
+    canActivate: [passwordChangeGuard],
+    loadComponent: () =>
+      import('./features/auth/password-change.component').then((m) => m.PasswordChangeComponent),
   },
 ];

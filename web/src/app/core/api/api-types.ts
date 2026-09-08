@@ -128,6 +128,8 @@ export interface AuthUserDto {
   username: string;
   role: string;
   isAdmin: boolean;
+  /** When true, the account must change its password before using the app. */
+  forcePasswordChange?: boolean;
 }
 
 export interface CsrfTokenDto {

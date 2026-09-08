@@ -41,6 +41,13 @@ export class AuthService {
   readonly isAdmin = computed(() => this._currentUser()?.isAdmin ?? false);
 
   /**
+   * Whether the current account must change its password before using the app
+   * (admin-created accounts, admin password resets). While true the server rejects
+   * every non-auth request, so guards route to the change-password screen.
+   */
+  readonly mustChangePassword = computed(() => this._currentUser()?.forcePasswordChange ?? false);
+
+  /**
    * Whether the instance has no users yet and must run first-run setup.
    * Populated by {@link initialize} and cleared once setup completes.
    */

@@ -183,6 +183,61 @@ public sealed class AuthHttpTests : IDisposable
     }
 
     [Fact]
+    public async Task AdminCreatedUser_IsGatedUntilPasswordChanged_ThenCanAccess()
+    {
+        var admin = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        // Admin creates a reader with a temporary password (ForcePasswordChange).
+        var create = await admin.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "gateduser",
+            Password = "TempPass123!",
+            IsAdmin = false,
+        });
+        create.EnsureSuccessStatusCode();
+
+        // The reader logs in — the login DTO advertises the forced change...
+        var reader = _factory.CreateClient();
+        var login = await reader.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest
+        {
+            Username = "gateduser",
+            Password = "TempPass123!",
+        });
+        login.EnsureSuccessStatusCode();
+        var user = await login.Content.ReadFromJsonAsync<AuthUserDto>();
+        Assert.True(user!.ForcePasswordChange);
+
+        // ...and non-auth endpoints are gated (401) until it is done.
+        var gated = await reader.GetAsync("/api/v1/libraries");
+        Assert.Equal(HttpStatusCode.Unauthorized, gated.StatusCode);
+
+        // Change the password (auth endpoints remain reachable while gated).
+        var csrf = await (await reader.GetAsync("/api/v1/auth/csrf")).Content.ReadFromJsonAsync<CsrfTokenDto>();
+        reader.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        var change = await reader.PostAsJsonAsync("/api/v1/auth/change-password", new ChangePasswordRequest
+        {
+            CurrentPassword = "TempPass123!",
+            NewPassword = "NewReaderPass123!",
+        });
+        Assert.Equal(HttpStatusCode.NoContent, change.StatusCode);
+
+        // Re-login (the temp-password session was rotated): flag cleared, and the
+        // reader can now reach the app.
+        var reader2 = _factory.CreateClient();
+        var login2 = await reader2.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest
+        {
+            Username = "gateduser",
+            Password = "NewReaderPass123!",
+        });
+        login2.EnsureSuccessStatusCode();
+        var user2 = await login2.Content.ReadFromJsonAsync<AuthUserDto>();
+        Assert.False(user2!.ForcePasswordChange);
+
+        var libs = await reader2.GetAsync("/api/v1/libraries");
+        Assert.Equal(HttpStatusCode.OK, libs.StatusCode);
+    }
+
+    [Fact]
     public async Task Logout_RevokesSession()
     {
         var client = await _factory.LoginAsAdminAsync();

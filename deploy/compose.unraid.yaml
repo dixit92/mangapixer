@@ -1,0 +1,73 @@
+# MangaPlex Unraid-targeted Compose file
+#
+# Differences from deploy/compose.yaml (the canonical volume-based default):
+#   - Single /config bind to /mnt/user/appdata/MangaPlex (Plex-style),
+#     instead of three named Docker volumes. All state (database, keys,
+#     cache, scratch) lives under that one host folder so it is covered by
+#     the array/parity and your normal appdata backup.
+#   - PUID/PGID env vars (default 1000/1000) match the linuxserver.io/Unraid
+#     convention. Set them to the UID/GID of your Unraid user so the appdata
+#     files are owned by you on the host, not by an arbitrary in-image UID.
+#   - Media mounts are supplied as commented examples. Uncomment and edit to
+#     point at your /mnt/user/<share> paths. Source media is mounted read-only
+#     to enforce the read-only source invariant.
+#
+# This file is self-contained — it does not layer on top of compose.yaml.
+# Run with:
+#   docker compose -f deploy/compose.unraid.yaml up -d
+#
+# Real library paths live in this file only if you uncomment them. If you want
+# to keep them out of git, copy this file to compose.unraid.override.yaml
+# (gitignored) and put your mounts there.
+
+services:
+  mangaplex:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: mangaplex:${MANGAPLEX_VERSION:-0.1.0-dev.17}
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      DOTNET_RUNNING_IN_CONTAINER: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+      # Unraid runtime user. Set to your Unraid user's UID/GID so appdata
+      # files are owned by you on the host. Defaults to 1000/1000.
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      # Redirect state roots into the single /config bind.
+      MangaPlex__Storage__DataRoot: "/config/data"
+      MangaPlex__Storage__CacheRoot: "/config/cache"
+      MangaPlex__Storage__ScratchRoot: "/config/scratch"
+    volumes:
+      # Single appdata bind — Plex-style. Back this up with your normal
+      # /mnt/user/appdata backup strategy.
+      - /mnt/user/appdata/MangaPlex:/config
+      # --- Media mounts (read-only) ---
+      # Uncomment and edit to point at your manga/comic shares. Each mounted
+      # share becomes a library root you configure via the admin UI/API.
+      # Multiple shares are fine; add one line each.
+      # - /mnt/user/Manga:/media/manga:ro
+      # - /mnt/user/Comics:/media/comics:ro
+      #
+      # Then set Media__RootPath (or per-library rootPath) to the mounted
+      # path, e.g.:
+      # environment:
+      #   Media__RootPath: "/media/manga"
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: "20m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    labels:
+      org.opencontainers.image.title: "MangaPlex"
+      org.opencontainers.image.description: "Folder-native comic/manga server and Angular web reader"
+      org.opencontainers.image.version: "${MANGAPLEX_VERSION:-0.1.0-dev.17}"
+      org.opencontainers.image.licenses: "proprietary"

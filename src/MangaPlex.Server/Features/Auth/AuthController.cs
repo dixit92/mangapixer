@@ -163,6 +163,7 @@ public sealed class AuthController : ControllerBase
             Username = user.UserName ?? "",
             Role = user.IsAdmin ? "admin" : "reader",
             IsAdmin = user.IsAdmin,
+            ForcePasswordChange = user.ForcePasswordChange,
         });
     }
 
@@ -193,6 +194,7 @@ public sealed class AuthController : ControllerBase
             Username = user.UserName ?? "",
             Role = user.IsAdmin ? "admin" : "reader",
             IsAdmin = user.IsAdmin,
+            ForcePasswordChange = user.ForcePasswordChange,
         });
     }
 

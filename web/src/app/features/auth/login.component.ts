@@ -112,9 +112,10 @@ export class LoginComponent {
       username: this.form.value.username!,
       password: this.form.value.password!,
     }).subscribe({
-      next: () => {
+      next: (user) => {
         this.loading.set(false);
-        this.router.navigate(['/']);
+        // Accounts with a temporary password must change it before entering the app.
+        this.router.navigate([user.forcePasswordChange ? '/password-change' : '/']);
       },
       error: (err: ApiError) => {
         this.loading.set(false);
