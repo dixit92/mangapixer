@@ -42,6 +42,8 @@ export interface CatalogNodeDto {
   pageCount: number | null;
   readingState: ReadingState | null;
   lastReadPage: number | null;
+  /** This folder's own global reader-mode override (1.2.0), or null if none. */
+  readerDefault: ReaderMode | null;
 }
 
 export interface BreadcrumbEntry {

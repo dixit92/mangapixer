@@ -87,6 +87,12 @@ public sealed record CatalogNodeDto
     /// Last read page index for the current user, if any.
     /// </summary>
     public int? LastReadPage { get; init; }
+
+    /// <summary>
+    /// This folder's own global reader-mode override (1.2.0), or null if none.
+    /// Only populated for folders; admins set it in the browse view.
+    /// </summary>
+    public ReaderMode? ReaderDefault { get; init; }
 }
 
 /// <summary>

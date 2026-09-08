@@ -2,6 +2,7 @@ namespace com.lifepixer.mangaplex.Server.Features.Catalog;
 
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Core.Reading;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -130,6 +131,25 @@ public sealed class CatalogBrowseService
                     return n with { CoverUrl = $"/api/v1/items/{firstChildId}/cover" };
                 return n;
             }).ToList();
+        }
+
+        // Populate ReaderDefault for folders that carry a global override (1.2.0).
+        if (folderIds.Count > 0)
+        {
+            var folderReaderDefaults = await _db.FolderReaderDefaults
+                .Where(f => f.Node != null && folderIds.Contains(f.Node.PublicId))
+                .Select(f => new { PublicId = f.Node!.PublicId, f.ReaderMode })
+                .ToDictionaryAsync(x => x.PublicId, x => x.ReaderMode, ct);
+
+            if (folderReaderDefaults.Count > 0)
+            {
+                nodes = nodes.Select(n =>
+                {
+                    if (n.Kind == CatalogNodeKind.Folder && folderReaderDefaults.TryGetValue(n.Id, out var rm))
+                        return n with { ReaderDefault = (ReaderMode)rm };
+                    return n;
+                }).ToList();
+            }
         }
 
         var hasMore = nodes.Count > pageSize;

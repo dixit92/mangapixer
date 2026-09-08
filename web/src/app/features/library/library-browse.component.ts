@@ -3,9 +3,13 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { ApiService } from '../../core/api/api.service';
-import { CatalogNodeDto, PageResponse } from '../../core/api/api-types';
+import { AuthService } from '../../core/auth/auth.service';
+import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-types';
 
 /**
  * Library browse component. Shows the actual folder/archive tree
@@ -19,6 +23,8 @@ import { CatalogNodeDto, PageResponse } from '../../core/api/api-types';
     RouterLink,
     MatIconModule,
     MatButtonModule,
+    MatMenuModule,
+    MatTooltipModule,
   ],
   template: `
     @if (breadcrumbs().length > 0) {
@@ -33,25 +39,45 @@ import { CatalogNodeDto, PageResponse } from '../../core/api/api-types';
 
     <div class="nodes-grid">
       @for (node of nodes(); track node.id) {
-        <a class="node-card" [routerLink]="getNodeLink(node)">
-          <div class="cover">
-            @if (node.coverUrl) {
-              <img [src]="node.coverUrl" alt="" loading="lazy" (error)="onCoverError($event)">
-            }
-            <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
-            @if (node.readingState === 'InProgress') {
-              <span class="badge reading">Reading</span>
-            } @else if (node.readingState === 'Completed') {
-              <span class="badge done">✓</span>
-            }
-          </div>
-          <div class="node-title" [title]="node.displayName">{{ node.displayName }}</div>
-          <div class="node-sub">
-            @if (node.pageCount !== null) { {{ node.pageCount }} pages }
-            @else if (node.kind === 'Folder' && node.childArchiveCount !== null) { {{ node.childArchiveCount }} items }
-            @if (node.availability !== 'Available') { · {{ node.availability }} }
-          </div>
-        </a>
+        <div class="node-wrap">
+          <a class="node-card" [routerLink]="getNodeLink(node)">
+            <div class="cover">
+              @if (node.coverUrl) {
+                <img [src]="node.coverUrl" alt="" loading="lazy" (error)="onCoverError($event)">
+              }
+              <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
+              @if (node.readingState === 'InProgress') {
+                <span class="badge reading">Reading</span>
+              } @else if (node.readingState === 'Completed') {
+                <span class="badge done">✓</span>
+              }
+            </div>
+            <div class="node-title" [title]="node.displayName">{{ node.displayName }}</div>
+            <div class="node-sub">
+              @if (node.pageCount !== null) { {{ node.pageCount }} pages }
+              @else if (node.kind === 'Folder' && node.childArchiveCount !== null) { {{ node.childArchiveCount }} items }
+              @if (node.availability !== 'Available') { · {{ node.availability }} }
+            </div>
+          </a>
+
+          <!-- Admin-only per-folder reading-direction override (1.2.0). -->
+          @if (auth.isAdmin() && node.kind === 'Folder') {
+            <button class="dir-btn" mat-icon-button [matMenuTriggerFor]="dirMenu"
+                    (click)="$event.stopPropagation(); $event.preventDefault()"
+                    [class.set]="node.readerDefault !== null"
+                    matTooltip="Default reading direction" aria-label="Default reading direction">
+              <mat-icon>{{ node.readerDefault ? 'swap_horiz' : 'more_vert' }}</mat-icon>
+            </button>
+            <mat-menu #dirMenu="matMenu">
+              @for (opt of directionOptions; track opt.label) {
+                <button mat-menu-item (click)="setFolderDirection(node, opt.value)">
+                  <mat-icon>{{ (node.readerDefault ?? null) === opt.value ? 'check' : '' }}</mat-icon>
+                  {{ opt.label }}
+                </button>
+              }
+            </mat-menu>
+          }
+        </div>
       } @empty {
         <p class="empty">This folder is empty.</p>
       }
@@ -70,7 +96,15 @@ import { CatalogNodeDto, PageResponse } from '../../core/api/api-types';
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
       gap: 16px;
     }
+    .node-wrap { position: relative; }
     .node-card { cursor: pointer; text-decoration: none; color: inherit; display: block; }
+    .dir-btn {
+      position: absolute; top: 2px; left: 2px; z-index: 3;
+      width: 32px; height: 32px; line-height: 32px;
+      background: rgba(0, 0, 0, 0.45); color: #fff;
+    }
+    .dir-btn.set { background: rgba(124, 77, 255, 0.9); }
+    .dir-btn mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .cover {
       position: relative;
       aspect-ratio: 2 / 3;
@@ -102,6 +136,16 @@ import { CatalogNodeDto, PageResponse } from '../../core/api/api-types';
 export class LibraryBrowseComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(ApiService);
+  private readonly snackBar = inject(MatSnackBar);
+  readonly auth = inject(AuthService);
+
+  // Per-folder direction override options (1.2.0). null = inherit (clear).
+  readonly directionOptions: { value: ReaderMode | null; label: string }[] = [
+    { value: null, label: 'Inherit' },
+    { value: 'PagedLtr', label: 'Left-to-right' },
+    { value: 'PagedRtl', label: 'Right-to-left' },
+    { value: 'VerticalWebtoon', label: 'Vertical' },
+  ];
 
   readonly libraryId = signal('');
   readonly parentId = signal<string | null>(null);
@@ -137,6 +181,22 @@ export class LibraryBrowseComponent implements OnInit {
   onCoverError(event: Event): void {
     // Hide the broken image so the folder/book icon fallback shows through.
     (event.target as HTMLImageElement).style.display = 'none';
+  }
+
+  /** Set (or clear, when mode is null) a folder's global reading-direction override. */
+  setFolderDirection(node: CatalogNodeDto, mode: ReaderMode | null): void {
+    const call = mode
+      ? this.api.setFolderReaderDefault(node.id, mode)
+      : this.api.clearFolderReaderDefault(node.id);
+    call.subscribe({
+      next: () => {
+        this.nodes.update(list =>
+          list.map(n => n.id === node.id ? { ...n, readerDefault: mode } : n));
+        this.snackBar.open(mode ? 'Folder reading direction set' : 'Folder reading direction cleared',
+          'Close', { duration: 2000 });
+      },
+      error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 4000 }),
+    });
   }
 
   private loadNodes(): void {
