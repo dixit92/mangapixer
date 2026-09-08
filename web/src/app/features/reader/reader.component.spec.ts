@@ -91,6 +91,21 @@ describe('ReaderComponent double-spread pairing', () => {
     c.currentPage.set(3);
     expect(c.currentSpreadEntries().map((e) => e.entryKey)).toEqual(['p3']);
   });
+
+  it('setSpread(false/true) selects double-page view and toggles the offset', () => {
+    const c = create();
+    c.pages.set(makePages(5));
+
+    c.setSpread(false); // no offset: pair from the first page
+    expect(c.view()).toBe('spread');
+    expect(c.coverIsStandalone()).toBe(false);
+    expect(c.spreads()).toEqual([[0, 1], [2, 3], [4]]);
+
+    c.setSpread(true); // offset: cover standalone, then pairs
+    expect(c.view()).toBe('spread');
+    expect(c.coverIsStandalone()).toBe(true);
+    expect(c.spreads()).toEqual([[0], [1, 2], [3, 4]]);
+  });
 });
 
 /**
@@ -120,7 +135,9 @@ describe('ReaderComponent controls rendering', () => {
     return { fixture, c };
   }
 
-  it('hides the bottom prev/next controls in fullscreen (bug fix)', () => {
+  it('keeps the bottom prev/next controls visible in fullscreen (2026-09-08 revision)', () => {
+    // Revised requirement 3: reader chrome no longer hides in fullscreen — the old
+    // behavior was inconsistent (Fullscreen API button hid it, F11 did not).
     const { fixture, c } = renderReady();
     const el: HTMLElement = fixture.nativeElement;
 
@@ -130,7 +147,7 @@ describe('ReaderComponent controls rendering', () => {
 
     c.isFullscreen.set(true);
     fixture.detectChanges();
-    expect(el.querySelector('.reader-controls')).toBeNull();
+    expect(el.querySelector('.reader-controls')).toBeTruthy();
   });
 
   it('applies the selected fit class to the page image', () => {

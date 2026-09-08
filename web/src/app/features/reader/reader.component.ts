@@ -27,9 +27,18 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
  *  2. The prev/next chevron controls never swap position when direction flips —
  *     left is always "previous", right always "next". Direction changes only
  *     which physical page "next" advances to (and edge-tap / arrow-key mapping).
- *  3. The fullscreen / fit / direction / mode controls are hidden in fullscreen.
+ *  3. The reader controls (mode / fit / direction / fullscreen / nav) stay visible
+ *     in fullscreen. (Revised 2026-09-08 per owner feedback: the earlier
+ *     hide-in-fullscreen behavior was inconsistent — the Fullscreen API button
+ *     hid them but browser-native F11 fullscreen did not, since F11 never fires
+ *     `fullscreenchange`. Immersive auto-hide of the chrome on idle is tracked as
+ *     a separate proposal in the UI/UX plan and will supersede this.)
  *  4. Every control carries a tooltip AND an aria-label (tooltip is supplementary
  *     so touch devices are not left without an affordance).
+ *  5. Double-page reading has two modes (2026-09-08): "Double page" pairs from the
+ *     first page (0-1, 2-3…) and "Double page (offset cover)" keeps the cover
+ *     standalone then pairs (1-2, 3-4…). Which a comic needs can't be inferred, so
+ *     it's an explicit reader choice; see `coverIsStandalone` / `setSpread`.
  */
 @Component({
   selector: 'app-reader',
@@ -56,14 +65,15 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
         </span>
         <span class="spacer"></span>
 
-        <!-- Requirement 3: hide these controls in fullscreen -->
-        @if (phase() === 'ready' && !isFullscreen()) {
+        <!-- Requirement 3 (revised 2026-09-08): controls stay visible in fullscreen. -->
+        @if (phase() === 'ready') {
           <button mat-icon-button [matMenuTriggerFor]="modeMenu" matTooltip="Reading mode" aria-label="Reading mode">
             <mat-icon>{{ viewIcon() }}</mat-icon>
           </button>
           <mat-menu #modeMenu="matMenu">
             <button mat-menu-item (click)="setView('paged')"><mat-icon>crop_portrait</mat-icon> Single page</button>
-            <button mat-menu-item (click)="setView('spread')"><mat-icon>import_contacts</mat-icon> Double spread</button>
+            <button mat-menu-item (click)="setSpread(false)"><mat-icon>import_contacts</mat-icon> Double page</button>
+            <button mat-menu-item (click)="setSpread(true)"><mat-icon>auto_stories</mat-icon> Double page (offset cover)</button>
             <button mat-menu-item (click)="setView('webtoon')"><mat-icon>view_day</mat-icon> Vertical (webtoon)</button>
           </mat-menu>
 
@@ -149,17 +159,15 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
         </div>
 
         <!-- Requirement 2: left is ALWAYS previous, right ALWAYS next; no flip.
-             Requirement 3: hidden in fullscreen (navigate via edge-tap / keyboard). -->
-        @if (!isFullscreen()) {
-          <div class="reader-controls">
-            <button mat-fab (click)="prevPage()" [disabled]="atStart()" matTooltip="Previous" aria-label="Previous">
-              <mat-icon>chevron_left</mat-icon>
-            </button>
-            <button mat-fab (click)="nextPage()" [disabled]="atEnd()" matTooltip="Next" aria-label="Next">
-              <mat-icon>chevron_right</mat-icon>
-            </button>
-          </div>
-        }
+             Requirement 3 (revised 2026-09-08): nav stays visible in fullscreen too. -->
+        <div class="reader-controls">
+          <button mat-fab (click)="prevPage()" [disabled]="atStart()" matTooltip="Previous" aria-label="Previous">
+            <mat-icon>chevron_left</mat-icon>
+          </button>
+          <button mat-fab (click)="nextPage()" [disabled]="atEnd()" matTooltip="Next" aria-label="Next">
+            <mat-icon>chevron_right</mat-icon>
+          </button>
+        </div>
       }
     </div>
   `,
@@ -207,9 +215,15 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     img.original   { max-width: none; max-height: none; }
     /* When two pages are paired, each takes at most half the width. */
     .spread-row.paired img, .spread-row img.paired { max-width: 50%; height: auto; }
-    /* Paired + fit-screen: contain within half-width / full-height, still upscaling. */
+    /* Paired + fit-screen: size each page TO ITS CONTENT (height fills, width from
+       aspect, capped at half the viewport) so the two pages pack tight against
+       each other in the centre like an open book. height:100% still upscales a
+       small page; object-fit:contain only kicks in for an unusually wide page,
+       letterboxing it inside its half-cell. NB: a fixed width:50% here would make
+       object-fit centre each page inside an over-wide cell, opening a gutter down
+       the middle — that was the pass-1 double-spread regression. */
     .spread-row.paired img.fit-screen, .spread-row img.paired.fit-screen {
-      width: 50%; max-width: 50%; height: 100%; object-fit: contain;
+      width: auto; height: 100%; max-width: 50%; object-fit: contain;
     }
     /* Webtoon: full-width column, natural vertical scroll. */
     .reader-viewport.webtoon { flex-direction: column; align-items: center; }
@@ -248,11 +262,17 @@ export class ReaderComponent implements OnInit, OnDestroy {
   readonly direction = signal<'ltr' | 'rtl'>('ltr');
   readonly view = signal<ReaderView>('paged');
   readonly isFullscreen = signal(false);
-  readonly coverIsStandalone = signal(true); // first page shown alone in spread view
+  // Double-page pairing phase (the "offset"): when true, page 0 (the cover) is
+  // shown alone and pages pair 1-2, 3-4… (right for a typical standalone cover);
+  // when false, pairing starts at 0-1, 2-3… No reliable way to infer which a
+  // given comic wants, so it's a reader-side toggle (two menu modes). Default on.
+  readonly coverIsStandalone = signal(true);
   readonly webtoonWidthPct = signal<number>(this.loadWebtoonWidth()); // requirement 6
 
   readonly viewIcon = computed(() =>
-    this.view() === 'webtoon' ? 'view_day' : this.view() === 'spread' ? 'import_contacts' : 'crop_portrait');
+    this.view() === 'webtoon' ? 'view_day'
+      : this.view() === 'spread' ? (this.coverIsStandalone() ? 'auto_stories' : 'import_contacts')
+      : 'crop_portrait');
 
   /** The page indices shown together on the current screen (1 for paged, 1–2 for spread). */
   readonly currentSpreadEntries = computed<ManifestPageEntry[]>(() => {
@@ -524,6 +544,17 @@ export class ReaderComponent implements OnInit, OnDestroy {
     if (view === 'webtoon' && !wasWebtoon) {
       queueMicrotask(() => this.scrollWebtoonTo(this.currentPage()));
     }
+  }
+
+  /**
+   * Enter double-page view with a chosen pairing offset. `offset` true keeps the
+   * cover (page 0) standalone then pairs 1-2, 3-4…; false pairs from 0-1, 2-3….
+   * Changing the offset re-derives spreads() (which reads coverIsStandalone), so
+   * the current screen re-pairs in place without a reload.
+   */
+  setSpread(offset: boolean): void {
+    this.coverIsStandalone.set(offset);
+    this.setView('spread');
   }
 
   // --- Webtoon scroll tracking ---
