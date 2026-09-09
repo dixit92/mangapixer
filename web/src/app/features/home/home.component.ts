@@ -8,6 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { ApiService } from '../../core/api/api.service';
+import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { LibraryDto, ContinueReadingEntry } from '../../core/api/api-types';
 
 /**
@@ -18,7 +19,7 @@ import { LibraryDto, ContinueReadingEntry } from '../../core/api/api-types';
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatCardModule, MatIconModule, MatChipsModule, MatButtonModule, MatTooltipModule],
+  imports: [CommonModule, RouterLink, MatCardModule, MatIconModule, MatChipsModule, MatButtonModule, MatTooltipModule, CoverImageDirective],
   template: `
     @if (continueReading().length > 0) {
       <section class="strip-section">
@@ -28,8 +29,7 @@ import { LibraryDto, ContinueReadingEntry } from '../../core/api/api-types';
             <div class="cont-wrap">
               <a class="cont-card" [routerLink]="['/reader', item.itemId]">
                 <div class="cover">
-                  <img [src]="coverUrl(item.itemId)" alt="" loading="lazy"
-                       (error)="onCoverError($event)">
+                  <img appCover [src]="coverUrl(item.itemId)" alt="" loading="lazy">
                   <mat-icon class="cover-fallback">menu_book</mat-icon>
                 </div>
                 <div class="cont-title" [title]="item.displayName">{{ item.displayName }}</div>
@@ -159,11 +159,6 @@ export class HomeComponent implements OnInit {
 
   coverUrl(itemId: string): string {
     return `/api/v1/items/${itemId}/cover`;
-  }
-
-  onCoverError(event: Event): void {
-    // Hide the broken image so the book-icon fallback behind it shows through.
-    (event.target as HTMLImageElement).style.display = 'none';
   }
 
   /** Remove an item from the Continue-reading strip (1.2.0) without marking it read. */

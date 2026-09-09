@@ -11,6 +11,7 @@ import { forkJoin } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
+import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity } from '../../core/api/api-types';
 
 /**
@@ -34,6 +35,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     MatMenuModule,
     MatTooltipModule,
     MatDividerModule,
+    CoverImageDirective,
   ],
   template: `
     <!-- Sticky top bar: breadcrumbs + Select normally; the merged action set while
@@ -115,7 +117,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
              (click)="onCardClick($event, node)">
             <div class="cover">
               @if (node.coverUrl) {
-                <img [src]="node.coverUrl" alt="" loading="lazy" (error)="onCoverError($event)">
+                <img appCover [src]="node.coverUrl" alt="" loading="lazy">
               }
               <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
 
@@ -326,11 +328,6 @@ export class LibraryBrowseComponent implements OnInit {
       return ['/libraries', this.libraryId(), 'browse', node.id];
     }
     return ['/reader', node.id];
-  }
-
-  onCoverError(event: Event): void {
-    // Hide the broken image so the folder/book icon fallback shows through.
-    (event.target as HTMLImageElement).style.display = 'none';
   }
 
   /** Short label for a folder's direction override chip. */
