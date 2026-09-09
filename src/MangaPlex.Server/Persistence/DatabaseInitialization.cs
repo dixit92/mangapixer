@@ -24,7 +24,14 @@ public static class DatabaseInitialization
         {
             DataSource = databasePath,
             Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared,
+            // PRIVATE cache (the default) — NOT shared. WAL mode gives
+            // 1-writer/N-reader concurrency via MVCC snapshots; shared-cache mode
+            // would layer table-level locking on top and make readers fail with
+            // SQLITE_LOCKED ("table is locked") while a scan writes catalog_nodes.
+            // Private cache + WAL + busy_timeout is the correct concurrent config:
+            // reads never block on the writer, and writers serialize with a bounded
+            // wait. (Fixes 30s read timeouts during a library scan.)
+            Cache = SqliteCacheMode.Private,
             DefaultTimeout = 30, // 30-second busy timeout (bounded)
         };
         return builder.ConnectionString;
