@@ -35,6 +35,7 @@ import {
   ResetPasswordResponse,
   ScanRunDto,
   ScanTriggeredDto,
+  ThumbnailRegenerateResponse,
   SearchResultsDto,
   SetupRequest,
   SetupStatusDto,
@@ -271,6 +272,11 @@ export class ApiService {
 
   getScanHistory(libraryId: string): Observable<ScanRunDto[]> {
     return this.get<ScanRunDto[]>(`/admin/libraries/${libraryId}/scans`);
+  }
+
+  /** Enqueue durable thumbnail (re)generation for items lacking a current one (1.2.0). */
+  regenerateThumbnails(libraryId: string): Observable<ThumbnailRegenerateResponse> {
+    return this.post<ThumbnailRegenerateResponse>(`/admin/libraries/${libraryId}/thumbnails/regenerate`, {});
   }
 
   listUsers(): Observable<AdminUserDto[]> {

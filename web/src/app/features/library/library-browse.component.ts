@@ -43,17 +43,17 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
          folder (touch-friendly — requirement 3). -->
     <div class="browse-bar" [class.selecting]="selectMode()">
       @if (!selectMode()) {
-        @if (breadcrumbs().length > 0) {
-          <div class="breadcrumbs">
-            <a routerLink="/libraries/{{ libraryId() }}">Root</a>
+        <div class="breadcrumbs">
+          @if (breadcrumbs().length > 0) {
+            <a routerLink="/libraries/{{ libraryId() }}">{{ libraryName() || 'Library' }}</a>
             @for (crumb of breadcrumbs(); track crumb.id) {
-              <span> / </span>
+              <span class="sep"> / </span>
               <a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a>
             }
-          </div>
-        } @else {
-          <span class="breadcrumbs muted">Root</span>
-        }
+          } @else {
+            <span class="current">{{ libraryName() || 'Library' }}</span>
+          }
+        </div>
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
                 matTooltip="Change how the library is displayed" aria-label="View options">
           <mat-icon>{{ viewIcon() }}</mat-icon> View
@@ -266,6 +266,7 @@ export class LibraryBrowseComponent implements OnInit {
   ];
 
   readonly libraryId = signal('');
+  readonly libraryName = signal('');
   readonly parentId = signal<string | null>(null);
   readonly nodes = signal<CatalogNodeDto[]>([]);
   readonly breadcrumbs = signal<{ id: string; displayName: string }[]>([]);
@@ -313,9 +314,18 @@ export class LibraryBrowseComponent implements OnInit {
       this.cursor = null;
       this.nodes.set([]);
       this.clearSelection();
+      this.loadLibraryName(libId);
       this.loadNodes();
       if (parentId) this.loadBreadcrumbs(parentId);
       else this.breadcrumbs.set([]);
+    });
+  }
+
+  /** Resolve the library's display name for the breadcrumb root (reader-accessible). */
+  private loadLibraryName(libId: string): void {
+    this.api.getLibraries().subscribe({
+      next: (libs) => this.libraryName.set(libs.find((l) => l.id === libId)?.name ?? ''),
+      error: () => { /* fall back to "Library" in the template */ },
     });
   }
 

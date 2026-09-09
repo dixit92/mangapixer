@@ -79,7 +79,7 @@ import {
                   }
                 </div>
                 <span matListItemMeta class="lib-meta">
-                  <mat-form-field appearance="outline" class="dir-select"
+                  <mat-form-field appearance="fill" class="dir-select"
                                   floatLabel="always" subscriptSizing="dynamic">
                     <mat-label>Direction</mat-label>
                     <mat-select [value]="lib.defaultReaderMode"
@@ -89,6 +89,11 @@ import {
                       }
                     </mat-select>
                   </mat-form-field>
+                  <button mat-icon-button type="button" (click)="regenerateThumbnails(lib)"
+                          [disabled]="thumbBusy().has(lib.id)"
+                          matTooltip="Regenerate thumbnails" aria-label="Regenerate thumbnails">
+                    <mat-icon>{{ thumbBusy().has(lib.id) ? 'hourglass_empty' : 'image' }}</mat-icon>
+                  </button>
                   @if (yacDetected(lib.id)?.detected) {
                     <button mat-icon-button type="button" (click)="openYacImport(lib)"
                             matTooltip="Import YACReader reading progress"
@@ -308,7 +313,7 @@ import {
       </mat-card-header>
       <mat-card-content>
         <div class="log-level-control">
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="fill">
             <mat-label>Log Level</mat-label>
             <mat-select [(ngModel)]="logLevel" (selectionChange)="setLogLevel()">
               @for (level of logLevels; track level) {
@@ -429,6 +434,9 @@ export class AdminComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly snackBar = inject(MatSnackBar);
 
+  // Thumbnail regeneration (1.2.0): per-library in-flight guard.
+  readonly thumbBusy = signal<Set<string>>(new Set());
+
   // YACReader import (1.2.0): per-library detection + a small inline import panel.
   readonly yacDetect = signal<Map<string, YacReaderDetectDto>>(new Map());
   readonly yacPanelLibId = signal<string | null>(null);
@@ -514,6 +522,31 @@ export class AdminComponent implements OnInit, OnDestroy {
         this.syncPolling();
       },
       error: () => this.loadingLibs.set(false),
+    });
+  }
+
+  // --- Thumbnail regeneration (1.2.0) ---
+
+  /**
+   * Enqueues durable thumbnail (re)generation for every item in a library that
+   * lacks a current thumbnail. Runs in the background on the server; returns the
+   * queued count immediately.
+   */
+  regenerateThumbnails(lib: LibraryDto): void {
+    this.thumbBusy.update((s) => new Set(s).add(lib.id));
+    this.api.regenerateThumbnails(lib.id).subscribe({
+      next: (r) => {
+        this.thumbBusy.update((s) => { const n = new Set(s); n.delete(lib.id); return n; });
+        this.snackBar.open(
+          r.queuedCount > 0
+            ? `Generating ${r.queuedCount} thumbnail(s) in the background…`
+            : 'All thumbnails are already up to date.',
+          'Close', { duration: 4000 });
+      },
+      error: (err) => {
+        this.thumbBusy.update((s) => { const n = new Set(s); n.delete(lib.id); return n; });
+        this.snackBar.open(`Thumbnail regenerate failed: ${err.message}`, 'Close', { duration: 5000 });
+      },
     });
   }
 

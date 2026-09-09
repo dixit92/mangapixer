@@ -4,7 +4,6 @@ import { RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { ApiService } from '../../core/api/api.service';
@@ -19,7 +18,7 @@ import { LibraryDto, ContinueReadingEntry } from '../../core/api/api-types';
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatCardModule, MatIconModule, MatChipsModule, MatButtonModule, MatTooltipModule, CoverImageDirective],
+  imports: [CommonModule, RouterLink, MatCardModule, MatIconModule, MatChipsModule, MatTooltipModule, CoverImageDirective],
   template: `
     @if (continueReading().length > 0) {
       <section class="strip-section">
@@ -35,7 +34,7 @@ import { LibraryDto, ContinueReadingEntry } from '../../core/api/api-types';
                 <div class="cont-title" [title]="item.displayName">{{ item.displayName }}</div>
                 <div class="cont-page">Page {{ item.pageIndex + 1 }}</div>
               </a>
-              <button class="dismiss" mat-icon-button
+              <button type="button" class="dismiss"
                       matTooltip="Remove from Continue reading"
                       aria-label="Remove from Continue reading"
                       (click)="dismiss($event, item)">
@@ -91,13 +90,17 @@ import { LibraryDto, ContinueReadingEntry } from '../../core/api/api-types';
       text-decoration: none;
       color: inherit;
     }
-    /* Dismiss (×): always visible (touch-friendly), subtle until hover. */
+    /* Dismiss (×): a plain circular button (not mat-icon-button, whose 40px MDC
+       internals overflowed the small corner target). Always visible for touch,
+       subtle until hover. */
     .dismiss {
       position: absolute; top: 4px; right: 4px; z-index: 3;
-      width: 28px; height: 28px; line-height: 28px;
-      background: rgba(0, 0, 0, 0.55); color: #fff; opacity: 0.75;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 26px; height: 26px; padding: 0; border: none; border-radius: 50%;
+      background: rgba(0, 0, 0, 0.6); color: #fff; opacity: 0.8; cursor: pointer;
+      transition: opacity .12s ease, background .12s ease;
     }
-    .dismiss:hover, .dismiss:focus-visible { opacity: 1; background: rgba(0, 0, 0, 0.75); }
+    .dismiss:hover, .dismiss:focus-visible { opacity: 1; background: rgba(0, 0, 0, 0.82); outline: none; }
     .dismiss mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .cover {
       position: relative;

@@ -133,6 +133,11 @@ export interface ReadMarkDto {
   isRead: boolean;
 }
 
+/** Response when durable thumbnail regeneration is enqueued for a library (1.2.0). */
+export interface ThumbnailRegenerateResponse {
+  queuedCount: number;
+}
+
 /** Known library view modes (1.2.0). Tolerant: unknown values fall back to 'grid'. */
 export type LibraryViewMode = 'grid' | 'list' | 'poster';
 export type LibraryGridDensity = 'comfortable' | 'compact';
