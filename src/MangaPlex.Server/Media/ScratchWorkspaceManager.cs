@@ -19,6 +19,7 @@ public sealed class ScratchWorkspaceManager
     private readonly string _scratchRoot;
     private readonly long _scratchBudgetBytes;
     private readonly string _ownershipMarker;
+    private readonly ILogger<ScratchWorkspaceManager>? _logger;
 
     /// <summary>
     /// The ownership marker file name placed in each workspace to identify
@@ -27,12 +28,13 @@ public sealed class ScratchWorkspaceManager
     /// </summary>
     public const string OwnershipMarkerFileName = ".mangaplex-scratch";
 
-    public ScratchWorkspaceManager(string scratchRoot, long scratchBudgetBytes = 2L * 1024 * 1024 * 1024)
+    public ScratchWorkspaceManager(string scratchRoot, long scratchBudgetBytes = 2L * 1024 * 1024 * 1024, ILogger<ScratchWorkspaceManager>? logger = null)
     {
         _scratchRoot = Path.GetFullPath(scratchRoot)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         _scratchBudgetBytes = scratchBudgetBytes;
         _ownershipMarker = Path.Combine(_scratchRoot, ".mangaplex-root");
+        _logger = logger;
     }
 
     /// <summary>
@@ -65,6 +67,9 @@ public sealed class ScratchWorkspaceManager
         var markerPath = Path.Combine(workspacePath, OwnershipMarkerFileName);
         File.WriteAllText(markerPath,
             $"MangaPlex scratch workspace\nId: {id}\nCreated: {DateTimeOffset.UtcNow:O}\n");
+
+        _logger?.LogDebug("Scratch workspace {WorkspaceId} allocated (usage {Usage} of {Budget} bytes)",
+            id, GetCurrentUsageBytes(), _scratchBudgetBytes);
 
         return new ScratchWorkspace
         {
@@ -100,17 +105,21 @@ public sealed class ScratchWorkspaceManager
     public void CleanupWorkspace(string workspacePath)
     {
         if (!IsOwnedWorkspace(workspacePath))
+        {
+            _logger?.LogDebug("Scratch cleanup skipped: path is not an owned workspace");
             return;
+        }
 
         try
         {
             if (Directory.Exists(workspacePath))
                 Directory.Delete(workspacePath, recursive: true);
         }
-        catch
+        catch (Exception ex)
         {
             // Failed cleanup counts against scratch budget.
             // It will be retried during crash recovery.
+            _logger?.LogWarning(ex, "Scratch workspace cleanup failed (will retry during recovery): {Error}", ex.GetType().Name);
         }
     }
 
@@ -146,12 +155,14 @@ public sealed class ScratchWorkspaceManager
                 Directory.Delete(dir, recursive: true);
                 cleaned++;
             }
-            catch
+            catch (Exception ex)
             {
                 // Failed cleanup — will be retried next recovery cycle
+                _logger?.LogWarning(ex, "Scratch recovery cleanup failed for one workspace: {Error}", ex.GetType().Name);
             }
         }
 
+        _logger?.LogDebug("Scratch recovery pass complete: {Cleaned} workspace(s) removed", cleaned);
         return cleaned;
     }
 

@@ -46,6 +46,7 @@ public sealed class BackupService
         {
             // Use VACUUM INTO for a consistent online backup
             // This creates a new database file with all data, without blocking
+            _logger?.LogDebug("Database backup starting (VACUUM INTO)");
             var escapedPath = backupPath.Replace("'", "''");
             var sql = $"VACUUM INTO '{escapedPath}';";
 
@@ -53,14 +54,19 @@ public sealed class BackupService
 
             // Verify the backup
             if (!await VerifyBackupAsync(backupPath, ct))
+            {
+                _logger?.LogError("Database backup failed verification");
                 return BackupResult.Failed("Backup verification failed.");
+            }
 
-            _logger?.LogInformation("Database backup completed to {Path}", backupPath);
+            // Outcome + size only — never the backup path (privacy invariant)
+            var sizeBytes = new FileInfo(backupPath).Length;
+            _logger?.LogInformation("Database backup completed ({SizeBytes} bytes)", sizeBytes);
             return BackupResult.Success(backupPath);
         }
         catch (Exception ex)
         {
-            _logger?.LogError("Backup failed: {Error}", ex.GetType().Name);
+            _logger?.LogError(ex, "Backup failed: {Error}", ex.GetType().Name);
             return BackupResult.Failed(ex.Message);
         }
     }
@@ -115,7 +121,10 @@ public sealed class BackupService
         {
             // Verify the backup first
             if (!await VerifyBackupAsync(backupPath, ct))
+            {
+                _logger?.LogError("Restore aborted: backup failed verification");
                 return RestoreResult.Failed("Backup verification failed.");
+            }
 
             // Copy backup to target
             var dir = Path.GetDirectoryName(targetPath);
@@ -130,12 +139,14 @@ public sealed class BackupService
                 File.Delete(targetPath);
             File.Move(tempPath, targetPath);
 
-            _logger?.LogInformation("Database restored from {Backup} to {Target}", backupPath, targetPath);
+            // Outcome + size only — never the backup/target paths (privacy invariant)
+            var sizeBytes = new FileInfo(targetPath).Length;
+            _logger?.LogWarning("Database restored from backup ({SizeBytes} bytes); all sessions must be invalidated", sizeBytes);
             return RestoreResult.Success(targetPath);
         }
         catch (Exception ex)
         {
-            _logger?.LogError("Restore failed: {Error}", ex.GetType().Name);
+            _logger?.LogError(ex, "Restore failed: {Error}", ex.GetType().Name);
             return RestoreResult.Failed(ex.Message);
         }
     }

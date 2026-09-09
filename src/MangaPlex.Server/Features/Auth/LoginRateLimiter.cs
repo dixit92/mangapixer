@@ -12,10 +12,12 @@ public sealed class LoginRateLimiter
     private readonly ConcurrentDictionary<string, RateEntry> _ipAttempts = new();
     private readonly ConcurrentDictionary<string, RateEntry> _userAttempts = new();
     private readonly LoginRateLimitOptions _options;
+    private readonly ILogger<LoginRateLimiter>? _logger;
 
-    public LoginRateLimiter(LoginRateLimitOptions? options = null)
+    public LoginRateLimiter(LoginRateLimitOptions? options = null, ILogger<LoginRateLimiter>? logger = null)
     {
         _options = options ?? new LoginRateLimitOptions();
+        _logger = logger;
     }
 
     /// <summary>
@@ -30,10 +32,22 @@ public sealed class LoginRateLimiter
         var now = DateTimeOffset.UtcNow;
 
         if (!IsAllowed(_ipAttempts, $"ip:{ipAddress}", now, _options.MaxAttemptsPerIp, _options.Window))
+        {
+            // Security-relevant event. Never log the IP address (privacy
+            // invariant) — the trigger kind and retry window are enough.
+            _logger?.LogWarning(
+                "Login rate-limited by {Trigger} limit for user {UserName}; retry window {RetryAfter}s",
+                "ip", username, GetRetryAfter(ipAddress, username)?.TotalSeconds);
             return false;
+        }
 
         if (!IsAllowed(_userAttempts, $"user:{username.ToLowerInvariant()}", now, _options.MaxAttemptsPerUser, _options.Window))
+        {
+            _logger?.LogWarning(
+                "Login rate-limited by {Trigger} limit for user {UserName}; retry window {RetryAfter}s",
+                "username", username, GetRetryAfter(ipAddress, username)?.TotalSeconds);
             return false;
+        }
 
         return true;
     }

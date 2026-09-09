@@ -19,9 +19,10 @@ public static class MediaServicesExtensions
 
         services.AddSingleton(options);
         services.AddSingleton<ScratchWorkspaceManager>(sp =>
-            new ScratchWorkspaceManager(options.ScratchRoot, options.ScratchBudgetBytes));
+            new ScratchWorkspaceManager(options.ScratchRoot, options.ScratchBudgetBytes,
+                sp.GetService<ILogger<ScratchWorkspaceManager>>()));
         services.AddSingleton<JobScheduler>(sp =>
-            new JobScheduler(options));
+            new JobScheduler(options, sp.GetService<ILogger<JobScheduler>>()));
         services.AddSingleton<CacheService>(sp =>
             new CacheService(options.CacheRoot, options.CacheBudgetBytes,
                 sp.GetService<ILogger<CacheService>>()));

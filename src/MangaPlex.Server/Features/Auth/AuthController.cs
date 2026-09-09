@@ -120,6 +120,8 @@ public sealed class AuthController : ControllerBase
         if (!_rateLimiter.AllowAttempt(ipAddress, request.Username))
         {
             var retryAfter = _rateLimiter.GetRetryAfter(ipAddress, request.Username);
+            _logger.LogWarning("Login rejected with 429 for user {UserName}; retry after {RetryAfter}s",
+                request.Username, (int?)retryAfter?.TotalSeconds ?? 60);
             Response.Headers["Retry-After"] = ((int?)retryAfter?.TotalSeconds ?? 60).ToString();
             return StatusCode(429, new ApiError { Error = "rate_limited", Message = "Too many login attempts. Please try again later." });
         }
@@ -144,7 +146,10 @@ public sealed class AuthController : ControllerBase
         {
             _rateLimiter.RecordFailure(ipAddress, request.Username);
             if (result.IsLockedOut)
+            {
+                _logger.LogWarning("Account {UserName} locked out after repeated failed logins", request.Username);
                 return StatusCode(429, new ApiError { Error = "locked_out", Message = "Account is temporarily locked due to too many failed attempts." });
+            }
             return Unauthorized(new ApiError { Error = "invalid_credentials", Message = "Invalid username or password." });
         }
 

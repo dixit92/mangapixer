@@ -19,10 +19,12 @@ public sealed class JobScheduler
     private readonly ConcurrentDictionary<string, InFlightJob> _inFlightJobs = new();
     private readonly object _dispatchLock = new();
     private readonly WorkerPoolOptions _options;
+    private readonly ILogger<JobScheduler>? _logger;
 
-    public JobScheduler(WorkerPoolOptions options)
+    public JobScheduler(WorkerPoolOptions options, ILogger<JobScheduler>? logger = null)
     {
         _options = options;
+        _logger = logger;
     }
 
     /// <summary>
@@ -45,6 +47,8 @@ public sealed class JobScheduler
         if (_inFlightJobs.TryGetValue(dedupKey, out var inFlight))
         {
             // Attach caller to existing job — don't cancel shared work
+            _logger?.LogDebug("Job {JobId} (item {ItemId}) deduplicated onto in-flight job (operation {Operation})",
+                inFlight.JobId, itemId, operation);
             return AttachToInFlightJob(inFlight, callerToken);
         }
 
@@ -53,7 +57,11 @@ public sealed class JobScheduler
         {
             // Upgrade priority if the new request has higher priority
             if (priority > pending.Priority)
+            {
+                _logger?.LogDebug("Job {JobId} (item {ItemId}) priority upgraded {Old} -> {New} by concurrent enqueue",
+                    pending.JobId, itemId, pending.Priority, priority);
                 pending.Priority = priority;
+            }
 
             return AttachToPendingJob(pending, callerToken);
         }
@@ -76,9 +84,14 @@ public sealed class JobScheduler
         if (!_pendingJobs.TryAdd(dedupKey, job))
         {
             // Race — another thread added the same key
+            _logger?.LogDebug("Enqueue race on dedup key {DedupKey} (item {ItemId}); retrying attach",
+                dedupKey, itemId);
             return EnqueueAsync(itemId, contentVersion, operation, priority,
                 archivePath, expectedLastWriteTicks, expectedByteLength, callerToken);
         }
+
+        _logger?.LogDebug("Job {JobId} enqueued (item {ItemId}, operation {Operation}, priority {Priority}); pending now {Pending}",
+            job.JobId, itemId, operation, priority, _pendingJobs.Count);
 
         // Attach caller cancellation
         return WaitForJobCompletion(job, callerToken);
@@ -105,6 +118,8 @@ public sealed class JobScheduler
                 return null;
 
             _pendingJobs.TryRemove(best.DedupKey, out _);
+            _logger?.LogDebug("Dequeued job {JobId} (item {ItemId}, priority {Priority}); pending now {Pending}",
+                best.JobId, best.ItemId, best.Priority, _pendingJobs.Count);
             return best;
         }
     }
@@ -122,6 +137,8 @@ public sealed class JobScheduler
             StartedAt = DateTimeOffset.UtcNow,
         };
         _inFlightJobs.TryAdd(job.DedupKey, inFlight);
+        _logger?.LogDebug("Job {JobId} (item {ItemId}) marked in-flight; in-flight now {InFlight}",
+            job.JobId, job.ItemId, _inFlightJobs.Count);
     }
 
     /// <summary>
@@ -131,6 +148,9 @@ public sealed class JobScheduler
     {
         if (_inFlightJobs.TryRemove(dedupKey, out var inFlight))
         {
+            _logger?.LogDebug("Job {JobId} completed in {DurationMs}ms (success={Success}, errorType={ErrorType})",
+                inFlight.JobId, (DateTimeOffset.UtcNow - inFlight.StartedAt).TotalMilliseconds,
+                result.Success, result.ErrorType);
             inFlight.CompletionSource.TrySetResult(result);
         }
     }
@@ -142,6 +162,8 @@ public sealed class JobScheduler
     {
         if (_inFlightJobs.TryRemove(dedupKey, out var inFlight))
         {
+            _logger?.LogWarning(error, "Job {JobId} failed after {DurationMs}ms: {ErrorType}",
+                inFlight.JobId, (DateTimeOffset.UtcNow - inFlight.StartedAt).TotalMilliseconds, error.GetType().Name);
             inFlight.CompletionSource.TrySetException(error);
         }
     }
@@ -160,6 +182,7 @@ public sealed class JobScheduler
         {
             if (_pendingJobs.TryRemove(job.DedupKey, out _))
             {
+                _logger?.LogDebug("Cancelling pending job {JobId} for item {ItemId}", job.JobId, itemId);
                 job.CompletionSource.TrySetCanceled();
             }
         }
