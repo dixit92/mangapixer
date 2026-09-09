@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -13,12 +13,14 @@ import { AuthService } from '../../core/auth/auth.service';
 import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-types';
 
 /**
- * Library browse component. Shows the actual folder/archive tree
- * with keyset pagination, breadcrumbs, and item state indicators.
+ * Library browse component. Shows the actual folder/archive tree with keyset
+ * pagination, breadcrumbs, and item state indicators.
  *
- * Selection mode (1.2.0) lets a reader mark items read/unread in bulk without
- * opening them: archives are marked individually, folders recursively over their
- * descendant archives (the sticky read-flag feature).
+ * Selection mode (1.2.0) is the single home for card actions (owner review
+ * 2026-09-09): tapping cards selects them (mouse or touch — no hover-only
+ * affordances), and a STICKY top bar carries every bulk action applied to the
+ * selection — mark read / unread for everyone, plus set/clear reading direction
+ * for admins (folders only). There is no competing per-card menu.
  */
 @Component({
   selector: 'app-library-browse',
@@ -32,24 +34,51 @@ import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-typ
     MatTooltipModule,
   ],
   template: `
-    <div class="browse-toolbar">
-      @if (breadcrumbs().length > 0) {
-        <div class="breadcrumbs">
-          <a routerLink="/libraries/{{ libraryId() }}">Root</a>
-          @for (crumb of breadcrumbs(); track crumb.id) {
-            <span> / </span>
-            <a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a>
+    <!-- Sticky top bar: breadcrumbs + Select normally; the merged action set while
+         selecting. Sticky so the controls stay reachable when scrolling a long
+         folder (touch-friendly — requirement 3). -->
+    <div class="browse-bar" [class.selecting]="selectMode()">
+      @if (!selectMode()) {
+        @if (breadcrumbs().length > 0) {
+          <div class="breadcrumbs">
+            <a routerLink="/libraries/{{ libraryId() }}">Root</a>
+            @for (crumb of breadcrumbs(); track crumb.id) {
+              <span> / </span>
+              <a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a>
+            }
+          </div>
+        } @else {
+          <span class="breadcrumbs muted">Root</span>
+        }
+        <button mat-stroked-button class="select-toggle" (click)="toggleSelectMode()">
+          <mat-icon>checklist</mat-icon> Select
+        </button>
+      } @else {
+        <span class="count">{{ selected().size }} selected</span>
+        <div class="actions">
+          <button mat-button (click)="bulkMarkRead(true)" [disabled]="busy() || selected().size === 0">
+            <mat-icon>check_circle</mat-icon><span class="lbl">Mark read</span>
+          </button>
+          <button mat-button (click)="bulkMarkRead(false)" [disabled]="busy() || selected().size === 0">
+            <mat-icon>remove_done</mat-icon><span class="lbl">Mark unread</span>
+          </button>
+          @if (auth.isAdmin()) {
+            <button mat-button [matMenuTriggerFor]="dirMenu"
+                    [disabled]="busy() || selectedFolderCount() === 0"
+                    matTooltip="Set reading direction for selected folders">
+              <mat-icon>swap_horiz</mat-icon><span class="lbl">Direction</span>
+            </button>
+            <mat-menu #dirMenu="matMenu">
+              @for (opt of directionOptions; track opt.label) {
+                <button mat-menu-item (click)="bulkSetDirection(opt.value)">{{ opt.label }}</button>
+              }
+            </mat-menu>
           }
         </div>
-      } @else {
-        <span class="breadcrumbs muted">Root</span>
+        <button mat-stroked-button class="done" (click)="toggleSelectMode()">
+          <mat-icon>close</mat-icon> Done
+        </button>
       }
-
-      <button mat-stroked-button class="select-toggle" (click)="toggleSelectMode()"
-              [class.active]="selectMode()">
-        <mat-icon>{{ selectMode() ? 'close' : 'checklist' }}</mat-icon>
-        {{ selectMode() ? 'Done' : 'Select' }}
-      </button>
     </div>
 
     <div class="nodes-grid">
@@ -69,6 +98,14 @@ import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-typ
                 <span class="badge reading">Reading</span>
               }
 
+              <!-- Admin folders show their current direction override as a small,
+                   non-interactive chip (the control now lives in the action bar). -->
+              @if (auth.isAdmin() && node.kind === 'Folder' && node.readerDefault) {
+                <span class="badge dir" matTooltip="Reading direction override">
+                  {{ directionShort(node.readerDefault) }}
+                </span>
+              }
+
               @if (selectMode()) {
                 <span class="check" [class.on]="isSelected(node)">
                   <mat-icon>{{ isSelected(node) ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
@@ -82,24 +119,6 @@ import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-typ
               @if (node.availability !== 'Available') { · {{ node.availability }} }
             </div>
           </a>
-
-          <!-- Admin-only per-folder reading-direction override (1.2.0). -->
-          @if (auth.isAdmin() && node.kind === 'Folder' && !selectMode()) {
-            <button class="dir-btn" mat-icon-button [matMenuTriggerFor]="dirMenu"
-                    (click)="$event.stopPropagation(); $event.preventDefault()"
-                    [class.set]="node.readerDefault !== null"
-                    matTooltip="Default reading direction" aria-label="Default reading direction">
-              <mat-icon>{{ node.readerDefault ? 'swap_horiz' : 'more_vert' }}</mat-icon>
-            </button>
-            <mat-menu #dirMenu="matMenu">
-              @for (opt of directionOptions; track opt.label) {
-                <button mat-menu-item (click)="setFolderDirection(node, opt.value)">
-                  <mat-icon>{{ (node.readerDefault ?? null) === opt.value ? 'check' : '' }}</mat-icon>
-                  {{ opt.label }}
-                </button>
-              }
-            </mat-menu>
-          }
         </div>
       } @empty {
         <p class="empty">This folder is empty.</p>
@@ -111,29 +130,26 @@ import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-typ
         <button mat-raised-button (click)="loadMore()">Load More</button>
       </div>
     }
-
-    <!-- Selection action bar (1.2.0). -->
-    @if (selectMode() && selected().size > 0) {
-      <div class="action-bar">
-        <span class="count">{{ selected().size }} selected</span>
-        <button mat-button (click)="bulkMarkRead(true)" [disabled]="busy()">
-          <mat-icon>check_circle</mat-icon> Mark read
-        </button>
-        <button mat-button (click)="bulkMarkRead(false)" [disabled]="busy()">
-          <mat-icon>remove_done</mat-icon> Mark unread
-        </button>
-        <button mat-button (click)="clearSelection()" [disabled]="busy()">Clear</button>
-      </div>
-    }
   `,
   styles: [`
-    .browse-toolbar {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 12px; margin-bottom: 16px;
+    .browse-bar {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 16px; padding: 10px 12px;
+      background: #14141c; border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
     }
-    .breadcrumbs { a { text-decoration: none; color: #1976d2; } }
+    .browse-bar.selecting { background: #1c1730; border-color: rgba(124,77,255,0.5); }
+    .breadcrumbs {
+      flex: 1 1 auto; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .breadcrumbs a { text-decoration: none; color: #b39dff; }
     .breadcrumbs.muted { color: #999; }
-    .select-toggle.active { background: rgba(124, 77, 255, 0.15); }
+    .count { font-weight: 600; }
+    .actions { flex: 1 1 auto; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .actions mat-icon { margin-right: 4px; }
+    .select-toggle mat-icon, .done mat-icon { margin-right: 4px; }
     .nodes-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -142,13 +158,6 @@ import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-typ
     .node-wrap { position: relative; border-radius: 8px; }
     .node-wrap.selected { outline: 2px solid #7c4dff; outline-offset: 3px; }
     .node-card { cursor: pointer; text-decoration: none; color: inherit; display: block; }
-    .dir-btn {
-      position: absolute; top: 2px; left: 2px; z-index: 3;
-      width: 32px; height: 32px; line-height: 32px;
-      background: rgba(0, 0, 0, 0.45); color: #fff;
-    }
-    .dir-btn.set { background: rgba(124, 77, 255, 0.9); }
-    .dir-btn mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .cover {
       position: relative;
       aspect-ratio: 2 / 3;
@@ -168,6 +177,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-typ
       background: rgba(124, 77, 255, 0.9); color: #fff;
     }
     .badge.read { background: rgba(76, 175, 80, 0.95); }
+    .badge.dir { top: auto; bottom: 6px; right: 6px; background: rgba(0,0,0,0.65); }
     .check {
       position: absolute; top: 6px; left: 6px; z-index: 3;
       color: #fff; line-height: 0;
@@ -182,15 +192,13 @@ import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-typ
     .node-sub { font-size: 12px; color: #999; }
     .empty { color: #999; padding: 32px; text-align: center; }
     .load-more { text-align: center; margin-top: 16px; }
-    .action-bar {
-      position: sticky; bottom: 16px; z-index: 10;
-      display: flex; align-items: center; gap: 8px;
-      margin-top: 16px; padding: 8px 16px;
-      background: #2a2a2a; color: #fff;
-      border-radius: 24px; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-      width: fit-content; margin-left: auto; margin-right: auto;
+
+    /* Touch / small screens: keep the action bar compact by dropping button labels
+       (icons remain, so the controls stay usable) — requirement 1 (dual input). */
+    @media (max-width: 560px) {
+      .actions .lbl { display: none; }
+      .actions mat-icon { margin-right: 0; }
     }
-    .action-bar .count { font-weight: 600; margin-right: 8px; }
   `],
 })
 export class LibraryBrowseComponent implements OnInit {
@@ -201,7 +209,7 @@ export class LibraryBrowseComponent implements OnInit {
 
   // Per-folder direction override options (1.2.0). null = inherit (clear).
   readonly directionOptions: { value: ReaderMode | null; label: string }[] = [
-    { value: null, label: 'Inherit' },
+    { value: null, label: 'Inherit (clear)' },
     { value: 'PagedLtr', label: 'Left-to-right' },
     { value: 'PagedRtl', label: 'Right-to-left' },
     { value: 'VerticalWebtoon', label: 'Vertical' },
@@ -214,10 +222,16 @@ export class LibraryBrowseComponent implements OnInit {
   readonly hasMore = signal(false);
   private cursor: string | null = null;
 
-  // Selection mode (1.2.0 read-marks).
+  // Selection mode (1.2.0 read-marks + merged card actions).
   readonly selectMode = signal(false);
   readonly selected = signal<Set<string>>(new Set());
   readonly busy = signal(false);
+
+  /** How many currently-selected nodes are folders (gates the Direction action). */
+  readonly selectedFolderCount = computed(() => {
+    const ids = this.selected();
+    return this.nodes().filter((n) => ids.has(n.id) && n.kind === 'Folder').length;
+  });
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
@@ -250,6 +264,16 @@ export class LibraryBrowseComponent implements OnInit {
     (event.target as HTMLImageElement).style.display = 'none';
   }
 
+  /** Short label for a folder's direction override chip. */
+  directionShort(mode: ReaderMode): string {
+    switch (mode) {
+      case 'PagedLtr': return 'LTR';
+      case 'PagedRtl': return 'RTL';
+      case 'VerticalWebtoon': return 'Vertical';
+      default: return 'Spread';
+    }
+  }
+
   // --- Selection mode (1.2.0) ---
 
   toggleSelectMode(): void {
@@ -261,7 +285,7 @@ export class LibraryBrowseComponent implements OnInit {
     return this.selected().has(node.id);
   }
 
-  /** In select mode, a card click toggles selection instead of navigating. */
+  /** In select mode, a card tap toggles selection instead of navigating. */
   onCardClick(event: Event, node: CatalogNodeDto): void {
     if (!this.selectMode()) return;
     event.preventDefault();
@@ -279,15 +303,14 @@ export class LibraryBrowseComponent implements OnInit {
   }
 
   /**
-   * Applies the sticky read-mark to every selected node: archives individually,
-   * folders recursively over their descendant archives. Currently-visible archives
-   * update their badge; folder effects (on items inside them) are reported by count.
+   * Sticky read-mark over the selection: archives individually, folders recursively
+   * over their descendant archives. Visible archive badges update; folder effects
+   * (on items inside them) are reported by count. Selection is kept so more actions
+   * can be applied to the same set.
    */
   bulkMarkRead(read: boolean): void {
     const ids = this.selected();
     const chosen = this.nodes().filter((n) => ids.has(n.id));
-    if (chosen.length === 0) return;
-
     const archives = chosen.filter((n) => n.kind === 'Archive');
     const folders = chosen.filter((n) => n.kind === 'Folder');
 
@@ -300,7 +323,6 @@ export class LibraryBrowseComponent implements OnInit {
     this.busy.set(true);
     forkJoin(calls).subscribe({
       next: () => {
-        // Reflect the new state on visible archive cards.
         const archiveIds = new Set(archives.map((a) => a.id));
         this.nodes.update((list) =>
           list.map((n) => (archiveIds.has(n.id) ? { ...n, isRead: read } : n)));
@@ -312,7 +334,6 @@ export class LibraryBrowseComponent implements OnInit {
           `Marked ${read ? 'read' : 'unread'}: ${archives.length} item${archives.length === 1 ? '' : 's'}${folderNote}`,
           'Close', { duration: 2500 });
         this.busy.set(false);
-        this.clearSelection();
       },
       error: (err) => {
         this.busy.set(false);
@@ -321,19 +342,34 @@ export class LibraryBrowseComponent implements OnInit {
     });
   }
 
-  /** Set (or clear, when mode is null) a folder's global reading-direction override. */
-  setFolderDirection(node: CatalogNodeDto, mode: ReaderMode | null): void {
-    const call = mode
-      ? this.api.setFolderReaderDefault(node.id, mode)
-      : this.api.clearFolderReaderDefault(node.id);
-    call.subscribe({
+  /**
+   * Admin-only: set (or clear, when mode is null) the global reading-direction
+   * override on every selected folder. Archives in the selection are ignored.
+   */
+  bulkSetDirection(mode: ReaderMode | null): void {
+    const ids = this.selected();
+    const folders = this.nodes().filter((n) => ids.has(n.id) && n.kind === 'Folder');
+    if (folders.length === 0) return;
+
+    const calls = folders.map((f) =>
+      mode ? this.api.setFolderReaderDefault(f.id, mode) : this.api.clearFolderReaderDefault(f.id));
+
+    this.busy.set(true);
+    forkJoin(calls).subscribe({
       next: () => {
-        this.nodes.update(list =>
-          list.map(n => n.id === node.id ? { ...n, readerDefault: mode } : n));
-        this.snackBar.open(mode ? 'Folder reading direction set' : 'Folder reading direction cleared',
-          'Close', { duration: 2000 });
+        const fids = new Set(folders.map((f) => f.id));
+        this.nodes.update((list) =>
+          list.map((n) => (fids.has(n.id) ? { ...n, readerDefault: mode } : n)));
+        const label = this.directionOptions.find((o) => o.value === mode)?.label ?? 'updated';
+        this.snackBar.open(
+          `Reading direction (${label}) on ${folders.length} folder${folders.length === 1 ? '' : 's'}`,
+          'Close', { duration: 2500 });
+        this.busy.set(false);
       },
-      error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 4000 }),
+      error: (err) => {
+        this.busy.set(false);
+        this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 4000 });
+      },
     });
   }
 
