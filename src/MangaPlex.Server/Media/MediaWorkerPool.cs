@@ -461,6 +461,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         // Allocate scratch workspace
         using var workspace = _scratchManager.AllocateWorkspace();
 
+        JobResult finalResult;
         try
         {
             // Build the analyze request
@@ -549,7 +550,6 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 
             slot.Supervisor.OnMessageReceived -= HandleMessage;
 
-            JobResult finalResult;
             if (completedTask == timeoutTask)
             {
                 // Timeout — cancel the job
@@ -580,29 +580,53 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                 _scheduler.CompleteJob(job.DedupKey, finalResult);
             }
 
-            // Persist the result for EVERY job (background and reader-demand), so a
-            // scanned library's covers/manifests populate without opening each item.
             RecordJobOutcome(finalResult.Success);
-            await PersistResultAsync(job.ItemId, finalResult);
         }
         catch (Exception ex)
         {
             _logger?.LogWarning(LogEvents.Worker.JobProcessingFailed, ex, "Job {JobId} (item {ItemId}) failed during processing", job.JobId, job.ItemId);
             _scheduler.FailJob(job.DedupKey, ex);
             RecordJobOutcome(success: false);
-            await PersistResultAsync(job.ItemId, new JobResult
+            finalResult = new JobResult
             {
                 JobId = job.JobId,
                 Success = false,
                 ErrorType = ex.GetType().Name,
                 ErrorMessage = ex.Message,
                 Result = null,
-            });
+            };
         }
         finally
         {
             slot.IsBusy = false;
             // Scratch workspace is cleaned up by the using statement
+        }
+
+        // Persist the result for EVERY job (background and reader-demand), so a
+        // scanned library's covers/manifests populate without opening each item.
+        // This runs AFTER the slot is released so that thumbnail generation (which
+        // calls ExtractPageAsync and acquires its own slot) does not deadlock when
+        // the pool is at capacity.
+        await PersistResultAsync(job.ItemId, finalResult);
+
+        // Generate the durable cover thumbnail for successful analyses. The
+        // thumbnail is the first page, downscaled to WebP by the worker and
+        // persisted into the durable ThumbnailStore (not the evictable cache).
+        // Resolved lazily from the scope factory to avoid a circular DI
+        // dependency (ThumbnailGenerationService depends on this pool).
+        if (finalResult.Success && _scopeFactory is not null)
+        {
+            try
+            {
+                using var thumbScope = _scopeFactory.CreateScope();
+                var thumbService = thumbScope.ServiceProvider.GetService<ThumbnailGenerationService>();
+                if (thumbService is not null)
+                    await thumbService.GenerateForItemAsync(job.ItemId, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(LogEvents.Worker.ThumbnailGenerationFailed, ex, "Post-analysis thumbnail generation failed (item {ItemId}): {Error}", job.ItemId, ex.GetType().Name);
+            }
         }
     }
 

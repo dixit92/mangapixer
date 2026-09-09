@@ -61,6 +61,13 @@ public sealed class MangaPlexWebApplicationFactory : WebApplicationFactory<Progr
                 d => d.ImplementationType == typeof(MediaWorkerHostedService));
             if (workerHostedDescriptor is not null)
                 services.Remove(workerHostedDescriptor);
+
+            // Remove the thumbnail backfill hosted service — it depends on a
+            // running worker pool and would log warnings in the test environment.
+            var thumbBackfillDescriptor = services.FirstOrDefault(
+                d => d.ImplementationType == typeof(ThumbnailBackfillHostedService));
+            if (thumbBackfillDescriptor is not null)
+                services.Remove(thumbBackfillDescriptor);
         });
     }
 

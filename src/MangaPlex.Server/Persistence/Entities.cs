@@ -173,6 +173,20 @@ public sealed class ArchiveItemEntity
 
     public DateTimeOffset? LastAnalyzedAt { get; set; }
 
+    /// <summary>
+    /// Durable thumbnail state (1.2.0). 0 = none, 1 = ready, 2 = failed.
+    /// Thumbnails live in the persistent <c>DataRoot/thumbnails</c> store —
+    /// never the evictable page cache (<c>CacheRoot</c>).
+    /// </summary>
+    public int ThumbnailState { get; set; }
+
+    /// <summary>
+    /// Content version the durable thumbnail was generated from. A source
+    /// change (new content version) invalidates the old thumbnail so the
+    /// next generation pass produces a fresh one.
+    /// </summary>
+    public long? ThumbnailContentVersion { get; set; }
+
     public CatalogNodeEntity? Node { get; set; }
     public ICollection<PageEntryEntity> Pages { get; set; } = [];
 }

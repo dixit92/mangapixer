@@ -414,6 +414,16 @@ public sealed record ScanTriggeredDto
 }
 
 /// <summary>
+/// Response when durable thumbnail regeneration is enqueued for a library.
+/// Generation runs in the background; <see cref="QueuedCount"/> is the number
+/// of items that lacked a current thumbnail.
+/// </summary>
+public sealed record ThumbnailRegenerateResponse
+{
+    public required int QueuedCount { get; init; }
+}
+
+/// <summary>
 /// DTO for a scan run status.
 /// </summary>
 public sealed record ScanRunDto
