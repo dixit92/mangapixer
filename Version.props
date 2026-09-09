@@ -14,14 +14,17 @@
          or contract changes, so MINOR per SemVer 2.0.0.
          (1.0.0 was the first stable MVP release; the 0.1.0-dev.N line dev.0…dev.41 was
          the pre-1.0 development series.) -->
-    <!-- 1.2.0-dev.N — in-development on branch dev/1.2.0: library-side features
-         (read-marks, continue-reading management, per-library/folder direction, view
-         modes) plus auto-advance-to-previous-chapter and rotating DB backups. Drop
-         the prerelease tag at the 1.2.0 release cut. -->
+    <!-- 1.2.0-rc.1 — release candidate for owner acceptance testing on the real
+         Unraid library. Feature-complete for the 1.2.0 cycle: per-library/folder
+         reading direction, sticky read-marks + bulk/selection UX, continue-reading
+         management (dismiss + auto-hide read), Grid/List/Poster view modes,
+         previous-chapter auto-advance, interactive progress-rail jump, rotating DB
+         backups, YACReader progress import, and persistent thumbnails. Drop the
+         prerelease tag at the 1.2.0 release cut once acceptance testing passes. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
     <MangaPlexVersionMinor>2</MangaPlexVersionMinor>
     <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
-    <MangaPlexVersionPrerelease>dev.1</MangaPlexVersionPrerelease>
+    <MangaPlexVersionPrerelease>rc.1</MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
     <MangaPlexVersion>$(MangaPlexVersionMajor).$(MangaPlexVersionMinor).$(MangaPlexVersionPatch)</MangaPlexVersion>
