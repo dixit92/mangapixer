@@ -168,6 +168,7 @@ public static class LogEvents
         public const int PoolStartFailed = 4032;
         public const int PoolStopError = 4033;
         public const int DispatchLoopError = 4034;
+        public const int AnalysisThroughputSummary = 4035;
 
         public const int SupervisorProcessStarting = 4041;
         public const int SupervisorProcessStarted = 4042;
