@@ -386,9 +386,12 @@ public sealed class YacReaderImportService
 
     private static CatalogNodeEntity? MatchNode(YacReaderComicRecord comic, Dictionary<string, CatalogNodeEntity> byPath)
     {
-        var candidates = new List<string>(3);
-        if (!string.IsNullOrEmpty(comic.Path) && !string.IsNullOrEmpty(comic.FileName))
-            candidates.Add(NormalizeRelativePath(comic.Path + "/" + comic.FileName));
+        // YACReader's comic.path is the full library-root-relative path
+        // including the filename (e.g. "/Series/Volume 1.cbz"), so it is
+        // the primary match candidate. fileName is a fallback for the rare
+        // case where path is empty or stores only a folder. We do NOT try
+        // path+fileName — that would double the filename.
+        var candidates = new List<string>(2);
         if (!string.IsNullOrEmpty(comic.Path))
             candidates.Add(NormalizeRelativePath(comic.Path));
         if (!string.IsNullOrEmpty(comic.FileName))

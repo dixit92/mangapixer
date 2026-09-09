@@ -95,8 +95,8 @@ public sealed class YacReaderImportHttpTests : IDisposable
             LibraryId = library.Id,
             Kind = (int)CatalogNodeKind.Archive,
             DisplayName = "Volume 1.cbz",
-            RelativePath = "Series/Volume 1.cbz",
-            PathKey = "Series/Volume 1.cbz",
+            RelativePath = "/Series/Volume 1.cbz",
+            PathKey = "/Series/Volume 1.cbz",
             SortKey = "1Volume 1.cbz",
             Availability = (int)CatalogNodeAvailability.Available,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -177,8 +177,8 @@ public sealed class YacReaderImportHttpTests : IDisposable
         var (libraryPublicId, userPublicId, node1Id) = await SeedAsync();
 
         BuildYacLibrary(_libRoot,
-            (1, "Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true),
-            (2, "Series/Volume 2.cbz", "Volume 2.cbz", 1, read: false, hasBeenOpened: false));
+            (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true),
+            (2, "/Series/Volume 2.cbz", "Volume 2.cbz", 1, read: false, hasBeenOpened: false));
 
         var response = await adminClient.PostAsJsonAsync("/api/v1/admin/import/yacreader/preview", new YacReaderImportRequest
         {
@@ -206,7 +206,7 @@ public sealed class YacReaderImportHttpTests : IDisposable
         var (libraryPublicId, userPublicId, node1Id) = await SeedAsync();
 
         BuildYacLibrary(_libRoot,
-            (1, "Series/Volume 1.cbz", "Volume 1.cbz", 10, read: true, hasBeenOpened: true));
+            (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 10, read: true, hasBeenOpened: true));
 
         var applyResponse = await adminClient.PostAsJsonAsync("/api/v1/admin/import/yacreader/apply", new YacReaderImportRequest
         {

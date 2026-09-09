@@ -79,8 +79,8 @@ public sealed class YacReaderImportServiceTests : IDisposable
             LibraryId = library.Id,
             Kind = (int)CatalogNodeKind.Archive,
             DisplayName = "Volume 1.cbz",
-            RelativePath = "Series/Volume 1.cbz",
-            PathKey = "Series/Volume 1.cbz",
+            RelativePath = "/Series/Volume 1.cbz",
+            PathKey = "/Series/Volume 1.cbz",
             SortKey = "1Volume 1.cbz",
             Availability = (int)CatalogNodeAvailability.Available,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -91,8 +91,8 @@ public sealed class YacReaderImportServiceTests : IDisposable
             LibraryId = library.Id,
             Kind = (int)CatalogNodeKind.Archive,
             DisplayName = "Volume 2.cbz",
-            RelativePath = "Series/Volume 2.cbz",
-            PathKey = "Series/Volume 2.cbz",
+            RelativePath = "/Series/Volume 2.cbz",
+            PathKey = "/Series/Volume 2.cbz",
             SortKey = "1Volume 2.cbz",
             Availability = (int)CatalogNodeAvailability.Available,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -193,9 +193,9 @@ public sealed class YacReaderImportServiceTests : IDisposable
         // comic.fileName holds the file name. The importer tries path+fileName,
         // then path alone, then fileName alone.
         var yacDir = BuildYacLibrary(_tempDir,
-            (1, "Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true),
-            (2, "Series/Volume 2.cbz", "Volume 2.cbz", 20, read: true, hasBeenOpened: true),
-            (3, "Series/Volume 3.cbz", "Volume 3.cbz", 1, read: false, hasBeenOpened: false));
+            (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true),
+            (2, "/Series/Volume 2.cbz", "Volume 2.cbz", 20, read: true, hasBeenOpened: true),
+            (3, "/Series/Volume 3.cbz", "Volume 3.cbz", 1, read: false, hasBeenOpened: false));
 
         var service = CreateService(db);
         var result = await service.PreviewAsync(Request(yacDir, library.PublicId, user.PublicId), default);
@@ -220,9 +220,9 @@ public sealed class YacReaderImportServiceTests : IDisposable
         var (db, library, user, node1, node2) = setup;
 
         var yacDir = BuildYacLibrary(_tempDir,
-            (1, "Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true),
-            (2, "Series/Volume 2.cbz", "Volume 2.cbz", 20, read: true, hasBeenOpened: true),
-            (3, "Series/Volume 3.cbz", "Volume 3.cbz", 1, read: false, hasBeenOpened: false));
+            (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true),
+            (2, "/Series/Volume 2.cbz", "Volume 2.cbz", 20, read: true, hasBeenOpened: true),
+            (3, "/Series/Volume 3.cbz", "Volume 3.cbz", 1, read: false, hasBeenOpened: false));
 
         var service = CreateService(db);
         var result = await service.ApplyAsync(Request(yacDir, library.PublicId, user.PublicId), default);
@@ -272,8 +272,8 @@ public sealed class YacReaderImportServiceTests : IDisposable
         await db.SaveChangesAsync();
 
         var yacDir = BuildYacLibrary(_tempDir,
-            (1, "Series/Volume 1.cbz", "Volume 1.cbz", 7, read: false, hasBeenOpened: true),
-            (2, "Series/Volume 2.cbz", "Volume 2.cbz", 20, read: true, hasBeenOpened: true));
+            (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 7, read: false, hasBeenOpened: true),
+            (2, "/Series/Volume 2.cbz", "Volume 2.cbz", 20, read: true, hasBeenOpened: true));
 
         var service = CreateService(db);
 
@@ -319,8 +319,8 @@ public sealed class YacReaderImportServiceTests : IDisposable
         await db.SaveChangesAsync();
 
         var yacDir = BuildYacLibrary(_tempDir,
-            (1, "Series/Volume 1.cbz", "Volume 1.cbz", 7, read: false, hasBeenOpened: true),
-            (2, "Series/Volume 2.cbz", "Volume 2.cbz", 20, read: true, hasBeenOpened: true));
+            (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 7, read: false, hasBeenOpened: true),
+            (2, "/Series/Volume 2.cbz", "Volume 2.cbz", 20, read: true, hasBeenOpened: true));
 
         var service = CreateService(db);
         var result = await service.PreviewAsync(Request(yacDir, library.PublicId, user.PublicId), default);
@@ -338,7 +338,7 @@ public sealed class YacReaderImportServiceTests : IDisposable
         var (db, library, user, node1, node2) = setup;
 
         var yacDir = BuildYacLibrary(_tempDir,
-            (1, "Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true));
+            (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true));
 
         var filesBefore = Directory.GetFiles(yacDir, "*", SearchOption.AllDirectories).OrderBy(f => f).ToList();
 
@@ -358,7 +358,7 @@ public sealed class YacReaderImportServiceTests : IDisposable
         var (db, library, user, node1, node2) = setup;
 
         var yacDir = BuildYacLibrary(_tempDir,
-            (1, "Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true));
+            (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true));
 
         var filesBefore = Directory.GetFiles(yacDir, "*", SearchOption.AllDirectories).OrderBy(f => f).ToList();
 
@@ -390,7 +390,7 @@ public sealed class YacReaderImportServiceTests : IDisposable
         var (db, library, user, node1, node2) = setup;
 
         var yacDir = BuildYacLibrary(_tempDir,
-            (1, "Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true));
+            (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true));
 
         var service = CreateService(db);
         var result = await service.PreviewAsync(Request(yacDir, OpaqueId.Encode(999999), user.PublicId), default);
@@ -406,7 +406,7 @@ public sealed class YacReaderImportServiceTests : IDisposable
         var (db, library, user, node1, node2) = setup;
 
         var yacDir = BuildYacLibrary(_tempDir,
-            (1, "Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true));
+            (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true));
 
         var service = CreateService(db);
         var result = await service.PreviewAsync(Request(yacDir, library.PublicId, OpaqueId.Encode(999999)), default);
@@ -423,7 +423,7 @@ public sealed class YacReaderImportServiceTests : IDisposable
 
         // YACReader on Windows may store backslash paths; the importer normalizes.
         var yacDir = BuildYacLibrary(_tempDir,
-            (1, @"Series\Volume 1.cbz", "Volume 1.cbz", 3, read: true, hasBeenOpened: true));
+            (1, @"/Series\Volume 1.cbz", "Volume 1.cbz", 3, read: true, hasBeenOpened: true));
 
         var service = CreateService(db);
         var result = await service.ApplyAsync(Request(yacDir, library.PublicId, user.PublicId), default);
@@ -443,7 +443,7 @@ public sealed class YacReaderImportServiceTests : IDisposable
 
         // node1 has PageCount 10; report a currentPage beyond it.
         var yacDir = BuildYacLibrary(_tempDir,
-            (1, "Series/Volume 1.cbz", "Volume 1.cbz", 99, read: false, hasBeenOpened: true));
+            (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 99, read: false, hasBeenOpened: true));
 
         var service = CreateService(db);
         var result = await service.ApplyAsync(Request(yacDir, library.PublicId, user.PublicId), default);
