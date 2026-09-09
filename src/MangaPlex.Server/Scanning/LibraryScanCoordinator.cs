@@ -55,8 +55,11 @@ public sealed class LibraryScanCoordinator
     /// </summary>
     public async Task<ScanResult> ScanAsync(CancellationToken ct = default)
     {
+        _logger?.LogInformation("Starting scan for library {LibraryId} (revision {Revision})", _libraryId, _scanRevision);
+
         if (!_fs.RootExists())
         {
+            _logger?.LogWarning("Library {LibraryId} root is not accessible", _libraryId);
             return new ScanResult
             {
                 Success = false,
@@ -69,15 +72,21 @@ public sealed class LibraryScanCoordinator
         // ParentPathKey is the relative path of the parent directory ("" for root),
         // which lets ReconcileAsync establish parent-child relationships after
         // nodes are created (audit defect D1).
+        _logger?.LogDebug("Scan {LibraryId} phase 1: observation", _libraryId);
         var observations = new List<ScanObservationEntity>();
         await ObserveAsync("", "", observations, ct);
+        _logger?.LogDebug("Scan {LibraryId} observed {Count} entries", _libraryId, observations.Count);
 
         // Phase 2: Reconcile observations against existing catalog nodes
+        _logger?.LogDebug("Scan {LibraryId} phase 2: reconciliation", _libraryId);
         var reconciliation = await ReconcileAsync(observations, ct);
+        _logger?.LogDebug("Scan {LibraryId} reconciliation complete: {Added} added, {Updated} updated",
+            _libraryId, reconciliation.NodesAdded, reconciliation.NodesUpdated);
 
         // Phase 3: Tombstone missing nodes (only after complete observation)
         if (reconciliation.Success)
         {
+            _logger?.LogDebug("Scan {LibraryId} phase 3: tombstoning", _libraryId);
             await TombstoneMissingNodesAsync(ct);
         }
 
@@ -86,6 +95,9 @@ public sealed class LibraryScanCoordinator
         library.CatalogRevision++;
         library.LastScanCompleted = DateTimeOffset.UtcNow;
         await _db.SaveChangesAsync(ct);
+
+        _logger?.LogInformation("Scan completed for library {LibraryId}: {Observed} observed, {Added} added, {Updated} updated",
+            _libraryId, observations.Count, reconciliation.NodesAdded, reconciliation.NodesUpdated);
 
         return new ScanResult
         {
@@ -311,7 +323,12 @@ public sealed class LibraryScanCoordinator
             .ToListAsync(ct);
 
         if (missingNodes.Count == 0)
+        {
+            _logger?.LogDebug("Scan {LibraryId}: no missing nodes to tombstone", _libraryId);
             return;
+        }
+
+        _logger?.LogDebug("Scan {LibraryId}: {Count} nodes missing since last scan", _libraryId, missingNodes.Count);
 
         // Suspicious-loss detection
         var totalNodes = await _db.CatalogNodes.CountAsync(n => n.LibraryId == _libraryId, ct);
@@ -340,6 +357,7 @@ public sealed class LibraryScanCoordinator
         }
 
         await _db.SaveChangesAsync(ct);
+        _logger?.LogInformation("Scan {LibraryId}: tombstoned {Count} missing nodes", _libraryId, missingNodes.Count);
     }
 
     private static string BuildSortKey(int kind, string name)
