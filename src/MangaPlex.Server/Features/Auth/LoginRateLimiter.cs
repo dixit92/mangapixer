@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Features.Auth;
 
 using System.Collections.Concurrent;
+using com.lifepixer.mangaplex.Server.Logging;
 
 /// <summary>
 /// Simple in-memory rate limiter for login attempts.
@@ -35,7 +36,7 @@ public sealed class LoginRateLimiter
         {
             // Security-relevant event. Never log the IP address (privacy
             // invariant) — the trigger kind and retry window are enough.
-            _logger?.LogWarning(
+            _logger?.LogWarning(LogEvents.Auth.RateLimitedByIp,
                 "Login rate-limited by {Trigger} limit for user {UserName}; retry window {RetryAfter}s",
                 "ip", username, GetRetryAfter(ipAddress, username)?.TotalSeconds);
             return false;
@@ -43,7 +44,7 @@ public sealed class LoginRateLimiter
 
         if (!IsAllowed(_userAttempts, $"user:{username.ToLowerInvariant()}", now, _options.MaxAttemptsPerUser, _options.Window))
         {
-            _logger?.LogWarning(
+            _logger?.LogWarning(LogEvents.Auth.RateLimitedByUsername,
                 "Login rate-limited by {Trigger} limit for user {UserName}; retry window {RetryAfter}s",
                 "username", username, GetRetryAfter(ipAddress, username)?.TotalSeconds);
             return false;

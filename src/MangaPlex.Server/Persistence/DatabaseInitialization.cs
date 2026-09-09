@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Persistence;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -200,7 +202,7 @@ public static class DatabaseInitialization
                     "No migrations found in the assembly; cannot adopt the existing database.");
             await SeedMigrationsHistoryBaselineAsync(db, baseline, ct);
             logger?.LogInformation(
-                "Adopted an existing pre-migrations database into the EF migration timeline (baseline {Baseline}).",
+                LogEvents.Database.MigrationBaselineAdopted, "Adopted an existing pre-migrations database into the EF migration timeline (baseline {Baseline}).",
                 baseline);
         }
 
@@ -213,14 +215,14 @@ public static class DatabaseInitialization
                 dataRoot, "backups", $"pre-migration-{DateTime.UtcNow:yyyyMMdd-HHmmss}.db");
             Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
             logger?.LogInformation(
-                "Applying {Count} pending migration(s); backing up to {Path} first.", pending.Count, backupPath);
+                LogEvents.Database.MigrationWithBackup, "Applying {Count} pending migration(s); pre-migration backup created first.", pending.Count);
             if (!await backupAsync(backupPath))
                 throw new InvalidOperationException(
                     "Pre-migration backup failed; aborting migrate to protect existing data.");
         }
         else if (pending.Count > 0)
         {
-            logger?.LogInformation("Applying {Count} migration(s) to a fresh database.", pending.Count);
+            logger?.LogInformation(LogEvents.Database.MigrationFreshDatabase, "Applying {Count} migration(s) to a fresh database.", pending.Count);
         }
 
         await db.Database.MigrateAsync(ct);

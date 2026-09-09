@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Features.Auth;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
@@ -85,7 +87,7 @@ public sealed class AuthController : ControllerBase
 
         var admin = result.User!;
         await SignInUserAsync(admin, ct);
-        _logger.LogInformation("First admin {UserName} signed in after setup", admin.UserName);
+        _logger.LogInformation(LogEvents.Auth.FirstAdminSignedIn, "First admin {UserName} signed in after setup", admin.UserName);
 
         return Ok(new AuthUserDto
         {
@@ -120,7 +122,7 @@ public sealed class AuthController : ControllerBase
         if (!_rateLimiter.AllowAttempt(ipAddress, request.Username))
         {
             var retryAfter = _rateLimiter.GetRetryAfter(ipAddress, request.Username);
-            _logger.LogWarning("Login rejected with 429 for user {UserName}; retry after {RetryAfter}s",
+            _logger.LogWarning(LogEvents.Auth.LoginRejected429, "Login rejected with 429 for user {UserName}; retry after {RetryAfter}s",
                 request.Username, (int?)retryAfter?.TotalSeconds ?? 60);
             Response.Headers["Retry-After"] = ((int?)retryAfter?.TotalSeconds ?? 60).ToString();
             return StatusCode(429, new ApiError { Error = "rate_limited", Message = "Too many login attempts. Please try again later." });
@@ -130,14 +132,14 @@ public sealed class AuthController : ControllerBase
         if (user is null)
         {
             _rateLimiter.RecordFailure(ipAddress, request.Username);
-            _logger.LogInformation("Login failed for unknown user {UserName}", request.Username);
+            _logger.LogInformation(LogEvents.Auth.LoginUnknownUser, "Login failed for unknown user {UserName}", request.Username);
             return Unauthorized(new ApiError { Error = "invalid_credentials", Message = "Invalid username or password." });
         }
 
         if (!user.IsActive)
         {
             _rateLimiter.RecordFailure(ipAddress, request.Username);
-            _logger.LogInformation("Login failed for disabled user {UserName}", request.Username);
+            _logger.LogInformation(LogEvents.Auth.LoginDisabledUser, "Login failed for disabled user {UserName}", request.Username);
             return Unauthorized(new ApiError { Error = "account_disabled", Message = "This account has been disabled." });
         }
 
@@ -147,7 +149,7 @@ public sealed class AuthController : ControllerBase
             _rateLimiter.RecordFailure(ipAddress, request.Username);
             if (result.IsLockedOut)
             {
-                _logger.LogWarning("Account {UserName} locked out after repeated failed logins", request.Username);
+                _logger.LogWarning(LogEvents.Auth.AccountLockedOut, "Account {UserName} locked out after repeated failed logins", request.Username);
                 return StatusCode(429, new ApiError { Error = "locked_out", Message = "Account is temporarily locked due to too many failed attempts." });
             }
             return Unauthorized(new ApiError { Error = "invalid_credentials", Message = "Invalid username or password." });
@@ -160,7 +162,7 @@ public sealed class AuthController : ControllerBase
 
         await SignInUserAsync(user, ct);
 
-        _logger.LogInformation("User {UserName} logged in successfully", request.Username);
+        _logger.LogInformation(LogEvents.Auth.LoginSucceeded, "User {UserName} logged in successfully", request.Username);
 
         return Ok(new AuthUserDto
         {
@@ -234,7 +236,7 @@ public sealed class AuthController : ControllerBase
         // Revoke all sessions except the current one (force re-login on other devices)
         await _sessionService.RevokeAllSessionsAsync(user.Id, ct);
 
-        _logger.LogInformation("User {UserName} changed password", user.UserName);
+        _logger.LogInformation(LogEvents.Auth.PasswordChanged, "User {UserName} changed password", user.UserName);
 
         return NoContent();
     }

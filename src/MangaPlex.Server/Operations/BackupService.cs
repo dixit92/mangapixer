@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Operations;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
@@ -46,7 +48,7 @@ public sealed class BackupService
         {
             // Use VACUUM INTO for a consistent online backup
             // This creates a new database file with all data, without blocking
-            _logger?.LogDebug("Database backup starting (VACUUM INTO)");
+            _logger?.LogDebug(LogEvents.Backup.BackupStarting, "Database backup starting (VACUUM INTO)");
             var escapedPath = backupPath.Replace("'", "''");
             var sql = $"VACUUM INTO '{escapedPath}';";
 
@@ -55,18 +57,18 @@ public sealed class BackupService
             // Verify the backup
             if (!await VerifyBackupAsync(backupPath, ct))
             {
-                _logger?.LogError("Database backup failed verification");
+                _logger?.LogError(LogEvents.Backup.BackupVerificationFailed, "Database backup failed verification");
                 return BackupResult.Failed("Backup verification failed.");
             }
 
             // Outcome + size only — never the backup path (privacy invariant)
             var sizeBytes = new FileInfo(backupPath).Length;
-            _logger?.LogInformation("Database backup completed ({SizeBytes} bytes)", sizeBytes);
+            _logger?.LogInformation(LogEvents.Backup.BackupCompleted, "Database backup completed ({SizeBytes} bytes)", sizeBytes);
             return BackupResult.Success(backupPath);
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Backup failed: {Error}", ex.GetType().Name);
+            _logger?.LogError(LogEvents.Backup.BackupFailed, ex, "Backup failed: {Error}", ex.GetType().Name);
             return BackupResult.Failed(ex.Message);
         }
     }
@@ -122,7 +124,7 @@ public sealed class BackupService
             // Verify the backup first
             if (!await VerifyBackupAsync(backupPath, ct))
             {
-                _logger?.LogError("Restore aborted: backup failed verification");
+                _logger?.LogError(LogEvents.Backup.RestoreAbortedVerification, "Restore aborted: backup failed verification");
                 return RestoreResult.Failed("Backup verification failed.");
             }
 
@@ -141,12 +143,12 @@ public sealed class BackupService
 
             // Outcome + size only — never the backup/target paths (privacy invariant)
             var sizeBytes = new FileInfo(targetPath).Length;
-            _logger?.LogWarning("Database restored from backup ({SizeBytes} bytes); all sessions must be invalidated", sizeBytes);
+            _logger?.LogWarning(LogEvents.Backup.RestoreCompleted, "Database restored from backup ({SizeBytes} bytes); all sessions must be invalidated", sizeBytes);
             return RestoreResult.Success(targetPath);
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Restore failed: {Error}", ex.GetType().Name);
+            _logger?.LogError(LogEvents.Backup.RestoreFailed, ex, "Restore failed: {Error}", ex.GetType().Name);
             return RestoreResult.Failed(ex.Message);
         }
     }
@@ -165,7 +167,7 @@ public sealed class BackupService
         await _db.Database
             .ExecuteSqlRawAsync("UPDATE users SET security_stamp = hex(randomblob(16));", ct);
 
-        _logger?.LogWarning("All sessions invalidated — {Count} sessions removed", deleted);
+        _logger?.LogWarning(LogEvents.Backup.SessionsInvalidated, "All sessions invalidated — {Count} sessions removed", deleted);
         return deleted;
     }
 }

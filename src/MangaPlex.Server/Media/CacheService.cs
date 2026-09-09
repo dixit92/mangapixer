@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Media;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using System.Collections.Concurrent;
 using System.IO;
 
@@ -81,12 +83,12 @@ public sealed class CacheService
             {
                 e.LastAccessedAt = DateTimeOffset.UtcNow;
                 entry = e;
-                _logger?.LogDebug("Cache hit (key {CacheKey}, {Bytes} bytes)", cacheKey, e.ByteSize);
+                _logger?.LogDebug(LogEvents.Cache.CacheHit, "Cache hit (key {CacheKey}, {Bytes} bytes)", cacheKey, e.ByteSize);
                 return true;
             }
 
             // File missing — mark as evicted
-            _logger?.LogDebug("Cache entry present but file missing (key {CacheKey}); marking evicted", cacheKey);
+            _logger?.LogDebug(LogEvents.Cache.CacheEntryFileMissing, "Cache entry present but file missing (key {CacheKey}); marking evicted", cacheKey);
             e.State = CacheEntryState.Evicted;
         }
 
@@ -162,7 +164,7 @@ public sealed class CacheService
             State = CacheEntryState.Active,
         };
 
-        _logger?.LogDebug("Cache published (key {CacheKey}, {Bytes} bytes); usage now {Usage} bytes",
+        _logger?.LogDebug(LogEvents.Cache.CachePublished, "Cache published (key {CacheKey}, {Bytes} bytes); usage now {Usage} bytes",
             cacheKey, fileInfo.Length, GetCurrentUsageBytes());
 
         // Check if we need to evict
@@ -209,7 +211,7 @@ public sealed class CacheService
             State = CacheEntryState.Active,
         };
 
-        _logger?.LogDebug("Cache published from stream (key {CacheKey}, {Bytes} bytes); usage now {Usage} bytes",
+        _logger?.LogDebug(LogEvents.Cache.CachePublishedFromStream, "Cache published from stream (key {CacheKey}, {Bytes} bytes); usage now {Usage} bytes",
             cacheKey, fileInfo.Length, GetCurrentUsageBytes());
 
         TryEvict();
@@ -262,7 +264,7 @@ public sealed class CacheService
             if (usage <= _budgetBytes)
                 return;
 
-            _logger?.LogDebug("Cache over budget: {Usage} bytes > {Budget} bytes; evicting LRU entries",
+            _logger?.LogDebug(LogEvents.Cache.CacheOverBudget, "Cache over budget: {Usage} bytes > {Budget} bytes; evicting LRU entries",
                 usage, _budgetBytes);
 
             // Sort by last accessed (oldest first), exclude pinned
@@ -289,14 +291,14 @@ public sealed class CacheService
                 catch
                 {
                     // Failed to delete — skip, try next
-                    _logger?.LogDebug("Cache eviction failed for entry (key {CacheKey}); skipping",
+                    _logger?.LogDebug(LogEvents.Cache.CacheEvictEntryFailed, "Cache eviction failed for entry (key {CacheKey}); skipping",
                         entry.CacheKey);
                 }
             }
 
             if (evictedCount > 0)
             {
-                _logger?.LogDebug("Cache evicted {Count} entries; usage now {Usage} bytes", evictedCount, usage);
+                _logger?.LogDebug(LogEvents.Cache.CacheEvictedBatch, "Cache evicted {Count} entries; usage now {Usage} bytes", evictedCount, usage);
             }
         }
     }
@@ -309,7 +311,7 @@ public sealed class CacheService
     /// </summary>
     public void HandleDiskFull()
     {
-        _logger?.LogWarning("Cache disk full — evicting least-recently-accessed entries");
+        _logger?.LogWarning(LogEvents.Cache.CacheDiskFull, "Cache disk full — evicting least-recently-accessed entries");
         TryEvict();
     }
 
@@ -332,7 +334,7 @@ public sealed class CacheService
         if (freed > 0)
         {
             _logger?.LogInformation(
-                "Cache over-budget eviction freed {Bytes} bytes ({Before} -> {After})",
+                LogEvents.Cache.CacheEvictionFreed, "Cache over-budget eviction freed {Bytes} bytes ({Before} -> {After})",
                 freed, usageBefore, usageAfter);
         }
         return freed;

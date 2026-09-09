@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Features.Reading;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Server.Features.Catalog;
@@ -145,7 +147,7 @@ public sealed class PageController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogDebug("Cache publish failed (non-fatal): {Error}", ex.GetType().Name);
+            _logger.LogDebug(LogEvents.Worker.PageCachePublishFailed, "Cache publish failed (non-fatal): {Error}", ex.GetType().Name);
         }
         finally
         {
@@ -168,7 +170,7 @@ public sealed class PageController : ControllerBase
     /// </summary>
     private IActionResult MapExtractionFailure(PageExtractionOutcome outcome, long nodeId, string entryKey)
     {
-        _logger.LogWarning("Page extraction failed for item {ItemId} entry {EntryKey}: {Error}",
+        _logger.LogWarning(LogEvents.Worker.PageExtractionFailed, "Page extraction failed for item {ItemId} entry {EntryKey}: {Error}",
             nodeId, entryKey, outcome.ErrorType);
         return outcome.ErrorType switch
         {

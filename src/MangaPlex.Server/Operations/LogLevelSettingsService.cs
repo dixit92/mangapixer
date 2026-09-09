@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Operations;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using Serilog.Core;
 using Serilog.Events;
 
@@ -32,6 +34,6 @@ public sealed class LogLevelSettingsService
     public void SetLevel(LogEventLevel level, string userName)
     {
         _levelSwitch.MinimumLevel = level;
-        _logger.LogInformation("Log level changed to {Level} by {UserName}", level, userName);
+        _logger.LogInformation(LogEvents.Administration.LogLevelChanged, "Log level changed to {Level} by {UserName}", level, userName);
     }
 }

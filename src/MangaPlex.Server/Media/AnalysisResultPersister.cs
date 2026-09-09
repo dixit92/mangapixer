@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Media;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Core.WorkerProtocol;
 using com.lifepixer.mangaplex.Server.Persistence;
@@ -36,7 +38,7 @@ public sealed class AnalysisResultPersister
             .FirstOrDefaultAsync(a => a.NodeId == nodeId, ct);
         if (archiveItem is null)
         {
-            _logger?.LogWarning("Persist skipped: archive item {ItemId} not found", nodeId);
+            _logger?.LogWarning(LogEvents.Worker.PersistSkippedMissingItem, "Persist skipped: archive item {ItemId} not found", nodeId);
             return;
         }
 
@@ -52,7 +54,7 @@ public sealed class AnalysisResultPersister
             archiveItem.AnalysisError = result.ErrorType;
             archiveItem.LastAnalyzedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
-            _logger?.LogDebug("Persisted failure for item {ItemId}: state {State}, error {Error}",
+            _logger?.LogDebug(LogEvents.Worker.PersistFailureRecorded, "Persisted failure for item {ItemId}: state {State}, error {Error}",
                 nodeId, archiveItem.AnalysisState, result.ErrorType);
             return;
         }
@@ -63,7 +65,7 @@ public sealed class AnalysisResultPersister
             archiveItem.AnalysisError = "invalid_result";
             archiveItem.LastAnalyzedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
-            _logger?.LogWarning("Persisted invalid result for item {ItemId}: result type {Type}", nodeId, result.Result.GetType().Name);
+            _logger?.LogWarning(LogEvents.Worker.PersistInvalidResult, "Persisted invalid result for item {ItemId}: result type {Type}", nodeId, result.Result.GetType().Name);
             return;
         }
 
@@ -97,6 +99,6 @@ public sealed class AnalysisResultPersister
         archiveItem.ModificationTicks = analyzeResult.ObservedLastWriteTicks;
 
         await db.SaveChangesAsync(ct);
-        _logger?.LogDebug("Analysis persisted for item {ItemId}: {PageCount} pages", nodeId, analyzeResult.Pages.Count);
+        _logger?.LogDebug(LogEvents.Worker.PersistCompleted, "Analysis persisted for item {ItemId}: {PageCount} pages", nodeId, analyzeResult.Pages.Count);
     }
 }

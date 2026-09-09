@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Hosting;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Server.Operations;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -32,7 +34,7 @@ public sealed class RotatingBackupHostedService : IHostedService, IAsyncDisposab
     {
         if (!_options.Enabled)
         {
-            _logger.LogInformation("Rotating database backups are disabled by configuration.");
+            _logger.LogInformation(LogEvents.Backup.RotatingDisabled, "Rotating database backups are disabled by configuration.");
             return Task.CompletedTask;
         }
 
@@ -66,11 +68,11 @@ public sealed class RotatingBackupHostedService : IHostedService, IAsyncDisposab
                 var rotating = scope.ServiceProvider.GetRequiredService<RotatingBackupService>();
                 var outcome = await rotating.RunAsync();
                 if (!outcome.Succeeded)
-                    _logger.LogWarning("Scheduled rotating backup failed (retained {Count}).", outcome.RetainedCount);
+                    _logger.LogWarning(LogEvents.Backup.ScheduledRotatingFailed, "Scheduled rotating backup failed (retained {Count}).", outcome.RetainedCount);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning("Scheduled rotating backup failed: {Error}", ex.GetType().Name);
+                _logger.LogWarning(LogEvents.Backup.ScheduledRotatingError, ex, "Scheduled rotating backup failed: {Error}", ex.GetType().Name);
             }
         });
     }

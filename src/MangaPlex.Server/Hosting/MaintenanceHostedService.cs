@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Hosting;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Media;
 using Microsoft.Extensions.Hosting;
@@ -58,7 +60,7 @@ public sealed class MaintenanceHostedService : IHostedService, IAsyncDisposable
             try { await work(); }
             catch (Exception ex)
             {
-                _logger.LogWarning("Maintenance {Label} failed: {Error}", label, ex.GetType().Name);
+                _logger.LogWarning(LogEvents.Backup.MaintenanceFailed, "Maintenance {Label} failed: {Error}", label, ex.GetType().Name);
             }
         });
     }

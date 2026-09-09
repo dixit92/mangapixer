@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Media;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using System.IO;
 using System.Security.Cryptography;
 
@@ -68,7 +70,7 @@ public sealed class ScratchWorkspaceManager
         File.WriteAllText(markerPath,
             $"MangaPlex scratch workspace\nId: {id}\nCreated: {DateTimeOffset.UtcNow:O}\n");
 
-        _logger?.LogDebug("Scratch workspace {WorkspaceId} allocated (usage {Usage} of {Budget} bytes)",
+        _logger?.LogDebug(LogEvents.Worker.ScratchWorkspaceAllocated, "Scratch workspace {WorkspaceId} allocated (usage {Usage} of {Budget} bytes)",
             id, GetCurrentUsageBytes(), _scratchBudgetBytes);
 
         return new ScratchWorkspace
@@ -106,7 +108,7 @@ public sealed class ScratchWorkspaceManager
     {
         if (!IsOwnedWorkspace(workspacePath))
         {
-            _logger?.LogDebug("Scratch cleanup skipped: path is not an owned workspace");
+            _logger?.LogDebug(LogEvents.Worker.ScratchCleanupSkippedUnowned, "Scratch cleanup skipped: path is not an owned workspace");
             return;
         }
 
@@ -119,7 +121,7 @@ public sealed class ScratchWorkspaceManager
         {
             // Failed cleanup counts against scratch budget.
             // It will be retried during crash recovery.
-            _logger?.LogWarning(ex, "Scratch workspace cleanup failed (will retry during recovery): {Error}", ex.GetType().Name);
+            _logger?.LogWarning(LogEvents.Worker.ScratchCleanupFailed, ex, "Scratch workspace cleanup failed (will retry during recovery): {Error}", ex.GetType().Name);
         }
     }
 
@@ -158,11 +160,11 @@ public sealed class ScratchWorkspaceManager
             catch (Exception ex)
             {
                 // Failed cleanup — will be retried next recovery cycle
-                _logger?.LogWarning(ex, "Scratch recovery cleanup failed for one workspace: {Error}", ex.GetType().Name);
+                _logger?.LogWarning(LogEvents.Worker.ScratchRecoveryCleanupFailed, ex, "Scratch recovery cleanup failed for one workspace: {Error}", ex.GetType().Name);
             }
         }
 
-        _logger?.LogDebug("Scratch recovery pass complete: {Cleaned} workspace(s) removed", cleaned);
+        _logger?.LogDebug(LogEvents.Worker.ScratchRecoveryPassComplete, "Scratch recovery pass complete: {Cleaned} workspace(s) removed", cleaned);
         return cleaned;
     }
 
