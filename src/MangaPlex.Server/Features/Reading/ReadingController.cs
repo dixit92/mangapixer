@@ -281,6 +281,34 @@ public sealed class ReadingController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Gets the current user's library browse presentation preferences (1.2.0).
+    /// </summary>
+    [HttpGet("library-preferences")]
+    public async Task<IActionResult> GetLibraryPreferences(CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var prefs = await _stateService.GetLibraryPreferencesAsync(userId.Value, ct);
+        return Ok(prefs);
+    }
+
+    /// <summary>
+    /// Sets the current user's library browse presentation preferences (1.2.0).
+    /// </summary>
+    [HttpPut("library-preferences")]
+    public async Task<IActionResult> SetLibraryPreferences(
+        [FromBody] LibraryViewPreferencesDto request,
+        CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        await _stateService.SetLibraryPreferencesAsync(userId.Value, request, ct);
+        return NoContent();
+    }
+
     [HttpGet("{itemId}/bookmarks")]
     public async Task<IActionResult> GetBookmarks(string itemId, CancellationToken ct)
     {

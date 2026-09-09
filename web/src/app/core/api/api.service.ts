@@ -14,6 +14,7 @@ import {
   EffectiveReaderModeDto,
   ReadMarkDto,
   BulkReadMarkResultDto,
+  LibraryViewPreferencesDto,
   ReaderMode,
   CsrfTokenDto,
   DirectoryListingDto,
@@ -156,6 +157,15 @@ export class ApiService {
   /** Remove an item from the continue-reading strip (1.2.0), without marking it read. */
   dismissContinueReading(itemId: string): Observable<void> {
     return this.delete<void>(`/reading/continue/${itemId}`);
+  }
+
+  /** Per-user library browse presentation preferences (1.2.0). */
+  getLibraryPreferences(): Observable<LibraryViewPreferencesDto> {
+    return this.get<LibraryViewPreferencesDto>('/reading/library-preferences');
+  }
+
+  setLibraryPreferences(prefs: LibraryViewPreferencesDto): Observable<void> {
+    return this.put<void>('/reading/library-preferences', prefs);
   }
 
   getPreferences(): Observable<UserPreferencesDto> {

@@ -320,6 +320,15 @@ public sealed class ReaderPreferencesEntity
     public bool ReducedMotion { get; set; }
     public string? PreferredBackground { get; set; }
 
+    /// <summary>
+    /// Per-user library browse presentation (1.2.0). Stored as tolerant strings
+    /// (not enums) so future frontends can map/fall back gracefully rather than being
+    /// hard-coupled to one set of modes. Defaults: grid / comfortable / name.
+    /// </summary>
+    public string LibraryViewMode { get; set; } = "grid";
+    public string LibraryGridDensity { get; set; } = "comfortable";
+    public string LibrarySort { get; set; } = "name";
+
     public UserEntity? User { get; set; }
 }
 

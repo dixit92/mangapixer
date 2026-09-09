@@ -221,6 +221,20 @@ public sealed record ReadMarkDto
 }
 
 /// <summary>
+/// Per-user library browse presentation (1.2.0). Deliberately string-typed and
+/// tolerant/extensible: a frontend maps values it knows and falls back gracefully
+/// for any it doesn't (owner-settled multi-frontend rationale). Known values today:
+/// ViewMode = grid | list | poster; Density = comfortable | compact;
+/// Sort = name | recentlyAdded | recentlyRead.
+/// </summary>
+public sealed record LibraryViewPreferencesDto
+{
+    public string ViewMode { get; init; } = "grid";
+    public string Density { get; init; } = "comfortable";
+    public string Sort { get; init; } = "name";
+}
+
+/// <summary>
 /// Result of a bulk read-mark operation over a folder's descendant archives (1.2.0).
 /// </summary>
 public sealed record BulkReadMarkResultDto

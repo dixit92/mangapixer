@@ -635,6 +635,48 @@
         }
       }
     },
+    "/api/v1/reading/library-preferences": {
+      "get": {
+        "tags": [
+          "Reading"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Reading"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryViewPreferencesDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryViewPreferencesDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryViewPreferencesDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/reading/{itemId}/bookmarks": {
       "get": {
         "tags": [
@@ -1683,6 +1725,20 @@
           },
           "isAdmin": {
             "type": "boolean"
+          }
+        }
+      },
+      "LibraryViewPreferencesDto": {
+        "type": "object",
+        "properties": {
+          "viewMode": {
+            "type": "string"
+          },
+          "density": {
+            "type": "string"
+          },
+          "sort": {
+            "type": "string"
           }
         }
       },

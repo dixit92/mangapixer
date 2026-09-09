@@ -679,6 +679,48 @@ public sealed class ReadingStateTests : IDisposable
     }
 
     [Fact]
+    public async Task LibraryPreferences_ReturnsDefaults_ThenPersists_WithoutClobberingReaderPrefs()
+    {
+        var (db, userId, _, _, _) = await SetupAsync();
+        try
+        {
+            var auth = new LibraryAuthorizationService(db);
+            var service = new ReadingStateService(db, auth);
+
+            // Set reader prefs first, then library prefs — they share one row but
+            // must not overwrite each other.
+            await service.SetPreferencesAsync(userId, new UserPreferencesDto
+            {
+                DefaultReaderMode = ReaderMode.VerticalWebtoon,
+                ReducedMotion = true,
+            });
+
+            var def = await service.GetLibraryPreferencesAsync(userId);
+            Assert.Equal("grid", def.ViewMode);
+            Assert.Equal("comfortable", def.Density);
+            Assert.Equal("name", def.Sort);
+
+            await service.SetLibraryPreferencesAsync(userId, new LibraryViewPreferencesDto
+            {
+                ViewMode = "poster",
+                Density = "compact",
+                Sort = "recentlyAdded",
+            });
+
+            var lib = await service.GetLibraryPreferencesAsync(userId);
+            Assert.Equal("poster", lib.ViewMode);
+            Assert.Equal("compact", lib.Density);
+            Assert.Equal("recentlyAdded", lib.Sort);
+
+            // Reader prefs survived the library-prefs write.
+            var reader = await service.GetPreferencesAsync(userId);
+            Assert.Equal(ReaderMode.VerticalWebtoon, reader.DefaultReaderMode);
+            Assert.True(reader.ReducedMotion);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
     public async Task UpdateProgress_UnauthorizedUser_ReturnsUnauthorized()
     {
         var (db, _, _, _, itemId) = await SetupAsync();

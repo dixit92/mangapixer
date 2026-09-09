@@ -133,6 +133,18 @@ export interface ReadMarkDto {
   isRead: boolean;
 }
 
+/** Known library view modes (1.2.0). Tolerant: unknown values fall back to 'grid'. */
+export type LibraryViewMode = 'grid' | 'list' | 'poster';
+export type LibraryGridDensity = 'comfortable' | 'compact';
+export type LibrarySortOrder = 'name' | 'recentlyAdded' | 'recentlyRead';
+
+/** Per-user library browse presentation preferences (1.2.0). Strings for tolerance. */
+export interface LibraryViewPreferencesDto {
+  viewMode: string;
+  density: string;
+  sort: string;
+}
+
 /** Result of a bulk folder read-mark operation over descendant archives (1.2.0). */
 export interface BulkReadMarkResultDto {
   affected: number;

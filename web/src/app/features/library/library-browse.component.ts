@@ -5,12 +5,13 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { forkJoin } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-types';
+import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity } from '../../core/api/api-types';
 
 /**
  * Library browse component. Shows the actual folder/archive tree with keyset
@@ -32,6 +33,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-typ
     MatButtonModule,
     MatMenuModule,
     MatTooltipModule,
+    MatDividerModule,
   ],
   template: `
     <!-- Sticky top bar: breadcrumbs + Select normally; the merged action set while
@@ -50,6 +52,29 @@ import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-typ
         } @else {
           <span class="breadcrumbs muted">Root</span>
         }
+        <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
+                matTooltip="Change how the library is displayed" aria-label="View options">
+          <mat-icon>{{ viewIcon() }}</mat-icon> View
+        </button>
+        <mat-menu #viewMenu="matMenu">
+          @for (opt of viewOptions; track opt.value) {
+            <button mat-menu-item (click)="setViewMode(opt.value)">
+              <mat-icon>{{ viewMode() === opt.value ? 'check' : opt.icon }}</mat-icon>
+              {{ opt.label }}
+            </button>
+          }
+          @if (viewMode() !== 'list') {
+            <mat-divider></mat-divider>
+            <button mat-menu-item (click)="setDensity('comfortable')">
+              <mat-icon>{{ density() === 'comfortable' ? 'check' : 'density_medium' }}</mat-icon>
+              Comfortable
+            </button>
+            <button mat-menu-item (click)="setDensity('compact')">
+              <mat-icon>{{ density() === 'compact' ? 'check' : 'density_small' }}</mat-icon>
+              Compact
+            </button>
+          }
+        </mat-menu>
         <button mat-stroked-button class="select-toggle" (click)="toggleSelectMode()">
           <mat-icon>checklist</mat-icon> Select
         </button>
@@ -81,7 +106,9 @@ import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-typ
       }
     </div>
 
-    <div class="nodes-grid">
+    <div class="nodes" [class.grid]="viewMode() === 'grid'"
+         [class.list]="viewMode() === 'list'" [class.poster]="viewMode() === 'poster'"
+         [class.compact]="density() === 'compact'">
       @for (node of nodes(); track node.id) {
         <div class="node-wrap" [class.selected]="isSelected(node)">
           <a class="node-card" [routerLink]="selectMode() ? null : getNodeLink(node)"
@@ -112,11 +139,13 @@ import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-typ
                 </span>
               }
             </div>
-            <div class="node-title" [title]="node.displayName">{{ node.displayName }}</div>
-            <div class="node-sub">
-              @if (node.pageCount !== null) { {{ node.pageCount }} pages }
-              @else if (node.kind === 'Folder' && node.childArchiveCount !== null) { {{ node.childArchiveCount }} items }
-              @if (node.availability !== 'Available') { · {{ node.availability }} }
+            <div class="node-text">
+              <div class="node-title" [title]="node.displayName">{{ node.displayName }}</div>
+              <div class="node-sub">
+                @if (node.pageCount !== null) { {{ node.pageCount }} pages }
+                @else if (node.kind === 'Folder' && node.childArchiveCount !== null) { {{ node.childArchiveCount }} items }
+                @if (node.availability !== 'Available') { · {{ node.availability }} }
+              </div>
             </div>
           </a>
         </div>
@@ -150,11 +179,30 @@ import { CatalogNodeDto, PageResponse, ReaderMode } from '../../core/api/api-typ
     .actions { flex: 1 1 auto; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
     .actions mat-icon { margin-right: 4px; }
     .select-toggle mat-icon, .done mat-icon { margin-right: 4px; }
-    .nodes-grid {
-      display: grid;
+    /* View modes (1.2.0). Grid/Poster are cover grids at different sizes; density
+       tightens them; List is a compact row layout with a small thumbnail. */
+    .nodes.grid {
+      display: grid; gap: 16px;
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 16px;
     }
+    .nodes.grid.compact { gap: 10px; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+    .nodes.poster {
+      display: grid; gap: 20px;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    }
+    .nodes.poster.compact { gap: 14px; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); }
+    .nodes.list { display: flex; flex-direction: column; gap: 8px; }
+    .nodes.list .node-wrap { width: 100%; }
+    .nodes.list .node-card {
+      display: flex; align-items: center; gap: 12px;
+      padding: 6px; border-radius: 8px; background: rgba(255,255,255,0.03);
+    }
+    .nodes.list .cover { width: 46px; height: 66px; flex: 0 0 auto; border-radius: 4px; }
+    .nodes.list .cover-fallback { font-size: 24px; width: 24px; height: 24px; }
+    .nodes.list .badge { font-size: 9px; padding: 1px 4px; top: 2px; right: 2px; }
+    .nodes.list .badge.dir { bottom: 2px; top: auto; }
+    .nodes.list .node-text { flex: 1 1 auto; min-width: 0; }
+    .nodes.list .node-title { margin-top: 0; white-space: nowrap; }
     .node-wrap { position: relative; border-radius: 8px; }
     .node-wrap.selected { outline: 2px solid #7c4dff; outline-offset: 3px; }
     .node-card { cursor: pointer; text-decoration: none; color: inherit; display: block; }
@@ -227,6 +275,17 @@ export class LibraryBrowseComponent implements OnInit {
   readonly selected = signal<Set<string>>(new Set());
   readonly busy = signal(false);
 
+  // Per-user library view mode (1.2.0). Tolerant: unknown persisted values fall back.
+  readonly viewMode = signal<LibraryViewMode>('grid');
+  readonly density = signal<LibraryGridDensity>('comfortable');
+  readonly viewOptions: { value: LibraryViewMode; label: string; icon: string }[] = [
+    { value: 'grid', label: 'Grid', icon: 'grid_view' },
+    { value: 'list', label: 'List', icon: 'view_list' },
+    { value: 'poster', label: 'Poster', icon: 'view_module' },
+  ];
+  readonly viewIcon = computed(() =>
+    this.viewOptions.find((o) => o.value === this.viewMode())?.icon ?? 'grid_view');
+
   /** How many currently-selected nodes are folders (gates the Direction action). */
   readonly selectedFolderCount = computed(() => {
     const ids = this.selected();
@@ -234,6 +293,16 @@ export class LibraryBrowseComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    // Load the per-user view preference once; tolerate unknown values.
+    this.api.getLibraryPreferences().subscribe({
+      next: (p) => {
+        const vm = p.viewMode as LibraryViewMode;
+        this.viewMode.set(vm === 'list' || vm === 'poster' ? vm : 'grid');
+        this.density.set(p.density === 'compact' ? 'compact' : 'comfortable');
+      },
+      error: () => { /* keep defaults */ },
+    });
+
     this.route.paramMap.subscribe((params) => {
       const libId = params.get('libraryId')!;
       const parentId = params.get('nodeId');
@@ -272,6 +341,28 @@ export class LibraryBrowseComponent implements OnInit {
       case 'VerticalWebtoon': return 'Vertical';
       default: return 'Spread';
     }
+  }
+
+  // --- View mode (1.2.0, per-user persisted) ---
+
+  setViewMode(mode: LibraryViewMode): void {
+    if (this.viewMode() === mode) return;
+    this.viewMode.set(mode);
+    this.persistView();
+  }
+
+  setDensity(d: LibraryGridDensity): void {
+    if (this.density() === d) return;
+    this.density.set(d);
+    this.persistView();
+  }
+
+  private persistView(): void {
+    this.api.setLibraryPreferences({
+      viewMode: this.viewMode(),
+      density: this.density(),
+      sort: 'name',
+    }).subscribe({ error: () => { /* non-fatal: the choice still applies this session */ } });
   }
 
   // --- Selection mode (1.2.0) ---

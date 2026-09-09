@@ -593,6 +593,52 @@ public sealed class ReadingStateService
 
         await _db.SaveChangesAsync(ct);
     }
+
+    /// <summary>
+    /// Gets the user's library browse presentation preferences (1.2.0). Returns
+    /// defaults when none are stored.
+    /// </summary>
+    public async Task<LibraryViewPreferencesDto> GetLibraryPreferencesAsync(
+        long userId,
+        CancellationToken ct = default)
+    {
+        var prefs = await _db.ReaderPreferences
+            .FirstOrDefaultAsync(p => p.UserId == userId, ct);
+        if (prefs is null)
+            return new LibraryViewPreferencesDto();
+
+        return new LibraryViewPreferencesDto
+        {
+            ViewMode = prefs.LibraryViewMode,
+            Density = prefs.LibraryGridDensity,
+            Sort = prefs.LibrarySort,
+        };
+    }
+
+    /// <summary>
+    /// Sets the user's library browse presentation preferences (1.2.0). Creates the
+    /// preferences row if absent, touching only the library-view columns so reader
+    /// preferences are left intact.
+    /// </summary>
+    public async Task SetLibraryPreferencesAsync(
+        long userId,
+        LibraryViewPreferencesDto preferences,
+        CancellationToken ct = default)
+    {
+        var prefs = await _db.ReaderPreferences
+            .FirstOrDefaultAsync(p => p.UserId == userId, ct);
+        if (prefs is null)
+        {
+            prefs = new ReaderPreferencesEntity { UserId = userId };
+            _db.ReaderPreferences.Add(prefs);
+        }
+
+        prefs.LibraryViewMode = preferences.ViewMode;
+        prefs.LibraryGridDensity = preferences.Density;
+        prefs.LibrarySort = preferences.Sort;
+
+        await _db.SaveChangesAsync(ct);
+    }
 }
 
 /// <summary>
