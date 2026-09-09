@@ -54,13 +54,23 @@ public sealed class FirstRunSetupService
         string username, string password, CancellationToken ct = default)
     {
         if (await _db.Users.AnyAsync(ct))
+        {
+            _logger?.LogDebug("First-admin creation rejected: instance already initialized");
             return FirstAdminResult.AlreadyInitialized();
+        }
 
         if (string.IsNullOrWhiteSpace(username))
+        {
+            _logger?.LogDebug("First-admin creation rejected: username empty");
             return FirstAdminResult.Invalid("Username is required.");
+        }
 
         if (string.IsNullOrEmpty(password) || password.Length < MinPasswordLength)
+        {
+            _logger?.LogDebug("First-admin creation rejected: password too short ({Length} < {Min})",
+                password?.Length ?? 0, MinPasswordLength);
             return FirstAdminResult.Invalid($"Password must be at least {MinPasswordLength} characters.");
+        }
 
         var admin = new UserEntity
         {
