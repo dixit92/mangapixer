@@ -16,17 +16,26 @@ public sealed class OperationsController : ControllerBase
 {
     private readonly DiagnosticsService _diagnostics;
     private readonly BackupService _backup;
+    private readonly RotatingBackupService _rotating;
+    private readonly RotatingBackupOptions _rotatingOptions;
+    private readonly RotatingBackupState _rotatingState;
     private readonly LogLevelSettingsService _logLevel;
     private readonly ILogger<OperationsController> _logger;
 
     public OperationsController(
         DiagnosticsService diagnostics,
         BackupService backup,
+        RotatingBackupService rotating,
+        RotatingBackupOptions rotatingOptions,
+        RotatingBackupState rotatingState,
         LogLevelSettingsService logLevel,
         ILogger<OperationsController> logger)
     {
         _diagnostics = diagnostics;
         _backup = backup;
+        _rotating = rotating;
+        _rotatingOptions = rotatingOptions;
+        _rotatingState = rotatingState;
         _logLevel = logLevel;
         _logger = logger;
     }
@@ -78,11 +87,68 @@ public sealed class OperationsController : ControllerBase
 
         return Ok(new { path = result.Path });
     }
+
+    /// <summary>
+    /// Status of the scheduled rotating backups: configuration, last
+    /// attempt/success, and the retained snapshot count. Reports generated
+    /// file names only — never absolute paths.
+    /// </summary>
+    [HttpGet("backups")]
+    public IActionResult GetRotatingBackups()
+    {
+        return Ok(BuildRotatingStatusDto());
+    }
+
+    /// <summary>
+    /// Triggers a rotating backup immediately (same path as the scheduled
+    /// run: snapshot + prune, pre-migration backups exempt from pruning).
+    /// Serialized with the scheduled timer via the shared run gate.
+    /// </summary>
+    [HttpPost("backups/rotating")]
+    public async Task<IActionResult> RunRotatingBackup(CancellationToken ct)
+    {
+        var outcome = await _rotating.RunAsync(ct);
+        if (!outcome.Succeeded)
+            return BadRequest(new ApiError { Error = "backup_failed", Message = "Rotating backup failed." });
+
+        return Ok(BuildRotatingStatusDto());
+    }
+
+    private RotatingBackupStatusDto BuildRotatingStatusDto()
+    {
+        int retained;
+        try { retained = _rotating.CountBackups(_rotatingOptions.BackupDirectory); }
+        catch (IOException) { retained = 0; }
+
+        return new RotatingBackupStatusDto
+        {
+            Enabled = _rotatingOptions.Enabled,
+            IntervalHours = _rotatingOptions.Interval.TotalHours,
+            RetentionCount = _rotatingOptions.RetentionCount,
+            LastAttemptUtc = _rotatingState.LastAttemptUtc,
+            LastSuccessUtc = _rotatingState.LastSuccessUtc,
+            LastFailureUtc = _rotatingState.LastFailureUtc,
+            LastBackupFileName = _rotatingState.LastBackupFileName,
+            RetainedCount = retained,
+        };
+    }
 }
 
 public sealed record BackupRequest
 {
     public string? Path { get; init; }
+}
+
+public sealed record RotatingBackupStatusDto
+{
+    public required bool Enabled { get; init; }
+    public required double IntervalHours { get; init; }
+    public required int RetentionCount { get; init; }
+    public required DateTimeOffset? LastAttemptUtc { get; init; }
+    public required DateTimeOffset? LastSuccessUtc { get; init; }
+    public required DateTimeOffset? LastFailureUtc { get; init; }
+    public required string? LastBackupFileName { get; init; }
+    public required int RetainedCount { get; init; }
 }
 
 public sealed record LogLevelDto

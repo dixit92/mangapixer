@@ -8,6 +8,7 @@ using com.lifepixer.mangaplex.Server.Scanning;
 using com.lifepixer.mangaplex.Server.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using System.IO;
 
 /// <summary>
 /// DI registration extensions for hosted lifecycle services and the
@@ -66,11 +67,39 @@ public static class HostingServicesExtensions
         // at startup (audit defect D15/D25).
         services.AddScoped<JobRecoveryService>();
 
+        // Rotating DB backups — scheduled online snapshots (VACUUM INTO) with
+        // retention-based pruning. Interval/retention are admin-configurable
+        // via MangaPlex:Backups:*; backups land in <dataRoot>/backups, the
+        // same folder as pre-migration backups (which are never pruned).
+        services.AddSingleton(sp =>
+        {
+            var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var dataRoot = config["MangaPlex:Storage:DataRoot"];
+            var backupsDir = Path.Combine(
+                string.IsNullOrWhiteSpace(dataRoot)
+                    ? Path.Combine(AppContext.BaseDirectory, "data")
+                    : dataRoot,
+                "backups");
+
+            var options = new RotatingBackupOptions { BackupDirectory = backupsDir };
+            if (double.TryParse(config["MangaPlex:Backups:IntervalHours"],
+                    System.Globalization.CultureInfo.InvariantCulture, out var hours) && hours > 0)
+                options.Interval = TimeSpan.FromHours(hours);
+            if (int.TryParse(config["MangaPlex:Backups:RetentionCount"], out var retention) && retention > 0)
+                options.RetentionCount = retention;
+            if (bool.TryParse(config["MangaPlex:Backups:Enabled"], out var enabled))
+                options.Enabled = enabled;
+            return options;
+        });
+        services.AddSingleton<RotatingBackupState>();
+        services.AddScoped<RotatingBackupService>();
+
         // Hosted services — order matters for startup recovery, which runs
         // before the worker pool starts dispatching.
         services.AddHostedService<StartupRecoveryHostedService>();
         services.AddHostedService<MediaWorkerHostedService>();
         services.AddHostedService<MaintenanceHostedService>();
+        services.AddHostedService<RotatingBackupHostedService>();
 
         return services;
     }

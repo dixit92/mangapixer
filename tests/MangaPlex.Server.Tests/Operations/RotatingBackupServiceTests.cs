@@ -1,0 +1,165 @@
+namespace com.lifepixer.mangaplex.Tests.Server.Operations;
+
+using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Server.Operations;
+using com.lifepixer.mangaplex.Server.Persistence;
+using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using Microsoft.EntityFrameworkCore;
+using Xunit;
+
+/// <summary>
+/// Service-with-DB tests for RotatingBackupService — snapshot creation,
+/// retention pruning, and the pre-migration exemption.
+/// </summary>
+public sealed class RotatingBackupServiceTests : IDisposable
+{
+    private readonly string _tempDir;
+    private readonly string _backupsDir;
+    private readonly DbContextOptions<MangaPlexDbContext> _options;
+
+    public RotatingBackupServiceTests()
+    {
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-rotbackup-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(_tempDir);
+        _backupsDir = Path.Combine(_tempDir, "backups");
+        Directory.CreateDirectory(_backupsDir);
+        var dbPath = Path.Combine(_tempDir, "test.db");
+        var connectionString = DatabaseInitialization.BuildConnectionString(dbPath);
+        _options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+            .UseSqlite(connectionString)
+            .Options;
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_tempDir, true); } catch { }
+    }
+
+    private async Task<(MangaPlexDbContext db, RotatingBackupService service)> SetupAsync(
+        int retentionCount = 3)
+    {
+        var db = new MangaPlexDbContext(_options);
+        await db.Database.EnsureCreatedAsync();
+        await DatabaseInitialization.ConfigureDatabaseAsync(db);
+
+        db.Libraries.Add(new LibraryEntity
+        {
+            PublicId = OpaqueId.Encode(1),
+            DisplayName = "Test",
+            RootPath = "/private/test",
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new RotatingBackupService(
+            db,
+            new BackupService(db),
+            new RotatingBackupOptions { BackupDirectory = _backupsDir, RetentionCount = retentionCount },
+            new RotatingBackupState());
+        return (db, service);
+    }
+
+    [Fact]
+    public async Task Run_CreatesRotatingBackupFile()
+    {
+        var (db, service) = await SetupAsync();
+        try
+        {
+            var outcome = await service.RunAsync();
+
+            Assert.True(outcome.Succeeded);
+            Assert.NotNull(outcome.FileName);
+            Assert.StartsWith(RotatingBackupService.FileNamePrefix, outcome.FileName);
+            Assert.EndsWith(".db", outcome.FileName);
+            Assert.True(File.Exists(Path.Combine(_backupsDir, outcome.FileName)));
+            Assert.Equal(1, outcome.RetainedCount);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Prune_KeepsNewestRetentionCount()
+    {
+        var (db, service) = await SetupAsync(retentionCount: 3);
+        try
+        {
+            // File names embed a UTC timestamp, so ordinal name order is
+            // chronological — five distinct names, oldest first.
+            for (var day = 1; day <= 5; day++)
+            {
+                var name = $"{RotatingBackupService.FileNamePrefix}2026090{day}000000.db";
+                await File.WriteAllTextAsync(Path.Combine(_backupsDir, name), "snapshot");
+            }
+
+            var deleted = service.Prune(_backupsDir);
+
+            Assert.Equal(2, deleted);
+            var remaining = Directory.EnumerateFiles(_backupsDir, "*.db").Select(Path.GetFileName).ToList();
+            Assert.Equal(3, remaining.Count);
+            Assert.Contains("rotating-20260905000000.db", remaining);
+            Assert.Contains("rotating-20260904000000.db", remaining);
+            Assert.Contains("rotating-20260903000000.db", remaining);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Prune_NeverTouchesPreMigrationBackups()
+    {
+        var (db, service) = await SetupAsync(retentionCount: 1);
+        try
+        {
+            var preMigration = Path.Combine(_backupsDir, "pre-migration-1.0.0-20260907.db");
+            await File.WriteAllTextAsync(preMigration, "protected");
+            for (var day = 1; day <= 4; day++)
+            {
+                var name = $"{RotatingBackupService.FileNamePrefix}2026090{day}000000.db";
+                await File.WriteAllTextAsync(Path.Combine(_backupsDir, name), "snapshot");
+            }
+
+            service.Prune(_backupsDir);
+
+            Assert.True(File.Exists(preMigration),
+                "Pre-migration backups must never be pruned by rotation.");
+            Assert.Single(Directory.EnumerateFiles(_backupsDir, RotatingBackupService.FileNamePrefix + "*.db"));
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Prune_LeavesUnrelatedFilesAlone()
+    {
+        var (db, service) = await SetupAsync(retentionCount: 1);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(_backupsDir, "rotating-20260901000000.db"), "a");
+            await File.WriteAllTextAsync(Path.Combine(_backupsDir, "rotating-20260902000000.db"), "b");
+            await File.WriteAllTextAsync(Path.Combine(_backupsDir, "unrelated.db"), "keep me");
+
+            service.Prune(_backupsDir);
+
+            Assert.True(File.Exists(Path.Combine(_backupsDir, "unrelated.db")));
+            Assert.False(File.Exists(Path.Combine(_backupsDir, "rotating-20260901000000.db")));
+            Assert.True(File.Exists(Path.Combine(_backupsDir, "rotating-20260902000000.db")));
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Run_RepeatedRuns_PruneToRetention()
+    {
+        var (db, service) = await SetupAsync(retentionCount: 2);
+        try
+        {
+            await service.RunAsync();
+            await Task.Delay(1100); // generated file names have 1-second resolution
+            await service.RunAsync();
+            await Task.Delay(1100);
+            var outcome = await service.RunAsync();
+
+            Assert.True(outcome.Succeeded);
+            Assert.Equal(2, outcome.RetainedCount);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+}
