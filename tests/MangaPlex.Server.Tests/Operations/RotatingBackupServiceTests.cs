@@ -145,6 +145,37 @@ public sealed class RotatingBackupServiceTests : IDisposable
         finally { await db.DisposeAsync(); }
     }
 
+    [Fact(Timeout = 30000)]
+    public async Task Run_SameSecondCollision_ResolvesToDistinctFileWithoutHanging()
+    {
+        var (db, service) = await SetupAsync(retentionCount: 5);
+        try
+        {
+            // Occupy the base file names the service would generate this second and
+            // the next, so whichever second RunAsync lands in, the un-suffixed name
+            // already exists and it must take the collision branch. Before the fix
+            // this hung (the loop regenerated the name but not the path); the Timeout
+            // turns any regression into a failure instead of a hang.
+            var now = DateTime.UtcNow;
+            var occupiedNames = new[] { now, now.AddSeconds(1) }
+                .Select(t => $"{RotatingBackupService.FileNamePrefix}{t:yyyyMMdd-HHmmss}.db")
+                .ToHashSet();
+            foreach (var occupied in occupiedNames)
+                await File.WriteAllTextAsync(Path.Combine(_backupsDir, occupied), "occupied");
+
+            var outcome = await service.RunAsync();
+
+            Assert.True(outcome.Succeeded);
+            Assert.NotNull(outcome.FileName);
+            // It must have taken the collision branch (a suffixed name), not reused an
+            // occupied base name, and the reported name must match the file written.
+            Assert.DoesNotContain(outcome.FileName!, occupiedNames);
+            Assert.True(File.Exists(Path.Combine(_backupsDir, outcome.FileName!)),
+                "The reported file name must match the file written.");
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
     [Fact]
     public async Task Run_RepeatedRuns_PruneToRetention()
     {

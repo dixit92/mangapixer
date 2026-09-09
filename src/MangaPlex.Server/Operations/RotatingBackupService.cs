@@ -118,8 +118,15 @@ public sealed class RotatingBackupService
 
         var fileName = $"{FileNamePrefix}{DateTime.UtcNow:yyyyMMdd-HHmmss}.db";
         var path = Path.Combine(dir, fileName);
+        // Same-second collision (a manual trigger racing the scheduled run, or a very
+        // fast DB): append a short suffix and re-derive the path. Both fileName AND
+        // path must advance together, or the guard below never clears (VACUUM INTO
+        // refuses a pre-existing target, so this branch must terminate).
         while (File.Exists(path))
+        {
             fileName = $"{FileNamePrefix}{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid().ToString("N")[..4]}.db";
+            path = Path.Combine(dir, fileName);
+        }
 
         var result = await _backup.BackupAsync(path, ct);
 
