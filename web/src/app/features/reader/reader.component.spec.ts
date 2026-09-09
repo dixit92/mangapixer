@@ -263,3 +263,100 @@ describe('ReaderComponent controls rendering', () => {
     expect(img().classList.contains('original')).toBe(true);
   });
 });
+
+/**
+ * Per-device default page mode (1.2.x). The preference lives in localStorage and is
+ * a device-local override of the layout only. As with the pairing tests we avoid
+ * detectChanges() so ngOnInit's HTTP calls never fire — we drive the public methods
+ * directly. window dimensions are stubbed to simulate device orientation.
+ */
+describe('ReaderComponent per-device page mode', () => {
+  function create() {
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => 'item-1' }) } },
+      ],
+    });
+    return TestBed.createComponent(ReaderComponent).componentInstance;
+  }
+
+  function setOrientation(width: number, height: number): void {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: height });
+  }
+
+  beforeEach(() => localStorage.clear());
+
+  it('chooseView persists the device preference and switches the view', () => {
+    const c = create();
+    c.chooseView('webtoon');
+    expect(c.viewPref()).toBe('webtoon');
+    expect(c.view()).toBe('webtoon');
+    expect(localStorage.getItem('mangaplex-reader-view')).toBe('webtoon');
+  });
+
+  it('chooseView("auto") resolves paged in portrait and spread in landscape', () => {
+    const c = create();
+
+    setOrientation(800, 1200); // portrait
+    c.chooseView('auto');
+    expect(c.viewPref()).toBe('auto');
+    expect(c.view()).toBe('paged');
+
+    setOrientation(1200, 800); // landscape
+    c.chooseView('auto');
+    expect(c.view()).toBe('spread');
+  });
+
+  it('chooseSpread persists the cover offset alongside the spread preference', () => {
+    const c = create();
+
+    c.chooseSpread(false);
+    expect(c.viewPref()).toBe('spread');
+    expect(c.coverIsStandalone()).toBe(false);
+    expect(localStorage.getItem('mangaplex-reader-cover-standalone')).toBe('0');
+
+    c.chooseSpread(true);
+    expect(c.coverIsStandalone()).toBe(true);
+    expect(localStorage.getItem('mangaplex-reader-cover-standalone')).toBe('1');
+  });
+
+  it('loads a stored preference on construction (view + cover offset)', () => {
+    localStorage.setItem('mangaplex-reader-view', 'spread');
+    localStorage.setItem('mangaplex-reader-cover-standalone', '0');
+    const c = create();
+    expect(c.viewPref()).toBe('spread');
+    expect(c.coverIsStandalone()).toBe(false);
+  });
+
+  it('defaults to no preference (follow the server) when nothing is stored', () => {
+    const c = create();
+    expect(c.viewPref()).toBeNull();
+    expect(c.coverIsStandalone()).toBe(true); // cover-standalone default
+  });
+
+  it('live-switches paged↔spread on rotation only while auto and ready', () => {
+    const c = create();
+    c.phase.set('ready');
+    c.chooseView('auto');
+
+    setOrientation(1200, 800); // landscape
+    c.onViewportChange();
+    expect(c.view()).toBe('spread');
+
+    setOrientation(800, 1200); // portrait
+    c.onViewportChange();
+    expect(c.view()).toBe('paged');
+
+    // A non-auto preference is left untouched by rotation.
+    c.chooseView('webtoon');
+    setOrientation(1200, 800);
+    c.onViewportChange();
+    expect(c.view()).toBe('webtoon');
+  });
+});
