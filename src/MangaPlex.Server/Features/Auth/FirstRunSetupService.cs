@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Features.Auth;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -55,19 +57,19 @@ public sealed class FirstRunSetupService
     {
         if (await _db.Users.AnyAsync(ct))
         {
-            _logger?.LogDebug("First-admin creation rejected: instance already initialized");
+            _logger?.LogDebug(LogEvents.Auth.SetupAlreadyInitialized, "First-admin creation rejected: instance already initialized");
             return FirstAdminResult.AlreadyInitialized();
         }
 
         if (string.IsNullOrWhiteSpace(username))
         {
-            _logger?.LogDebug("First-admin creation rejected: username empty");
+            _logger?.LogDebug(LogEvents.Auth.SetupUsernameMissing, "First-admin creation rejected: username empty");
             return FirstAdminResult.Invalid("Username is required.");
         }
 
         if (string.IsNullOrEmpty(password) || password.Length < MinPasswordLength)
         {
-            _logger?.LogDebug("First-admin creation rejected: password too short ({Length} < {Min})",
+            _logger?.LogDebug(LogEvents.Auth.SetupPasswordTooShort, "First-admin creation rejected: password too short ({Length} < {Min})",
                 password?.Length ?? 0, MinPasswordLength);
             return FirstAdminResult.Invalid($"Password must be at least {MinPasswordLength} characters.");
         }
@@ -87,11 +89,11 @@ public sealed class FirstRunSetupService
         if (!result.Succeeded)
         {
             var errors = string.Join("; ", result.Errors.Select(e => e.Description));
-            _logger?.LogWarning("First-admin creation rejected: {Errors}", errors);
+            _logger?.LogWarning(LogEvents.Auth.SetupCreationRejected, "First-admin creation rejected: {Errors}", errors);
             return FirstAdminResult.Invalid(errors);
         }
 
-        _logger?.LogInformation("First admin account {UserName} created via first-run setup", username);
+        _logger?.LogInformation(LogEvents.Auth.FirstAdminCreated, "First admin account {UserName} created via first-run setup", username);
         return FirstAdminResult.Success(admin);
     }
 }

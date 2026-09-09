@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Features.Admin;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Core.Reading;
@@ -261,7 +263,7 @@ public sealed class AdminController : ControllerBase
 
                 await scopedLeaseService.ReleaseLeaseAsync(leaseId, result.Success, result.Error);
                 await scopedMaintenance.ExitMaintenanceAsync(libraryId);
-                _logger.LogInformation("Scan completed for library {LibraryId}: {Added} added, {Tombstoned} tombstoned",
+                _logger.LogInformation(LogEvents.Scanning.AdminScanCompleted, "Scan completed for library {LibraryId}: {Added} added, {Tombstoned} tombstoned",
                     libraryId, result.NodesAdded, result.NodesTombstoned);
 
                 // Enqueue analysis for pending archive items after a successful
@@ -284,7 +286,7 @@ public sealed class AdminController : ControllerBase
                 // enqueue) as "completed" instead of downgrading it.
                 await scopedLeaseService.CancelScanAsync(leaseId);
                 await scopedMaintenance.ExitMaintenanceAsync(libraryId);
-                _logger.LogInformation("Scan cancelled for library {LibraryId}", libraryId);
+                _logger.LogInformation(LogEvents.Scanning.AdminScanCancelled, "Scan cancelled for library {LibraryId}", libraryId);
             }
             catch (Exception ex)
             {
@@ -298,7 +300,7 @@ public sealed class AdminController : ControllerBase
                 }
                 await scopedLeaseService.ReleaseLeaseAsync(leaseId, false, ex.GetType().Name);
                 await scopedMaintenance.ExitMaintenanceAsync(libraryId);
-                _logger.LogWarning("Scan failed for library {LibraryId}: {Error}", libraryId, ex.GetType().Name);
+                _logger.LogWarning(LogEvents.Scanning.AdminScanFailed, "Scan failed for library {LibraryId}: {Error}", libraryId, ex.GetType().Name);
             }
             finally
             {
@@ -332,7 +334,7 @@ public sealed class AdminController : ControllerBase
             if (pendingItems.Count == 0)
                 return;
 
-            _logger.LogInformation("Enqueuing analysis for {Count} pending items in library {LibraryId}",
+            _logger.LogInformation(LogEvents.Scanning.AnalysisEnqueueBatch, "Enqueuing analysis for {Count} pending items in library {LibraryId}",
                 pendingItems.Count, libraryId);
 
             // Enqueue at Background priority — scan-triggered analysis is not
@@ -374,7 +376,7 @@ public sealed class AdminController : ControllerBase
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning("Failed to enqueue analysis for item {ItemId}: {Error}",
+                    _logger.LogWarning(LogEvents.Scanning.AnalysisEnqueueItemFailed, "Failed to enqueue analysis for item {ItemId}: {Error}",
                         entry.Node.Id, ex.GetType().Name);
                 }
             }
@@ -382,7 +384,7 @@ public sealed class AdminController : ControllerBase
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            _logger.LogWarning("Post-scan analysis enqueue failed for library {LibraryId}: {Error}",
+            _logger.LogWarning(LogEvents.Scanning.AnalysisEnqueueFailed, "Post-scan analysis enqueue failed for library {LibraryId}: {Error}",
                 libraryId, ex.GetType().Name);
         }
     }
@@ -562,7 +564,7 @@ public sealed class AdminController : ControllerBase
         // Revoke all sessions — user must re-login with the temp password.
         await _sessionService.RevokeAllSessionsAsync(user.Id, ct);
 
-        _logger.LogInformation("Admin reset password for user {UserName}", user.UserName);
+        _logger.LogInformation(LogEvents.Administration.AdminPasswordReset, "Admin reset password for user {UserName}", user.UserName);
 
         return Ok(new ResetPasswordResponse { TemporaryPassword = tempPassword });
     }

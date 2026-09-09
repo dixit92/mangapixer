@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Operations;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Server.Persistence;
 using System.IO;
 
@@ -124,14 +126,15 @@ public sealed class RotatingBackupService
         if (!result.Succeeded)
         {
             _state.RecordFailure(DateTimeOffset.UtcNow);
-            _logger?.LogWarning("Rotating database backup failed: {Error}", result.Error ?? "unknown");
+            _logger?.LogWarning(LogEvents.Backup.RotatingRunFailed, "Rotating database backup failed: {Error}", result.Error ?? "unknown");
             return new RotatingBackupOutcome { Succeeded = false, FileName = fileName, RetainedCount = CountBackups(dir) };
         }
 
         _state.RecordSuccess(DateTimeOffset.UtcNow, fileName);
         var pruned = Prune(dir);
-        if (pruned > 0)
-            _logger?.LogInformation("Rotating backup pruning removed {Count} old snapshot(s).", pruned);
+        _logger?.LogInformation(
+            LogEvents.Backup.RotatingRunCompleted, "Rotating backup completed ({FileName}, retained {Count}); pruning removed {Pruned} old snapshot(s).",
+            fileName, CountBackups(dir), pruned);
 
         return new RotatingBackupOutcome { Succeeded = true, FileName = fileName, RetainedCount = CountBackups(dir) };
     }

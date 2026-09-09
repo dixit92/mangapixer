@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Media;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using System.Diagnostics;
 using System.Text.Json;
 using com.lifepixer.mangaplex.Core.WorkerProtocol;
@@ -104,7 +106,7 @@ public sealed class WorkerSupervisor : IAsyncDisposable
         _process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         _process.Exited += (_, _) => OnProcessExited(_process.ExitCode);
 
-        _logger?.LogDebug("Starting worker process");
+        _logger?.LogDebug(LogEvents.Worker.SupervisorProcessStarting, "Starting worker process");
         if (!_process.Start())
             throw new InvalidOperationException("Failed to start worker process");
 
@@ -115,7 +117,7 @@ public sealed class WorkerSupervisor : IAsyncDisposable
         _stdout = _process.StandardOutput.BaseStream;
         _stderrReader = _process.StandardError;
 
-        _logger?.LogDebug("Worker process started (pid {Pid}); waiting for handshake (timeout {TimeoutMs}ms)",
+        _logger?.LogDebug(LogEvents.Worker.SupervisorProcessStarted, "Worker process started (pid {Pid}); waiting for handshake (timeout {TimeoutMs}ms)",
             _process.Id, _options.StartupHandshakeTimeout.TotalMilliseconds);
 
         // Start draining stderr continuously
@@ -129,7 +131,7 @@ public sealed class WorkerSupervisor : IAsyncDisposable
         {
             await WaitForHandshakeAsync(handshakeCts.Token);
             _consecutiveStartupFailures = 0;
-            _logger?.LogInformation("Worker process ready (pid {Pid})", _process?.Id);
+            _logger?.LogInformation(LogEvents.Worker.SupervisorHandshakeReady, "Worker process ready (pid {Pid})", _process?.Id);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -139,14 +141,14 @@ public sealed class WorkerSupervisor : IAsyncDisposable
 
             if (_consecutiveStartupFailures >= _options.MaxConsecutiveStartupFailures)
             {
-                _logger?.LogError("Worker startup failed {Count} times — pausing automatic launches",
+                _logger?.LogError(LogEvents.Worker.SupervisorStartupPaused, "Worker startup failed {Count} times — pausing automatic launches",
                     _consecutiveStartupFailures);
                 throw new InvalidOperationException(
                     $"Worker startup failed {_consecutiveStartupFailures} consecutive times — pausing launches");
             }
 
             var backoff = GetBackoffDelay(_consecutiveStartupFailures);
-            _logger?.LogWarning("Worker startup timed out — backing off for {Backoff}s", backoff.TotalSeconds);
+            _logger?.LogWarning(LogEvents.Worker.SupervisorStartupBackoff, "Worker startup timed out — backing off for {Backoff}s", backoff.TotalSeconds);
             throw new TimeoutException($"Worker handshake timed out after {_options.StartupHandshakeTimeout}");
         }
     }
@@ -188,7 +190,7 @@ public sealed class WorkerSupervisor : IAsyncDisposable
             }
             catch (InvalidDataException ex)
             {
-                _logger?.LogWarning(ex, "Malformed worker message: {Message}", ex.Message);
+                _logger?.LogWarning(LogEvents.Worker.SupervisorMalformedMessage, ex, "Malformed worker message: {Message}", ex.Message);
                 continue;
             }
 
@@ -203,7 +205,7 @@ public sealed class WorkerSupervisor : IAsyncDisposable
             }
 
             // Dispatch to event handlers
-            _logger?.LogDebug("Received worker message type {Type} (correlation {CorrelationId})",
+            _logger?.LogDebug(LogEvents.Worker.SupervisorMessageReceived, "Received worker message type {Type} (correlation {CorrelationId})",
                 envelope.Type, envelope.CorrelationId);
             if (OnMessageReceived is not null)
             {
@@ -221,7 +223,7 @@ public sealed class WorkerSupervisor : IAsyncDisposable
         if (!_isRunning || _process is null)
             return;
 
-        _logger?.LogDebug("Stopping worker process (pid {Pid}) gracefully (grace {GraceMs}ms)",
+        _logger?.LogDebug(LogEvents.Worker.SupervisorGracefulStop, "Stopping worker process (pid {Pid}) gracefully (grace {GraceMs}ms)",
             _process.Id, _options.CancellationGracePeriod.TotalMilliseconds);
 
         // Send shutdown message
@@ -242,7 +244,7 @@ public sealed class WorkerSupervisor : IAsyncDisposable
         catch (OperationCanceledException)
         {
             // Grace period expired — force kill
-            _logger?.LogWarning("Worker process (pid {Pid}) did not exit within grace period; force-killing",
+            _logger?.LogWarning(LogEvents.Worker.SupervisorGraceExpiredForceKill, "Worker process (pid {Pid}) did not exit within grace period; force-killing",
                 _process.Id);
             await KillAsync();
         }
@@ -299,7 +301,7 @@ public sealed class WorkerSupervisor : IAsyncDisposable
                 // Validate protocol version
                 if (envelope.ProtocolVersion != WorkerProtocolVersion.Current)
                 {
-                    _logger?.LogError("Worker protocol version mismatch: expected {Expected}, got {Actual}",
+                    _logger?.LogError(LogEvents.Worker.SupervisorProtocolVersionMismatch, "Worker protocol version mismatch: expected {Expected}, got {Actual}",
                         WorkerProtocolVersion.Current, envelope.ProtocolVersion);
                     throw new InvalidOperationException(
                         $"Worker protocol version mismatch: expected {WorkerProtocolVersion.Current}, got {envelope.ProtocolVersion}");
@@ -325,7 +327,7 @@ public sealed class WorkerSupervisor : IAsyncDisposable
             while ((line = await _stderrReader.ReadLineAsync()) is not null)
             {
                 // Sanitize and log stderr — never expose source paths
-                _logger?.LogDebug("Worker stderr: {Line}", SanitizeStderrLine(line));
+                _logger?.LogDebug(LogEvents.Worker.SupervisorStderrLine, "Worker stderr: {Line}", SanitizeStderrLine(line));
             }
         }
         catch { /* best effort drain */ }
@@ -335,7 +337,7 @@ public sealed class WorkerSupervisor : IAsyncDisposable
     {
         _isRunning = false;
         _isReady = false;
-        _logger?.LogWarning("Worker process exited unexpectedly with code {ExitCode}", exitCode);
+        _logger?.LogWarning(LogEvents.Worker.SupervisorProcessExited, "Worker process exited unexpectedly with code {ExitCode}", exitCode);
         OnWorkerExited?.Invoke(exitCode);
     }
 

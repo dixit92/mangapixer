@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangaplex.Server.Operations;
 
+using com.lifepixer.mangaplex.Server.Logging;
 using com.lifepixer.mangaplex.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
@@ -90,16 +91,9 @@ public sealed class DiagnosticsService
         return new SanitizedLogExport
         {
             Snapshot = snapshot,
-            // Event IDs and levels only — no message content that might contain paths
-            EventCategories = new[]
-            {
-                "Database",
-                "Authentication",
-                "Scanning",
-                "Worker",
-                "Cache",
-                "Backup",
-            },
+            // Category names derived from the real event-ID ranges (gap 8.3.10) —
+            // no message content that might contain paths
+            EventCategories = LogEvents.CategoryRanges.Select(r => r.Name).ToArray(),
         };
     }
 }
