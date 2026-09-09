@@ -21,6 +21,7 @@ import {
   ItemReadiness,
   LibraryDto,
   LogLevelDto,
+  RotatingBackupStatusDto,
   LoginRequest,
   PageResponse,
   ProgressUpdateResult,
@@ -282,6 +283,14 @@ export class ApiService {
 
   setLoggingLevel(level: string): Observable<LogLevelDto> {
     return this.put<LogLevelDto>('/operations/logging', { level } as UpdateLogLevelRequest);
+  }
+
+  getRotatingBackupStatus(): Observable<RotatingBackupStatusDto> {
+    return this.get<RotatingBackupStatusDto>('/operations/backups');
+  }
+
+  runRotatingBackupNow(): Observable<RotatingBackupStatusDto> {
+    return this.post<RotatingBackupStatusDto>('/operations/backups/rotating', {});
   }
 
   // --- Manifest / Readiness ---

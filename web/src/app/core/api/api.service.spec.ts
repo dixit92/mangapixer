@@ -48,3 +48,60 @@ describe('ApiService.updateProgress (D32 idempotency headers)', () => {
     req.flush({ revision: 8, alreadyApplied: false });
   });
 });
+
+describe('ApiService rotating backup status (1.2.0)', () => {
+  let api: ApiService;
+  let httpMock: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    api = TestBed.inject(ApiService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => httpMock.verify());
+
+  it('fetches the rotating backup status from the operations endpoint', () => {
+    const status = {
+      enabled: true,
+      intervalHours: 24,
+      retentionCount: 7,
+      lastAttemptUtc: '2026-09-09T03:41:26Z',
+      lastSuccessUtc: '2026-09-09T03:41:26Z',
+      lastFailureUtc: null,
+      lastBackupFileName: 'rotating-20260909-034126.db',
+      retainedCount: 2,
+    };
+
+    api.getRotatingBackupStatus().subscribe((dto) => {
+      expect(dto.retainedCount).toBe(2);
+      expect(dto.lastBackupFileName).toBe('rotating-20260909-034126.db');
+    });
+
+    const req = httpMock.expectOne('/api/v1/operations/backups');
+    expect(req.request.method).toBe('GET');
+    req.flush({ ...status, retainedCount: 2 });
+  });
+
+  it('triggers a manual backup via POST and returns the refreshed status', () => {
+    api.runRotatingBackupNow().subscribe((dto) => {
+      expect(dto.lastBackupFileName).toBe('rotating-20260909-035000.db');
+      expect(dto.retainedCount).toBe(3);
+    });
+
+    const req = httpMock.expectOne('/api/v1/operations/backups/rotating');
+    expect(req.request.method).toBe('POST');
+    req.flush({
+      enabled: true,
+      intervalHours: 24,
+      retentionCount: 7,
+      lastAttemptUtc: '2026-09-09T03:50:00Z',
+      lastSuccessUtc: '2026-09-09T03:50:00Z',
+      lastFailureUtc: null,
+      lastBackupFileName: 'rotating-20260909-035000.db',
+      retainedCount: 3,
+    });
+  });
+});
