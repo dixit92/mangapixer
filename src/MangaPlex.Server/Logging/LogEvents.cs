@@ -216,6 +216,16 @@ public static class LogEvents
         public const int PageCacheMiss = 4097;
         public const int CoverServedFromCache = 4098;
         public const int CoverCacheMiss = 4099;
+
+        // Durable thumbnail store (1.2.0) — generation, persistence, serving
+        public const int ThumbnailGenerated = 4101;
+        public const int ThumbnailGenerationFailed = 4102;
+        public const int ThumbnailGenerationSkipped = 4103;
+        public const int ThumbnailServedFromStore = 4104;
+        public const int ThumbnailStoreMiss = 4105;
+        public const int ThumbnailBackfillEnqueued = 4106;
+        public const int ThumbnailBackfillBatch = 4107;
+        public const int ThumbnailStaleInvalidated = 4108;
     }
 
     /// <summary>Derived-cache lifecycle: hits, publishes, eviction, budget pressure.</summary>

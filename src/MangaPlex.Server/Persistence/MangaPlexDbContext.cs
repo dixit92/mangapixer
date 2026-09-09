@@ -181,6 +181,7 @@ public sealed class MangaPlexDbContext : DbContext
 
             e.HasIndex(x => x.AnalysisState);
             e.HasIndex(x => x.ContentVersion);
+            e.HasIndex(x => x.ThumbnailState);
         });
     }
 

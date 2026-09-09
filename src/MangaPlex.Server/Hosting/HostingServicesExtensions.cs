@@ -95,9 +95,11 @@ public static class HostingServicesExtensions
         services.AddScoped<RotatingBackupService>();
 
         // Hosted services — order matters for startup recovery, which runs
-        // before the worker pool starts dispatching.
+        // before the worker pool starts dispatching. The thumbnail backfill
+        // runs after the worker pool so it can dispatch generation jobs.
         services.AddHostedService<StartupRecoveryHostedService>();
         services.AddHostedService<MediaWorkerHostedService>();
+        services.AddHostedService<ThumbnailBackfillHostedService>();
         services.AddHostedService<MaintenanceHostedService>();
         services.AddHostedService<RotatingBackupHostedService>();
 

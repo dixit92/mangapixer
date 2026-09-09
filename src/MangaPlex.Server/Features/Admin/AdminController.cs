@@ -433,6 +433,56 @@ public sealed class AdminController : ControllerBase
         return Ok(scans);
     }
 
+    // --- Thumbnail backfill (1.2.0) ---
+
+    /// <summary>
+    /// Enqueues durable thumbnail regeneration for all ready archive items in
+    /// a library that lack a current thumbnail. Returns a count of items
+    /// queued; generation runs in the background at low priority and does not
+    /// block the request. This backfills items that were analyzed before the
+    /// persistent-thumbnail feature existed, or whose source changed.
+    /// </summary>
+    [HttpPost("libraries/{id}/thumbnails/regenerate")]
+    public async Task<IActionResult> RegenerateThumbnails(string id, CancellationToken ct)
+    {
+        var library = await _db.Libraries.FirstOrDefaultAsync(l => l.PublicId == id, ct);
+        if (library is null) return NotFound();
+
+        var itemsNeedingThumbnails = await ThumbnailGenerationService.GetItemsNeedingThumbnailsAsync(
+            _db, library.Id, limit: 10_000, ct);
+
+        if (itemsNeedingThumbnails.Count == 0)
+        {
+            _logger.LogInformation(LogEvents.Worker.ThumbnailBackfillBatch, "Thumbnail regenerate: no items need thumbnails in library {LibraryId}", library.Id);
+            return Ok(new ThumbnailRegenerateResponse { QueuedCount = 0 });
+        }
+
+        _logger.LogInformation(LogEvents.Worker.ThumbnailBackfillEnqueued, "Thumbnail regenerate: enqueuing {Count} items in library {LibraryId}",
+            itemsNeedingThumbnails.Count, library.Id);
+
+        // Fire-and-forget: generate thumbnails in the background. Each call
+        // uses the worker pool to extract + encode the first page. Low
+        // priority — this must not block interactive reader page requests.
+        _ = Task.Run(async () =>
+        {
+            foreach (var nodeId in itemsNeedingThumbnails)
+            {
+                try
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var thumbService = scope.ServiceProvider.GetRequiredService<ThumbnailGenerationService>();
+                    await thumbService.GenerateForItemAsync(nodeId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(LogEvents.Worker.ThumbnailGenerationFailed, ex, "Thumbnail regenerate failed (item {ItemId}): {Error}", nodeId, ex.GetType().Name);
+                }
+            }
+        }, CancellationToken.None);
+
+        return Accepted(new ThumbnailRegenerateResponse { QueuedCount = itemsNeedingThumbnails.Count });
+    }
+
     // --- Users ---
 
     [HttpGet("users")]
