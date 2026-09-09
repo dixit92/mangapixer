@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Features.Reading;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Server.Features.Catalog;
@@ -32,6 +34,7 @@ public sealed class PageController : ControllerBase
     private readonly CacheService _cache;
     private readonly CatalogIdResolver _idResolver;
     private readonly MediaWorkerPool _workerPool;
+    private readonly ThumbnailStore _thumbnailStore;
     private readonly ILogger<PageController> _logger;
 
     // WebP transcode defaults (C13). Overridable later via preferences/config.
@@ -43,12 +46,14 @@ public sealed class PageController : ControllerBase
         CacheService cache,
         CatalogIdResolver idResolver,
         MediaWorkerPool workerPool,
+        ThumbnailStore thumbnailStore,
         ILogger<PageController> logger)
     {
         _db = db;
         _cache = cache;
         _idResolver = idResolver;
         _workerPool = workerPool;
+        _thumbnailStore = thumbnailStore;
         _logger = logger;
     }
 
@@ -145,7 +150,7 @@ public sealed class PageController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogDebug("Cache publish failed (non-fatal): {Error}", ex.GetType().Name);
+            _logger.LogDebug(LogEvents.Worker.PageCachePublishFailed, "Cache publish failed (non-fatal): {Error}", ex.GetType().Name);
         }
         finally
         {
@@ -168,7 +173,7 @@ public sealed class PageController : ControllerBase
     /// </summary>
     private IActionResult MapExtractionFailure(PageExtractionOutcome outcome, long nodeId, string entryKey)
     {
-        _logger.LogWarning("Page extraction failed for item {ItemId} entry {EntryKey}: {Error}",
+        _logger.LogWarning(LogEvents.Worker.PageExtractionFailed, "Page extraction failed for item {ItemId} entry {EntryKey}: {Error}",
             nodeId, entryKey, outcome.ErrorType);
         return outcome.ErrorType switch
         {
@@ -198,18 +203,53 @@ public sealed class PageController : ControllerBase
 
         var archiveItem = await _db.ArchiveItems.FirstOrDefaultAsync(a => a.NodeId == node.Id, ct);
         if (archiveItem is null || archiveItem.AnalysisState != 0)
-            return NotFound(new ApiError { Error = "not_analyzed", Message = "Item has not been analyzed yet." });
+        {
+            // Not analyzed yet — the thumbnail cannot exist. Return a typed
+            // pending response so the frontend shows a placeholder rather than
+            // a broken-image icon (owner requirement, 2026-09-09).
+            return Accepted(new ApiError { Error = "pending", Message = "Thumbnail is being generated." });
+        }
 
-        // Cover = first page by ordinal
-        var firstPage = await _db.PageEntries
-            .Where(p => p.ItemId == node.Id)
-            .OrderBy(p => p.Ordinal)
-            .FirstOrDefaultAsync(ct);
-        if (firstPage is null)
-            return NotFound(new ApiError { Error = "no_pages", Message = "Item has no analyzed pages." });
+        // Serve the durable thumbnail from the persistent store (1.2.0).
+        // Thumbnails are pre-generated at analysis time and persisted under
+        // DataRoot/thumbnails — never the evictable page cache.
+        _thumbnailStore.Initialize();
+        var thumbnailStream = _thumbnailStore.OpenRead(node.Id, archiveItem.ContentVersion);
+        if (thumbnailStream is not null)
+        {
+            // Long-lived immutable cache headers keyed by content version: a
+            // changed source yields a new content version (and a new thumbnail
+            // file), so the old URL's bytes are safe to cache indefinitely.
+            Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+            Response.Headers.ETag = $"\"thumb-{node.Id}-{archiveItem.ContentVersion}\"";
+            _logger.LogDebug(LogEvents.Worker.ThumbnailServedFromStore, "Cover served from durable thumbnail store (item {ItemId})", node.Id);
+            return File(thumbnailStream, "image/webp");
+        }
 
-        // Delegate to the page delivery path with the first page's entry key
-        return await GetPageInternal(itemId, firstPage.EntryKey, "cover", ct);
+        // Thumbnail not generated yet (e.g., backfill not complete). Return a
+        // typed pending response; the frontend shows a placeholder and can
+        // retry. A generate-on-miss safety net is triggered below.
+        _logger.LogDebug(LogEvents.Worker.ThumbnailStoreMiss, "Cover thumbnail store miss (item {ItemId}); returning pending", node.Id);
+
+        // Safety net: trigger generation fire-and-forget so a retry will find
+        // the thumbnail. The primary path is scan-time generation; this only
+        // catches items that were analyzed before the thumbnail feature existed.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = HttpContext.RequestServices.CreateScope();
+                var thumbService = scope.ServiceProvider.GetService<ThumbnailGenerationService>();
+                if (thumbService is not null)
+                    await thumbService.GenerateForItemAsync(node.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(LogEvents.Worker.ThumbnailGenerationFailed, "Generate-on-miss failed (item {ItemId}): {Error}", node.Id, ex.GetType().Name);
+            }
+        }, CancellationToken.None);
+
+        return Accepted(new ApiError { Error = "pending", Message = "Thumbnail is being generated." });
     }
 
     /// <summary>

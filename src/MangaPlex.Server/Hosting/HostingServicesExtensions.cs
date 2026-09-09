@@ -3,11 +3,13 @@ namespace com.lifepixer.mangaplex.Server.Hosting;
 using com.lifepixer.mangaplex.Server.Media;
 using com.lifepixer.mangaplex.Server.Operations;
 using com.lifepixer.mangaplex.Server.Persistence;
+using com.lifepixer.mangaplex.Server.Features.Import.YacReader;
 using com.lifepixer.mangaplex.Server.Features.Reading;
 using com.lifepixer.mangaplex.Server.Scanning;
 using com.lifepixer.mangaplex.Server.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using System.IO;
 
 /// <summary>
 /// DI registration extensions for hosted lifecycle services and the
@@ -40,6 +42,11 @@ public static class HostingServicesExtensions
         });
         services.AddScoped<IdentityRelinkService>();
 
+        // YACReader progress importer (admin-only). The library reader is a
+        // stateless singleton; the import service is scoped (depends on DbContext).
+        services.AddSingleton<YacReaderLibraryReader>();
+        services.AddScoped<YacReaderImportService>();
+
         // Admin directory browser for the library-registration path picker.
         // Confined to the configured media browse root (default /media).
         services.AddSingleton<MediaBrowseOptions>(sp =>
@@ -66,11 +73,42 @@ public static class HostingServicesExtensions
         // at startup (audit defect D15/D25).
         services.AddScoped<JobRecoveryService>();
 
+        // Rotating DB backups — scheduled online snapshots (VACUUM INTO) with
+        // retention-based pruning. Interval/retention are admin-configurable
+        // via MangaPlex:Backups:*; backups land in <dataRoot>/backups, the
+        // same folder as pre-migration backups (which are never pruned).
+        services.AddSingleton(sp =>
+        {
+            var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var dataRoot = config["MangaPlex:Storage:DataRoot"];
+            var backupsDir = Path.Combine(
+                string.IsNullOrWhiteSpace(dataRoot)
+                    ? Path.Combine(AppContext.BaseDirectory, "data")
+                    : dataRoot,
+                "backups");
+
+            var options = new RotatingBackupOptions { BackupDirectory = backupsDir };
+            if (double.TryParse(config["MangaPlex:Backups:IntervalHours"],
+                    System.Globalization.CultureInfo.InvariantCulture, out var hours) && hours > 0)
+                options.Interval = TimeSpan.FromHours(hours);
+            if (int.TryParse(config["MangaPlex:Backups:RetentionCount"], out var retention) && retention > 0)
+                options.RetentionCount = retention;
+            if (bool.TryParse(config["MangaPlex:Backups:Enabled"], out var enabled))
+                options.Enabled = enabled;
+            return options;
+        });
+        services.AddSingleton<RotatingBackupState>();
+        services.AddScoped<RotatingBackupService>();
+
         // Hosted services — order matters for startup recovery, which runs
-        // before the worker pool starts dispatching.
+        // before the worker pool starts dispatching. The thumbnail backfill
+        // runs after the worker pool so it can dispatch generation jobs.
         services.AddHostedService<StartupRecoveryHostedService>();
         services.AddHostedService<MediaWorkerHostedService>();
+        services.AddHostedService<PendingAnalysisResumeHostedService>();
+        services.AddHostedService<ThumbnailBackfillHostedService>();
         services.AddHostedService<MaintenanceHostedService>();
+        services.AddHostedService<RotatingBackupHostedService>();
 
         return services;
     }

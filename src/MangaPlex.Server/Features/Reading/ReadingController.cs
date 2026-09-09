@@ -18,16 +18,36 @@ public sealed class ReadingController : ControllerBase
 {
     private readonly ReadingStateService _stateService;
     private readonly CatalogIdResolver _idResolver;
+    private readonly ReaderModeResolver _modeResolver;
     private readonly ILogger<ReadingController> _logger;
 
     public ReadingController(
         ReadingStateService stateService,
         CatalogIdResolver idResolver,
+        ReaderModeResolver modeResolver,
         ILogger<ReadingController> logger)
     {
         _stateService = stateService;
         _idResolver = idResolver;
+        _modeResolver = modeResolver;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Resolves the effective default reader mode for an item (1.2.0): per-user item
+    /// override → nearest folder default → library default → user default → PagedLtr.
+    /// </summary>
+    [HttpGet("{itemId}/effective-mode")]
+    public async Task<IActionResult> GetEffectiveMode(string itemId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
+        var mode = await _modeResolver.ResolveAsync(userId.Value, node, ct);
+        return Ok(new EffectiveReaderModeDto { ReaderMode = mode });
     }
 
     [HttpGet("progress/{itemId}")]
@@ -118,6 +138,115 @@ public sealed class ReadingController : ControllerBase
         return NoContent();
     }
 
+    // --- Sticky read-marks (1.2.0) ---
+
+    /// <summary>
+    /// Gets the current user's sticky read-mark state for an item.
+    /// </summary>
+    [HttpGet("{itemId}/read")]
+    public async Task<IActionResult> GetReadMark(string itemId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
+        var isRead = await _stateService.IsReadAsync(userId.Value, node.Id, ct);
+        return Ok(new ReadMarkDto { ItemId = itemId, IsRead = isRead });
+    }
+
+    /// <summary>
+    /// Marks an item read (sticky). Idempotent.
+    /// </summary>
+    [HttpPut("{itemId}/read")]
+    public async Task<IActionResult> SetReadMark(string itemId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
+        var ok = await _stateService.SetItemReadAsync(userId.Value, node.Id, read: true, ct);
+        if (!ok) return Unauthorized();
+
+        return Ok(new ReadMarkDto { ItemId = itemId, IsRead = true });
+    }
+
+    /// <summary>
+    /// Clears an item's read-mark (marks it unread). Idempotent.
+    /// </summary>
+    [HttpDelete("{itemId}/read")]
+    public async Task<IActionResult> ClearReadMark(string itemId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
+        var ok = await _stateService.SetItemReadAsync(userId.Value, node.Id, read: false, ct);
+        if (!ok) return Unauthorized();
+
+        return Ok(new ReadMarkDto { ItemId = itemId, IsRead = false });
+    }
+
+    /// <summary>
+    /// Marks every readable descendant archive of a folder read (bulk, sticky).
+    /// </summary>
+    [HttpPut("folders/{nodeId}/read")]
+    public async Task<IActionResult> SetFolderReadMark(string nodeId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(nodeId, ct);
+        if (node is null) return NotFound();
+
+        var result = await _stateService.SetFolderReadAsync(userId.Value, node.Id, read: true, ct);
+        if (result is null) return NotFound();
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Clears the read-mark on every descendant archive of a folder (bulk).
+    /// </summary>
+    [HttpDelete("folders/{nodeId}/read")]
+    public async Task<IActionResult> ClearFolderReadMark(string nodeId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(nodeId, ct);
+        if (node is null) return NotFound();
+
+        var result = await _stateService.SetFolderReadAsync(userId.Value, node.Id, read: false, ct);
+        if (result is null) return NotFound();
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Dismisses an item from the current user's continue-reading strip (1.2.0),
+    /// without marking it read. Reappears if the user reads it again.
+    /// </summary>
+    [HttpDelete("continue/{itemId}")]
+    public async Task<IActionResult> DismissContinue(string itemId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
+        var ok = await _stateService.DismissFromContinueAsync(userId.Value, node.Id, ct);
+        if (!ok) return Unauthorized();
+
+        return NoContent();
+    }
+
     [HttpGet("continue")]
     public async Task<IActionResult> GetContinueReading(
         [FromQuery] int limit = 20,
@@ -149,6 +278,34 @@ public sealed class ReadingController : ControllerBase
         if (userId is null) return Unauthorized();
 
         await _stateService.SetPreferencesAsync(userId.Value, request, ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Gets the current user's library browse presentation preferences (1.2.0).
+    /// </summary>
+    [HttpGet("library-preferences")]
+    public async Task<IActionResult> GetLibraryPreferences(CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var prefs = await _stateService.GetLibraryPreferencesAsync(userId.Value, ct);
+        return Ok(prefs);
+    }
+
+    /// <summary>
+    /// Sets the current user's library browse presentation preferences (1.2.0).
+    /// </summary>
+    [HttpPut("library-preferences")]
+    public async Task<IActionResult> SetLibraryPreferences(
+        [FromBody] LibraryViewPreferencesDto request,
+        CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        await _stateService.SetLibraryPreferencesAsync(userId.Value, request, ct);
         return NoContent();
     }
 

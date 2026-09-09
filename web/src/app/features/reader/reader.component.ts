@@ -59,6 +59,10 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
  *     last screen loads the next archive in the folder (`nextNeighbor` from the
  *     catalog neighbor endpoint); with no next chapter it shows a brief notice.
  *     Applies to paged / spread; webtoon (scroll-driven) is not auto-advanced.
+ *  9. Previous-chapter advance (2026-09-09): symmetrically, the backward gesture on
+ *     the first screen loads the PREVIOUS archive (`prevNeighbor`) and lands on its
+ *     last page (via the `at=end` query param). Merely landing there does not save
+ *     progress, so it never falsely completes/marks-read an unread chapter.
  */
 @Component({
   selector: 'app-reader',
@@ -191,10 +195,17 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
       }
 
       <!-- Persistent minimal cue: a very thin progress bar, always visible.
-           In RTL it fills from the right and recedes left as pages advance. -->
+           In RTL it fills from the right and recedes left as pages advance.
+           The bar sits in a taller invisible hit strip so it can be tapped/clicked
+           (or arrow-keyed) to jump to a page — interactive page-jump. -->
       @if (phase() === 'ready') {
-        <div class="progress-rail" [class.rtl]="direction() === 'rtl'" aria-hidden="true">
-          <div class="progress-fill" [style.width.%]="progressPct()"></div>
+        <div class="rail-hit" (click)="seekFromRail($event)" (keydown)="onRailKey($event)"
+             role="slider" tabindex="0" aria-label="Reading position (jump to page)"
+             [attr.aria-valuemin]="1" [attr.aria-valuemax]="pageCount()"
+             [attr.aria-valuenow]="currentPage() + 1">
+          <div class="progress-rail" [class.rtl]="direction() === 'rtl'" aria-hidden="true">
+            <div class="progress-fill" [style.width.%]="progressPct()"></div>
+          </div>
         </div>
       }
 
@@ -318,11 +329,21 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     }
     /* Persistent minimal progress cue — a very thin bar pinned to the bottom edge,
        shown regardless of chrome visibility so position is always readable. */
-    .progress-rail {
-      position: fixed; left: 0; right: 0; bottom: 0; height: 3px;
-      background: rgba(255, 255, 255, 0.14); z-index: 1002; pointer-events: none;
-      display: flex;
+    /* Invisible taller strip that makes the 3px rail a usable tap/click target
+       (mouse and touch). Sits at the very bottom, above the reading zones. */
+    .rail-hit {
+      position: fixed; left: 0; right: 0; bottom: 0; height: 16px;
+      z-index: 1002; cursor: pointer;
+      display: flex; align-items: flex-end;
     }
+    .rail-hit:focus-visible { outline: 2px solid #7c4dff; outline-offset: -2px; }
+    .progress-rail {
+      position: relative; width: 100%; height: 3px;
+      background: rgba(255, 255, 255, 0.14); pointer-events: none;
+      display: flex; transition: height .12s ease;
+    }
+    /* Grow the bar slightly on hover so the seek affordance is discoverable (mouse). */
+    .rail-hit:hover .progress-rail, .rail-hit:focus-visible .progress-rail { height: 6px; }
     /* RTL: fill sits at the right edge and grows leftward as pages advance. */
     .progress-rail.rtl { justify-content: flex-end; }
     .progress-fill { height: 100%; flex: none; background: #7c4dff; transition: width .2s ease; }
@@ -409,9 +430,18 @@ export class ReaderComponent implements OnInit, OnDestroy {
   readonly leftZoneLabel = computed(() => this.direction() === 'rtl' ? 'Next page' : 'Previous page');
   readonly rightZoneLabel = computed(() => this.direction() === 'rtl' ? 'Previous page' : 'Next page');
 
-  // Next chapter (next archive in the same folder), for auto-advance past the last
-  // page. Fetched per item from the catalog's neighbor endpoint.
+  // Adjacent chapters (archives in the same folder), for auto-advance past the last
+  // page (next) and before the first page (previous). Fetched per item from the
+  // catalog's neighbor endpoint.
   readonly nextNeighbor = signal<{ id: string; displayName: string } | null>(null);
+  readonly prevNeighbor = signal<{ id: string; displayName: string } | null>(null);
+
+  // Set when this chapter was entered via "previous chapter" back-navigation, which
+  // asks to land on the LAST page (query param at=end). While the reader is still
+  // sitting on that landed last page we suppress progress saves, so merely backing
+  // into a chapter never marks it completed/read (the sticky read-mark stays honest).
+  private landOnLastPage = false;
+  private landedOnLastPage = false;
 
   readonly viewIcon = computed(() =>
     this.view() === 'webtoon' ? 'view_day'
@@ -460,25 +490,32 @@ export class ReaderComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // Honor the user's default reading mode/direction; failure falls back to paged LTR.
-    this.api.getPreferences().subscribe({
-      next: (prefs) => this.applyDefaultMode(prefs.defaultReaderMode),
-      error: () => { /* keep defaults */ },
-    });
     this.route.paramMap.subscribe((params) => {
       const id = params.get('itemId') ?? '';
       this.itemId.set(id);
       this.pollAttempts = 0;
+      // "at=end" (set when arriving via previous-chapter back-navigation) asks to
+      // land on the last page instead of resuming from saved progress.
+      this.landOnLastPage = this.route.snapshot.queryParamMap.get('at') === 'end';
+      this.landedOnLastPage = false;
+      // Resolve the effective default reading mode for THIS item (1.2.0): per-user
+      // item override → nearest folder default → library default → user's personal
+      // default → paged LTR. Failure falls back to paged LTR.
+      this.api.getEffectiveReaderMode(id).subscribe({
+        next: (res) => this.applyDefaultMode(res.readerMode),
+        error: () => { /* keep defaults */ },
+      });
       this.loadManifest();
       this.loadNeighbors(id);
     });
   }
 
-  /** Load the next archive in the folder so we can auto-advance past the last page. */
+  /** Load adjacent archives in the folder so we can auto-advance across chapters. */
   private loadNeighbors(itemId: string): void {
     this.nextNeighbor.set(null);
+    this.prevNeighbor.set(null);
     this.api.getNeighbors(itemId).subscribe({
-      next: (n) => this.nextNeighbor.set(n.next),
+      next: (n) => { this.nextNeighbor.set(n.next); this.prevNeighbor.set(n.previous); },
       error: () => { /* no neighbors / not available — auto-advance simply no-ops */ },
     });
   }
@@ -643,14 +680,32 @@ export class ReaderComponent implements OnInit, OnDestroy {
       this.fail('This chapter has no readable pages.');
       return;
     }
+    const last = manifest.pages.length - 1;
     this.api.getProgress(this.itemId()).subscribe({
       next: (progress) => {
         this.revision = progress.revision;
-        const start = Math.min(Math.max(progress.pageIndex, 0), manifest.pages.length - 1);
+        const start = this.landOnLastPage
+          ? last
+          : Math.min(Math.max(progress.pageIndex, 0), last);
+        this.consumeLandIntent();
         this.showPage(start);
       },
-      error: () => this.showPage(0),
+      error: () => {
+        const start = this.landOnLastPage ? last : 0;
+        this.consumeLandIntent();
+        this.showPage(start);
+      },
     });
+  }
+
+  /**
+   * Applies the "land on last page" intent once: records that the reader is now
+   * parked on that landed page (so <see cref="saveProgress"/> won't persist a false
+   * completion) and clears the one-shot request.
+   */
+  private consumeLandIntent(): void {
+    this.landedOnLastPage = this.landOnLastPage;
+    this.landOnLastPage = false;
   }
 
   private showPage(index: number): void {
@@ -737,8 +792,15 @@ export class ReaderComponent implements OnInit, OnDestroy {
     if (this.isAtEnd()) { this.goToNextChapter(); return; }
     this.goToPage(this.nextIndexFrom(this.currentPage(), +1));
   }
-  /** Advance toward the start (previous screen). */
-  prevPage(): void { this.goToPage(this.nextIndexFrom(this.currentPage(), -1)); }
+  /**
+   * Advance toward the start (previous screen). When already on the first screen,
+   * the backward gesture auto-advances to the previous chapter, landing on ITS last
+   * page (mirror of {@link nextPage}), if there is one.
+   */
+  prevPage(): void {
+    if (this.isAtStart()) { this.goToPreviousChapter(); return; }
+    this.goToPage(this.nextIndexFrom(this.currentPage(), -1));
+  }
 
   /** True when the current screen is the last page (paged) or last spread (spread). */
   private isAtEnd(): boolean {
@@ -752,6 +814,18 @@ export class ReaderComponent implements OnInit, OnDestroy {
     return this.currentPage() >= n - 1;
   }
 
+  /** True when the current screen is the first page (paged) or first spread (spread). */
+  private isAtStart(): boolean {
+    const n = this.pageCount();
+    if (n === 0) return false;
+    if (this.view() === 'spread') {
+      const groups = this.spreads();
+      const gi = groups.findIndex((g) => g.includes(this.currentPage()));
+      return gi === 0;
+    }
+    return this.currentPage() <= 0;
+  }
+
   /** Auto-advance to the next archive in the folder (or tell the reader there's none). */
   private goToNextChapter(): void {
     const next = this.nextNeighbor();
@@ -762,6 +836,21 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.saveProgress();
     this.snackBar.open(`Next chapter: ${next.displayName}`, '', { duration: 2000 });
     this.router.navigate(['/reader', next.id]);
+  }
+
+  /**
+   * Auto-advance to the previous archive in the folder, landing on its LAST page
+   * (via the at=end query param), or tell the reader there's no previous chapter.
+   */
+  private goToPreviousChapter(): void {
+    const prev = this.prevNeighbor();
+    if (!prev) {
+      this.snackBar.open('You’re at the start — no previous chapter in this folder.', 'Dismiss', { duration: 3000 });
+      return;
+    }
+    this.saveProgress();
+    this.snackBar.open(`Previous chapter: ${prev.displayName}`, '', { duration: 2000 });
+    this.router.navigate(['/reader', prev.id], { queryParams: { at: 'end' } });
   }
 
   /** Next index in reading order, spread-aware (steps over the current spread). */
@@ -780,6 +869,51 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.currentPage.set(clamped);
     this.pageLoading.set(true);
     this.saveProgress();
+  }
+
+  /**
+   * Jump to the page under a click/tap on the progress rail. Direction-aware — in
+   * RTL the rail fills from the right, so the fraction is mirrored. Paged/spread
+   * jump discretely; webtoon scrolls to the target page (the scroll handler then
+   * reconciles currentPage and saves).
+   */
+  seekFromRail(event: MouseEvent): void {
+    const n = this.pageCount();
+    if (n === 0) return;
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    if (rect.width === 0) return;
+    let frac = (event.clientX - rect.left) / rect.width;
+    frac = Math.min(1, Math.max(0, frac));
+    if (this.direction() === 'rtl') frac = 1 - frac;
+    this.seekToPage(Math.round(frac * (n - 1)));
+  }
+
+  /** Keyboard seek on the focused rail: arrows step a page (direction-aware); Home/End jump to the ends. */
+  onRailKey(event: KeyboardEvent): void {
+    const n = this.pageCount();
+    if (n === 0) return;
+    const rtl = this.direction() === 'rtl';
+    let target: number;
+    switch (event.key) {
+      case 'ArrowRight': target = this.currentPage() + (rtl ? -1 : 1); break;
+      case 'ArrowLeft': target = this.currentPage() + (rtl ? 1 : -1); break;
+      case 'Home': target = 0; break;
+      case 'End': target = n - 1; break;
+      default: return;
+    }
+    event.preventDefault();
+    this.seekToPage(target);
+  }
+
+  /** Applies a seek target (clamped) across all view modes. */
+  private seekToPage(index: number): void {
+    const clamped = Math.min(Math.max(index, 0), this.pageCount() - 1);
+    if (this.view() === 'webtoon') {
+      this.currentPage.set(clamped);
+      this.scrollWebtoonTo(clamped); // fires onWebtoonScroll → reconciles + debounced save
+    } else {
+      this.goToPage(clamped);
+    }
   }
 
   /**
@@ -879,6 +1013,14 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
   private saveProgress(): void {
     if (this.phase() !== 'ready' || this.pageCount() === 0) return;
+    // Suppress the save while parked on a chapter's last page that we merely landed on
+    // via previous-chapter back-navigation — persisting it would complete (and, per the
+    // sticky read-mark feature, mark read) a chapter the reader never actually read.
+    // The moment they navigate off that last page, resume normal saving.
+    if (this.landedOnLastPage) {
+      if (this.currentPage() >= this.pageCount() - 1) return;
+      this.landedOnLastPage = false;
+    }
     const entry = this.pages()[this.currentPage()];
     this.api.updateProgress(this.itemId(), {
       pageIndex: this.currentPage(),

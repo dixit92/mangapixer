@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -14,13 +14,18 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { ApiService } from '../../core/api/api.service';
+import { AuthService } from '../../core/auth/auth.service';
 import {
   AdminUserDto,
   DirectoryListingDto,
   LibraryDto,
   LogLevel,
+  ReaderMode,
   RegisterLibraryRequest,
   CreateUserRequest,
+  RotatingBackupStatusDto,
+  YacReaderDetectDto,
+  YacReaderImportPreviewDto,
 } from '../../core/api/api-types';
 
 /**
@@ -74,6 +79,28 @@ import {
                   }
                 </div>
                 <span matListItemMeta class="lib-meta">
+                  <mat-form-field appearance="fill" class="dir-select"
+                                  floatLabel="always" subscriptSizing="dynamic">
+                    <mat-label>Direction</mat-label>
+                    <mat-select [value]="lib.defaultReaderMode"
+                                (selectionChange)="setLibraryDirection(lib, $event.value)">
+                      @for (opt of directionOptions; track opt.label) {
+                        <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  <button mat-icon-button type="button" (click)="regenerateThumbnails(lib)"
+                          [disabled]="thumbBusy().has(lib.id)"
+                          matTooltip="Regenerate thumbnails" aria-label="Regenerate thumbnails">
+                    <mat-icon>{{ thumbBusy().has(lib.id) ? 'hourglass_empty' : 'image' }}</mat-icon>
+                  </button>
+                  @if (yacDetected(lib.id)?.detected) {
+                    <button mat-icon-button type="button" (click)="openYacImport(lib)"
+                            matTooltip="Import YACReader reading progress"
+                            aria-label="Import YACReader reading progress">
+                      <mat-icon>sync_alt</mat-icon>
+                    </button>
+                  }
                   @if (lib.isScanning) {
                     <span class="chip scanning">
                       <mat-spinner diameter="14"></mat-spinner> Scanning…
@@ -91,12 +118,52 @@ import {
                   }
                 </span>
               </mat-list-item>
+
+              @if (yacPanelLibId() === lib.id) {
+                <div class="yac-panel">
+                  <div class="yac-head">
+                    <mat-icon>sync_alt</mat-icon>
+                    <span>Import YACReader progress into <strong>your</strong> account</span>
+                    @if (yacDetected(lib.id)?.dbVersion; as v) { <span class="yac-ver">db v{{ v }}</span> }
+                  </div>
+                  @if (yacBusy() && !yacPreview()) {
+                    <p class="yac-muted">Analyzing YACReader library…</p>
+                  } @else if (yacPreview(); as p) {
+                    <p class="yac-stats">
+                      {{ p.totalComics }} comics · {{ p.mapped }} matched · {{ p.unmapped }} unmatched ·
+                      {{ p.conflicts }} already have progress
+                    </p>
+                    <p class="yac-muted">
+                      Only reading progress is imported (covers/metadata are not). Matched by file
+                      path. Read state is sticky.
+                    </p>
+                    <mat-checkbox [checked]="yacOverwrite()"
+                                  (change)="toggleYacOverwrite($event.checked)">
+                      Overwrite items that already have MangaPlex progress
+                    </mat-checkbox>
+                    <div class="yac-actions">
+                      <button mat-raised-button color="primary" type="button"
+                              [disabled]="yacBusy() || p.toImport === 0"
+                              (click)="applyYacImport()">
+                        {{ p.toImport === 0 ? 'Nothing to import' : 'Import ' + p.toImport + ' item(s)' }}
+                      </button>
+                      <button mat-button type="button" (click)="closeYacImport()">Cancel</button>
+                    </div>
+                  }
+                </div>
+              }
             }
           </mat-list>
         }
 
         <mat-divider></mat-divider>
         <h4>Register New Library</h4>
+        @if (anyScanning()) {
+          <p class="scan-notice">
+            <mat-icon inline>info</mat-icon>
+            A library scan is in progress — registering a new library is paused until it finishes.
+          </p>
+        }
         <div class="register-form">
           <mat-form-field appearance="outline" floatLabel="always">
             <mat-label>Display Name</mat-label>
@@ -110,7 +177,8 @@ import {
             <button mat-stroked-button type="button" class="browse-btn" (click)="toggleBrowser()">
               <mat-icon>folder_open</mat-icon> {{ browserOpen() ? 'Hide browser' : 'Browse…' }}
             </button>
-            <button mat-raised-button color="primary" (click)="registerLibrary()" [disabled]="!newLibName() || !newLibPath()">
+            <button mat-raised-button color="primary" (click)="registerLibrary()"
+                    [disabled]="!newLibName() || !newLibPath() || anyScanning()">
               Register
             </button>
           </div>
@@ -245,14 +313,14 @@ import {
       </mat-card-content>
     </mat-card>
 
-    <!-- Diagnostics: log-level control (section 9) -->
+    <!-- Diagnostics: log-level control (section 9) + database backups -->
     <mat-card>
       <mat-card-header>
         <mat-card-title>Diagnostics</mat-card-title>
       </mat-card-header>
       <mat-card-content>
         <div class="log-level-control">
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="fill">
             <mat-label>Log Level</mat-label>
             <mat-select [(ngModel)]="logLevel" (selectionChange)="setLogLevel()">
               @for (level of logLevels; track level) {
@@ -265,6 +333,34 @@ import {
             Ephemeral — resets to Information on restart. Microsoft.* overrides stay at Warning.
           </p>
         </div>
+
+        <mat-divider></mat-divider>
+        <h4>Database Backups</h4>
+        @if (backupLoading()) {
+          <p>Loading…</p>
+        } @else if (backupStatus(); as status) {
+          <p class="backup-info">
+            @if (!status.enabled) {
+              Scheduled backups are disabled by configuration.
+            } @else {
+              Every {{ intervalLabel() }} · keeping last {{ status.retentionCount }}
+            }
+            <br>
+            @if (status.lastSuccessUtc) {
+              Last backup {{ status.lastSuccessUtc | date:'short' }}
+              ({{ status.retainedCount }} on disk).
+            } @else if (status.lastFailureUtc) {
+              Last attempt failed — check server logs.
+            } @else {
+              No backup taken yet.
+            }
+          </p>
+        }
+        <button mat-raised-button color="primary" type="button"
+                (click)="runBackupNow()"
+                [disabled]="backupBusy() || backupLoading()">
+          {{ backupBusy() ? 'Backing up…' : 'Back up now' }}
+        </button>
       </mat-card-content>
     </mat-card>
   `,
@@ -276,11 +372,27 @@ import {
     /* Register form: let the path/name fields span a sensible width (matching the
        browser panel below) instead of the cramped default 200px shared with the
        compact user-creation inputs. */
+    .scan-notice {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; opacity: 0.85; margin: 0 0 8px;
+    }
     .register-form { max-width: 640px; }
     .register-form mat-form-field { display: block; width: 100%; margin-right: 0; }
     .register-actions { display: flex; gap: 12px; margin-top: 4px; }
     .browse-btn { margin-right: 12px; }
     .lib-meta, .user-meta { display: inline-flex; align-items: center; gap: 8px; }
+    .dir-select { width: 150px; }
+    .yac-panel {
+      margin: 4px 0 12px 56px; padding: 12px 16px;
+      border: 1px solid rgba(124, 77, 255, 0.5); border-radius: 8px;
+      background: rgba(124, 77, 255, 0.06);
+    }
+    .yac-head { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+    .yac-head mat-icon { color: #b39dff; }
+    .yac-ver { font-size: 12px; opacity: 0.7; }
+    .yac-stats { margin: 8px 0 4px; font-size: 14px; }
+    .yac-muted { margin: 0 0 8px; font-size: 12px; opacity: 0.7; }
+    .yac-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
     .chip {
       display: inline-flex; align-items: center; gap: 6px;
       font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px;
@@ -295,6 +407,7 @@ import {
       font-size: 13px; opacity: 0.8; margin: 0 0 4px;
       display: flex; align-items: center; gap: 6px;
     }
+    .backup-info { margin: 0 0 12px; font-size: 13px; opacity: 0.9; }
     .browser {
       margin-top: 12px;
       border: 1px solid rgba(255, 255, 255, 0.12);
@@ -329,7 +442,18 @@ import {
 })
 export class AdminComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
   private readonly snackBar = inject(MatSnackBar);
+
+  // Thumbnail regeneration (1.2.0): per-library in-flight guard.
+  readonly thumbBusy = signal<Set<string>>(new Set());
+
+  // YACReader import (1.2.0): per-library detection + a small inline import panel.
+  readonly yacDetect = signal<Map<string, YacReaderDetectDto>>(new Map());
+  readonly yacPanelLibId = signal<string | null>(null);
+  readonly yacPreview = signal<YacReaderImportPreviewDto | null>(null);
+  readonly yacOverwrite = signal(false);
+  readonly yacBusy = signal(false);
 
   readonly loadingLibs = signal(true);
   readonly loadingUsers = signal(true);
@@ -348,6 +472,10 @@ export class AdminComponent implements OnInit, OnDestroy {
   // target the active run. `cancelling` guards double-cancel clicks.
   private readonly runningScans = signal<Map<string, string>>(new Map());
   readonly cancelling = signal<Set<string>>(new Set());
+
+  /** True while any library is scanning — register is paused then (SQLite single-writer). */
+  readonly anyScanning = computed(() =>
+    this.libraries().some((l) => l.isScanning) || this.runningScans().size > 0);
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   // Grants panel state (D39).
@@ -361,14 +489,28 @@ export class AdminComponent implements OnInit, OnDestroy {
   readonly newUserIsAdmin = signal(false);
 
   // Log-level control (section 9)
+  // Global default reading direction per library (1.2.0). null = inherit.
+  readonly directionOptions: { value: ReaderMode | null; label: string }[] = [
+    { value: null, label: 'Inherit' },
+    { value: 'PagedLtr', label: 'Left-to-right' },
+    { value: 'PagedRtl', label: 'Right-to-left' },
+    { value: 'VerticalWebtoon', label: 'Vertical' },
+  ];
+
   readonly logLevels: LogLevel[] = ['Verbose', 'Debug', 'Information', 'Warning', 'Error', 'Fatal'];
   logLevel = 'Information';
   private logLevelLoading = false;
+
+  // Rotating database backups status (1.2.0).
+  readonly backupLoading = signal(true);
+  readonly backupBusy = signal(false);
+  readonly backupStatus = signal<RotatingBackupStatusDto | null>(null);
 
   ngOnInit(): void {
     this.loadLibraries();
     this.loadUsers();
     this.loadLogLevel();
+    this.loadBackupStatus();
   }
 
   ngOnDestroy(): void {
@@ -391,10 +533,102 @@ export class AdminComponent implements OnInit, OnDestroy {
             this.backfillScanRunId(lib.id);
           }
         }
+        this.detectYacForAll(libs);
         this.syncPolling();
       },
       error: () => this.loadingLibs.set(false),
     });
+  }
+
+  // --- Thumbnail regeneration (1.2.0) ---
+
+  /**
+   * Enqueues durable thumbnail (re)generation for every item in a library that
+   * lacks a current thumbnail. Runs in the background on the server; returns the
+   * queued count immediately.
+   */
+  regenerateThumbnails(lib: LibraryDto): void {
+    this.thumbBusy.update((s) => new Set(s).add(lib.id));
+    this.api.regenerateThumbnails(lib.id).subscribe({
+      next: (r) => {
+        this.thumbBusy.update((s) => { const n = new Set(s); n.delete(lib.id); return n; });
+        this.snackBar.open(
+          r.queuedCount > 0
+            ? `Generating ${r.queuedCount} thumbnail(s) in the background…`
+            : 'All thumbnails are already up to date.',
+          'Close', { duration: 4000 });
+      },
+      error: (err) => {
+        this.thumbBusy.update((s) => { const n = new Set(s); n.delete(lib.id); return n; });
+        this.snackBar.open(`Thumbnail regenerate failed: ${err.message}`, 'Close', { duration: 5000 });
+      },
+    });
+  }
+
+  // --- YACReader import (1.2.0) ---
+
+  /** Detect a YACReader library inside each MangaPlex library's root, in parallel. */
+  private detectYacForAll(libs: LibraryDto[]): void {
+    for (const lib of libs) {
+      this.api.detectYacReader(lib.id).subscribe({
+        next: (d) => this.yacDetect.update((m) => new Map(m).set(lib.id, d)),
+        error: () => { /* detection best-effort; no button if it fails */ },
+      });
+    }
+  }
+
+  yacDetected(libId: string): YacReaderDetectDto | undefined {
+    return this.yacDetect().get(libId);
+  }
+
+  /** Open the import panel for a library and run a dry-run preview into the admin's account. */
+  openYacImport(lib: LibraryDto): void {
+    this.yacPanelLibId.set(lib.id);
+    this.yacPreview.set(null);
+    this.yacOverwrite.set(false);
+    this.refreshYacPreview(lib.id);
+  }
+
+  closeYacImport(): void {
+    this.yacPanelLibId.set(null);
+    this.yacPreview.set(null);
+  }
+
+  /** Re-run the preview (e.g. after toggling Overwrite, which changes the counts). */
+  refreshYacPreview(libId: string): void {
+    const userId = this.auth.currentUser()?.id;
+    if (!userId) return;
+    this.yacBusy.set(true);
+    this.api.previewYacReaderImport({ libraryId: libId, targetUserId: userId, overwrite: this.yacOverwrite() })
+      .subscribe({
+        next: (p) => { this.yacPreview.set(p); this.yacBusy.set(false); },
+        error: (err) => { this.yacBusy.set(false); this.snackBar.open(`Preview failed: ${err.message}`, 'Close', { duration: 5000 }); },
+      });
+  }
+
+  toggleYacOverwrite(value: boolean): void {
+    this.yacOverwrite.set(value);
+    const libId = this.yacPanelLibId();
+    if (libId) this.refreshYacPreview(libId);
+  }
+
+  /** Apply the import into the current admin's account. */
+  applyYacImport(): void {
+    const libId = this.yacPanelLibId();
+    const userId = this.auth.currentUser()?.id;
+    if (!libId || !userId) return;
+    this.yacBusy.set(true);
+    this.api.applyYacReaderImport({ libraryId: libId, targetUserId: userId, overwrite: this.yacOverwrite() })
+      .subscribe({
+        next: (r) => {
+          this.yacBusy.set(false);
+          this.snackBar.open(
+            `Imported ${r.imported} of ${r.mapped} mapped (${r.readMarks} read, ${r.skipped} skipped).`,
+            'Close', { duration: 5000 });
+          this.closeYacImport();
+        },
+        error: (err) => { this.yacBusy.set(false); this.snackBar.open(`Import failed: ${err.message}`, 'Close', { duration: 5000 }); },
+      });
   }
 
   /** Refresh library rows without touching the loading flag (used while polling). */
@@ -482,6 +716,20 @@ export class AdminComponent implements OnInit, OnDestroy {
         this.snackBar.open(`Library "${lib.name}" registered`, 'Close', { duration: 3000 });
       },
       error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 5000 }),
+    });
+  }
+
+  /** Set (or clear, when mode is null) the library's global default reading direction. */
+  setLibraryDirection(lib: LibraryDto, mode: ReaderMode | null): void {
+    const call = mode
+      ? this.api.setLibraryReaderDefault(lib.id, mode)
+      : this.api.clearLibraryReaderDefault(lib.id);
+    call.subscribe({
+      next: (updated) => {
+        this.libraries.update(libs => libs.map(l => l.id === lib.id ? updated : l));
+        this.snackBar.open(`Reading direction updated for "${lib.name}"`, 'Close', { duration: 2500 });
+      },
+      error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 4000 }),
     });
   }
 
@@ -667,6 +915,41 @@ export class AdminComponent implements OnInit, OnDestroy {
         this.snackBar.open(`Log level set to ${dto.level}`, 'Close', { duration: 3000 });
       },
       error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 5000 }),
+    });
+  }
+
+  // --- Rotating database backups (1.2.0) ---
+
+  private loadBackupStatus(): void {
+    this.api.getRotatingBackupStatus().subscribe({
+      next: (status) => {
+        this.backupStatus.set(status);
+        this.backupLoading.set(false);
+      },
+      error: () => this.backupLoading.set(false),
+    });
+  }
+
+  /** Humanized schedule label, e.g. "24h" or "90 min". */
+  intervalLabel(): string {
+    const hours = this.backupStatus()?.intervalHours ?? 24;
+    return hours >= 1
+      ? `${Math.round(hours)} h`
+      : `${Math.max(1, Math.round(hours * 60))} min`;
+  }
+
+  runBackupNow(): void {
+    this.backupBusy.set(true);
+    this.api.runRotatingBackupNow().subscribe({
+      next: (status) => {
+        this.backupStatus.set(status);
+        this.backupBusy.set(false);
+        this.snackBar.open('Database backup created', 'Close', { duration: 3000 });
+      },
+      error: (err) => {
+        this.backupBusy.set(false);
+        this.snackBar.open(`Backup failed: ${err.message}`, 'Close', { duration: 5000 });
+      },
     });
   }
 }

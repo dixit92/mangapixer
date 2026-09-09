@@ -41,8 +41,10 @@ public sealed class MangaPlexDbContext : DbContext
     public DbSet<ArchiveItemEntity> ArchiveItems => Set<ArchiveItemEntity>();
     public DbSet<PageEntryEntity> PageEntries => Set<PageEntryEntity>();
     public DbSet<ReadingProgressEntity> ReadingProgress => Set<ReadingProgressEntity>();
+    public DbSet<ReadMarkEntity> ReadMarks => Set<ReadMarkEntity>();
     public DbSet<ReaderPreferencesEntity> ReaderPreferences => Set<ReaderPreferencesEntity>();
     public DbSet<ItemReaderOverridesEntity> ItemReaderOverrides => Set<ItemReaderOverridesEntity>();
+    public DbSet<FolderReaderDefaultEntity> FolderReaderDefaults => Set<FolderReaderDefaultEntity>();
     public DbSet<BookmarkEntity> Bookmarks => Set<BookmarkEntity>();
     public DbSet<JobEntity> Jobs => Set<JobEntity>();
     public DbSet<ScanRunEntity> ScanRuns => Set<ScanRunEntity>();
@@ -63,7 +65,9 @@ public sealed class MangaPlexDbContext : DbContext
         ConfigureArchiveItems(modelBuilder);
         ConfigurePageEntries(modelBuilder);
         ConfigureReadingProgress(modelBuilder);
+        ConfigureReadMarks(modelBuilder);
         ConfigurePreferences(modelBuilder);
+        ConfigureFolderReaderDefaults(modelBuilder);
         ConfigureBookmarks(modelBuilder);
         ConfigureJobs(modelBuilder);
         ConfigureCacheEntries(modelBuilder);
@@ -177,6 +181,7 @@ public sealed class MangaPlexDbContext : DbContext
 
             e.HasIndex(x => x.AnalysisState);
             e.HasIndex(x => x.ContentVersion);
+            e.HasIndex(x => x.ThumbnailState);
         });
     }
 
@@ -218,6 +223,21 @@ public sealed class MangaPlexDbContext : DbContext
         });
     }
 
+    private static void ConfigureReadMarks(ModelBuilder mb)
+    {
+        mb.Entity<ReadMarkEntity>(e =>
+        {
+            e.ToTable("read_marks");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.Source).IsRequired().HasMaxLength(16);
+
+            // One read mark per user+item; presence means "read".
+            e.HasIndex(x => new { x.UserId, x.ItemId }).IsUnique();
+            e.HasIndex(x => x.ItemId);
+        });
+    }
+
     private static void ConfigurePreferences(ModelBuilder mb)
     {
         mb.Entity<ReaderPreferencesEntity>(e =>
@@ -234,6 +254,22 @@ public sealed class MangaPlexDbContext : DbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.Id).ValueGeneratedOnAdd();
             e.HasIndex(x => new { x.UserId, x.ItemId }).IsUnique();
+        });
+    }
+
+    private static void ConfigureFolderReaderDefaults(ModelBuilder mb)
+    {
+        mb.Entity<FolderReaderDefaultEntity>(e =>
+        {
+            e.ToTable("folder_reader_defaults");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            // One override row per folder node.
+            e.HasIndex(x => x.NodeId).IsUnique();
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

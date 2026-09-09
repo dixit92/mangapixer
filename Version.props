@@ -14,8 +14,16 @@
          or contract changes, so MINOR per SemVer 2.0.0.
          (1.0.0 was the first stable MVP release; the 0.1.0-dev.N line dev.0…dev.41 was
          the pre-1.0 development series.) -->
+    <!-- 1.2.0 — released 2026-09-09 after owner acceptance testing on the real
+         Unraid library (rc.1 → rc.4). Backward-compatible additive minor over 1.1.0:
+         per-library/folder reading direction, sticky read-marks + bulk/selection UX,
+         continue-reading management (dismiss + auto-hide read), Grid/List/Poster view
+         modes, previous-chapter auto-advance, interactive progress-rail jump, rotating
+         DB backups, YACReader progress import, persistent thumbnails, and scan-safe
+         concurrency (private SQLite cache + startup analysis resume). No breaking API
+         or contract changes → MINOR per SemVer 2.0.0. Bugfixes ship as 1.2.x. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>1</MangaPlexVersionMinor>
+    <MangaPlexVersionMinor>2</MangaPlexVersionMinor>
     <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 

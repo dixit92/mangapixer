@@ -2,6 +2,7 @@ namespace com.lifepixer.mangaplex.Server.Features.Catalog;
 
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Core.Reading;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -130,6 +131,58 @@ public sealed class CatalogBrowseService
                     return n with { CoverUrl = $"/api/v1/items/{firstChildId}/cover" };
                 return n;
             }).ToList();
+        }
+
+        // Populate ReaderDefault for folders that carry a global override (1.2.0).
+        if (folderIds.Count > 0)
+        {
+            var folderReaderDefaults = await _db.FolderReaderDefaults
+                .Where(f => f.Node != null && folderIds.Contains(f.Node.PublicId))
+                .Select(f => new { PublicId = f.Node!.PublicId, f.ReaderMode })
+                .ToDictionaryAsync(x => x.PublicId, x => x.ReaderMode, ct);
+
+            if (folderReaderDefaults.Count > 0)
+            {
+                nodes = nodes.Select(n =>
+                {
+                    if (n.Kind == CatalogNodeKind.Folder && folderReaderDefaults.TryGetValue(n.Id, out var rm))
+                        return n with { ReaderDefault = (ReaderMode)rm };
+                    return n;
+                }).ToList();
+            }
+        }
+
+        // Surface per-user read state for archives (1.2.0): the sticky read-mark
+        // (IsRead) plus the progress-derived ReadingState. Both are keyed by internal
+        // node id, so we join back to catalog_nodes to map to the public ids the DTOs
+        // carry. (Prior to this, ReadingState was never populated in browse at all.)
+        var archiveIds = nodes.Where(n => n.Kind == CatalogNodeKind.Archive).Select(n => n.Id).ToList();
+        if (archiveIds.Count > 0)
+        {
+            var readPublicIds = (await _db.ReadMarks
+                .Where(m => m.UserId == userId)
+                .Join(_db.CatalogNodes, m => m.ItemId, n => n.Id, (m, n) => n.PublicId)
+                .Where(pid => archiveIds.Contains(pid))
+                .ToListAsync(ct)).ToHashSet();
+
+            var progressStates = await _db.ReadingProgress
+                .Where(p => p.UserId == userId)
+                .Join(_db.CatalogNodes, p => p.ItemId, n => n.Id, (p, n) => new { n.PublicId, p.State, p.Ordinal })
+                .Where(x => archiveIds.Contains(x.PublicId))
+                .ToDictionaryAsync(x => x.PublicId, x => new { x.State, x.Ordinal }, ct);
+
+            if (readPublicIds.Count > 0 || progressStates.Count > 0)
+            {
+                nodes = nodes.Select(n =>
+                {
+                    if (n.Kind != CatalogNodeKind.Archive)
+                        return n;
+                    var isRead = readPublicIds.Contains(n.Id);
+                    if (progressStates.TryGetValue(n.Id, out var p))
+                        return n with { IsRead = isRead, ReadingState = (ReadingState)p.State, LastReadPage = p.Ordinal };
+                    return isRead ? n with { IsRead = true } : n;
+                }).ToList();
+            }
         }
 
         var hasMore = nodes.Count > pageSize;

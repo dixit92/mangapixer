@@ -2,6 +2,7 @@ namespace com.lifepixer.mangaplex.Server.Features.Catalog;
 
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Core.Reading;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Authorization;
@@ -78,6 +79,7 @@ public sealed class CatalogController : ControllerBase
             IsScanning = scanningSet.Contains(l.Id),
             ItemCount = itemCounts.TryGetValue(l.Id, out var count) ? count : 0,
             LastScanCompleted = l.LastScanCompleted,
+            DefaultReaderMode = (ReaderMode?)l.DefaultReaderMode,
         }).ToList();
 
         return Ok(dtos);
@@ -116,6 +118,7 @@ public sealed class CatalogController : ControllerBase
             IsScanning = isScanning,
             ItemCount = itemCount,
             LastScanCompleted = library.LastScanCompleted,
+            DefaultReaderMode = (ReaderMode?)library.DefaultReaderMode,
         });
     }
 

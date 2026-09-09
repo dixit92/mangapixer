@@ -56,11 +56,19 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Property<long?>("StrongHashSourceVersion")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("ThumbnailContentVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ThumbnailState")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("NodeId");
 
                     b.HasIndex("AnalysisState");
 
                     b.HasIndex("ContentVersion");
+
+                    b.HasIndex("ThumbnailState");
 
                     b.ToTable("archive_items", (string)null);
                 });
@@ -259,6 +267,26 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("catalog_nodes", (string)null);
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.FolderReaderDefaultEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("NodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ReaderMode")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NodeId")
+                        .IsUnique();
+
+                    b.ToTable("folder_reader_defaults", (string)null);
+                });
+
             modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ItemReaderOverridesEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -370,6 +398,9 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("DefaultReaderMode")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("DisplayName")
@@ -490,6 +521,36 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("page_entries", (string)null);
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ReadMarkEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ItemId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("MarkedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("UserId", "ItemId")
+                        .IsUnique();
+
+                    b.ToTable("read_marks", (string)null);
+                });
+
             modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ReaderPreferencesEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -498,6 +559,18 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
 
                     b.Property<int>("DefaultReaderMode")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("LibraryGridDensity")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LibrarySort")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LibraryViewMode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("PreferDoubleSpread")
                         .HasColumnType("INTEGER");
@@ -535,6 +608,9 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("HiddenFromContinue")
+                        .HasColumnType("INTEGER");
 
                     b.Property<long>("ItemId")
                         .HasColumnType("INTEGER");
@@ -827,6 +903,17 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Navigation("Parent");
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.FolderReaderDefaultEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.CatalogNodeEntity", "Node")
+                        .WithMany()
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Node");
+                });
+
             modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ItemReaderOverridesEntity", b =>
                 {
                     b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", "User")
@@ -866,6 +953,17 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Item");
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ReadMarkEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ReaderPreferencesEntity", b =>

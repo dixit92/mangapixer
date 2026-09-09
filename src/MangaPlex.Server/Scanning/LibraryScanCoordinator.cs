@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Scanning;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
@@ -55,8 +57,11 @@ public sealed class LibraryScanCoordinator
     /// </summary>
     public async Task<ScanResult> ScanAsync(CancellationToken ct = default)
     {
+        _logger?.LogInformation(LogEvents.Scanning.ScanStarted, "Starting scan for library {LibraryId} (revision {Revision})", _libraryId, _scanRevision);
+
         if (!_fs.RootExists())
         {
+            _logger?.LogWarning(LogEvents.Scanning.ScanRootUnavailable, "Library {LibraryId} root is not accessible", _libraryId);
             return new ScanResult
             {
                 Success = false,
@@ -69,15 +74,21 @@ public sealed class LibraryScanCoordinator
         // ParentPathKey is the relative path of the parent directory ("" for root),
         // which lets ReconcileAsync establish parent-child relationships after
         // nodes are created (audit defect D1).
+        _logger?.LogDebug(LogEvents.Scanning.ScanPhaseObservation, "Scan {LibraryId} phase 1: observation", _libraryId);
         var observations = new List<ScanObservationEntity>();
         await ObserveAsync("", "", observations, ct);
+        _logger?.LogDebug(LogEvents.Scanning.ScanObservedCount, "Scan {LibraryId} observed {Count} entries", _libraryId, observations.Count);
 
         // Phase 2: Reconcile observations against existing catalog nodes
+        _logger?.LogDebug(LogEvents.Scanning.ScanPhaseReconciliation, "Scan {LibraryId} phase 2: reconciliation", _libraryId);
         var reconciliation = await ReconcileAsync(observations, ct);
+        _logger?.LogDebug(LogEvents.Scanning.ScanReconciliationComplete, "Scan {LibraryId} reconciliation complete: {Added} added, {Updated} updated",
+            _libraryId, reconciliation.NodesAdded, reconciliation.NodesUpdated);
 
         // Phase 3: Tombstone missing nodes (only after complete observation)
         if (reconciliation.Success)
         {
+            _logger?.LogDebug(LogEvents.Scanning.ScanPhaseTombstoning, "Scan {LibraryId} phase 3: tombstoning", _libraryId);
             await TombstoneMissingNodesAsync(ct);
         }
 
@@ -86,6 +97,9 @@ public sealed class LibraryScanCoordinator
         library.CatalogRevision++;
         library.LastScanCompleted = DateTimeOffset.UtcNow;
         await _db.SaveChangesAsync(ct);
+
+        _logger?.LogInformation(LogEvents.Scanning.ScanCompleted, "Scan completed for library {LibraryId}: {Observed} observed, {Added} added, {Updated} updated",
+            _libraryId, observations.Count, reconciliation.NodesAdded, reconciliation.NodesUpdated);
 
         return new ScanResult
         {
@@ -311,7 +325,12 @@ public sealed class LibraryScanCoordinator
             .ToListAsync(ct);
 
         if (missingNodes.Count == 0)
+        {
+            _logger?.LogDebug(LogEvents.Scanning.ScanNoMissingNodes, "Scan {LibraryId}: no missing nodes to tombstone", _libraryId);
             return;
+        }
+
+        _logger?.LogDebug(LogEvents.Scanning.ScanMissingNodes, "Scan {LibraryId}: {Count} nodes missing since last scan", _libraryId, missingNodes.Count);
 
         // Suspicious-loss detection
         var totalNodes = await _db.CatalogNodes.CountAsync(n => n.LibraryId == _libraryId, ct);
@@ -321,14 +340,14 @@ public sealed class LibraryScanCoordinator
         // Plus always-suspicious: nonempty-to-empty
         if (archiveCount >= 100 && (double)missingNodes.Count / totalNodes > 0.9)
         {
-            _logger?.LogWarning("Suspicious loss detected: {MissingCount} of {TotalCount} nodes missing in library {LibraryId}. Requires admin review.", missingNodes.Count, totalNodes, _libraryId);
+            _logger?.LogWarning(LogEvents.Scanning.SuspiciousLossPartial, "Suspicious loss detected: {MissingCount} of {TotalCount} nodes missing in library {LibraryId}. Requires admin review.", missingNodes.Count, totalNodes, _libraryId);
             // Do not tombstone — require admin review
             return;
         }
 
         if (totalNodes > 0 && missingNodes.Count == totalNodes)
         {
-            _logger?.LogWarning("Suspicious loss: all {TotalCount} nodes missing in library {LibraryId}. Requires admin review.", totalNodes, _libraryId);
+            _logger?.LogWarning(LogEvents.Scanning.SuspiciousLossAll, "Suspicious loss: all {TotalCount} nodes missing in library {LibraryId}. Requires admin review.", totalNodes, _libraryId);
             return;
         }
 
@@ -340,6 +359,7 @@ public sealed class LibraryScanCoordinator
         }
 
         await _db.SaveChangesAsync(ct);
+        _logger?.LogInformation(LogEvents.Scanning.ScanTombstoned, "Scan {LibraryId}: tombstoned {Count} missing nodes", _libraryId, missingNodes.Count);
     }
 
     private static string BuildSortKey(int kind, string name)

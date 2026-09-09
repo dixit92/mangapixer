@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Hosting;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Server.Media;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -33,7 +35,7 @@ public sealed class MediaWorkerHostedService : IHostedService, IAsyncDisposable
         try
         {
             await _pool.StartAsync(cancellationToken);
-            _logger.LogInformation("Media worker pool started with {Count} worker(s)", _pool.WorkerCount);
+            _logger.LogInformation(LogEvents.Worker.HostedPoolStarted, "Media worker pool started with {Count} worker(s)", _pool.WorkerCount);
 
             // Start a low-frequency dispatch loop so background analysis jobs
             // are pulled when reader demand is idle. Reader-demand dispatch
@@ -44,7 +46,7 @@ public sealed class MediaWorkerHostedService : IHostedService, IAsyncDisposable
         catch (Exception ex)
         {
             // Non-fatal: API stays up. Readers will see pending/preparing states.
-            _logger.LogWarning("Media worker pool failed to start: {Error}. API remains available.", ex.GetType().Name);
+            _logger.LogWarning(LogEvents.Worker.PoolStartFailed, "Media worker pool failed to start: {Error}. API remains available.", ex.GetType().Name);
         }
     }
 
@@ -62,7 +64,7 @@ public sealed class MediaWorkerHostedService : IHostedService, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning("Error stopping media worker pool: {Error}", ex.GetType().Name);
+            _logger.LogWarning(LogEvents.Worker.PoolStopError, "Error stopping media worker pool: {Error}", ex.GetType().Name);
         }
     }
 
@@ -87,7 +89,7 @@ public sealed class MediaWorkerHostedService : IHostedService, IAsyncDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogWarning("Worker dispatch loop error: {Error}", ex.GetType().Name);
+                _logger.LogWarning(LogEvents.Worker.DispatchLoopError, "Worker dispatch loop error: {Error}", ex.GetType().Name);
             }
 
             try

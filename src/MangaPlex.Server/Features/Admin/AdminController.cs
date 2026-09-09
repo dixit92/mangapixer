@@ -1,7 +1,10 @@
 namespace com.lifepixer.mangaplex.Server.Features.Admin;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Core.Reading;
 using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Media;
 using com.lifepixer.mangaplex.Server.Persistence;
@@ -92,6 +95,18 @@ public sealed class AdminController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.DisplayName) || string.IsNullOrWhiteSpace(request.RootPath))
             return BadRequest(new ApiError { Error = "invalid_request", Message = "DisplayName and RootPath are required." });
 
+        // Registering a library writes to the catalog while a scan is also writing;
+        // SQLite is single-writer, so refuse cleanly rather than let the write contend
+        // (owner decision 2026-09-09 — registering is rare, so blocking it during a
+        // scan is acceptable). Reads are unaffected (WAL snapshots).
+        var scanActive = await _db.ScanRuns.AnyAsync(s => s.Status == 0 || s.Status == 1, ct);
+        if (scanActive)
+            return Conflict(new ApiError
+            {
+                Error = "scan_in_progress",
+                Message = "A library scan is in progress. Please register the new library after it completes.",
+            });
+
         var result = await _registration.RegisterAsync(request.DisplayName, request.RootPath, ct: ct);
         if (!result.Success)
             return BadRequest(new ApiError { Error = result.Error ?? "registration_failed", Message = result.Message ?? "Registration failed." });
@@ -137,6 +152,65 @@ public sealed class AdminController : ControllerBase
 
         var success = await _registration.UnregisterAsync(library.Id, ct);
         if (!success) return NotFound();
+        return NoContent();
+    }
+
+    // --- Global default reader mode (1.2.0) ---
+    // Admin-set defaults applied to all users; overridable per folder, and by a
+    // user's own per-item override. See ReaderModeResolver for precedence.
+
+    [HttpPut("libraries/{id}/reader-default")]
+    public async Task<IActionResult> SetLibraryReaderDefault(string id, [FromBody] SetReaderModeRequest request, CancellationToken ct)
+    {
+        var library = await _db.Libraries.FirstOrDefaultAsync(l => l.PublicId == id, ct);
+        if (library is null) return NotFound();
+
+        library.DefaultReaderMode = (int)request.ReaderMode;
+        await _db.SaveChangesAsync(ct);
+        return Ok(ToLibraryDto(library));
+    }
+
+    [HttpDelete("libraries/{id}/reader-default")]
+    public async Task<IActionResult> ClearLibraryReaderDefault(string id, CancellationToken ct)
+    {
+        var library = await _db.Libraries.FirstOrDefaultAsync(l => l.PublicId == id, ct);
+        if (library is null) return NotFound();
+
+        library.DefaultReaderMode = null;
+        await _db.SaveChangesAsync(ct);
+        return Ok(ToLibraryDto(library));
+    }
+
+    [HttpPut("folders/{nodeId}/reader-default")]
+    public async Task<IActionResult> SetFolderReaderDefault(string nodeId, [FromBody] SetReaderModeRequest request, CancellationToken ct)
+    {
+        var node = await _db.CatalogNodes.FirstOrDefaultAsync(n => n.PublicId == nodeId, ct);
+        if (node is null) return NotFound();
+        if (node.Kind != (int)CatalogNodeKind.Folder)
+            return BadRequest(new ApiError { Error = "not_a_folder", Message = "A reader-mode override can only be set on a folder." });
+
+        var existing = await _db.FolderReaderDefaults.FirstOrDefaultAsync(f => f.NodeId == node.Id, ct);
+        if (existing is null)
+            _db.FolderReaderDefaults.Add(new FolderReaderDefaultEntity { NodeId = node.Id, ReaderMode = (int)request.ReaderMode });
+        else
+            existing.ReaderMode = (int)request.ReaderMode;
+
+        await _db.SaveChangesAsync(ct);
+        return Ok(new SetReaderModeRequest { ReaderMode = request.ReaderMode });
+    }
+
+    [HttpDelete("folders/{nodeId}/reader-default")]
+    public async Task<IActionResult> ClearFolderReaderDefault(string nodeId, CancellationToken ct)
+    {
+        var node = await _db.CatalogNodes.FirstOrDefaultAsync(n => n.PublicId == nodeId, ct);
+        if (node is null) return NotFound();
+
+        var existing = await _db.FolderReaderDefaults.FirstOrDefaultAsync(f => f.NodeId == node.Id, ct);
+        if (existing is not null)
+        {
+            _db.FolderReaderDefaults.Remove(existing);
+            await _db.SaveChangesAsync(ct);
+        }
         return NoContent();
     }
 
@@ -201,7 +275,7 @@ public sealed class AdminController : ControllerBase
 
                 await scopedLeaseService.ReleaseLeaseAsync(leaseId, result.Success, result.Error);
                 await scopedMaintenance.ExitMaintenanceAsync(libraryId);
-                _logger.LogInformation("Scan completed for library {LibraryId}: {Added} added, {Tombstoned} tombstoned",
+                _logger.LogInformation(LogEvents.Scanning.AdminScanCompleted, "Scan completed for library {LibraryId}: {Added} added, {Tombstoned} tombstoned",
                     libraryId, result.NodesAdded, result.NodesTombstoned);
 
                 // Enqueue analysis for pending archive items after a successful
@@ -224,7 +298,7 @@ public sealed class AdminController : ControllerBase
                 // enqueue) as "completed" instead of downgrading it.
                 await scopedLeaseService.CancelScanAsync(leaseId);
                 await scopedMaintenance.ExitMaintenanceAsync(libraryId);
-                _logger.LogInformation("Scan cancelled for library {LibraryId}", libraryId);
+                _logger.LogInformation(LogEvents.Scanning.AdminScanCancelled, "Scan cancelled for library {LibraryId}", libraryId);
             }
             catch (Exception ex)
             {
@@ -238,7 +312,7 @@ public sealed class AdminController : ControllerBase
                 }
                 await scopedLeaseService.ReleaseLeaseAsync(leaseId, false, ex.GetType().Name);
                 await scopedMaintenance.ExitMaintenanceAsync(libraryId);
-                _logger.LogWarning("Scan failed for library {LibraryId}: {Error}", libraryId, ex.GetType().Name);
+                _logger.LogWarning(LogEvents.Scanning.AdminScanFailed, "Scan failed for library {LibraryId}: {Error}", libraryId, ex.GetType().Name);
             }
             finally
             {
@@ -272,7 +346,7 @@ public sealed class AdminController : ControllerBase
             if (pendingItems.Count == 0)
                 return;
 
-            _logger.LogInformation("Enqueuing analysis for {Count} pending items in library {LibraryId}",
+            _logger.LogInformation(LogEvents.Scanning.AnalysisEnqueueBatch, "Enqueuing analysis for {Count} pending items in library {LibraryId}",
                 pendingItems.Count, libraryId);
 
             // Enqueue at Background priority — scan-triggered analysis is not
@@ -314,7 +388,7 @@ public sealed class AdminController : ControllerBase
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning("Failed to enqueue analysis for item {ItemId}: {Error}",
+                    _logger.LogWarning(LogEvents.Scanning.AnalysisEnqueueItemFailed, "Failed to enqueue analysis for item {ItemId}: {Error}",
                         entry.Node.Id, ex.GetType().Name);
                 }
             }
@@ -322,7 +396,7 @@ public sealed class AdminController : ControllerBase
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            _logger.LogWarning("Post-scan analysis enqueue failed for library {LibraryId}: {Error}",
+            _logger.LogWarning(LogEvents.Scanning.AnalysisEnqueueFailed, "Post-scan analysis enqueue failed for library {LibraryId}: {Error}",
                 libraryId, ex.GetType().Name);
         }
     }
@@ -369,6 +443,56 @@ public sealed class AdminController : ControllerBase
             .ToListAsync(ct);
 
         return Ok(scans);
+    }
+
+    // --- Thumbnail backfill (1.2.0) ---
+
+    /// <summary>
+    /// Enqueues durable thumbnail regeneration for all ready archive items in
+    /// a library that lack a current thumbnail. Returns a count of items
+    /// queued; generation runs in the background at low priority and does not
+    /// block the request. This backfills items that were analyzed before the
+    /// persistent-thumbnail feature existed, or whose source changed.
+    /// </summary>
+    [HttpPost("libraries/{id}/thumbnails/regenerate")]
+    public async Task<IActionResult> RegenerateThumbnails(string id, CancellationToken ct)
+    {
+        var library = await _db.Libraries.FirstOrDefaultAsync(l => l.PublicId == id, ct);
+        if (library is null) return NotFound();
+
+        var itemsNeedingThumbnails = await ThumbnailGenerationService.GetItemsNeedingThumbnailsAsync(
+            _db, library.Id, limit: 10_000, ct);
+
+        if (itemsNeedingThumbnails.Count == 0)
+        {
+            _logger.LogInformation(LogEvents.Worker.ThumbnailBackfillBatch, "Thumbnail regenerate: no items need thumbnails in library {LibraryId}", library.Id);
+            return Ok(new ThumbnailRegenerateResponse { QueuedCount = 0 });
+        }
+
+        _logger.LogInformation(LogEvents.Worker.ThumbnailBackfillEnqueued, "Thumbnail regenerate: enqueuing {Count} items in library {LibraryId}",
+            itemsNeedingThumbnails.Count, library.Id);
+
+        // Fire-and-forget: generate thumbnails in the background. Each call
+        // uses the worker pool to extract + encode the first page. Low
+        // priority — this must not block interactive reader page requests.
+        _ = Task.Run(async () =>
+        {
+            foreach (var nodeId in itemsNeedingThumbnails)
+            {
+                try
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var thumbService = scope.ServiceProvider.GetRequiredService<ThumbnailGenerationService>();
+                    await thumbService.GenerateForItemAsync(nodeId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(LogEvents.Worker.ThumbnailGenerationFailed, ex, "Thumbnail regenerate failed (item {ItemId}): {Error}", nodeId, ex.GetType().Name);
+                }
+            }
+        }, CancellationToken.None);
+
+        return Accepted(new ThumbnailRegenerateResponse { QueuedCount = itemsNeedingThumbnails.Count });
     }
 
     // --- Users ---
@@ -502,7 +626,7 @@ public sealed class AdminController : ControllerBase
         // Revoke all sessions — user must re-login with the temp password.
         await _sessionService.RevokeAllSessionsAsync(user.Id, ct);
 
-        _logger.LogInformation("Admin reset password for user {UserName}", user.UserName);
+        _logger.LogInformation(LogEvents.Administration.AdminPasswordReset, "Admin reset password for user {UserName}", user.UserName);
 
         return Ok(new ResetPasswordResponse { TemporaryPassword = tempPassword });
     }
@@ -602,6 +726,7 @@ public sealed class AdminController : ControllerBase
         IsScanning = isScanning ?? false,
         ItemCount = itemCount,
         LastScanCompleted = library.LastScanCompleted,
+        DefaultReaderMode = (ReaderMode?)library.DefaultReaderMode,
     };
 
     private static string ScanStatusToString(int status) => status switch

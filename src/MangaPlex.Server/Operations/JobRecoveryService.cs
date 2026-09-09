@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Operations;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Server.Media;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
@@ -43,6 +45,8 @@ public sealed class JobRecoveryService
             .Where(j => j.Status == 0 || j.Status == 1)
             .ToListAsync(ct);
 
+        _logger?.LogDebug(LogEvents.Database.InterruptedJobsFound, "Recovery: found {Count} interrupted jobs (pending or running)", pendingJobs.Count);
+
         var recovered = 0;
         foreach (var job in pendingJobs)
         {
@@ -55,7 +59,11 @@ public sealed class JobRecoveryService
         if (recovered > 0)
         {
             await _db.SaveChangesAsync(ct);
-            _logger?.LogWarning("Recovered {Count} interrupted jobs", recovered);
+            _logger?.LogWarning(LogEvents.Database.InterruptedJobsRecovered, "Recovered {Count} interrupted jobs", recovered);
+        }
+        else
+        {
+            _logger?.LogDebug(LogEvents.Database.NoInterruptedJobs, "Recovery: no interrupted jobs found");
         }
 
         return recovered;
@@ -90,7 +98,7 @@ public sealed class JobRecoveryService
         {
             await _db.SaveChangesAsync(ct);
             _logger?.LogInformation(
-                "Cleared stale analysis errors on {Count} pending items after restart", staleErrored.Count);
+                LogEvents.Database.StaleAnalysisCleared, "Cleared stale analysis errors on {Count} pending items after restart", staleErrored.Count);
         }
 
         return staleErrored.Count;
@@ -103,12 +111,21 @@ public sealed class JobRecoveryService
     public int RecoverScratchWorkspaces(TimeSpan inactiveThreshold)
     {
         if (_scratchManager is null)
+        {
+            _logger?.LogDebug(LogEvents.Database.ScratchRecoverySkipped, "Scratch recovery skipped: no scratch manager configured");
             return 0;
+        }
 
+        _logger?.LogDebug(LogEvents.Database.ScratchRecoveryScanning, "Scratch recovery: scanning for inactive workspaces (threshold {Threshold}s)",
+            inactiveThreshold.TotalSeconds);
         var cleaned = _scratchManager.RecoverInactiveWorkspaces(inactiveThreshold);
         if (cleaned > 0)
         {
-            _logger?.LogWarning("Recovered {Count} inactive scratch workspaces", cleaned);
+            _logger?.LogWarning(LogEvents.Database.ScratchWorkspacesRecovered, "Recovered {Count} inactive scratch workspaces", cleaned);
+        }
+        else
+        {
+            _logger?.LogDebug(LogEvents.Database.ScratchRecoveryNone, "Scratch recovery: no inactive workspaces found");
         }
         return cleaned;
     }
@@ -119,7 +136,7 @@ public sealed class JobRecoveryService
     /// </summary>
     public void HandleDiskFull()
     {
-        _logger?.LogError("Disk full — stopping new derived work");
+        _logger?.LogError(LogEvents.Database.DiskFullDerivedWorkStopped, "Disk full — stopping new derived work");
         // In a full implementation, this would:
         // 1. Stop the job scheduler from accepting new work
         // 2. Evict cache entries to free space
@@ -136,12 +153,19 @@ public sealed class JobRecoveryService
     {
         var version = await DatabaseInitialization.GetSchemaVersionAsync(_db, ct);
         if (version is null)
+        {
+            _logger?.LogWarning(LogEvents.Database.SchemaVersionMissing, "Schema validation failed: version not found in database");
             return SchemaValidationResult.Failed("Database schema version not found.");
+        }
 
         var expectedVersion = DatabaseInitialization.CurrentSchemaVersion;
+        _logger?.LogDebug(LogEvents.Database.SchemaVersionChecked, "Schema validation: found {Found}, expected {Expected}", version, expectedVersion);
         if (version > expectedVersion)
+        {
+            _logger?.LogWarning(LogEvents.Database.SchemaVersionNewer, "Schema version {Found} is newer than expected {Expected}", version, expectedVersion);
             return SchemaValidationResult.Failed(
                 $"Database schema version {version} is newer than expected {expectedVersion}.");
+        }
 
         if (version < expectedVersion)
         {
@@ -149,7 +173,7 @@ public sealed class JobRecoveryService
             // because the DateTimeOffset storage format changed in version 2.
             if (version == 1)
                 _logger?.LogWarning(
-                    "Database schema version {Found} is older than expected {Expected}. " +
+                    LogEvents.Database.SchemaVersionOlderRecreate, "Database schema version {Found} is older than expected {Expected}. " +
                     "Pre-release database must be recreated (DateTimeOffset storage format changed).",
                     version, expectedVersion);
             return SchemaValidationResult.Failed(

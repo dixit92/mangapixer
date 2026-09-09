@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server;
 
+using com.lifepixer.mangaplex.Core.Api;
+using com.lifepixer.mangaplex.Server.Logging;
 using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Features.Catalog;
 using com.lifepixer.mangaplex.Server.Features.Reading;
@@ -55,7 +57,7 @@ public sealed partial class Program
             .Enrich.With<RedactingDestructuringPolicy>();
 
         logConfig.WriteTo.Console(
-            outputTemplate: "{Timestamp:O} [{Level:u}] {SourceContext} {Message:lj}{NewLine}{Exception}");
+            outputTemplate: "{Timestamp:O} [{Level:u}] {SourceContext} ({EventId}) {Message:lj}{NewLine}{Exception}");
 
         logConfig.WriteTo.File(
             Path.Combine(logsRoot, "mangaplex-.log"),
@@ -63,7 +65,7 @@ public sealed partial class Program
             retainedFileCountLimit: 7,
             fileSizeLimitBytes: 20 * 1024 * 1024,
             rollOnFileSizeLimit: true,
-            outputTemplate: "{Timestamp:O} [{Level:u}] {SourceContext} {Message:lj}{NewLine}{Exception}");
+            outputTemplate: "{Timestamp:O} [{Level:u}] {SourceContext} ({EventId}) {Message:lj}{NewLine}{Exception}");
 
         Log.Logger = logConfig.CreateLogger();
 
@@ -93,6 +95,16 @@ public sealed partial class Program
                 if (scratchBudget is > 0) options.ScratchBudgetBytes = scratchBudget.Value;
             });
 
+            // Startup configuration logging (gap 8.3.6). Logs existence and
+            // budgets only — never absolute paths, per the privacy invariant.
+            Log.Logger.ForContext("EventId", LogEvents.Database.StartupStorageRoots).Information("Storage roots initialized: data={DataExists}, cache={CacheExists}, scratch={ScratchExists}",
+                Directory.Exists(dataRoot), Directory.Exists(cacheRoot), Directory.Exists(scratchRoot));
+            Log.Logger.ForContext("EventId", LogEvents.Database.StartupStorageBudgets).Information("Storage budgets: cache={CacheBudget}, scratch={ScratchBudget}",
+                cacheBudget is > 0 ? cacheBudget.Value.ToString() : "default",
+                scratchBudget is > 0 ? scratchBudget.Value.ToString() : "default");
+            Log.Logger.ForContext("EventId", LogEvents.Database.StartupWorkerExecutable).Information("Worker executable: {Status}",
+                string.IsNullOrWhiteSpace(workerExe) ? "auto-discovery" : "configured");
+
             // Hosted lifecycle services + storage/scanning/page-delivery registrations
             builder.Services.AddMangaPlexHosting();
 
@@ -100,6 +112,7 @@ public sealed partial class Program
             builder.Services.AddScoped<CatalogBrowseService>();
             builder.Services.AddScoped<ReadingStateService>();
             builder.Services.AddScoped<CatalogIdResolver>();
+            builder.Services.AddScoped<ReaderModeResolver>();
 
             // Operations services
             builder.Services.AddScoped<BackupService>();
@@ -125,11 +138,11 @@ public sealed partial class Program
             if (OperatingSystem.IsWindows())
             {
                 dataProtection.ProtectKeysWithDpapi();
-                Log.Logger.Information("Data Protection keys encrypted at rest with DPAPI");
+                Log.Logger.ForContext("EventId", LogEvents.Database.DataProtectionKeys).Information("Data Protection keys encrypted at rest with DPAPI");
             }
             else
             {
-                Log.Logger.Information(
+                Log.Logger.ForContext("EventId", LogEvents.Database.DataProtectionKeys).Information(
                     "Data Protection keys stored unencrypted inside the private data root " +
                     "with owner-only permissions (Linux has no DPAPI; entrypoint.sh chmod 700)");
             }
@@ -178,6 +191,27 @@ public sealed partial class Program
 
             var app = builder.Build();
 
+            // Unhandled-error middleware (gap 8.3.9): app-level capture of 500s.
+            // The exception goes to the log (file sink gets the trace); the client
+            // gets a sanitized response with no internals.
+            app.UseExceptionHandler(errorApp =>
+            {
+                errorApp.Run(async context =>
+                {
+                    var error = context.Features
+                        .Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>()?.Error;
+                    Log.Logger.ForContext("EventId", LogEvents.Http.UnhandledRequestError).Error(error,
+                        "Unhandled request error: {ErrorType}", error?.GetType().Name ?? "unknown");
+                    context.Response.StatusCode = 500;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsJsonAsync(new ApiError
+                    {
+                        Error = "internal_error",
+                        Message = "An unexpected error occurred.",
+                    });
+                });
+            });
+
             // Migrate the schema to the latest EF migration. This is data-critical:
             // a failure must STOP startup (fail-fast) rather than serve a
             // half-migrated database, so it is deliberately OUTSIDE the
@@ -211,11 +245,11 @@ public sealed partial class Program
                     // POST /api/v1/auth/setup; just log that setup is pending.
                     var setup = scope.ServiceProvider.GetRequiredService<FirstRunSetupService>();
                     if (setup.IsSetupRequiredAsync().GetAwaiter().GetResult())
-                        Log.Logger.Information("First-run setup required: no users exist. Create the admin via the setup screen.");
+                        Log.Logger.ForContext("EventId", LogEvents.Database.FirstRunSetupPending).Information("First-run setup required: no users exist. Create the admin via the setup screen.");
                 }
                 catch (Exception ex)
                 {
-                    Log.Logger.Warning(ex, "Database initialization failed; health checks will still respond");
+                    Log.Logger.ForContext("EventId", LogEvents.Database.DatabaseInitDegraded).Warning(ex, "Database initialization failed; health checks will still respond");
                 }
             }
 
@@ -266,7 +300,7 @@ public sealed partial class Program
         }
         catch (Exception ex)
         {
-            Log.Logger.Fatal(ex, "MangaPlex server terminated unexpectedly");
+            Log.Logger.ForContext("EventId", LogEvents.Database.FatalShutdown).Fatal(ex, "MangaPlex server terminated unexpectedly");
             throw;
         }
         finally

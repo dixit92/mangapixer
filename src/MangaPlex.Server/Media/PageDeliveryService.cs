@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Media;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Core.Media;
 using com.lifepixer.mangaplex.Core.Reading;
 using com.lifepixer.mangaplex.Server.Persistence;
@@ -76,27 +78,42 @@ public sealed class PageDeliveryService
         // 1. Check authorization — even for cached pages
         var node = await _db.CatalogNodes.FirstOrDefaultAsync(n => n.Id == itemId, ct);
         if (node is null)
+        {
+            _logger?.LogDebug(LogEvents.Worker.PageDeniedItemMissing, "Page stream denied: item {ItemId} not found", itemId);
             return null;
+        }
 
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
         if (user is null || !user.IsActive)
+        {
+            _logger?.LogDebug(LogEvents.Worker.PageDeniedUserInactive, "Page stream denied: user {UserId} inactive or not found", userId);
             return null;
+        }
 
         if (!user.IsAdmin)
         {
             var hasGrant = await _db.LibraryGrants
                 .AnyAsync(g => g.UserId == userId && g.LibraryId == node.LibraryId, ct);
             if (!hasGrant)
+            {
+                _logger?.LogDebug(LogEvents.Worker.PageDeniedNoGrant, "Page stream denied: user {UserId} lacks grant for library {LibraryId}", userId, node.LibraryId);
                 return null; // Access denied — don't reveal existence
+            }
         }
 
         // 2. Check item readiness
         var item = await _db.ArchiveItems.FirstOrDefaultAsync(a => a.NodeId == itemId, ct);
         if (item is null)
+        {
+            _logger?.LogDebug(LogEvents.Worker.PageDeniedArchiveMissing, "Page stream denied: archive item {ItemId} not found", itemId);
             return null;
+        }
 
         if (item.AnalysisState != 0) // not ready
+        {
+            _logger?.LogDebug(LogEvents.Worker.PageNotReady, "Page stream: item {ItemId} not ready (state {State})", itemId, item.AnalysisState);
             return new PageStreamResult { ReadinessState = (ItemReadinessState)item.AnalysisState };
+        }
 
         // 3. Look up cache first
         var cacheKey = CacheService.BuildCacheKey(itemId, item.ContentVersion, entryKey, variant);
@@ -105,6 +122,8 @@ public sealed class PageDeliveryService
             var cachedStream = _cache.OpenRead(cacheKey);
             if (cachedStream is not null)
             {
+                _logger?.LogDebug(LogEvents.Worker.PageServedFromCache, "Page stream served from cache (item {ItemId}, entry {EntryKey}, variant {Variant})",
+                    itemId, entryKey, variant);
                 return new PageStreamResult
                 {
                     Stream = cachedStream,
@@ -116,6 +135,8 @@ public sealed class PageDeliveryService
         }
 
         // 4. Cache miss — need to extract via worker
+        _logger?.LogDebug(LogEvents.Worker.PageCacheMiss, "Page stream cache miss (item {ItemId}, entry {EntryKey}, variant {Variant}); extraction required",
+            itemId, entryKey, variant);
         // In a full implementation, this would dispatch to the MediaWorkerPool.
         // For P08, we return a "preparing" state if the page isn't cached.
         return new PageStreamResult
@@ -170,6 +191,7 @@ public sealed class PageDeliveryService
             var cachedStream = _cache.OpenRead(cacheKey);
             if (cachedStream is not null)
             {
+                _logger?.LogDebug(LogEvents.Worker.CoverServedFromCache, "Cover stream served from cache (item {ItemId})", itemId);
                 return new PageStreamResult
                 {
                     Stream = cachedStream,
@@ -180,6 +202,7 @@ public sealed class PageDeliveryService
             }
         }
 
+        _logger?.LogDebug(LogEvents.Worker.CoverCacheMiss, "Cover stream cache miss (item {ItemId}); extraction required", itemId);
         return new PageStreamResult
         {
             ReadinessState = ItemReadinessState.Pending,

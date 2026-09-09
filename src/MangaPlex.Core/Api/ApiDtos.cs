@@ -87,6 +87,19 @@ public sealed record CatalogNodeDto
     /// Last read page index for the current user, if any.
     /// </summary>
     public int? LastReadPage { get; init; }
+
+    /// <summary>
+    /// This folder's own global reader-mode override (1.2.0), or null if none.
+    /// Only populated for folders; admins set it in the browse view.
+    /// </summary>
+    public ReaderMode? ReaderDefault { get; init; }
+
+    /// <summary>
+    /// Whether the current user has marked this item read (1.2.0 sticky read flag).
+    /// Only meaningful for archives; folders are always false (their read-ness is
+    /// managed in bulk over descendants, not stored on the folder itself).
+    /// </summary>
+    public bool IsRead { get; init; }
 }
 
 /// <summary>
@@ -190,6 +203,50 @@ public sealed record UserPreferencesDto
 }
 
 /// <summary>
+/// The resolved effective default reader mode for an item (1.2.0), after applying the
+/// per-user item override and the global folder/library defaults.
+/// </summary>
+public sealed record EffectiveReaderModeDto
+{
+    public required ReaderMode ReaderMode { get; init; }
+}
+
+/// <summary>
+/// Current user's sticky read-mark state for a single item (1.2.0).
+/// </summary>
+public sealed record ReadMarkDto
+{
+    public required string ItemId { get; init; }
+    public required bool IsRead { get; init; }
+}
+
+/// <summary>
+/// Per-user library browse presentation (1.2.0). Deliberately string-typed and
+/// tolerant/extensible: a frontend maps values it knows and falls back gracefully
+/// for any it doesn't (owner-settled multi-frontend rationale). Known values today:
+/// ViewMode = grid | list | poster; Density = comfortable | compact;
+/// Sort = name | recentlyAdded | recentlyRead.
+/// </summary>
+public sealed record LibraryViewPreferencesDto
+{
+    public string ViewMode { get; init; } = "grid";
+    public string Density { get; init; } = "comfortable";
+    public string Sort { get; init; } = "name";
+}
+
+/// <summary>
+/// Result of a bulk read-mark operation over a folder's descendant archives (1.2.0).
+/// </summary>
+public sealed record BulkReadMarkResultDto
+{
+    /// <summary>Number of descendant archives affected (newly set, or cleared).</summary>
+    public required int Affected { get; init; }
+
+    /// <summary>Total descendant archives considered under the folder.</summary>
+    public required int Total { get; init; }
+}
+
+/// <summary>
 /// API DTO for a library.
 /// </summary>
 public sealed record LibraryDto
@@ -211,6 +268,13 @@ public sealed record LibraryDto
     /// Last scan completion time, if any.
     /// </summary>
     public DateTimeOffset? LastScanCompleted { get; init; }
+
+    /// <summary>
+    /// Global default reader mode for the library (1.2.0), or null to inherit the
+    /// user's personal default. Admin-set; applies to all users, overridable per
+    /// folder.
+    /// </summary>
+    public ReaderMode? DefaultReaderMode { get; init; }
 }
 
 /// <summary>
@@ -333,11 +397,30 @@ public sealed record UpdateLibraryRequest
 }
 
 /// <summary>
+/// Request to set a global default reader mode on a library or a folder (1.2.0).
+/// Clearing (inherit) is a DELETE, not this request.
+/// </summary>
+public sealed record SetReaderModeRequest
+{
+    public required ReaderMode ReaderMode { get; init; }
+}
+
+/// <summary>
 /// Response when a scan is triggered.
 /// </summary>
 public sealed record ScanTriggeredDto
 {
     public required string ScanRunId { get; init; }
+}
+
+/// <summary>
+/// Response when durable thumbnail regeneration is enqueued for a library.
+/// Generation runs in the background; <see cref="QueuedCount"/> is the number
+/// of items that lacked a current thumbnail.
+/// </summary>
+public sealed record ThumbnailRegenerateResponse
+{
+    public required int QueuedCount { get; init; }
 }
 
 /// <summary>
@@ -416,4 +499,142 @@ public sealed record UserGrantsDto
     public required string UserId { get; init; }
     public required bool IsAdmin { get; init; }
     public required IReadOnlyList<string> LibraryIds { get; init; }
+}
+
+// --- YACReader progress import (admin-only) ---
+//
+// A read-only importer that maps reading progress from a YACReader
+// .yacreaderlibrary/library.ydb SQLite database into MangaPlex reading
+// progress + sticky read-marks for a chosen target user. Covers and
+// thumbnails are not imported (MangaPlex regenerates them). Source media is
+// never mutated: the ydb is opened read-only, or copied to an app-owned
+// scratch snapshot first (default). Existing MangaPlex state is never
+// overwritten unless the admin explicitly opts in via Overwrite.
+
+/// <summary>
+/// Request for a YACReader progress import (preview or apply). The admin
+/// selects a MangaPlex library to map into, the path to the YACReader
+/// library database (the .yacreaderlibrary directory or the library.ydb
+/// file), and the target MangaPlex user to receive the imported progress.
+/// </summary>
+public sealed record YacReaderImportRequest
+{
+    /// <summary>Opaque public id of the MangaPlex library to map into.</summary>
+    public required string LibraryId { get; init; }
+
+    /// <summary>
+    /// Optional explicit path to the YACReader library database (the
+    /// .yacreaderlibrary directory or the library.ydb file). A private server
+    /// locator, never echoed in responses. When omitted, the server auto-detects
+    /// <c>.yacreaderlibrary/library.ydb</c> inside the mapped library's own root —
+    /// the normal case, so the client never handles a path.
+    /// </summary>
+    public string? YacDbPath { get; init; }
+
+    /// <summary>Opaque public id of the MangaPlex user to import progress for.</summary>
+    public required string TargetUserId { get; init; }
+
+    /// <summary>
+    /// When false (default), items that already have MangaPlex progress are
+    /// skipped (never overwrite existing state without explicit opt-in).
+    /// When true, existing progress and read-marks are replaced.
+    /// </summary>
+    public bool Overwrite { get; init; }
+
+    /// <summary>
+    /// When true (default), library.ydb is copied to an app-owned scratch
+    /// snapshot before reading, so the source library directory is never
+    /// opened for write (no journal/wal/shm sidecar creation). When false,
+    /// the source ydb is opened read-only directly.
+    /// </summary>
+    public bool Snapshot { get; init; } = true;
+}
+
+/// <summary>
+/// Result of detecting a YACReader library inside a MangaPlex library's root.
+/// The source path is resolved server-side and never returned.
+/// </summary>
+public sealed record YacReaderDetectDto
+{
+    /// <summary>True when a readable <c>library.ydb</c> was found for the library.</summary>
+    public required bool Detected { get; init; }
+
+    /// <summary>YACReader db schema version (from <c>db_info</c>), when detected and readable.</summary>
+    public string? DbVersion { get; init; }
+}
+
+/// <summary>
+/// One mapped item in a YACReader import preview. Source paths are never
+/// exposed; only the mapped MangaPlex item id/display name and the imported
+/// reading state are surfaced.
+/// </summary>
+public sealed record YacReaderImportItemDto
+{
+    /// <summary>Opaque public id of the mapped MangaPlex archive item, or null if unmapped.</summary>
+    public string? ItemId { get; init; }
+
+    /// <summary>Display name of the mapped MangaPlex item, or null if unmapped.</summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>Whether YACReader marked the comic as read (finished).</summary>
+    public required bool Read { get; init; }
+
+    /// <summary>Whether YACReader recorded the comic as having been opened.</summary>
+    public required bool HasBeenOpened { get; init; }
+
+    /// <summary>YACReader's 1-based current page (0 if unknown).</summary>
+    public required int CurrentPage { get; init; }
+
+    /// <summary>Resolved MangaPlex reading state: "unread", "inProgress", or "completed".</summary>
+    public required string State { get; init; }
+
+    /// <summary>True if MangaPlex already has progress for this item (a conflict).</summary>
+    public required bool Conflict { get; init; }
+}
+
+/// <summary>
+/// Preview (dry-run) of a YACReader progress import. No state is written.
+/// </summary>
+public sealed record YacReaderImportPreviewDto
+{
+    public required string LibraryId { get; init; }
+    public required string TargetUserId { get; init; }
+
+    /// <summary>YACReader database schema version (db_info.version), if available.</summary>
+    public string? DbVersion { get; init; }
+
+    public required int TotalComics { get; init; }
+    public required int Mapped { get; init; }
+    public required int Unmapped { get; init; }
+
+    /// <summary>Mapped items that already have MangaPlex progress (conflicts).</summary>
+    public required int Conflicts { get; init; }
+
+    /// <summary>Items that would be imported (mapped and not skipped by conflict policy).</summary>
+    public required int ToImport { get; init; }
+
+    /// <summary>Bounded sample of mapped items (at most 50), for review.</summary>
+    public required IReadOnlyList<YacReaderImportItemDto> Items { get; init; }
+}
+
+/// <summary>
+/// Result of applying a YACReader progress import.
+/// </summary>
+public sealed record YacReaderImportResultDto
+{
+    public required string LibraryId { get; init; }
+    public required string TargetUserId { get; init; }
+    public string? DbVersion { get; init; }
+    public required int TotalComics { get; init; }
+    public required int Mapped { get; init; }
+    public required int Unmapped { get; init; }
+
+    /// <summary>Progress rows written or updated.</summary>
+    public required int Imported { get; init; }
+
+    /// <summary>Mapped items skipped because MangaPlex already had progress (overwrite=false).</summary>
+    public required int Skipped { get; init; }
+
+    /// <summary>Sticky read-marks set (for comics YACReader marked read).</summary>
+    public required int ReadMarks { get; init; }
 }

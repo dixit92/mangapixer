@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Media;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using System.Collections.Concurrent;
 
 /// <summary>
@@ -19,10 +21,12 @@ public sealed class JobScheduler
     private readonly ConcurrentDictionary<string, InFlightJob> _inFlightJobs = new();
     private readonly object _dispatchLock = new();
     private readonly WorkerPoolOptions _options;
+    private readonly ILogger<JobScheduler>? _logger;
 
-    public JobScheduler(WorkerPoolOptions options)
+    public JobScheduler(WorkerPoolOptions options, ILogger<JobScheduler>? logger = null)
     {
         _options = options;
+        _logger = logger;
     }
 
     /// <summary>
@@ -45,6 +49,8 @@ public sealed class JobScheduler
         if (_inFlightJobs.TryGetValue(dedupKey, out var inFlight))
         {
             // Attach caller to existing job — don't cancel shared work
+            _logger?.LogDebug(LogEvents.Worker.SchedulerJobDedupedInFlight, "Job {JobId} (item {ItemId}) deduplicated onto in-flight job (operation {Operation})",
+                inFlight.JobId, itemId, operation);
             return AttachToInFlightJob(inFlight, callerToken);
         }
 
@@ -53,7 +59,11 @@ public sealed class JobScheduler
         {
             // Upgrade priority if the new request has higher priority
             if (priority > pending.Priority)
+            {
+                _logger?.LogDebug(LogEvents.Worker.SchedulerPriorityUpgraded, "Job {JobId} (item {ItemId}) priority upgraded {Old} -> {New} by concurrent enqueue",
+                    pending.JobId, itemId, pending.Priority, priority);
                 pending.Priority = priority;
+            }
 
             return AttachToPendingJob(pending, callerToken);
         }
@@ -76,9 +86,14 @@ public sealed class JobScheduler
         if (!_pendingJobs.TryAdd(dedupKey, job))
         {
             // Race — another thread added the same key
+            _logger?.LogDebug(LogEvents.Worker.SchedulerEnqueueRace, "Enqueue race on dedup key {DedupKey} (item {ItemId}); retrying attach",
+                dedupKey, itemId);
             return EnqueueAsync(itemId, contentVersion, operation, priority,
                 archivePath, expectedLastWriteTicks, expectedByteLength, callerToken);
         }
+
+        _logger?.LogDebug(LogEvents.Worker.SchedulerJobEnqueued, "Job {JobId} enqueued (item {ItemId}, operation {Operation}, priority {Priority}); pending now {Pending}",
+            job.JobId, itemId, operation, priority, _pendingJobs.Count);
 
         // Attach caller cancellation
         return WaitForJobCompletion(job, callerToken);
@@ -87,6 +102,11 @@ public sealed class JobScheduler
     /// <summary>
     /// Dequeues the highest-priority pending job. Returns null if no jobs are pending.
     /// Called by the MediaWorkerPool when a worker becomes available.
+    /// </summary>
+    /// <summary>
+    /// Dequeues the highest-priority pending job. Returns null if no jobs are pending.
+    /// Called by the MediaWorkerPool when a worker becomes available; the pool logs
+    /// the dispatch (with queue depth) at Debug, so dequeue is not logged separately.
     /// </summary>
     public PendingJob? Dequeue()
     {
@@ -131,6 +151,9 @@ public sealed class JobScheduler
     {
         if (_inFlightJobs.TryRemove(dedupKey, out var inFlight))
         {
+            _logger?.LogDebug(LogEvents.Worker.SchedulerJobCompleted, "Job {JobId} completed in {DurationMs}ms (success={Success}, errorType={ErrorType})",
+                inFlight.JobId, (DateTimeOffset.UtcNow - inFlight.StartedAt).TotalMilliseconds,
+                result.Success, result.ErrorType);
             inFlight.CompletionSource.TrySetResult(result);
         }
     }
@@ -142,6 +165,8 @@ public sealed class JobScheduler
     {
         if (_inFlightJobs.TryRemove(dedupKey, out var inFlight))
         {
+            _logger?.LogWarning(LogEvents.Worker.SchedulerJobFailed, error, "Job {JobId} failed after {DurationMs}ms: {ErrorType}",
+                inFlight.JobId, (DateTimeOffset.UtcNow - inFlight.StartedAt).TotalMilliseconds, error.GetType().Name);
             inFlight.CompletionSource.TrySetException(error);
         }
     }
@@ -160,6 +185,7 @@ public sealed class JobScheduler
         {
             if (_pendingJobs.TryRemove(job.DedupKey, out _))
             {
+                _logger?.LogDebug(LogEvents.Worker.SchedulerPendingCancelled, "Cancelling pending job {JobId} for item {ItemId}", job.JobId, itemId);
                 job.CompletionSource.TrySetCanceled();
             }
         }

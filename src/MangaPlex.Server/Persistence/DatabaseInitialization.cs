@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Persistence;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -22,7 +24,14 @@ public static class DatabaseInitialization
         {
             DataSource = databasePath,
             Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared,
+            // PRIVATE cache (the default) — NOT shared. WAL mode gives
+            // 1-writer/N-reader concurrency via MVCC snapshots; shared-cache mode
+            // would layer table-level locking on top and make readers fail with
+            // SQLITE_LOCKED ("table is locked") while a scan writes catalog_nodes.
+            // Private cache + WAL + busy_timeout is the correct concurrent config:
+            // reads never block on the writer, and writers serialize with a bounded
+            // wait. (Fixes 30s read timeouts during a library scan.)
+            Cache = SqliteCacheMode.Private,
             DefaultTimeout = 30, // 30-second busy timeout (bounded)
         };
         return builder.ConnectionString;
@@ -200,7 +209,7 @@ public static class DatabaseInitialization
                     "No migrations found in the assembly; cannot adopt the existing database.");
             await SeedMigrationsHistoryBaselineAsync(db, baseline, ct);
             logger?.LogInformation(
-                "Adopted an existing pre-migrations database into the EF migration timeline (baseline {Baseline}).",
+                LogEvents.Database.MigrationBaselineAdopted, "Adopted an existing pre-migrations database into the EF migration timeline (baseline {Baseline}).",
                 baseline);
         }
 
@@ -213,14 +222,14 @@ public static class DatabaseInitialization
                 dataRoot, "backups", $"pre-migration-{DateTime.UtcNow:yyyyMMdd-HHmmss}.db");
             Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
             logger?.LogInformation(
-                "Applying {Count} pending migration(s); backing up to {Path} first.", pending.Count, backupPath);
+                LogEvents.Database.MigrationWithBackup, "Applying {Count} pending migration(s); pre-migration backup created first.", pending.Count);
             if (!await backupAsync(backupPath))
                 throw new InvalidOperationException(
                     "Pre-migration backup failed; aborting migrate to protect existing data.");
         }
         else if (pending.Count > 0)
         {
-            logger?.LogInformation("Applying {Count} migration(s) to a fresh database.", pending.Count);
+            logger?.LogInformation(LogEvents.Database.MigrationFreshDatabase, "Applying {Count} migration(s) to a fresh database.", pending.Count);
         }
 
         await db.Database.MigrateAsync(ct);

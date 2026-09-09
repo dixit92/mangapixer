@@ -11,12 +11,22 @@ import {
   ChangePasswordRequest,
   ContinueReadingEntry,
   CreateUserRequest,
+  EffectiveReaderModeDto,
+  ReadMarkDto,
+  BulkReadMarkResultDto,
+  LibraryViewPreferencesDto,
+  YacReaderDetectDto,
+  YacReaderImportRequest,
+  YacReaderImportPreviewDto,
+  YacReaderImportResultDto,
+  ReaderMode,
   CsrfTokenDto,
   DirectoryListingDto,
   ItemManifest,
   ItemReadiness,
   LibraryDto,
   LogLevelDto,
+  RotatingBackupStatusDto,
   LoginRequest,
   PageResponse,
   ProgressUpdateResult,
@@ -25,6 +35,7 @@ import {
   ResetPasswordResponse,
   ScanRunDto,
   ScanTriggeredDto,
+  ThumbnailRegenerateResponse,
   SearchResultsDto,
   SetupRequest,
   SetupStatusDto,
@@ -148,12 +159,66 @@ export class ApiService {
     return this.get<ContinueReadingEntry[]>('/reading/continue', params);
   }
 
+  /** Remove an item from the continue-reading strip (1.2.0), without marking it read. */
+  dismissContinueReading(itemId: string): Observable<void> {
+    return this.delete<void>(`/reading/continue/${itemId}`);
+  }
+
+  /** Per-user library browse presentation preferences (1.2.0). */
+  getLibraryPreferences(): Observable<LibraryViewPreferencesDto> {
+    return this.get<LibraryViewPreferencesDto>('/reading/library-preferences');
+  }
+
+  setLibraryPreferences(prefs: LibraryViewPreferencesDto): Observable<void> {
+    return this.put<void>('/reading/library-preferences', prefs);
+  }
+
+  // --- YACReader import (1.2.0, admin-only) ---
+
+  detectYacReader(libraryId: string): Observable<YacReaderDetectDto> {
+    const params = new HttpParams().set('libraryId', libraryId);
+    return this.get<YacReaderDetectDto>('/admin/import/yacreader/detect', params);
+  }
+
+  previewYacReaderImport(request: YacReaderImportRequest): Observable<YacReaderImportPreviewDto> {
+    return this.post<YacReaderImportPreviewDto>('/admin/import/yacreader/preview', request);
+  }
+
+  applyYacReaderImport(request: YacReaderImportRequest): Observable<YacReaderImportResultDto> {
+    return this.post<YacReaderImportResultDto>('/admin/import/yacreader/apply', request);
+  }
+
   getPreferences(): Observable<UserPreferencesDto> {
     return this.get<UserPreferencesDto>('/reading/preferences');
   }
 
   setPreferences(request: UserPreferencesDto): Observable<void> {
     return this.put<void>('/reading/preferences', request);
+  }
+
+  /** Resolved effective default reader mode for an item (1.2.0). */
+  getEffectiveReaderMode(itemId: string): Observable<EffectiveReaderModeDto> {
+    return this.get<EffectiveReaderModeDto>(`/reading/${itemId}/effective-mode`);
+  }
+
+  // --- Sticky read-marks (1.2.0) ---
+
+  getReadMark(itemId: string): Observable<ReadMarkDto> {
+    return this.get<ReadMarkDto>(`/reading/${itemId}/read`);
+  }
+
+  /** Marks an item read (sticky), or clears it, without opening it. */
+  setItemRead(itemId: string, read: boolean): Observable<ReadMarkDto> {
+    return read
+      ? this.put<ReadMarkDto>(`/reading/${itemId}/read`, {})
+      : this.delete<ReadMarkDto>(`/reading/${itemId}/read`);
+  }
+
+  /** Bulk set/clear read-marks over every descendant archive of a folder. */
+  setFolderRead(nodeId: string, read: boolean): Observable<BulkReadMarkResultDto> {
+    return read
+      ? this.put<BulkReadMarkResultDto>(`/reading/folders/${nodeId}/read`, {})
+      : this.delete<BulkReadMarkResultDto>(`/reading/folders/${nodeId}/read`);
   }
 
   // --- Admin ---
@@ -180,6 +245,23 @@ export class ApiService {
     return this.delete<void>(`/admin/libraries/${id}`);
   }
 
+  // Global default reader mode (1.2.0) — admin-set library/folder defaults.
+  setLibraryReaderDefault(libraryId: string, mode: ReaderMode): Observable<LibraryDto> {
+    return this.put<LibraryDto>(`/admin/libraries/${libraryId}/reader-default`, { readerMode: mode });
+  }
+
+  clearLibraryReaderDefault(libraryId: string): Observable<LibraryDto> {
+    return this.delete<LibraryDto>(`/admin/libraries/${libraryId}/reader-default`);
+  }
+
+  setFolderReaderDefault(nodeId: string, mode: ReaderMode): Observable<void> {
+    return this.put<void>(`/admin/folders/${nodeId}/reader-default`, { readerMode: mode });
+  }
+
+  clearFolderReaderDefault(nodeId: string): Observable<void> {
+    return this.delete<void>(`/admin/folders/${nodeId}/reader-default`);
+  }
+
   triggerScan(libraryId: string): Observable<ScanTriggeredDto> {
     return this.post<ScanTriggeredDto>(`/admin/libraries/${libraryId}/scan`, {});
   }
@@ -190,6 +272,11 @@ export class ApiService {
 
   getScanHistory(libraryId: string): Observable<ScanRunDto[]> {
     return this.get<ScanRunDto[]>(`/admin/libraries/${libraryId}/scans`);
+  }
+
+  /** Enqueue durable thumbnail (re)generation for items lacking a current one (1.2.0). */
+  regenerateThumbnails(libraryId: string): Observable<ThumbnailRegenerateResponse> {
+    return this.post<ThumbnailRegenerateResponse>(`/admin/libraries/${libraryId}/thumbnails/regenerate`, {});
   }
 
   listUsers(): Observable<AdminUserDto[]> {
@@ -236,6 +323,14 @@ export class ApiService {
 
   setLoggingLevel(level: string): Observable<LogLevelDto> {
     return this.put<LogLevelDto>('/operations/logging', { level } as UpdateLogLevelRequest);
+  }
+
+  getRotatingBackupStatus(): Observable<RotatingBackupStatusDto> {
+    return this.get<RotatingBackupStatusDto>('/operations/backups');
+  }
+
+  runRotatingBackupNow(): Observable<RotatingBackupStatusDto> {
+    return this.post<RotatingBackupStatusDto>('/operations/backups/rotating', {});
   }
 
   // --- Manifest / Readiness ---

@@ -359,6 +359,13 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
             if (workerHosted is not null)
                 services.Remove(workerHosted);
 
+            // Remove the thumbnail backfill hosted service — it depends on a
+            // running worker pool and would log warnings in the test environment.
+            var thumbBackfill = services.FirstOrDefault(
+                d => d.ImplementationType == typeof(com.lifepixer.mangaplex.Server.Hosting.ThumbnailBackfillHostedService));
+            if (thumbBackfill is not null)
+                services.Remove(thumbBackfill);
+
             // Wrap Log.Logger to also write to our collecting sink.
             // UseSerilog() reads Log.Logger when the SerilogLoggerFactory is
             // resolved (during host startup, after ConfigureTestServices), so

@@ -42,6 +42,10 @@ export interface CatalogNodeDto {
   pageCount: number | null;
   readingState: ReadingState | null;
   lastReadPage: number | null;
+  /** This folder's own global reader-mode override (1.2.0), or null if none. */
+  readerDefault: ReaderMode | null;
+  /** Whether the current user marked this item read (1.2.0 sticky flag). Archives only. */
+  isRead: boolean;
 }
 
 export interface BreadcrumbEntry {
@@ -114,6 +118,91 @@ export interface LibraryDto {
   isScanning: boolean;
   itemCount: number | null;
   lastScanCompleted: string | null;
+  /** Global default reader mode for the library (1.2.0), or null to inherit. */
+  defaultReaderMode: ReaderMode | null;
+}
+
+/** Resolved effective default reader mode for an item (1.2.0). */
+export interface EffectiveReaderModeDto {
+  readerMode: ReaderMode;
+}
+
+/** Current user's sticky read-mark state for a single item (1.2.0). */
+export interface ReadMarkDto {
+  itemId: string;
+  isRead: boolean;
+}
+
+/** Response when durable thumbnail regeneration is enqueued for a library (1.2.0). */
+export interface ThumbnailRegenerateResponse {
+  queuedCount: number;
+}
+
+/** Known library view modes (1.2.0). Tolerant: unknown values fall back to 'grid'. */
+export type LibraryViewMode = 'grid' | 'list' | 'poster';
+export type LibraryGridDensity = 'comfortable' | 'compact';
+export type LibrarySortOrder = 'name' | 'recentlyAdded' | 'recentlyRead';
+
+/** Per-user library browse presentation preferences (1.2.0). Strings for tolerance. */
+export interface LibraryViewPreferencesDto {
+  viewMode: string;
+  density: string;
+  sort: string;
+}
+
+// --- YACReader progress import (1.2.0, admin-only) ---
+
+/** Whether a YACReader library was detected inside a MangaPlex library's root. */
+export interface YacReaderDetectDto {
+  detected: boolean;
+  dbVersion: string | null;
+}
+
+/** Request to preview or apply a YACReader progress import. Path is server-detected. */
+export interface YacReaderImportRequest {
+  libraryId: string;
+  targetUserId: string;
+  overwrite?: boolean;
+}
+
+export interface YacReaderImportItemDto {
+  itemId: string | null;
+  displayName: string | null;
+  read: boolean;
+  hasBeenOpened: boolean;
+  currentPage: number;
+  state: string;
+  conflict: boolean;
+}
+
+export interface YacReaderImportPreviewDto {
+  libraryId: string;
+  targetUserId: string;
+  dbVersion: string | null;
+  totalComics: number;
+  mapped: number;
+  unmapped: number;
+  conflicts: number;
+  toImport: number;
+  items: YacReaderImportItemDto[];
+}
+
+export interface YacReaderImportResultDto {
+  libraryId: string;
+  targetUserId: string;
+  dbVersion: string | null;
+  totalComics: number;
+  mapped: number;
+  unmapped: number;
+  imported: number;
+  skipped: number;
+  readMarks: number;
+}
+
+/** Result of a bulk folder read-mark operation over descendant archives (1.2.0). */
+export interface BulkReadMarkResultDto {
+  affected: number;
+  total: number;
 }
 
 export interface ApiError {
@@ -272,4 +361,15 @@ export interface LogLevelDto {
 
 export interface UpdateLogLevelRequest {
   level: string;
+}
+
+export interface RotatingBackupStatusDto {
+  enabled: boolean;
+  intervalHours: number;
+  retentionCount: number;
+  lastAttemptUtc: string | null;
+  lastSuccessUtc: string | null;
+  lastFailureUtc: string | null;
+  lastBackupFileName: string | null;
+  retainedCount: number;
 }

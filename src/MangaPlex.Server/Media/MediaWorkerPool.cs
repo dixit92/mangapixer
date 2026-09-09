@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Media;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using System.Diagnostics;
 using com.lifepixer.mangaplex.Core.WorkerProtocol;
 using com.lifepixer.mangaplex.MediaWorker.Protocol;
@@ -28,8 +30,17 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     private readonly List<WorkerSlot> _workers = [];
     private readonly object _poolLock = new();
     private readonly CancellationTokenSource _readCts = new();
+    private readonly object _throughputLock = new();
+    private int _completedSinceSummary;
+    private int _failedSinceSummary;
     private bool _isStarted;
     private bool _isShuttingDown;
+
+    /// <summary>
+    /// Number of completed jobs between Information-level throughput summaries.
+    /// Per-job events are Debug; this is the default-level view of scan progress.
+    /// </summary>
+    internal const int ThroughputSummaryInterval = 25;
 
     public MediaWorkerPool(
         WorkerPoolOptions options,
@@ -57,11 +68,13 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         if (_isStarted)
             return;
 
+        _logger.LogInformation(LogEvents.Worker.PoolStarting, "Starting worker pool (max concurrent jobs: {Max})", _options.MaxConcurrentJobs);
         _scratchManager.Initialize();
         _isStarted = true;
 
         // Pre-start one background worker
         await StartWorkerAsync(ct);
+        _logger.LogInformation(LogEvents.Worker.PoolStarted, "Worker pool started with {Count} worker(s)", WorkerCount);
     }
 
     /// <summary>
@@ -95,13 +108,15 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 
         if (slot is null && startAnother)
         {
+            _logger.LogDebug(LogEvents.Worker.PoolScaleUp, "No free worker slot; starting additional worker (current {Count}/{Max})",
+                WorkerCount, _options.MaxConcurrentJobs);
             try
             {
                 await StartWorkerAsync(ct);
             }
             catch (Exception ex)
             {
-                _logger?.LogWarning("Failed to start additional worker: {Error}", ex.GetType().Name);
+                _logger.LogWarning(LogEvents.Worker.PoolScaleUpFailed, ex, "Failed to start additional worker: {Error}", ex.GetType().Name);
                 return;
             }
             lock (_poolLock)
@@ -113,6 +128,8 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         if (slot is null)
         {
             // No available slot — leave the job in the queue (D12)
+            _logger.LogDebug(LogEvents.Worker.PoolSaturatedJobQueued, "No worker slot available (saturated at {Count}/{Max}); job remains queued (pending: {Pending})",
+                WorkerCount, _options.MaxConcurrentJobs, _scheduler.PendingCount);
             return;
         }
 
@@ -123,9 +140,17 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         if (job is null)
         {
             slot.IsBusy = false;
+            _logger.LogDebug(LogEvents.Worker.PoolIdleSlotReleased, "Slot {Slot} reserved but queue is empty; releasing slot", slot.Id);
+            LogThroughputSummaryIfPending();
             return;
         }
 
+        // One Debug line per dispatched job: operation, correlation IDs, and the
+        // queue depths needed to diagnose saturation. Completion is logged by the
+        // scheduler with the duration; per-protocol messages stay at Trace.
+        _logger.LogDebug(LogEvents.Worker.JobDispatched,
+            "Dispatching {Operation} job {JobId} (item {ItemId}, priority {Priority}) to worker {Slot}; pending {Pending}, in-flight {InFlight}",
+            job.Operation, job.JobId, job.ItemId, job.Priority, slot.Id, _scheduler.PendingCount, _scheduler.InFlightCount);
         await ProcessJobAsync(slot, job, ct);
     }
 
@@ -222,7 +247,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning("Extract dispatch failed: {Error}", ex.GetType().Name);
+            _logger.LogWarning(LogEvents.Worker.ExtractDispatchFailed, ex, "Extract dispatch failed: {Error}", ex.GetType().Name);
             return PageExtractionOutcome.Failed("extraction_failed", "Extraction failed.");
         }
         finally
@@ -238,6 +263,8 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     private async Task<WorkerSlot?> AcquireSlotAsync(CancellationToken ct)
     {
         var deadline = DateTime.UtcNow.Add(_options.SourceOpenTimeout);
+        _logger.LogDebug(LogEvents.Worker.ExtractSlotAcquire, "Acquiring worker slot for extract (timeout {TimeoutMs}ms, current {Count}/{Max})",
+            _options.SourceOpenTimeout.TotalMilliseconds, WorkerCount, _options.MaxConcurrentJobs);
         while (!_isShuttingDown)
         {
             WorkerSlot? slot;
@@ -252,7 +279,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             if (startAnother)
             {
                 try { await StartWorkerAsync(ct); }
-                catch (Exception ex) { _logger?.LogWarning("Failed to start worker for extract: {Error}", ex.GetType().Name); }
+                catch (Exception ex) { _logger.LogWarning(LogEvents.Worker.ExtractWorkerStartFailed, ex, "Failed to start worker for extract: {Error}", ex.GetType().Name); }
                 lock (_poolLock)
                 {
                     slot = _workers.FirstOrDefault(w => !w.IsBusy);
@@ -260,7 +287,12 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                 }
             }
 
-            if (DateTime.UtcNow >= deadline) return null;
+            if (DateTime.UtcNow >= deadline)
+            {
+                _logger.LogDebug(LogEvents.Worker.ExtractSlotAcquireTimeout, "Extract slot acquisition timed out after {TimeoutMs}ms (saturated at {Count}/{Max})",
+                    _options.SourceOpenTimeout.TotalMilliseconds, WorkerCount, _options.MaxConcurrentJobs);
+                return null;
+            }
             try { await Task.Delay(100, ct); } catch (OperationCanceledException) { return null; }
         }
         return null;
@@ -272,6 +304,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     /// </summary>
     public async Task StopAsync(CancellationToken ct = default)
     {
+        _logger.LogInformation(LogEvents.Worker.PoolStopping, "Stopping worker pool ({Count} workers)", WorkerCount);
         _isShuttingDown = true;
         try { _readCts.Cancel(); } catch (ObjectDisposedException) { }
 
@@ -290,11 +323,12 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             }
             catch (Exception ex)
             {
-                _logger?.LogWarning("Error stopping worker {Id}: {Error}", slot.Id, ex.GetType().Name);
+                _logger.LogWarning(LogEvents.Worker.PoolStopWorkerError, ex, "Error stopping worker {Id}: {Error}", slot.Id, ex.GetType().Name);
             }
         }
 
         _isStarted = false;
+        _logger.LogInformation(LogEvents.Worker.PoolStopped, "Worker pool stopped");
     }
 
     /// <summary>
@@ -322,6 +356,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     private async Task StartWorkerAsync(CancellationToken ct)
     {
         var supervisor = CreateSupervisor();
+        _logger.LogDebug(LogEvents.Worker.WorkerProcessStartAttempt, "Starting worker process (attempt {Count}/{Max})", _workers.Count + 1, _options.MaxConcurrentJobs);
 
         try
         {
@@ -336,17 +371,20 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             // Set up crash handler
             supervisor.OnWorkerExited += exitCode =>
             {
-                _logger?.LogWarning("Worker {Id} exited with code {ExitCode}", slot.Id, exitCode);
+                _logger.LogWarning(LogEvents.Worker.WorkerExited, "Worker {Id} exited with code {ExitCode}", slot.Id, exitCode);
                 lock (_poolLock)
                 {
                     _workers.Remove(slot);
                 }
+                _logger.LogDebug(LogEvents.Worker.WorkerRemovedFromPool, "Worker {Id} removed from pool; remaining workers {Count}", slot.Id, _workers.Count);
             };
 
             lock (_poolLock)
             {
                 _workers.Add(slot);
             }
+
+            _logger.LogDebug(LogEvents.Worker.WorkerReadyInPool, "Worker {Id} started and ready (pool now {Count}/{Max})", slot.Id, _workers.Count, _options.MaxConcurrentJobs);
 
             // ONE persistent read loop per worker for its whole lifetime. Jobs only
             // swap the OnMessageReceived handler; they must not start their own read
@@ -356,7 +394,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _logger?.LogError("Failed to start worker: {Error}", ex.GetType().Name);
+            _logger.LogError(LogEvents.Worker.WorkerStartFailed, ex, "Failed to start worker: {Error}", ex.GetType().Name);
             await supervisor.DisposeAsync();
             throw;
         }
@@ -411,7 +449,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             return ("dotnet", devDebug);
 
         // Fallback: assume the worker is a native executable on PATH.
-        _logger?.LogWarning("Worker executable not discovered; falling back to {Name} on PATH", "MangaPlex.MediaWorker");
+        _logger?.LogWarning(LogEvents.Worker.WorkerExecutableFallback, "Worker executable not discovered; falling back to {Name} on PATH", "MangaPlex.MediaWorker");
         return ("MangaPlex.MediaWorker", string.Empty);
     }
 
@@ -419,12 +457,11 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     {
         slot.IsBusy = true;
         _scheduler.MarkInFlight(job);
-        _logger?.LogDebug("Dispatching {Operation} job {JobId} (item {ItemId}) to worker {Slot}",
-            job.Operation, job.JobId, job.ItemId, slot.Id);
 
         // Allocate scratch workspace
         using var workspace = _scratchManager.AllocateWorkspace();
 
+        JobResult finalResult;
         try
         {
             // Build the analyze request
@@ -456,6 +493,8 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                                 if (result.ObservedLastWriteTicks != job.ExpectedLastWriteTicks ||
                                     result.ObservedByteLength != job.ExpectedByteLength)
                                 {
+                                    _logger?.LogDebug(LogEvents.Worker.JobSourceStampRejected, "Job {JobId} (item {ItemId}) source stamp changed during processing; rejecting result",
+                                        job.JobId, job.ItemId);
                                     completionTcs.TrySetResult(new JobResult
                                     {
                                         JobId = job.JobId,
@@ -504,7 +543,6 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             // Send the analyze request
             var requestEnvelope = WorkerProtocolFraming.CreateEnvelope("analyze", job.JobId, request);
             await slot.Supervisor.SendMessageAsync(requestEnvelope, ct);
-            _logger?.LogDebug("Sent analyze request for job {JobId} (item {ItemId})", job.JobId, job.ItemId);
 
             // Wait for completion with timeout
             var timeoutTask = Task.Delay(_options.AnalysisTimeout + _options.SourceOpenTimeout, ct);
@@ -512,10 +550,11 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 
             slot.Supervisor.OnMessageReceived -= HandleMessage;
 
-            JobResult finalResult;
             if (completedTask == timeoutTask)
             {
                 // Timeout — cancel the job
+                _logger?.LogWarning(LogEvents.Worker.JobTimedOut, "Job {JobId} (item {ItemId}) timed out after {TimeoutMs}ms; sending cancel",
+                    job.JobId, job.ItemId, (_options.AnalysisTimeout + _options.SourceOpenTimeout).TotalMilliseconds);
                 try
                 {
                     var cancelEnvelope = WorkerProtocolFraming.CreateEnvelope("cancel", job.JobId,
@@ -537,31 +576,109 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             else
             {
                 finalResult = await completionTcs.Task;
+                // Completion (with duration) is logged once by the scheduler.
                 _scheduler.CompleteJob(job.DedupKey, finalResult);
             }
 
-            // Persist the result for EVERY job (background and reader-demand), so a
-            // scanned library's covers/manifests populate without opening each item.
-            await PersistResultAsync(job.ItemId, finalResult);
+            RecordJobOutcome(finalResult.Success);
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Job {JobId} (item {ItemId}) failed during processing", job.JobId, job.ItemId);
+            _logger?.LogWarning(LogEvents.Worker.JobProcessingFailed, ex, "Job {JobId} (item {ItemId}) failed during processing", job.JobId, job.ItemId);
             _scheduler.FailJob(job.DedupKey, ex);
-            await PersistResultAsync(job.ItemId, new JobResult
+            RecordJobOutcome(success: false);
+            finalResult = new JobResult
             {
                 JobId = job.JobId,
                 Success = false,
                 ErrorType = ex.GetType().Name,
                 ErrorMessage = ex.Message,
                 Result = null,
-            });
+            };
         }
         finally
         {
             slot.IsBusy = false;
             // Scratch workspace is cleaned up by the using statement
         }
+
+        // Persist the result for EVERY job (background and reader-demand), so a
+        // scanned library's covers/manifests populate without opening each item.
+        // This runs AFTER the slot is released so that thumbnail generation (which
+        // calls ExtractPageAsync and acquires its own slot) does not deadlock when
+        // the pool is at capacity.
+        await PersistResultAsync(job.ItemId, finalResult);
+
+        // Generate the durable cover thumbnail for successful analyses. The
+        // thumbnail is the first page, downscaled to WebP by the worker and
+        // persisted into the durable ThumbnailStore (not the evictable cache).
+        // Resolved lazily from the scope factory to avoid a circular DI
+        // dependency (ThumbnailGenerationService depends on this pool).
+        if (finalResult.Success && _scopeFactory is not null)
+        {
+            try
+            {
+                using var thumbScope = _scopeFactory.CreateScope();
+                var thumbService = thumbScope.ServiceProvider.GetService<ThumbnailGenerationService>();
+                if (thumbService is not null)
+                    await thumbService.GenerateForItemAsync(job.ItemId, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(LogEvents.Worker.ThumbnailGenerationFailed, ex, "Post-analysis thumbnail generation failed (item {ItemId}): {Error}", job.ItemId, ex.GetType().Name);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Records a job outcome and logs an Information-level throughput summary
+    /// every <see cref="ThroughputSummaryInterval"/> jobs. This is the
+    /// default-level view of background analysis progress; per-job events stay
+    /// at Debug.
+    /// </summary>
+    private void RecordJobOutcome(bool success)
+    {
+        bool due;
+        lock (_throughputLock)
+        {
+            if (success) _completedSinceSummary++; else _failedSinceSummary++;
+            due = _completedSinceSummary + _failedSinceSummary >= ThroughputSummaryInterval;
+        }
+
+        if (due)
+            LogThroughputSummary("interval");
+    }
+
+    /// <summary>
+    /// Logs a throughput summary at Information when the queue has drained and
+    /// unsummarized jobs remain, so the tail of a batch is not lost until the
+    /// next interval. Called when a dispatch finds the queue empty.
+    /// </summary>
+    private void LogThroughputSummaryIfPending()
+    {
+        lock (_throughputLock)
+        {
+            if (_completedSinceSummary + _failedSinceSummary == 0)
+                return;
+        }
+
+        LogThroughputSummary("queue drained");
+    }
+
+    private void LogThroughputSummary(string trigger)
+    {
+        int completed, failed;
+        lock (_throughputLock)
+        {
+            completed = _completedSinceSummary;
+            failed = _failedSinceSummary;
+            _completedSinceSummary = 0;
+            _failedSinceSummary = 0;
+        }
+
+        _logger.LogInformation(LogEvents.Worker.AnalysisThroughputSummary,
+            "Analysis throughput: {Completed} completed, {Failed} failed in the last {Interval} job(s), trigger {Trigger}; pending {Pending}, in-flight {InFlight}",
+            completed, failed, completed + failed, trigger, _scheduler.PendingCount, _scheduler.InFlightCount);
     }
 
     /// <summary>
@@ -581,7 +698,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning("Persisting analysis for item {ItemId} failed: {Error}", nodeId, ex.GetType().Name);
+            _logger.LogWarning(LogEvents.Worker.PersistAfterJobFailed, ex, "Persisting analysis for item {ItemId} failed: {Error}", nodeId, ex.GetType().Name);
         }
     }
 

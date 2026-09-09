@@ -36,8 +36,30 @@ public sealed class LibraryEntity
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastScanCompleted { get; set; }
 
+    /// <summary>
+    /// Global default reader mode for the whole library (1.2.0). Null = inherit
+    /// (fall through to the user's personal default). Stored as the ReaderMode enum's
+    /// int value. Admin-set; applies to all users. Overridable per folder — see
+    /// <see cref="FolderReaderDefaultEntity"/>.
+    /// </summary>
+    public int? DefaultReaderMode { get; set; }
+
     public ICollection<LibraryGrantEntity> Grants { get; set; } = [];
     public ICollection<CatalogNodeEntity> Nodes { get; set; } = [];
+}
+
+/// <summary>
+/// Global per-folder default reader mode override (1.2.0, admin-set). Applies to the
+/// folder and all its subfolders; during resolution the nearest ancestor with an
+/// override wins. One row per folder that has an explicit override — absence means
+/// "inherit". <see cref="ReaderMode"/> stored as its int value.
+/// </summary>
+public sealed class FolderReaderDefaultEntity
+{
+    public long Id { get; set; }
+    public long NodeId { get; set; }
+    public int ReaderMode { get; set; }
+    public CatalogNodeEntity? Node { get; set; }
 }
 
 /// <summary>
@@ -151,6 +173,20 @@ public sealed class ArchiveItemEntity
 
     public DateTimeOffset? LastAnalyzedAt { get; set; }
 
+    /// <summary>
+    /// Durable thumbnail state (1.2.0). 0 = none, 1 = ready, 2 = failed.
+    /// Thumbnails live in the persistent <c>DataRoot/thumbnails</c> store —
+    /// never the evictable page cache (<c>CacheRoot</c>).
+    /// </summary>
+    public int ThumbnailState { get; set; }
+
+    /// <summary>
+    /// Content version the durable thumbnail was generated from. A source
+    /// change (new content version) invalidates the old thumbnail so the
+    /// next generation pass produces a fresh one.
+    /// </summary>
+    public long? ThumbnailContentVersion { get; set; }
+
     public CatalogNodeEntity? Node { get; set; }
     public ICollection<PageEntryEntity> Pages { get; set; } = [];
 }
@@ -236,6 +272,48 @@ public sealed class ReadingProgressEntity
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
 
+    /// <summary>
+    /// User dismissed this item from the "continue reading" strip (1.2.0). Sticky
+    /// until they make forward progress on it again (which clears it). Distinct from
+    /// the sticky read-mark: dismissing does not mark the item read.
+    /// </summary>
+    public bool HiddenFromContinue { get; set; }
+
+    public UserEntity? User { get; set; }
+}
+
+/// <summary>
+/// Per-user sticky "read" mark for an item (1.2.0). A separate, sticky flag —
+/// decoupled from <see cref="ReadingProgressEntity"/> position. The mere presence
+/// of a row means "read"; there is no unread row.
+///
+/// Semantics (owner-settled 2026-09-08):
+/// - Set/cleared manually without opening the item (or in bulk over a folder's
+///   descendant archives).
+/// - Auto-set when the user completes an item (reaches the last page).
+/// - Sticky: navigating back to earlier pages never removes it. Only an explicit
+///   clear (or reset) marks the item unread again.
+/// </summary>
+public sealed class ReadMarkEntity
+{
+    public long Id { get; set; }
+    public long UserId { get; set; }
+
+    /// <summary>
+    /// The archive item's catalog node id (matches <see cref="CatalogNodeEntity.Id"/>).
+    /// </summary>
+    public long ItemId { get; set; }
+
+    /// <summary>
+    /// When the item was marked read (completion time, or the manual-mark time).
+    /// </summary>
+    public DateTimeOffset MarkedAt { get; set; }
+
+    /// <summary>
+    /// How the mark was created: "manual", "completion", or "bulk". Diagnostic only.
+    /// </summary>
+    public string Source { get; set; } = "manual";
+
     public UserEntity? User { get; set; }
 }
 
@@ -255,6 +333,15 @@ public sealed class ReaderPreferencesEntity
     public bool PreferDoubleSpread { get; set; }
     public bool ReducedMotion { get; set; }
     public string? PreferredBackground { get; set; }
+
+    /// <summary>
+    /// Per-user library browse presentation (1.2.0). Stored as tolerant strings
+    /// (not enums) so future frontends can map/fall back gracefully rather than being
+    /// hard-coupled to one set of modes. Defaults: grid / comfortable / name.
+    /// </summary>
+    public string LibraryViewMode { get; set; } = "grid";
+    public string LibraryGridDensity { get; set; } = "comfortable";
+    public string LibrarySort { get; set; } = "name";
 
     public UserEntity? User { get; set; }
 }
