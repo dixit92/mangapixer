@@ -138,6 +138,96 @@ public sealed class ReadingController : ControllerBase
         return NoContent();
     }
 
+    // --- Sticky read-marks (1.2.0) ---
+
+    /// <summary>
+    /// Gets the current user's sticky read-mark state for an item.
+    /// </summary>
+    [HttpGet("{itemId}/read")]
+    public async Task<IActionResult> GetReadMark(string itemId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
+        var isRead = await _stateService.IsReadAsync(userId.Value, node.Id, ct);
+        return Ok(new ReadMarkDto { ItemId = itemId, IsRead = isRead });
+    }
+
+    /// <summary>
+    /// Marks an item read (sticky). Idempotent.
+    /// </summary>
+    [HttpPut("{itemId}/read")]
+    public async Task<IActionResult> SetReadMark(string itemId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
+        var ok = await _stateService.SetItemReadAsync(userId.Value, node.Id, read: true, ct);
+        if (!ok) return Unauthorized();
+
+        return Ok(new ReadMarkDto { ItemId = itemId, IsRead = true });
+    }
+
+    /// <summary>
+    /// Clears an item's read-mark (marks it unread). Idempotent.
+    /// </summary>
+    [HttpDelete("{itemId}/read")]
+    public async Task<IActionResult> ClearReadMark(string itemId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
+        var ok = await _stateService.SetItemReadAsync(userId.Value, node.Id, read: false, ct);
+        if (!ok) return Unauthorized();
+
+        return Ok(new ReadMarkDto { ItemId = itemId, IsRead = false });
+    }
+
+    /// <summary>
+    /// Marks every readable descendant archive of a folder read (bulk, sticky).
+    /// </summary>
+    [HttpPut("folders/{nodeId}/read")]
+    public async Task<IActionResult> SetFolderReadMark(string nodeId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(nodeId, ct);
+        if (node is null) return NotFound();
+
+        var result = await _stateService.SetFolderReadAsync(userId.Value, node.Id, read: true, ct);
+        if (result is null) return NotFound();
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Clears the read-mark on every descendant archive of a folder (bulk).
+    /// </summary>
+    [HttpDelete("folders/{nodeId}/read")]
+    public async Task<IActionResult> ClearFolderReadMark(string nodeId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(nodeId, ct);
+        if (node is null) return NotFound();
+
+        var result = await _stateService.SetFolderReadAsync(userId.Value, node.Id, read: false, ct);
+        if (result is null) return NotFound();
+
+        return Ok(result);
+    }
+
     [HttpGet("continue")]
     public async Task<IActionResult> GetContinueReading(
         [FromQuery] int limit = 20,

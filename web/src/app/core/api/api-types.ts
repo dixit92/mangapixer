@@ -44,6 +44,8 @@ export interface CatalogNodeDto {
   lastReadPage: number | null;
   /** This folder's own global reader-mode override (1.2.0), or null if none. */
   readerDefault: ReaderMode | null;
+  /** Whether the current user marked this item read (1.2.0 sticky flag). Archives only. */
+  isRead: boolean;
 }
 
 export interface BreadcrumbEntry {
@@ -123,6 +125,18 @@ export interface LibraryDto {
 /** Resolved effective default reader mode for an item (1.2.0). */
 export interface EffectiveReaderModeDto {
   readerMode: ReaderMode;
+}
+
+/** Current user's sticky read-mark state for a single item (1.2.0). */
+export interface ReadMarkDto {
+  itemId: string;
+  isRead: boolean;
+}
+
+/** Result of a bulk folder read-mark operation over descendant archives (1.2.0). */
+export interface BulkReadMarkResultDto {
+  affected: number;
+  total: number;
 }
 
 export interface ApiError {

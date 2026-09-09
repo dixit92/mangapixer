@@ -12,6 +12,8 @@ import {
   ContinueReadingEntry,
   CreateUserRequest,
   EffectiveReaderModeDto,
+  ReadMarkDto,
+  BulkReadMarkResultDto,
   ReaderMode,
   CsrfTokenDto,
   DirectoryListingDto,
@@ -161,6 +163,26 @@ export class ApiService {
   /** Resolved effective default reader mode for an item (1.2.0). */
   getEffectiveReaderMode(itemId: string): Observable<EffectiveReaderModeDto> {
     return this.get<EffectiveReaderModeDto>(`/reading/${itemId}/effective-mode`);
+  }
+
+  // --- Sticky read-marks (1.2.0) ---
+
+  getReadMark(itemId: string): Observable<ReadMarkDto> {
+    return this.get<ReadMarkDto>(`/reading/${itemId}/read`);
+  }
+
+  /** Marks an item read (sticky), or clears it, without opening it. */
+  setItemRead(itemId: string, read: boolean): Observable<ReadMarkDto> {
+    return read
+      ? this.put<ReadMarkDto>(`/reading/${itemId}/read`, {})
+      : this.delete<ReadMarkDto>(`/reading/${itemId}/read`);
+  }
+
+  /** Bulk set/clear read-marks over every descendant archive of a folder. */
+  setFolderRead(nodeId: string, read: boolean): Observable<BulkReadMarkResultDto> {
+    return read
+      ? this.put<BulkReadMarkResultDto>(`/reading/folders/${nodeId}/read`, {})
+      : this.delete<BulkReadMarkResultDto>(`/reading/folders/${nodeId}/read`);
   }
 
   // --- Admin ---

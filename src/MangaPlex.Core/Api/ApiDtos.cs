@@ -93,6 +93,13 @@ public sealed record CatalogNodeDto
     /// Only populated for folders; admins set it in the browse view.
     /// </summary>
     public ReaderMode? ReaderDefault { get; init; }
+
+    /// <summary>
+    /// Whether the current user has marked this item read (1.2.0 sticky read flag).
+    /// Only meaningful for archives; folders are always false (their read-ness is
+    /// managed in bulk over descendants, not stored on the folder itself).
+    /// </summary>
+    public bool IsRead { get; init; }
 }
 
 /// <summary>
@@ -202,6 +209,27 @@ public sealed record UserPreferencesDto
 public sealed record EffectiveReaderModeDto
 {
     public required ReaderMode ReaderMode { get; init; }
+}
+
+/// <summary>
+/// Current user's sticky read-mark state for a single item (1.2.0).
+/// </summary>
+public sealed record ReadMarkDto
+{
+    public required string ItemId { get; init; }
+    public required bool IsRead { get; init; }
+}
+
+/// <summary>
+/// Result of a bulk read-mark operation over a folder's descendant archives (1.2.0).
+/// </summary>
+public sealed record BulkReadMarkResultDto
+{
+    /// <summary>Number of descendant archives affected (newly set, or cleared).</summary>
+    public required int Affected { get; init; }
+
+    /// <summary>Total descendant archives considered under the folder.</summary>
+    public required int Total { get; init; }
 }
 
 /// <summary>

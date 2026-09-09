@@ -41,6 +41,7 @@ public sealed class MangaPlexDbContext : DbContext
     public DbSet<ArchiveItemEntity> ArchiveItems => Set<ArchiveItemEntity>();
     public DbSet<PageEntryEntity> PageEntries => Set<PageEntryEntity>();
     public DbSet<ReadingProgressEntity> ReadingProgress => Set<ReadingProgressEntity>();
+    public DbSet<ReadMarkEntity> ReadMarks => Set<ReadMarkEntity>();
     public DbSet<ReaderPreferencesEntity> ReaderPreferences => Set<ReaderPreferencesEntity>();
     public DbSet<ItemReaderOverridesEntity> ItemReaderOverrides => Set<ItemReaderOverridesEntity>();
     public DbSet<FolderReaderDefaultEntity> FolderReaderDefaults => Set<FolderReaderDefaultEntity>();
@@ -64,6 +65,7 @@ public sealed class MangaPlexDbContext : DbContext
         ConfigureArchiveItems(modelBuilder);
         ConfigurePageEntries(modelBuilder);
         ConfigureReadingProgress(modelBuilder);
+        ConfigureReadMarks(modelBuilder);
         ConfigurePreferences(modelBuilder);
         ConfigureFolderReaderDefaults(modelBuilder);
         ConfigureBookmarks(modelBuilder);
@@ -217,6 +219,21 @@ public sealed class MangaPlexDbContext : DbContext
             // One progress record per user+item
             e.HasIndex(x => new { x.UserId, x.ItemId }).IsUnique();
             e.HasIndex(x => new { x.UserId, x.UpdatedAt });
+        });
+    }
+
+    private static void ConfigureReadMarks(ModelBuilder mb)
+    {
+        mb.Entity<ReadMarkEntity>(e =>
+        {
+            e.ToTable("read_marks");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.Source).IsRequired().HasMaxLength(16);
+
+            // One read mark per user+item; presence means "read".
+            e.HasIndex(x => new { x.UserId, x.ItemId }).IsUnique();
+            e.HasIndex(x => x.ItemId);
         });
     }
 

@@ -184,6 +184,13 @@ public sealed class ReadingStateService
             }
         }
 
+        // Sticky read-mark: reaching the last page auto-marks the item read (1.2.0).
+        // Tracked here so it commits atomically with the progress row. Backward
+        // navigation takes the re-reading branch above (isCompleted == false), so it
+        // never removes the mark.
+        if (isCompleted)
+            await EnsureReadMarkTrackedAsync(userId, itemId, "completion", ct);
+
         await _db.SaveChangesAsync(ct);
         return UpdateProgressResult.Success(progress.Revision, alreadyApplied: false);
     }
@@ -207,6 +214,185 @@ public sealed class ReadingStateService
         _db.ReadingProgress.Remove(progress);
         await _db.SaveChangesAsync(ct);
         return true;
+    }
+
+    // --- Sticky read-marks (1.2.0) ---
+    //
+    // A read-mark is a separate, sticky flag decoupled from reading position: its
+    // presence means "read". It is set on completion, or manually (per item, or in
+    // bulk over a folder's descendant archives), and only an explicit clear/reset
+    // removes it — re-reading never does.
+
+    /// <summary>
+    /// Returns whether the user has marked the item read. False if access is denied.
+    /// </summary>
+    public async Task<bool> IsReadAsync(long userId, long itemId, CancellationToken ct = default)
+    {
+        if (!await _auth.CanAccessItemAsync(userId, itemId, ct))
+            return false;
+
+        return await _db.ReadMarks.AnyAsync(m => m.UserId == userId && m.ItemId == itemId, ct);
+    }
+
+    /// <summary>
+    /// Sets or clears the sticky read-mark for a single item. Idempotent.
+    /// Returns false only if the user lacks access to the item.
+    /// </summary>
+    public async Task<bool> SetItemReadAsync(
+        long userId,
+        long itemId,
+        bool read,
+        CancellationToken ct = default)
+    {
+        if (!await _auth.CanAccessItemAsync(userId, itemId, ct))
+            return false;
+
+        var existing = await _db.ReadMarks
+            .FirstOrDefaultAsync(m => m.UserId == userId && m.ItemId == itemId, ct);
+
+        if (read && existing is null)
+        {
+            _db.ReadMarks.Add(new ReadMarkEntity
+            {
+                UserId = userId,
+                ItemId = itemId,
+                MarkedAt = DateTimeOffset.UtcNow,
+                Source = "manual",
+            });
+            await _db.SaveChangesAsync(ct);
+        }
+        else if (!read && existing is not null)
+        {
+            _db.ReadMarks.Remove(existing);
+            await _db.SaveChangesAsync(ct);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Sets or clears read-marks in bulk across every readable descendant archive of a
+    /// folder. Returns null if the node is missing, not a folder, or inaccessible.
+    /// </summary>
+    public async Task<BulkReadMarkResultDto?> SetFolderReadAsync(
+        long userId,
+        long folderNodeId,
+        bool read,
+        CancellationToken ct = default)
+    {
+        var folder = await _db.CatalogNodes
+            .FirstOrDefaultAsync(n => n.Id == folderNodeId, ct);
+        if (folder is null || folder.Kind != (int)CatalogNodeKind.Folder)
+            return null;
+
+        if (!await _auth.CanAccessLibraryAsync(userId, folder.LibraryId, ct))
+            return null;
+
+        var archiveIds = await GetDescendantArchiveIdsAsync(folderNodeId, ct);
+        if (archiveIds.Count == 0)
+            return new BulkReadMarkResultDto { Affected = 0, Total = 0 };
+
+        var already = await _db.ReadMarks
+            .Where(m => m.UserId == userId && archiveIds.Contains(m.ItemId))
+            .Select(m => m.ItemId)
+            .ToListAsync(ct);
+        var alreadySet = already.ToHashSet();
+
+        int affected;
+        if (read)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var toAdd = archiveIds.Where(id => !alreadySet.Contains(id)).ToList();
+            foreach (var id in toAdd)
+            {
+                _db.ReadMarks.Add(new ReadMarkEntity
+                {
+                    UserId = userId,
+                    ItemId = id,
+                    MarkedAt = now,
+                    Source = "bulk",
+                });
+            }
+            affected = toAdd.Count;
+        }
+        else
+        {
+            var toRemove = await _db.ReadMarks
+                .Where(m => m.UserId == userId && archiveIds.Contains(m.ItemId))
+                .ToListAsync(ct);
+            _db.ReadMarks.RemoveRange(toRemove);
+            affected = toRemove.Count;
+        }
+
+        if (affected > 0)
+            await _db.SaveChangesAsync(ct);
+
+        return new BulkReadMarkResultDto { Affected = affected, Total = archiveIds.Count };
+    }
+
+    /// <summary>
+    /// Ensures a read-mark exists for (user, item) as part of the current change set,
+    /// without saving. Callers commit it with their own <c>SaveChangesAsync</c>.
+    /// </summary>
+    private async Task EnsureReadMarkTrackedAsync(
+        long userId,
+        long itemId,
+        string source,
+        CancellationToken ct)
+    {
+        var exists = await _db.ReadMarks
+            .AnyAsync(m => m.UserId == userId && m.ItemId == itemId, ct);
+        if (!exists)
+        {
+            _db.ReadMarks.Add(new ReadMarkEntity
+            {
+                UserId = userId,
+                ItemId = itemId,
+                MarkedAt = DateTimeOffset.UtcNow,
+                Source = source,
+            });
+        }
+    }
+
+    /// <summary>
+    /// Collects the internal node ids of every non-tombstoned archive under a folder,
+    /// at any depth, via a recursive descent over <c>catalog_nodes.ParentId</c>.
+    /// </summary>
+    private async Task<List<long>> GetDescendantArchiveIdsAsync(long folderNodeId, CancellationToken ct)
+    {
+        var ids = new List<long>();
+        var connection = _db.Database.GetDbConnection();
+        var wasOpen = connection.State == System.Data.ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync(ct);
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                WITH RECURSIVE descendants(Id) AS (
+                    SELECT Id FROM catalog_nodes WHERE ParentId = $root
+                    UNION ALL
+                    SELECT cn.Id FROM catalog_nodes cn
+                    JOIN descendants d ON cn.ParentId = d.Id
+                )
+                SELECT cn.Id
+                FROM catalog_nodes cn
+                JOIN descendants d ON cn.Id = d.Id
+                WHERE cn.Kind = 1 AND cn.Availability != 5;
+                """;
+            var p = command.CreateParameter();
+            p.ParameterName = "$root";
+            p.Value = folderNodeId;
+            command.Parameters.Add(p);
+
+            using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                ids.Add(reader.GetInt64(0));
+        }
+        finally
+        {
+            if (!wasOpen) await connection.CloseAsync();
+        }
+        return ids;
     }
 
     /// <summary>

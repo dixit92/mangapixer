@@ -262,6 +262,41 @@ public sealed class ReadingProgressEntity
 }
 
 /// <summary>
+/// Per-user sticky "read" mark for an item (1.2.0). A separate, sticky flag —
+/// decoupled from <see cref="ReadingProgressEntity"/> position. The mere presence
+/// of a row means "read"; there is no unread row.
+///
+/// Semantics (owner-settled 2026-09-08):
+/// - Set/cleared manually without opening the item (or in bulk over a folder's
+///   descendant archives).
+/// - Auto-set when the user completes an item (reaches the last page).
+/// - Sticky: navigating back to earlier pages never removes it. Only an explicit
+///   clear (or reset) marks the item unread again.
+/// </summary>
+public sealed class ReadMarkEntity
+{
+    public long Id { get; set; }
+    public long UserId { get; set; }
+
+    /// <summary>
+    /// The archive item's catalog node id (matches <see cref="CatalogNodeEntity.Id"/>).
+    /// </summary>
+    public long ItemId { get; set; }
+
+    /// <summary>
+    /// When the item was marked read (completion time, or the manual-mark time).
+    /// </summary>
+    public DateTimeOffset MarkedAt { get; set; }
+
+    /// <summary>
+    /// How the mark was created: "manual", "completion", or "bulk". Diagnostic only.
+    /// </summary>
+    public string Source { get; set; } = "manual";
+
+    public UserEntity? User { get; set; }
+}
+
+/// <summary>
 /// Per-user reader preferences.
 /// </summary>
 public sealed class ReaderPreferencesEntity
