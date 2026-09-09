@@ -1,0 +1,74 @@
+namespace com.lifepixer.mangaplex.Server.Features.Import;
+
+using com.lifepixer.mangaplex.Core.Api;
+using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangaplex.Server.Features.Import.YacReader;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+/// <summary>
+/// Admin-only endpoints for importing reading progress from external
+/// libraries. Currently supports YACReader <c>library.ydb</c> databases.
+///
+/// All endpoints require the Admin role. Source paths supplied in requests
+/// are private server locators and are never echoed in responses (source-path
+/// privacy invariant).
+/// </summary>
+[ApiController]
+[Route("api/v1/admin/import")]
+[Authorize(Policy = "Admin")]
+public sealed class YacReaderImportController : ControllerBase
+{
+    private readonly YacReaderImportService _importService;
+    private readonly ILogger<YacReaderImportController> _logger;
+
+    public YacReaderImportController(
+        YacReaderImportService importService,
+        ILogger<YacReaderImportController> logger)
+    {
+        _importService = importService;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Previews (dry-run) a YACReader progress import. Reads the source
+    /// database read-only (or from a scratch snapshot) and reports the
+    /// mapping, conflicts, and a bounded sample — without writing any state.
+    /// </summary>
+    [HttpPost("yacreader/preview")]
+    public async Task<IActionResult> Preview(
+        [FromBody] YacReaderImportRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.LibraryId)
+            || string.IsNullOrWhiteSpace(request.YacDbPath)
+            || string.IsNullOrWhiteSpace(request.TargetUserId))
+            return BadRequest(new ApiError { Error = "invalid_request", Message = "LibraryId, YacDbPath, and TargetUserId are required." });
+
+        var result = await _importService.PreviewAsync(request, ct);
+        if (!result.Success)
+            return BadRequest(new ApiError { Error = result.Error ?? "import_failed", Message = result.Message ?? "Import preview failed." });
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
+    /// Applies a YACReader progress import, writing reading progress and
+    /// sticky read-marks for the target user. Existing MangaPlex progress is
+    /// skipped unless <see cref="YacReaderImportRequest.Overwrite"/> is set.
+    /// </summary>
+    [HttpPost("yacreader/apply")]
+    public async Task<IActionResult> Apply(
+        [FromBody] YacReaderImportRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.LibraryId)
+            || string.IsNullOrWhiteSpace(request.YacDbPath)
+            || string.IsNullOrWhiteSpace(request.TargetUserId))
+            return BadRequest(new ApiError { Error = "invalid_request", Message = "LibraryId, YacDbPath, and TargetUserId are required." });
+
+        var result = await _importService.ApplyAsync(request, ct);
+        if (!result.Success)
+            return BadRequest(new ApiError { Error = result.Error ?? "import_failed", Message = result.Message ?? "Import apply failed." });
+
+        return Ok(result.Value);
+    }
+}

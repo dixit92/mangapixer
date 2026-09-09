@@ -3,6 +3,7 @@ namespace com.lifepixer.mangaplex.Server.Hosting;
 using com.lifepixer.mangaplex.Server.Media;
 using com.lifepixer.mangaplex.Server.Operations;
 using com.lifepixer.mangaplex.Server.Persistence;
+using com.lifepixer.mangaplex.Server.Features.Import.YacReader;
 using com.lifepixer.mangaplex.Server.Features.Reading;
 using com.lifepixer.mangaplex.Server.Scanning;
 using com.lifepixer.mangaplex.Server.Storage;
@@ -40,6 +41,11 @@ public static class HostingServicesExtensions
             };
         });
         services.AddScoped<IdentityRelinkService>();
+
+        // YACReader progress importer (admin-only). The library reader is a
+        // stateless singleton; the import service is scoped (depends on DbContext).
+        services.AddSingleton<YacReaderLibraryReader>();
+        services.AddScoped<YacReaderImportService>();
 
         // Admin directory browser for the library-registration path picker.
         // Confined to the configured media browse root (default /media).

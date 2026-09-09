@@ -490,3 +490,126 @@ public sealed record UserGrantsDto
     public required bool IsAdmin { get; init; }
     public required IReadOnlyList<string> LibraryIds { get; init; }
 }
+
+// --- YACReader progress import (admin-only) ---
+//
+// A read-only importer that maps reading progress from a YACReader
+// .yacreaderlibrary/library.ydb SQLite database into MangaPlex reading
+// progress + sticky read-marks for a chosen target user. Covers and
+// thumbnails are not imported (MangaPlex regenerates them). Source media is
+// never mutated: the ydb is opened read-only, or copied to an app-owned
+// scratch snapshot first (default). Existing MangaPlex state is never
+// overwritten unless the admin explicitly opts in via Overwrite.
+
+/// <summary>
+/// Request for a YACReader progress import (preview or apply). The admin
+/// selects a MangaPlex library to map into, the path to the YACReader
+/// library database (the .yacreaderlibrary directory or the library.ydb
+/// file), and the target MangaPlex user to receive the imported progress.
+/// </summary>
+public sealed record YacReaderImportRequest
+{
+    /// <summary>Opaque public id of the MangaPlex library to map into.</summary>
+    public required string LibraryId { get; init; }
+
+    /// <summary>
+    /// Path to the YACReader library database. May be the .yacreaderlibrary
+    /// directory or the library.ydb file directly. This is a private server
+    /// locator (never echoed in responses).
+    /// </summary>
+    public required string YacDbPath { get; init; }
+
+    /// <summary>Opaque public id of the MangaPlex user to import progress for.</summary>
+    public required string TargetUserId { get; init; }
+
+    /// <summary>
+    /// When false (default), items that already have MangaPlex progress are
+    /// skipped (never overwrite existing state without explicit opt-in).
+    /// When true, existing progress and read-marks are replaced.
+    /// </summary>
+    public bool Overwrite { get; init; }
+
+    /// <summary>
+    /// When true (default), library.ydb is copied to an app-owned scratch
+    /// snapshot before reading, so the source library directory is never
+    /// opened for write (no journal/wal/shm sidecar creation). When false,
+    /// the source ydb is opened read-only directly.
+    /// </summary>
+    public bool Snapshot { get; init; } = true;
+}
+
+/// <summary>
+/// One mapped item in a YACReader import preview. Source paths are never
+/// exposed; only the mapped MangaPlex item id/display name and the imported
+/// reading state are surfaced.
+/// </summary>
+public sealed record YacReaderImportItemDto
+{
+    /// <summary>Opaque public id of the mapped MangaPlex archive item, or null if unmapped.</summary>
+    public string? ItemId { get; init; }
+
+    /// <summary>Display name of the mapped MangaPlex item, or null if unmapped.</summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>Whether YACReader marked the comic as read (finished).</summary>
+    public required bool Read { get; init; }
+
+    /// <summary>Whether YACReader recorded the comic as having been opened.</summary>
+    public required bool HasBeenOpened { get; init; }
+
+    /// <summary>YACReader's 1-based current page (0 if unknown).</summary>
+    public required int CurrentPage { get; init; }
+
+    /// <summary>Resolved MangaPlex reading state: "unread", "inProgress", or "completed".</summary>
+    public required string State { get; init; }
+
+    /// <summary>True if MangaPlex already has progress for this item (a conflict).</summary>
+    public required bool Conflict { get; init; }
+}
+
+/// <summary>
+/// Preview (dry-run) of a YACReader progress import. No state is written.
+/// </summary>
+public sealed record YacReaderImportPreviewDto
+{
+    public required string LibraryId { get; init; }
+    public required string TargetUserId { get; init; }
+
+    /// <summary>YACReader database schema version (db_info.version), if available.</summary>
+    public string? DbVersion { get; init; }
+
+    public required int TotalComics { get; init; }
+    public required int Mapped { get; init; }
+    public required int Unmapped { get; init; }
+
+    /// <summary>Mapped items that already have MangaPlex progress (conflicts).</summary>
+    public required int Conflicts { get; init; }
+
+    /// <summary>Items that would be imported (mapped and not skipped by conflict policy).</summary>
+    public required int ToImport { get; init; }
+
+    /// <summary>Bounded sample of mapped items (at most 50), for review.</summary>
+    public required IReadOnlyList<YacReaderImportItemDto> Items { get; init; }
+}
+
+/// <summary>
+/// Result of applying a YACReader progress import.
+/// </summary>
+public sealed record YacReaderImportResultDto
+{
+    public required string LibraryId { get; init; }
+    public required string TargetUserId { get; init; }
+    public string? DbVersion { get; init; }
+    public required int TotalComics { get; init; }
+    public required int Mapped { get; init; }
+    public required int Unmapped { get; init; }
+
+    /// <summary>Progress rows written or updated.</summary>
+    public required int Imported { get; init; }
+
+    /// <summary>Mapped items skipped because MangaPlex already had progress (overwrite=false).</summary>
+    public required int Skipped { get; init; }
+
+    /// <summary>Sticky read-marks set (for comics YACReader marked read).</summary>
+    public required int ReadMarks { get; init; }
+}

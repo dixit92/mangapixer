@@ -267,6 +267,9 @@ public static class LogEvents
 
         public const int AdminPasswordReset = 7010;
         public const int LogLevelChanged = 7011;
+        public const int YacReaderImportPreviewed = 7012;
+        public const int YacReaderImportApplied = 7013;
+        public const int YacReaderImportFailed = 7014;
     }
 
     /// <summary>App-level request pipeline errors (unhandled 500s).</summary>

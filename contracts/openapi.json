@@ -761,6 +761,70 @@
         }
       }
     },
+    "/api/v1/admin/import/yacreader/preview": {
+      "post": {
+        "tags": [
+          "YacReaderImport"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YacReaderImportRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YacReaderImportRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/YacReaderImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/import/yacreader/apply": {
+      "post": {
+        "tags": [
+          "YacReaderImport"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YacReaderImportRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YacReaderImportRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/YacReaderImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/libraries": {
       "get": {
         "tags": [
@@ -1905,6 +1969,31 @@
             "type": "string"
           }
         }
+      },
+      "YacReaderImportRequest": {
+        "required": [
+          "libraryId",
+          "yacDbPath",
+          "targetUserId"
+        ],
+        "type": "object",
+        "properties": {
+          "libraryId": {
+            "type": "string"
+          },
+          "yacDbPath": {
+            "type": "string"
+          },
+          "targetUserId": {
+            "type": "string"
+          },
+          "overwrite": {
+            "type": "boolean"
+          },
+          "snapshot": {
+            "type": "boolean"
+          }
+        }
       }
     }
   },
@@ -1920,6 +2009,9 @@
     },
     {
       "name": "Reading"
+    },
+    {
+      "name": "YacReaderImport"
     },
     {
       "name": "Catalog"
