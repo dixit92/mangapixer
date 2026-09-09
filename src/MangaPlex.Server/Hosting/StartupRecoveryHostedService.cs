@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangaplex.Server.Hosting;
 
+using com.lifepixer.mangaplex.Server.Logging;
+
 using com.lifepixer.mangaplex.Server.Operations;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Scanning;
@@ -39,7 +41,7 @@ public sealed class StartupRecoveryHostedService : IHostedService
             var schema = await recovery.ValidateSchemaAsync(cancellationToken);
             if (!schema.Valid)
             {
-                _logger.LogWarning("Schema validation failed: {Error}. Recovery skipped.", schema.Error);
+                _logger.LogWarning(LogEvents.Database.SchemaValidationFailedRecoverySkipped, "Schema validation failed: {Error}. Recovery skipped.", schema.Error);
                 return;
             }
 
@@ -51,12 +53,12 @@ public sealed class StartupRecoveryHostedService : IHostedService
             var leases = await leaseService.RecoverExpiredLeasesAsync(cancellationToken);
 
             _logger.LogInformation(
-                "Startup recovery complete: {Jobs} interrupted jobs, {Analysis} interrupted analyses, {Scratch} stale scratch workspaces, {Leases} expired scan leases",
+                LogEvents.Database.StartupRecoveryCompleted, "Startup recovery complete: {Jobs} interrupted jobs, {Analysis} interrupted analyses, {Scratch} stale scratch workspaces, {Leases} expired scan leases",
                 jobs, analysis, scratch, leases);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning("Startup recovery failed: {Error}. API remains available.", ex.GetType().Name);
+            _logger.LogWarning(LogEvents.Database.StartupRecoveryFailed, "Startup recovery failed: {Error}. API remains available.", ex.GetType().Name);
         }
     }
 

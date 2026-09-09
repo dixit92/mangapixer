@@ -100,7 +100,10 @@ public static class AuthServicesExtensions
         services.AddScoped<SessionOptions>();
         services.AddScoped<LibraryAuthorizationService>();
         services.AddScoped<LastAdminProtectionService>();
-        services.AddSingleton<LoginRateLimiter>();
+        services.AddSingleton<LoginRateLimiter>(sp =>
+            new LoginRateLimiter(
+                sp.GetRequiredService<LoginRateLimitOptions>(),
+                sp.GetService<ILogger<LoginRateLimiter>>()));
         services.AddSingleton<LoginRateLimitOptions>(sp =>
         {
             var config = sp.GetService<Microsoft.Extensions.Configuration.IConfiguration>();
