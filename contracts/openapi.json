@@ -128,6 +128,30 @@
         }
       }
     },
+    "/api/v1/operations/backups": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/operations/backups/rotating": {
+      "post": {
+        "tags": [
+          "Operations"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/items/{itemId}/manifest": {
       "get": {
         "tags": [
