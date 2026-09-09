@@ -82,7 +82,9 @@ public sealed class PageHttpTests : IDisposable
         var (client, itemId) = await SetupLibraryAndScanAsync();
         await PersistAnalysisResultAsync(itemId, pageCount: 3);
 
-        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp"); // cover = first page, webp
+        // Cover is now served from the durable thumbnail store (1.2.0),
+        // not the evictable page cache.
+        await SeedDurableThumbnailAsync(itemId);
         var response = await client.GetAsync($"/api/v1/items/{itemId}/cover");
         response.EnsureSuccessStatusCode();
 
@@ -182,6 +184,31 @@ public sealed class PageHttpTests : IDisposable
         var tmp = Path.Combine(_libRoot, "seed-" + Guid.NewGuid().ToString("N")[..8] + ".webp");
         await File.WriteAllBytesAsync(tmp, SyntheticImages.MinimalPng);
         await cache.PublishAsync(cacheKey, tmp, "image/webp");
+        try { File.Delete(tmp); } catch { /* best effort */ }
+    }
+
+    /// <summary>
+    /// Publishes a durable thumbnail into the ThumbnailStore so the cover
+    /// endpoint can serve it without a running worker (1.2.0).
+    /// </summary>
+    private async Task SeedDurableThumbnailAsync(string itemPublicId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var store = scope.ServiceProvider.GetRequiredService<ThumbnailStore>();
+        store.Initialize();
+
+        var node = await db.CatalogNodes.FirstAsync(n => n.PublicId == itemPublicId);
+        var archiveItem = await db.ArchiveItems.FirstAsync(a => a.NodeId == node.Id);
+
+        var tmp = Path.Combine(_libRoot, "thumb-" + Guid.NewGuid().ToString("N")[..8] + ".webp");
+        await File.WriteAllBytesAsync(tmp, SyntheticImages.MinimalPng);
+        await store.PublishAsync(node.Id, archiveItem.ContentVersion, tmp);
+
+        archiveItem.ThumbnailState = 1;
+        archiveItem.ThumbnailContentVersion = archiveItem.ContentVersion;
+        await db.SaveChangesAsync();
+
         try { File.Delete(tmp); } catch { /* best effort */ }
     }
 
