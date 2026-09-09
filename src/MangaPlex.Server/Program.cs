@@ -93,6 +93,16 @@ public sealed partial class Program
                 if (scratchBudget is > 0) options.ScratchBudgetBytes = scratchBudget.Value;
             });
 
+            // Startup configuration logging (gap 8.3.6). Logs existence and
+            // budgets only — never absolute paths, per the privacy invariant.
+            Log.Logger.Information("Storage roots initialized: data={DataExists}, cache={CacheExists}, scratch={ScratchExists}",
+                Directory.Exists(dataRoot), Directory.Exists(cacheRoot), Directory.Exists(scratchRoot));
+            Log.Logger.Information("Storage budgets: cache={CacheBudget}, scratch={ScratchBudget}",
+                cacheBudget is > 0 ? cacheBudget.Value.ToString() : "default",
+                scratchBudget is > 0 ? scratchBudget.Value.ToString() : "default");
+            Log.Logger.Information("Worker executable: {Status}",
+                string.IsNullOrWhiteSpace(workerExe) ? "auto-discovery" : "configured");
+
             // Hosted lifecycle services + storage/scanning/page-delivery registrations
             builder.Services.AddMangaPlexHosting();
 

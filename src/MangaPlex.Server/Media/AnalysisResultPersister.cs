@@ -34,7 +34,11 @@ public sealed class AnalysisResultPersister
         var archiveItem = await db.ArchiveItems
             .Include(a => a.Pages)
             .FirstOrDefaultAsync(a => a.NodeId == nodeId, ct);
-        if (archiveItem is null) return;
+        if (archiveItem is null)
+        {
+            _logger?.LogWarning("Persist skipped: archive item {ItemId} not found", nodeId);
+            return;
+        }
 
         if (!result.Success || result.Result is null)
         {
@@ -48,6 +52,8 @@ public sealed class AnalysisResultPersister
             archiveItem.AnalysisError = result.ErrorType;
             archiveItem.LastAnalyzedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
+            _logger?.LogDebug("Persisted failure for item {ItemId}: state {State}, error {Error}",
+                nodeId, archiveItem.AnalysisState, result.ErrorType);
             return;
         }
 
@@ -57,6 +63,7 @@ public sealed class AnalysisResultPersister
             archiveItem.AnalysisError = "invalid_result";
             archiveItem.LastAnalyzedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
+            _logger?.LogWarning("Persisted invalid result for item {ItemId}: result type {Type}", nodeId, result.Result.GetType().Name);
             return;
         }
 

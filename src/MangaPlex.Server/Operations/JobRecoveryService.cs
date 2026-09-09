@@ -43,6 +43,8 @@ public sealed class JobRecoveryService
             .Where(j => j.Status == 0 || j.Status == 1)
             .ToListAsync(ct);
 
+        _logger?.LogDebug("Recovery: found {Count} interrupted jobs (pending or running)", pendingJobs.Count);
+
         var recovered = 0;
         foreach (var job in pendingJobs)
         {
@@ -56,6 +58,10 @@ public sealed class JobRecoveryService
         {
             await _db.SaveChangesAsync(ct);
             _logger?.LogWarning("Recovered {Count} interrupted jobs", recovered);
+        }
+        else
+        {
+            _logger?.LogDebug("Recovery: no interrupted jobs found");
         }
 
         return recovered;
@@ -103,12 +109,21 @@ public sealed class JobRecoveryService
     public int RecoverScratchWorkspaces(TimeSpan inactiveThreshold)
     {
         if (_scratchManager is null)
+        {
+            _logger?.LogDebug("Scratch recovery skipped: no scratch manager configured");
             return 0;
+        }
 
+        _logger?.LogDebug("Scratch recovery: scanning for inactive workspaces (threshold {Threshold}s)",
+            inactiveThreshold.TotalSeconds);
         var cleaned = _scratchManager.RecoverInactiveWorkspaces(inactiveThreshold);
         if (cleaned > 0)
         {
             _logger?.LogWarning("Recovered {Count} inactive scratch workspaces", cleaned);
+        }
+        else
+        {
+            _logger?.LogDebug("Scratch recovery: no inactive workspaces found");
         }
         return cleaned;
     }
@@ -136,12 +151,19 @@ public sealed class JobRecoveryService
     {
         var version = await DatabaseInitialization.GetSchemaVersionAsync(_db, ct);
         if (version is null)
+        {
+            _logger?.LogWarning("Schema validation failed: version not found in database");
             return SchemaValidationResult.Failed("Database schema version not found.");
+        }
 
         var expectedVersion = DatabaseInitialization.CurrentSchemaVersion;
+        _logger?.LogDebug("Schema validation: found {Found}, expected {Expected}", version, expectedVersion);
         if (version > expectedVersion)
+        {
+            _logger?.LogWarning("Schema version {Found} is newer than expected {Expected}", version, expectedVersion);
             return SchemaValidationResult.Failed(
                 $"Database schema version {version} is newer than expected {expectedVersion}.");
+        }
 
         if (version < expectedVersion)
         {

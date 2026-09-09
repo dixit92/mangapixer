@@ -81,10 +81,12 @@ public sealed class CacheService
             {
                 e.LastAccessedAt = DateTimeOffset.UtcNow;
                 entry = e;
+                _logger?.LogDebug("Cache hit (key {CacheKey}, {Bytes} bytes)", cacheKey, e.ByteSize);
                 return true;
             }
 
             // File missing — mark as evicted
+            _logger?.LogDebug("Cache entry present but file missing (key {CacheKey}); marking evicted", cacheKey);
             e.State = CacheEntryState.Evicted;
         }
 
@@ -160,6 +162,9 @@ public sealed class CacheService
             State = CacheEntryState.Active,
         };
 
+        _logger?.LogDebug("Cache published (key {CacheKey}, {Bytes} bytes); usage now {Usage} bytes",
+            cacheKey, fileInfo.Length, GetCurrentUsageBytes());
+
         // Check if we need to evict
         TryEvict();
     }
@@ -203,6 +208,9 @@ public sealed class CacheService
             LastAccessedAt = DateTimeOffset.UtcNow,
             State = CacheEntryState.Active,
         };
+
+        _logger?.LogDebug("Cache published from stream (key {CacheKey}, {Bytes} bytes); usage now {Usage} bytes",
+            cacheKey, fileInfo.Length, GetCurrentUsageBytes());
 
         TryEvict();
     }
@@ -254,12 +262,16 @@ public sealed class CacheService
             if (usage <= _budgetBytes)
                 return;
 
+            _logger?.LogDebug("Cache over budget: {Usage} bytes > {Budget} bytes; evicting LRU entries",
+                usage, _budgetBytes);
+
             // Sort by last accessed (oldest first), exclude pinned
             var candidates = _entries.Values
                 .Where(e => e.State == CacheEntryState.Active && !_pinnedFiles.ContainsKey(e.CacheKey))
                 .OrderBy(e => e.LastAccessedAt)
                 .ToList();
 
+            var evictedCount = 0;
             foreach (var entry in candidates)
             {
                 if (usage <= _budgetBytes)
@@ -272,11 +284,19 @@ public sealed class CacheService
 
                     entry.State = CacheEntryState.Evicted;
                     usage -= entry.ByteSize;
+                    evictedCount++;
                 }
                 catch
                 {
                     // Failed to delete — skip, try next
+                    _logger?.LogDebug("Cache eviction failed for entry (key {CacheKey}); skipping",
+                        entry.CacheKey);
                 }
+            }
+
+            if (evictedCount > 0)
+            {
+                _logger?.LogDebug("Cache evicted {Count} entries; usage now {Usage} bytes", evictedCount, usage);
             }
         }
     }
