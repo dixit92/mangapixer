@@ -105,6 +105,7 @@ public static class HostingServicesExtensions
         // runs after the worker pool so it can dispatch generation jobs.
         services.AddHostedService<StartupRecoveryHostedService>();
         services.AddHostedService<MediaWorkerHostedService>();
+        services.AddHostedService<PendingAnalysisResumeHostedService>();
         services.AddHostedService<ThumbnailBackfillHostedService>();
         services.AddHostedService<MaintenanceHostedService>();
         services.AddHostedService<RotatingBackupHostedService>();
