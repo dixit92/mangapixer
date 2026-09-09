@@ -494,6 +494,9 @@ export class ReaderComponent implements OnInit, OnDestroy {
       const id = params.get('itemId') ?? '';
       this.itemId.set(id);
       this.pollAttempts = 0;
+      // Reset the page-prefetch cache for the new chapter (URLs are per-item).
+      this.prefetchedUrls.clear();
+      this.prefetchImgs = [];
       // "at=end" (set when arriving via previous-chapter back-navigation) asks to
       // land on the last page instead of resuming from saved progress.
       this.landOnLastPage = this.route.snapshot.queryParamMap.get('at') === 'end';
@@ -714,9 +717,47 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.phase.set('ready');
     // Show the chrome briefly on entry, then let it auto-hide for immersion.
     this.revealChrome();
+    this.prefetchAround(index);
     if (this.view() === 'webtoon') {
       // Scroll the saved page into view once the DOM is present.
       queueMicrotask(() => this.scrollWebtoonTo(index));
+    }
+  }
+
+  // Bounded client-side page prefetch: warm the browser cache with the next few
+  // (and previous) page images so paging is instant. Page URLs are immutable
+  // (content-version-keyed cache headers), so a prefetched image is reused by the
+  // reader's <img> without a re-transfer. Webtoon is native-lazy, so skip it.
+  private static readonly PrefetchAhead = 3;
+  private static readonly PrefetchBehind = 1;
+  private readonly prefetchedUrls = new Set<string>();
+  private prefetchImgs: HTMLImageElement[] = [];
+
+  private prefetchAround(index: number): void {
+    if (this.view() === 'webtoon') return;
+    const all = this.pages();
+    const n = all.length;
+    if (n === 0) return;
+
+    const targets: number[] = [];
+    for (let d = 1; d <= ReaderComponent.PrefetchAhead; d++) {
+      if (index + d < n) targets.push(index + d);
+    }
+    for (let d = 1; d <= ReaderComponent.PrefetchBehind; d++) {
+      if (index - d >= 0) targets.push(index - d);
+    }
+
+    for (const i of targets) {
+      const url = this.pageUrlFor(all[i]);
+      if (!url || this.prefetchedUrls.has(url)) continue;
+      this.prefetchedUrls.add(url);
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = url; // browser fetches + caches; the reader <img> reuses it
+      // Retain a bounded number of refs so they aren't GC'd before caching,
+      // without leaking across a long reading session.
+      this.prefetchImgs.push(img);
+      if (this.prefetchImgs.length > 16) this.prefetchImgs.shift();
     }
   }
 
@@ -868,6 +909,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
     if (clamped === this.currentPage()) return;
     this.currentPage.set(clamped);
     this.pageLoading.set(true);
+    this.prefetchAround(clamped);
     this.saveProgress();
   }
 
