@@ -22,6 +22,7 @@ import {
   ReaderMode,
   RegisterLibraryRequest,
   CreateUserRequest,
+  RotatingBackupStatusDto,
 } from '../../core/api/api-types';
 
 /**
@@ -256,7 +257,7 @@ import {
       </mat-card-content>
     </mat-card>
 
-    <!-- Diagnostics: log-level control (section 9) -->
+    <!-- Diagnostics: log-level control (section 9) + database backups -->
     <mat-card>
       <mat-card-header>
         <mat-card-title>Diagnostics</mat-card-title>
@@ -276,6 +277,34 @@ import {
             Ephemeral — resets to Information on restart. Microsoft.* overrides stay at Warning.
           </p>
         </div>
+
+        <mat-divider></mat-divider>
+        <h4>Database Backups</h4>
+        @if (backupLoading()) {
+          <p>Loading…</p>
+        } @else if (backupStatus(); as status) {
+          <p class="backup-info">
+            @if (!status.enabled) {
+              Scheduled backups are disabled by configuration.
+            } @else {
+              Every {{ intervalLabel() }} · keeping last {{ status.retentionCount }}
+            }
+            <br>
+            @if (status.lastSuccessUtc) {
+              Last backup {{ status.lastSuccessUtc | date:'short' }}
+              ({{ status.retainedCount }} on disk).
+            } @else if (status.lastFailureUtc) {
+              Last attempt failed — check server logs.
+            } @else {
+              No backup taken yet.
+            }
+          </p>
+        }
+        <button mat-raised-button color="primary" type="button"
+                (click)="runBackupNow()"
+                [disabled]="backupBusy() || backupLoading()">
+          {{ backupBusy() ? 'Backing up…' : 'Back up now' }}
+        </button>
       </mat-card-content>
     </mat-card>
   `,
@@ -307,6 +336,7 @@ import {
       font-size: 13px; opacity: 0.8; margin: 0 0 4px;
       display: flex; align-items: center; gap: 6px;
     }
+    .backup-info { margin: 0 0 12px; font-size: 13px; opacity: 0.9; }
     .browser {
       margin-top: 12px;
       border: 1px solid rgba(255, 255, 255, 0.12);
@@ -385,10 +415,16 @@ export class AdminComponent implements OnInit, OnDestroy {
   logLevel = 'Information';
   private logLevelLoading = false;
 
+  // Rotating database backups status (1.2.0).
+  readonly backupLoading = signal(true);
+  readonly backupBusy = signal(false);
+  readonly backupStatus = signal<RotatingBackupStatusDto | null>(null);
+
   ngOnInit(): void {
     this.loadLibraries();
     this.loadUsers();
     this.loadLogLevel();
+    this.loadBackupStatus();
   }
 
   ngOnDestroy(): void {
@@ -701,6 +737,41 @@ export class AdminComponent implements OnInit, OnDestroy {
         this.snackBar.open(`Log level set to ${dto.level}`, 'Close', { duration: 3000 });
       },
       error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 5000 }),
+    });
+  }
+
+  // --- Rotating database backups (1.2.0) ---
+
+  private loadBackupStatus(): void {
+    this.api.getRotatingBackupStatus().subscribe({
+      next: (status) => {
+        this.backupStatus.set(status);
+        this.backupLoading.set(false);
+      },
+      error: () => this.backupLoading.set(false),
+    });
+  }
+
+  /** Humanized schedule label, e.g. "24h" or "90 min". */
+  intervalLabel(): string {
+    const hours = this.backupStatus()?.intervalHours ?? 24;
+    return hours >= 1
+      ? `${Math.round(hours)} h`
+      : `${Math.max(1, Math.round(hours * 60))} min`;
+  }
+
+  runBackupNow(): void {
+    this.backupBusy.set(true);
+    this.api.runRotatingBackupNow().subscribe({
+      next: (status) => {
+        this.backupStatus.set(status);
+        this.backupBusy.set(false);
+        this.snackBar.open('Database backup created', 'Close', { duration: 3000 });
+      },
+      error: (err) => {
+        this.backupBusy.set(false);
+        this.snackBar.open(`Backup failed: ${err.message}`, 'Close', { duration: 5000 });
+      },
     });
   }
 }

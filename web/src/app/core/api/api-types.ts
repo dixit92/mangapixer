@@ -296,3 +296,14 @@ export interface LogLevelDto {
 export interface UpdateLogLevelRequest {
   level: string;
 }
+
+export interface RotatingBackupStatusDto {
+  enabled: boolean;
+  intervalHours: number;
+  retentionCount: number;
+  lastAttemptUtc: string | null;
+  lastSuccessUtc: string | null;
+  lastFailureUtc: string | null;
+  lastBackupFileName: string | null;
+  retainedCount: number;
+}
