@@ -153,6 +153,11 @@ export class ApiService {
     return this.get<ContinueReadingEntry[]>('/reading/continue', params);
   }
 
+  /** Remove an item from the continue-reading strip (1.2.0), without marking it read. */
+  dismissContinueReading(itemId: string): Observable<void> {
+    return this.delete<void>(`/reading/continue/${itemId}`);
+  }
+
   getPreferences(): Observable<UserPreferencesDto> {
     return this.get<UserPreferencesDto>('/reading/preferences');
   }

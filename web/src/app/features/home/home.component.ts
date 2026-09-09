@@ -4,6 +4,8 @@ import { RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatButtonModule } from '@angular/material/button';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { ApiService } from '../../core/api/api.service';
 import { LibraryDto, ContinueReadingEntry } from '../../core/api/api-types';
@@ -16,22 +18,30 @@ import { LibraryDto, ContinueReadingEntry } from '../../core/api/api-types';
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatCardModule, MatIconModule, MatChipsModule],
+  imports: [CommonModule, RouterLink, MatCardModule, MatIconModule, MatChipsModule, MatButtonModule, MatTooltipModule],
   template: `
     @if (continueReading().length > 0) {
       <section class="strip-section">
         <h2>Continue reading</h2>
         <div class="strip">
           @for (item of continueReading(); track item.itemId) {
-            <a class="cont-card" [routerLink]="['/reader', item.itemId]">
-              <div class="cover">
-                <img [src]="coverUrl(item.itemId)" alt="" loading="lazy"
-                     (error)="onCoverError($event)">
-                <mat-icon class="cover-fallback">menu_book</mat-icon>
-              </div>
-              <div class="cont-title" [title]="item.displayName">{{ item.displayName }}</div>
-              <div class="cont-page">Page {{ item.pageIndex + 1 }}</div>
-            </a>
+            <div class="cont-wrap">
+              <a class="cont-card" [routerLink]="['/reader', item.itemId]">
+                <div class="cover">
+                  <img [src]="coverUrl(item.itemId)" alt="" loading="lazy"
+                       (error)="onCoverError($event)">
+                  <mat-icon class="cover-fallback">menu_book</mat-icon>
+                </div>
+                <div class="cont-title" [title]="item.displayName">{{ item.displayName }}</div>
+                <div class="cont-page">Page {{ item.pageIndex + 1 }}</div>
+              </a>
+              <button class="dismiss" mat-icon-button
+                      matTooltip="Remove from Continue reading"
+                      aria-label="Remove from Continue reading"
+                      (click)="dismiss($event, item)">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
           }
         </div>
       </section>
@@ -74,12 +84,21 @@ import { LibraryDto, ContinueReadingEntry } from '../../core/api/api-types';
       overflow-x: auto;
       padding-bottom: 8px;
     }
+    .cont-wrap { position: relative; flex: 0 0 auto; width: 140px; }
     .cont-card {
-      flex: 0 0 auto;
+      display: block;
       width: 140px;
       text-decoration: none;
       color: inherit;
     }
+    /* Dismiss (×): always visible (touch-friendly), subtle until hover. */
+    .dismiss {
+      position: absolute; top: 4px; right: 4px; z-index: 3;
+      width: 28px; height: 28px; line-height: 28px;
+      background: rgba(0, 0, 0, 0.55); color: #fff; opacity: 0.75;
+    }
+    .dismiss:hover, .dismiss:focus-visible { opacity: 1; background: rgba(0, 0, 0, 0.75); }
+    .dismiss mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .cover {
       position: relative;
       width: 140px;
@@ -145,5 +164,15 @@ export class HomeComponent implements OnInit {
   onCoverError(event: Event): void {
     // Hide the broken image so the book-icon fallback behind it shows through.
     (event.target as HTMLImageElement).style.display = 'none';
+  }
+
+  /** Remove an item from the Continue-reading strip (1.2.0) without marking it read. */
+  dismiss(event: Event, item: ContinueReadingEntry): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.api.dismissContinueReading(item.itemId).subscribe({
+      next: () => this.continueReading.update((list) => list.filter((i) => i.itemId !== item.itemId)),
+      error: () => { /* transient failure — leave the card in place */ },
+    });
   }
 }

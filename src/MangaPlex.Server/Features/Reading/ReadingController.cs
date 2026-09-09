@@ -228,6 +228,25 @@ public sealed class ReadingController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Dismisses an item from the current user's continue-reading strip (1.2.0),
+    /// without marking it read. Reappears if the user reads it again.
+    /// </summary>
+    [HttpDelete("continue/{itemId}")]
+    public async Task<IActionResult> DismissContinue(string itemId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var node = await _idResolver.ResolveNodeAsync(itemId, ct);
+        if (node is null) return NotFound();
+
+        var ok = await _stateService.DismissFromContinueAsync(userId.Value, node.Id, ct);
+        if (!ok) return Unauthorized();
+
+        return NoContent();
+    }
+
     [HttpGet("continue")]
     public async Task<IActionResult> GetContinueReading(
         [FromQuery] int limit = 20,

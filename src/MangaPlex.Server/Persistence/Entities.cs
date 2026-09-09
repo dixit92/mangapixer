@@ -258,6 +258,13 @@ public sealed class ReadingProgressEntity
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
 
+    /// <summary>
+    /// User dismissed this item from the "continue reading" strip (1.2.0). Sticky
+    /// until they make forward progress on it again (which clears it). Distinct from
+    /// the sticky read-mark: dismissing does not mark the item read.
+    /// </summary>
+    public bool HiddenFromContinue { get; set; }
+
     public UserEntity? User { get; set; }
 }
 

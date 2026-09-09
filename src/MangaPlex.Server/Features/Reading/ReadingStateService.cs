@@ -179,6 +179,8 @@ public sealed class ReadingStateService
                 progress.Revision++;
                 progress.LastMutationId = mutationId;
                 progress.UpdatedAt = DateTimeOffset.UtcNow;
+                // Actively reading it again un-dismisses it from continue-reading.
+                progress.HiddenFromContinue = false;
                 if (isCompleted && !progress.CompletedAt.HasValue)
                     progress.CompletedAt = DateTimeOffset.UtcNow;
             }
@@ -213,6 +215,33 @@ public sealed class ReadingStateService
 
         _db.ReadingProgress.Remove(progress);
         await _db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    /// <summary>
+    /// Dismisses an item from the user's "continue reading" strip (1.2.0) without
+    /// marking it read. Sticky until the user makes forward progress on it again.
+    /// Returns false if access is denied. A no-op (still true) if there is no
+    /// progress row — an item not in the strip is already effectively dismissed.
+    /// </summary>
+    public async Task<bool> DismissFromContinueAsync(
+        long userId,
+        long itemId,
+        CancellationToken ct = default)
+    {
+        if (!await _auth.CanAccessItemAsync(userId, itemId, ct))
+            return false;
+
+        var progress = await _db.ReadingProgress
+            .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == itemId, ct);
+        if (progress is null)
+            return true;
+
+        if (!progress.HiddenFromContinue)
+        {
+            progress.HiddenFromContinue = true;
+            await _db.SaveChangesAsync(ct);
+        }
         return true;
     }
 
@@ -409,11 +438,15 @@ public sealed class ReadingStateService
         // DateTimeOffsetToBinaryConverter (see MangaPlexDbContext.ConfigureConventions),
         // so ORDER BY is now translated server-side. The previous client-side
         // sort workaround (audit defect D26) has been removed.
+        // Exclude items the user dismissed from the strip, and items they have
+        // marked read (1.2.0): the strip stays focused on what's actually mid-read.
         return await (
             from p in _db.ReadingProgress
             join n in _db.CatalogNodes on p.ItemId equals n.Id
             where p.UserId == userId
                && p.State == (int)ReadingState.InProgress
+               && !p.HiddenFromContinue
+               && !_db.ReadMarks.Any(m => m.UserId == userId && m.ItemId == p.ItemId)
                && accessibleLibs.Contains(n.LibraryId)
                && n.Availability != (int)CatalogNodeAvailability.Tombstoned
             orderby p.UpdatedAt descending

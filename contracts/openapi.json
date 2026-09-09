@@ -544,6 +544,28 @@
         }
       }
     },
+    "/api/v1/reading/continue/{itemId}": {
+      "delete": {
+        "tags": [
+          "Reading"
+        ],
+        "parameters": [
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/reading/continue": {
       "get": {
         "tags": [

@@ -376,6 +376,49 @@ public sealed class ReadingStateTests : IDisposable
     }
 
     [Fact]
+    public async Task DismissFromContinue_HidesItem_UntilForwardProgress()
+    {
+        var (db, userId, _, _, itemId) = await SetupAsync();
+        try
+        {
+            var auth = new LibraryAuthorizationService(db);
+            var service = new ReadingStateService(db, auth);
+
+            await service.UpdateProgressAsync(userId, itemId, 5, 1, mutationId: "m1");
+            Assert.Single(await service.GetContinueReadingAsync(userId));
+
+            // Dismiss removes it from the strip without marking it read.
+            Assert.True(await service.DismissFromContinueAsync(userId, itemId));
+            Assert.Empty(await service.GetContinueReadingAsync(userId));
+            Assert.False(await service.IsReadAsync(userId, itemId));
+
+            // Making forward progress again brings it back.
+            await service.UpdateProgressAsync(userId, itemId, 6, 1, mutationId: "m2");
+            Assert.Single(await service.GetContinueReadingAsync(userId));
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task ContinueReading_ExcludesReadMarkedItems()
+    {
+        var (db, userId, _, _, itemId) = await SetupAsync();
+        try
+        {
+            var auth = new LibraryAuthorizationService(db);
+            var service = new ReadingStateService(db, auth);
+
+            await service.UpdateProgressAsync(userId, itemId, 5, 1, mutationId: "m1");
+            Assert.Single(await service.GetContinueReadingAsync(userId));
+
+            // Marking it read auto-hides it from the strip (owner decision 2026-09-09).
+            await service.SetItemReadAsync(userId, itemId, read: true);
+            Assert.Empty(await service.GetContinueReadingAsync(userId));
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
     public async Task AddBookmark_CreatesAndReturnsBookmark()
     {
         var (db, userId, _, _, itemId) = await SetupAsync();
