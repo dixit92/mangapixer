@@ -167,14 +167,25 @@ A Unraid Community Applications template (XML) is a separate post-MVP packaging 
 - No telemetry, analytics, remote fonts, or third-party library lookup calls.
 - `.dockerignore` independently excludes secrets, app state, and media from build contexts.
 
-## Devin skills
+## Agent skills
 
-Project skills are in `.devin/skills/`:
-- `/verify-quick` — Quick verification after edits
-- `/verify-full` — Full release-mode verification
-- `/verify-contracts` — Contract drift and compatibility checks
-- `/verify-packaging` — Packaged Linux/Windows build and smoke
-- `/review-safety` — Read-only safety review of diffs
+The previous `.devin/skills/` wrappers (`/verify-quick`, `/verify-full`,
+`/verify-contracts`, `/verify-packaging`, `/review-safety`) were **removed**
+(2026-09-09, owner decision) — do not restore them. If repo-specific skills are
+needed again, they will be written cross-compatible (Claude Code + Devin) in
+one shared location.
 
-Skills call canonical scripts and report failures with file/test references.
-Skills never modify code to hide failures.
+Verification is still script-driven: the skills' canonical scripts remain the
+source of truth and are called directly.
+
+| Tier | Command | Use |
+|---|---|---|
+| Quick | `pwsh ./scripts/Verify-Quick.ps1` | Normal implementation loop |
+| Full | `pwsh ./scripts/Verify.ps1 -Configuration Release` | Before declaring a package complete |
+| Contracts | `pwsh ./scripts/Verify-Contracts.ps1` | API/DTO/migration/protocol/version changes |
+| Packaging | `pwsh ./scripts/Verify-Packaging.ps1` | P16 and release candidates |
+| Smoke | `pwsh ./scripts/Smoke-Container.ps1` | Full container HTTP smoke flow |
+| Safety review | `pwsh ./scripts/Review-Safety.ps1` | Read-only diff safety review |
+
+Scripts report failures with file/test references and never modify code to hide
+failures.
