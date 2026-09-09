@@ -79,6 +79,30 @@ npm --prefix web run e2e
 npm --prefix web run api:check
 ```
 
+### Live review instance (owner browser check)
+
+Build the current tree into an image and run it on a loopback port with
+throwaway storage, so a human can review the running app without touching any
+real deployment. Mount test media **read-only** (source-media invariant); supply
+the real media path per machine — never commit it.
+
+```bash
+# Build (multi-stage: Angular + server + worker)
+docker build -f deploy/Dockerfile -t mangaplex:live-review .
+
+# Run on a free loopback port with throwaway storage; first-run setup
+# screen creates the admin (no default credentials).
+docker run -d --name mangaplex-live-review -p 127.0.0.1:8097:8080 \
+    -v "<temp>/data:/data" -v "<temp>/cache:/cache" -v "<temp>/scratch:/scratch" \
+    -v "<local-test-media>:/media:ro" \
+    mangaplex:live-review
+```
+
+Health: `curl http://127.0.0.1:8097/health`. Tear down with
+`docker rm -f mangaplex-live-preview` and delete the temp storage dirs. Ports
+8080 (compose), 8099 (read-marks review), and 6266 (Unraid) are commonly in use
+by other containers — pick a free one.
+
 ## Versioning
 
 - SemVer 2.0.0 from the first build.
