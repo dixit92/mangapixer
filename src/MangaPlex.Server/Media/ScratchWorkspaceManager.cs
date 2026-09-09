@@ -70,7 +70,10 @@ public sealed class ScratchWorkspaceManager
         File.WriteAllText(markerPath,
             $"MangaPlex scratch workspace\nId: {id}\nCreated: {DateTimeOffset.UtcNow:O}\n");
 
-        _logger?.LogDebug(LogEvents.Worker.ScratchWorkspaceAllocated, "Scratch workspace {WorkspaceId} allocated (usage {Usage} of {Budget} bytes)",
+        // Per-allocation receipt is Trace-level: it fires once per job and the
+        // byte count of a fresh workspace is not actionable.
+        _logger?.LogTrace(LogEvents.Worker.ScratchWorkspaceAllocated,
+            "Scratch workspace {WorkspaceId} allocated (usage {Usage} of {Budget} bytes)",
             id, GetCurrentUsageBytes(), _scratchBudgetBytes);
 
         return new ScratchWorkspace

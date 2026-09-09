@@ -205,7 +205,11 @@ public sealed class WorkerSupervisor : IAsyncDisposable
             }
 
             // Dispatch to event handlers
-            _logger?.LogDebug(LogEvents.Worker.SupervisorMessageReceived, "Received worker message type {Type} (correlation {CorrelationId})",
+            // Per-protocol-message receipt is Trace-level: state/progress envelopes
+            // fire several times per job and carry no actionable content without
+            // their payload. Job lifecycle is logged once per phase at Debug.
+            _logger?.LogTrace(LogEvents.Worker.SupervisorMessageReceived,
+                "Received worker message type {Type} (correlation {CorrelationId})",
                 envelope.Type, envelope.CorrelationId);
             if (OnMessageReceived is not null)
             {

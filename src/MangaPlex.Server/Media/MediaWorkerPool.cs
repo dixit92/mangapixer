@@ -30,8 +30,17 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     private readonly List<WorkerSlot> _workers = [];
     private readonly object _poolLock = new();
     private readonly CancellationTokenSource _readCts = new();
+    private readonly object _throughputLock = new();
+    private int _completedSinceSummary;
+    private int _failedSinceSummary;
     private bool _isStarted;
     private bool _isShuttingDown;
+
+    /// <summary>
+    /// Number of completed jobs between Information-level throughput summaries.
+    /// Per-job events are Debug; this is the default-level view of scan progress.
+    /// </summary>
+    internal const int ThroughputSummaryInterval = 25;
 
     public MediaWorkerPool(
         WorkerPoolOptions options,
@@ -132,11 +141,16 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         {
             slot.IsBusy = false;
             _logger.LogDebug(LogEvents.Worker.PoolIdleSlotReleased, "Slot {Slot} reserved but queue is empty; releasing slot", slot.Id);
+            LogThroughputSummaryIfPending();
             return;
         }
 
-        _logger.LogDebug(LogEvents.Worker.JobDispatched, "Dispatching job {JobId} (item {ItemId}) to worker {Slot}; pending {Pending}, in-flight {InFlight}",
-            job.JobId, job.ItemId, slot.Id, _scheduler.PendingCount, _scheduler.InFlightCount);
+        // One Debug line per dispatched job: operation, correlation IDs, and the
+        // queue depths needed to diagnose saturation. Completion is logged by the
+        // scheduler with the duration; per-protocol messages stay at Trace.
+        _logger.LogDebug(LogEvents.Worker.JobDispatched,
+            "Dispatching {Operation} job {JobId} (item {ItemId}, priority {Priority}) to worker {Slot}; pending {Pending}, in-flight {InFlight}",
+            job.Operation, job.JobId, job.ItemId, job.Priority, slot.Id, _scheduler.PendingCount, _scheduler.InFlightCount);
         await ProcessJobAsync(slot, job, ct);
     }
 
@@ -443,8 +457,6 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     {
         slot.IsBusy = true;
         _scheduler.MarkInFlight(job);
-        _logger?.LogDebug(LogEvents.Worker.JobDispatchedToWorker, "Dispatching {Operation} job {JobId} (item {ItemId}) to worker {Slot}",
-            job.Operation, job.JobId, job.ItemId, slot.Id);
 
         // Allocate scratch workspace
         using var workspace = _scratchManager.AllocateWorkspace();
@@ -530,7 +542,6 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             // Send the analyze request
             var requestEnvelope = WorkerProtocolFraming.CreateEnvelope("analyze", job.JobId, request);
             await slot.Supervisor.SendMessageAsync(requestEnvelope, ct);
-            _logger?.LogDebug(LogEvents.Worker.AnalyzeRequestSent, "Sent analyze request for job {JobId} (item {ItemId})", job.JobId, job.ItemId);
 
             // Wait for completion with timeout
             var timeoutTask = Task.Delay(_options.AnalysisTimeout + _options.SourceOpenTimeout, ct);
@@ -565,19 +576,20 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             else
             {
                 finalResult = await completionTcs.Task;
-                _logger?.LogDebug(LogEvents.Worker.JobCompleted, "Job {JobId} (item {ItemId}) completed with success={Success}, errorType={ErrorType}",
-                    job.JobId, job.ItemId, finalResult.Success, finalResult.ErrorType);
+                // Completion (with duration) is logged once by the scheduler.
                 _scheduler.CompleteJob(job.DedupKey, finalResult);
             }
 
             // Persist the result for EVERY job (background and reader-demand), so a
             // scanned library's covers/manifests populate without opening each item.
+            RecordJobOutcome(finalResult.Success);
             await PersistResultAsync(job.ItemId, finalResult);
         }
         catch (Exception ex)
         {
             _logger?.LogWarning(LogEvents.Worker.JobProcessingFailed, ex, "Job {JobId} (item {ItemId}) failed during processing", job.JobId, job.ItemId);
             _scheduler.FailJob(job.DedupKey, ex);
+            RecordJobOutcome(success: false);
             await PersistResultAsync(job.ItemId, new JobResult
             {
                 JobId = job.JobId,
@@ -592,6 +604,57 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             slot.IsBusy = false;
             // Scratch workspace is cleaned up by the using statement
         }
+    }
+
+    /// <summary>
+    /// Records a job outcome and logs an Information-level throughput summary
+    /// every <see cref="ThroughputSummaryInterval"/> jobs. This is the
+    /// default-level view of background analysis progress; per-job events stay
+    /// at Debug.
+    /// </summary>
+    private void RecordJobOutcome(bool success)
+    {
+        bool due;
+        lock (_throughputLock)
+        {
+            if (success) _completedSinceSummary++; else _failedSinceSummary++;
+            due = _completedSinceSummary + _failedSinceSummary >= ThroughputSummaryInterval;
+        }
+
+        if (due)
+            LogThroughputSummary("interval");
+    }
+
+    /// <summary>
+    /// Logs a throughput summary at Information when the queue has drained and
+    /// unsummarized jobs remain, so the tail of a batch is not lost until the
+    /// next interval. Called when a dispatch finds the queue empty.
+    /// </summary>
+    private void LogThroughputSummaryIfPending()
+    {
+        lock (_throughputLock)
+        {
+            if (_completedSinceSummary + _failedSinceSummary == 0)
+                return;
+        }
+
+        LogThroughputSummary("queue drained");
+    }
+
+    private void LogThroughputSummary(string trigger)
+    {
+        int completed, failed;
+        lock (_throughputLock)
+        {
+            completed = _completedSinceSummary;
+            failed = _failedSinceSummary;
+            _completedSinceSummary = 0;
+            _failedSinceSummary = 0;
+        }
+
+        _logger.LogInformation(LogEvents.Worker.AnalysisThroughputSummary,
+            "Analysis throughput: {Completed} completed, {Failed} failed in the last {Interval} job(s), trigger {Trigger}; pending {Pending}, in-flight {InFlight}",
+            completed, failed, completed + failed, trigger, _scheduler.PendingCount, _scheduler.InFlightCount);
     }
 
     /// <summary>

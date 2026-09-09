@@ -156,11 +156,11 @@ public static class LogEvents
         public const int WorkerReadyInPool = 4018;
         public const int WorkerStartFailed = 4019;
         public const int WorkerExecutableFallback = 4020;
-        public const int JobDispatchedToWorker = 4021;
         public const int JobSourceStampRejected = 4022;
-        public const int AnalyzeRequestSent = 4023;
+        // 4021/4023/4025 retired: per-job dispatch/completion is logged once by
+        // the pool/scheduler respectively; the duplicates were removed.
+
         public const int JobTimedOut = 4024;
-        public const int JobCompleted = 4025;
         public const int JobProcessingFailed = 4026;
         public const int PersistAfterJobFailed = 4027;
 
@@ -168,6 +168,7 @@ public static class LogEvents
         public const int PoolStartFailed = 4032;
         public const int PoolStopError = 4033;
         public const int DispatchLoopError = 4034;
+        public const int AnalysisThroughputSummary = 4035;
 
         public const int SupervisorProcessStarting = 4041;
         public const int SupervisorProcessStarted = 4042;
@@ -186,8 +187,8 @@ public static class LogEvents
         public const int SchedulerPriorityUpgraded = 4062;
         public const int SchedulerEnqueueRace = 4063;
         public const int SchedulerJobEnqueued = 4064;
-        public const int SchedulerJobDequeued = 4065;
-        public const int SchedulerJobInFlight = 4066;
+        // 4065/4066 retired: dequeue and in-flight marking are covered by the
+        // pool's single dispatch log; separate scheduler-side lines were noise.
         public const int SchedulerJobCompleted = 4067;
         public const int SchedulerJobFailed = 4068;
         public const int SchedulerPendingCancelled = 4069;
