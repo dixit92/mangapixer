@@ -103,6 +103,11 @@ public sealed class JobScheduler
     /// Dequeues the highest-priority pending job. Returns null if no jobs are pending.
     /// Called by the MediaWorkerPool when a worker becomes available.
     /// </summary>
+    /// <summary>
+    /// Dequeues the highest-priority pending job. Returns null if no jobs are pending.
+    /// Called by the MediaWorkerPool when a worker becomes available; the pool logs
+    /// the dispatch (with queue depth) at Debug, so dequeue is not logged separately.
+    /// </summary>
     public PendingJob? Dequeue()
     {
         lock (_dispatchLock)
@@ -120,8 +125,6 @@ public sealed class JobScheduler
                 return null;
 
             _pendingJobs.TryRemove(best.DedupKey, out _);
-            _logger?.LogDebug(LogEvents.Worker.SchedulerJobDequeued, "Dequeued job {JobId} (item {ItemId}, priority {Priority}); pending now {Pending}",
-                best.JobId, best.ItemId, best.Priority, _pendingJobs.Count);
             return best;
         }
     }
@@ -139,8 +142,6 @@ public sealed class JobScheduler
             StartedAt = DateTimeOffset.UtcNow,
         };
         _inFlightJobs.TryAdd(job.DedupKey, inFlight);
-        _logger?.LogDebug(LogEvents.Worker.SchedulerJobInFlight, "Job {JobId} (item {ItemId}) marked in-flight; in-flight now {InFlight}",
-            job.JobId, job.ItemId, _inFlightJobs.Count);
     }
 
     /// <summary>

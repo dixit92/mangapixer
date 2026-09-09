@@ -135,8 +135,12 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             return;
         }
 
-        _logger.LogDebug(LogEvents.Worker.JobDispatched, "Dispatching job {JobId} (item {ItemId}) to worker {Slot}; pending {Pending}, in-flight {InFlight}",
-            job.JobId, job.ItemId, slot.Id, _scheduler.PendingCount, _scheduler.InFlightCount);
+        // One Debug line per dispatched job: operation, correlation IDs, and the
+        // queue depths needed to diagnose saturation. Completion is logged by the
+        // scheduler with the duration; per-protocol messages stay at Trace.
+        _logger.LogDebug(LogEvents.Worker.JobDispatched,
+            "Dispatching {Operation} job {JobId} (item {ItemId}, priority {Priority}) to worker {Slot}; pending {Pending}, in-flight {InFlight}",
+            job.Operation, job.JobId, job.ItemId, job.Priority, slot.Id, _scheduler.PendingCount, _scheduler.InFlightCount);
         await ProcessJobAsync(slot, job, ct);
     }
 
@@ -443,8 +447,6 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     {
         slot.IsBusy = true;
         _scheduler.MarkInFlight(job);
-        _logger?.LogDebug(LogEvents.Worker.JobDispatchedToWorker, "Dispatching {Operation} job {JobId} (item {ItemId}) to worker {Slot}",
-            job.Operation, job.JobId, job.ItemId, slot.Id);
 
         // Allocate scratch workspace
         using var workspace = _scratchManager.AllocateWorkspace();
@@ -530,7 +532,6 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             // Send the analyze request
             var requestEnvelope = WorkerProtocolFraming.CreateEnvelope("analyze", job.JobId, request);
             await slot.Supervisor.SendMessageAsync(requestEnvelope, ct);
-            _logger?.LogDebug(LogEvents.Worker.AnalyzeRequestSent, "Sent analyze request for job {JobId} (item {ItemId})", job.JobId, job.ItemId);
 
             // Wait for completion with timeout
             var timeoutTask = Task.Delay(_options.AnalysisTimeout + _options.SourceOpenTimeout, ct);
@@ -565,8 +566,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             else
             {
                 finalResult = await completionTcs.Task;
-                _logger?.LogDebug(LogEvents.Worker.JobCompleted, "Job {JobId} (item {ItemId}) completed with success={Success}, errorType={ErrorType}",
-                    job.JobId, job.ItemId, finalResult.Success, finalResult.ErrorType);
+                // Completion (with duration) is logged once by the scheduler.
                 _scheduler.CompleteJob(job.DedupKey, finalResult);
             }
 
