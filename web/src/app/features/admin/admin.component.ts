@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -158,6 +158,12 @@ import {
 
         <mat-divider></mat-divider>
         <h4>Register New Library</h4>
+        @if (anyScanning()) {
+          <p class="scan-notice">
+            <mat-icon inline>info</mat-icon>
+            A library scan is in progress — registering a new library is paused until it finishes.
+          </p>
+        }
         <div class="register-form">
           <mat-form-field appearance="outline" floatLabel="always">
             <mat-label>Display Name</mat-label>
@@ -171,7 +177,8 @@ import {
             <button mat-stroked-button type="button" class="browse-btn" (click)="toggleBrowser()">
               <mat-icon>folder_open</mat-icon> {{ browserOpen() ? 'Hide browser' : 'Browse…' }}
             </button>
-            <button mat-raised-button color="primary" (click)="registerLibrary()" [disabled]="!newLibName() || !newLibPath()">
+            <button mat-raised-button color="primary" (click)="registerLibrary()"
+                    [disabled]="!newLibName() || !newLibPath() || anyScanning()">
               Register
             </button>
           </div>
@@ -365,6 +372,10 @@ import {
     /* Register form: let the path/name fields span a sensible width (matching the
        browser panel below) instead of the cramped default 200px shared with the
        compact user-creation inputs. */
+    .scan-notice {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; opacity: 0.85; margin: 0 0 8px;
+    }
     .register-form { max-width: 640px; }
     .register-form mat-form-field { display: block; width: 100%; margin-right: 0; }
     .register-actions { display: flex; gap: 12px; margin-top: 4px; }
@@ -461,6 +472,10 @@ export class AdminComponent implements OnInit, OnDestroy {
   // target the active run. `cancelling` guards double-cancel clicks.
   private readonly runningScans = signal<Map<string, string>>(new Map());
   readonly cancelling = signal<Set<string>>(new Set());
+
+  /** True while any library is scanning — register is paused then (SQLite single-writer). */
+  readonly anyScanning = computed(() =>
+    this.libraries().some((l) => l.isScanning) || this.runningScans().size > 0);
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   // Grants panel state (D39).

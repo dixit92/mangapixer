@@ -95,6 +95,18 @@ public sealed class AdminController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.DisplayName) || string.IsNullOrWhiteSpace(request.RootPath))
             return BadRequest(new ApiError { Error = "invalid_request", Message = "DisplayName and RootPath are required." });
 
+        // Registering a library writes to the catalog while a scan is also writing;
+        // SQLite is single-writer, so refuse cleanly rather than let the write contend
+        // (owner decision 2026-09-09 — registering is rare, so blocking it during a
+        // scan is acceptable). Reads are unaffected (WAL snapshots).
+        var scanActive = await _db.ScanRuns.AnyAsync(s => s.Status == 0 || s.Status == 1, ct);
+        if (scanActive)
+            return Conflict(new ApiError
+            {
+                Error = "scan_in_progress",
+                Message = "A library scan is in progress. Please register the new library after it completes.",
+            });
+
         var result = await _registration.RegisterAsync(request.DisplayName, request.RootPath, ct: ct);
         if (!result.Success)
             return BadRequest(new ApiError { Error = result.Error ?? "registration_failed", Message = result.Message ?? "Registration failed." });
