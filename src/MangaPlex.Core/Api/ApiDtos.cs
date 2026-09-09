@@ -513,11 +513,13 @@ public sealed record YacReaderImportRequest
     public required string LibraryId { get; init; }
 
     /// <summary>
-    /// Path to the YACReader library database. May be the .yacreaderlibrary
-    /// directory or the library.ydb file directly. This is a private server
-    /// locator (never echoed in responses).
+    /// Optional explicit path to the YACReader library database (the
+    /// .yacreaderlibrary directory or the library.ydb file). A private server
+    /// locator, never echoed in responses. When omitted, the server auto-detects
+    /// <c>.yacreaderlibrary/library.ydb</c> inside the mapped library's own root —
+    /// the normal case, so the client never handles a path.
     /// </summary>
-    public required string YacDbPath { get; init; }
+    public string? YacDbPath { get; init; }
 
     /// <summary>Opaque public id of the MangaPlex user to import progress for.</summary>
     public required string TargetUserId { get; init; }
@@ -536,6 +538,19 @@ public sealed record YacReaderImportRequest
     /// the source ydb is opened read-only directly.
     /// </summary>
     public bool Snapshot { get; init; } = true;
+}
+
+/// <summary>
+/// Result of detecting a YACReader library inside a MangaPlex library's root.
+/// The source path is resolved server-side and never returned.
+/// </summary>
+public sealed record YacReaderDetectDto
+{
+    /// <summary>True when a readable <c>library.ydb</c> was found for the library.</summary>
+    public required bool Detected { get; init; }
+
+    /// <summary>YACReader db schema version (from <c>db_info</c>), when detected and readable.</summary>
+    public string? DbVersion { get; init; }
 }
 
 /// <summary>

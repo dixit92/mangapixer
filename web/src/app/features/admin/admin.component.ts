@@ -14,6 +14,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { ApiService } from '../../core/api/api.service';
+import { AuthService } from '../../core/auth/auth.service';
 import {
   AdminUserDto,
   DirectoryListingDto,
@@ -23,6 +24,8 @@ import {
   RegisterLibraryRequest,
   CreateUserRequest,
   RotatingBackupStatusDto,
+  YacReaderDetectDto,
+  YacReaderImportPreviewDto,
 } from '../../core/api/api-types';
 
 /**
@@ -86,6 +89,13 @@ import {
                       }
                     </mat-select>
                   </mat-form-field>
+                  @if (yacDetected(lib.id)?.detected) {
+                    <button mat-icon-button type="button" (click)="openYacImport(lib)"
+                            matTooltip="Import YACReader reading progress"
+                            aria-label="Import YACReader reading progress">
+                      <mat-icon>sync_alt</mat-icon>
+                    </button>
+                  }
                   @if (lib.isScanning) {
                     <span class="chip scanning">
                       <mat-spinner diameter="14"></mat-spinner> Scanning…
@@ -103,6 +113,40 @@ import {
                   }
                 </span>
               </mat-list-item>
+
+              @if (yacPanelLibId() === lib.id) {
+                <div class="yac-panel">
+                  <div class="yac-head">
+                    <mat-icon>sync_alt</mat-icon>
+                    <span>Import YACReader progress into <strong>your</strong> account</span>
+                    @if (yacDetected(lib.id)?.dbVersion; as v) { <span class="yac-ver">db v{{ v }}</span> }
+                  </div>
+                  @if (yacBusy() && !yacPreview()) {
+                    <p class="yac-muted">Analyzing YACReader library…</p>
+                  } @else if (yacPreview(); as p) {
+                    <p class="yac-stats">
+                      {{ p.totalComics }} comics · {{ p.mapped }} matched · {{ p.unmapped }} unmatched ·
+                      {{ p.conflicts }} already have progress
+                    </p>
+                    <p class="yac-muted">
+                      Only reading progress is imported (covers/metadata are not). Matched by file
+                      path. Read state is sticky.
+                    </p>
+                    <mat-checkbox [checked]="yacOverwrite()"
+                                  (change)="toggleYacOverwrite($event.checked)">
+                      Overwrite items that already have MangaPlex progress
+                    </mat-checkbox>
+                    <div class="yac-actions">
+                      <button mat-raised-button color="primary" type="button"
+                              [disabled]="yacBusy() || p.toImport === 0"
+                              (click)="applyYacImport()">
+                        {{ p.toImport === 0 ? 'Nothing to import' : 'Import ' + p.toImport + ' item(s)' }}
+                      </button>
+                      <button mat-button type="button" (click)="closeYacImport()">Cancel</button>
+                    </div>
+                  }
+                </div>
+              }
             }
           </mat-list>
         }
@@ -322,6 +366,17 @@ import {
     .browse-btn { margin-right: 12px; }
     .lib-meta, .user-meta { display: inline-flex; align-items: center; gap: 8px; }
     .dir-select { width: 150px; }
+    .yac-panel {
+      margin: 4px 0 12px 56px; padding: 12px 16px;
+      border: 1px solid rgba(124, 77, 255, 0.5); border-radius: 8px;
+      background: rgba(124, 77, 255, 0.06);
+    }
+    .yac-head { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+    .yac-head mat-icon { color: #b39dff; }
+    .yac-ver { font-size: 12px; opacity: 0.7; }
+    .yac-stats { margin: 8px 0 4px; font-size: 14px; }
+    .yac-muted { margin: 0 0 8px; font-size: 12px; opacity: 0.7; }
+    .yac-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
     .chip {
       display: inline-flex; align-items: center; gap: 6px;
       font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px;
@@ -371,7 +426,15 @@ import {
 })
 export class AdminComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
   private readonly snackBar = inject(MatSnackBar);
+
+  // YACReader import (1.2.0): per-library detection + a small inline import panel.
+  readonly yacDetect = signal<Map<string, YacReaderDetectDto>>(new Map());
+  readonly yacPanelLibId = signal<string | null>(null);
+  readonly yacPreview = signal<YacReaderImportPreviewDto | null>(null);
+  readonly yacOverwrite = signal(false);
+  readonly yacBusy = signal(false);
 
   readonly loadingLibs = signal(true);
   readonly loadingUsers = signal(true);
@@ -447,10 +510,77 @@ export class AdminComponent implements OnInit, OnDestroy {
             this.backfillScanRunId(lib.id);
           }
         }
+        this.detectYacForAll(libs);
         this.syncPolling();
       },
       error: () => this.loadingLibs.set(false),
     });
+  }
+
+  // --- YACReader import (1.2.0) ---
+
+  /** Detect a YACReader library inside each MangaPlex library's root, in parallel. */
+  private detectYacForAll(libs: LibraryDto[]): void {
+    for (const lib of libs) {
+      this.api.detectYacReader(lib.id).subscribe({
+        next: (d) => this.yacDetect.update((m) => new Map(m).set(lib.id, d)),
+        error: () => { /* detection best-effort; no button if it fails */ },
+      });
+    }
+  }
+
+  yacDetected(libId: string): YacReaderDetectDto | undefined {
+    return this.yacDetect().get(libId);
+  }
+
+  /** Open the import panel for a library and run a dry-run preview into the admin's account. */
+  openYacImport(lib: LibraryDto): void {
+    this.yacPanelLibId.set(lib.id);
+    this.yacPreview.set(null);
+    this.yacOverwrite.set(false);
+    this.refreshYacPreview(lib.id);
+  }
+
+  closeYacImport(): void {
+    this.yacPanelLibId.set(null);
+    this.yacPreview.set(null);
+  }
+
+  /** Re-run the preview (e.g. after toggling Overwrite, which changes the counts). */
+  refreshYacPreview(libId: string): void {
+    const userId = this.auth.currentUser()?.id;
+    if (!userId) return;
+    this.yacBusy.set(true);
+    this.api.previewYacReaderImport({ libraryId: libId, targetUserId: userId, overwrite: this.yacOverwrite() })
+      .subscribe({
+        next: (p) => { this.yacPreview.set(p); this.yacBusy.set(false); },
+        error: (err) => { this.yacBusy.set(false); this.snackBar.open(`Preview failed: ${err.message}`, 'Close', { duration: 5000 }); },
+      });
+  }
+
+  toggleYacOverwrite(value: boolean): void {
+    this.yacOverwrite.set(value);
+    const libId = this.yacPanelLibId();
+    if (libId) this.refreshYacPreview(libId);
+  }
+
+  /** Apply the import into the current admin's account. */
+  applyYacImport(): void {
+    const libId = this.yacPanelLibId();
+    const userId = this.auth.currentUser()?.id;
+    if (!libId || !userId) return;
+    this.yacBusy.set(true);
+    this.api.applyYacReaderImport({ libraryId: libId, targetUserId: userId, overwrite: this.yacOverwrite() })
+      .subscribe({
+        next: (r) => {
+          this.yacBusy.set(false);
+          this.snackBar.open(
+            `Imported ${r.imported} of ${r.mapped} mapped (${r.readMarks} read, ${r.skipped} skipped).`,
+            'Close', { duration: 5000 });
+          this.closeYacImport();
+        },
+        error: (err) => { this.yacBusy.set(false); this.snackBar.open(`Import failed: ${err.message}`, 'Close', { duration: 5000 }); },
+      });
   }
 
   /** Refresh library rows without touching the loading flag (used while polling). */

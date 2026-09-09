@@ -214,6 +214,51 @@ public sealed class YacReaderImportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Detect_FindsYacLibraryUnderLibraryRoot_AndReportsAbsentWhenMissing()
+    {
+        var (db, library, user, _, _) = await SetupAsync();
+        var svc = CreateService(db);
+
+        // Library root has no .yacreaderlibrary yet → not detected.
+        var before = await svc.DetectAsync(library.PublicId, default);
+        Assert.True(before.Success);
+        Assert.False(before.Value!.Detected);
+
+        // Point the library at a real temp root that contains a YACReader db.
+        library.RootPath = _tempDir;
+        await db.SaveChangesAsync();
+        BuildYacLibrary(_tempDir, (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true));
+
+        var after = await svc.DetectAsync(library.PublicId, default);
+        Assert.True(after.Success);
+        Assert.True(after.Value!.Detected);
+        Assert.Equal("9.0.0", after.Value.DbVersion);
+    }
+
+    [Fact]
+    public async Task Preview_AutoResolvesDbFromLibraryRoot_WhenNoPathGiven()
+    {
+        var (db, library, user, _, _) = await SetupAsync();
+        library.RootPath = _tempDir;
+        await db.SaveChangesAsync();
+        BuildYacLibrary(_tempDir,
+            (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true),
+            (2, "/Series/Volume 2.cbz", "Volume 2.cbz", 20, read: true, hasBeenOpened: true));
+
+        var svc = CreateService(db);
+        // No YacDbPath — the server must resolve .yacreaderlibrary/library.ydb from RootPath.
+        var result = await svc.PreviewAsync(new YacReaderImportRequest
+        {
+            LibraryId = library.PublicId,
+            TargetUserId = user.PublicId,
+        }, default);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(2, result.Value!.Mapped);
+        Assert.Equal(2, result.Value.ToImport);
+    }
+
+    [Fact]
     public async Task Apply_WritesProgressAndReadMarksForMappedComics()
     {
         var setup = await SetupAsync();

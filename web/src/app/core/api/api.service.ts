@@ -15,6 +15,10 @@ import {
   ReadMarkDto,
   BulkReadMarkResultDto,
   LibraryViewPreferencesDto,
+  YacReaderDetectDto,
+  YacReaderImportRequest,
+  YacReaderImportPreviewDto,
+  YacReaderImportResultDto,
   ReaderMode,
   CsrfTokenDto,
   DirectoryListingDto,
@@ -166,6 +170,21 @@ export class ApiService {
 
   setLibraryPreferences(prefs: LibraryViewPreferencesDto): Observable<void> {
     return this.put<void>('/reading/library-preferences', prefs);
+  }
+
+  // --- YACReader import (1.2.0, admin-only) ---
+
+  detectYacReader(libraryId: string): Observable<YacReaderDetectDto> {
+    const params = new HttpParams().set('libraryId', libraryId);
+    return this.get<YacReaderDetectDto>('/admin/import/yacreader/detect', params);
+  }
+
+  previewYacReaderImport(request: YacReaderImportRequest): Observable<YacReaderImportPreviewDto> {
+    return this.post<YacReaderImportPreviewDto>('/admin/import/yacreader/preview', request);
+  }
+
+  applyYacReaderImport(request: YacReaderImportRequest): Observable<YacReaderImportResultDto> {
+    return this.post<YacReaderImportResultDto>('/admin/import/yacreader/apply', request);
   }
 
   getPreferences(): Observable<UserPreferencesDto> {

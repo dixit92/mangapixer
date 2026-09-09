@@ -145,6 +145,55 @@ export interface LibraryViewPreferencesDto {
   sort: string;
 }
 
+// --- YACReader progress import (1.2.0, admin-only) ---
+
+/** Whether a YACReader library was detected inside a MangaPlex library's root. */
+export interface YacReaderDetectDto {
+  detected: boolean;
+  dbVersion: string | null;
+}
+
+/** Request to preview or apply a YACReader progress import. Path is server-detected. */
+export interface YacReaderImportRequest {
+  libraryId: string;
+  targetUserId: string;
+  overwrite?: boolean;
+}
+
+export interface YacReaderImportItemDto {
+  itemId: string | null;
+  displayName: string | null;
+  read: boolean;
+  hasBeenOpened: boolean;
+  currentPage: number;
+  state: string;
+  conflict: boolean;
+}
+
+export interface YacReaderImportPreviewDto {
+  libraryId: string;
+  targetUserId: string;
+  dbVersion: string | null;
+  totalComics: number;
+  mapped: number;
+  unmapped: number;
+  conflicts: number;
+  toImport: number;
+  items: YacReaderImportItemDto[];
+}
+
+export interface YacReaderImportResultDto {
+  libraryId: string;
+  targetUserId: string;
+  dbVersion: string | null;
+  totalComics: number;
+  mapped: number;
+  unmapped: number;
+  imported: number;
+  skipped: number;
+  readMarks: number;
+}
+
 /** Result of a bulk folder read-mark operation over descendant archives (1.2.0). */
 export interface BulkReadMarkResultDto {
   affected: number;

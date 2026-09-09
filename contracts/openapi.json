@@ -761,6 +761,27 @@
         }
       }
     },
+    "/api/v1/admin/import/yacreader/detect": {
+      "get": {
+        "tags": [
+          "YacReaderImport"
+        ],
+        "parameters": [
+          {
+            "name": "libraryId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/import/yacreader/preview": {
       "post": {
         "tags": [
@@ -1973,7 +1994,6 @@
       "YacReaderImportRequest": {
         "required": [
           "libraryId",
-          "yacDbPath",
           "targetUserId"
         ],
         "type": "object",
@@ -1982,7 +2002,10 @@
             "type": "string"
           },
           "yacDbPath": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "targetUserId": {
             "type": "string"

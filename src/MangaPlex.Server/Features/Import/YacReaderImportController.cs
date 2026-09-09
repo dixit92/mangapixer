@@ -31,6 +31,24 @@ public sealed class YacReaderImportController : ControllerBase
     }
 
     /// <summary>
+    /// Detects whether a YACReader library is present inside a MangaPlex library's
+    /// root, so the admin UI can offer the import only when one exists. Read-only;
+    /// the source path is resolved server-side and never returned.
+    /// </summary>
+    [HttpGet("yacreader/detect")]
+    public async Task<IActionResult> Detect([FromQuery] string libraryId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(libraryId))
+            return BadRequest(new ApiError { Error = "invalid_request", Message = "libraryId is required." });
+
+        var result = await _importService.DetectAsync(libraryId, ct);
+        if (!result.Success)
+            return BadRequest(new ApiError { Error = result.Error ?? "detect_failed", Message = result.Message ?? "Detection failed." });
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
     /// Previews (dry-run) a YACReader progress import. Reads the source
     /// database read-only (or from a scratch snapshot) and reports the
     /// mapping, conflicts, and a bounded sample — without writing any state.
@@ -40,9 +58,8 @@ public sealed class YacReaderImportController : ControllerBase
         [FromBody] YacReaderImportRequest request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.LibraryId)
-            || string.IsNullOrWhiteSpace(request.YacDbPath)
             || string.IsNullOrWhiteSpace(request.TargetUserId))
-            return BadRequest(new ApiError { Error = "invalid_request", Message = "LibraryId, YacDbPath, and TargetUserId are required." });
+            return BadRequest(new ApiError { Error = "invalid_request", Message = "LibraryId and TargetUserId are required." });
 
         var result = await _importService.PreviewAsync(request, ct);
         if (!result.Success)
@@ -61,9 +78,8 @@ public sealed class YacReaderImportController : ControllerBase
         [FromBody] YacReaderImportRequest request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.LibraryId)
-            || string.IsNullOrWhiteSpace(request.YacDbPath)
             || string.IsNullOrWhiteSpace(request.TargetUserId))
-            return BadRequest(new ApiError { Error = "invalid_request", Message = "LibraryId, YacDbPath, and TargetUserId are required." });
+            return BadRequest(new ApiError { Error = "invalid_request", Message = "LibraryId and TargetUserId are required." });
 
         var result = await _importService.ApplyAsync(request, ct);
         if (!result.Success)

@@ -58,7 +58,7 @@ public sealed class YacReaderImportService
         if (resolved.Error is not null)
             return YacReaderImportResult<YacReaderImportPreviewDto>.Fail(resolved.Error.Value.Code, resolved.Error.Value.Message);
 
-        using var snapshot = await PrepareSnapshotAsync(request, ct);
+        using var snapshot = await PrepareSnapshotAsync(request, resolved.Library!, ct);
         if (snapshot.Error is not null)
             return YacReaderImportResult<YacReaderImportPreviewDto>.Fail(snapshot.Error.Value.Code, snapshot.Error.Value.Message);
 
@@ -111,7 +111,7 @@ public sealed class YacReaderImportService
         if (resolved.Error is not null)
             return YacReaderImportResult<YacReaderImportResultDto>.Fail(resolved.Error.Value.Code, resolved.Error.Value.Message);
 
-        using var snapshot = await PrepareSnapshotAsync(request, ct);
+        using var snapshot = await PrepareSnapshotAsync(request, resolved.Library!, ct);
         if (snapshot.Error is not null)
             return YacReaderImportResult<YacReaderImportResultDto>.Fail(snapshot.Error.Value.Code, snapshot.Error.Value.Message);
 
@@ -242,6 +242,34 @@ public sealed class YacReaderImportService
         });
     }
 
+    /// <summary>
+    /// Detects whether a YACReader library (<c>.yacreaderlibrary/library.ydb</c>) is
+    /// present inside a MangaPlex library's root, without reading any progress. The
+    /// source path is resolved server-side from the library's private root and is
+    /// never returned; only presence and the db schema version (when readable) are.
+    /// </summary>
+    public async Task<YacReaderImportResult<YacReaderDetectDto>> DetectAsync(
+        string libraryId, CancellationToken ct = default)
+    {
+        var library = await _db.Libraries.FirstOrDefaultAsync(l => l.PublicId == libraryId, ct);
+        if (library is null)
+            return YacReaderImportResult<YacReaderDetectDto>.Fail("library_not_found", "Library not found.");
+
+        var dbPath = ResolveDbPath(library.RootPath);
+        if (dbPath is null)
+            return YacReaderImportResult<YacReaderDetectDto>.Ok(new YacReaderDetectDto { Detected = false });
+
+        string? version = null;
+        try { version = _reader.ReadVersion(dbPath, ct); }
+        catch { /* present but unreadable — still report detected, version unknown */ }
+
+        return YacReaderImportResult<YacReaderDetectDto>.Ok(new YacReaderDetectDto
+        {
+            Detected = true,
+            DbVersion = version,
+        });
+    }
+
     private async Task<ResolvedImport> ResolveAsync(YacReaderImportRequest request, CancellationToken ct)
     {
         var library = await _db.Libraries.FirstOrDefaultAsync(l => l.PublicId == request.LibraryId, ct);
@@ -257,11 +285,17 @@ public sealed class YacReaderImportService
         return ResolvedImport.Ok(library, user);
     }
 
-    private async Task<SnapshotResult> PrepareSnapshotAsync(YacReaderImportRequest request, CancellationToken ct)
+    private async Task<SnapshotResult> PrepareSnapshotAsync(
+        YacReaderImportRequest request, LibraryEntity library, CancellationToken ct)
     {
-        var dbPath = ResolveDbPath(request.YacDbPath);
+        // The admin normally imports a YACReader library detected inside the MangaPlex
+        // library's own root (.yacreaderlibrary/library.ydb). Only fall back to an
+        // explicit request path when one is supplied (kept for flexibility/tests); the
+        // library RootPath stays server-side so the source path never reaches the client.
+        var source = !string.IsNullOrWhiteSpace(request.YacDbPath) ? request.YacDbPath! : library.RootPath;
+        var dbPath = ResolveDbPath(source);
         if (dbPath is null)
-            return SnapshotResult.Fail("yac_db_not_found", "YACReader library.ydb was not found at the given path.");
+            return SnapshotResult.Fail("yac_db_not_found", "No YACReader library.ydb was found for this library.");
 
         if (!request.Snapshot)
             return SnapshotResult.Ok(dbPath, null);
