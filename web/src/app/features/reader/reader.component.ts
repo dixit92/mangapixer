@@ -195,10 +195,17 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
       }
 
       <!-- Persistent minimal cue: a very thin progress bar, always visible.
-           In RTL it fills from the right and recedes left as pages advance. -->
+           In RTL it fills from the right and recedes left as pages advance.
+           The bar sits in a taller invisible hit strip so it can be tapped/clicked
+           (or arrow-keyed) to jump to a page — interactive page-jump. -->
       @if (phase() === 'ready') {
-        <div class="progress-rail" [class.rtl]="direction() === 'rtl'" aria-hidden="true">
-          <div class="progress-fill" [style.width.%]="progressPct()"></div>
+        <div class="rail-hit" (click)="seekFromRail($event)" (keydown)="onRailKey($event)"
+             role="slider" tabindex="0" aria-label="Reading position (jump to page)"
+             [attr.aria-valuemin]="1" [attr.aria-valuemax]="pageCount()"
+             [attr.aria-valuenow]="currentPage() + 1">
+          <div class="progress-rail" [class.rtl]="direction() === 'rtl'" aria-hidden="true">
+            <div class="progress-fill" [style.width.%]="progressPct()"></div>
+          </div>
         </div>
       }
 
@@ -322,11 +329,21 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     }
     /* Persistent minimal progress cue — a very thin bar pinned to the bottom edge,
        shown regardless of chrome visibility so position is always readable. */
-    .progress-rail {
-      position: fixed; left: 0; right: 0; bottom: 0; height: 3px;
-      background: rgba(255, 255, 255, 0.14); z-index: 1002; pointer-events: none;
-      display: flex;
+    /* Invisible taller strip that makes the 3px rail a usable tap/click target
+       (mouse and touch). Sits at the very bottom, above the reading zones. */
+    .rail-hit {
+      position: fixed; left: 0; right: 0; bottom: 0; height: 16px;
+      z-index: 1002; cursor: pointer;
+      display: flex; align-items: flex-end;
     }
+    .rail-hit:focus-visible { outline: 2px solid #7c4dff; outline-offset: -2px; }
+    .progress-rail {
+      position: relative; width: 100%; height: 3px;
+      background: rgba(255, 255, 255, 0.14); pointer-events: none;
+      display: flex; transition: height .12s ease;
+    }
+    /* Grow the bar slightly on hover so the seek affordance is discoverable (mouse). */
+    .rail-hit:hover .progress-rail, .rail-hit:focus-visible .progress-rail { height: 6px; }
     /* RTL: fill sits at the right edge and grows leftward as pages advance. */
     .progress-rail.rtl { justify-content: flex-end; }
     .progress-fill { height: 100%; flex: none; background: #7c4dff; transition: width .2s ease; }
@@ -852,6 +869,51 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.currentPage.set(clamped);
     this.pageLoading.set(true);
     this.saveProgress();
+  }
+
+  /**
+   * Jump to the page under a click/tap on the progress rail. Direction-aware — in
+   * RTL the rail fills from the right, so the fraction is mirrored. Paged/spread
+   * jump discretely; webtoon scrolls to the target page (the scroll handler then
+   * reconciles currentPage and saves).
+   */
+  seekFromRail(event: MouseEvent): void {
+    const n = this.pageCount();
+    if (n === 0) return;
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    if (rect.width === 0) return;
+    let frac = (event.clientX - rect.left) / rect.width;
+    frac = Math.min(1, Math.max(0, frac));
+    if (this.direction() === 'rtl') frac = 1 - frac;
+    this.seekToPage(Math.round(frac * (n - 1)));
+  }
+
+  /** Keyboard seek on the focused rail: arrows step a page (direction-aware); Home/End jump to the ends. */
+  onRailKey(event: KeyboardEvent): void {
+    const n = this.pageCount();
+    if (n === 0) return;
+    const rtl = this.direction() === 'rtl';
+    let target: number;
+    switch (event.key) {
+      case 'ArrowRight': target = this.currentPage() + (rtl ? -1 : 1); break;
+      case 'ArrowLeft': target = this.currentPage() + (rtl ? 1 : -1); break;
+      case 'Home': target = 0; break;
+      case 'End': target = n - 1; break;
+      default: return;
+    }
+    event.preventDefault();
+    this.seekToPage(target);
+  }
+
+  /** Applies a seek target (clamped) across all view modes. */
+  private seekToPage(index: number): void {
+    const clamped = Math.min(Math.max(index, 0), this.pageCount() - 1);
+    if (this.view() === 'webtoon') {
+      this.currentPage.set(clamped);
+      this.scrollWebtoonTo(clamped); // fires onWebtoonScroll → reconciles + debounced save
+    } else {
+      this.goToPage(clamped);
+    }
   }
 
   /**
