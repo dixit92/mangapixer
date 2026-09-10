@@ -4,6 +4,7 @@ using System.Globalization;
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Core.Reading;
+using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -23,10 +24,12 @@ using Microsoft.EntityFrameworkCore;
 public sealed class CatalogBrowseService
 {
     private readonly MangaPlexDbContext _db;
+    private readonly LibraryAuthorizationService _auth;
 
-    public CatalogBrowseService(MangaPlexDbContext db)
+    public CatalogBrowseService(MangaPlexDbContext db, LibraryAuthorizationService auth)
     {
         _db = db;
+        _auth = auth;
     }
 
     /// <summary>
@@ -48,6 +51,7 @@ public sealed class CatalogBrowseService
         int pageSize = 50,
         SortDirection direction = SortDirection.Ascending,
         string sort = "name",
+        bool incognito = false,
         CancellationToken ct = default)
     {
         // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
@@ -57,9 +61,12 @@ public sealed class CatalogBrowseService
             _ => "name",
         };
 
-        // Authorization filter — applied before pagination
-        var accessibleLibs = await GetAccessibleLibraryIdsAsync(userId, ct);
-        if (!accessibleLibs.Contains(libraryId))
+        // Authorization filter — applied before pagination.
+        // Uses visible-ids (accessible minus Private) when incognito is active,
+        // so a Private library's browse-root returns empty while direct item
+        // URLs remain accessible (1.4.0).
+        var visibleLibs = await _auth.GetVisibleLibraryIdsAsync(userId, incognito, ct);
+        if (!visibleLibs.Contains(libraryId))
         {
             return new PageResponse<CatalogNodeDto>
             {
@@ -539,6 +546,7 @@ public sealed class CatalogBrowseService
         long? libraryId = null,
         string? cursor = null,
         int pageSize = 50,
+        bool incognito = false,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -553,9 +561,10 @@ public sealed class CatalogBrowseService
             };
         }
 
-        // Authorization filter — get accessible libraries first
-        var accessibleLibs = await GetAccessibleLibraryIdsAsync(userId, ct);
-        if (accessibleLibs.Count == 0)
+        // Authorization filter — get visible libraries first (accessible minus
+        // Private when incognito is active, 1.4.0).
+        var visibleLibs = await _auth.GetVisibleLibraryIdsAsync(userId, incognito, ct);
+        if (visibleLibs.Count == 0)
         {
             return new SearchResultsDto
             {
@@ -570,7 +579,7 @@ public sealed class CatalogBrowseService
         // If a specific library is requested, verify access and narrow the filter
         if (libraryId.HasValue)
         {
-            if (!accessibleLibs.Contains(libraryId.Value))
+            if (!visibleLibs.Contains(libraryId.Value))
             {
                 return new SearchResultsDto
                 {
@@ -581,14 +590,14 @@ public sealed class CatalogBrowseService
                     HasMore = false,
                 };
             }
-            accessibleLibs = [libraryId.Value];
+            visibleLibs = [libraryId.Value];
         }
 
         // Build the FTS5 query — treat user text as literal, escape FTS syntax
         var ftsQuery = BuildFtsQuery(query);
 
         // Build the library IDs parameter list
-        var libIds = string.Join(",", accessibleLibs);
+        var libIds = string.Join(",", visibleLibs);
 
         // Query the FTS5 index joined with catalog nodes and their parents/libraries
         // to project public IDs (audit defect D29). Keyset pagination on SortKey

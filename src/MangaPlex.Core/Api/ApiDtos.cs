@@ -235,6 +235,27 @@ public sealed record LibraryViewPreferencesDto
 }
 
 /// <summary>
+/// The current user's Private library designations (1.4.0). Libraries in this
+/// list are hidden from listing/discovery surfaces (continue-reading, search,
+/// browse-root, library list) while Incognito mode is active. Direct reader
+/// URLs remain accessible regardless. Library IDs are opaque public IDs.
+/// </summary>
+public sealed record PrivateLibrariesDto
+{
+    public required IReadOnlyList<string> LibraryIds { get; init; }
+}
+
+/// <summary>
+/// Request to replace the current user's Private library set (1.4.0). The
+/// entire list is replaced on each call. Unknown library IDs are silently
+/// skipped.
+/// </summary>
+public sealed record SetPrivateLibrariesRequest
+{
+    public required IReadOnlyList<string> LibraryIds { get; init; }
+}
+
+/// <summary>
 /// Result of a bulk read-mark operation over a folder's descendant archives (1.2.0).
 /// </summary>
 public sealed record BulkReadMarkResultDto
