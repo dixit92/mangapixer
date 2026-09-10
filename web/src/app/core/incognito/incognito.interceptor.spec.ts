@@ -1,11 +1,11 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpClient, HttpContext, provideHttpClient, withInterceptors } from '@angular/common/http';
 import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 
-import { incognitoInterceptor } from './incognito.interceptor';
+import { BYPASS_INCOGNITO, incognitoInterceptor } from './incognito.interceptor';
 import { IncognitoService } from './incognito.service';
 
 const HEADER = 'X-Incognito';
@@ -69,5 +69,15 @@ describe('incognitoInterceptor', () => {
     const second = httpMock.expectOne('/api/v1/b');
     expect(second.request.headers.get(HEADER)).toBe('1');
     second.flush({});
+  });
+
+  it('omits the header when BYPASS_INCOGNITO is set, even while incognito is on', () => {
+    incognito.setIncognito(true);
+
+    http.get('/api/v1/libraries', { context: new HttpContext().set(BYPASS_INCOGNITO, true) }).subscribe();
+
+    const req = httpMock.expectOne('/api/v1/libraries');
+    expect(req.request.headers.has(HEADER)).toBe(false);
+    req.flush({});
   });
 });

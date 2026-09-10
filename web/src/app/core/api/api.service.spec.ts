@@ -139,6 +139,16 @@ describe('ApiService incognito / Private libraries (1.4.0)', () => {
     req.flush(null);
   });
 
+  it('fetches the full library list for the Private-libraries management surface', () => {
+    api.getAllLibrariesForPrivacyManagement().subscribe((libs) => {
+      expect(libs.length).toBe(1);
+    });
+
+    const req = httpMock.expectOne('/api/v1/libraries');
+    expect(req.request.method).toBe('GET');
+    req.flush([{ id: 'L1', name: 'Alpha', isScanning: false, itemCount: 1, lastScanCompleted: null, defaultReaderMode: null }]);
+  });
+
   it('fetches continue-reading scoped to a single library', () => {
     api.getContinueReadingByLibrary('L1').subscribe((entries) => {
       expect(entries.length).toBe(1);

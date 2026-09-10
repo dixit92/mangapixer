@@ -1,8 +1,9 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
+import { BYPASS_INCOGNITO } from '../incognito/incognito.interceptor';
 import {
   ApiError,
   AdminUserDto,
@@ -96,6 +97,16 @@ export class ApiService {
 
   getLibraries(): Observable<LibraryDto[]> {
     return this.get<LibraryDto[]>('/libraries');
+  }
+
+  /**
+   * The full set of libraries the user can manage, ignoring the session's
+   * current Incognito toggle (1.4.0). Use for the Private-libraries settings
+   * list — a management surface must keep showing an already-Private library
+   * so the user can un-mark it, unlike the discovery surfaces that hide it.
+   */
+  getAllLibrariesForPrivacyManagement(): Observable<LibraryDto[]> {
+    return this.get<LibraryDto[]>('/libraries', undefined, new HttpContext().set(BYPASS_INCOGNITO, true));
   }
 
   browseLibrary(
@@ -385,9 +396,9 @@ export class ApiService {
 
   // --- HTTP helpers ---
 
-  private get<T>(path: string, params?: HttpParams): Observable<T> {
+  private get<T>(path: string, params?: HttpParams, context?: HttpContext): Observable<T> {
     return this.http
-      .get<T>(this.baseUrl + path, { params, withCredentials: true })
+      .get<T>(this.baseUrl + path, { params, context, withCredentials: true })
       .pipe(catchError(this.handleError));
   }
 
