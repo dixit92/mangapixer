@@ -206,9 +206,11 @@ diffs or stashes.
    `git worktree add ../lp-mangaplex.<lane> -b feature/<lane> <integration-branch>`.
    Never share a working tree between agents, and never do lane work directly in
    the main checkout while other agents are active.
-2. **Branch off the current integration branch** (e.g. `dev/1.2.0`), not stale
-   `main` or a release tag, so your lane already contains shipped prior work and
-   merges cleanly.
+2. **Branch off the integration branch `dev`**, not stale `main` or a release tag,
+   so your lane already contains shipped prior work and merges cleanly. `dev` is a
+   single long-lived, **version-agnostic** trunk — do **not** name it after a version
+   (an earlier `dev/1.2.0` went stale the moment SemVer said the next cut was 1.3.0).
+   The release number lives only in `Version.props` and the tag, decided at cut time.
 3. **Commit to your lane branch — do not leave work as uncommitted working-tree
    diffs.** Uncommitted lanes can't be told apart, get accidentally stashed
    together, and are fragile to integrate. Local commits only (no remote, no
