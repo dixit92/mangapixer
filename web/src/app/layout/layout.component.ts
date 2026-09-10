@@ -44,7 +44,7 @@ import { IncognitoService } from '../core/incognito/incognito.service';
             Incognito: {{ incognito.isIncognito() ? 'On' : 'Off' }}
           </button>
           <button mat-menu-item routerLink="/settings">
-            <mat-icon>vpn_key</mat-icon>Change Password
+            <mat-icon>settings</mat-icon>Settings
           </button>
           @if (auth.isAdmin()) {
             <button mat-menu-item routerLink="/admin">
