@@ -22,8 +22,16 @@
          DB backups, YACReader progress import, persistent thumbnails, and scan-safe
          concurrency (private SQLite cache + startup analysis resume). No breaking API
          or contract changes → MINOR per SemVer 2.0.0. Bugfixes ship as 1.2.x. -->
+    <!-- 1.3.0 — backward-compatible additive minor over 1.2.0 (post-1.2.0 cycle,
+         2026-09-09). Library rename + metadata-only delete (transactional cleanup),
+         browse sort (Name / Recently-added / Recently-read), continuous background
+         thumbnail backfill (replaces the 500-item startup cap), per-device +
+         orientation-aware default reader page mode, client-side page prefetch
+         (paged/spread, ahead-6/behind-2), and search-result cover thumbnails. No
+         schema change (sort reuses the existing LibrarySort column) and no breaking
+         API/contract changes → MINOR per SemVer 2.0.0. Bugfixes ship as 1.3.x. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>2</MangaPlexVersionMinor>
+    <MangaPlexVersionMinor>3</MangaPlexVersionMinor>
     <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
