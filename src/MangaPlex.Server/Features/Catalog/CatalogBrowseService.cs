@@ -37,9 +37,11 @@ public sealed class CatalogBrowseService
     /// Folders first, then archives, ordered by the chosen sort key.
     /// Authorization is filtered before pagination.
     ///
-    /// Sort modes (1.2.0 follow-up):
+    /// Sort modes (1.2.0 follow-up; direction added 1.5.0 — every mode honors
+    /// <paramref name="direction"/>, default Descending for recentlyAdded/recentlyRead and
+    /// Ascending for name, matching pre-1.5.0 behavior):
     /// - name (default): order by SortKey; cursor = SortKey.
-    /// - recentlyAdded: order by Kind ASC, CreatedAt DESC, Id DESC; cursor encodes (Kind, CreatedAt, Id).
+    /// - recentlyAdded: order by Kind, CreatedAt, Id; cursor encodes (Kind, CreatedAt, Id).
     /// - recentlyRead: pure recency — each node by its subtree's most recent read activity
     ///   (progress or read-mark), folders and archives interleaved; cursor is an offset.
     /// </summary>
@@ -49,7 +51,7 @@ public sealed class CatalogBrowseService
         long? parentId,
         string? cursor,
         int pageSize = 50,
-        SortDirection direction = SortDirection.Ascending,
+        SortDirection? direction = null,
         string sort = "name",
         bool incognito = false,
         CancellationToken ct = default)
@@ -60,6 +62,11 @@ public sealed class CatalogBrowseService
             "recentlyAdded" or "recentlyRead" => sort,
             _ => "name",
         };
+
+        // Default direction is sort-specific (1.5.0), so a caller that doesn't specify
+        // one gets the pre-1.5.0 behavior unchanged: Name ascending, recentlyAdded/
+        // recentlyRead descending (newest/most-recent first).
+        var effectiveDirection = direction ?? (sort == "name" ? SortDirection.Ascending : SortDirection.Descending);
 
         // Authorization filter — applied before pagination.
         // Uses visible-ids (accessible minus Private) when incognito is active,
@@ -94,9 +101,9 @@ public sealed class CatalogBrowseService
         // Sort-specific query: ordering, keyset cursor filter, projection, and paging.
         List<BrowseRow> rows = sort switch
         {
-            "recentlyAdded" => await QueryRecentlyAddedAsync(baseQuery, cursor, pageSize, ct),
-            "recentlyRead" => await QueryRecentlyReadAsync(baseQuery, userId, cursor, pageSize, ct),
-            _ => await QueryNameAsync(baseQuery, cursor, pageSize, direction, ct),
+            "recentlyAdded" => await QueryRecentlyAddedAsync(baseQuery, cursor, pageSize, effectiveDirection, ct),
+            "recentlyRead" => await QueryRecentlyReadAsync(baseQuery, userId, cursor, pageSize, effectiveDirection, ct),
+            _ => await QueryNameAsync(baseQuery, cursor, pageSize, effectiveDirection, ct),
         };
 
         // Check hasMore and trim to pageSize (the +1 was only to detect hasMore).
@@ -257,19 +264,25 @@ public sealed class CatalogBrowseService
     }
 
     /// <summary>
-    /// Recently-added sort: folders first, then archives, each by CreatedAt DESC, Id DESC.
-    /// Cursor encodes (Kind, CreatedAtBinary, InternalId).
+    /// Recently-added sort: folders first, then archives, each by CreatedAt/Id in the
+    /// requested direction (default Descending = current pre-1.5.0 behavior: newest
+    /// first). Ascending reverses the whole tuple, including the Kind grouping — the
+    /// same full-reversal semantics as Name's OrderByDescending, so archives-oldest-first
+    /// can precede folders, mirroring how Name-descending already lets archives sort
+    /// before folders. Cursor encodes (Kind, CreatedAtBinary, InternalId); the comparison
+    /// direction flips with <paramref name="direction"/> so cursor paging stays correct
+    /// across the boundary regardless of which way the page is sorted.
     /// </summary>
     private async Task<List<BrowseRow>> QueryRecentlyAddedAsync(
         IQueryable<CatalogNodeEntity> baseQuery,
         string? cursor,
         int pageSize,
+        SortDirection direction,
         CancellationToken ct)
     {
-        IQueryable<CatalogNodeEntity> query = baseQuery
-            .OrderBy(n => n.Kind)
-            .ThenByDescending(n => n.CreatedAt)
-            .ThenByDescending(n => n.Id);
+        IQueryable<CatalogNodeEntity> query = direction == SortDirection.Descending
+            ? baseQuery.OrderBy(n => n.Kind).ThenByDescending(n => n.CreatedAt).ThenByDescending(n => n.Id)
+            : baseQuery.OrderByDescending(n => n.Kind).ThenBy(n => n.CreatedAt).ThenBy(n => n.Id);
 
         // Keyset cursor filter
         if (!string.IsNullOrEmpty(cursor) && cursor.StartsWith("a:", StringComparison.Ordinal))
@@ -283,10 +296,15 @@ public sealed class CatalogBrowseService
                 try
                 {
                     var cc = new DateTimeOffset(DateTime.FromBinary(cb), TimeSpan.Zero);
-                    query = query.Where(n =>
-                        n.Kind > ck ||
-                        (n.Kind == ck && n.CreatedAt < cc) ||
-                        (n.Kind == ck && n.CreatedAt == cc && n.Id < ci));
+                    query = direction == SortDirection.Descending
+                        ? query.Where(n =>
+                            n.Kind > ck ||
+                            (n.Kind == ck && n.CreatedAt < cc) ||
+                            (n.Kind == ck && n.CreatedAt == cc && n.Id < ci))
+                        : query.Where(n =>
+                            n.Kind < ck ||
+                            (n.Kind == ck && n.CreatedAt > cc) ||
+                            (n.Kind == ck && n.CreatedAt == cc && n.Id > ci));
                 }
                 catch { /* invalid binary DateTimeOffset — ignore cursor, start from beginning */ }
             }
@@ -322,13 +340,21 @@ public sealed class CatalogBrowseService
     /// question (owner decision, 2026-09-10). The recursive descendant aggregate cannot be
     /// expressed in LINQ, so recency is computed with a recursive CTE and the ordering +
     /// paging happen in memory over the level's direct children (bounded). Cursor is an
-    /// offset: "r:{offset}".
+    /// offset: "r:{offset}", which stays valid across a direction change in the same
+    /// request lifecycle since it indexes into the freshly-recomputed in-memory list
+    /// rather than a persisted key.
+    ///
+    /// Default direction (Descending) reproduces the pre-1.5.0 behavior: most-recent
+    /// activity first, no-activity nodes last (by name). Ascending fully reverses that
+    /// tuple — oldest activity first, no-activity nodes first (by reverse name) — the
+    /// same full-reversal semantics used for Name and RecentlyAdded.
     /// </summary>
     private async Task<List<BrowseRow>> QueryRecentlyReadAsync(
         IQueryable<CatalogNodeEntity> baseQuery,
         long userId,
         string? cursor,
         int pageSize,
+        SortDirection direction,
         CancellationToken ct)
     {
         // This level's direct children (bounded — a folder's immediate children).
@@ -354,11 +380,17 @@ public sealed class CatalogBrowseService
         var recency = await ComputeRecentlyReadRecencyAsync(
             rows.Select(r => r.InternalId).ToList(), userId, ct);
 
-        var ordered = rows
-            .OrderByDescending(r => recency.ContainsKey(r.InternalId))
-            .ThenByDescending(r => recency.TryGetValue(r.InternalId, out var v) ? v : long.MinValue)
-            .ThenBy(r => r.SortKey, StringComparer.Ordinal)
-            .ToList();
+        var ordered = direction == SortDirection.Descending
+            ? rows
+                .OrderByDescending(r => recency.ContainsKey(r.InternalId))
+                .ThenByDescending(r => recency.TryGetValue(r.InternalId, out var v) ? v : long.MinValue)
+                .ThenBy(r => r.SortKey, StringComparer.Ordinal)
+                .ToList()
+            : rows
+                .OrderBy(r => recency.ContainsKey(r.InternalId))
+                .ThenBy(r => recency.TryGetValue(r.InternalId, out var v) ? v : long.MinValue)
+                .ThenByDescending(r => r.SortKey, StringComparer.Ordinal)
+                .ToList();
 
         return ordered.Skip(RecentlyReadOffset(cursor)).Take(pageSize + 1).ToList();
     }

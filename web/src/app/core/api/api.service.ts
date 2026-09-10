@@ -17,6 +17,7 @@ import {
   BulkReadMarkResultDto,
   LibraryViewPreferencesDto,
   LibrarySortOrder,
+  LibrarySortDirection,
   YacReaderDetectDto,
   YacReaderImportRequest,
   YacReaderImportPreviewDto,
@@ -116,12 +117,14 @@ export class ApiService {
     cursor: string | null = null,
     pageSize = 50,
     sort: LibrarySortOrder | null = null,
+    direction: LibrarySortDirection | null = null,
   ): Observable<PageResponse<CatalogNodeDto>> {
     let params = new HttpParams().set('pageSize', pageSize.toString());
     if (cursor) params = params.set('cursor', cursor);
     if (parentId) params = params.set('parentId', parentId);
-    // Omitted → the server uses the caller's stored LibrarySort preference.
+    // Omitted → the server uses the caller's stored LibrarySort/direction preference.
     if (sort) params = params.set('sort', sort);
+    if (direction) params = params.set('direction', direction);
     return this.get<PageResponse<CatalogNodeDto>>(
       `/libraries/${libraryId}/browse`,
       params,

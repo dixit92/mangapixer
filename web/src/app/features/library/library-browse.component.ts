@@ -12,7 +12,7 @@ import { forkJoin } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
-import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, JumpIndexBucketDto } from '../../core/api/api-types';
+import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, JumpIndexBucketDto } from '../../core/api/api-types';
 
 /**
  * Library browse component. Shows the actual folder/archive tree with keyset
@@ -81,6 +81,13 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
           @for (opt of sortOptions; track opt.value) {
             <button mat-menu-item (click)="setSort(opt.value)">
               <mat-icon>{{ sort() === opt.value ? 'check' : opt.icon }}</mat-icon>
+              {{ opt.label }}
+            </button>
+          }
+          <span class="menu-caption">Order</span>
+          @for (opt of sortDirectionOptions; track opt.value) {
+            <button mat-menu-item (click)="setSortDirection(opt.value)">
+              <mat-icon>{{ sortDirection() === opt.value ? 'check' : opt.icon }}</mat-icon>
               {{ opt.label }}
             </button>
           }
@@ -344,6 +351,17 @@ export class LibraryBrowseComponent implements OnInit {
     { value: 'recentlyRead', label: 'Recently read', icon: 'history' },
   ];
 
+  // Ascending/descending toggle for the active sort (1.5.0). Named "sortDirection"
+  // (not "direction") to stay distinct from the unrelated per-folder reading
+  // direction (LTR/RTL/Vertical) already on this component. Default mirrors the
+  // server's per-sort default (name -> asc; everything else -> desc) until the
+  // stored preference loads.
+  readonly sortDirection = signal<LibrarySortDirection>('asc');
+  readonly sortDirectionOptions: { value: LibrarySortDirection; label: string; icon: string }[] = [
+    { value: 'asc', label: 'Ascending', icon: 'arrow_upward' },
+    { value: 'desc', label: 'Descending', icon: 'arrow_downward' },
+  ];
+
   /** How many currently-selected nodes are folders (gates the Direction action). */
   readonly selectedFolderCount = computed(() => {
     const ids = this.selected();
@@ -361,10 +379,21 @@ export class LibraryBrowseComponent implements OnInit {
         this.viewMode.set(vm === 'list' || vm === 'poster' ? vm : 'grid');
         this.density.set(p.density === 'compact' ? 'compact' : 'comfortable');
         if (p.sort === 'recentlyAdded' || p.sort === 'recentlyRead') this.sort.set(p.sort);
+        // Direction is optional/tolerant like the other fields: an unset or
+        // unrecognized value falls back to the sort-specific default (matches
+        // CatalogController.ParseDirection) so pre-1.5.0 stored preferences
+        // keep their existing ordering.
+        this.sortDirection.set(
+          p.direction === 'asc' || p.direction === 'desc' ? p.direction : this.defaultDirectionFor(this.sort()));
         this.subscribeToRoute();
       },
       error: () => this.subscribeToRoute(), // keep defaults, still load
     });
+  }
+
+  /** Sort-specific default direction, matching the server's fallback (1.5.0). */
+  private defaultDirectionFor(sort: LibrarySortOrder): LibrarySortDirection {
+    return sort === 'name' ? 'asc' : 'desc';
   }
 
   /** Subscribe to the route params and load each folder as it is navigated. */
@@ -381,8 +410,9 @@ export class LibraryBrowseComponent implements OnInit {
       this.loadLibraryName(libId);
       this.loadNodes();
       // The jump rail is a library-root navigation aid (1.4.0 Lane E). It is
-      // only meaningful for the name sort — other sorts ignore the cursor.
-      if (!parentId && this.sort() === 'name') this.loadJumpIndex(libId);
+      // only meaningful for the name sort in ascending order — its bucket
+      // cursors assume A→Z order, and other sorts ignore the cursor entirely.
+      if (!parentId && this.sort() === 'name' && this.sortDirection() === 'asc') this.loadJumpIndex(libId);
       else this.jumpBuckets.set([]);
       if (parentId) this.loadBreadcrumbs(parentId);
       else this.breadcrumbs.set([]);
@@ -462,9 +492,23 @@ export class LibraryBrowseComponent implements OnInit {
     this.activeJump.set(null);
     this.clearSelection();
     this.loadNodes();
-    // The jump rail is only valid for the name sort (the cursor is a raw
-    // SortKey that other sorts ignore). Load/clear it to match.
-    if (s === 'name' && !this.parentId()) this.loadJumpIndex(this.libraryId());
+    // The jump rail is only valid for the name sort in ascending order (the
+    // cursor is a raw SortKey that assumes A→Z order; other sorts ignore it).
+    if (s === 'name' && this.sortDirection() === 'asc' && !this.parentId()) this.loadJumpIndex(this.libraryId());
+    else this.jumpBuckets.set([]);
+  }
+
+  /** Toggle ascending/descending for the active sort: persist and reorder from the top. */
+  setSortDirection(d: LibrarySortDirection): void {
+    if (this.sortDirection() === d) return;
+    this.sortDirection.set(d);
+    this.persistView();
+    this.cursor = null;
+    this.nodes.set([]);
+    this.activeJump.set(null);
+    this.clearSelection();
+    this.loadNodes();
+    if (this.sort() === 'name' && d === 'asc' && !this.parentId()) this.loadJumpIndex(this.libraryId());
     else this.jumpBuckets.set([]);
   }
 
@@ -473,6 +517,7 @@ export class LibraryBrowseComponent implements OnInit {
       viewMode: this.viewMode(),
       density: this.density(),
       sort: this.sort(),
+      direction: this.sortDirection(),
     }).subscribe({ error: () => { /* non-fatal: the choice still applies this session */ } });
   }
 
@@ -582,7 +627,7 @@ export class LibraryBrowseComponent implements OnInit {
     // Initial page (no cursor) replaces; "Load more" (cursor set) appends. Replacing
     // on the initial load keeps a stray concurrent load from duplicating rows.
     const initial = this.cursor === null;
-    this.api.browseLibrary(libId, this.parentId(), this.cursor, 50, this.sort()).subscribe({
+    this.api.browseLibrary(libId, this.parentId(), this.cursor, 50, this.sort(), this.sortDirection()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         this.nodes.update((current) => initial ? [...response.items] : [...current, ...response.items]);
         this.hasMore.set(response.hasMore);

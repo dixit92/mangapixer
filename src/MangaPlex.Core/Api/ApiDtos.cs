@@ -225,13 +225,20 @@ public sealed record ReadMarkDto
 /// tolerant/extensible: a frontend maps values it knows and falls back gracefully
 /// for any it doesn't (owner-settled multi-frontend rationale). Known values today:
 /// ViewMode = grid | list | poster; Density = comfortable | compact;
-/// Sort = name | recentlyAdded | recentlyRead.
+/// Sort = name | recentlyAdded | recentlyRead; Direction = "" | asc | desc.
+///
+/// Direction (1.5.0) defaults to "" (unset) rather than baking in a fixed default,
+/// because the sensible default differs per sort (Name ascending; recentlyAdded/
+/// recentlyRead descending). Consumers resolve "" to the sort-specific default —
+/// see <c>CatalogController.ParseDirection</c> — so existing stored preferences
+/// (saved before this field existed) keep their pre-1.5.0 ordering unchanged.
 /// </summary>
 public sealed record LibraryViewPreferencesDto
 {
     public string ViewMode { get; init; } = "grid";
     public string Density { get; init; } = "comfortable";
     public string Sort { get; init; } = "name";
+    public string Direction { get; init; } = "";
 }
 
 /// <summary>

@@ -134,6 +134,7 @@ public sealed class CatalogController : ControllerBase
         [FromQuery] string? cursor,
         [FromQuery] int pageSize = 50,
         [FromQuery] string? sort = null,
+        [FromQuery] string? direction = null,
         CancellationToken ct = default)
     {
         var userId = GetUserId();
@@ -151,21 +152,50 @@ public sealed class CatalogController : ControllerBase
             parentIdLong = parent.Id;
         }
 
-        // If no explicit sort query param, fall back to the user's stored preference.
-        // This lets the frontend set sort via the library-preferences endpoint and
-        // have browse respect it without re-sending it on every page request.
+        // If no explicit sort/direction query param, fall back to the user's stored
+        // preference. This lets the frontend set sort/direction via the
+        // library-preferences endpoint and have browse respect it without re-sending
+        // it on every page request. An explicit query param always overrides the
+        // stored preference (1.5.0).
         var effectiveSort = sort;
-        if (string.IsNullOrEmpty(effectiveSort))
+        string? storedDirection = null;
+        if (string.IsNullOrEmpty(effectiveSort) || string.IsNullOrEmpty(direction))
         {
             var prefs = await _readingStateService.GetLibraryPreferencesAsync(userId.Value, ct);
-            effectiveSort = prefs.Sort;
+            if (string.IsNullOrEmpty(effectiveSort))
+                effectiveSort = prefs.Sort;
+            storedDirection = prefs.Direction;
         }
+        effectiveSort ??= "name";
 
         var result = await _browseService.BrowseAsync(
             userId.Value, library.Id, parentIdLong, cursor, pageSize,
-            sort: effectiveSort ?? "name", incognito: _incognito.IsIncognito, ct: ct);
+            direction: ParseDirection(direction, storedDirection, effectiveSort),
+            sort: effectiveSort, incognito: _incognito.IsIncognito, ct: ct);
 
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Resolves the effective sort direction: an explicit query param wins, then the
+    /// stored preference, then the sort-specific default (Name ascending, everything
+    /// else descending — matches <see cref="CatalogBrowseService"/>'s own default so
+    /// existing users see no change). Tolerant of "asc"/"desc" and the enum names.
+    /// </summary>
+    private static SortDirection ParseDirection(string? explicitValue, string? storedValue, string sort)
+    {
+        var raw = !string.IsNullOrEmpty(explicitValue) ? explicitValue : storedValue;
+        if (!string.IsNullOrEmpty(raw))
+        {
+            if (raw.Equals("asc", StringComparison.OrdinalIgnoreCase)
+                || raw.Equals("ascending", StringComparison.OrdinalIgnoreCase))
+                return SortDirection.Ascending;
+            if (raw.Equals("desc", StringComparison.OrdinalIgnoreCase)
+                || raw.Equals("descending", StringComparison.OrdinalIgnoreCase))
+                return SortDirection.Descending;
+        }
+
+        return sort == "name" ? SortDirection.Ascending : SortDirection.Descending;
     }
 
     [HttpGet("nodes/{nodeId}")]

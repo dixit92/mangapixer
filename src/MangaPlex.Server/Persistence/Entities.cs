@@ -360,6 +360,14 @@ public sealed class ReaderPreferencesEntity
     public string LibraryGridDensity { get; set; } = "comfortable";
     public string LibrarySort { get; set; } = "name";
 
+    /// <summary>
+    /// Sort direction for the library browse view (1.5.0): "" | asc | desc. Empty
+    /// means unset — the sort-specific default applies (Name ascending; everything
+    /// else descending), so rows written before this column existed keep their
+    /// pre-1.5.0 ordering unchanged.
+    /// </summary>
+    public string LibraryDirection { get; set; } = "";
+
     public UserEntity? User { get; set; }
 }
 

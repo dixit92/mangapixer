@@ -699,23 +699,60 @@ public sealed class ReadingStateTests : IDisposable
             Assert.Equal("grid", def.ViewMode);
             Assert.Equal("comfortable", def.Density);
             Assert.Equal("name", def.Sort);
+            Assert.Equal("", def.Direction); // unset (1.5.0) — sort-specific default applies downstream
 
             await service.SetLibraryPreferencesAsync(userId, new LibraryViewPreferencesDto
             {
                 ViewMode = "poster",
                 Density = "compact",
                 Sort = "recentlyAdded",
+                Direction = "desc",
             });
 
             var lib = await service.GetLibraryPreferencesAsync(userId);
             Assert.Equal("poster", lib.ViewMode);
             Assert.Equal("compact", lib.Density);
             Assert.Equal("recentlyAdded", lib.Sort);
+            Assert.Equal("desc", lib.Direction);
 
             // Reader prefs survived the library-prefs write.
             var reader = await service.GetPreferencesAsync(userId);
             Assert.Equal(ReaderMode.VerticalWebtoon, reader.DefaultReaderMode);
             Assert.True(reader.ReducedMotion);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task LibraryPreferences_Direction_RoundTrips()
+    {
+        var (db, userId, _, _, _) = await SetupAsync();
+        try
+        {
+            var auth = new LibraryAuthorizationService(db);
+            var service = new ReadingStateService(db, auth);
+
+            await service.SetLibraryPreferencesAsync(userId, new LibraryViewPreferencesDto
+            {
+                Sort = "name",
+                Direction = "asc",
+            });
+            Assert.Equal("asc", (await service.GetLibraryPreferencesAsync(userId)).Direction);
+
+            await service.SetLibraryPreferencesAsync(userId, new LibraryViewPreferencesDto
+            {
+                Sort = "recentlyRead",
+                Direction = "desc",
+            });
+            Assert.Equal("desc", (await service.GetLibraryPreferencesAsync(userId)).Direction);
+
+            // Clearing back to "" (unset) round-trips too.
+            await service.SetLibraryPreferencesAsync(userId, new LibraryViewPreferencesDto
+            {
+                Sort = "recentlyRead",
+                Direction = "",
+            });
+            Assert.Equal("", (await service.GetLibraryPreferencesAsync(userId)).Direction);
         }
         finally { await db.DisposeAsync(); }
     }

@@ -662,6 +662,239 @@ public sealed class CatalogBrowseTests : IDisposable
         finally { await db.DisposeAsync(); }
     }
 
+    // --- Sort direction (1.5.0): every sort honors ascending/descending ---
+
+    [Fact]
+    public async Task Browse_NameSort_Descending_ReversesOrder()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Folder B", "0B");
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Folder A", "0A");
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Z", "1Z");
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive A", "1A");
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
+                sort: "name", direction: SortDirection.Descending);
+
+            // Full reversal of the SortKey ordering (archives, "1*", sort before
+            // folders, "0*", once the whole key is reversed) — same semantics as
+            // Name-descending had pre-1.5.0, just now reachable via the parameter.
+            Assert.Equal(4, result.Items.Count);
+            Assert.Equal("Archive Z", result.Items[0].DisplayName);
+            Assert.Equal("Archive A", result.Items[1].DisplayName);
+            Assert.Equal("Folder B", result.Items[2].DisplayName);
+            Assert.Equal("Folder A", result.Items[3].DisplayName);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_NameSort_Descending_PagesCorrectlyAcrossBoundary()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            for (int i = 0; i < 7; i++)
+                await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, $"Archive {i}", $"1A{i:D2}");
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var allNames = new List<string>();
+            string? cursor = null;
+            bool hasMore;
+
+            do
+            {
+                var page = await service.BrowseAsync(userId, libraryId, parentId: null,
+                    cursor: cursor, pageSize: 3, sort: "name", direction: SortDirection.Descending);
+                allNames.AddRange(page.Items.Select(n => n.DisplayName));
+                cursor = page.NextCursor;
+                hasMore = page.HasMore;
+            } while (hasMore);
+
+            Assert.Equal(7, allNames.Count);
+            Assert.Equal(7, allNames.Distinct().Count());
+            for (int i = 0; i < 7; i++)
+                Assert.Equal($"Archive {6 - i}", allNames[i]);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_RecentlyAdded_Ascending_ReversesOrder()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var t0 = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            var t1 = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero);
+            var t2 = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero);
+
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Folder Old", "0FO", t0);
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Folder New", "0FN", t2);
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Old", "1AO", t0);
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Mid", "1AM", t1);
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive New", "1AN", t2);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
+                sort: "recentlyAdded", direction: SortDirection.Ascending);
+
+            // Full reversal of the descending default: archives (oldest first),
+            // then folders (oldest first).
+            Assert.Equal(5, result.Items.Count);
+            Assert.Equal("Archive Old", result.Items[0].DisplayName);
+            Assert.Equal("Archive Mid", result.Items[1].DisplayName);
+            Assert.Equal("Archive New", result.Items[2].DisplayName);
+            Assert.Equal("Folder Old", result.Items[3].DisplayName);
+            Assert.Equal("Folder New", result.Items[4].DisplayName);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_RecentlyAdded_Ascending_PagesCorrectlyAcrossBoundary()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var baseTime = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            for (int i = 0; i < 7; i++)
+            {
+                await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive,
+                    $"Archive {i}", $"1A{i}", baseTime.AddDays(-i));
+            }
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var allNames = new List<string>();
+            string? cursor = null;
+            bool hasMore;
+
+            do
+            {
+                var page = await service.BrowseAsync(userId, libraryId, parentId: null,
+                    cursor: cursor, pageSize: 3, sort: "recentlyAdded", direction: SortDirection.Ascending);
+                allNames.AddRange(page.Items.Select(n => n.DisplayName));
+                cursor = page.NextCursor;
+                hasMore = page.HasMore;
+            } while (hasMore);
+
+            // Oldest first (reverse of the descending default's Archive 0..6 order).
+            Assert.Equal(7, allNames.Count);
+            Assert.Equal(7, allNames.Distinct().Count());
+            for (int i = 0; i < 7; i++)
+                Assert.Equal($"Archive {6 - i}", allNames[i]);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_RecentlyRead_Ascending_ReversesOrder()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var t0 = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            var t1 = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero);
+            var t2 = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero);
+
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Folder A", "0FA", t0);
+            var arch1 = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Read Old", "1ARO", t0);
+            var arch2 = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Read New", "1ARN", t0);
+            await AddProgressAsync(db, userId, arch1.Id, t1);
+            await AddProgressAsync(db, userId, arch2.Id, t2);
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Unread B", "1AUB", t0);
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Unread A", "1AUA", t0);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
+                sort: "recentlyRead", direction: SortDirection.Ascending);
+
+            // Full reversal of the descending default: no-activity group first (by
+            // reverse SortKey), then activity group oldest-first.
+            Assert.Equal(5, result.Items.Count);
+            Assert.Equal("Archive Unread B", result.Items[0].DisplayName);
+            Assert.Equal("Archive Unread A", result.Items[1].DisplayName);
+            Assert.Equal("Folder A", result.Items[2].DisplayName);
+            Assert.Equal("Archive Read Old", result.Items[3].DisplayName);
+            Assert.Equal("Archive Read New", result.Items[4].DisplayName);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_RecentlyRead_Ascending_PagesCorrectlyAcrossSegments()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var t0 = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            var t1 = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero);
+            var t2 = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero);
+
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Folder", "0F", t0);
+            var arch1 = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Read1", "1R1", t0);
+            var arch2 = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Read2", "1R2", t0);
+            await AddProgressAsync(db, userId, arch1.Id, t1);
+            await AddProgressAsync(db, userId, arch2.Id, t2);
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Unread3", "1U3", t0);
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Unread1", "1U1", t0);
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Unread2", "1U2", t0);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var allNames = new List<string>();
+            string? cursor = null;
+            bool hasMore;
+
+            do
+            {
+                var page = await service.BrowseAsync(userId, libraryId, parentId: null,
+                    cursor: cursor, pageSize: 2, sort: "recentlyRead", direction: SortDirection.Ascending);
+                allNames.AddRange(page.Items.Select(n => n.DisplayName));
+                cursor = page.NextCursor;
+                hasMore = page.HasMore;
+            } while (hasMore);
+
+            // Reverse of the descending-default order (Read2, Read1, Folder, Unread1,
+            // Unread2, Unread3): no-activity group first by reverse SortKey, then
+            // activity group oldest-first.
+            Assert.Equal(6, allNames.Count);
+            Assert.Equal(6, allNames.Distinct().Count());
+            Assert.Equal("Unread3", allNames[0]);
+            Assert.Equal("Unread2", allNames[1]);
+            Assert.Equal("Unread1", allNames[2]);
+            Assert.Equal("Folder", allNames[3]);
+            Assert.Equal("Read1", allNames[4]);
+            Assert.Equal("Read2", allNames[5]);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_RecentlyAdded_NoExplicitDirection_DefaultsDescending()
+    {
+        // BrowseAsync callers that don't pass `direction` (e.g. pre-1.5.0 call
+        // sites, or a request with neither a query param nor a stored preference)
+        // must keep getting the pre-1.5.0 descending default for non-name sorts.
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var t0 = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            var t1 = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero);
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Old", "1AO", t0);
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive New", "1AN", t1);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null, sort: "recentlyAdded");
+
+            Assert.Equal("Archive New", result.Items[0].DisplayName);
+            Assert.Equal("Archive Old", result.Items[1].DisplayName);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
     [Fact]
     public async Task Browse_InvalidSort_FallsBackToName()
     {
