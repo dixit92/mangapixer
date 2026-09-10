@@ -659,3 +659,20 @@ public sealed record YacReaderImportResultDto
     /// <summary>Sticky read-marks set (for comics YACReader marked read).</summary>
     public required int ReadMarks { get; init; }
 }
+
+/// <summary>
+/// Read-only product version information (post-1.3.0 lane D). The version comes
+/// from the assembly <see cref="System.Reflection.AssemblyInformationalVersionAttribute"/>,
+/// which is sourced from <c>Version.props</c> at build time (see
+/// <c>Directory.Build.props</c>). Contains no private data; served unauthenticated
+/// so the app footer can display it before login.
+/// </summary>
+public sealed record SystemInfoDto
+{
+    /// <summary>
+    /// The full product version (SemVer plus optional build metadata, e.g.
+    /// "1.3.0+sha.abc123"). This is the <c>InformationalVersion</c>, not the
+    /// numeric <c>AssemblyVersion</c> (which stays at major.minor.0.0).
+    /// </summary>
+    public required string Version { get; init; }
+}

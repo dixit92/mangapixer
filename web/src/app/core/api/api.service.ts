@@ -40,6 +40,7 @@ import {
   SearchResultsDto,
   SetupRequest,
   SetupStatusDto,
+  SystemInfoDto,
   UpdateLibraryRequest,
   UpdateLogLevelRequest,
   UpdateProgressRequest,
@@ -335,6 +336,13 @@ export class ApiService {
 
   runRotatingBackupNow(): Observable<RotatingBackupStatusDto> {
     return this.post<RotatingBackupStatusDto>('/operations/backups/rotating', {});
+  }
+
+  // --- System info (post-1.3.0 lane D) ---
+
+  /** Read-only product version (unauthenticated; shown in the app footer). */
+  getSystemInfo(): Observable<SystemInfoDto> {
+    return this.get<SystemInfoDto>('/system/info');
   }
 
   // --- Manifest / Readiness ---

@@ -373,3 +373,10 @@ export interface RotatingBackupStatusDto {
   lastBackupFileName: string | null;
   retainedCount: number;
 }
+
+// --- System info (post-1.3.0 lane D) ---
+
+/** Read-only product version info from GET /api/v1/system/info. */
+export interface SystemInfoDto {
+  version: string;
+}
