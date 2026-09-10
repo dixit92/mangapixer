@@ -40,8 +40,8 @@ public sealed class CatalogBrowseService
     /// Sort modes (1.2.0 follow-up):
     /// - name (default): order by SortKey; cursor = SortKey.
     /// - recentlyAdded: order by Kind ASC, CreatedAt DESC, Id DESC; cursor encodes (Kind, CreatedAt, Id).
-    /// - recentlyRead: order by Kind ASC, progress UpdatedAt DESC (NULLs last), SortKey ASC;
-    ///   cursor encodes (Kind, ProgressUpdatedAt, SortKey).
+    /// - recentlyRead: pure recency — each node by its subtree's most recent read activity
+    ///   (progress or read-mark), folders and archives interleaved; cursor is an offset.
     /// </summary>
     public async Task<PageResponse<CatalogNodeDto>> BrowseAsync(
         long userId,
@@ -186,11 +186,14 @@ public sealed class CatalogBrowseService
             }
         }
 
-        // Compute next cursor from the last row on the current page.
+        // Compute next cursor from the last row on the current page. recentlyRead
+        // paginates by offset (in-memory pure-recency order); the others use a keyset.
         string? nextCursor = null;
         if (hasMore && rows.Count > 0)
         {
-            nextCursor = EncodeCursor(sort, rows[^1]);
+            nextCursor = sort == "recentlyRead"
+                ? $"r:{RecentlyReadOffset(cursor) + rows.Count}"
+                : EncodeCursor(sort, rows[^1]);
         }
 
         return new PageResponse<CatalogNodeDto>
@@ -309,12 +312,17 @@ public sealed class CatalogBrowseService
     }
 
     /// <summary>
-    /// Recently-read sort: folders first (by name), then archives with progress
-    /// (by UpdatedAt DESC), then archives without progress (by name).
-    /// Uses a LEFT JOIN to the user's ReadingProgress. NULLs sort last in DESC
-    /// order in SQLite, so ThenByDescending(ProgressUpdatedAt) handles both the
-    /// has-progress/no-progress segmentation and the UpdatedAt ordering in one
-    /// expression. Cursor encodes (Kind, ProgressUpdatedAtBinary, SortKey).
+    /// Recently-read sort (1.4.0 rewrite): PURE RECENCY. Every node ranks by the most
+    /// recent reading activity in its subtree — most-recent first, nodes with no activity
+    /// last (by name). "Activity" = the later of ReadingProgress.UpdatedAt and
+    /// ReadMark.MarkedAt over the node itself and (for folders) all descendant archives,
+    /// so a series folder floats up by its most-recently-read chapter (recursive — series
+    /// nest into volumes/seasons). Folders and archives interleave by recency, unlike
+    /// name/recentlyAdded (folders-first), because "recently read" is inherently a recency
+    /// question (owner decision, 2026-09-10). The recursive descendant aggregate cannot be
+    /// expressed in LINQ, so recency is computed with a recursive CTE and the ordering +
+    /// paging happen in memory over the level's direct children (bounded). Cursor is an
+    /// offset: "r:{offset}".
     /// </summary>
     private async Task<List<BrowseRow>> QueryRecentlyReadAsync(
         IQueryable<CatalogNodeEntity> baseQuery,
@@ -323,12 +331,9 @@ public sealed class CatalogBrowseService
         int pageSize,
         CancellationToken ct)
     {
-        // LEFT JOIN to the user's reading progress for sort ordering.
-        IQueryable<BrowseRow> query = from n in baseQuery
-            join p in _db.ReadingProgress.Where(rp => rp.UserId == userId)
-                on n.Id equals p.ItemId into pg
-            from p in pg.DefaultIfEmpty()
-            select new BrowseRow
+        // This level's direct children (bounded — a folder's immediate children).
+        var rows = await baseQuery
+            .Select(n => new BrowseRow
             {
                 Id = n.PublicId,
                 ParentId = n.Parent != null ? n.Parent.PublicId : "",
@@ -341,68 +346,102 @@ public sealed class CatalogBrowseService
                 InternalId = n.Id,
                 CreatedAt = n.CreatedAt,
                 SortKey = n.SortKey,
-                ProgressUpdatedAt = (DateTimeOffset?)p.UpdatedAt,
-            };
+            })
+            .ToListAsync(ct);
 
-        // Ordering: Kind ASC (folders first), ProgressUpdatedAt DESC (has-progress
-        // archives by recency, NULLs last = no-progress archives), SortKey ASC (tiebreaker).
-        query = query
-            .OrderBy(r => r.Kind)
-            .ThenByDescending(r => r.ProgressUpdatedAt)
-            .ThenBy(r => r.SortKey);
+        // recency[nodeId] = max reading-activity timestamp (order-preserving binary) over
+        // the node + its descendants. Absent = no activity anywhere (sorts last, by name).
+        var recency = await ComputeRecentlyReadRecencyAsync(
+            rows.Select(r => r.InternalId).ToList(), userId, ct);
 
-        // Keyset cursor filter — must handle NULL ProgressUpdatedAt explicitly.
-        if (!string.IsNullOrEmpty(cursor) && cursor.StartsWith("r:", StringComparison.Ordinal))
+        var ordered = rows
+            .OrderByDescending(r => recency.ContainsKey(r.InternalId))
+            .ThenByDescending(r => recency.TryGetValue(r.InternalId, out var v) ? v : long.MinValue)
+            .ThenBy(r => r.SortKey, StringComparer.Ordinal)
+            .ToList();
+
+        return ordered.Skip(RecentlyReadOffset(cursor)).Take(pageSize + 1).ToList();
+    }
+
+    /// <summary>Parses the recently-read offset cursor "r:{offset}"; 0 when absent/invalid.</summary>
+    private static int RecentlyReadOffset(string? cursor)
+    {
+        if (!string.IsNullOrEmpty(cursor) && cursor.StartsWith("r:", StringComparison.Ordinal)
+            && int.TryParse(cursor.AsSpan(2), CultureInfo.InvariantCulture, out var n) && n >= 0)
+            return n;
+        return 0;
+    }
+
+    /// <summary>
+    /// For each of the given node ids, the max reading-activity timestamp
+    /// (ReadingProgress.UpdatedAt or ReadMark.MarkedAt, whichever is later) over that node
+    /// and all of its descendants, for the given user. Returns only nodes with activity.
+    /// Both timestamps use the same order-preserving binary storage, so MAX over the union
+    /// is comparable and the raw long orders chronologically.
+    /// </summary>
+    private async Task<Dictionary<long, long>> ComputeRecentlyReadRecencyAsync(
+        List<long> nodeIds,
+        long userId,
+        CancellationToken ct)
+    {
+        var result = new Dictionary<long, long>();
+        if (nodeIds.Count == 0)
+            return result;
+
+        var ids = string.Join(",", nodeIds);
+        var connection = _db.Database.GetDbConnection();
+        var wasOpen = connection.State == System.Data.ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync(ct);
+        try
         {
-            var parts = cursor[2..].Split(':', 3);
-            if (parts.Length == 3
-                && int.TryParse(parts[0], CultureInfo.InvariantCulture, out var ck))
+            using var command = connection.CreateCommand();
+            command.CommandText = $"""
+                WITH RECURSIVE subtree(RootId, NodeId) AS (
+                    SELECT r.Id, r.Id FROM catalog_nodes r WHERE r.Id IN ({ids})
+                    UNION ALL
+                    SELECT s.RootId, cn.Id FROM subtree s
+                    JOIN catalog_nodes cn ON cn.ParentId = s.NodeId
+                ),
+                activity(NodeId, ts) AS (
+                    SELECT ItemId, UpdatedAt FROM reading_progress WHERE UserId = $user
+                    UNION ALL
+                    SELECT ItemId, MarkedAt FROM read_marks WHERE UserId = $user
+                )
+                SELECT s.RootId, MAX(a.ts)
+                FROM subtree s
+                JOIN activity a ON a.NodeId = s.NodeId
+                GROUP BY s.RootId;
+                """;
+            var p = command.CreateParameter();
+            p.ParameterName = "$user";
+            p.Value = userId;
+            command.Parameters.Add(p);
+
+            using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
             {
-                var cs = parts[2];
-                if (string.IsNullOrEmpty(parts[1]))
-                {
-                    // Cursor is at a no-progress row: only later no-progress rows (by SortKey) follow.
-                    query = query.Where(r =>
-                        r.Kind > ck ||
-                        (r.Kind == ck && r.ProgressUpdatedAt == null
-                            && string.Compare(r.SortKey, cs) > 0));
-                }
-                else if (long.TryParse(parts[1], CultureInfo.InvariantCulture, out var cb))
-                {
-                    try
-                    {
-                        var cpu = new DateTimeOffset(DateTime.FromBinary(cb), TimeSpan.Zero);
-                        // Cursor is at a has-progress row: remaining has-progress rows
-                        // (earlier UpdatedAt, or same UpdatedAt + later SortKey) AND
-                        // all no-progress rows (they come after every has-progress row).
-                        query = query.Where(r =>
-                            r.Kind > ck ||
-                            (r.Kind == ck && r.ProgressUpdatedAt != null && r.ProgressUpdatedAt < cpu) ||
-                            (r.Kind == ck && r.ProgressUpdatedAt != null
-                                && r.ProgressUpdatedAt == cpu && string.Compare(r.SortKey, cs) > 0) ||
-                            (r.Kind == ck && r.ProgressUpdatedAt == null));
-                    }
-                    catch { /* invalid binary DateTimeOffset — ignore cursor */ }
-                }
+                if (!reader.IsDBNull(1))
+                    result[reader.GetInt64(0)] = reader.GetInt64(1);
             }
         }
-
-        return await query.Take(pageSize + 1).ToListAsync(ct);
+        finally
+        {
+            if (!wasOpen) await connection.CloseAsync();
+        }
+        return result;
     }
 
     // --- Cursor helpers ---
 
     /// <summary>
-    /// Encodes a cursor for the given sort from a browse row. The cursor is opaque
-    /// to the client; the prefix ("a:" / "r:") identifies the sort so mismatched
-    /// cursors are safely ignored on the next request.
+    /// Encodes a keyset cursor for the given sort from a browse row. The cursor is
+    /// opaque to the client; the prefix ("a:") identifies the sort so mismatched
+    /// cursors are safely ignored on the next request. recentlyRead does not go
+    /// through here - it paginates by offset ("r:{n}"), see BrowseAsync.
     /// </summary>
     private static string EncodeCursor(string sort, BrowseRow row) => sort switch
     {
         "recentlyAdded" => $"a:{row.Kind}:{row.CreatedAt.UtcDateTime.ToBinary()}:{row.InternalId}",
-        "recentlyRead" => row.ProgressUpdatedAt is { } pu
-            ? $"r:{row.Kind}:{pu.UtcDateTime.ToBinary()}:{row.SortKey}"
-            : $"r:{row.Kind}::{row.SortKey}",
         _ => row.SortKey,
     };
 
@@ -438,7 +477,6 @@ public sealed class CatalogBrowseService
         public long InternalId { get; init; }
         public DateTimeOffset CreatedAt { get; init; }
         public string SortKey { get; init; } = "";
-        public DateTimeOffset? ProgressUpdatedAt { get; init; }
     }
 
     /// <summary>

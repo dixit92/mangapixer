@@ -508,7 +508,7 @@ public sealed class CatalogBrowseTests : IDisposable
     }
 
     [Fact]
-    public async Task Browse_RecentlyRead_OrdersProgressFirstThenUnread()
+    public async Task Browse_RecentlyRead_PureRecency_InterleavesByActivity()
     {
         var (db, userId, libraryId) = await SetupAsync();
         try
@@ -517,16 +517,16 @@ public sealed class CatalogBrowseTests : IDisposable
             var t1 = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero);
             var t2 = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero);
 
-            // Folder (no progress, sorts first by Kind)
+            // A folder with no reading activity anywhere in its subtree.
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Folder A", "0FA", t0);
 
-            // Archives with progress (sorted by UpdatedAt DESC)
+            // Archives with progress.
             var arch1 = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Read Old", "1ARO", t0);
             var arch2 = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Read New", "1ARN", t0);
             await AddProgressAsync(db, userId, arch1.Id, t1);
             await AddProgressAsync(db, userId, arch2.Id, t2);
 
-            // Archives without progress (sorted by name after all progress items)
+            // Archives with no activity.
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Unread B", "1AUB", t0);
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Unread A", "1AUA", t0);
 
@@ -534,12 +534,55 @@ public sealed class CatalogBrowseTests : IDisposable
             var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null, sort: "recentlyRead");
 
             Assert.Equal(5, result.Items.Count);
-            // Folder first, then archives with progress (newest first), then unread (by name).
-            Assert.Equal("Folder A", result.Items[0].DisplayName);
-            Assert.Equal("Archive Read New", result.Items[1].DisplayName);
-            Assert.Equal("Archive Read Old", result.Items[2].DisplayName);
+            // Pure recency: read items by activity (newest first), then no-activity items by
+            // SortKey - regardless of folder/archive kind. The unread folder falls to the
+            // no-activity group and sorts by its SortKey ("0FA" < "1AUA" < "1AUB").
+            Assert.Equal("Archive Read New", result.Items[0].DisplayName);
+            Assert.Equal("Archive Read Old", result.Items[1].DisplayName);
+            Assert.Equal("Folder A", result.Items[2].DisplayName);
             Assert.Equal("Archive Unread A", result.Items[3].DisplayName);
             Assert.Equal("Archive Unread B", result.Items[4].DisplayName);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_RecentlyRead_FolderRanksByDescendantActivity()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var t1 = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            var t2 = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero);
+            var t3 = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero);
+
+            // Three series folders, none with direct progress. Each holds a chapter; Series Z
+            // nests the chapter under a Season sub-folder to exercise recursion (>1 level).
+            var seriesX = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series X", "0SX", t1);
+            var seriesY = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series Y", "0SY", t1);
+            var seriesZ = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series Z", "0SZ", t1);
+            var seasonZ = await AddNodeAsync(db, libraryId, seriesZ.Id, CatalogNodeKind.Folder, "Season 1", "0S1", t1);
+
+            var chX = await AddNodeAsync(db, libraryId, seriesX.Id, CatalogNodeKind.Archive, "X Ch 1", "1C1", t1);
+            var chY = await AddNodeAsync(db, libraryId, seriesY.Id, CatalogNodeKind.Archive, "Y Ch 1", "1C1", t1);
+            var chZ = await AddNodeAsync(db, libraryId, seasonZ.Id, CatalogNodeKind.Archive, "Z Ch 1", "1C1", t1);
+
+            // X read at t2 (progress); Y read at t1 (progress, oldest); Z marked read at t3
+            // (a read-mark, newest) - read-marks count toward recency.
+            await AddProgressAsync(db, userId, chX.Id, t2);
+            await AddProgressAsync(db, userId, chY.Id, t1);
+            db.ReadMarks.Add(new ReadMarkEntity { UserId = userId, ItemId = chZ.Id, MarkedAt = t3, Source = "manual" });
+            await db.SaveChangesAsync();
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null, sort: "recentlyRead");
+
+            // Series ranked by their descendant's most recent read activity: Z (t3 read-mark,
+            // nested two levels) > X (t2 progress) > Y (t1 progress).
+            Assert.Equal(3, result.Items.Count);
+            Assert.Equal("Series Z", result.Items[0].DisplayName);
+            Assert.Equal("Series X", result.Items[1].DisplayName);
+            Assert.Equal("Series Y", result.Items[2].DisplayName);
         }
         finally { await db.DisposeAsync(); }
     }
@@ -579,12 +622,15 @@ public sealed class CatalogBrowseTests : IDisposable
                 hasMore = page.HasMore;
             } while (hasMore);
 
-            // Expected: Folder, Read2, Read1, Unread1, Unread2, Unread3
+            // Pure recency across the paging boundary: read items by activity (newest first),
+            // then no-activity items by SortKey. The unread folder ("0F") sorts into the
+            // no-activity group ahead of the unread archives ("1U*"), not to the front.
+            // Expected: Read2, Read1, Folder, Unread1, Unread2, Unread3
             Assert.Equal(6, allNames.Count);
             Assert.Equal(6, allNames.Distinct().Count());
-            Assert.Equal("Folder", allNames[0]);
-            Assert.Equal("Read2", allNames[1]);
-            Assert.Equal("Read1", allNames[2]);
+            Assert.Equal("Read2", allNames[0]);
+            Assert.Equal("Read1", allNames[1]);
+            Assert.Equal("Folder", allNames[2]);
             Assert.Equal("Unread1", allNames[3]);
             Assert.Equal("Unread2", allNames[4]);
             Assert.Equal("Unread3", allNames[5]);
