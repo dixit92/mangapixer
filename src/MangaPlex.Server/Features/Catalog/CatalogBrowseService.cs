@@ -100,27 +100,29 @@ public sealed class CatalogBrowseService
         // Convert to DTOs for enrichment.
         var nodes = rows.Select(ToDto).ToList();
 
-        // For folders, resolve CoverUrl from the first archive child by SortKey (D17)
+        // For folders, resolve CoverUrl from the first descendant archive by SortKey
+        // (D17). Recurses into subfolders so a folder containing only subfolders
+        // still gets a cover (1.3.1 fix). Set-based via a recursive CTE modeled on
+        // ReadingStateService.GetDescendantArchiveIdsAsync — avoids N+1 across the
+        // folder page. SortKey ordering is ordinal (SQLite BINARY collation), matching
+        // the EF LINQ OrderBy(n => n.SortKey) used elsewhere.
         var folderIds = nodes.Where(n => n.Kind == CatalogNodeKind.Folder).Select(n => n.Id).ToList();
         if (folderIds.Count > 0)
         {
-            var folderCovers = await _db.CatalogNodes
-                .Where(n => folderIds.Contains(n.Parent != null ? n.Parent.PublicId : ""))
-                .Where(n => n.Kind == 1)
-                .Where(n => n.Availability != (int)CatalogNodeAvailability.Tombstoned)
-                .OrderBy(n => n.SortKey)
-                .Select(n => new { ParentPublicId = n.Parent != null ? n.Parent.PublicId : "", ChildPublicId = n.PublicId })
-                .GroupBy(x => x.ParentPublicId)
-                .Select(g => new { ParentId = g.Key, FirstChildId = g.First().ChildPublicId })
-                .ToDictionaryAsync(x => x.ParentId, x => x.FirstChildId, ct);
+            var folderRows = rows.Where(r => r.Kind == (int)CatalogNodeKind.Folder).ToList();
+            var folderInternalIds = folderRows.Select(r => r.InternalId).ToList();
+            var coversByInternalId = await ResolveFolderCoversAsync(folderInternalIds, ct);
+            var coversByPublicId = folderRows
+                .Where(r => coversByInternalId.ContainsKey(r.InternalId))
+                .ToDictionary(r => r.Id, r => coversByInternalId[r.InternalId]);
 
             // Rebuild folder nodes with CoverUrl (init-only property)
             nodes = nodes.Select(n =>
             {
                 if (n.Kind != CatalogNodeKind.Folder)
                     return n;
-                if (folderCovers.TryGetValue(n.Id, out var firstChildId))
-                    return n with { CoverUrl = $"/api/v1/items/{firstChildId}/cover" };
+                if (coversByPublicId.TryGetValue(n.Id, out var coverPublicId))
+                    return n with { CoverUrl = $"/api/v1/items/{coverPublicId}/cover" };
                 return n;
             }).ToList();
         }
@@ -719,6 +721,60 @@ public sealed class CatalogBrowseService
         // Escape any double quotes in the input by doubling them
         var escaped = input.Replace("\"", "\"\"");
         return $"\"{escaped}\"";
+    }
+
+    /// <summary>
+    /// Resolves a cover (first non-tombstoned descendant archive by SortKey) for
+    /// each folder in <paramref name="folderInternalIds"/> via a single recursive
+    /// CTE, avoiding an N+1 query across the folder page. Returns a dictionary
+    /// mapping folder internal ID → cover archive public ID. Folders with no
+    /// non-tombstoned descendant archive are omitted.
+    /// </summary>
+    private async Task<Dictionary<long, string>> ResolveFolderCoversAsync(
+        List<long> folderInternalIds,
+        CancellationToken ct)
+    {
+        var result = new Dictionary<long, string>();
+        if (folderInternalIds.Count == 0)
+            return result;
+
+        var ids = string.Join(",", folderInternalIds);
+        var connection = _db.Database.GetDbConnection();
+        var wasOpen = connection.State == System.Data.ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync(ct);
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = $"""
+                WITH RECURSIVE descendants(RootId, NodeId, Kind, SortKey, Availability) AS (
+                    SELECT r.Id, cn.Id, cn.Kind, cn.SortKey, cn.Availability
+                    FROM catalog_nodes r
+                    JOIN catalog_nodes cn ON cn.ParentId = r.Id
+                    WHERE r.Id IN ({ids})
+                    UNION ALL
+                    SELECT d.RootId, cn.Id, cn.Kind, cn.SortKey, cn.Availability
+                    FROM descendants d
+                    JOIN catalog_nodes cn ON cn.ParentId = d.NodeId
+                ),
+                ranked AS (
+                    SELECT d.RootId, cn.PublicId AS CoverPublicId,
+                           ROW_NUMBER() OVER (PARTITION BY d.RootId ORDER BY d.SortKey, d.NodeId) AS rn
+                    FROM descendants d
+                    JOIN catalog_nodes cn ON d.NodeId = cn.Id
+                    WHERE d.Kind = 1 AND d.Availability != 5
+                )
+                SELECT RootId, CoverPublicId FROM ranked WHERE rn = 1;
+                """;
+
+            using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                result[reader.GetInt64(0)] = reader.GetString(1);
+        }
+        finally
+        {
+            if (!wasOpen) await connection.CloseAsync();
+        }
+        return result;
     }
 
     private async Task<List<long>> GetAccessibleLibraryIdsAsync(long userId, CancellationToken ct)

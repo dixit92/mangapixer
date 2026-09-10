@@ -663,4 +663,91 @@ public sealed class CatalogBrowseTests : IDisposable
         }
         finally { await db.DisposeAsync(); }
     }
+
+    // --- Folder cover resolution (1.3.1: subfolder recursion) ---
+
+    [Fact]
+    public async Task Browse_FolderWithDirectArchiveChild_ResolvesCover()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var folder = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", "0S");
+            var archive = await AddNodeAsync(db, libraryId, folder.Id, CatalogNodeKind.Archive, "Chapter 1", "1C1");
+
+            var service = new CatalogBrowseService(db);
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
+
+            var folderNode = result.Items.Single(n => n.Kind == CatalogNodeKind.Folder);
+            Assert.NotNull(folderNode.CoverUrl);
+            Assert.Equal($"/api/v1/items/{archive.PublicId}/cover", folderNode.CoverUrl);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_SubfolderOnlyFolder_ResolvesCoverFromDeepFirstArchive()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            // Root folder contains only subfolders (no direct archive children).
+            var root = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Root", "0R");
+            var subA = await AddNodeAsync(db, libraryId, root.Id, CatalogNodeKind.Folder, "SubA", "0A");
+            var subB = await AddNodeAsync(db, libraryId, root.Id, CatalogNodeKind.Folder, "SubB", "0B");
+
+            // SubA has a deep archive; SubB has a shallower archive with a LATER sort key.
+            // The first descendant archive by SortKey (ordinal) should win regardless of depth.
+            var deepFirst = await AddNodeAsync(db, libraryId, subA.Id, CatalogNodeKind.Archive, "Deep First", "1AA");
+            await AddNodeAsync(db, libraryId, subB.Id, CatalogNodeKind.Archive, "Shallow Later", "1BB");
+
+            var service = new CatalogBrowseService(db);
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
+
+            var folderNode = result.Items.Single(n => n.Kind == CatalogNodeKind.Folder);
+            Assert.NotNull(folderNode.CoverUrl);
+            // "Deep First" (SortKey 1AA) sorts before "Shallow Later" (1BB), so it wins
+            // even though it is nested deeper.
+            Assert.Equal($"/api/v1/items/{deepFirst.PublicId}/cover", folderNode.CoverUrl);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_EmptyFolder_HasNoCover()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Empty", "0E");
+
+            var service = new CatalogBrowseService(db);
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
+
+            var folderNode = result.Items.Single(n => n.Kind == CatalogNodeKind.Folder);
+            Assert.Null(folderNode.CoverUrl);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_FolderWithOnlyTombstonedDescendants_HasNoCover()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var root = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Root", "0R");
+            var sub = await AddNodeAsync(db, libraryId, root.Id, CatalogNodeKind.Folder, "Sub", "0S");
+            var tombstoned = await AddNodeAsync(db, libraryId, sub.Id, CatalogNodeKind.Archive, "Gone", "1G");
+            tombstoned.Availability = (int)CatalogNodeAvailability.Tombstoned;
+            await db.SaveChangesAsync();
+
+            var service = new CatalogBrowseService(db);
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
+
+            var folderNode = result.Items.Single(n => n.Kind == CatalogNodeKind.Folder);
+            Assert.Null(folderNode.CoverUrl);
+        }
+        finally { await db.DisposeAsync(); }
+    }
 }
