@@ -321,14 +321,25 @@ export interface AdminUserDto {
   username: string;
   isAdmin: boolean;
   isActive: boolean;
+  isPendingActivation?: boolean;
   createdAt: string;
   lastLoginAt: string | null;
 }
 
 export interface CreateUserRequest {
   username: string;
-  password: string;
+  password?: string;
   isAdmin: boolean;
+}
+
+export interface CreateUserResponse {
+  user: AdminUserDto;
+  activationUrl: string | null;
+}
+
+export interface ActivateAccountRequest {
+  token: string;
+  password: string;
 }
 
 export interface UpdateUserRequest {

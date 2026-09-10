@@ -556,6 +556,30 @@ public sealed class UserEntity
     public bool ForcePasswordChange { get; set; } = false;
 
     /// <summary>
+    /// True while the account is waiting for the user to set their own password
+    /// via the one-time activation token. Pending-activation accounts cannot log
+    /// in and are indistinguishable from non-existent users at the login endpoint.
+    /// </summary>
+    public bool IsPendingActivation { get; set; } = false;
+
+    /// <summary>
+    /// SHA-256 hash (hex) of the one-time activation token. The raw token is
+    /// returned to the admin exactly once at creation time and never stored.
+    /// </summary>
+    public string? ActivationTokenHash { get; set; }
+
+    /// <summary>
+    /// Expiry time for the activation token. After this, the token is rejected.
+    /// </summary>
+    public DateTimeOffset? ActivationTokenExpiry { get; set; }
+
+    /// <summary>
+    /// Whether the activation token has been consumed (used to set a password).
+    /// A consumed token cannot be reused.
+    /// </summary>
+    public bool ActivationTokenConsumed { get; set; } = false;
+
+    /// <summary>
     /// Number of failed login attempts. Used for rate limiting / lockout.
     /// </summary>
     public int AccessFailedCount { get; set; }

@@ -3,6 +3,7 @@ namespace com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Logging;
 
 using com.lifepixer.mangaplex.Core.Api;
+using com.lifepixer.mangaplex.Server.Features.Admin;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Antiforgery;
@@ -143,6 +144,12 @@ public sealed class AuthController : ControllerBase
             return Unauthorized(new ApiError { Error = "account_disabled", Message = "This account has been disabled." });
         }
 
+        if (user.IsPendingActivation)
+        {
+            _rateLimiter.RecordFailure(ipAddress, request.Username);
+            return Unauthorized(new ApiError { Error = "invalid_credentials", Message = "Invalid username or password." });
+        }
+
         var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
         if (!result.Succeeded)
         {
@@ -279,6 +286,84 @@ public sealed class AuthController : ControllerBase
                 ExpiresUtc = session.ExpiresAt,
                 Items = { { ".MangaPlex.ticket", session.TicketId } },
             });
+    }
+
+    /// <summary>
+    /// Activates a pending account: validates the single-use token, sets the
+    /// user's chosen password, clears the pending-activation state, and signs
+    /// the user in. The token is consumed atomically with the password set.
+    /// </summary>
+    [HttpPost("activate")]
+    [AllowAnonymous]
+    [IgnoreAntiforgeryToken]
+    public async Task<IActionResult> ActivateAccount([FromBody] ActivateAccountRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Token) || string.IsNullOrWhiteSpace(request.Password))
+            return BadRequest(new ApiError { Error = "invalid_request", Message = "Token and password are required." });
+
+        if (request.Password.Length < 8)
+            return BadRequest(new ApiError { Error = "weak_password", Message = "Password must be at least 8 characters." });
+
+        var ipAddress = GetClientIpAddress();
+        if (!_rateLimiter.AllowAttempt(ipAddress, "__activation__"))
+        {
+            var retryAfter = _rateLimiter.GetRetryAfter(ipAddress, "__activation__");
+            Response.Headers["Retry-After"] = ((int?)retryAfter?.TotalSeconds ?? 60).ToString();
+            return StatusCode(429, new ApiError { Error = "rate_limited", Message = "Too many attempts. Please try again later." });
+        }
+
+        var tokenHash = AdminController.HashToken(request.Token);
+
+        var user = await _db.Users.FirstOrDefaultAsync(
+            u => u.ActivationTokenHash == tokenHash && u.IsPendingActivation, ct);
+
+        if (user is null)
+        {
+            _rateLimiter.RecordFailure(ipAddress, "__activation__");
+            _logger.LogInformation(LogEvents.Administration.ActivationFailedInvalidToken,
+                "Activation failed: no matching token");
+            return BadRequest(new ApiError { Error = "invalid_token", Message = "Invalid or expired activation link." });
+        }
+
+        if (user.ActivationTokenConsumed)
+        {
+            _rateLimiter.RecordFailure(ipAddress, "__activation__");
+            _logger.LogInformation(LogEvents.Administration.ActivationFailedConsumedToken,
+                "Activation failed: token already consumed for user {PublicId}", user.PublicId);
+            return BadRequest(new ApiError { Error = "invalid_token", Message = "Invalid or expired activation link." });
+        }
+
+        if (user.ActivationTokenExpiry.HasValue && user.ActivationTokenExpiry.Value < DateTimeOffset.UtcNow)
+        {
+            _rateLimiter.RecordFailure(ipAddress, "__activation__");
+            _logger.LogInformation(LogEvents.Administration.ActivationFailedExpiredToken,
+                "Activation failed: token expired for user {PublicId}", user.PublicId);
+            return BadRequest(new ApiError { Error = "invalid_token", Message = "Invalid or expired activation link." });
+        }
+
+        var passwordHasher = HttpContext.RequestServices.GetRequiredService<IPasswordHasher<UserEntity>>();
+        user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
+        user.IsPendingActivation = false;
+        user.ActivationTokenConsumed = true;
+        user.ForcePasswordChange = false;
+        user.SecurityStamp = Guid.NewGuid().ToString("N");
+
+        await _db.SaveChangesAsync(ct);
+
+        _rateLimiter.RecordSuccess(ipAddress, "__activation__");
+        _logger.LogInformation(LogEvents.Administration.ActivationSucceeded,
+            "Account activated for user {PublicId}", user.PublicId);
+
+        await SignInUserAsync(user, ct);
+
+        return Ok(new AuthUserDto
+        {
+            Id = user.PublicId,
+            Username = user.UserName ?? "",
+            Role = user.IsAdmin ? "admin" : "reader",
+            IsAdmin = user.IsAdmin,
+            ForcePasswordChange = false,
+        });
     }
 
     private async Task<UserEntity?> GetCurrentUserAsync(CancellationToken ct)
