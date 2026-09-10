@@ -113,6 +113,8 @@ public sealed partial class Program
             builder.Services.AddScoped<ReadingStateService>();
             builder.Services.AddScoped<CatalogIdResolver>();
             builder.Services.AddScoped<ReaderModeResolver>();
+            // Jump-index (1.4.0 Lane E) — separate from CatalogBrowseService.
+            builder.Services.AddScoped<JumpIndexService>();
 
             // Operations services
             builder.Services.AddScoped<BackupService>();

@@ -58,6 +58,19 @@ export interface BreadcrumbsDto {
   trail: BreadcrumbEntry[];
 }
 
+/** One bucket of the per-library jump index (1.4.0 Lane E). */
+export interface JumpIndexBucketDto {
+  label: string;
+  count: number;
+  firstCursor: string | null;
+}
+
+/** Per-library A–Z/script rail (1.4.0 Lane E). */
+export interface JumpIndexDto {
+  libraryId: string;
+  buckets: JumpIndexBucketDto[];
+}
+
 export interface SearchResultsDto {
   query: string;
   items: CatalogNodeDto[];
