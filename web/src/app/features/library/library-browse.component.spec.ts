@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { TestBed } from '@angular/core/testing';
+import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
@@ -210,8 +210,8 @@ describe('LibraryBrowseComponent jump rail', () => {
 });
 
 /** Helper: jump to a bucket and flush the resulting browse request. */
-function comp_jump(fixture: any, label: string) {
-  const comp = fixture.componentInstance as LibraryBrowseComponent;
+function comp_jump(fixture: ComponentFixture<LibraryBrowseComponent>, label: string) {
+  const comp = fixture.componentInstance;
   const buckets = comp.jumpBuckets();
   const bucket = buckets.find((b) => b.label === label);
   expect(bucket).toBeDefined();
