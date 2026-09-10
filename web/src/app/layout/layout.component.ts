@@ -39,7 +39,7 @@ import { IncognitoService } from '../core/incognito/incognito.service';
           <div class="user-info">
             <mat-icon>person</mat-icon>{{ auth.currentUser()?.username }}
           </div>
-          <button mat-menu-item (click)="incognito.toggle()">
+          <button mat-menu-item (click)="toggleIncognito()">
             <mat-icon>{{ incognito.isIncognito() ? 'visibility_off' : 'visibility' }}</mat-icon>
             Incognito: {{ incognito.isIncognito() ? 'On' : 'Off' }}
           </button>
@@ -84,6 +84,17 @@ export class LayoutComponent {
   readonly auth = inject(AuthService);
   readonly incognito = inject(IncognitoService);
   private readonly router = inject(Router);
+
+  /**
+   * Toggles Incognito, then reloads so every already-fetched view re-requests with
+   * the new `X-Incognito` header (stale lists were the "needs a manual refresh /
+   * navigate away and back" bug). The toggle survives the reload because
+   * IncognitoService persists it to sessionStorage.
+   */
+  toggleIncognito(): void {
+    this.incognito.toggle();
+    window.location.reload();
+  }
 
   logout(): void {
     this.auth.logout().subscribe(() => {

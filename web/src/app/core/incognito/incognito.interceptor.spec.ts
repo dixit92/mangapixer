@@ -16,6 +16,7 @@ describe('incognitoInterceptor', () => {
   let incognito: IncognitoService;
 
   beforeEach(() => {
+    sessionStorage.clear();
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(withInterceptors([incognitoInterceptor])),
