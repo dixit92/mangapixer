@@ -424,6 +424,15 @@ import {
     .register-actions { display: flex; gap: 12px; margin-top: 4px; }
     .browse-btn { margin-right: 12px; }
     .lib-meta, .user-meta { display: inline-flex; align-items: center; gap: 8px; }
+    /* The Direction dropdown + action buttons live in the list-item meta slot,
+       which is taller than a default list line. Let those rows grow and keep the
+       meta vertically centered so the dropdowns line up on first paint (they used
+       to stagger before the mat-form-field settled its height). */
+    ::ng-deep .mat-mdc-list-item:has(.lib-meta) {
+      height: auto !important;
+      min-height: 76px;
+    }
+    .lib-meta { align-self: center; }
     .dir-select { width: 150px; }
     .yac-panel {
       margin: 4px 0 12px 56px; padding: 12px 16px;

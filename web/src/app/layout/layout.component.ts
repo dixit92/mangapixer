@@ -4,7 +4,6 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
-import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { AuthService } from '../core/auth/auth.service';
 import { IncognitoService } from '../core/incognito/incognito.service';
@@ -23,7 +22,6 @@ import { IncognitoService } from '../core/incognito/incognito.service';
     MatButtonModule,
     MatIconModule,
     MatMenuModule,
-    MatTooltipModule,
   ],
   template: `
     <mat-toolbar color="primary">
@@ -33,15 +31,6 @@ import { IncognitoService } from '../core/incognito/incognito.service';
       @if (auth.isAuthenticated()) {
         <button mat-button routerLink="/libraries">Libraries</button>
         <button mat-button routerLink="/search">Search</button>
-
-        @if (incognito.isIncognito()) {
-          <button mat-icon-button class="incognito-indicator"
-                  matTooltip="Incognito on — Private libraries are hidden. Click to turn off."
-                  aria-label="Incognito on. Private libraries are hidden. Turn off."
-                  (click)="incognito.toggle()">
-            <mat-icon>visibility_off</mat-icon>
-          </button>
-        }
 
         <button mat-icon-button [matMenuTriggerFor]="userMenu">
           <mat-icon>account_circle</mat-icon>
@@ -89,7 +78,6 @@ import { IncognitoService } from '../core/incognito/incognito.service';
       display: flex; align-items: center; gap: 8px; opacity: 0.85;
     }
     .user-info mat-icon { font-size: 20px; width: 20px; height: 20px; }
-    .incognito-indicator { opacity: 0.9; }
   `],
 })
 export class LayoutComponent {
