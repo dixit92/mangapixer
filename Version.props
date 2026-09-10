@@ -30,10 +30,19 @@
          (paged/spread, ahead-6/behind-2), and search-result cover thumbnails. No
          schema change (sort reuses the existing LibrarySort column) and no breaking
          API/contract changes → MINOR per SemVer 2.0.0. Bugfixes ship as 1.3.x. -->
+    <!-- 1.4.0 - additive minor over 1.3.0 (post-1.3.0 cycle, 2026-09-10). Incognito /
+         Private libraries (per-user Private flag + migration; server-side
+         GetVisibleLibraryIdsAsync chokepoint + X-Incognito header; session-default-ON
+         Incognito toggle), Plex-pattern home (library sidebar + grouped continue-reading +
+         per-library continue endpoint), webtoon read-ahead prefetch, app-version endpoint +
+         footer, multilingual collation jump-navigation, and two browse bugfixes (subfolder-
+         only folder cover, clickable root breadcrumb). Additive API only (new endpoints +
+         fields), no breaking changes -> MINOR per SemVer 2.0.0. Cut as -rc.N for Unraid
+         verification before the final v1.4.0 tag. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>3</MangaPlexVersionMinor>
+    <MangaPlexVersionMinor>4</MangaPlexVersionMinor>
     <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
-    <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
+    <MangaPlexVersionPrerelease>rc.1</MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
     <MangaPlexVersion>$(MangaPlexVersionMajor).$(MangaPlexVersionMinor).$(MangaPlexVersionPatch)</MangaPlexVersion>
