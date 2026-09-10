@@ -3,6 +3,7 @@ namespace com.lifepixer.mangaplex.Server.Features.Catalog;
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Core.Reading;
+using com.lifepixer.mangaplex.Server.Features.Reading;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Authorization;
@@ -20,17 +21,20 @@ public sealed class CatalogController : ControllerBase
 {
     private readonly CatalogBrowseService _browseService;
     private readonly CatalogIdResolver _idResolver;
+    private readonly ReadingStateService _readingStateService;
     private readonly MangaPlexDbContext _db;
     private readonly ILogger<CatalogController> _logger;
 
     public CatalogController(
         CatalogBrowseService browseService,
         CatalogIdResolver idResolver,
+        ReadingStateService readingStateService,
         MangaPlexDbContext db,
         ILogger<CatalogController> logger)
     {
         _browseService = browseService;
         _idResolver = idResolver;
+        _readingStateService = readingStateService;
         _db = db;
         _logger = logger;
     }
@@ -128,6 +132,7 @@ public sealed class CatalogController : ControllerBase
         [FromQuery] string? parentId,
         [FromQuery] string? cursor,
         [FromQuery] int pageSize = 50,
+        [FromQuery] string? sort = null,
         CancellationToken ct = default)
     {
         var userId = GetUserId();
@@ -145,8 +150,19 @@ public sealed class CatalogController : ControllerBase
             parentIdLong = parent.Id;
         }
 
+        // If no explicit sort query param, fall back to the user's stored preference.
+        // This lets the frontend set sort via the library-preferences endpoint and
+        // have browse respect it without re-sending it on every page request.
+        var effectiveSort = sort;
+        if (string.IsNullOrEmpty(effectiveSort))
+        {
+            var prefs = await _readingStateService.GetLibraryPreferencesAsync(userId.Value, ct);
+            effectiveSort = prefs.Sort;
+        }
+
         var result = await _browseService.BrowseAsync(
-            userId.Value, library.Id, parentIdLong, cursor, pageSize, ct: ct);
+            userId.Value, library.Id, parentIdLong, cursor, pageSize,
+            sort: effectiveSort ?? "name", ct: ct);
 
         return Ok(result);
     }
