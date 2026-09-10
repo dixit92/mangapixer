@@ -45,13 +45,13 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       @if (!selectMode()) {
         <div class="breadcrumbs">
           @if (breadcrumbs().length > 0) {
-            <a routerLink="/libraries/{{ libraryId() }}">{{ libraryName() || 'Library' }}</a>
+            <a routerLink="/libraries/{{ libraryId() }}/browse">{{ libraryName() || 'Library' }}</a>
             @for (crumb of breadcrumbs(); track crumb.id) {
               <span class="sep"> / </span>
               <a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a>
             }
           } @else {
-            <span class="current">{{ libraryName() || 'Library' }}</span>
+            <a routerLink="/libraries/{{ libraryId() }}/browse">{{ libraryName() || 'Library' }}</a>
           }
         </div>
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
