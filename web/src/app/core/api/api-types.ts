@@ -175,11 +175,23 @@ export type LibraryViewMode = 'grid' | 'list' | 'poster';
 export type LibraryGridDensity = 'comfortable' | 'compact';
 export type LibrarySortOrder = 'name' | 'recentlyAdded' | 'recentlyRead';
 
+/**
+ * Browse sort direction (1.5.0). Optional/tolerant like the other library-view
+ * preference fields: absent or unrecognized means "use the sort-specific
+ * default" (name -> asc; recentlyAdded/recentlyRead -> desc), resolved by the
+ * server (`CatalogController.ParseDirection`) and mirrored client-side in
+ * LibraryBrowseComponent so the UI shows the right toggle state before the
+ * first preferences round-trip completes.
+ */
+export type LibrarySortDirection = 'asc' | 'desc';
+
 /** Per-user library browse presentation preferences (1.2.0). Strings for tolerance. */
 export interface LibraryViewPreferencesDto {
   viewMode: string;
   density: string;
   sort: string;
+  /** Optional (1.5.0): omitted/unrecognized falls back to the sort-specific default. */
+  direction?: string;
 }
 
 // --- YACReader progress import (1.2.0, admin-only) ---

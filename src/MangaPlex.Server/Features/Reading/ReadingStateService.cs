@@ -658,6 +658,7 @@ public sealed class ReadingStateService
             ViewMode = prefs.LibraryViewMode,
             Density = prefs.LibraryGridDensity,
             Sort = prefs.LibrarySort,
+            Direction = prefs.LibraryDirection,
         };
     }
 
@@ -682,6 +683,7 @@ public sealed class ReadingStateService
         prefs.LibraryViewMode = preferences.ViewMode;
         prefs.LibraryGridDensity = preferences.Density;
         prefs.LibrarySort = preferences.Sort;
+        prefs.LibraryDirection = preferences.Direction;
 
         await _db.SaveChangesAsync(ct);
     }
