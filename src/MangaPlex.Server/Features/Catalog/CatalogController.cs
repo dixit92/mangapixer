@@ -3,6 +3,7 @@ namespace com.lifepixer.mangaplex.Server.Features.Catalog;
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Core.Reading;
+using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Features.Reading;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
@@ -22,6 +23,8 @@ public sealed class CatalogController : ControllerBase
     private readonly CatalogBrowseService _browseService;
     private readonly CatalogIdResolver _idResolver;
     private readonly ReadingStateService _readingStateService;
+    private readonly LibraryAuthorizationService _libraryAuth;
+    private readonly IncognitoAccessor _incognito;
     private readonly MangaPlexDbContext _db;
     private readonly ILogger<CatalogController> _logger;
 
@@ -29,12 +32,16 @@ public sealed class CatalogController : ControllerBase
         CatalogBrowseService browseService,
         CatalogIdResolver idResolver,
         ReadingStateService readingStateService,
+        LibraryAuthorizationService libraryAuth,
+        IncognitoAccessor incognito,
         MangaPlexDbContext db,
         ILogger<CatalogController> logger)
     {
         _browseService = browseService;
         _idResolver = idResolver;
         _readingStateService = readingStateService;
+        _libraryAuth = libraryAuth;
+        _incognito = incognito;
         _db = db;
         _logger = logger;
     }
@@ -45,21 +52,15 @@ public sealed class CatalogController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        // Get libraries the user can access
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-        if (user is null) return Unauthorized();
+        // Visible libraries: accessible minus the user's Private set when
+        // Incognito is active (1.4.0). Direct item access is unaffected —
+        // only the listing is filtered.
+        var visibleLibs = await _libraryAuth.GetVisibleLibraryIdsAsync(
+            userId.Value, _incognito.IsIncognito, ct);
 
-        IQueryable<LibraryEntity> query = _db.Libraries;
-        if (!user.IsAdmin)
-        {
-            var grantedLibIds = await _db.LibraryGrants
-                .Where(g => g.UserId == userId)
-                .Select(g => g.LibraryId)
-                .ToListAsync(ct);
-            query = query.Where(l => grantedLibIds.Contains(l.Id));
-        }
-
-        var libraries = await query.ToListAsync(ct);
+        var libraries = await _db.Libraries
+            .Where(l => visibleLibs.Contains(l.Id))
+            .ToListAsync(ct);
 
         // Compute IsScanning and ItemCount for each library — the list
         // endpoint previously hard-coded these to false/null (audit defect D30).
@@ -162,7 +163,7 @@ public sealed class CatalogController : ControllerBase
 
         var result = await _browseService.BrowseAsync(
             userId.Value, library.Id, parentIdLong, cursor, pageSize,
-            sort: effectiveSort ?? "name", ct: ct);
+            sort: effectiveSort ?? "name", incognito: _incognito.IsIncognito, ct: ct);
 
         return Ok(result);
     }
@@ -229,7 +230,8 @@ public sealed class CatalogController : ControllerBase
             libId = library.Id;
         }
 
-        var result = await _browseService.SearchAsync(userId.Value, q, libId, ct: ct);
+        var result = await _browseService.SearchAsync(
+            userId.Value, q, libId, incognito: _incognito.IsIncognito, ct: ct);
         return Ok(result);
     }
 

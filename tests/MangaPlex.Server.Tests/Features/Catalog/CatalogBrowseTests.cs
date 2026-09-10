@@ -2,6 +2,7 @@ namespace com.lifepixer.mangaplex.Tests.Server.Features.Catalog;
 
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Features.Catalog;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
@@ -134,7 +135,7 @@ public sealed class CatalogBrowseTests : IDisposable
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive 1", "1A1");
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive 2", "1A2");
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
 
             Assert.Equal(4, result.Items.Count);
@@ -162,7 +163,7 @@ public sealed class CatalogBrowseTests : IDisposable
             tombstoned.Availability = (int)CatalogNodeAvailability.Tombstoned;
             await db.SaveChangesAsync();
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
 
             Assert.Single(result.Items);
@@ -198,7 +199,7 @@ public sealed class CatalogBrowseTests : IDisposable
             db.Users.Add(reader);
             await db.SaveChangesAsync();
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.BrowseAsync(reader.Id, libraryId, parentId: null, cursor: null);
 
             Assert.Empty(result.Items);
@@ -220,7 +221,7 @@ public sealed class CatalogBrowseTests : IDisposable
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Item 1", "1I1");
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Item 2", "1I2");
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
 
             Assert.Equal(2, result.Items.Count);
@@ -242,7 +243,7 @@ public sealed class CatalogBrowseTests : IDisposable
             var child = await AddNodeAsync(db, libraryId, root.Id, CatalogNodeKind.Folder, "Volume 1", "0V1");
             var archive = await AddNodeAsync(db, libraryId, child.Id, CatalogNodeKind.Archive, "Chapter 1", "1C1");
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var breadcrumbs = await service.GetBreadcrumbsAsync(userId, archive.Id);
 
             Assert.NotNull(breadcrumbs);
@@ -280,7 +281,7 @@ public sealed class CatalogBrowseTests : IDisposable
             db.Users.Add(reader);
             await db.SaveChangesAsync();
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var breadcrumbs = await service.GetBreadcrumbsAsync(reader.Id, node.Id);
 
             Assert.Null(breadcrumbs);
@@ -303,7 +304,7 @@ public sealed class CatalogBrowseTests : IDisposable
             var b = await AddNodeAsync(db, libraryId, parent.Id, CatalogNodeKind.Archive, "Chapter 2", "1C2");
             var c = await AddNodeAsync(db, libraryId, parent.Id, CatalogNodeKind.Archive, "Chapter 3", "1C3");
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
 
             // Middle item has both neighbors
             var middle = await service.GetNeighborsAsync(userId, b.Id);
@@ -336,7 +337,7 @@ public sealed class CatalogBrowseTests : IDisposable
         {
             var node = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Test Archive", "1TA");
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.GetNodeAsync(userId, node.PublicId);
 
             Assert.NotNull(result);
@@ -372,7 +373,7 @@ public sealed class CatalogBrowseTests : IDisposable
             db.Users.Add(reader);
             await db.SaveChangesAsync();
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.GetNodeAsync(reader.Id, node.PublicId);
 
             Assert.Null(result);
@@ -390,7 +391,7 @@ public sealed class CatalogBrowseTests : IDisposable
 
         try
         {
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.SearchAsync(userId, "");
 
             Assert.Empty(result.Items);
@@ -424,7 +425,7 @@ public sealed class CatalogBrowseTests : IDisposable
             db.Users.Add(reader);
             await db.SaveChangesAsync();
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.SearchAsync(reader.Id, "test");
 
             Assert.Empty(result.Items);
@@ -454,7 +455,7 @@ public sealed class CatalogBrowseTests : IDisposable
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Mid", "1AM", t1);
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive New", "1AN", t2);
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null, sort: "recentlyAdded");
 
             Assert.Equal(5, result.Items.Count);
@@ -482,7 +483,7 @@ public sealed class CatalogBrowseTests : IDisposable
                     $"Archive {i}", $"1A{i}", baseTime.AddDays(-i));
             }
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var allNames = new List<string>();
             string? cursor = null;
             bool hasMore;
@@ -529,7 +530,7 @@ public sealed class CatalogBrowseTests : IDisposable
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Unread B", "1AUB", t0);
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Unread A", "1AUA", t0);
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null, sort: "recentlyRead");
 
             Assert.Equal(5, result.Items.Count);
@@ -563,7 +564,7 @@ public sealed class CatalogBrowseTests : IDisposable
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Unread1", "1U1", t0);
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Unread2", "1U2", t0);
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var allNames = new List<string>();
             string? cursor = null;
             bool hasMore;
@@ -602,7 +603,7 @@ public sealed class CatalogBrowseTests : IDisposable
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Z", "1Z");
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive A", "1A");
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null, sort: "name");
 
             Assert.Equal(4, result.Items.Count);
@@ -624,7 +625,7 @@ public sealed class CatalogBrowseTests : IDisposable
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive B", "1B");
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive A", "1A");
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null, sort: "bogus");
 
             // Falls back to name sort (by SortKey).
@@ -644,7 +645,7 @@ public sealed class CatalogBrowseTests : IDisposable
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive A", "1A");
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive B", "1B");
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
 
             // Malformed cursor for recentlyAdded (garbage after prefix).
             var result = await service.BrowseAsync(userId, libraryId, parentId: null,

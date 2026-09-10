@@ -426,13 +426,16 @@ public sealed class ReadingStateService
 
     /// <summary>
     /// Gets continue-reading items for a user (in-progress, most recently updated first).
+    /// When <paramref name="incognito"/> is active, items in the user's Private
+    /// libraries are excluded (1.4.0).
     /// </summary>
     public async Task<IReadOnlyList<ContinueReadingEntry>> GetContinueReadingAsync(
         long userId,
         int limit = 20,
+        bool incognito = false,
         CancellationToken ct = default)
     {
-        var accessibleLibs = await _auth.GetAccessibleLibraryIdsAsync(userId, ct);
+        var visibleLibs = await _auth.GetVisibleLibraryIdsAsync(userId, incognito, ct);
 
         // DateTimeOffset is stored as a comparable long via
         // DateTimeOffsetToBinaryConverter (see MangaPlexDbContext.ConfigureConventions),
@@ -447,12 +450,55 @@ public sealed class ReadingStateService
                && p.State == (int)ReadingState.InProgress
                && !p.HiddenFromContinue
                && !_db.ReadMarks.Any(m => m.UserId == userId && m.ItemId == p.ItemId)
-               && accessibleLibs.Contains(n.LibraryId)
+               && visibleLibs.Contains(n.LibraryId)
                && n.Availability != (int)CatalogNodeAvailability.Tombstoned
             orderby p.UpdatedAt descending
             select new ContinueReadingEntry
             {
                 ItemId = n.PublicId,
+                LibraryId = n.Library != null ? n.Library.PublicId : "",
+                LibraryName = n.Library != null ? n.Library.DisplayName : "",
+                DisplayName = n.DisplayName,
+                PageIndex = p.Ordinal,
+                ContentVersion = p.ContentVersion,
+                UpdatedAt = p.UpdatedAt,
+            })
+            .Take(limit)
+            .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Gets continue-reading items for a user within a single library (1.4.0 sidebar
+    /// grouping). Same filters as <see cref="GetContinueReadingAsync"/> plus a
+    /// library filter. When <paramref name="incognito"/> is active and the requested
+    /// library is Private, returns empty (the library is hidden from listing).
+    /// </summary>
+    public async Task<IReadOnlyList<ContinueReadingEntry>> GetContinueReadingByLibraryAsync(
+        long userId,
+        long libraryId,
+        int limit = 20,
+        bool incognito = false,
+        CancellationToken ct = default)
+    {
+        var visibleLibs = await _auth.GetVisibleLibraryIdsAsync(userId, incognito, ct);
+        if (!visibleLibs.Contains(libraryId))
+            return [];
+
+        return await (
+            from p in _db.ReadingProgress
+            join n in _db.CatalogNodes on p.ItemId equals n.Id
+            where p.UserId == userId
+               && p.State == (int)ReadingState.InProgress
+               && !p.HiddenFromContinue
+               && !_db.ReadMarks.Any(m => m.UserId == userId && m.ItemId == p.ItemId)
+               && n.LibraryId == libraryId
+               && n.Availability != (int)CatalogNodeAvailability.Tombstoned
+            orderby p.UpdatedAt descending
+            select new ContinueReadingEntry
+            {
+                ItemId = n.PublicId,
+                LibraryId = n.Library != null ? n.Library.PublicId : "",
+                LibraryName = n.Library != null ? n.Library.DisplayName : "",
                 DisplayName = n.DisplayName,
                 PageIndex = p.Ordinal,
                 ContentVersion = p.ContentVersion,
@@ -639,6 +685,76 @@ public sealed class ReadingStateService
 
         await _db.SaveChangesAsync(ct);
     }
+
+    // --- Private library designations (1.4.0) ---
+    //
+    // A per-(user, library) row whose presence means "Private". Private libraries
+    // are hidden from listing/discovery surfaces while Incognito mode is active,
+    // but direct reader URLs remain accessible. The set is replaced wholesale on
+    // each PUT — the client sends the complete list of library public IDs.
+
+    /// <summary>
+    /// Gets the current user's Private library designations as public IDs.
+    /// </summary>
+    public async Task<PrivateLibrariesDto> GetPrivateLibrariesAsync(
+        long userId,
+        CancellationToken ct = default)
+    {
+        var publicIds = await (
+            from p in _db.PrivateLibraries
+            join l in _db.Libraries on p.LibraryId equals l.Id
+            where p.UserId == userId
+            select l.PublicId)
+            .ToListAsync(ct);
+
+        return new PrivateLibrariesDto { LibraryIds = publicIds };
+    }
+
+    /// <summary>
+    /// Replaces the current user's Private library set. Libraries are identified
+    /// by public ID; unknown IDs are silently skipped. The entire set is
+    /// replaced on each call.
+    /// </summary>
+    public async Task SetPrivateLibrariesAsync(
+        long userId,
+        IReadOnlyList<string> libraryPublicIds,
+        CancellationToken ct = default)
+    {
+        // Resolve public IDs to internal library IDs, skipping unknowns.
+        var libIds = await _db.Libraries
+            .Where(l => libraryPublicIds.Contains(l.PublicId))
+            .Select(l => l.Id)
+            .ToListAsync(ct);
+        var libIdSet = libIds.ToHashSet();
+
+        // Remove existing designations not in the new set.
+        var existing = await _db.PrivateLibraries
+            .Where(p => p.UserId == userId)
+            .ToListAsync(ct);
+
+        var toRemove = existing.Where(p => !libIdSet.Contains(p.LibraryId)).ToList();
+        var existingIds = existing.Select(p => p.LibraryId).ToHashSet();
+        var toAdd = libIds.Where(id => !existingIds.Contains(id)).ToList();
+
+        if (toRemove.Count > 0)
+            _db.PrivateLibraries.RemoveRange(toRemove);
+
+        if (toAdd.Count > 0)
+        {
+            var now = DateTimeOffset.UtcNow;
+            foreach (var id in toAdd)
+            {
+                _db.PrivateLibraries.Add(new PrivateLibraryEntity
+                {
+                    UserId = userId,
+                    LibraryId = id,
+                    MarkedAt = now,
+                });
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+    }
 }
 
 /// <summary>
@@ -689,6 +805,18 @@ public enum UpdateStatus
 public sealed record ContinueReadingEntry
 {
     public required string ItemId { get; init; }
+
+    /// <summary>
+    /// Opaque public ID of the item's library (1.4.0). Enables sidebar
+    /// grouping by library without a second round-trip.
+    /// </summary>
+    public required string LibraryId { get; init; }
+
+    /// <summary>
+    /// Display name of the item's library (1.4.0).
+    /// </summary>
+    public required string LibraryName { get; init; }
+
     public required string DisplayName { get; init; }
     public required int PageIndex { get; init; }
     public required long ContentVersion { get; init; }

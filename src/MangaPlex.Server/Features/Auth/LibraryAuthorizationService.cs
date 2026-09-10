@@ -74,6 +74,38 @@ public sealed class LibraryAuthorizationService
     }
 
     /// <summary>
+    /// Gets the library IDs visible to the user for listing/discovery surfaces
+    /// (continue-reading, search, browse-root, library list). When
+    /// <paramref name="incognito"/> is active, the user's Private library
+    /// designations are subtracted from the accessible set.
+    /// <para>
+    /// For per-item/per-node access checks (direct reader URLs, breadcrumbs,
+    /// neighbors, node lookup), use <see cref="GetAccessibleLibraryIdsAsync"/>
+    /// instead — those must remain accessible while Incognito is on.
+    /// </para>
+    /// </summary>
+    public async Task<IReadOnlyList<long>> GetVisibleLibraryIdsAsync(
+        long userId,
+        bool incognito,
+        CancellationToken ct = default)
+    {
+        var accessible = await GetAccessibleLibraryIdsAsync(userId, ct);
+        if (!incognito)
+            return accessible;
+
+        var privateLibIds = await _db.PrivateLibraries
+            .Where(p => p.UserId == userId)
+            .Select(p => p.LibraryId)
+            .ToListAsync(ct);
+
+        if (privateLibIds.Count == 0)
+            return accessible;
+
+        var privateSet = privateLibIds.ToHashSet();
+        return [.. accessible.Where(id => !privateSet.Contains(id))];
+    }
+
+    /// <summary>
     /// Grants a user access to a library. Admin only.
     /// </summary>
     public async Task<bool> GrantAccessAsync(long adminUserId, long userId, long libraryId, CancellationToken ct = default)

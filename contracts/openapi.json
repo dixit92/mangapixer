@@ -593,6 +593,41 @@
         }
       }
     },
+    "/api/v1/reading/continue/by-library/{libraryId}": {
+      "get": {
+        "tags": [
+          "Reading"
+        ],
+        "parameters": [
+          {
+            "name": "libraryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/reading/preferences": {
       "get": {
         "tags": [
@@ -665,6 +700,48 @@
             "application/*\u002Bjson": {
               "schema": {
                 "$ref": "#/components/schemas/LibraryViewPreferencesDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/reading/private-libraries": {
+      "get": {
+        "tags": [
+          "Reading"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Reading"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPrivateLibrariesRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPrivateLibrariesRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPrivateLibrariesRequest"
               }
             }
           },
@@ -1886,6 +1963,20 @@
           },
           "rootPath": {
             "type": "string"
+          }
+        }
+      },
+      "SetPrivateLibrariesRequest": {
+        "required": [
+          "libraryIds"
+        ],
+        "type": "object",
+        "properties": {
+          "libraryIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
