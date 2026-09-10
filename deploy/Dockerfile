@@ -18,6 +18,17 @@ COPY global.json Directory.Build.props Directory.Packages.props Version.props Ma
 COPY src/ ./src/
 COPY tests/ ./tests/
 RUN dotnet restore MangaPlex.slnx --locked-mode 2>/dev/null || dotnet restore MangaPlex.slnx
+
+# Git build metadata for InformationalVersion (consumed by Directory.Build.props).
+# Passed by the deploy script via --build-arg; empty by default so a plain
+# `docker build` still works and falls back to the bare "+dirty" marker. MSBuild
+# reads these environment variables as the $(GitCommitShort)/$(GitIsDirty)
+# properties. Declared after restore so a new commit re-runs only the publish
+# layers, not the (slow) restore.
+ARG GIT_COMMIT_SHORT=""
+ARG GIT_IS_DIRTY="false"
+ENV GitCommitShort=${GIT_COMMIT_SHORT}
+ENV GitIsDirty=${GIT_IS_DIRTY}
 RUN dotnet publish src/MangaPlex.Server/MangaPlex.Server.csproj -c Release -o /build/publish/server --no-restore
 RUN dotnet publish src/MangaPlex.MediaWorker/MangaPlex.MediaWorker.csproj -c Release -o /build/publish/worker --no-restore
 
