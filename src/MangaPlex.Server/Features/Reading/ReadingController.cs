@@ -19,17 +19,20 @@ public sealed class ReadingController : ControllerBase
     private readonly ReadingStateService _stateService;
     private readonly CatalogIdResolver _idResolver;
     private readonly ReaderModeResolver _modeResolver;
+    private readonly IncognitoAccessor _incognito;
     private readonly ILogger<ReadingController> _logger;
 
     public ReadingController(
         ReadingStateService stateService,
         CatalogIdResolver idResolver,
         ReaderModeResolver modeResolver,
+        IncognitoAccessor incognito,
         ILogger<ReadingController> logger)
     {
         _stateService = stateService;
         _idResolver = idResolver;
         _modeResolver = modeResolver;
+        _incognito = incognito;
         _logger = logger;
     }
 
@@ -255,7 +258,30 @@ public sealed class ReadingController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var entries = await _stateService.GetContinueReadingAsync(userId.Value, limit, ct);
+        var entries = await _stateService.GetContinueReadingAsync(
+            userId.Value, limit, incognito: _incognito.IsIncognito, ct: ct);
+        return Ok(entries);
+    }
+
+    /// <summary>
+    /// Gets continue-reading items for a user within a single library (1.4.0
+    /// sidebar grouping). Respects Incognito mode: a Private library returns
+    /// empty while Incognito is active.
+    /// </summary>
+    [HttpGet("continue/by-library/{libraryId}")]
+    public async Task<IActionResult> GetContinueReadingByLibrary(
+        string libraryId,
+        [FromQuery] int limit = 20,
+        CancellationToken ct = default)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var library = await _idResolver.ResolveLibraryAsync(libraryId, ct);
+        if (library is null) return NotFound();
+
+        var entries = await _stateService.GetContinueReadingByLibraryAsync(
+            userId.Value, library.Id, limit, incognito: _incognito.IsIncognito, ct: ct);
         return Ok(entries);
     }
 
@@ -306,6 +332,35 @@ public sealed class ReadingController : ControllerBase
         if (userId is null) return Unauthorized();
 
         await _stateService.SetLibraryPreferencesAsync(userId.Value, request, ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Gets the current user's Private library designations (1.4.0) as public IDs.
+    /// </summary>
+    [HttpGet("private-libraries")]
+    public async Task<IActionResult> GetPrivateLibraries(CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var prefs = await _stateService.GetPrivateLibrariesAsync(userId.Value, ct);
+        return Ok(prefs);
+    }
+
+    /// <summary>
+    /// Replaces the current user's Private library set (1.4.0). The entire list
+    /// is replaced on each call. Unknown library IDs are silently skipped.
+    /// </summary>
+    [HttpPut("private-libraries")]
+    public async Task<IActionResult> SetPrivateLibraries(
+        [FromBody] SetPrivateLibrariesRequest request,
+        CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        await _stateService.SetPrivateLibrariesAsync(userId.Value, request.LibraryIds, ct);
         return NoContent();
     }
 

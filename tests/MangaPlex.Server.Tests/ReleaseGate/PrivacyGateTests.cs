@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangaplex.Tests.Server.ReleaseGate;
 
 using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Features.Catalog;
 using com.lifepixer.mangaplex.Server.Features.Reading;
 using com.lifepixer.mangaplex.Server.Operations;
@@ -110,7 +111,7 @@ public sealed class PrivacyGateTests : IDisposable
         var (db, userId, _, _, nodePublicId) = await SetupAsync();
         try
         {
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var node = await service.GetNodeAsync(userId, nodePublicId);
             Assert.NotNull(node);
             var dtoJson = System.Text.Json.JsonSerializer.Serialize(node);
@@ -127,7 +128,7 @@ public sealed class PrivacyGateTests : IDisposable
         var (db, userId, _, nodeId, _) = await SetupAsync();
         try
         {
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var breadcrumbs = await service.GetBreadcrumbsAsync(userId, nodeId);
             Assert.NotNull(breadcrumbs);
             var dtoJson = System.Text.Json.JsonSerializer.Serialize(breadcrumbs);
@@ -175,7 +176,7 @@ public sealed class PrivacyGateTests : IDisposable
         var (db, userId, _, _, _) = await SetupAsync();
         try
         {
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var results = await service.SearchAsync(userId, "Secret", libraryId: null, ct: default);
             var json = System.Text.Json.JsonSerializer.Serialize(results);
             Assert.DoesNotContain("/private", json);

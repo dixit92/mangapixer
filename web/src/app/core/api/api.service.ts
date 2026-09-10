@@ -25,6 +25,7 @@ import {
   DirectoryListingDto,
   ItemManifest,
   ItemReadiness,
+  JumpIndexDto,
   LibraryDto,
   LogLevelDto,
   RotatingBackupStatusDto,
@@ -40,6 +41,7 @@ import {
   SearchResultsDto,
   SetupRequest,
   SetupStatusDto,
+  SystemInfoDto,
   UpdateLibraryRequest,
   UpdateLogLevelRequest,
   UpdateProgressRequest,
@@ -114,6 +116,11 @@ export class ApiService {
 
   getNode(nodeId: string): Observable<CatalogNodeDto> {
     return this.get<CatalogNodeDto>(`/nodes/${nodeId}`);
+  }
+
+  /** Per-library A–Z/script jump index (1.4.0 Lane E). */
+  getJumpIndex(libraryId: string): Observable<JumpIndexDto> {
+    return this.get<JumpIndexDto>(`/libraries/${libraryId}/jump-index`);
   }
 
   getBreadcrumbs(nodeId: string): Observable<{ nodeId: string; trail: { id: string; displayName: string }[] }> {
@@ -335,6 +342,13 @@ export class ApiService {
 
   runRotatingBackupNow(): Observable<RotatingBackupStatusDto> {
     return this.post<RotatingBackupStatusDto>('/operations/backups/rotating', {});
+  }
+
+  // --- System info (post-1.3.0 lane D) ---
+
+  /** Read-only product version (unauthenticated; shown in the app footer). */
+  getSystemInfo(): Observable<SystemInfoDto> {
+    return this.get<SystemInfoDto>('/system/info');
   }
 
   // --- Manifest / Readiness ---

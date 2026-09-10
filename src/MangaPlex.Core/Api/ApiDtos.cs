@@ -235,6 +235,27 @@ public sealed record LibraryViewPreferencesDto
 }
 
 /// <summary>
+/// The current user's Private library designations (1.4.0). Libraries in this
+/// list are hidden from listing/discovery surfaces (continue-reading, search,
+/// browse-root, library list) while Incognito mode is active. Direct reader
+/// URLs remain accessible regardless. Library IDs are opaque public IDs.
+/// </summary>
+public sealed record PrivateLibrariesDto
+{
+    public required IReadOnlyList<string> LibraryIds { get; init; }
+}
+
+/// <summary>
+/// Request to replace the current user's Private library set (1.4.0). The
+/// entire list is replaced on each call. Unknown library IDs are silently
+/// skipped.
+/// </summary>
+public sealed record SetPrivateLibrariesRequest
+{
+    public required IReadOnlyList<string> LibraryIds { get; init; }
+}
+
+/// <summary>
 /// Result of a bulk read-mark operation over a folder's descendant archives (1.2.0).
 /// </summary>
 public sealed record BulkReadMarkResultDto
@@ -637,4 +658,21 @@ public sealed record YacReaderImportResultDto
 
     /// <summary>Sticky read-marks set (for comics YACReader marked read).</summary>
     public required int ReadMarks { get; init; }
+}
+
+/// <summary>
+/// Read-only product version information (post-1.3.0 lane D). The version comes
+/// from the assembly <see cref="System.Reflection.AssemblyInformationalVersionAttribute"/>,
+/// which is sourced from <c>Version.props</c> at build time (see
+/// <c>Directory.Build.props</c>). Contains no private data; served unauthenticated
+/// so the app footer can display it before login.
+/// </summary>
+public sealed record SystemInfoDto
+{
+    /// <summary>
+    /// The full product version (SemVer plus optional build metadata, e.g.
+    /// "1.3.0+sha.abc123"). This is the <c>InformationalVersion</c>, not the
+    /// numeric <c>AssemblyVersion</c> (which stays at major.minor.0.0).
+    /// </summary>
+    public required string Version { get; init; }
 }

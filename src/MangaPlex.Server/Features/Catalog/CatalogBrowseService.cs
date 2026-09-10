@@ -4,6 +4,7 @@ using System.Globalization;
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Core.Reading;
+using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -23,10 +24,12 @@ using Microsoft.EntityFrameworkCore;
 public sealed class CatalogBrowseService
 {
     private readonly MangaPlexDbContext _db;
+    private readonly LibraryAuthorizationService _auth;
 
-    public CatalogBrowseService(MangaPlexDbContext db)
+    public CatalogBrowseService(MangaPlexDbContext db, LibraryAuthorizationService auth)
     {
         _db = db;
+        _auth = auth;
     }
 
     /// <summary>
@@ -48,6 +51,7 @@ public sealed class CatalogBrowseService
         int pageSize = 50,
         SortDirection direction = SortDirection.Ascending,
         string sort = "name",
+        bool incognito = false,
         CancellationToken ct = default)
     {
         // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
@@ -57,9 +61,12 @@ public sealed class CatalogBrowseService
             _ => "name",
         };
 
-        // Authorization filter — applied before pagination
-        var accessibleLibs = await GetAccessibleLibraryIdsAsync(userId, ct);
-        if (!accessibleLibs.Contains(libraryId))
+        // Authorization filter — applied before pagination.
+        // Uses visible-ids (accessible minus Private) when incognito is active,
+        // so a Private library's browse-root returns empty while direct item
+        // URLs remain accessible (1.4.0).
+        var visibleLibs = await _auth.GetVisibleLibraryIdsAsync(userId, incognito, ct);
+        if (!visibleLibs.Contains(libraryId))
         {
             return new PageResponse<CatalogNodeDto>
             {
@@ -100,27 +107,29 @@ public sealed class CatalogBrowseService
         // Convert to DTOs for enrichment.
         var nodes = rows.Select(ToDto).ToList();
 
-        // For folders, resolve CoverUrl from the first archive child by SortKey (D17)
+        // For folders, resolve CoverUrl from the first descendant archive by SortKey
+        // (D17). Recurses into subfolders so a folder containing only subfolders
+        // still gets a cover (1.3.1 fix). Set-based via a recursive CTE modeled on
+        // ReadingStateService.GetDescendantArchiveIdsAsync — avoids N+1 across the
+        // folder page. SortKey ordering is ordinal (SQLite BINARY collation), matching
+        // the EF LINQ OrderBy(n => n.SortKey) used elsewhere.
         var folderIds = nodes.Where(n => n.Kind == CatalogNodeKind.Folder).Select(n => n.Id).ToList();
         if (folderIds.Count > 0)
         {
-            var folderCovers = await _db.CatalogNodes
-                .Where(n => folderIds.Contains(n.Parent != null ? n.Parent.PublicId : ""))
-                .Where(n => n.Kind == 1)
-                .Where(n => n.Availability != (int)CatalogNodeAvailability.Tombstoned)
-                .OrderBy(n => n.SortKey)
-                .Select(n => new { ParentPublicId = n.Parent != null ? n.Parent.PublicId : "", ChildPublicId = n.PublicId })
-                .GroupBy(x => x.ParentPublicId)
-                .Select(g => new { ParentId = g.Key, FirstChildId = g.First().ChildPublicId })
-                .ToDictionaryAsync(x => x.ParentId, x => x.FirstChildId, ct);
+            var folderRows = rows.Where(r => r.Kind == (int)CatalogNodeKind.Folder).ToList();
+            var folderInternalIds = folderRows.Select(r => r.InternalId).ToList();
+            var coversByInternalId = await ResolveFolderCoversAsync(folderInternalIds, ct);
+            var coversByPublicId = folderRows
+                .Where(r => coversByInternalId.ContainsKey(r.InternalId))
+                .ToDictionary(r => r.Id, r => coversByInternalId[r.InternalId]);
 
             // Rebuild folder nodes with CoverUrl (init-only property)
             nodes = nodes.Select(n =>
             {
                 if (n.Kind != CatalogNodeKind.Folder)
                     return n;
-                if (folderCovers.TryGetValue(n.Id, out var firstChildId))
-                    return n with { CoverUrl = $"/api/v1/items/{firstChildId}/cover" };
+                if (coversByPublicId.TryGetValue(n.Id, out var coverPublicId))
+                    return n with { CoverUrl = $"/api/v1/items/{coverPublicId}/cover" };
                 return n;
             }).ToList();
         }
@@ -539,6 +548,7 @@ public sealed class CatalogBrowseService
         long? libraryId = null,
         string? cursor = null,
         int pageSize = 50,
+        bool incognito = false,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -553,9 +563,10 @@ public sealed class CatalogBrowseService
             };
         }
 
-        // Authorization filter — get accessible libraries first
-        var accessibleLibs = await GetAccessibleLibraryIdsAsync(userId, ct);
-        if (accessibleLibs.Count == 0)
+        // Authorization filter — get visible libraries first (accessible minus
+        // Private when incognito is active, 1.4.0).
+        var visibleLibs = await _auth.GetVisibleLibraryIdsAsync(userId, incognito, ct);
+        if (visibleLibs.Count == 0)
         {
             return new SearchResultsDto
             {
@@ -570,7 +581,7 @@ public sealed class CatalogBrowseService
         // If a specific library is requested, verify access and narrow the filter
         if (libraryId.HasValue)
         {
-            if (!accessibleLibs.Contains(libraryId.Value))
+            if (!visibleLibs.Contains(libraryId.Value))
             {
                 return new SearchResultsDto
                 {
@@ -581,14 +592,14 @@ public sealed class CatalogBrowseService
                     HasMore = false,
                 };
             }
-            accessibleLibs = [libraryId.Value];
+            visibleLibs = [libraryId.Value];
         }
 
         // Build the FTS5 query — treat user text as literal, escape FTS syntax
         var ftsQuery = BuildFtsQuery(query);
 
         // Build the library IDs parameter list
-        var libIds = string.Join(",", accessibleLibs);
+        var libIds = string.Join(",", visibleLibs);
 
         // Query the FTS5 index joined with catalog nodes and their parents/libraries
         // to project public IDs (audit defect D29). Keyset pagination on SortKey
@@ -719,6 +730,60 @@ public sealed class CatalogBrowseService
         // Escape any double quotes in the input by doubling them
         var escaped = input.Replace("\"", "\"\"");
         return $"\"{escaped}\"";
+    }
+
+    /// <summary>
+    /// Resolves a cover (first non-tombstoned descendant archive by SortKey) for
+    /// each folder in <paramref name="folderInternalIds"/> via a single recursive
+    /// CTE, avoiding an N+1 query across the folder page. Returns a dictionary
+    /// mapping folder internal ID → cover archive public ID. Folders with no
+    /// non-tombstoned descendant archive are omitted.
+    /// </summary>
+    private async Task<Dictionary<long, string>> ResolveFolderCoversAsync(
+        List<long> folderInternalIds,
+        CancellationToken ct)
+    {
+        var result = new Dictionary<long, string>();
+        if (folderInternalIds.Count == 0)
+            return result;
+
+        var ids = string.Join(",", folderInternalIds);
+        var connection = _db.Database.GetDbConnection();
+        var wasOpen = connection.State == System.Data.ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync(ct);
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = $"""
+                WITH RECURSIVE descendants(RootId, NodeId, Kind, SortKey, Availability) AS (
+                    SELECT r.Id, cn.Id, cn.Kind, cn.SortKey, cn.Availability
+                    FROM catalog_nodes r
+                    JOIN catalog_nodes cn ON cn.ParentId = r.Id
+                    WHERE r.Id IN ({ids})
+                    UNION ALL
+                    SELECT d.RootId, cn.Id, cn.Kind, cn.SortKey, cn.Availability
+                    FROM descendants d
+                    JOIN catalog_nodes cn ON cn.ParentId = d.NodeId
+                ),
+                ranked AS (
+                    SELECT d.RootId, cn.PublicId AS CoverPublicId,
+                           ROW_NUMBER() OVER (PARTITION BY d.RootId ORDER BY d.SortKey, d.NodeId) AS rn
+                    FROM descendants d
+                    JOIN catalog_nodes cn ON d.NodeId = cn.Id
+                    WHERE d.Kind = 1 AND d.Availability != 5
+                )
+                SELECT RootId, CoverPublicId FROM ranked WHERE rn = 1;
+                """;
+
+            using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                result[reader.GetInt64(0)] = reader.GetString(1);
+        }
+        finally
+        {
+            if (!wasOpen) await connection.CloseAsync();
+        }
+        return result;
     }
 
     private async Task<List<long>> GetAccessibleLibraryIdsAsync(long userId, CancellationToken ct)

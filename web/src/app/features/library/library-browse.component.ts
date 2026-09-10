@@ -12,7 +12,7 @@ import { forkJoin } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
-import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder } from '../../core/api/api-types';
+import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, JumpIndexBucketDto } from '../../core/api/api-types';
 
 /**
  * Library browse component. Shows the actual folder/archive tree with keyset
@@ -45,13 +45,13 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       @if (!selectMode()) {
         <div class="breadcrumbs">
           @if (breadcrumbs().length > 0) {
-            <a routerLink="/libraries/{{ libraryId() }}">{{ libraryName() || 'Library' }}</a>
+            <a routerLink="/libraries/{{ libraryId() }}/browse">{{ libraryName() || 'Library' }}</a>
             @for (crumb of breadcrumbs(); track crumb.id) {
               <span class="sep"> / </span>
               <a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a>
             }
           } @else {
-            <span class="current">{{ libraryName() || 'Library' }}</span>
+            <a routerLink="/libraries/{{ libraryId() }}/browse">{{ libraryName() || 'Library' }}</a>
           }
         </div>
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
@@ -115,6 +115,19 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
         </button>
       }
     </div>
+
+    @if (jumpBuckets().length > 0) {
+      <nav class="jump-rail" aria-label="Jump to letter">
+        @for (bucket of jumpBuckets(); track bucket.label) {
+          <button class="jump-chip" type="button"
+                  (click)="jumpToBucket(bucket)"
+                  [class.active]="activeJump() === bucket.label"
+                  [matTooltip]="bucket.label + ' (' + bucket.count + ')'">
+            {{ bucket.label }}
+          </button>
+        }
+      </nav>
+    }
 
     <div class="nodes" [class.grid]="viewMode() === 'grid'"
          [class.list]="viewMode() === 'list'" [class.poster]="viewMode() === 'poster'"
@@ -254,6 +267,20 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     .node-sub { font-size: 12px; color: #999; }
     .empty { color: #999; padding: 32px; text-align: center; }
     .load-more { text-align: center; margin-top: 16px; }
+    /* A–Z/script jump rail (1.4.0 Lane E). Only shown at library root level. */
+    .jump-rail {
+      display: flex; flex-wrap: wrap; gap: 4px;
+      margin-bottom: 12px; padding: 6px 8px;
+      background: rgba(255,255,255,0.03); border-radius: 8px;
+    }
+    .jump-chip {
+      min-width: 28px; padding: 4px 8px; border: none; cursor: pointer;
+      background: transparent; color: #b39dff; border-radius: 6px;
+      font-size: 12px; font-weight: 600; line-height: 1;
+      transition: background 0.1s;
+    }
+    .jump-chip:hover { background: rgba(124,77,255,0.18); }
+    .jump-chip.active { background: #7c4dff; color: #fff; }
 
     /* Touch / small screens: keep the action bar compact by dropping button labels
        (icons remain, so the controls stay usable) — requirement 1 (dual input). */
@@ -284,6 +311,12 @@ export class LibraryBrowseComponent implements OnInit {
   readonly breadcrumbs = signal<{ id: string; displayName: string }[]>([]);
   readonly hasMore = signal(false);
   private cursor: string | null = null;
+
+  // Jump-index rail (1.4.0 Lane E). Only loaded at the library root (no parentId);
+  // subfolders don't have a per-folder jump index. The rail is a name-sort
+  // navigation aid, so it is hidden when the sort is not "name".
+  readonly jumpBuckets = signal<JumpIndexBucketDto[]>([]);
+  readonly activeJump = signal<string | null>(null);
 
   // Selection mode (1.2.0 read-marks + merged card actions).
   readonly selectMode = signal(false);
@@ -343,12 +376,37 @@ export class LibraryBrowseComponent implements OnInit {
       this.parentId.set(parentId);
       this.cursor = null;
       this.nodes.set([]);
+      this.activeJump.set(null);
       this.clearSelection();
       this.loadLibraryName(libId);
       this.loadNodes();
+      // The jump rail is a library-root navigation aid (1.4.0 Lane E). It is
+      // only meaningful for the name sort — other sorts ignore the cursor.
+      if (!parentId && this.sort() === 'name') this.loadJumpIndex(libId);
+      else this.jumpBuckets.set([]);
       if (parentId) this.loadBreadcrumbs(parentId);
       else this.breadcrumbs.set([]);
     });
+  }
+
+  /** Load the per-library A–Z/script jump index (1.4.0 Lane E). */
+  private loadJumpIndex(libId: string): void {
+    this.api.getJumpIndex(libId).subscribe({
+      next: (res) => this.jumpBuckets.set(res.buckets),
+      error: () => this.jumpBuckets.set([]),
+    });
+  }
+
+  /**
+   * Jump to a bucket: set the cursor to the bucket's firstCursor and reload
+   * from the top. A null cursor means the start of the listing (first page).
+   */
+  jumpToBucket(bucket: JumpIndexBucketDto): void {
+    this.cursor = bucket.firstCursor;
+    this.nodes.set([]);
+    this.clearSelection();
+    this.activeJump.set(bucket.label);
+    this.loadNodes();
   }
 
   /** Resolve the library's display name for the breadcrumb root (reader-accessible). */
@@ -401,8 +459,13 @@ export class LibraryBrowseComponent implements OnInit {
     this.persistView();
     this.cursor = null;
     this.nodes.set([]);
+    this.activeJump.set(null);
     this.clearSelection();
     this.loadNodes();
+    // The jump rail is only valid for the name sort (the cursor is a raw
+    // SortKey that other sorts ignore). Load/clear it to match.
+    if (s === 'name' && !this.parentId()) this.loadJumpIndex(this.libraryId());
+    else this.jumpBuckets.set([]);
   }
 
   private persistView(): void {

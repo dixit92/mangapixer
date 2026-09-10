@@ -77,6 +77,23 @@ public sealed class LibraryGrantEntity
 }
 
 /// <summary>
+/// Per-user Private library designation (1.4.0). Presence of a row means the
+/// user has marked the library as Private — hidden from listing/discovery
+/// surfaces (continue-reading, search, browse-root, library list) while
+/// Incognito mode is active. Distinct from access grants: a Private
+/// designation never blocks direct item access (reader URLs), only listing.
+/// </summary>
+public sealed class PrivateLibraryEntity
+{
+    public long Id { get; set; }
+    public long UserId { get; set; }
+    public long LibraryId { get; set; }
+    public DateTimeOffset MarkedAt { get; set; }
+
+    public UserEntity? User { get; set; }
+}
+
+/// <summary>
 /// Catalog node: a folder or archive in the library tree.
 /// </summary>
 public sealed class CatalogNodeEntity
@@ -558,6 +575,7 @@ public sealed class UserEntity
 
     public ICollection<LibraryGrantEntity> LibraryGrants { get; set; } = [];
     public ICollection<ReadingProgressEntity> ReadingProgress { get; set; } = [];
+    public ICollection<PrivateLibraryEntity> PrivateLibraries { get; set; } = [];
     public ReaderPreferencesEntity? Preferences { get; set; }
 }
 
