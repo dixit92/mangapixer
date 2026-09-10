@@ -772,8 +772,11 @@ export class ReaderComponent implements OnInit, OnDestroy {
   // (and previous) page images so paging is instant. Page URLs are immutable
   // (content-version-keyed cache headers), so a prefetched image is reused by the
   // reader's <img> without a re-transfer. Webtoon is native-lazy, so skip it.
-  private static readonly PrefetchAhead = 3;
-  private static readonly PrefetchBehind = 1;
+  // Ahead-heavy since reading is overwhelmingly forward; manga flips fast, so keep a
+  // generous forward buffer. (Vertical/webtoon read-ahead is a separate concern —
+  // it relies on native lazy-load; a scroll-driven prefetch is a backlog item.)
+  private static readonly PrefetchAhead = 6;
+  private static readonly PrefetchBehind = 2;
   private readonly prefetchedUrls = new Set<string>();
   private prefetchImgs: HTMLImageElement[] = [];
 
@@ -801,7 +804,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
       // Retain a bounded number of refs so they aren't GC'd before caching,
       // without leaking across a long reading session.
       this.prefetchImgs.push(img);
-      if (this.prefetchImgs.length > 16) this.prefetchImgs.shift();
+      if (this.prefetchImgs.length > 24) this.prefetchImgs.shift();
     }
   }
 
