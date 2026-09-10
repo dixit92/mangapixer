@@ -318,24 +318,24 @@ export class LibraryBrowseComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    // Load the per-user view preference once; tolerate unknown values.
+    // Load the per-user view preference FIRST (tolerate unknown values), then start
+    // routing. Sequencing matters: the sort must be known before the first browse so
+    // it issues a single, correctly-ordered request. (Loading nodes from both the
+    // prefs handler and the route subscription would double-append — duplicate rows.)
     this.api.getLibraryPreferences().subscribe({
       next: (p) => {
         const vm = p.viewMode as LibraryViewMode;
         this.viewMode.set(vm === 'list' || vm === 'poster' ? vm : 'grid');
         this.density.set(p.density === 'compact' ? 'compact' : 'comfortable');
-        const s = p.sort;
-        if (s === 'recentlyAdded' || s === 'recentlyRead') {
-          this.sort.set(s);
-          // A stored non-default sort must reorder the already-loaded first page.
-          this.cursor = null;
-          this.nodes.set([]);
-          this.loadNodes();
-        }
+        if (p.sort === 'recentlyAdded' || p.sort === 'recentlyRead') this.sort.set(p.sort);
+        this.subscribeToRoute();
       },
-      error: () => { /* keep defaults */ },
+      error: () => this.subscribeToRoute(), // keep defaults, still load
     });
+  }
 
+  /** Subscribe to the route params and load each folder as it is navigated. */
+  private subscribeToRoute(): void {
     this.route.paramMap.subscribe((params) => {
       const libId = params.get('libraryId')!;
       const parentId = params.get('nodeId');
@@ -516,9 +516,12 @@ export class LibraryBrowseComponent implements OnInit {
     const libId = this.libraryId();
     if (!libId) return;
 
+    // Initial page (no cursor) replaces; "Load more" (cursor set) appends. Replacing
+    // on the initial load keeps a stray concurrent load from duplicating rows.
+    const initial = this.cursor === null;
     this.api.browseLibrary(libId, this.parentId(), this.cursor, 50, this.sort()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
-        this.nodes.update((current) => [...current, ...response.items]);
+        this.nodes.update((current) => initial ? [...response.items] : [...current, ...response.items]);
         this.hasMore.set(response.hasMore);
         this.cursor = response.nextCursor;
       },
