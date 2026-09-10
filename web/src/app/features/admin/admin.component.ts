@@ -589,7 +589,7 @@ export class AdminComponent implements OnInit, OnDestroy {
   }
 
   private loadLibraries(): void {
-    this.api.getLibraries().subscribe({
+    this.api.getAllLibraries().subscribe({
       next: (libs) => {
         this.libraries.set(libs);
         this.loadingLibs.set(false);
@@ -772,7 +772,7 @@ export class AdminComponent implements OnInit, OnDestroy {
 
   /** Refresh library rows without touching the loading flag (used while polling). */
   private refreshLibraries(): void {
-    this.api.getLibraries().subscribe({
+    this.api.getAllLibraries().subscribe({
       next: (libs) => {
         const previouslyScanning = new Set(
           this.libraries().filter(l => l.isScanning).map(l => l.id),

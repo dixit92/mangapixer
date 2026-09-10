@@ -102,10 +102,11 @@ export class ApiService {
   /**
    * The full set of libraries the user can manage, ignoring the session's
    * current Incognito toggle (1.4.0). Use for the Private-libraries settings
-   * list — a management surface must keep showing an already-Private library
-   * so the user can un-mark it, unlike the discovery surfaces that hide it.
+   * list and the Administration page — management surfaces must keep showing an
+   * already-Private library (to un-mark or administer it), unlike the discovery
+   * surfaces that hide it under Incognito.
    */
-  getAllLibrariesForPrivacyManagement(): Observable<LibraryDto[]> {
+  getAllLibraries(): Observable<LibraryDto[]> {
     return this.get<LibraryDto[]>('/libraries', undefined, new HttpContext().set(BYPASS_INCOGNITO, true));
   }
 

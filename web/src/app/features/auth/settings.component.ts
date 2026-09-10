@@ -139,7 +139,7 @@ export class SettingsComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.api.getAllLibrariesForPrivacyManagement().subscribe({
+    this.api.getAllLibraries().subscribe({
       next: (libs) => { this.libraries.set(libs); this.librariesLoading.set(false); },
       error: () => this.librariesLoading.set(false),
     });

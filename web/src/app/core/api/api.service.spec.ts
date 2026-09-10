@@ -140,7 +140,7 @@ describe('ApiService incognito / Private libraries (1.4.0)', () => {
   });
 
   it('fetches the full library list for the Private-libraries management surface', () => {
-    api.getAllLibrariesForPrivacyManagement().subscribe((libs) => {
+    api.getAllLibraries().subscribe((libs) => {
       expect(libs.length).toBe(1);
     });
 
