@@ -676,7 +676,7 @@ public sealed class CatalogBrowseTests : IDisposable
             var folder = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", "0S");
             var archive = await AddNodeAsync(db, libraryId, folder.Id, CatalogNodeKind.Archive, "Chapter 1", "1C1");
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
 
             var folderNode = result.Items.Single(n => n.Kind == CatalogNodeKind.Folder);
@@ -702,7 +702,7 @@ public sealed class CatalogBrowseTests : IDisposable
             var deepFirst = await AddNodeAsync(db, libraryId, subA.Id, CatalogNodeKind.Archive, "Deep First", "1AA");
             await AddNodeAsync(db, libraryId, subB.Id, CatalogNodeKind.Archive, "Shallow Later", "1BB");
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
 
             var folderNode = result.Items.Single(n => n.Kind == CatalogNodeKind.Folder);
@@ -722,7 +722,7 @@ public sealed class CatalogBrowseTests : IDisposable
         {
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Empty", "0E");
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
 
             var folderNode = result.Items.Single(n => n.Kind == CatalogNodeKind.Folder);
@@ -743,7 +743,7 @@ public sealed class CatalogBrowseTests : IDisposable
             tombstoned.Availability = (int)CatalogNodeAvailability.Tombstoned;
             await db.SaveChangesAsync();
 
-            var service = new CatalogBrowseService(db);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
 
             var folderNode = result.Items.Single(n => n.Kind == CatalogNodeKind.Folder);

@@ -1,5 +1,6 @@
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Features.Catalog;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
@@ -202,7 +203,7 @@ public sealed class JumpIndexServiceTests : IDisposable
             await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "Delta", "0\u001f1Delta");
 
             var jumpService = new JumpIndexService(db);
-            var browseService = new CatalogBrowseService(db);
+            var browseService = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
 
             var index = await jumpService.GetJumpIndexAsync(userId, libraryId);
             var deltaBucket = index.Buckets.First(b => b.Label == "D");
