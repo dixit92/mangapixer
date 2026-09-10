@@ -150,7 +150,18 @@ public sealed class AdminController : ControllerBase
         var library = await _db.Libraries.FirstOrDefaultAsync(l => l.PublicId == id, ct);
         if (library is null) return NotFound();
 
-        var success = await _registration.UnregisterAsync(library.Id, ct);
+        // Deleting a library is a large multi-table write; SQLite is single-writer,
+        // so refuse cleanly while any scan is active (mirrors the register guard).
+        // Reads are unaffected (WAL snapshots).
+        var scanActive = await _db.ScanRuns.AnyAsync(s => s.Status == 0 || s.Status == 1, ct);
+        if (scanActive)
+            return Conflict(new ApiError
+            {
+                Error = "scan_in_progress",
+                Message = "A library scan is in progress. Please delete the library after it completes.",
+            });
+
+        var success = await _registration.DeleteAsync(library.Id, ct);
         if (!success) return NotFound();
         return NoContent();
     }

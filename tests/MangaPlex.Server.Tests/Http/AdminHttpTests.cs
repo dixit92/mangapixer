@@ -3,6 +3,7 @@ namespace com.lifepixer.mangaplex.Tests.Server.Http;
 using System.Net;
 using System.Net.Http.Json;
 using com.lifepixer.mangaplex.Core.Api;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 /// <summary>
@@ -234,7 +235,7 @@ public sealed class AdminHttpTests : IDisposable
     }
 
     [Fact]
-    public async Task UnregisterLibrary_Returns204()
+    public async Task DeleteLibrary_Returns204()
     {
         var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
 
@@ -251,6 +252,43 @@ public sealed class AdminHttpTests : IDisposable
         // Second delete returns 404
         var secondDel = await client.DeleteAsync($"/api/v1/admin/libraries/{created.Id}");
         Assert.Equal(HttpStatusCode.NotFound, secondDel.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteLibrary_DuringScan_Returns409()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var regResponse = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "To Delete During Scan",
+            RootPath = _libRoot,
+        });
+        var created = await regResponse.Content.ReadFromJsonAsync<LibraryDto>();
+
+        // Seed a running scan (Status == 1) so the delete guard refuses.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<com.lifepixer.mangaplex.Server.Persistence.MangaPlexDbContext>();
+            var library = db.Libraries.First(l => l.PublicId == created!.Id);
+            db.ScanRuns.Add(new com.lifepixer.mangaplex.Server.Persistence.Entities.ScanRunEntity
+            {
+                LibraryId = library.Id,
+                ScanRevision = 1,
+                Status = 1, // running
+                StartedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var delResponse = await client.DeleteAsync($"/api/v1/admin/libraries/{created!.Id}");
+        Assert.Equal(HttpStatusCode.Conflict, delResponse.StatusCode);
+        var error = await delResponse.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("scan_in_progress", error!.Error);
+
+        // The library is still present (the delete was refused).
+        var getResponse = await client.GetAsync($"/api/v1/admin/libraries/{created.Id}");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
     }
 
     [Fact]
