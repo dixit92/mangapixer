@@ -1030,6 +1030,28 @@
         }
       }
     },
+    "/api/v1/libraries/{libraryId}/jump-index": {
+      "get": {
+        "tags": [
+          "JumpIndex"
+        ],
+        "parameters": [
+          {
+            "name": "libraryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/auth/setup-status": {
       "get": {
         "tags": [
@@ -2067,6 +2089,9 @@
     },
     {
       "name": "Catalog"
+    },
+    {
+      "name": "JumpIndex"
     },
     {
       "name": "Auth"

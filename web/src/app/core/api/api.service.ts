@@ -25,6 +25,7 @@ import {
   DirectoryListingDto,
   ItemManifest,
   ItemReadiness,
+  JumpIndexDto,
   LibraryDto,
   LogLevelDto,
   RotatingBackupStatusDto,
@@ -114,6 +115,11 @@ export class ApiService {
 
   getNode(nodeId: string): Observable<CatalogNodeDto> {
     return this.get<CatalogNodeDto>(`/nodes/${nodeId}`);
+  }
+
+  /** Per-library A–Z/script jump index (1.4.0 Lane E). */
+  getJumpIndex(libraryId: string): Observable<JumpIndexDto> {
+    return this.get<JumpIndexDto>(`/libraries/${libraryId}/jump-index`);
   }
 
   getBreadcrumbs(nodeId: string): Observable<{ nodeId: string; trail: { id: string; displayName: string }[] }> {
