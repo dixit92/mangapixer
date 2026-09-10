@@ -3,6 +3,7 @@ namespace com.lifepixer.mangaplex.Server.Media;
 using com.lifepixer.mangaplex.Server.Logging;
 
 using System.Diagnostics;
+using com.lifepixer.mangaplex.Core.Media;
 using com.lifepixer.mangaplex.Core.WorkerProtocol;
 using com.lifepixer.mangaplex.MediaWorker.Protocol;
 using com.lifepixer.mangaplex.Server.Persistence;
@@ -635,7 +636,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         // This runs AFTER the slot is released so that thumbnail generation (which
         // calls ExtractPageAsync and acquires its own slot) does not deadlock when
         // the pool is at capacity.
-        await PersistResultAsync(job.ItemId, finalResult);
+        await PersistResultAsync(job.ItemId, finalResult, ComputeContentSignature(job, finalResult));
 
         // Generate the durable cover thumbnail for successful analyses. The
         // thumbnail is the first page, downscaled to WebP by the worker and
@@ -714,7 +715,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     /// No-ops when the pool was constructed without a scope factory/persister
     /// (e.g. in unit tests that exercise dispatch behaviour only).
     /// </summary>
-    private async Task PersistResultAsync(long nodeId, JobResult result)
+    private async Task PersistResultAsync(long nodeId, JobResult result, string? contentSignature)
     {
         if (_scopeFactory is null || _persister is null)
             return;
@@ -722,12 +723,40 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         {
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
-            await _persister.PersistAsync(db, nodeId, result);
+            await _persister.PersistAsync(db, nodeId, result, contentSignature);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(LogEvents.Worker.PersistAfterJobFailed, ex, "Persisting analysis for item {ItemId} failed: {Error}", nodeId, ex.GetType().Name);
         }
+    }
+
+    /// <summary>
+    /// Computes the cheap content signature (1.5.0 move detection) for a
+    /// successfully analysed source. Reads at most 128 KiB, read-only with read
+    /// sharing. The source stamp is re-checked after hashing so a file that is
+    /// being rewritten while we sample it never yields a signature that does not
+    /// match the bytes the worker analysed. Returns null on any doubt; a missing
+    /// signature only means "never treat this row as a move".
+    /// </summary>
+    private static string? ComputeContentSignature(PendingJob job, JobResult result)
+    {
+        if (!result.Success || result.Result is not AnalyzeResult)
+            return null;
+        try
+        {
+            var signature = ContentSignature.TryComputeFile(job.ArchivePath);
+            if (signature is null)
+                return null;
+
+            var info = new FileInfo(job.ArchivePath);
+            if (!info.Exists || info.Length != job.ExpectedByteLength || info.LastWriteTimeUtc.Ticks != job.ExpectedLastWriteTicks)
+                return null;
+
+            return signature;
+        }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
     }
 
     public async ValueTask DisposeAsync()

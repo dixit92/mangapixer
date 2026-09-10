@@ -4,7 +4,12 @@ using System.Diagnostics;
 using System.Text.Json;
 using com.lifepixer.mangaplex.Core.WorkerProtocol;
 using com.lifepixer.mangaplex.MediaWorker.Protocol;
+using com.lifepixer.mangaplex.Core.Media;
 using com.lifepixer.mangaplex.Server.Media;
+using com.lifepixer.mangaplex.Server.Persistence;
+using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -405,6 +410,77 @@ public sealed class WorkerProcessTests : IClassFixture<WorkerProcessFixture>, IA
         // The result may be true or false depending on timing — the test
         // verifies the IPC path works end-to-end and the stale detection
         // mechanism is in place
+    }
+
+    // Test 7 (1.5.0): a successful analysis through the pool persists the cheap
+    // content signature used by the scanner's move detection.
+    [Fact]
+    public async Task Pool_PersistsContentSignature_ForAnalyzedItem()
+    {
+        var dbPath = Path.Combine(_fixture.TempRoot, "sig-" + Guid.NewGuid().ToString("N")[..6] + ".db");
+        var services = new ServiceCollection();
+        services.AddDbContext<MangaPlexDbContext>(o => o.UseSqlite(DatabaseInitialization.BuildConnectionString(dbPath)));
+        await using var provider = services.BuildServiceProvider();
+
+        long nodeId;
+        var zipPath = _fixture.CreateSimpleZip("signature.zip");
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            await db.Database.MigrateAsync();
+            var library = new LibraryEntity { PublicId = "sigl", DisplayName = "Sig", RootPath = _fixture.FixtureDir, CreatedAt = DateTimeOffset.UtcNow };
+            db.Libraries.Add(library);
+            await db.SaveChangesAsync();
+            var node = new CatalogNodeEntity
+            {
+                PublicId = "sign", LibraryId = library.Id, Kind = 1, DisplayName = "signature.zip",
+                RelativePath = "signature.zip", PathKey = "signature.zip", SortKey = "1signature.zip",
+                LastSeenScanRevision = 1, CreatedAt = DateTimeOffset.UtcNow,
+                ArchiveItem = new ArchiveItemEntity { ContentVersion = 1, AnalysisState = 1 },
+            };
+            db.CatalogNodes.Add(node);
+            await db.SaveChangesAsync();
+            nodeId = node.Id;
+        }
+
+        var options = _fixture.CreatePoolOptions();
+        var scheduler = new JobScheduler(options);
+        var pool = new MediaWorkerPool(
+            options, scheduler, new ScratchWorkspaceManager(_fixture.ScratchRoot),
+            NullLogger<MediaWorkerPool>.Instance, NullLoggerFactory.Instance,
+            provider.GetRequiredService<IServiceScopeFactory>(), new AnalysisResultPersister());
+        await pool.StartAsync();
+        try
+        {
+            var fileInfo = new FileInfo(zipPath);
+            var job = scheduler.EnqueueAsync(
+                itemId: nodeId, contentVersion: 1, operation: JobOperation.Analyze, priority: JobPriority.CurrentPage,
+                archivePath: zipPath, expectedLastWriteTicks: fileInfo.LastWriteTimeUtc.Ticks, expectedByteLength: fileInfo.Length);
+            await pool.DispatchAsync();
+            var result = await job.WaitAsync(TimeSpan.FromSeconds(40));
+            Assert.True(result.Success, result.ErrorType);
+
+            // Persistence happens after the job completes; poll briefly.
+            ArchiveItemEntity? item = null;
+            for (var i = 0; i < 100 && item?.AnalysisState != 0; i++)
+            {
+                await Task.Delay(100);
+                using var scope = provider.CreateScope();
+                item = await scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>()
+                    .ArchiveItems.AsNoTracking().SingleAsync(a => a.NodeId == nodeId);
+            }
+
+            Assert.NotNull(item);
+            Assert.Equal(0, item!.AnalysisState);
+            Assert.Equal(3, item.PageCount);
+            Assert.Equal(ContentSignature.TryComputeFile(zipPath), item.ContentSignature);
+            Assert.Equal(fileInfo.Length, ContentSignature.TryGetByteLength(item.ContentSignature));
+        }
+        finally
+        {
+            await pool.StopAsync();
+            await pool.DisposeAsync();
+        }
     }
 
     public async ValueTask DisposeAsync()
