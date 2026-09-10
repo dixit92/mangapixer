@@ -98,9 +98,16 @@ public static class DatabaseInitialization
             END;
             """, ct);
 
+        // The update trigger fires only when a searchable column changes (1.5.0).
+        // Every scan touches every node's LastSeenScanRevision; with an
+        // unconditional AFTER UPDATE trigger that re-tokenised the trigram index
+        // for the whole library on each rescan (~1 ms/node — the dominant cost of
+        // a no-change rescan). Dropped and recreated so existing databases pick
+        // up the narrowed column list.
+        await db.Database.ExecuteSqlRawAsync("DROP TRIGGER IF EXISTS catalog_search_au;", ct);
         await db.Database.ExecuteSqlRawAsync("""
             CREATE TRIGGER IF NOT EXISTS catalog_search_au
-            AFTER UPDATE ON catalog_nodes
+            AFTER UPDATE OF DisplayName, RelativePath, LibraryId ON catalog_nodes
             BEGIN
                 DELETE FROM catalog_search WHERE node_id = old.Id;
                 INSERT INTO catalog_search(display_name, relative_path, library_id, node_id)

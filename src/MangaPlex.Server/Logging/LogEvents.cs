@@ -127,6 +127,12 @@ public static class LogEvents
         public const int AnalysisEnqueueBatch = 3018;
         public const int AnalysisEnqueueItemFailed = 3019;
         public const int AnalysisEnqueueFailed = 3020;
+
+        // 1.5.0 scan speed: move detection + phase timings
+        public const int ScanMoveDetected = 3021;
+        public const int ScanMoveAmbiguous = 3022;
+        public const int ScanMovesApplied = 3023;
+        public const int ScanPhaseTimings = 3024;
     }
 
     /// <summary>Worker pool, supervisor, scheduler, scratch, persistence, and page delivery.</summary>
