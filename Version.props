@@ -40,9 +40,15 @@
          fields), no breaking changes -> MINOR per SemVer 2.0.0. Released 2026-09-10
          after owner acceptance testing on the real Unraid library (rc.1 -> rc.4;
          rc.4 landed the recently-read pure-recency fix). Bugfixes ship as 1.4.x. -->
+    <!-- 1.4.1 - PATCH over 1.4.0 (2026-09-10). Build/deploy tooling only, no app
+         behavior or API change: the container build now embeds the git commit SHA
+         into InformationalVersion (Dockerfile ARG/ENV -> $(GitCommitShort)/
+         $(GitIsDirty)) so images report "1.4.1+sha.<short>" instead of the bare
+         "+dirty" fallback; the deploy script's old-image cleanup no longer sends a
+         UTF-8 BOM to the remote shell and the script exits 0 on a healthy deploy. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
     <MangaPlexVersionMinor>4</MangaPlexVersionMinor>
-    <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
+    <MangaPlexVersionPatch>1</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
