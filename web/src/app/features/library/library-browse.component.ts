@@ -12,7 +12,7 @@ import { forkJoin } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
-import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity } from '../../core/api/api-types';
+import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder } from '../../core/api/api-types';
 
 /**
  * Library browse component. Shows the actual folder/archive tree with keyset
@@ -74,6 +74,14 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
             <button mat-menu-item (click)="setDensity('compact')">
               <mat-icon>{{ density() === 'compact' ? 'check' : 'density_small' }}</mat-icon>
               Compact
+            </button>
+          }
+          <mat-divider></mat-divider>
+          <span class="menu-caption">Sort by</span>
+          @for (opt of sortOptions; track opt.value) {
+            <button mat-menu-item (click)="setSort(opt.value)">
+              <mat-icon>{{ sort() === opt.value ? 'check' : opt.icon }}</mat-icon>
+              {{ opt.label }}
             </button>
           }
         </mat-menu>
@@ -163,6 +171,10 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     }
   `,
   styles: [`
+    .menu-caption {
+      display: block; padding: 6px 16px 2px; font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px; color: #8a8a99;
+    }
     .browse-bar {
       position: sticky; top: 0; z-index: 20;
       display: flex; align-items: center; gap: 12px;
@@ -289,6 +301,16 @@ export class LibraryBrowseComponent implements OnInit {
   readonly viewIcon = computed(() =>
     this.viewOptions.find((o) => o.value === this.viewMode())?.icon ?? 'grid_view');
 
+  // Per-user browse sort (post-1.2.0). Folders stay first in every mode; the sort
+  // orders within kind. Omitted on the request → the server uses the stored pref;
+  // we pass it explicitly so a change reorders immediately without a persist race.
+  readonly sort = signal<LibrarySortOrder>('name');
+  readonly sortOptions: { value: LibrarySortOrder; label: string; icon: string }[] = [
+    { value: 'name', label: 'Name', icon: 'sort_by_alpha' },
+    { value: 'recentlyAdded', label: 'Recently added', icon: 'schedule' },
+    { value: 'recentlyRead', label: 'Recently read', icon: 'history' },
+  ];
+
   /** How many currently-selected nodes are folders (gates the Direction action). */
   readonly selectedFolderCount = computed(() => {
     const ids = this.selected();
@@ -302,6 +324,14 @@ export class LibraryBrowseComponent implements OnInit {
         const vm = p.viewMode as LibraryViewMode;
         this.viewMode.set(vm === 'list' || vm === 'poster' ? vm : 'grid');
         this.density.set(p.density === 'compact' ? 'compact' : 'comfortable');
+        const s = p.sort;
+        if (s === 'recentlyAdded' || s === 'recentlyRead') {
+          this.sort.set(s);
+          // A stored non-default sort must reorder the already-loaded first page.
+          this.cursor = null;
+          this.nodes.set([]);
+          this.loadNodes();
+        }
       },
       error: () => { /* keep defaults */ },
     });
@@ -364,11 +394,22 @@ export class LibraryBrowseComponent implements OnInit {
     this.persistView();
   }
 
+  /** Change the browse sort: persist the preference and reorder from the top. */
+  setSort(s: LibrarySortOrder): void {
+    if (this.sort() === s) return;
+    this.sort.set(s);
+    this.persistView();
+    this.cursor = null;
+    this.nodes.set([]);
+    this.clearSelection();
+    this.loadNodes();
+  }
+
   private persistView(): void {
     this.api.setLibraryPreferences({
       viewMode: this.viewMode(),
       density: this.density(),
-      sort: 'name',
+      sort: this.sort(),
     }).subscribe({ error: () => { /* non-fatal: the choice still applies this session */ } });
   }
 
@@ -475,7 +516,7 @@ export class LibraryBrowseComponent implements OnInit {
     const libId = this.libraryId();
     if (!libId) return;
 
-    this.api.browseLibrary(libId, this.parentId(), this.cursor).subscribe({
+    this.api.browseLibrary(libId, this.parentId(), this.cursor, 50, this.sort()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         this.nodes.update((current) => [...current, ...response.items]);
         this.hasMore.set(response.hasMore);
