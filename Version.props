@@ -37,12 +37,13 @@
          per-library continue endpoint), webtoon read-ahead prefetch, app-version endpoint +
          footer, multilingual collation jump-navigation, and two browse bugfixes (subfolder-
          only folder cover, clickable root breadcrumb). Additive API only (new endpoints +
-         fields), no breaking changes -> MINOR per SemVer 2.0.0. Cut as -rc.N for Unraid
-         verification before the final v1.4.0 tag. -->
+         fields), no breaking changes -> MINOR per SemVer 2.0.0. Released 2026-09-10
+         after owner acceptance testing on the real Unraid library (rc.1 -> rc.4;
+         rc.4 landed the recently-read pure-recency fix). Bugfixes ship as 1.4.x. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
     <MangaPlexVersionMinor>4</MangaPlexVersionMinor>
     <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
-    <MangaPlexVersionPrerelease>rc.4</MangaPlexVersionPrerelease>
+    <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
     <MangaPlexVersion>$(MangaPlexVersionMajor).$(MangaPlexVersionMinor).$(MangaPlexVersionPatch)</MangaPlexVersion>
