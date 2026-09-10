@@ -116,8 +116,51 @@ import {
                       <mat-icon>refresh</mat-icon>
                     </button>
                   }
+                  <button mat-icon-button type="button" (click)="openRename(lib)"
+                          matTooltip="Rename library" aria-label="Rename library">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button mat-icon-button type="button" (click)="openDelete(lib)"
+                          [disabled]="lib.isScanning || anyScanning()"
+                          [matTooltip]="anyScanning() ? 'Cannot remove a library while a scan is running' : 'Remove library from MangaPlex'"
+                          aria-label="Remove library">
+                    <mat-icon>delete_outline</mat-icon>
+                  </button>
                 </span>
               </mat-list-item>
+
+              @if (renamePanelLibId() === lib.id) {
+                <div class="lib-panel">
+                  <mat-form-field appearance="fill" class="rename-field" subscriptSizing="dynamic">
+                    <mat-label>Library name</mat-label>
+                    <input matInput [(ngModel)]="renameDraft" (keyup.enter)="saveRename(lib)"
+                           maxlength="200" aria-label="Library name">
+                  </mat-form-field>
+                  <div class="lib-panel-actions">
+                    <button mat-raised-button color="primary" type="button"
+                            [disabled]="libActionBusy().has(lib.id) || !renameDraft().trim() || renameDraft().trim() === lib.name"
+                            (click)="saveRename(lib)">Save</button>
+                    <button mat-button type="button" (click)="closeLibPanels()">Cancel</button>
+                  </div>
+                </div>
+              }
+
+              @if (deletePanelLibId() === lib.id) {
+                <div class="lib-panel danger">
+                  <div class="lib-panel-msg">
+                    <mat-icon>warning</mat-icon>
+                    <span>Remove <strong>{{ lib.name }}</strong> from MangaPlex? This deletes
+                      MangaPlex's record and reading progress for this library — your files on
+                      disk are <strong>not</strong> touched.</span>
+                  </div>
+                  <div class="lib-panel-actions">
+                    <button mat-raised-button color="warn" type="button"
+                            [disabled]="libActionBusy().has(lib.id)"
+                            (click)="confirmDelete(lib)">Remove library</button>
+                    <button mat-button type="button" (click)="closeLibPanels()">Cancel</button>
+                  </div>
+                </div>
+              }
 
               @if (yacPanelLibId() === lib.id) {
                 <div class="yac-panel">
@@ -393,6 +436,15 @@ import {
     .yac-stats { margin: 8px 0 4px; font-size: 14px; }
     .yac-muted { margin: 0 0 8px; font-size: 12px; opacity: 0.7; }
     .yac-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+    .lib-panel {
+      margin: 4px 0 12px 56px; padding: 12px 16px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.03);
+    }
+    .lib-panel.danger { border-color: rgba(244, 67, 54, 0.5); background: rgba(244, 67, 54, 0.06); }
+    .lib-panel-msg { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 1.4; }
+    .lib-panel-msg mat-icon { color: #ff8a80; flex: 0 0 auto; }
+    .lib-panel-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+    .rename-field { width: 320px; max-width: 100%; }
     .chip {
       display: inline-flex; align-items: center; gap: 6px;
       font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px;
@@ -447,6 +499,12 @@ export class AdminComponent implements OnInit, OnDestroy {
 
   // Thumbnail regeneration (1.2.0): per-library in-flight guard.
   readonly thumbBusy = signal<Set<string>>(new Set());
+
+  // Library rename / delete (post-1.2.0): inline panels + per-library busy guard.
+  readonly renamePanelLibId = signal<string | null>(null);
+  readonly renameDraft = signal('');
+  readonly deletePanelLibId = signal<string | null>(null);
+  readonly libActionBusy = signal<Set<string>>(new Set());
 
   // YACReader import (1.2.0): per-library detection + a small inline import panel.
   readonly yacDetect = signal<Map<string, YacReaderDetectDto>>(new Map());
@@ -561,6 +619,78 @@ export class AdminComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.thumbBusy.update((s) => { const n = new Set(s); n.delete(lib.id); return n; });
         this.snackBar.open(`Thumbnail regenerate failed: ${err.message}`, 'Close', { duration: 5000 });
+      },
+    });
+  }
+
+  // --- Library rename / delete (post-1.2.0, admin-only) ---
+
+  /** Open the inline rename panel for a library (closes the delete panel). */
+  openRename(lib: LibraryDto): void {
+    this.deletePanelLibId.set(null);
+    this.renameDraft.set(lib.name);
+    this.renamePanelLibId.set(lib.id);
+  }
+
+  /** Open the inline delete-confirm panel for a library (closes the rename panel). */
+  openDelete(lib: LibraryDto): void {
+    this.renamePanelLibId.set(null);
+    this.deletePanelLibId.set(lib.id);
+  }
+
+  /** Close both inline library panels. */
+  closeLibPanels(): void {
+    this.renamePanelLibId.set(null);
+    this.deletePanelLibId.set(null);
+  }
+
+  private setLibBusy(id: string, busy: boolean): void {
+    this.libActionBusy.update((s) => {
+      const n = new Set(s);
+      if (busy) n.add(id); else n.delete(id);
+      return n;
+    });
+  }
+
+  /** Persist a new display name for the library, then refresh the list. */
+  saveRename(lib: LibraryDto): void {
+    const name = this.renameDraft().trim();
+    if (!name || name === lib.name) return;
+    this.setLibBusy(lib.id, true);
+    this.api.updateLibrary(lib.id, { displayName: name }).subscribe({
+      next: () => {
+        this.setLibBusy(lib.id, false);
+        this.closeLibPanels();
+        this.loadLibraries();
+        this.snackBar.open('Library renamed.', 'Close', { duration: 3000 });
+      },
+      error: (err) => {
+        this.setLibBusy(lib.id, false);
+        this.snackBar.open(`Rename failed: ${err.message}`, 'Close', { duration: 5000 });
+      },
+    });
+  }
+
+  /**
+   * Delete a library's MangaPlex metadata (never the source files). The server
+   * refuses with 409 while a scan is running; surface that clearly if it races.
+   */
+  confirmDelete(lib: LibraryDto): void {
+    this.setLibBusy(lib.id, true);
+    this.api.unregisterLibrary(lib.id).subscribe({
+      next: () => {
+        this.setLibBusy(lib.id, false);
+        this.closeLibPanels();
+        this.loadLibraries();
+        this.snackBar.open(`Removed "${lib.name}" from MangaPlex. Source files are untouched.`,
+          'Close', { duration: 4000 });
+      },
+      error: (err) => {
+        this.setLibBusy(lib.id, false);
+        const msg = err?.error === 'scan_in_progress'
+          ? 'Cannot remove a library while a scan is running. Try again once it finishes.'
+          : `Remove failed: ${err.message}`;
+        this.snackBar.open(msg, 'Close', { duration: 5000 });
       },
     });
   }
