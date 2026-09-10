@@ -11,9 +11,8 @@ import { HomeComponent } from './home.component';
 
 /**
  * Covers the Plex-pattern home logic (1.4.0): the sidebar selection and the
- * library-filtered continue-reading view. `libraryId` on the entries is supplied
- * by the incognito-and-continue-data lane; the fixtures include it so the filter
- * is exercised ahead of that merge.
+ * per-library continue-reading view sourced from the incognito-and-continue-
+ * data lane's `GET /reading/continue/by-library/{id}` endpoint.
  */
 describe('HomeComponent', () => {
   let httpMock: HttpTestingController;
@@ -37,8 +36,8 @@ describe('HomeComponent', () => {
       { id: 'L2', name: 'Beta', isScanning: false, itemCount: 5, lastScanCompleted: null, defaultReaderMode: null },
     ]);
     httpMock.expectOne((r) => r.url === '/api/v1/reading/continue').flush([
-      { itemId: 'i1', displayName: 'One', pageIndex: 2, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z', libraryId: 'L1' },
-      { itemId: 'i2', displayName: 'Two', pageIndex: 0, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z', libraryId: 'L2' },
+      { itemId: 'i1', displayName: 'One', pageIndex: 2, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z', libraryId: 'L1', libraryName: 'Alpha' },
+      { itemId: 'i2', displayName: 'Two', pageIndex: 0, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z', libraryId: 'L2', libraryName: 'Beta' },
     ]);
     return fixture;
   }
@@ -54,16 +53,35 @@ describe('HomeComponent', () => {
     expect(cmp.visibleContinue().length).toBe(2);
   });
 
-  it('filters continue-reading to the selected library', () => {
+  it('fetches the per-library continue-reading endpoint when a sidebar library is selected', () => {
     const fixture = createComponent();
     const cmp = fixture.componentInstance;
 
     cmp.select('L1');
     expect(cmp.selectedLibrary()?.name).toBe('Alpha');
+    expect(cmp.continueLoading()).toBe(true);
+
+    const req = httpMock.expectOne((r) => r.url === '/api/v1/reading/continue/by-library/L1');
+    expect(req.request.method).toBe('GET');
+    req.flush([
+      { itemId: 'i1', displayName: 'One', pageIndex: 2, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z', libraryId: 'L1', libraryName: 'Alpha' },
+    ]);
+
+    expect(cmp.continueLoading()).toBe(false);
     expect(cmp.visibleContinue().map((e) => e.itemId)).toEqual(['i1']);
 
     cmp.select(null);
     expect(cmp.visibleContinue().length).toBe(2);
+  });
+
+  it('clears the per-library view when the library has nothing in progress', () => {
+    const fixture = createComponent();
+    const cmp = fixture.componentInstance;
+
+    cmp.select('L2');
+    httpMock.expectOne((r) => r.url === '/api/v1/reading/continue/by-library/L2').flush([]);
+
+    expect(cmp.visibleContinue().length).toBe(0);
   });
 
   it('removes an item from the list on dismiss', () => {
@@ -71,7 +89,10 @@ describe('HomeComponent', () => {
     const cmp = fixture.componentInstance;
     const evt = new Event('click');
 
-    cmp.dismiss(evt, { itemId: 'i1', displayName: 'One', pageIndex: 2, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z' });
+    cmp.dismiss(evt, {
+      itemId: 'i1', displayName: 'One', pageIndex: 2, contentVersion: 1,
+      updatedAt: '2026-09-10T00:00:00Z', libraryId: 'L1', libraryName: 'Alpha',
+    });
     httpMock.expectOne('/api/v1/reading/continue/i1').flush(null);
 
     expect(cmp.continueReading().map((e) => e.itemId)).toEqual(['i2']);

@@ -12,20 +12,6 @@ import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { LibraryDto, ContinueReadingEntry } from '../../core/api/api-types';
 
 /**
- * Continue-reading entry augmented with its library (Plex-pattern home, 1.4.0).
- *
- * The `libraryId`/`libraryName` fields are supplied by the incognito-and-continue-
- * data backend lane. Until that lane merges, `ContinueReadingEntry` has neither,
- * so these are modelled as an intersection with OPTIONAL fields — forward-safe:
- * when the backend later declares `libraryId` as required on the base type, the
- * intersection still resolves (required ∧ optional = required) with no conflict.
- */
-type ContinueEntryView = ContinueReadingEntry & {
-  libraryId?: string;
-  libraryName?: string;
-};
-
-/**
  * Home page (Plex-pattern, 1.4.0). A library **sidebar** on the left; the main
  * area shows a flat, consolidated **Continue reading** row across all (non-Private,
  * while incognito) libraries. Selecting a library in the sidebar drills into that
@@ -93,6 +79,8 @@ type ContinueEntryView = ContinueReadingEntry & {
               }
             </div>
           </section>
+        } @else if (continueLoading()) {
+          <p class="muted">Loading…</p>
         } @else if (selectedLibraryId() !== null) {
           <p class="muted">Nothing in progress in this library yet.
             <a [routerLink]="['/libraries', selectedLibraryId()]">Browse it →</a></p>
@@ -203,8 +191,12 @@ export class HomeComponent implements OnInit {
 
   readonly loading = signal(true);
   readonly libraries = signal<LibraryDto[]>([]);
-  readonly continueReading = signal<ContinueEntryView[]>([]);
+  readonly continueReading = signal<ContinueReadingEntry[]>([]);
   readonly selectedLibraryId = signal<string | null>(null);
+
+  /** Continue-reading for the selected library, fetched via the per-library endpoint. */
+  private readonly libraryContinueReading = signal<ContinueReadingEntry[]>([]);
+  readonly continueLoading = signal(false);
 
   readonly selectedLibrary = computed(() => {
     const id = this.selectedLibraryId();
@@ -213,18 +205,12 @@ export class HomeComponent implements OnInit {
 
   /**
    * Continue-reading shown in the main area: the full consolidated list on Home,
-   * or just the selected library's entries when one is picked in the sidebar.
-   *
-   * SEAM (pending the incognito-and-continue-data lane): filtering is client-side
-   * on the entry's `libraryId`. Once that lane ships `libraryId` on the entry AND
-   * the per-library continue endpoint, the per-library view should fetch from that
-   * endpoint (so it isn't bounded by the global continue limit). Until then, a
-   * selected library simply shows the in-progress items present in the global list.
+   * or the selected library's own entries (fetched from the per-library endpoint,
+   * so it isn't bounded by the global continue limit) when one is picked in the
+   * sidebar.
    */
   readonly visibleContinue = computed(() => {
-    const id = this.selectedLibraryId();
-    const all = this.continueReading();
-    return id ? all.filter((e) => e.libraryId === id) : all;
+    return this.selectedLibraryId() === null ? this.continueReading() : this.libraryContinueReading();
   });
 
   ngOnInit(): void {
@@ -233,13 +219,20 @@ export class HomeComponent implements OnInit {
       error: () => this.loading.set(false),
     });
     this.api.getContinueReading(12).subscribe({
-      next: (items) => this.continueReading.set(items as ContinueEntryView[]),
+      next: (items) => this.continueReading.set(items),
       error: () => this.continueReading.set([]),
     });
   }
 
   select(libraryId: string | null): void {
     this.selectedLibraryId.set(libraryId);
+    if (libraryId === null) return;
+
+    this.continueLoading.set(true);
+    this.api.getContinueReadingByLibrary(libraryId).subscribe({
+      next: (items) => { this.libraryContinueReading.set(items); this.continueLoading.set(false); },
+      error: () => { this.libraryContinueReading.set([]); this.continueLoading.set(false); },
+    });
   }
 
   coverUrl(itemId: string): string {
@@ -247,11 +240,14 @@ export class HomeComponent implements OnInit {
   }
 
   /** Remove an item from the Continue-reading strip (1.2.0) without marking it read. */
-  dismiss(event: Event, item: ContinueEntryView): void {
+  dismiss(event: Event, item: ContinueReadingEntry): void {
     event.preventDefault();
     event.stopPropagation();
     this.api.dismissContinueReading(item.itemId).subscribe({
-      next: () => this.continueReading.update((list) => list.filter((i) => i.itemId !== item.itemId)),
+      next: () => {
+        this.continueReading.update((list) => list.filter((i) => i.itemId !== item.itemId));
+        this.libraryContinueReading.update((list) => list.filter((i) => i.itemId !== item.itemId));
+      },
       error: () => { /* transient failure — leave the card in place */ },
     });
   }

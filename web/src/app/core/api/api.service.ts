@@ -28,6 +28,7 @@ import {
   JumpIndexDto,
   LibraryDto,
   LogLevelDto,
+  PrivateLibrariesDto,
   RotatingBackupStatusDto,
   LoginRequest,
   PageResponse,
@@ -37,6 +38,7 @@ import {
   ResetPasswordResponse,
   ScanRunDto,
   ScanTriggeredDto,
+  SetPrivateLibrariesRequest,
   ThumbnailRegenerateResponse,
   SearchResultsDto,
   SetupRequest,
@@ -173,6 +175,22 @@ export class ApiService {
   /** Remove an item from the continue-reading strip (1.2.0), without marking it read. */
   dismissContinueReading(itemId: string): Observable<void> {
     return this.delete<void>(`/reading/continue/${itemId}`);
+  }
+
+  /** Continue-reading entries scoped to a single library (1.4.0 sidebar grouping). */
+  getContinueReadingByLibrary(libraryId: string, limit = 20): Observable<ContinueReadingEntry[]> {
+    const params = new HttpParams().set('limit', limit.toString());
+    return this.get<ContinueReadingEntry[]>(`/reading/continue/by-library/${libraryId}`, params);
+  }
+
+  /** The current user's Private library designations (1.4.0). */
+  getPrivateLibraries(): Observable<PrivateLibrariesDto> {
+    return this.get<PrivateLibrariesDto>('/reading/private-libraries');
+  }
+
+  /** Replaces the current user's Private library set (1.4.0, replacement semantics). */
+  setPrivateLibraries(libraryIds: string[]): Observable<void> {
+    return this.put<void>('/reading/private-libraries', { libraryIds } as SetPrivateLibrariesRequest);
   }
 
   /** Per-user library browse presentation preferences (1.2.0). */

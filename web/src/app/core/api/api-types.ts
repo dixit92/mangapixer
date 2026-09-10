@@ -119,10 +119,29 @@ export interface UserPreferencesDto {
 
 export interface ContinueReadingEntry {
   itemId: string;
+  /** Opaque public ID of the item's library (1.4.0 Lane B). Enables sidebar grouping. */
+  libraryId: string;
+  /** Display name of the item's library (1.4.0 Lane B). */
+  libraryName: string;
   displayName: string;
   pageIndex: number;
   contentVersion: number;
   updatedAt: string;
+}
+
+/**
+ * The current user's Private library designations (1.4.0). Libraries in this
+ * list are hidden from listing/discovery surfaces (continue-reading, search,
+ * browse-root, library list) while Incognito mode is active. Direct reader
+ * URLs remain accessible regardless. Library IDs are opaque public IDs.
+ */
+export interface PrivateLibrariesDto {
+  libraryIds: string[];
+}
+
+/** Request to replace the current user's Private library set (replacement semantics). */
+export interface SetPrivateLibrariesRequest {
+  libraryIds: string[];
 }
 
 export interface LibraryDto {
