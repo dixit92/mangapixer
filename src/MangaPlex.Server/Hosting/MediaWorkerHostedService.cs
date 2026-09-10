@@ -14,6 +14,18 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 public sealed class MediaWorkerHostedService : IHostedService, IAsyncDisposable
 {
+    /// <summary>
+    /// Fallback poll interval when idle. Dispatch itself is event-driven (a
+    /// freed worker slot wakes the loop immediately via
+    /// <see cref="MediaWorkerPool.WaitForDispatchSignalAsync"/>); this bound
+    /// only covers jobs enqueued directly via the JobScheduler without a
+    /// manual dispatch nudge (background analysis resume, admin re-analyze).
+    /// Replaces the old fixed 2s tick, which made every idle cycle ~83% dead
+    /// time and capped single-worker throughput at ~25/min regardless of
+    /// per-job cost (~0.4s warm).
+    /// </summary>
+    private static readonly TimeSpan DispatchFallbackPoll = TimeSpan.FromMilliseconds(200);
+
     private readonly MediaWorkerPool _pool;
     private readonly ILogger<MediaWorkerHostedService> _logger;
     private readonly IHostApplicationLifetime _lifetime;
@@ -76,7 +88,9 @@ public sealed class MediaWorkerHostedService : IHostedService, IAsyncDisposable
 
     private async Task DispatchLoopAsync(CancellationToken ct)
     {
-        // Light tick: every 2 seconds when idle, dispatch any queued jobs.
+        // Event-driven: DispatchAsync fills every available/reservation-eligible
+        // slot in one pass, then this loop waits for a slot to free (signaled
+        // immediately) or the short fallback poll, whichever comes first.
         while (!ct.IsCancellationRequested)
         {
             try
@@ -94,7 +108,7 @@ public sealed class MediaWorkerHostedService : IHostedService, IAsyncDisposable
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(2), ct);
+                await _pool.WaitForDispatchSignalAsync(DispatchFallbackPoll, ct);
             }
             catch (OperationCanceledException)
             {

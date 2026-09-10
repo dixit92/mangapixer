@@ -86,6 +86,7 @@ public sealed partial class Program
             // MangaPlex:Storage:CacheBudgetBytes / ScratchBudgetBytes.
             var cacheBudget = ReadByteBudget(builder.Configuration, "MangaPlex:Storage:CacheBudgetBytes");
             var scratchBudget = ReadByteBudget(builder.Configuration, "MangaPlex:Storage:ScratchBudgetBytes");
+            var maxConcurrentJobs = ReadPositiveInt(builder.Configuration, "MangaPlex:Media:MaxConcurrentJobs");
             builder.Services.AddMangaPlexMedia(options =>
             {
                 options.ScratchRoot = scratchRoot;
@@ -93,6 +94,7 @@ public sealed partial class Program
                 options.WorkerExecutablePath = workerExe;
                 if (cacheBudget is > 0) options.CacheBudgetBytes = cacheBudget.Value;
                 if (scratchBudget is > 0) options.ScratchBudgetBytes = scratchBudget.Value;
+                if (maxConcurrentJobs is > 0) options.MaxConcurrentJobs = maxConcurrentJobs.Value;
             });
 
             // Startup configuration logging (gap 8.3.6). Logs existence and
@@ -329,5 +331,16 @@ public sealed partial class Program
         var value = configuration[key];
         if (string.IsNullOrWhiteSpace(value)) return null;
         return long.TryParse(value.Trim(), out var bytes) && bytes > 0 ? bytes : null;
+    }
+
+    /// <summary>
+    /// Reads an optional positive integer from config. Returns null when
+    /// unset/invalid so the caller keeps the WorkerPoolOptions default (2).
+    /// </summary>
+    private static int? ReadPositiveInt(IConfiguration configuration, string key)
+    {
+        var value = configuration[key];
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return int.TryParse(value.Trim(), out var n) && n > 0 ? n : null;
     }
 }
