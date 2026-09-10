@@ -238,3 +238,31 @@ diffs or stashes.
 - Branching off a stale base (`main`/`v1.2.0`) that lacked prior merged lanes.
 - A cross-lane "it doesn't compile" claim that was really a half-stashed tree —
   always verify a build in a clean lane, not a shared/partially-stashed one.
+
+**Roles (refined 2026-09-10).** The **integrator/supervisor** agent does NOT also
+implement a lane — it reviews, merges one lane at a time, re-verifies each merge,
+tracks status, and flags owner-gated decisions. **Lane agents** each implement one
+lane; UI / visual lanes (work that needs to see the running app) go to a
+vision-capable agent. Keeping integration separate from implementation avoids the
+divided-focus failure where the merger also owns a work-in-progress branch.
+
+**Release-boundary discipline.** If a PATCH (bugfix) release is intended before a
+MINOR (feature) release, do NOT merge MINOR feature lanes onto the integration
+branch while it is still the clean PATCH candidate — that buries the commit from
+which the PATCH is cut with a correct `Version.props`. Hold ready feature lanes
+until the owner cuts the PATCH (release commit + tag), then merge them. Version
+bumps, tags, and deploys stay owner-gated; a verified lane is held, never merged
+past a release boundary, until the owner decides.
+
+**Flake discipline.** A lane green in isolation can fail once merged on a
+pre-existing flake (e.g. parallel host-booting tests racing on DB init). Before
+blaming the merge, re-run the suspect tests in isolation; if they pass alone and the
+lane's diff doesn't touch the failing area, keep the merge and log the flake as a
+separate stabilization task — do not roll back over a flake. Also guard container
+commands against shell path-translation no-ops, and never let a pipe mask a
+command's real exit code.
+
+**Progress journaling — one writer per file.** Do not have multiple agents write the
+same status note or hub; concurrent writes clobber each other. Each lane agent writes
+only its own per-lane note; the integrator owns the release/cycle note and the
+project hub and updates them only after verifying lane contents.
