@@ -14,6 +14,7 @@ import {
 
 import { routes } from './app.routes';
 import { xsrfInterceptor } from './core/auth/xsrf.interceptor';
+import { incognitoInterceptor } from './core/incognito/incognito.interceptor';
 import { AuthService } from './core/auth/auth.service';
 
 /**
@@ -27,7 +28,7 @@ export const appConfig: ApplicationConfig = {
     provideAnimations(),
     provideHttpClient(
       withInterceptorsFromDi(),
-      withInterceptors([xsrfInterceptor]),
+      withInterceptors([xsrfInterceptor, incognitoInterceptor]),
     ),
     provideAppInitializer(() => {
       const auth = inject(AuthService);

@@ -4,8 +4,10 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { AuthService } from '../core/auth/auth.service';
+import { IncognitoService } from '../core/incognito/incognito.service';
 
 /**
  * Main layout shell. Contains the toolbar with navigation and user menu.
@@ -21,6 +23,7 @@ import { AuthService } from '../core/auth/auth.service';
     MatButtonModule,
     MatIconModule,
     MatMenuModule,
+    MatTooltipModule,
   ],
   template: `
     <mat-toolbar color="primary">
@@ -31,6 +34,15 @@ import { AuthService } from '../core/auth/auth.service';
         <button mat-button routerLink="/libraries">Libraries</button>
         <button mat-button routerLink="/search">Search</button>
 
+        @if (incognito.isIncognito()) {
+          <button mat-icon-button class="incognito-indicator"
+                  matTooltip="Incognito on — Private libraries are hidden. Click to turn off."
+                  aria-label="Incognito on. Private libraries are hidden. Turn off."
+                  (click)="incognito.toggle()">
+            <mat-icon>visibility_off</mat-icon>
+          </button>
+        }
+
         <button mat-icon-button [matMenuTriggerFor]="userMenu">
           <mat-icon>account_circle</mat-icon>
         </button>
@@ -38,6 +50,10 @@ import { AuthService } from '../core/auth/auth.service';
           <div class="user-info">
             <mat-icon>person</mat-icon>{{ auth.currentUser()?.username }}
           </div>
+          <button mat-menu-item (click)="incognito.toggle()">
+            <mat-icon>{{ incognito.isIncognito() ? 'visibility_off' : 'visibility' }}</mat-icon>
+            Incognito: {{ incognito.isIncognito() ? 'On' : 'Off' }}
+          </button>
           <button mat-menu-item routerLink="/settings">
             <mat-icon>vpn_key</mat-icon>Change Password
           </button>
@@ -73,10 +89,12 @@ import { AuthService } from '../core/auth/auth.service';
       display: flex; align-items: center; gap: 8px; opacity: 0.85;
     }
     .user-info mat-icon { font-size: 20px; width: 20px; height: 20px; }
+    .incognito-indicator { opacity: 0.9; }
   `],
 })
 export class LayoutComponent {
   readonly auth = inject(AuthService);
+  readonly incognito = inject(IncognitoService);
   private readonly router = inject(Router);
 
   logout(): void {
