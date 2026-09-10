@@ -353,6 +353,34 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// True when no worker slot is free (all existing workers busy and the pool
+    /// is at its concurrency cap). Read-only observation for the thumbnail
+    /// backfill to yield when the pool is under pressure — does not affect
+    /// dispatch or scheduling. Page/thumbnail extracts acquire slots directly
+    /// (first-come-first-served), so the backfill throttles itself rather than
+    /// relying on scheduler priority (which only orders analysis jobs).
+    /// </summary>
+    public bool IsSaturated
+    {
+        get
+        {
+            lock (_poolLock)
+            {
+                return _workers.Count >= _options.MaxConcurrentJobs
+                    && _workers.All(w => w.IsBusy);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Number of pending (not-yet-dispatched) jobs in the scheduler. Read-only
+    /// observation for the thumbnail backfill: when analysis work is queued, the
+    /// backfill yields so analysis-time thumbnail generation (which produces
+    /// most thumbnails) drains first.
+    /// </summary>
+    public int SchedulerPendingCount => _scheduler.PendingCount;
+
     private async Task StartWorkerAsync(CancellationToken ct)
     {
         var supervisor = CreateSupervisor();

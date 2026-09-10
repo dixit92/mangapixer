@@ -239,4 +239,85 @@ public sealed class ThumbnailGenerationServiceTests : IDisposable
 
         Assert.Empty(items);
     }
+
+    [Fact]
+    public async Task CountItemsNeedingThumbnails_FindsReadyItemsWithoutThumbnail()
+    {
+        using var db = NewContext(Path.Combine(_tempDir, "test8.db"));
+        var (libraryId, nodeId) = await SeedReadyItemAsync(db);
+
+        var count = await ThumbnailGenerationService.CountItemsNeedingThumbnailsAsync(db, libraryId);
+
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public async Task CountItemsNeedingThumbnails_ExcludesItemsWithCurrentThumbnail()
+    {
+        using var db = NewContext(Path.Combine(_tempDir, "test9.db"));
+        var (libraryId, nodeId) = await SeedReadyItemAsync(db);
+
+        var item = await db.ArchiveItems.FirstAsync(a => a.NodeId == nodeId);
+        item.ThumbnailState = 1;
+        item.ThumbnailContentVersion = item.ContentVersion;
+        await db.SaveChangesAsync();
+
+        var count = await ThumbnailGenerationService.CountItemsNeedingThumbnailsAsync(db, libraryId);
+
+        Assert.Equal(0, count);
+    }
+
+    [Fact]
+    public async Task CountItemsNeedingThumbnails_CountsAllNeedingItems_Uncapped()
+    {
+        // The continuous backfill (post-1.2.0) is uncapped; the count query
+        // must report all needing items, not a bounded subset.
+        using var db = NewContext(Path.Combine(_tempDir, "test10.db"));
+
+        var library = new LibraryEntity
+        {
+            PublicId = "lib_count",
+            DisplayName = "Test",
+            RootPath = "/media/test",
+            CaseComparisonPolicy = "ordinal",
+            State = "active",
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        db.Libraries.Add(library);
+        await db.SaveChangesAsync();
+
+        for (int i = 0; i < 600; i++)
+        {
+            var node = new CatalogNodeEntity
+            {
+                PublicId = $"node_{i}",
+                LibraryId = library.Id,
+                Kind = 1,
+                DisplayName = $"test{i}.cbz",
+                RelativePath = $"test{i}.cbz",
+                PathKey = $"test{i}.cbz",
+                SortKey = $"test{i}",
+                Availability = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.CatalogNodes.Add(node);
+            await db.SaveChangesAsync();
+
+            db.ArchiveItems.Add(new ArchiveItemEntity
+            {
+                NodeId = node.Id,
+                ContentVersion = 1,
+                ArchiveFormat = 0,
+                ByteLength = 1024,
+                ModificationTicks = DateTimeOffset.UtcNow.Ticks,
+                AnalysisState = 0,
+                ThumbnailState = 0,
+            });
+        }
+        await db.SaveChangesAsync();
+
+        var count = await ThumbnailGenerationService.CountItemsNeedingThumbnailsAsync(db, library.Id);
+
+        Assert.Equal(600, count);
+    }
 }

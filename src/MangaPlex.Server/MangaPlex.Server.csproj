@@ -6,6 +6,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="MangaPlex.Server.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\MangaPlex.Core\MangaPlex.Core.csproj" />
     <ProjectReference Include="..\MangaPlex.MediaWorker\MangaPlex.MediaWorker.csproj" />
   </ItemGroup>
