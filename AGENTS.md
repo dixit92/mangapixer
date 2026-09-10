@@ -192,44 +192,30 @@ failures.
 
 ## Parallel worktrees (multi-agent)
 
-When several agents implement different lanes at once, isolation is mandatory.
-This process is the standard; it exists because the 2026-09-09 post-1.2.0 cycle
-proved the failure mode (see the anti-patterns below).
+The cross-runtime coordination procedure (worktree isolation, lane/integrator
+roles, one-writer-per-file docs, release-boundary and flake discipline) is
+encoded in the personal `multi-lane` skill
+(`~/.claude/skills/multi-lane/SKILL.md`), which references the vault's
+`Development Conventions - Multi-Agent Lane Development` note as the
+authoritative contract. Invoke `/multi-lane` when several agents implement
+different lanes at once. What remains here is MangaPlex-specific enforcement on
+top of that procedure.
 
-**Clarifying the "no commits by default" invariant:** that invariant forbids a
-*remote*, pushing, and landing on the integration branch without review. It does
-**not** forbid local commits on your own lane branch — those are the sanctioned
-hand-off mechanism here. The main agent merges *commits*, never working-tree
-diffs or stashes.
+**Integration trunk.** Branch off `dev`, not stale `main` or a release tag, so
+your lane already contains shipped prior work and merges cleanly. `dev` is a
+single long-lived, **version-agnostic** trunk — do **not** name it after a
+version (an earlier `dev/1.2.0` went stale the moment SemVer said the next cut
+was 1.3.0). The release number lives only in `Version.props` and the tag,
+decided at cut time.
 
-1. **One worktree + one branch per lane.**
-   `git worktree add ../lp-mangaplex.<lane> -b feature/<lane> <integration-branch>`.
-   Never share a working tree between agents, and never do lane work directly in
-   the main checkout while other agents are active.
-2. **Branch off the integration branch `dev`**, not stale `main` or a release tag,
-   so your lane already contains shipped prior work and merges cleanly. `dev` is a
-   single long-lived, **version-agnostic** trunk — do **not** name it after a version
-   (an earlier `dev/1.2.0` went stale the moment SemVer said the next cut was 1.3.0).
-   The release number lives only in `Version.props` and the tag, decided at cut time.
-3. **Commit to your lane branch — do not leave work as uncommitted working-tree
-   diffs.** Uncommitted lanes can't be told apart, get accidentally stashed
-   together, and are fragile to integrate. Local commits only (no remote, no
-   push). Commit early enough that a hand-off is a branch, not a dirty tree.
-4. **Never touch another agent's worktree, and never stash changes that aren't
-   yours.** If you find foreign uncommitted changes in your working tree, stop —
-   you are in a shared checkout and must move to your own worktree.
-5. **Declare file ownership up front** in the lane's plan note, and flag hot/shared
-   files (e.g. `AdminController.cs`, `CatalogBrowseService.cs`). If two lanes must
-   edit one file, sequence them or split by method region and flag it for the merge.
-6. **Verify your lane in isolation** (`sdk:10.0` container) before hand-off; report
-   tests by kind.
-7. **The main agent owns integration:** review each lane branch, merge one lane at
-   a time into the integration branch, build + test after each, resolve shared-file
-   overlaps, then re-verify combined.
-8. **Cleanup after merge:** `git worktree remove <dir>` then `git branch -d
-   feature/<lane>`. If a worktree has a `node_modules` **junction/symlink**, delete
-   the link first with `cmd //c rmdir "<path>"` (removes the link only, never
-   follows into the target) before removing the worktree.
+**Worktree naming.** `git worktree add ../lp-mangaplex.<lane> -b feature/<lane> dev`.
+
+**Hot files (declare ownership up front; sequence or split by method region if
+two lanes must edit one).** `AdminController.cs`, `CatalogBrowseService.cs`.
+
+**Verify in isolation before hand-off** using the `sdk:10.0` container (see the
+container-based build commands above); report tests by kind
+(unit / service-with-DB / HTTP / process / browser).
 
 **Anti-patterns (all observed 2026-09-09, do not repeat):**
 - Two lanes' uncommitted diffs intermixed in the shared main checkout.
@@ -238,31 +224,3 @@ diffs or stashes.
 - Branching off a stale base (`main`/`v1.2.0`) that lacked prior merged lanes.
 - A cross-lane "it doesn't compile" claim that was really a half-stashed tree —
   always verify a build in a clean lane, not a shared/partially-stashed one.
-
-**Roles (refined 2026-09-10).** The **integrator/supervisor** agent does NOT also
-implement a lane — it reviews, merges one lane at a time, re-verifies each merge,
-tracks status, and flags owner-gated decisions. **Lane agents** each implement one
-lane; UI / visual lanes (work that needs to see the running app) go to a
-vision-capable agent. Keeping integration separate from implementation avoids the
-divided-focus failure where the merger also owns a work-in-progress branch.
-
-**Release-boundary discipline.** If a PATCH (bugfix) release is intended before a
-MINOR (feature) release, do NOT merge MINOR feature lanes onto the integration
-branch while it is still the clean PATCH candidate — that buries the commit from
-which the PATCH is cut with a correct `Version.props`. Hold ready feature lanes
-until the owner cuts the PATCH (release commit + tag), then merge them. Version
-bumps, tags, and deploys stay owner-gated; a verified lane is held, never merged
-past a release boundary, until the owner decides.
-
-**Flake discipline.** A lane green in isolation can fail once merged on a
-pre-existing flake (e.g. parallel host-booting tests racing on DB init). Before
-blaming the merge, re-run the suspect tests in isolation; if they pass alone and the
-lane's diff doesn't touch the failing area, keep the merge and log the flake as a
-separate stabilization task — do not roll back over a flake. Also guard container
-commands against shell path-translation no-ops, and never let a pipe mask a
-command's real exit code.
-
-**Progress journaling — one writer per file.** Do not have multiple agents write the
-same status note or hub; concurrent writes clobber each other. Each lane agent writes
-only its own per-lane note; the integrator owns the release/cycle note and the
-project hub and updates them only after verifying lane contents.
