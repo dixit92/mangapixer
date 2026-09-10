@@ -280,6 +280,7 @@ public static class LogEvents
         public const int YacReaderImportPreviewed = 7012;
         public const int YacReaderImportApplied = 7013;
         public const int YacReaderImportFailed = 7014;
+        public const int LibraryDeleted = 7015;
     }
 
     /// <summary>App-level request pipeline errors (unhandled 500s).</summary>

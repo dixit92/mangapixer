@@ -32,6 +32,7 @@ public sealed class ThumbnailGenerationService
     private readonly ThumbnailStore _thumbnailStore;
     private readonly CacheService _cache;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ThumbnailBackfillOptions _backfillOptions;
     private readonly ILogger<ThumbnailGenerationService>? _logger;
 
     public ThumbnailGenerationService(
@@ -39,12 +40,14 @@ public sealed class ThumbnailGenerationService
         ThumbnailStore thumbnailStore,
         CacheService cache,
         IServiceScopeFactory scopeFactory,
+        ThumbnailBackfillOptions? backfillOptions = null,
         ILogger<ThumbnailGenerationService>? logger = null)
     {
         _workerPool = workerPool;
         _thumbnailStore = thumbnailStore;
         _cache = cache;
         _scopeFactory = scopeFactory;
+        _backfillOptions = backfillOptions ?? new ThumbnailBackfillOptions();
         _logger = logger;
     }
 
@@ -194,5 +197,130 @@ public sealed class ThumbnailGenerationService
                   (n, a) => n.Id)
             .Take(limit)
             .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Returns the count of ready archive items in a library that lack a current
+    /// durable thumbnail, without materializing the ids. Used by the admin
+    /// Regenerate endpoint to report a queued count for the uncapped backfill.
+    /// </summary>
+    public static async Task<int> CountItemsNeedingThumbnailsAsync(
+        MangaPlexDbContext db,
+        long libraryId,
+        CancellationToken ct = default)
+    {
+        return await db.CatalogNodes
+            .Where(n => n.LibraryId == libraryId && n.Kind == 1 && n.Availability != 5)
+            .Join(db.ArchiveItems.Where(a => a.AnalysisState == 0
+                && (a.ThumbnailState != 1 || a.ThumbnailContentVersion != a.ContentVersion)),
+                  n => n.Id, a => a.NodeId,
+                  (n, a) => n.Id)
+            .CountAsync(ct);
+    }
+
+    /// <summary>
+    /// Runs a continuous, throttled backfill for a single library: processes ALL
+    /// ready archive items that lack a current durable thumbnail, in bounded
+    /// batches, until none remain. Yields when the worker pool is saturated or
+    /// analysis work is pending so interactive reader reads are not starved.
+    /// Each item is attempted at most once per pass; persistent failures do not
+    /// loop forever (the pass stops when a batch returns only already-attempted
+    /// items). Returns the number of items for which generation was attempted.
+    ///
+    /// Idempotent: re-running does nothing once all thumbnails exist; a
+    /// content-version bump still regenerates (the per-item generator skips
+    /// current thumbnails and invalidates stale ones).
+    /// </summary>
+    public async Task<int> RunContinuousBackfillAsync(long libraryId, CancellationToken ct = default)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+
+        return await RunContinuousBackfillCoreAsync(
+            libraryId,
+            _backfillOptions.BatchSize,
+            _backfillOptions.BackoffMs,
+            (lib, limit, token) => GetItemsNeedingThumbnailsAsync(db, lib, limit, token),
+            GenerateForItemAsync,
+            () => _workerPool.IsSaturated,
+            () => _workerPool.SchedulerPendingCount,
+            ct);
+    }
+
+    /// <summary>
+    /// Pure, delegate-driven core of the continuous backfill loop. Extracted so it
+    /// is unit-testable without a real worker pool, DB, or filesystem. Returns the
+    /// number of items for which generation was attempted.
+    ///
+    /// Loop: query a batch of items needing thumbnails; if empty, stop. Skip
+    /// items already attempted this pass; if a batch yields no new items, stop
+    /// (persistent failures — each item gets one attempt per pass). Before each
+    /// item, yield while the pool is saturated or analysis work is pending.
+    /// </summary>
+    internal static async Task<int> RunContinuousBackfillCoreAsync(
+        long libraryId,
+        int batchSize,
+        int backoffMs,
+        Func<long, int, CancellationToken, Task<List<long>>> queryBatchAsync,
+        Func<long, CancellationToken, Task<bool>> generateAsync,
+        Func<bool> isSaturated,
+        Func<int> schedulerPendingCount,
+        CancellationToken ct)
+    {
+        var attempted = new HashSet<long>();
+        var totalAttempted = 0;
+
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                var batch = await queryBatchAsync(libraryId, batchSize, ct);
+                if (batch.Count == 0)
+                    break;
+
+                // Skip items already attempted this pass (persistent failures). If a
+                // batch contains only already-attempted items, no progress is possible
+                // — stop to guarantee termination.
+                var newItems = batch.Where(id => !attempted.Contains(id)).ToList();
+                if (newItems.Count == 0)
+                    break;
+
+                foreach (var nodeId in newItems)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    attempted.Add(nodeId);
+
+                    // Saturation-aware throttle: yield while the worker pool is full or
+                    // analysis work is queued, so reader-triggered extracts win. No
+                    // fixed delay when the system is idle — backfill runs flat-out.
+                    while (isSaturated() || schedulerPendingCount() > 0)
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        try { await Task.Delay(backoffMs, ct); }
+                        catch (OperationCanceledException) { throw; }
+                    }
+
+                    try
+                    {
+                        await generateAsync(nodeId, ct);
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch
+                    {
+                        // Per-item failures are recorded by the generator (ThumbnailState=2).
+                        // The attempt-once-per-pass guarantee means we move on, not retry.
+                    }
+                    totalAttempted++;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Graceful cancellation (e.g. shutdown): return what was attempted so
+            // far. The caller (hosted service / admin endpoint) does not need to
+            // distinguish cancellation from completion.
+        }
+
+        return totalAttempted;
     }
 }

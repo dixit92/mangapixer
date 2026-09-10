@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangaplex.Server.Features.Catalog;
 
+using System.Globalization;
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Core.Reading;
@@ -30,8 +31,14 @@ public sealed class CatalogBrowseService
 
     /// <summary>
     /// Browses children of a parent node (or library root if parentId is null).
-    /// Folders first, then archives, ordered by persisted sort key.
+    /// Folders first, then archives, ordered by the chosen sort key.
     /// Authorization is filtered before pagination.
+    ///
+    /// Sort modes (1.2.0 follow-up):
+    /// - name (default): order by SortKey; cursor = SortKey.
+    /// - recentlyAdded: order by Kind ASC, CreatedAt DESC, Id DESC; cursor encodes (Kind, CreatedAt, Id).
+    /// - recentlyRead: order by Kind ASC, progress UpdatedAt DESC (NULLs last), SortKey ASC;
+    ///   cursor encodes (Kind, ProgressUpdatedAt, SortKey).
     /// </summary>
     public async Task<PageResponse<CatalogNodeDto>> BrowseAsync(
         long userId,
@@ -40,8 +47,16 @@ public sealed class CatalogBrowseService
         string? cursor,
         int pageSize = 50,
         SortDirection direction = SortDirection.Ascending,
+        string sort = "name",
         CancellationToken ct = default)
     {
+        // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
+        sort = sort switch
+        {
+            "recentlyAdded" or "recentlyRead" => sort,
+            _ => "name",
+        };
+
         // Authorization filter — applied before pagination
         var accessibleLibs = await GetAccessibleLibraryIdsAsync(userId, ct);
         if (!accessibleLibs.Contains(libraryId))
@@ -55,58 +70,35 @@ public sealed class CatalogBrowseService
             };
         }
 
-        // Build query with authorization filter
-        var query = _db.CatalogNodes
+        // Base query — common filter, no cursor (authorization + library + parent + availability).
+        var baseQuery = _db.CatalogNodes
             .Where(n => n.LibraryId == libraryId)
             .Where(n => n.Availability != (int)CatalogNodeAvailability.Tombstoned);
 
         if (parentId is null)
-        {
-            // Root children: parent is null or parent is the synthetic root
-            query = query.Where(n => n.ParentId == null);
-        }
+            baseQuery = baseQuery.Where(n => n.ParentId == null);
         else
+            baseQuery = baseQuery.Where(n => n.ParentId == parentId);
+
+        // Total count from the base query (before cursor — fixes the decreasing-count bug
+        // where the old code counted after the cursor filter).
+        var totalCount = await baseQuery.CountAsync(ct);
+
+        // Sort-specific query: ordering, keyset cursor filter, projection, and paging.
+        List<BrowseRow> rows = sort switch
         {
-            query = query.Where(n => n.ParentId == parentId);
-        }
+            "recentlyAdded" => await QueryRecentlyAddedAsync(baseQuery, cursor, pageSize, ct),
+            "recentlyRead" => await QueryRecentlyReadAsync(baseQuery, userId, cursor, pageSize, ct),
+            _ => await QueryNameAsync(baseQuery, cursor, pageSize, direction, ct),
+        };
 
-        // Apply cursor for keyset pagination
-        if (!string.IsNullOrEmpty(cursor))
-        {
-            if (direction == SortDirection.Ascending)
-                query = query.Where(n => string.Compare(n.SortKey, cursor) > 0);
-            else
-                query = query.Where(n => string.Compare(n.SortKey, cursor) < 0);
-        }
+        // Check hasMore and trim to pageSize (the +1 was only to detect hasMore).
+        var hasMore = rows.Count > pageSize;
+        if (hasMore)
+            rows = rows.Take(pageSize).ToList();
 
-        // Order by sort key (folders first, then archives, then natural order)
-        if (direction == SortDirection.Ascending)
-            query = query.OrderBy(n => n.SortKey);
-        else
-            query = query.OrderByDescending(n => n.SortKey);
-
-        // Get total count (with authorization filter already applied)
-        var totalCount = await query.CountAsync(ct);
-
-        // Page the results — project ParentId as the parent's PublicId and
-        // LibraryId as the Library's PublicId (audit defect D29). Clients
-        // must be able to round-trip parentId back into browse?parentId=.
-        // CoverUrl is set for archives (D17); folders get cover from first child.
-        var nodes = await query
-            .Take(pageSize + 1) // +1 to check hasMore
-            .Select(n => new CatalogNodeDto
-            {
-                Id = n.PublicId,
-                ParentId = n.Parent != null ? n.Parent.PublicId : "",
-                LibraryId = n.Library != null ? n.Library.PublicId : "",
-                Kind = (CatalogNodeKind)n.Kind,
-                DisplayName = n.DisplayName,
-                Availability = (CatalogNodeAvailability)n.Availability,
-                PageCount = n.ArchiveItem != null ? n.ArchiveItem.PageCount : null,
-                // Archives get a cover URL; folders get null here (resolved below)
-                CoverUrl = n.Kind == 1 ? "/api/v1/items/" + n.PublicId + "/cover" : null,
-            })
-            .ToListAsync(ct);
+        // Convert to DTOs for enrichment.
+        var nodes = rows.Select(ToDto).ToList();
 
         // For folders, resolve CoverUrl from the first archive child by SortKey (D17)
         var folderIds = nodes.Where(n => n.Kind == CatalogNodeKind.Folder).Select(n => n.Id).ToList();
@@ -185,20 +177,11 @@ public sealed class CatalogBrowseService
             }
         }
 
-        var hasMore = nodes.Count > pageSize;
-        if (hasMore)
-            nodes = nodes.Take(pageSize).ToList();
-
+        // Compute next cursor from the last row on the current page.
         string? nextCursor = null;
-        if (hasMore && nodes.Count > 0)
+        if (hasMore && rows.Count > 0)
         {
-            // The cursor is the sort key of the last item
-            var lastId = nodes[nodes.Count - 1].Id;
-            var lastNode = await _db.CatalogNodes
-                .Where(n => n.PublicId == lastId)
-                .Select(n => n.SortKey)
-                .FirstOrDefaultAsync(ct);
-            nextCursor = lastNode;
+            nextCursor = EncodeCursor(sort, rows[^1]);
         }
 
         return new PageResponse<CatalogNodeDto>
@@ -208,6 +191,245 @@ public sealed class CatalogBrowseService
             NextCursor = nextCursor,
             HasMore = hasMore,
         };
+    }
+
+    // --- Sort-specific query helpers ---
+
+    /// <summary>
+    /// Name sort: order by SortKey (folders first via the SortKey prefix encoding).
+    /// Cursor is the raw SortKey (backward compatible with pre-sort browse).
+    /// </summary>
+    private async Task<List<BrowseRow>> QueryNameAsync(
+        IQueryable<CatalogNodeEntity> baseQuery,
+        string? cursor,
+        int pageSize,
+        SortDirection direction,
+        CancellationToken ct)
+    {
+        var query = baseQuery;
+
+        // Cursor filter — only apply if the cursor is a raw SortKey (no sort prefix).
+        // Cursors from other sorts ("a:..." or "r:...") are ignored (sort changed).
+        if (!string.IsNullOrEmpty(cursor)
+            && !cursor.StartsWith("a:", StringComparison.Ordinal)
+            && !cursor.StartsWith("r:", StringComparison.Ordinal))
+        {
+            if (direction == SortDirection.Ascending)
+                query = query.Where(n => string.Compare(n.SortKey, cursor) > 0);
+            else
+                query = query.Where(n => string.Compare(n.SortKey, cursor) < 0);
+        }
+
+        if (direction == SortDirection.Ascending)
+            query = query.OrderBy(n => n.SortKey);
+        else
+            query = query.OrderByDescending(n => n.SortKey);
+
+        return await query
+            .Take(pageSize + 1)
+            .Select(n => new BrowseRow
+            {
+                Id = n.PublicId,
+                ParentId = n.Parent != null ? n.Parent.PublicId : "",
+                LibraryId = n.Library != null ? n.Library.PublicId : "",
+                Kind = n.Kind,
+                DisplayName = n.DisplayName,
+                Availability = n.Availability,
+                PageCount = n.ArchiveItem != null ? n.ArchiveItem.PageCount : null,
+                CoverUrl = n.Kind == 1 ? "/api/v1/items/" + n.PublicId + "/cover" : null,
+                InternalId = n.Id,
+                CreatedAt = n.CreatedAt,
+                SortKey = n.SortKey,
+            })
+            .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Recently-added sort: folders first, then archives, each by CreatedAt DESC, Id DESC.
+    /// Cursor encodes (Kind, CreatedAtBinary, InternalId).
+    /// </summary>
+    private async Task<List<BrowseRow>> QueryRecentlyAddedAsync(
+        IQueryable<CatalogNodeEntity> baseQuery,
+        string? cursor,
+        int pageSize,
+        CancellationToken ct)
+    {
+        IQueryable<CatalogNodeEntity> query = baseQuery
+            .OrderBy(n => n.Kind)
+            .ThenByDescending(n => n.CreatedAt)
+            .ThenByDescending(n => n.Id);
+
+        // Keyset cursor filter
+        if (!string.IsNullOrEmpty(cursor) && cursor.StartsWith("a:", StringComparison.Ordinal))
+        {
+            var parts = cursor[2..].Split(':', 3);
+            if (parts.Length == 3
+                && int.TryParse(parts[0], CultureInfo.InvariantCulture, out var ck)
+                && long.TryParse(parts[1], CultureInfo.InvariantCulture, out var cb)
+                && long.TryParse(parts[2], CultureInfo.InvariantCulture, out var ci))
+            {
+                try
+                {
+                    var cc = new DateTimeOffset(DateTime.FromBinary(cb), TimeSpan.Zero);
+                    query = query.Where(n =>
+                        n.Kind > ck ||
+                        (n.Kind == ck && n.CreatedAt < cc) ||
+                        (n.Kind == ck && n.CreatedAt == cc && n.Id < ci));
+                }
+                catch { /* invalid binary DateTimeOffset — ignore cursor, start from beginning */ }
+            }
+        }
+
+        return await query
+            .Take(pageSize + 1)
+            .Select(n => new BrowseRow
+            {
+                Id = n.PublicId,
+                ParentId = n.Parent != null ? n.Parent.PublicId : "",
+                LibraryId = n.Library != null ? n.Library.PublicId : "",
+                Kind = n.Kind,
+                DisplayName = n.DisplayName,
+                Availability = n.Availability,
+                PageCount = n.ArchiveItem != null ? n.ArchiveItem.PageCount : null,
+                CoverUrl = n.Kind == 1 ? "/api/v1/items/" + n.PublicId + "/cover" : null,
+                InternalId = n.Id,
+                CreatedAt = n.CreatedAt,
+                SortKey = n.SortKey,
+            })
+            .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Recently-read sort: folders first (by name), then archives with progress
+    /// (by UpdatedAt DESC), then archives without progress (by name).
+    /// Uses a LEFT JOIN to the user's ReadingProgress. NULLs sort last in DESC
+    /// order in SQLite, so ThenByDescending(ProgressUpdatedAt) handles both the
+    /// has-progress/no-progress segmentation and the UpdatedAt ordering in one
+    /// expression. Cursor encodes (Kind, ProgressUpdatedAtBinary, SortKey).
+    /// </summary>
+    private async Task<List<BrowseRow>> QueryRecentlyReadAsync(
+        IQueryable<CatalogNodeEntity> baseQuery,
+        long userId,
+        string? cursor,
+        int pageSize,
+        CancellationToken ct)
+    {
+        // LEFT JOIN to the user's reading progress for sort ordering.
+        IQueryable<BrowseRow> query = from n in baseQuery
+            join p in _db.ReadingProgress.Where(rp => rp.UserId == userId)
+                on n.Id equals p.ItemId into pg
+            from p in pg.DefaultIfEmpty()
+            select new BrowseRow
+            {
+                Id = n.PublicId,
+                ParentId = n.Parent != null ? n.Parent.PublicId : "",
+                LibraryId = n.Library != null ? n.Library.PublicId : "",
+                Kind = n.Kind,
+                DisplayName = n.DisplayName,
+                Availability = n.Availability,
+                PageCount = n.ArchiveItem != null ? n.ArchiveItem.PageCount : null,
+                CoverUrl = n.Kind == 1 ? "/api/v1/items/" + n.PublicId + "/cover" : null,
+                InternalId = n.Id,
+                CreatedAt = n.CreatedAt,
+                SortKey = n.SortKey,
+                ProgressUpdatedAt = (DateTimeOffset?)p.UpdatedAt,
+            };
+
+        // Ordering: Kind ASC (folders first), ProgressUpdatedAt DESC (has-progress
+        // archives by recency, NULLs last = no-progress archives), SortKey ASC (tiebreaker).
+        query = query
+            .OrderBy(r => r.Kind)
+            .ThenByDescending(r => r.ProgressUpdatedAt)
+            .ThenBy(r => r.SortKey);
+
+        // Keyset cursor filter — must handle NULL ProgressUpdatedAt explicitly.
+        if (!string.IsNullOrEmpty(cursor) && cursor.StartsWith("r:", StringComparison.Ordinal))
+        {
+            var parts = cursor[2..].Split(':', 3);
+            if (parts.Length == 3
+                && int.TryParse(parts[0], CultureInfo.InvariantCulture, out var ck))
+            {
+                var cs = parts[2];
+                if (string.IsNullOrEmpty(parts[1]))
+                {
+                    // Cursor is at a no-progress row: only later no-progress rows (by SortKey) follow.
+                    query = query.Where(r =>
+                        r.Kind > ck ||
+                        (r.Kind == ck && r.ProgressUpdatedAt == null
+                            && string.Compare(r.SortKey, cs) > 0));
+                }
+                else if (long.TryParse(parts[1], CultureInfo.InvariantCulture, out var cb))
+                {
+                    try
+                    {
+                        var cpu = new DateTimeOffset(DateTime.FromBinary(cb), TimeSpan.Zero);
+                        // Cursor is at a has-progress row: remaining has-progress rows
+                        // (earlier UpdatedAt, or same UpdatedAt + later SortKey) AND
+                        // all no-progress rows (they come after every has-progress row).
+                        query = query.Where(r =>
+                            r.Kind > ck ||
+                            (r.Kind == ck && r.ProgressUpdatedAt != null && r.ProgressUpdatedAt < cpu) ||
+                            (r.Kind == ck && r.ProgressUpdatedAt != null
+                                && r.ProgressUpdatedAt == cpu && string.Compare(r.SortKey, cs) > 0) ||
+                            (r.Kind == ck && r.ProgressUpdatedAt == null));
+                    }
+                    catch { /* invalid binary DateTimeOffset — ignore cursor */ }
+                }
+            }
+        }
+
+        return await query.Take(pageSize + 1).ToListAsync(ct);
+    }
+
+    // --- Cursor helpers ---
+
+    /// <summary>
+    /// Encodes a cursor for the given sort from a browse row. The cursor is opaque
+    /// to the client; the prefix ("a:" / "r:") identifies the sort so mismatched
+    /// cursors are safely ignored on the next request.
+    /// </summary>
+    private static string EncodeCursor(string sort, BrowseRow row) => sort switch
+    {
+        "recentlyAdded" => $"a:{row.Kind}:{row.CreatedAt.UtcDateTime.ToBinary()}:{row.InternalId}",
+        "recentlyRead" => row.ProgressUpdatedAt is { } pu
+            ? $"r:{row.Kind}:{pu.UtcDateTime.ToBinary()}:{row.SortKey}"
+            : $"r:{row.Kind}::{row.SortKey}",
+        _ => row.SortKey,
+    };
+
+    /// <summary>
+    /// Converts a browse row to a CatalogNodeDto (strips cursor-only fields).
+    /// </summary>
+    private static CatalogNodeDto ToDto(BrowseRow row) => new()
+    {
+        Id = row.Id,
+        ParentId = row.ParentId,
+        LibraryId = row.LibraryId,
+        Kind = (CatalogNodeKind)row.Kind,
+        DisplayName = row.DisplayName,
+        Availability = (CatalogNodeAvailability)row.Availability,
+        PageCount = row.PageCount,
+        CoverUrl = row.CoverUrl,
+    };
+
+    /// <summary>
+    /// Intermediate projection type carrying both DTO fields and cursor-relevant
+    /// fields so the cursor can be computed without a re-fetch.
+    /// </summary>
+    private sealed record BrowseRow
+    {
+        public required string Id { get; init; }
+        public required string ParentId { get; init; }
+        public required string LibraryId { get; init; }
+        public required int Kind { get; init; }
+        public required string DisplayName { get; init; }
+        public required int Availability { get; init; }
+        public int? PageCount { get; init; }
+        public string? CoverUrl { get; init; }
+        public long InternalId { get; init; }
+        public DateTimeOffset CreatedAt { get; init; }
+        public string SortKey { get; init; } = "";
+        public DateTimeOffset? ProgressUpdatedAt { get; init; }
     }
 
     /// <summary>

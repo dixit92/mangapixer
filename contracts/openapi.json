@@ -920,6 +920,13 @@
               "format": "int32",
               "default": 50
             }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {

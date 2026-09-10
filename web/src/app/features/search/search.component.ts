@@ -2,13 +2,13 @@ import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 
 import { ApiService } from '../../core/api/api.service';
+import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
 
 /**
@@ -21,11 +21,11 @@ import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
     CommonModule,
     FormsModule,
     RouterLink,
-    MatCardModule,
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
     MatButtonModule,
+    CoverImageDirective,
   ],
   template: `
     <h2>Search</h2>
@@ -39,16 +39,15 @@ import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
       <p class="result-count">{{ totalCount() }} results</p>
       <div class="results-grid">
         @for (node of results(); track node.id) {
-          <mat-card [routerLink]="getNodeLink(node)" class="result-card">
-            <mat-card-content>
-              @if (node.kind === 'Folder') {
-                <mat-icon>folder</mat-icon>
-              } @else {
-                <mat-icon>menu_book</mat-icon>
+          <a [routerLink]="getNodeLink(node)" class="result-card">
+            <div class="cover">
+              @if (node.kind === 'Archive') {
+                <img appCover [src]="coverUrl(node.id)" alt="" loading="lazy">
               }
-              <h3>{{ node.displayName }}</h3>
-            </mat-card-content>
-          </mat-card>
+              <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
+            </div>
+            <div class="result-title" [title]="node.displayName">{{ node.displayName }}</div>
+          </a>
         }
       </div>
     } @else if (searched()) {
@@ -57,15 +56,24 @@ import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
   `,
   styles: [`
     .search-field { width: 100%; max-width: 600px; }
-    .result-count { color: #666; margin: 16px 0; }
+    .result-count { color: #999; margin: 16px 0; }
     .results-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 16px;
     }
-    .result-card { cursor: pointer; }
-    mat-icon { font-size: 40px; width: 40px; height: 40px; color: #666; }
-    h3 { margin: 8px 0 0 0; font-size: 14px; }
+    .result-card { cursor: pointer; text-decoration: none; color: inherit; display: block; }
+    .cover {
+      position: relative; aspect-ratio: 2 / 3; border-radius: 8px; overflow: hidden;
+      background: rgba(255,255,255,0.06);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cover img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
+    .cover-fallback { font-size: 44px; width: 44px; height: 44px; color: #777; position: absolute; z-index: 0; }
+    .result-title {
+      margin-top: 6px; font-size: 13px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
     .no-results { color: #999; padding: 32px; text-align: center; }
   `],
 })
@@ -89,6 +97,11 @@ export class SearchComponent {
       return ['/libraries', node.libraryId, 'browse', node.id];
     }
     return ['/reader', node.id];
+  }
+
+  /** Cover URL for an archive result (folders keep the icon — search has no folder cover). */
+  coverUrl(itemId: string): string {
+    return `/api/v1/items/${itemId}/cover`;
   }
 
   private doSearch(): void {

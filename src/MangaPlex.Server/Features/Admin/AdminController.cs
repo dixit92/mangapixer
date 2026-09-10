@@ -150,7 +150,18 @@ public sealed class AdminController : ControllerBase
         var library = await _db.Libraries.FirstOrDefaultAsync(l => l.PublicId == id, ct);
         if (library is null) return NotFound();
 
-        var success = await _registration.UnregisterAsync(library.Id, ct);
+        // Deleting a library is a large multi-table write; SQLite is single-writer,
+        // so refuse cleanly while any scan is active (mirrors the register guard).
+        // Reads are unaffected (WAL snapshots).
+        var scanActive = await _db.ScanRuns.AnyAsync(s => s.Status == 0 || s.Status == 1, ct);
+        if (scanActive)
+            return Conflict(new ApiError
+            {
+                Error = "scan_in_progress",
+                Message = "A library scan is in progress. Please delete the library after it completes.",
+            });
+
+        var success = await _registration.DeleteAsync(library.Id, ct);
         if (!success) return NotFound();
         return NoContent();
     }
@@ -285,6 +296,29 @@ public sealed class AdminController : ControllerBase
                 if (result.Success)
                 {
                     await EnqueueAnalysisForPendingItemsAsync(scopedDb, scopedJobScheduler, libraryId, scanCt);
+
+                    // Post-scan thumbnail backfill (post-1.2.0): kick a continuous
+                    // backfill for this library to catch ready-but-missing or
+                    // stale (content-version-bumped) thumbnails. Newly-scanned
+                    // items are AnalysisState==1 (pending), so the backfill query
+                    // won't touch them until analyzed — at which point
+                    // analysis-time generation already made their thumbnail
+                    // (idempotent skip, no double-generate). Fire-and-forget;
+                    // the runner throttles itself against reader demand.
+                    var postScanLibraryId = libraryId;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            using var thumbScope = _scopeFactory.CreateScope();
+                            var thumbService = thumbScope.ServiceProvider.GetRequiredService<ThumbnailGenerationService>();
+                            await thumbService.RunContinuousBackfillAsync(postScanLibraryId, CancellationToken.None);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(LogEvents.Worker.ThumbnailGenerationFailed, ex, "Post-scan thumbnail backfill failed (library {LibraryId}): {Error}", postScanLibraryId, ex.GetType().Name);
+                        }
+                    }, CancellationToken.None);
                 }
             }
             catch (OperationCanceledException)
@@ -448,11 +482,14 @@ public sealed class AdminController : ControllerBase
     // --- Thumbnail backfill (1.2.0) ---
 
     /// <summary>
-    /// Enqueues durable thumbnail regeneration for all ready archive items in
-    /// a library that lack a current thumbnail. Returns a count of items
-    /// queued; generation runs in the background at low priority and does not
-    /// block the request. This backfills items that were analyzed before the
-    /// persistent-thumbnail feature existed, or whose source changed.
+    /// Triggers a continuous, throttled backfill that generates durable
+    /// thumbnails for ALL ready archive items in a library that lack a current
+    /// thumbnail (post-1.2.0: uncapped, replaces the old 10k fire-and-forget
+    /// loop). Returns a count of items queued; generation runs in the
+    /// background and does not block the request. This backfills items that
+    /// were analyzed before the persistent-thumbnail feature existed, or whose
+    /// source changed. The runner yields when the worker pool is saturated or
+    /// analysis work is pending, so interactive reader reads are not starved.
     /// </summary>
     [HttpPost("libraries/{id}/thumbnails/regenerate")]
     public async Task<IActionResult> RegenerateThumbnails(string id, CancellationToken ct)
@@ -460,39 +497,36 @@ public sealed class AdminController : ControllerBase
         var library = await _db.Libraries.FirstOrDefaultAsync(l => l.PublicId == id, ct);
         if (library is null) return NotFound();
 
-        var itemsNeedingThumbnails = await ThumbnailGenerationService.GetItemsNeedingThumbnailsAsync(
-            _db, library.Id, limit: 10_000, ct);
+        var queuedCount = await ThumbnailGenerationService.CountItemsNeedingThumbnailsAsync(_db, library.Id, ct);
 
-        if (itemsNeedingThumbnails.Count == 0)
+        if (queuedCount == 0)
         {
             _logger.LogInformation(LogEvents.Worker.ThumbnailBackfillBatch, "Thumbnail regenerate: no items need thumbnails in library {LibraryId}", library.Id);
             return Ok(new ThumbnailRegenerateResponse { QueuedCount = 0 });
         }
 
         _logger.LogInformation(LogEvents.Worker.ThumbnailBackfillEnqueued, "Thumbnail regenerate: enqueuing {Count} items in library {LibraryId}",
-            itemsNeedingThumbnails.Count, library.Id);
+            queuedCount, library.Id);
 
-        // Fire-and-forget: generate thumbnails in the background. Each call
-        // uses the worker pool to extract + encode the first page. Low
-        // priority — this must not block interactive reader page requests.
+        // Fire-and-forget: the continuous runner processes all items needing
+        // thumbnails (uncapped), throttled against reader demand. Each item is
+        // attempted once per pass; the runner stops when none remain.
+        var regenerateLibraryId = library.Id;
         _ = Task.Run(async () =>
         {
-            foreach (var nodeId in itemsNeedingThumbnails)
+            try
             {
-                try
-                {
-                    using var scope = _scopeFactory.CreateScope();
-                    var thumbService = scope.ServiceProvider.GetRequiredService<ThumbnailGenerationService>();
-                    await thumbService.GenerateForItemAsync(nodeId);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(LogEvents.Worker.ThumbnailGenerationFailed, ex, "Thumbnail regenerate failed (item {ItemId}): {Error}", nodeId, ex.GetType().Name);
-                }
+                using var scope = _scopeFactory.CreateScope();
+                var thumbService = scope.ServiceProvider.GetRequiredService<ThumbnailGenerationService>();
+                await thumbService.RunContinuousBackfillAsync(regenerateLibraryId, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(LogEvents.Worker.ThumbnailGenerationFailed, ex, "Thumbnail regenerate failed (library {LibraryId}): {Error}", regenerateLibraryId, ex.GetType().Name);
             }
         }, CancellationToken.None);
 
-        return Accepted(new ThumbnailRegenerateResponse { QueuedCount = itemsNeedingThumbnails.Count });
+        return Accepted(new ThumbnailRegenerateResponse { QueuedCount = queuedCount });
     }
 
     // --- Users ---

@@ -84,6 +84,28 @@ public sealed class WorkerPoolOptions
 }
 
 /// <summary>
+/// Configuration for the continuous thumbnail backfill (post-1.2.0). The backfill
+/// generates durable thumbnails for ready archive items that lack a current
+/// thumbnail, in bounded batches, yielding when the worker pool is saturated or
+/// analysis work is pending so it does not starve interactive reader reads.
+/// Override via <c>MangaPlex:Media:ThumbnailBackfill:*</c>.
+/// </summary>
+public sealed class ThumbnailBackfillOptions
+{
+    /// <summary>
+    /// Number of items queried per batch in the continuous backfill loop. Bounded
+    /// so a very large library does not load one huge list into memory. Default: 200.
+    /// </summary>
+    public int BatchSize { get; set; } = 200;
+
+    /// <summary>
+    /// Delay between saturation/backoff polls (milliseconds) when the worker pool
+    /// is saturated or analysis work is pending. Default: 200ms.
+    /// </summary>
+    public int BackoffMs { get; set; } = 200;
+}
+
+/// <summary>
 /// Job priority levels. Higher priority jobs are dispatched first.
 /// Reader demand always has priority over background analysis.
 /// </summary>

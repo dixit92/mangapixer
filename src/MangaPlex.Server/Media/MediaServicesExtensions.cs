@@ -18,6 +18,23 @@ public static class MediaServicesExtensions
         configure(options);
 
         services.AddSingleton(options);
+
+        // Continuous thumbnail backfill options (post-1.2.0). Bound from
+        // MangaPlex:Media:ThumbnailBackfill:*; a default instance is used when
+        // the section is absent so the backfill works without explicit config.
+        services.AddSingleton(sp =>
+        {
+            var config = sp.GetService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var opts = new ThumbnailBackfillOptions();
+            if (config is null)
+                return opts;
+            var section = config.GetSection("MangaPlex:Media:ThumbnailBackfill");
+            if (int.TryParse(section["BatchSize"], out var batchSize) && batchSize > 0)
+                opts.BatchSize = batchSize;
+            if (int.TryParse(section["BackoffMs"], out var backoffMs) && backoffMs > 0)
+                opts.BackoffMs = backoffMs;
+            return opts;
+        });
         services.AddSingleton<ScratchWorkspaceManager>(sp =>
             new ScratchWorkspaceManager(options.ScratchRoot, options.ScratchBudgetBytes,
                 sp.GetService<ILogger<ScratchWorkspaceManager>>()));
@@ -52,7 +69,8 @@ public static class MediaServicesExtensions
             var store = sp.GetRequiredService<ThumbnailStore>();
             var cache = sp.GetRequiredService<CacheService>();
             var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
-            return new ThumbnailGenerationService(pool, store, cache, scopeFactory,
+            var backfillOptions = sp.GetRequiredService<ThumbnailBackfillOptions>();
+            return new ThumbnailGenerationService(pool, store, cache, scopeFactory, backfillOptions,
                 sp.GetService<ILogger<ThumbnailGenerationService>>());
         });
 

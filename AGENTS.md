@@ -189,3 +189,50 @@ source of truth and are called directly.
 
 Scripts report failures with file/test references and never modify code to hide
 failures.
+
+## Parallel worktrees (multi-agent)
+
+When several agents implement different lanes at once, isolation is mandatory.
+This process is the standard; it exists because the 2026-09-09 post-1.2.0 cycle
+proved the failure mode (see the anti-patterns below).
+
+**Clarifying the "no commits by default" invariant:** that invariant forbids a
+*remote*, pushing, and landing on the integration branch without review. It does
+**not** forbid local commits on your own lane branch — those are the sanctioned
+hand-off mechanism here. The main agent merges *commits*, never working-tree
+diffs or stashes.
+
+1. **One worktree + one branch per lane.**
+   `git worktree add ../lp-mangaplex.<lane> -b feature/<lane> <integration-branch>`.
+   Never share a working tree between agents, and never do lane work directly in
+   the main checkout while other agents are active.
+2. **Branch off the current integration branch** (e.g. `dev/1.2.0`), not stale
+   `main` or a release tag, so your lane already contains shipped prior work and
+   merges cleanly.
+3. **Commit to your lane branch — do not leave work as uncommitted working-tree
+   diffs.** Uncommitted lanes can't be told apart, get accidentally stashed
+   together, and are fragile to integrate. Local commits only (no remote, no
+   push). Commit early enough that a hand-off is a branch, not a dirty tree.
+4. **Never touch another agent's worktree, and never stash changes that aren't
+   yours.** If you find foreign uncommitted changes in your working tree, stop —
+   you are in a shared checkout and must move to your own worktree.
+5. **Declare file ownership up front** in the lane's plan note, and flag hot/shared
+   files (e.g. `AdminController.cs`, `CatalogBrowseService.cs`). If two lanes must
+   edit one file, sequence them or split by method region and flag it for the merge.
+6. **Verify your lane in isolation** (`sdk:10.0` container) before hand-off; report
+   tests by kind.
+7. **The main agent owns integration:** review each lane branch, merge one lane at
+   a time into the integration branch, build + test after each, resolve shared-file
+   overlaps, then re-verify combined.
+8. **Cleanup after merge:** `git worktree remove <dir>` then `git branch -d
+   feature/<lane>`. If a worktree has a `node_modules` **junction/symlink**, delete
+   the link first with `cmd //c rmdir "<path>"` (removes the link only, never
+   follows into the target) before removing the worktree.
+
+**Anti-patterns (all observed 2026-09-09, do not repeat):**
+- Two lanes' uncommitted diffs intermixed in the shared main checkout.
+- Leaving a lane uncommitted, so another agent stashed it into one bundle mixing
+  multiple lanes ("other-agent-work-not-mine") — nearly clobbering a third lane.
+- Branching off a stale base (`main`/`v1.2.0`) that lacked prior merged lanes.
+- A cross-lane "it doesn't compile" claim that was really a half-stashed tree —
+  always verify a build in a clean lane, not a shared/partially-stashed one.

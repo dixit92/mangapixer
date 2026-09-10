@@ -15,6 +15,11 @@ import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode } 
 
 type ReaderPhase = 'preparing' | 'ready' | 'error';
 type ReaderView = 'paged' | 'spread' | 'webtoon';
+// Per-device default page mode (owner request, 1.2.x): a device-local override of
+// the layout, distinct from the server's content-semantic ReaderMode. 'auto' picks
+// paged (portrait) / spread (landscape) live as the device rotates. `null` (unset)
+// means "follow whatever the server resolves for the item".
+type ViewPref = 'auto' | 'paged' | 'spread' | 'webtoon';
 type FitMode = 'screen' | 'width' | 'height' | 'original';
 
 /**
@@ -98,10 +103,16 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
             <mat-icon>{{ viewIcon() }}</mat-icon>
           </button>
           <mat-menu #modeMenu="matMenu">
-            <button mat-menu-item (click)="setView('paged')"><mat-icon>crop_portrait</mat-icon> Single page</button>
-            <button mat-menu-item (click)="setSpread(false)"><mat-icon>import_contacts</mat-icon> Double page</button>
-            <button mat-menu-item (click)="setSpread(true)"><mat-icon>auto_stories</mat-icon> Double page (offset cover)</button>
-            <button mat-menu-item (click)="setView('webtoon')"><mat-icon>view_day</mat-icon> Vertical (webtoon)</button>
+            <button mat-menu-item (click)="chooseView('auto')">
+              <mat-icon>{{ viewPref() === 'auto' ? 'check' : 'screen_rotation' }}</mat-icon> Auto (orientation)</button>
+            <button mat-menu-item (click)="chooseView('paged')">
+              <mat-icon>{{ viewPref() === 'paged' ? 'check' : 'crop_portrait' }}</mat-icon> Single page</button>
+            <button mat-menu-item (click)="chooseSpread(false)">
+              <mat-icon>{{ viewPref() === 'spread' && !coverIsStandalone() ? 'check' : 'import_contacts' }}</mat-icon> Double page</button>
+            <button mat-menu-item (click)="chooseSpread(true)">
+              <mat-icon>{{ viewPref() === 'spread' && coverIsStandalone() ? 'check' : 'auto_stories' }}</mat-icon> Double page (offset cover)</button>
+            <button mat-menu-item (click)="chooseView('webtoon')">
+              <mat-icon>{{ viewPref() === 'webtoon' ? 'check' : 'view_day' }}</mat-icon> Vertical (webtoon)</button>
           </mat-menu>
 
           @if (view() === 'webtoon') {
@@ -411,8 +422,11 @@ export class ReaderComponent implements OnInit, OnDestroy {
   // shown alone and pages pair 1-2, 3-4… (right for a typical standalone cover);
   // when false, pairing starts at 0-1, 2-3… No reliable way to infer which a
   // given comic wants, so it's a reader-side toggle (two menu modes). Default on.
-  readonly coverIsStandalone = signal(true);
+  readonly coverIsStandalone = signal(this.loadCoverStandalone());
   readonly webtoonWidthPct = signal<number>(this.loadWebtoonWidth()); // requirement 6
+  // Per-device default page mode (1.2.x). Highlighted in the reading-mode menu; a
+  // non-null value overrides the server-resolved layout on every chapter open.
+  readonly viewPref = signal<ViewPref | null>(this.loadViewPref());
 
   // Immersive chrome (2026-09-08): the toolbar + nav auto-hide while reading and
   // reveal on interaction, matching well-known manga readers. `chromeVisible`
@@ -494,6 +508,9 @@ export class ReaderComponent implements OnInit, OnDestroy {
       const id = params.get('itemId') ?? '';
       this.itemId.set(id);
       this.pollAttempts = 0;
+      // Reset the page-prefetch cache for the new chapter (URLs are per-item).
+      this.prefetchedUrls.clear();
+      this.prefetchImgs = [];
       // "at=end" (set when arriving via previous-chapter back-navigation) asks to
       // land on the last page instead of resuming from saved progress.
       this.landOnLastPage = this.route.snapshot.queryParamMap.get('at') === 'end';
@@ -502,8 +519,10 @@ export class ReaderComponent implements OnInit, OnDestroy {
       // item override → nearest folder default → library default → user's personal
       // default → paged LTR. Failure falls back to paged LTR.
       this.api.getEffectiveReaderMode(id).subscribe({
-        next: (res) => this.applyDefaultMode(res.readerMode),
-        error: () => { /* keep defaults */ },
+        // Server mode sets direction (RTL for manga) + a baseline view; a per-device
+        // preference, if any, then overrides the VIEW only (keeping direction).
+        next: (res) => { this.applyDefaultMode(res.readerMode); this.applyDeviceViewPreference(); },
+        error: () => { this.applyDeviceViewPreference(); },
       });
       this.loadManifest();
       this.loadNeighbors(id);
@@ -535,6 +554,34 @@ export class ReaderComponent implements OnInit, OnDestroy {
       case 'VerticalWebtoon': this.view.set('webtoon'); break;
       default: this.view.set('paged'); this.direction.set('ltr');
     }
+  }
+
+  /**
+   * Apply the per-device layout preference over the server-resolved view. Only the
+   * VIEW changes — `direction` (RTL for manga) stays as the server resolved it. When
+   * no device preference is stored, the server default stands unchanged.
+   */
+  private applyDeviceViewPreference(): void {
+    const pref = this.viewPref();
+    if (!pref) return;
+    if (pref === 'auto') { this.applyAutoView(); return; }
+    if (pref === 'spread') { this.view.set('spread'); return; }
+    this.view.set(pref); // 'paged' | 'webtoon'
+  }
+
+  /** Auto (orientation) resolution: landscape → double page, portrait → single. */
+  private applyAutoView(): void {
+    const landscape = window.innerWidth >= window.innerHeight;
+    this.setView(landscape ? 'spread' : 'paged');
+  }
+
+  // Live orientation reactivity: while the device preference is 'auto', flip
+  // paged↔spread as the viewport rotates/resizes. Signal dedup makes this a no-op
+  // unless the orientation actually crossed the square boundary.
+  @HostListener('window:resize')
+  @HostListener('window:orientationchange')
+  onViewportChange(): void {
+    if (this.phase() === 'ready' && this.viewPref() === 'auto') this.applyAutoView();
   }
 
   @HostListener('document:fullscreenchange')
@@ -714,9 +761,50 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.phase.set('ready');
     // Show the chrome briefly on entry, then let it auto-hide for immersion.
     this.revealChrome();
+    this.prefetchAround(index);
     if (this.view() === 'webtoon') {
       // Scroll the saved page into view once the DOM is present.
       queueMicrotask(() => this.scrollWebtoonTo(index));
+    }
+  }
+
+  // Bounded client-side page prefetch: warm the browser cache with the next few
+  // (and previous) page images so paging is instant. Page URLs are immutable
+  // (content-version-keyed cache headers), so a prefetched image is reused by the
+  // reader's <img> without a re-transfer. Webtoon is native-lazy, so skip it.
+  // Ahead-heavy since reading is overwhelmingly forward; manga flips fast, so keep a
+  // generous forward buffer. (Vertical/webtoon read-ahead is a separate concern —
+  // it relies on native lazy-load; a scroll-driven prefetch is a backlog item.)
+  private static readonly PrefetchAhead = 6;
+  private static readonly PrefetchBehind = 2;
+  private readonly prefetchedUrls = new Set<string>();
+  private prefetchImgs: HTMLImageElement[] = [];
+
+  private prefetchAround(index: number): void {
+    if (this.view() === 'webtoon') return;
+    const all = this.pages();
+    const n = all.length;
+    if (n === 0) return;
+
+    const targets: number[] = [];
+    for (let d = 1; d <= ReaderComponent.PrefetchAhead; d++) {
+      if (index + d < n) targets.push(index + d);
+    }
+    for (let d = 1; d <= ReaderComponent.PrefetchBehind; d++) {
+      if (index - d >= 0) targets.push(index - d);
+    }
+
+    for (const i of targets) {
+      const url = this.pageUrlFor(all[i]);
+      if (!url || this.prefetchedUrls.has(url)) continue;
+      this.prefetchedUrls.add(url);
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = url; // browser fetches + caches; the reader <img> reuses it
+      // Retain a bounded number of refs so they aren't GC'd before caching,
+      // without leaking across a long reading session.
+      this.prefetchImgs.push(img);
+      if (this.prefetchImgs.length > 24) this.prefetchImgs.shift();
     }
   }
 
@@ -868,6 +956,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
     if (clamped === this.currentPage()) return;
     this.currentPage.set(clamped);
     this.pageLoading.set(true);
+    this.prefetchAround(clamped);
     this.saveProgress();
   }
 
@@ -959,6 +1048,36 @@ export class ReaderComponent implements OnInit, OnDestroy {
     return 70; // sensible default
   }
 
+  // --- Per-device default page mode (1.2.x): stored per device in localStorage ---
+
+  private static readonly ViewPrefKey = 'mangaplex-reader-view';
+  private static readonly CoverStandaloneKey = 'mangaplex-reader-cover-standalone';
+
+  private loadViewPref(): ViewPref | null {
+    try {
+      const raw = localStorage.getItem(ReaderComponent.ViewPrefKey);
+      if (raw === 'auto' || raw === 'paged' || raw === 'spread' || raw === 'webtoon') return raw;
+    } catch { /* private mode / unavailable */ }
+    return null; // unset → follow the server-resolved mode
+  }
+
+  private saveViewPref(pref: ViewPref): void {
+    try { localStorage.setItem(ReaderComponent.ViewPrefKey, pref); } catch { /* private mode */ }
+  }
+
+  private saveCoverStandalone(offset: boolean): void {
+    try { localStorage.setItem(ReaderComponent.CoverStandaloneKey, offset ? '1' : '0'); } catch { /* private mode */ }
+  }
+
+  private loadCoverStandalone(): boolean {
+    try {
+      const raw = localStorage.getItem(ReaderComponent.CoverStandaloneKey);
+      if (raw === '0') return false;
+      if (raw === '1') return true;
+    } catch { /* private mode / unavailable */ }
+    return true; // default: cover shown standalone
+  }
+
   setView(view: ReaderView): void {
     const wasWebtoon = this.view() === 'webtoon';
     this.view.set(view);
@@ -976,6 +1095,24 @@ export class ReaderComponent implements OnInit, OnDestroy {
   setSpread(offset: boolean): void {
     this.coverIsStandalone.set(offset);
     this.setView('spread');
+  }
+
+  /**
+   * Menu handlers: an explicit reading-mode pick is a per-device choice, so it is
+   * persisted (survives reloads and applies to future chapters on this device) in
+   * addition to switching the current view.
+   */
+  chooseView(pref: ViewPref): void {
+    this.viewPref.set(pref);
+    this.saveViewPref(pref);
+    if (pref === 'auto') this.applyAutoView();
+    else this.setView(pref === 'spread' ? 'spread' : pref);
+  }
+
+  chooseSpread(offset: boolean): void {
+    this.coverIsStandalone.set(offset);
+    this.saveCoverStandalone(offset);
+    this.chooseView('spread');
   }
 
   // --- Webtoon scroll tracking ---
