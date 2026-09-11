@@ -9,6 +9,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 
 import { ReaderComponent } from './reader.component';
+import { ReadStateService } from '../../core/reading/read-state.service';
 import { ManifestPageEntry, CatalogNodeDto } from '../../core/api/api-types';
 
 function makePages(n: number): ManifestPageEntry[] {
@@ -212,7 +213,7 @@ describe('ReaderComponent double-spread pairing', () => {
     c.currentPage.set(2); // last page
 
     c.nextPage();
-    expect(nav).toHaveBeenCalledWith(['/reader', 'next-item']);
+    expect(nav).toHaveBeenCalledWith(['/reader', 'next-item'], { replaceUrl: true });
   });
 
   it('does not navigate past the last page when there is no next chapter', () => {
@@ -367,6 +368,39 @@ describe('ReaderComponent exit navigation (goBack)', () => {
 });
 
 /**
+ * Stale read-status after Back (1.7.1 fix). The reader is the notifying half of
+ * the fix — on exit it tells `ReadStateService` which item's read/progress state
+ * may have changed, so the retained browse view (see the 1.6.2
+ * `LibraryBrowseReuseStrategy`) can patch that one card without a full re-fetch.
+ * The browse-side patching is covered in `library-browse.component.spec.ts`.
+ */
+describe('ReaderComponent read-state notification on exit (1.7.1)', () => {
+  function create() {
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => 'item-1' }) } },
+      ],
+    });
+    return TestBed.createComponent(ReaderComponent).componentInstance;
+  }
+
+  it('notifies ReadStateService with the exiting item id on ngOnDestroy', () => {
+    const c = create();
+    c.itemId.set('item-1');
+    const notify = vi.spyOn(TestBed.inject(ReadStateService), 'notifyChanged');
+
+    c.ngOnDestroy();
+
+    expect(notify).toHaveBeenCalledWith('item-1');
+  });
+});
+
+/**
  * Render tests for the reader controls. detectChanges() runs ngOnInit (which
  * fires HTTP calls to the testing backend — left pending, never flushed), then we
  * drive phase/fit/fullscreen signals and assert the rendered DOM.
@@ -401,6 +435,12 @@ describe('ReaderComponent controls rendering', () => {
     expect(el.querySelector('.reader-controls')).toBeNull();
     expect(el.querySelector('.edge.prev')).toBeTruthy();
     expect(el.querySelector('.edge.next')).toBeTruthy();
+  });
+
+  it('labels the back button "Back to folder" (1.7.1: Back always exits to the folder)', () => {
+    const { fixture } = renderReady();
+    const back = (fixture.nativeElement as HTMLElement).querySelector('.reader-toolbar button') as HTMLElement;
+    expect(back.getAttribute('aria-label')).toBe('Back to folder');
   });
 
   it('applies the selected fit class to the page image', () => {
@@ -711,9 +751,10 @@ describe('ReaderComponent webtoon scroll-to-bottom completion', () => {
 });
 
 /**
- * 1.7.0 reader touch-UX lane. Four additive features, all through the component's
- * public surface: direction-aware swipe page-turning, the draggable page scrubber,
- * reader-bar chapter arrows, and webtoon auto next/prev chapter.
+ * 1.7.0 reader touch-UX lane, all through the component's public surface:
+ * direction-aware swipe page-turning, the draggable page scrubber, and
+ * reader-bar chapter arrows. (The fourth 1.7.0 feature, webtoon auto
+ * next/prev chapter, was reverted in 1.7.1 — see the describe block above.)
  */
 
 /** A minimal PointerEvent stand-in carrying only the fields the handlers read. */
@@ -855,10 +896,10 @@ describe('ReaderComponent reader-bar chapter arrows (requirement 3)', () => {
     c.prevNeighbor.set({ id: 'prev-item', displayName: 'Chapter 0' });
 
     c.nextChapter();
-    expect(nav).toHaveBeenCalledWith(['/reader', 'next-item']);
+    expect(nav).toHaveBeenCalledWith(['/reader', 'next-item'], { replaceUrl: true });
 
     c.prevChapter();
-    expect(nav).toHaveBeenCalledWith(['/reader', 'prev-item'], { queryParams: { at: 'end' } });
+    expect(nav).toHaveBeenCalledWith(['/reader', 'prev-item'], { queryParams: { at: 'end' }, replaceUrl: true });
   });
 
   it('renders the arrows disabled when there is no neighbor, enabled when there is', () => {
@@ -956,7 +997,12 @@ describe('ReaderComponent page scrubber (requirement 2)', () => {
   });
 });
 
-describe('ReaderComponent webtoon auto next/prev chapter (requirement 4)', () => {
+describe('ReaderComponent webtoon auto-advance REMOVED (1.7.1 owner revert)', () => {
+  // The 1.7.0 webtoon auto-next/auto-previous-on-scroll-up behavior is gone —
+  // the scroll-up gesture fought the fullscreen-exit gesture on touch. These
+  // are regression tests confirming scrolling to either edge never navigates;
+  // the explicit chapter buttons (reader-bar arrows + end-of-chapter footer)
+  // remain the only way to move between chapters in webtoon.
   function create() {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
@@ -983,14 +1029,10 @@ describe('ReaderComponent webtoon auto next/prev chapter (requirement 4)', () =>
     (c as unknown as { scroller: () => { nativeElement: HTMLElement } }).scroller = () => ({ nativeElement: el });
   }
 
-  function armed(c: ReaderComponent): 'next' | 'prev' | null {
-    return (c as unknown as { webtoonEdgeArmed: 'next' | 'prev' | null }).webtoonEdgeArmed;
-  }
-
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
-  it('arms and (after a dwell) fires next-chapter navigation at the true bottom', () => {
+  it('scrolling to the true bottom never navigates, even with a next chapter available', () => {
     const c = create();
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     c.pages.set(makePages(3));
@@ -1000,79 +1042,38 @@ describe('ReaderComponent webtoon auto next/prev chapter (requirement 4)', () =>
     useFakeScroller(c, { scrollTop: 1860, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
 
     c.onWebtoonScroll();
-    expect(armed(c)).toBe('next'); // dwell timer armed, not yet fired
+    vi.advanceTimersByTime(5000); // well past the old 900ms dwell — still nothing
 
-    vi.advanceTimersByTime(900);
-    expect(nav).toHaveBeenCalledWith(['/reader', 'next-item']);
+    expect(nav).not.toHaveBeenCalled();
   });
 
-  it('does not arm at the bottom when there is no next chapter', () => {
-    const c = create();
-    c.pages.set(makePages(3));
-    c.view.set('webtoon');
-    c.currentPage.set(1);
-    c.nextNeighbor.set(null);
-    useFakeScroller(c, { scrollTop: 1860, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
-
-    c.onWebtoonScroll();
-    expect(armed(c)).toBeNull();
-  });
-
-  it('does not arm from a programmatic scroll (resume-on-entry / scrubber seek)', () => {
-    // Re-opening a finished webtoon chapter resumes at its last page via a
-    // programmatic scroll; that must NOT be treated as the reader scrolling to the
-    // bottom, or it would instantly auto-advance. Same guard covers scrubber seeks.
-    const c = create();
-    c.pages.set(makePages(3));
-    c.view.set('webtoon');
-    c.currentPage.set(1);
-    c.nextNeighbor.set({ id: 'next-item', displayName: 'Chapter 2' });
-    (c as unknown as { lastProgrammaticScrollAt: number }).lastProgrammaticScrollAt = Date.now();
-    useFakeScroller(c, { scrollTop: 1860, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
-
-    c.onWebtoonScroll();
-    expect(armed(c)).toBeNull(); // programmatic scroll ignored by the edge evaluator
-  });
-
-  it('arms previous-chapter only after scrolling back up to the very top', () => {
+  it('scrolling up to the very top never navigates, even with a previous chapter available', () => {
     const c = create();
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     c.pages.set(makePages(3));
     c.view.set('webtoon');
     c.prevNeighbor.set({ id: 'prev-item', displayName: 'Chapter 0' });
 
-    // First scroll down (records that the reader has actually scrolled).
     useFakeScroller(c, { scrollTop: 1000, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
     c.onWebtoonScroll();
-    expect(armed(c)).toBeNull();
-
-    // Then scroll up to the top → arms 'prev'.
     useFakeScroller(c, { scrollTop: 0, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
     c.onWebtoonScroll();
-    expect(armed(c)).toBe('prev');
+    vi.advanceTimersByTime(5000);
 
-    vi.advanceTimersByTime(900);
-    expect(nav).toHaveBeenCalledWith(['/reader', 'prev-item'], { queryParams: { at: 'end' } });
+    expect(nav).not.toHaveBeenCalled();
   });
 
-  it('moving away from the edge disarms a pending advance (no accidental jump)', () => {
+  it('the explicit chapter buttons still navigate from webtoon (unaffected by the revert)', () => {
     const c = create();
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
-    c.pages.set(makePages(3));
     c.view.set('webtoon');
-    c.currentPage.set(1);
     c.nextNeighbor.set({ id: 'next-item', displayName: 'Chapter 2' });
+    c.prevNeighbor.set({ id: 'prev-item', displayName: 'Chapter 0' });
 
-    useFakeScroller(c, { scrollTop: 1860, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
-    c.onWebtoonScroll();
-    expect(armed(c)).toBe('next');
+    c.nextChapter();
+    expect(nav).toHaveBeenCalledWith(['/reader', 'next-item'], { replaceUrl: true });
 
-    // Reader scrolls back up before the dwell elapses → disarm.
-    useFakeScroller(c, { scrollTop: 900, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
-    c.onWebtoonScroll();
-    expect(armed(c)).toBeNull();
-
-    vi.advanceTimersByTime(2000);
-    expect(nav).not.toHaveBeenCalled();
+    c.prevChapter();
+    expect(nav).toHaveBeenCalledWith(['/reader', 'prev-item'], { queryParams: { at: 'end' }, replaceUrl: true });
   });
 });
