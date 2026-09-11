@@ -215,19 +215,27 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
         </div>
       } @else {
         <!-- Paged or double-spread: fixed viewport, one screen at a time.
-             Pointer handlers add direction-aware swipe page-turning (requirement 1).
-             Native touch-action is kept: on an overflowing (zoomed) page a horizontal
-             drag scrolls natively and fires pointercancel (we treat it as cancelled),
-             and two-finger pinch-zoom is guarded off via the multi-pointer check —
-             so neither native panning nor pinch-zoom is hijacked. -->
-        <div class="reader-viewport"
-             (pointerdown)="onReaderPointerDown($event)"
-             (pointerup)="onReaderPointerUp($event)"
-             (pointercancel)="onReaderPointerCancel($event)">
+             1.8.0 full-surface swipe (requirement 1): the pointer gesture is
+             tracked from a pointerdown here to a DOCUMENT-level up/cancel/move (see
+             the host listeners), so a swipe that starts anywhere on the page and ends
+             over the toolbar/bar still resolves. The viewport's touch-action is
+             computed per page (touchAction): while the page has no horizontal
+             overflow we OWN horizontal pans ('pan-y pinch-zoom' / 'pinch-zoom'), which
+             is what stops the browser from cancelling the pointer stream on a
+             horizontal drag (the 1.7.0 iPad failure) and from starting its own
+             horizontal history-swipe; vertical native scroll (fit-width) and
+             pinch-zoom are left to the browser. A page that overflows horizontally
+             (zoomed/original) falls back to native panning ('auto'), exactly as in
+             1.7.0. The spread row follows the finger (swipeDx) for feedback. -->
+        <div class="reader-viewport" #viewport
+             [style.touch-action]="touchAction()"
+             (pointerdown)="onReaderPointerDown($event)">
           @if (pageLoading()) {
             <mat-spinner class="page-spinner" diameter="36"></mat-spinner>
           }
-          <div class="spread-row" [class.rtl-flow]="direction() === 'rtl'">
+          <div class="spread-row" [class.rtl-flow]="direction() === 'rtl'"
+               [class.dragging]="swipeDx() !== 0"
+               [style.transform]="swipeDx() !== 0 ? 'translateX(' + swipeDx() + 'px)' : null">
             @for (entry of currentSpreadEntries(); track entry.entryKey) {
               <img
                 [src]="pageUrlFor(entry)"
@@ -238,6 +246,7 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
                 [class.paired]="currentSpreadEntries().length > 1"
                 (load)="onPageLoaded()"
                 (error)="onPageError()"
+                draggable="false"
                 alt="Page"
               />
             }
@@ -251,35 +260,47 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
         </div>
       }
 
-      <!-- Persistent minimal cue: a very thin progress bar, always visible.
-           In RTL it fills from the right and recedes left as pages advance.
-           The bar sits in a taller invisible hit strip so it can be tapped/clicked
-           (or arrow-keyed) to jump to a page — interactive page-jump. -->
+      <!-- 1.8.0 page slider (requirement 2). The 1.7.0 scrubber was a 16px hit strip
+           glued to the very bottom edge of the screen — exactly where iPadOS reserves
+           its swipe-up Home/Dock gesture, so touches there were mostly eaten by the
+           OS. The slider now lives in a proper bottom BAR that follows the same
+           chrome rules as the toolbar (in flow when windowed; overlaid + auto-hidden
+           when fullscreen), with a 44px hit height, a visible thumb, the page numbers
+           at both ends (mirrored in RTL so the bar reads in reading order), and the
+           live page bubble while dragging. Tap = jump, drag = scrub, arrows = step. -->
       @if (phase() === 'ready') {
-        <div class="rail-hit" [class.scrubbing]="scrubbing()"
-             (pointerdown)="onScrubStart($event)" (pointermove)="onScrubMove($event)"
-             (pointerup)="onScrubEnd($event)" (pointercancel)="onScrubEnd($event)"
-             (keydown)="onRailKey($event)"
-             role="slider" tabindex="0" aria-label="Reading position (drag to scrub pages)"
-             [attr.aria-valuemin]="1" [attr.aria-valuemax]="pageCount()"
-             [attr.aria-valuenow]="currentPage() + 1">
+        <div class="reader-nav" [class.immersive]="isFullscreen()"
+             [class.chrome-hidden]="!chromeVisible()" [class.help-lit]="helpVisible()"
+             (mouseenter)="lockChrome(true)" (mouseleave)="lockChrome(false)">
+          <span class="nav-end" aria-hidden="true">{{ direction() === 'rtl' ? pageCount() : 1 }}</span>
+          <div class="scrub" [class.scrubbing]="scrubbing()" [class.rtl]="direction() === 'rtl'"
+               (pointerdown)="onScrubStart($event)" (pointermove)="onScrubMove($event)"
+               (pointerup)="onScrubEnd($event)" (pointercancel)="onScrubEnd($event)"
+               (keydown)="onRailKey($event)"
+               role="slider" tabindex="0" aria-label="Page slider (drag or tap to jump to a page)"
+               [attr.aria-valuemin]="1" [attr.aria-valuemax]="pageCount()"
+               [attr.aria-valuenow]="currentPage() + 1"
+               [attr.aria-valuetext]="'Page ' + (currentPage() + 1) + ' of ' + pageCount()">
+            <div class="scrub-track" aria-hidden="true">
+              <div class="scrub-fill" [style.width.%]="scrubFillPct()"></div>
+            </div>
+            <div class="scrub-thumb" [style.left.%]="scrubThumbPct()" aria-hidden="true"></div>
+            @if (scrubbing()) {
+              <div class="scrub-bubble" [style.left.%]="scrubThumbPct()" aria-hidden="true">
+                {{ currentPage() + 1 }} / {{ pageCount() }}
+              </div>
+            }
+          </div>
+          <span class="nav-end" aria-hidden="true">{{ direction() === 'rtl' ? 1 : pageCount() }}</span>
+        </div>
+        <!-- Persistent minimal cue while the chrome is hidden (fullscreen): the thin
+             progress rail, now PASSIVE (pointer-events: none) so it never competes
+             with the OS bottom-edge gesture. RTL fills from the right. -->
+        @if (!chromeVisible()) {
           <div class="progress-rail" [class.rtl]="direction() === 'rtl'" aria-hidden="true">
             <div class="progress-fill" [style.width.%]="progressPct()"></div>
           </div>
-          <!-- Prominent page bubble: appears ONLY while scrubbing, so nothing
-               clutters the page during normal reading. Styled inline to stay within
-               the component CSS budget; positioned by percent along the rail. -->
-          @if (scrubbing()) {
-            <div class="scrub-bubble" [style.left.%]="scrubThumbPct()" aria-hidden="true"
-                 style="position:absolute; bottom:24px; transform:translateX(-50%);
-                        background:rgba(20,20,22,0.96); color:#fff; border:1px solid rgba(255,255,255,0.18);
-                        border-radius:8px; padding:6px 12px; font-size:15px; font-weight:600;
-                        font-variant-numeric:tabular-nums; white-space:nowrap; pointer-events:none;
-                        box-shadow:0 4px 14px rgba(0,0,0,0.4);">
-              {{ currentPage() + 1 }} / {{ pageCount() }}
-            </div>
-          }
-        </div>
+        }
       }
 
       <!-- Help overlay (toggled by the toolbar '?' button or the '?' key): shows the
@@ -289,24 +310,36 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
         <div class="help-overlay" role="dialog" aria-modal="true" aria-label="Reader controls">
           <button class="help-backdrop" (click)="closeHelp()" aria-label="Close help"></button>
           @if (view() !== 'webtoon') {
+            <!-- Tap thirds (labels direction-aware) + a full-width swipe legend across
+                 the whole surface: swiping works ANYWHERE, not just in the side zones. -->
             <div class="help-zones" aria-hidden="true">
-              <div class="help-zone side"><mat-icon>chevron_left</mat-icon><span>{{ leftZoneLabel() }}</span></div>
-              <div class="help-zone center"><mat-icon>touch_app</mat-icon><span>Show / hide menu</span></div>
-              <div class="help-zone side"><mat-icon>chevron_right</mat-icon><span>{{ rightZoneLabel() }}</span></div>
+              <div class="help-zone side"><mat-icon>touch_app</mat-icon><span>Tap<br>{{ leftZoneLabel() }}</span></div>
+              <div class="help-zone center"><mat-icon>touch_app</mat-icon><span>Tap<br>Show / hide controls</span></div>
+              <div class="help-zone side"><mat-icon>touch_app</mat-icon><span>Tap<br>{{ rightZoneLabel() }}</span></div>
+            </div>
+            <div class="help-swipe" aria-hidden="true">
+              <mat-icon>swipe</mat-icon>
+              <span>Swipe anywhere on the page<br>
+                <b>←</b> {{ swipeLeftLabel() }} &nbsp;·&nbsp; <b>→</b> {{ swipeRightLabel() }}</span>
             </div>
           }
           <div class="help-panel">
             <h3>Reader controls</h3>
             <ul>
               @if (view() !== 'webtoon') {
-                <li><kbd>←</kbd> <kbd>→</kbd> — previous / next page (follows reading direction)</li>
-                <li><kbd>Home</kbd> <kbd>End</kbd> — first / last page</li>
+                <li><b>Swipe</b> left / right anywhere to turn the page. Start inside the page: the very
+                  edge of the screen belongs to the browser's back / forward gesture.</li>
+                <li><b>Tap</b> the sides to turn a page, the centre to show / hide the controls.</li>
+                <li><kbd>←</kbd> <kbd>→</kbd> previous / next page (follows reading direction) ·
+                  <kbd>Home</kbd> <kbd>End</kbd> first / last</li>
               } @else {
-                <li>Scroll to read; tap the page to show or hide the toolbar</li>
+                <li>Scroll to read; tap the page to show or hide the controls.</li>
               }
-              <li><kbd>M</kbd> — show / hide the toolbar</li>
-              <li><kbd>F</kbd> — fullscreen · <kbd>Esc</kbd> — exit</li>
-              <li><kbd>?</kbd> — this help</li>
+              <li><b>Page slider</b> (bottom bar): tap or drag to jump to any page; the bubble shows
+                where you land{{ direction() === 'rtl' ? '. It runs right to left, like the pages' : '' }}.
+                @if (isFullscreen()) { Tap the centre to bring it back when it is hidden. }</li>
+              <li><kbd>M</kbd> show / hide the controls · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> exit ·
+                <kbd>?</kbd> this help</li>
             </ul>
             <p class="help-dismiss">Tap anywhere to close</p>
           </div>
@@ -400,32 +433,63 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
       position: absolute; top: 0; bottom: 0; left: 30%; right: 30%;
       background: transparent; border: 0; padding: 0; z-index: 1; cursor: default;
     }
-    /* Persistent minimal progress cue — a very thin bar pinned to the bottom edge,
-       shown regardless of chrome visibility so position is always readable. */
-    /* Invisible taller strip that makes the 3px rail a usable tap/click target
-       (mouse and touch). Sits at the very bottom, above the reading zones. */
-    .rail-hit {
-      position: fixed; left: 0; right: 0; bottom: 0; height: 16px;
-      z-index: 1002; cursor: pointer;
-      display: flex; align-items: flex-end;
+    /* Swipe feedback: the spread row tracks the finger while dragging (no transition)
+       and springs back when a drag is released short of a page turn. The viewport
+       never selects/drags/callouts its images, so a swipe is never turned into a
+       native image drag (desktop) or a long-press callout (iOS). */
+    .spread-row { transition: transform .18s ease; will-change: transform; }
+    .spread-row.dragging { transition: none; }
+    .reader-viewport {
+      user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+      overscroll-behavior: contain;
     }
-    .rail-hit:focus-visible { outline: 2px solid #7c4dff; outline-offset: -2px; }
+    /* Bottom bar with the page slider (requirement 2). Same chrome rules as the
+       toolbar: in flow when windowed, overlaid + auto-hidden when fullscreen. */
+    .reader-nav {
+      flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+      height: 48px; padding: 0 10px env(safe-area-inset-bottom, 0);
+      background: #1c1c1f; color: #ddd; z-index: 1001;
+      transition: transform .2s ease, opacity .2s ease;
+    }
+    .reader-nav.immersive { position: absolute; left: 0; right: 0; bottom: 0; }
+    .reader-nav.immersive.chrome-hidden { transform: translateY(100%); opacity: 0; pointer-events: none; }
+    /* Help overlay spotlight: keep the bar above the dimmed backdrop. */
+    .reader-nav.help-lit { z-index: 1004; box-shadow: 0 0 0 2px #7c4dff; }
+    .nav-end { min-width: 2.2em; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; opacity: .8; }
+    /* The slider: a 44px-tall hit area (touch friendly) around a 6px track and a
+       22px thumb; touch-action:none so the drag is never taken by native scroll. */
+    .scrub {
+      position: relative; flex: 1; height: 44px; cursor: pointer;
+      touch-action: none; -webkit-tap-highlight-color: transparent;
+    }
+    .scrub:focus-visible { outline: 2px solid #7c4dff; outline-offset: -2px; border-radius: 6px; }
+    .scrub-track {
+      position: absolute; left: 0; right: 0; top: 19px; height: 6px;
+      border-radius: 3px; background: rgba(255, 255, 255, 0.18); overflow: hidden;
+      display: flex;
+    }
+    .scrub.rtl .scrub-track { justify-content: flex-end; }
+    .scrub-fill { height: 100%; flex: none; background: #7c4dff; }
+    .scrub-thumb {
+      position: absolute; top: 11px; width: 22px; height: 22px; margin-left: -11px;
+      border-radius: 50%; background: #fff; border: 3px solid #7c4dff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); transition: transform .12s ease;
+    }
+    .scrub:hover .scrub-thumb, .scrub.scrubbing .scrub-thumb { transform: scale(1.2); }
+    .scrub-bubble {
+      position: absolute; bottom: 42px; transform: translateX(-50%);
+      background: #222; color: #fff; border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px; padding: 6px 12px; font-size: 15px; font-weight: 600;
+      font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    }
+    /* Passive thin progress cue at the bottom edge while the chrome is hidden. */
     .progress-rail {
-      position: relative; width: 100%; height: 3px;
-      background: rgba(255, 255, 255, 0.14); pointer-events: none;
-      display: flex; transition: height .12s ease;
+      position: fixed; left: 0; right: 0; bottom: 0; height: 3px;
+      background: rgba(255, 255, 255, 0.14); pointer-events: none; display: flex; z-index: 1002;
     }
-    /* Grow the bar slightly on hover so the seek affordance is discoverable (mouse). */
-    .rail-hit:hover .progress-rail, .rail-hit:focus-visible .progress-rail { height: 6px; }
-    /* RTL: fill sits at the right edge and grows leftward as pages advance. */
     .progress-rail.rtl { justify-content: flex-end; }
     .progress-fill { height: 100%; flex: none; background: #7c4dff; transition: width .2s ease; }
-    /* Scrubber (requirement 2) + webtoon end footer: the bulk of
-       these styles are applied inline in the template (kept out of the component
-       stylesheet to stay within the CSS budget). Only the scrubbing state that a
-       plain inline attribute can't express lives here. */
-    .rail-hit.scrubbing { height: 28px; }
-    .rail-hit.scrubbing .progress-rail { height: 8px; }
     /* The tap zones carry no visible affordance during reading (no focus ring, no
        tap highlight). They are surfaced deliberately via the Help overlay instead. */
     .edge, .tap-toggle { -webkit-tap-highlight-color: transparent; }
@@ -442,21 +506,29 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
       pointer-events: none; color: #fff;
     }
     .help-zone {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 8px; font-weight: 600; text-align: center; padding: 0 8px;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      gap: 8px; font-weight: 600; text-align: center; padding: 14vh 8px 0; line-height: 1.3;
       border-inline: 1px dashed rgba(255, 255, 255, 0.35);
     }
-    .help-zone mat-icon { font-size: 40px; width: 40px; height: 40px; }
+    .help-zone mat-icon { font-size: 36px; width: 36px; height: 36px; }
     .help-zone.side { flex: 0 0 30%; background: rgba(124, 77, 255, 0.22); }
     .help-zone.center { flex: 0 0 40%; background: rgba(255, 255, 255, 0.10); }
-    .help-panel {
-      position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%);
-      z-index: 2; pointer-events: none; max-width: min(92vw, 440px);
-      background: rgba(20, 20, 22, 0.94); color: #eee;
-      border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 16px 20px;
+    /* Full-width swipe legend across the middle of the surface. */
+    .help-swipe {
+      position: absolute; left: 6%; right: 6%; top: 38%; z-index: 1; pointer-events: none;
+      display: flex; align-items: center; justify-content: center; gap: 14px;
+      padding: 12px 18px; border-radius: 12px; color: #fff; font-weight: 600; line-height: 1.4;
+      background: rgba(124, 77, 255, 0.55); border: 2px dashed rgba(255, 255, 255, 0.6);
     }
-    .help-panel h3 { margin: 0 0 10px; }
-    .help-panel ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+    .help-swipe mat-icon { font-size: 40px; width: 40px; height: 40px; flex: none; }
+    .help-panel {
+      position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%);
+      z-index: 2; pointer-events: none; max-width: min(92vw, 460px); max-height: 46%; overflow: hidden;
+      background: rgba(20, 20, 22, 0.94); color: #eee;
+      border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 14px 18px;
+    }
+    .help-panel h3 { margin: 0 0 8px; }
+    .help-panel ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.35; }
     .help-panel kbd {
       background: #333; border: 1px solid #555; border-radius: 4px;
       padding: 1px 6px; font-family: monospace; font-size: 12px;
@@ -476,6 +548,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
   private readonly readState = inject(ReadStateService);
 
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
+  private readonly viewport = viewChild<ElementRef<HTMLElement>>('viewport');
 
   readonly itemId = signal('');
   readonly phase = signal<ReaderPhase>('preparing');
