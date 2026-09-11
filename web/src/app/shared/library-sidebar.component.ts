@@ -109,6 +109,10 @@ import { readerModeGlyph } from './reader-mode-glyph';
       background: transparent; color: inherit; font: inherit; text-align: left;
       text-decoration: none; cursor: pointer; transition: background .12s ease;
       overflow: hidden;
+      /* border-box so the 12px horizontal padding stays INSIDE the 100% width -
+         without it the row is 24px wider than its column, so the active-highlight
+         background and the trailing count spill past the sidebar's right border. */
+      box-sizing: border-box;
     }
     .nav-item:hover { background: rgba(255,255,255,0.06); }
     .nav-item.active { background: var(--mp-accent-bg); color: var(--mp-accent); }
