@@ -2023,6 +2023,9 @@
           },
           "direction": {
             "type": "string"
+          },
+          "cardSize": {
+            "type": "string"
           }
         }
       },

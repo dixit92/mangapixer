@@ -224,14 +224,23 @@ public sealed record ReadMarkDto
 /// Per-user library browse presentation (1.2.0). Deliberately string-typed and
 /// tolerant/extensible: a frontend maps values it knows and falls back gracefully
 /// for any it doesn't (owner-settled multi-frontend rationale). Known values today:
-/// ViewMode = grid | list | poster; Density = comfortable | compact;
-/// Sort = name | recentlyAdded | recentlyRead; Direction = "" | asc | desc.
+/// ViewMode = card | list (legacy grid | poster are tolerated and read as card);
+/// Density = comfortable | compact (legacy, subsumed by CardSize);
+/// Sort = name | recentlyAdded | recentlyRead; Direction = "" | asc | desc;
+/// CardSize = "" | a stringified min column width in px (e.g. "150").
 ///
 /// Direction (1.5.0) defaults to "" (unset) rather than baking in a fixed default,
 /// because the sensible default differs per sort (Name ascending; recentlyAdded/
 /// recentlyRead descending). Consumers resolve "" to the sort-specific default —
 /// see <c>CatalogController.ParseDirection</c> — so existing stored preferences
 /// (saved before this field existed) keep their pre-1.5.0 ordering unchanged.
+///
+/// CardSize (1.6.0) merges the old Grid and Poster modes into one Card view whose
+/// size is a continuous slider that subsumes the comfortable/compact Density split.
+/// It defaults to "" (unset) for the same graceful-migration reason as Direction:
+/// a frontend derives an initial size from the legacy ViewMode + Density, so rows
+/// saved before this field existed keep their effective card size. The server never
+/// interprets these presentation strings — they are stored and returned verbatim.
 /// </summary>
 public sealed record LibraryViewPreferencesDto
 {
@@ -239,6 +248,7 @@ public sealed record LibraryViewPreferencesDto
     public string Density { get; init; } = "comfortable";
     public string Sort { get; init; } = "name";
     public string Direction { get; init; } = "";
+    public string CardSize { get; init; } = "";
 }
 
 /// <summary>
