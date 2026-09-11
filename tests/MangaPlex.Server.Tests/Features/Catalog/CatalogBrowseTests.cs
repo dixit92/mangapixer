@@ -2,6 +2,7 @@ namespace com.lifepixer.mangaplex.Tests.Server.Features.Catalog;
 
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Core.Ordering;
 using com.lifepixer.mangaplex.Core.Reading;
 using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Features.Catalog;
@@ -1031,6 +1032,41 @@ public sealed class CatalogBrowseTests : IDisposable
         }
         finally { await db.DisposeAsync(); }
     }
+
+    [Fact]
+    public async Task Browse_FolderCover_PicksFirstArchiveByNameSortKeyOrder()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            // Webtoon pattern: a cover-only @000.cbz archive that sorts first by
+            // name/sort-key order, followed by chapter archives. The folder cover
+            // should come from @000.cbz's first page (1.6.1 confirmation).
+            var rootKey = SortKey.ForLibraryRoot();
+            var folderKey = SortKey.ForNode(CatalogNodeKind.Folder, "Series", rootKey);
+            var folder = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", folderKey);
+
+            // Add chapters first (by insertion order) to ensure the cover is picked
+            // by sort-key order, not by insertion or ID order.
+            await AddNodeAsync(db, libraryId, folder.Id, CatalogNodeKind.Archive, "Chapter 002.cbz",
+                SortKey.ForNode(CatalogNodeKind.Archive, "Chapter 002.cbz", folderKey));
+            await AddNodeAsync(db, libraryId, folder.Id, CatalogNodeKind.Archive, "Chapter 001.cbz",
+                SortKey.ForNode(CatalogNodeKind.Archive, "Chapter 001.cbz", folderKey));
+            var coverArchive = await AddNodeAsync(db, libraryId, folder.Id, CatalogNodeKind.Archive, "@000.cbz",
+                SortKey.ForNode(CatalogNodeKind.Archive, "@000.cbz", folderKey));
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
+
+            var folderNode = result.Items.Single(n => n.Kind == CatalogNodeKind.Folder);
+            Assert.NotNull(folderNode.CoverUrl);
+            // @000.cbz sorts before Chapter 001.cbz in natural/name order
+            // (@ = ASCII 64 < C = ASCII 67 ordinally), so its first page is the cover.
+            Assert.Equal($"/api/v1/items/{coverArchive.PublicId}/cover", folderNode.CoverUrl);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
     // --- Folder read rollup (1.6.0: derived Read / Reading / Unread over descendants) ---
 
     private static async Task AddReadMarkAsync(MangaPlexDbContext db, long userId, long itemId)

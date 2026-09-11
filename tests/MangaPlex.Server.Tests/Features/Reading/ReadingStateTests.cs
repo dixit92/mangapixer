@@ -663,6 +663,91 @@ public sealed class ReadingStateTests : IDisposable
     }
 
     [Fact]
+    public async Task SetFolderUnread_ResetsInProgressDescendantsToUnread()
+    {
+        var (db, userId, folderId, archiveIds) = await SetupFolderTreeAsync();
+        try
+        {
+            var auth = new LibraryAuthorizationService(db);
+            var service = new ReadingStateService(db, auth);
+
+            // Put both descendant archives into InProgress (reading) state with no
+            // read-mark — the exact scenario the owner reported: marking the folder
+            // unread left these "reading" because clearing a nonexistent read-mark
+            // was a no-op and reading_progress kept State = InProgress.
+            foreach (var id in archiveIds)
+            {
+                await service.UpdateProgressAsync(userId, id, pageIndex: 3,
+                    expectedContentVersion: 1, mutationId: "mut-" + id);
+            }
+
+            // Sanity: both are InProgress before the folder-unread.
+            foreach (var id in archiveIds)
+            {
+                var p = await service.GetProgressAsync(userId, id);
+                Assert.Equal(ReadingState.InProgress, p!.State);
+            }
+
+            // Mark the folder unread (bulk clear).
+            var cleared = await service.SetFolderReadAsync(userId, folderId, read: false);
+            Assert.NotNull(cleared);
+            Assert.Equal(archiveIds.Count, cleared!.Affected);
+
+            // Both archives should now be Unread — progress rows deleted.
+            foreach (var id in archiveIds)
+            {
+                Assert.False(await service.IsReadAsync(userId, id));
+                var p = await service.GetProgressAsync(userId, id);
+                Assert.Equal(ReadingState.Unread, p!.State);
+                Assert.Equal(0, p.PageIndex);
+            }
+
+            // No reading_progress rows should remain for these archives.
+            var remaining = await db.ReadingProgress
+                .Where(p => p.UserId == userId && archiveIds.Contains(p.ItemId))
+                .ToListAsync();
+            Assert.Empty(remaining);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task SetFolderUnread_ResetsMixedReadAndInProgressDescendants()
+    {
+        var (db, userId, folderId, archiveIds) = await SetupFolderTreeAsync();
+        try
+        {
+            var auth = new LibraryAuthorizationService(db);
+            var service = new ReadingStateService(db, auth);
+
+            var a1 = archiveIds[0];
+            var a2 = archiveIds[1];
+
+            // A1: read-mark only (Completed via manual mark, no progress row).
+            await service.SetItemReadAsync(userId, a1, read: true);
+
+            // A2: InProgress with progress row, no read-mark.
+            await service.UpdateProgressAsync(userId, a2, pageIndex: 5,
+                expectedContentVersion: 1, mutationId: "mut-a2");
+
+            // Mark the folder unread — should clear A1's read-mark AND reset A2's progress.
+            var cleared = await service.SetFolderReadAsync(userId, folderId, read: false);
+            Assert.NotNull(cleared);
+            Assert.Equal(2, cleared!.Affected); // both had state to clear
+
+            Assert.False(await service.IsReadAsync(userId, a1));
+            Assert.False(await service.IsReadAsync(userId, a2));
+
+            var p1 = await service.GetProgressAsync(userId, a1);
+            Assert.Equal(ReadingState.Unread, p1!.State);
+
+            var p2 = await service.GetProgressAsync(userId, a2);
+            Assert.Equal(ReadingState.Unread, p2!.State);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
     public async Task SetFolderRead_OnArchiveNode_ReturnsNull()
     {
         var (db, userId, _, _, itemId) = await SetupAsync();
