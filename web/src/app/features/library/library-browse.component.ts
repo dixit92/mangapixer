@@ -24,6 +24,15 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
  * affordances), and a STICKY top bar carries every bulk action applied to the
  * selection — mark read / unread for everyone, plus set/clear reading direction
  * for admins (folders only). There is no competing per-card menu.
+ *
+ * Range selection (1.7.0, file-browser semantics): Shift-click fills the
+ * contiguous range from the ANCHOR (the last individually-selected card) to
+ * the clicked card, in the currently displayed sort order; Ctrl/Cmd-click and
+ * a plain click both toggle one card and move the anchor. Touch has no shift
+ * key, so long-press opens "Select to here" instead (entering select mode
+ * first if needed) - tap = one, long-press = range fill. "Select all" /
+ * "Select all unread" / "Select all read" act over the currently-listed nodes
+ * for whole-folder selection.
  */
 @Component({
   selector: 'app-library-browse',
@@ -108,6 +117,21 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       } @else {
         <span class="count">{{ selected().size }} selected</span>
         <div class="actions">
+          <button mat-button [matMenuTriggerFor]="selectMenu" [disabled]="busy() || nodes().length === 0"
+                  matTooltip="Select the whole folder">
+            <mat-icon>playlist_add_check</mat-icon><span class="lbl">Select</span>
+          </button>
+          <mat-menu #selectMenu="matMenu">
+            <button mat-menu-item (click)="selectAll()">
+              <mat-icon>select_all</mat-icon> Select all
+            </button>
+            <button mat-menu-item (click)="selectAllUnread()">
+              <mat-icon>radio_button_unchecked</mat-icon> Select all unread
+            </button>
+            <button mat-menu-item (click)="selectAllRead()">
+              <mat-icon>check_circle</mat-icon> Select all read
+            </button>
+          </mat-menu>
           <button mat-button (click)="bulkMarkRead(true)" [disabled]="busy() || selected().size === 0">
             <mat-icon>check_circle</mat-icon><span class="lbl">Mark read</span>
           </button>
@@ -152,7 +176,11 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       @for (node of nodes(); track node.id) {
         <div class="node-wrap" [class.selected]="isSelected(node)">
           <a class="node-card" [routerLink]="selectMode() ? null : getNodeLink(node)"
-             (click)="onCardClick($event, node)">
+             (click)="onCardClick($event, node)"
+             (pointerdown)="onCardPointerDown($event, node)"
+             (pointerup)="onCardPointerUp()"
+             (pointercancel)="onCardPointerCancel()"
+             (pointerleave)="onCardPointerCancel()">
             <div class="cover">
               @if (node.coverUrl) {
                 <img appCover [src]="node.coverUrl" alt="" loading="lazy">
@@ -178,6 +206,16 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                 <span class="check" [class.on]="isSelected(node)">
                   <mat-icon>{{ isSelected(node) ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
                 </span>
+              }
+
+              <!-- Touch range fill (long-press "Select to here"): shown only on the
+                   long-pressed card, over its cover so it stays reachable without
+                   scrolling away from the target item. -->
+              @if (rangePromptNode()?.id === node.id) {
+                <div class="range-prompt">
+                  <button type="button" (click)="onSelectToHereClick($event)">Select to here</button>
+                  <button type="button" class="cancel" (click)="onDismissRangePromptClick($event)">Cancel</button>
+                </div>
               }
             </div>
             <div class="node-text">
@@ -288,6 +326,18 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     }
     .check.on { color: #7c4dff; background: #fff; }
     .check mat-icon { font-size: 24px; width: 24px; height: 24px; }
+    /* Touch range fill (long-press "Select to here"). A small floating action over
+       the long-pressed card's cover so it works without a positioned menu overlay. */
+    .range-prompt {
+      position: absolute; inset: 0; z-index: 4;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 6px; padding: 8px; background: rgba(10, 8, 20, 0.85); border-radius: 8px;
+    }
+    .range-prompt button {
+      border: none; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: 600;
+      cursor: pointer; background: #7c4dff; color: #fff; width: 100%;
+    }
+    .range-prompt button.cancel { background: rgba(255,255,255,0.12); }
     .node-title {
       margin-top: 6px; font-size: 13px; font-weight: 500;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -358,6 +408,28 @@ export class LibraryBrowseComponent implements OnInit {
   readonly selectMode = signal(false);
   readonly selected = signal<Set<string>>(new Set());
   readonly busy = signal(false);
+
+  /**
+   * Range selection (1.7.0). The ANCHOR is the index (within the currently
+   * displayed `nodes()` order) of the last INDIVIDUALLY selected/deselected
+   * item — a plain click, a ctrl/cmd-click, or the item long-press entered
+   * select mode on. Shift-click and touch "Select to here" both fill the
+   * inclusive range between the anchor and the target from this index, so the
+   * range always follows the active sort/direction (requirement: range is
+   * over the visible, currently-displayed order).
+   */
+  readonly anchorIndex = signal<number | null>(null);
+
+  /**
+   * The card currently showing the long-press "Select to here" action (touch
+   * range-fill). Null when no prompt is open. Only one card shows the prompt
+   * at a time.
+   */
+  readonly rangePromptNode = signal<CatalogNodeDto | null>(null);
+
+  private longPressTimer: ReturnType<typeof setTimeout> | null = null;
+  private longPressTriggered = false;
+  private readonly longPressMs = 550;
 
   // Per-user library view mode. Tolerant: unknown/legacy persisted values fall back.
   // 1.6.0: the former Grid and Poster modes are merged into a single Card view whose
@@ -627,21 +699,171 @@ export class LibraryBrowseComponent implements OnInit {
     return this.selected().has(node.id);
   }
 
-  /** In select mode, a card tap toggles selection instead of navigating. */
-  onCardClick(event: Event, node: CatalogNodeDto): void {
+  /**
+   * Desktop card click, file-browser semantics (1.7.0):
+   *  - a long-press already handled this pointer session (touch) - suppress
+   *    the trailing click entirely.
+   *  - Shift-click, with an anchor set: fills the inclusive range from the
+   *    anchor to the clicked card (display order) into the selection.
+   *  - Plain click or Ctrl/Cmd-click: toggles just this card and moves the
+   *    anchor to it (Ctrl/Cmd is equivalent to a plain click here, since
+   *    every click in select mode already toggles rather than replacing the
+   *    selection - it is accepted so the file-browser modifier still "works").
+   * Outside select mode, a click is a normal navigation and this is a no-op.
+   */
+  onCardClick(event: MouseEvent, node: CatalogNodeDto): void {
+    if (this.longPressTriggered) {
+      // The long-press action already ran (or its prompt is open); this is
+      // the click that follows the touch release and must be swallowed.
+      this.longPressTriggered = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     if (!this.selectMode()) return;
     event.preventDefault();
     event.stopPropagation();
+
+    const index = this.nodes().findIndex((n) => n.id === node.id);
+    if (index === -1) return;
+
+    if (event.shiftKey && this.anchorIndex() !== null) {
+      this.selectRange(this.anchorIndex()!, index);
+      return;
+    }
+    this.toggleOne(node, index);
+  }
+
+  /** Toggle a single node's selection and move the range anchor to it. */
+  private toggleOne(node: CatalogNodeDto, index: number): void {
     this.selected.update((set) => {
       const next = new Set(set);
       if (next.has(node.id)) next.delete(node.id);
       else next.add(node.id);
       return next;
     });
+    this.anchorIndex.set(index);
+  }
+
+  /** Add the inclusive range [fromIndex, toIndex] (display order) to the selection. */
+  private selectRange(fromIndex: number, toIndex: number): void {
+    const lo = Math.min(fromIndex, toIndex);
+    const hi = Math.max(fromIndex, toIndex);
+    const rangeIds = this.nodes().slice(lo, hi + 1).map((n) => n.id);
+    this.selected.update((set) => new Set([...set, ...rangeIds]));
+    this.anchorIndex.set(toIndex);
+  }
+
+  // --- Touch range selection: long-press -> "Select to here" (1.7.0) ---
+
+  /** Start the long-press timer for a touch/pen pointer only; mouse uses shift-click instead. */
+  onCardPointerDown(event: PointerEvent, node: CatalogNodeDto): void {
+    if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+    this.clearLongPressTimer();
+    this.longPressTimer = setTimeout(() => this.onLongPress(node), this.longPressMs);
+  }
+
+  /** A normal tap released before the long-press fired: just cancel the timer. */
+  onCardPointerUp(): void {
+    this.clearLongPressTimer();
+  }
+
+  /** Pointer left/cancelled (scroll, interruption): cancel the pending long-press. */
+  onCardPointerCancel(): void {
+    this.clearLongPressTimer();
+  }
+
+  private clearLongPressTimer(): void {
+    if (this.longPressTimer !== null) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+  }
+
+  /**
+   * Long-press fired on `node`. Mental model: tap = one, long-press = range fill.
+   *  - Not yet in select mode: enter it and select+anchor this card (nothing to
+   *    fill a range from yet).
+   *  - In select mode with no anchor yet (nothing individually selected since
+   *    entering select mode / after Select all* reset it): same as above.
+   *  - In select mode with an anchor: open "Select to here" on this card so the
+   *    range is filled only on explicit confirmation.
+   * `longPressTriggered` suppresses the click event that the browser fires on
+   * touch release right after this.
+   */
+  private onLongPress(node: CatalogNodeDto): void {
+    this.longPressTriggered = true;
+    const index = this.nodes().findIndex((n) => n.id === node.id);
+    if (index === -1) return;
+
+    if (!this.selectMode()) {
+      this.selectMode.set(true);
+      this.toggleOne(node, index);
+      return;
+    }
+    if (this.anchorIndex() === null) {
+      this.toggleOne(node, index);
+      return;
+    }
+    this.rangePromptNode.set(node);
+  }
+
+  /** Button click wrapper: stop the click from bubbling to the card's own click handler. */
+  onSelectToHereClick(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.confirmSelectToHere();
+  }
+
+  /** Button click wrapper: stop the click from bubbling to the card's own click handler. */
+  onDismissRangePromptClick(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dismissRangePrompt();
+  }
+
+  /** Confirm the "Select to here" prompt: fill the range from the anchor to the prompted card. */
+  confirmSelectToHere(): void {
+    const target = this.rangePromptNode();
+    const anchor = this.anchorIndex();
+    this.rangePromptNode.set(null);
+    if (target === null || anchor === null) return;
+    const index = this.nodes().findIndex((n) => n.id === target.id);
+    if (index !== -1) this.selectRange(anchor, index);
+  }
+
+  /** Dismiss the "Select to here" prompt without changing the selection. */
+  dismissRangePrompt(): void {
+    this.rangePromptNode.set(null);
+  }
+
+  // --- Whole-folder selection (1.7.0) ---
+
+  /** Select every currently-listed node (respects the active sort/filter, not just the loaded page). */
+  selectAll(): void {
+    this.selected.set(new Set(this.nodes().map((n) => n.id)));
+    const count = this.nodes().length;
+    this.anchorIndex.set(count > 0 ? count - 1 : null);
+  }
+
+  /** Select every currently-listed node that is not yet marked read. */
+  selectAllUnread(): void {
+    this.selected.set(new Set(this.nodes().filter((n) => !n.isRead).map((n) => n.id)));
+    this.anchorIndex.set(null);
+  }
+
+  /** Select every currently-listed node that is marked read. */
+  selectAllRead(): void {
+    this.selected.set(new Set(this.nodes().filter((n) => n.isRead).map((n) => n.id)));
+    this.anchorIndex.set(null);
   }
 
   clearSelection(): void {
     this.selected.set(new Set());
+    this.anchorIndex.set(null);
+    this.rangePromptNode.set(null);
+    this.clearLongPressTimer();
+    this.longPressTriggered = false;
   }
 
   /**

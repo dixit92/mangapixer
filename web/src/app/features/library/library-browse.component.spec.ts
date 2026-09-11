@@ -448,3 +448,232 @@ describe('LibraryBrowseComponent mark unread', () => {
     expect(comp.nodes().find((n) => n.id === 'a3')!.isRead).toBe(true);
   });
 });
+
+/**
+ * Range selection (1.7.0). A hundreds-of-files folder needs contiguous-range
+ * selection ("Shift-select a series"), not one-by-one tap toggling. These
+ * tests drive the component's public surface directly (onCardClick with a
+ * synthetic MouseEvent, and the long-press / "Select to here" methods) rather
+ * than simulating real pointer timing, since the range MATH and mode
+ * transitions are what must be correct.
+ */
+describe('LibraryBrowseComponent range multi-select', () => {
+  function node(id: string, isRead = false): CatalogNodeDto {
+    return {
+      id, parentId: 'p', libraryId: 'lib1', kind: 'Archive', displayName: id,
+      availability: 'Available', coverUrl: null, childFolderCount: null, childArchiveCount: null,
+      pageCount: 10, readingState: null, lastReadPage: null, readerDefault: null, isRead,
+    } as CatalogNodeDto;
+  }
+
+  function setup(nodes: CatalogNodeDto[]) {
+    const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
+    const apiSpy = {
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+      setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      browseLibrary: vi.fn().mockReturnValue(of(page)),
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getNode: vi.fn().mockReturnValue(of({} as CatalogNodeDto)),
+    };
+    const authSpy = { isAdmin: () => false };
+
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: authSpy },
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : null) }) } },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges();
+    return { fixture, comp: fixture.componentInstance };
+  }
+
+  function mouseEvent(opts: Partial<MouseEvent> = {}): MouseEvent {
+    return {
+      shiftKey: false, ctrlKey: false, metaKey: false,
+      preventDefault: vi.fn(), stopPropagation: vi.fn(),
+      ...opts,
+    } as unknown as MouseEvent;
+  }
+
+  const ids = ['a', 'b', 'c', 'd', 'e'];
+  function setupFive() {
+    return setup(ids.map((id) => node(id)));
+  }
+
+  it('a plain click in select mode toggles one item and sets the anchor', () => {
+    const { comp } = setupFive();
+    comp.selectMode.set(true);
+
+    comp.onCardClick(mouseEvent(), node('b'));
+
+    expect([...comp.selected()]).toEqual(['b']);
+    expect(comp.anchorIndex()).toBe(1);
+  });
+
+  it('a plain click toggles the item off again (anchor still moves to it)', () => {
+    const { comp } = setupFive();
+    comp.selectMode.set(true);
+    comp.onCardClick(mouseEvent(), node('b'));
+
+    comp.onCardClick(mouseEvent(), node('b'));
+
+    expect(comp.selected().size).toBe(0);
+    expect(comp.anchorIndex()).toBe(1);
+  });
+
+  it('ctrl-click toggles a single item just like a plain click', () => {
+    const { comp } = setupFive();
+    comp.selectMode.set(true);
+
+    comp.onCardClick(mouseEvent({ ctrlKey: true }), node('c'));
+
+    expect([...comp.selected()]).toEqual(['c']);
+    expect(comp.anchorIndex()).toBe(2);
+  });
+
+  it('shift-click fills the inclusive range from the anchor to the clicked card, in display order', () => {
+    const { comp } = setupFive();
+    comp.selectMode.set(true);
+    comp.onCardClick(mouseEvent(), node('b')); // anchor = index 1
+
+    comp.onCardClick(mouseEvent({ shiftKey: true }), node('d')); // index 3
+
+    expect([...comp.selected()].sort()).toEqual(['b', 'c', 'd']);
+  });
+
+  it('shift-click works backwards from the anchor too', () => {
+    const { comp } = setupFive();
+    comp.selectMode.set(true);
+    comp.onCardClick(mouseEvent(), node('d')); // anchor = index 3
+
+    comp.onCardClick(mouseEvent({ shiftKey: true }), node('b')); // index 1
+
+    expect([...comp.selected()].sort()).toEqual(['b', 'c', 'd']);
+  });
+
+  it('shift-click adds the range to whatever is already selected rather than replacing it', () => {
+    const { comp } = setupFive();
+    comp.selectMode.set(true);
+    comp.onCardClick(mouseEvent(), node('a')); // select + anchor a (index 0)
+    comp.onCardClick(mouseEvent({ ctrlKey: true }), node('e')); // also select e, anchor moves to e (index 4)
+
+    comp.onCardClick(mouseEvent({ shiftKey: true }), node('c')); // range from e(4) to c(2)
+
+    expect([...comp.selected()].sort()).toEqual(['a', 'c', 'd', 'e']);
+  });
+
+  it('shift-click without a prior anchor toggles the single card instead', () => {
+    const { comp } = setupFive();
+    comp.selectMode.set(true);
+
+    comp.onCardClick(mouseEvent({ shiftKey: true }), node('c'));
+
+    expect([...comp.selected()]).toEqual(['c']);
+    expect(comp.anchorIndex()).toBe(2);
+  });
+
+  it('a click outside select mode is a no-op (normal navigation)', () => {
+    const { comp } = setupFive();
+
+    comp.onCardClick(mouseEvent(), node('b'));
+
+    expect(comp.selected().size).toBe(0);
+    expect(comp.anchorIndex()).toBeNull();
+  });
+
+  // --- Touch: long-press -> "Select to here" ---
+
+  it('long-press enters select mode and selects+anchors the pressed card when not already selecting', () => {
+    const { comp } = setupFive();
+
+    (comp as unknown as { onLongPress: (n: CatalogNodeDto) => void }).onLongPress(node('c'));
+
+    expect(comp.selectMode()).toBe(true);
+    expect([...comp.selected()]).toEqual(['c']);
+    expect(comp.anchorIndex()).toBe(2);
+    expect(comp.rangePromptNode()).toBeNull();
+  });
+
+  it('long-press with an anchor already set opens "Select to here" without changing the selection yet', () => {
+    const { comp } = setupFive();
+    comp.selectMode.set(true);
+    comp.onCardClick(mouseEvent(), node('b')); // anchor = index 1
+
+    (comp as unknown as { onLongPress: (n: CatalogNodeDto) => void }).onLongPress(node('d'));
+
+    expect(comp.rangePromptNode()?.id).toBe('d');
+    expect([...comp.selected()]).toEqual(['b']); // unchanged until confirmed
+  });
+
+  it('confirmSelectToHere fills the range from the anchor to the prompted card', () => {
+    const { comp } = setupFive();
+    comp.selectMode.set(true);
+    comp.onCardClick(mouseEvent(), node('b'));
+    (comp as unknown as { onLongPress: (n: CatalogNodeDto) => void }).onLongPress(node('d'));
+
+    comp.confirmSelectToHere();
+
+    expect([...comp.selected()].sort()).toEqual(['b', 'c', 'd']);
+    expect(comp.rangePromptNode()).toBeNull();
+  });
+
+  it('dismissRangePrompt closes the prompt without selecting the range', () => {
+    const { comp } = setupFive();
+    comp.selectMode.set(true);
+    comp.onCardClick(mouseEvent(), node('b'));
+    (comp as unknown as { onLongPress: (n: CatalogNodeDto) => void }).onLongPress(node('d'));
+
+    comp.dismissRangePrompt();
+
+    expect(comp.rangePromptNode()).toBeNull();
+    expect([...comp.selected()]).toEqual(['b']);
+  });
+
+  // --- Whole-folder selection ---
+
+  it('selectAll selects every currently-listed node', () => {
+    const { comp } = setupFive();
+
+    comp.selectAll();
+
+    expect([...comp.selected()].sort()).toEqual(ids);
+  });
+
+  it('selectAllUnread selects only the unread listed nodes', () => {
+    const { comp } = setup([node('a', true), node('b', false), node('c', false)]);
+
+    comp.selectAllUnread();
+
+    expect([...comp.selected()].sort()).toEqual(['b', 'c']);
+  });
+
+  it('selectAllRead selects only the read listed nodes', () => {
+    const { comp } = setup([node('a', true), node('b', false), node('c', true)]);
+
+    comp.selectAllRead();
+
+    expect([...comp.selected()].sort()).toEqual(['a', 'c']);
+  });
+
+  it('clearSelection also resets the anchor and any open range prompt', () => {
+    const { comp } = setupFive();
+    comp.selectMode.set(true);
+    comp.onCardClick(mouseEvent(), node('b'));
+    (comp as unknown as { onLongPress: (n: CatalogNodeDto) => void }).onLongPress(node('d'));
+
+    comp.clearSelection();
+
+    expect(comp.selected().size).toBe(0);
+    expect(comp.anchorIndex()).toBeNull();
+    expect(comp.rangePromptNode()).toBeNull();
+  });
+});
