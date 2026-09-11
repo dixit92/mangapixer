@@ -108,16 +108,27 @@ import { readerModeGlyph } from './reader-mode-glyph';
       width: 100%; padding: 9px 12px; border: none; border-radius: 8px;
       background: transparent; color: inherit; font: inherit; text-align: left;
       text-decoration: none; cursor: pointer; transition: background .12s ease;
+      overflow: hidden;
     }
     .nav-item:hover { background: rgba(255,255,255,0.06); }
     .nav-item.active { background: var(--mp-accent-bg); color: var(--mp-accent); }
     .nav-item mat-icon { font-size: 20px; width: 20px; height: 20px; flex: 0 0 auto; }
-    .nav-label { flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* min-width: 0 is required for a flex item to actually shrink below its
+       content's intrinsic width - without it the ellipsis below never
+       triggers and the trailing glyph/count get pushed past the sidebar's
+       right edge instead of the name truncating. */
+    .nav-label { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* Reading-direction badge (Task C): a muted, non-interactive glyph tucked
        against the count. Subtle by design - the label lives in the tooltip /
        aria-label. */
     .nav-dir { flex: 0 0 auto; color: #8a8a99; opacity: 0.9; }
-    .nav-count { flex: 0 0 auto; font-size: 12px; color: #999; }
+    /* Fixed, right-aligned count column so 1- to 5-digit counts (e.g. 8715)
+       don't reflow the row or spill past the sidebar edge - the name (above)
+       truncates first instead. */
+    .nav-count {
+      flex: 0 0 auto; min-width: 2.5em; text-align: right;
+      font-size: 12px; color: #999; font-variant-numeric: tabular-nums;
+    }
     /* Collapsed rail: icons only, centered; labels/counts/direction hidden (names
        surface as tooltips). */
     .sidebar.collapsed .nav-item { justify-content: center; padding: 9px 0; }
