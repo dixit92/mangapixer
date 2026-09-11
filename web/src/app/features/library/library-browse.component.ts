@@ -13,6 +13,7 @@ import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
+import { ContinueRowComponent } from '../../shared/continue-row/continue-row.component';
 import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryViewPreferencesDto, JumpIndexBucketDto } from '../../core/api/api-types';
 
 /**
@@ -47,6 +48,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     MatDividerModule,
     CoverImageDirective,
     FolderRollupBadgeComponent,
+    ContinueRowComponent,
   ],
   template: `
     <!-- Sticky top bar: breadcrumbs + Select normally; the merged action set while
@@ -169,6 +171,8 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
         }
       </nav>
     }
+
+    <app-continue-row [node]="nextUnread()" />
 
     <div class="nodes" [class.card]="viewMode() === 'card'"
          [class.list]="viewMode() === 'list'"
@@ -386,6 +390,9 @@ export class LibraryBrowseComponent implements OnInit {
   readonly libraryName = signal('');
   readonly parentId = signal<string | null>(null);
   readonly nodes = signal<CatalogNodeDto[]>([]);
+  /** Folder's next-to-read archive (1.7.0), rendered as the pinned "Continue" row above the
+   *  sorted list. Captured from the initial page's PageResponse.nextUnread (null on load-more). */
+  readonly nextUnread = signal<CatalogNodeDto | null>(null);
   readonly breadcrumbs = signal<{ id: string; displayName: string }[]>([]);
   /**
    * Name of the folder currently being viewed (Task B, 1.5.0). Rendered as the
@@ -976,6 +983,7 @@ export class LibraryBrowseComponent implements OnInit {
         this.nodes.update((current) => initial ? [...response.items] : [...current, ...response.items]);
         this.hasMore.set(response.hasMore);
         this.cursor = response.nextCursor;
+        if (initial) this.nextUnread.set(response.nextUnread ?? null);
       },
     });
   }
