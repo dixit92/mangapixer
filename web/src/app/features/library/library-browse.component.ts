@@ -7,7 +7,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { forkJoin } from 'rxjs';
+import { forkJoin, of, catchError } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
@@ -15,7 +15,7 @@ import { ReadStateService } from '../../core/reading/read-state.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { ContinueRowComponent } from '../../shared/continue-row/continue-row.component';
-import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryViewPreferencesDto, JumpIndexBucketDto } from '../../core/api/api-types';
+import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryViewPreferencesDto, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
 
 /**
  * Library browse component. Shows the actual folder/archive tree with keyset
@@ -1006,17 +1006,31 @@ export class LibraryBrowseComponent implements OnInit {
    * refresh. No-ops when the item isn't currently listed (a different folder,
    * or scrolled off a page not yet loaded); never re-fetches the whole list or
    * disturbs scroll.
+   *
+   * Deliberately does NOT use `GET /nodes/{id}` (`ApiService.getNode`): that
+   * endpoint does not populate per-user reading state at all (it always
+   * returns `isRead: false, readingState: null` regardless of the caller's
+   * progress) — discovered live-testing this fix, where it patched a
+   * just-completed card back to looking unread. The read-mark and progress
+   * endpoints below are the ones that are actually user-scoped.
    */
   private refreshNodeStatus(itemId: string): void {
     if (!this.nodes().some((n) => n.id === itemId)) return;
-    this.api.getNode(itemId).subscribe({
-      next: (fresh) => {
-        this.nodes.update((list) => list.map((n) =>
-          n.id === itemId
-            ? { ...n, isRead: fresh.isRead, readingState: fresh.readingState, lastReadPage: fresh.lastReadPage }
-            : n));
-      },
-      error: () => { /* non-fatal: the card keeps its last-known state */ },
+    forkJoin({
+      read: this.api.getReadMark(itemId).pipe(
+        catchError(() => of<ReadMarkDto>({ itemId, isRead: false }))),
+      progress: this.api.getProgress(itemId).pipe(
+        catchError(() => of<ReadingProgressDto | null>(null))),
+    }).subscribe(({ read, progress }) => {
+      this.nodes.update((list) => list.map((n) =>
+        n.id === itemId
+          ? {
+              ...n,
+              isRead: read.isRead,
+              readingState: progress?.state ?? n.readingState,
+              lastReadPage: progress ? progress.pageIndex : n.lastReadPage,
+            }
+          : n));
     });
   }
 

@@ -700,15 +700,25 @@ describe('LibraryBrowseComponent stale read-status refresh (1.7.1)', () => {
     } as CatalogNodeDto;
   }
 
+  function progressDto(overrides: Partial<{ pageIndex: number; state: ReadingState }> = {}) {
+    return {
+      itemId: 'a1', pageIndex: overrides.pageIndex ?? 9, contentVersion: 1,
+      updatedAt: new Date().toISOString(), state: overrides.state ?? 'Completed',
+      revision: 1, isStale: false,
+    };
+  }
+
   function setup(nodes: CatalogNodeDto[]) {
     const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
-    const getNode = vi.fn();
+    const getReadMark = vi.fn();
+    const getProgress = vi.fn();
     const apiSpy = {
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
-      getNode,
+      getReadMark,
+      getProgress,
     };
     const authSpy = { isAdmin: () => false };
     const readState = new ReadStateService();
@@ -729,28 +739,32 @@ describe('LibraryBrowseComponent stale read-status refresh (1.7.1)', () => {
 
     const fixture = TestBed.createComponent(LibraryBrowseComponent);
     fixture.detectChanges();
-    return { comp: fixture.componentInstance, getNode, readState };
+    return { comp: fixture.componentInstance, getReadMark, getProgress, readState };
   }
 
   it('patches the affected card in place when the reader announces a read-state change', () => {
-    const { comp, getNode, readState } = setup([node('a1', false), node('a2', false)]);
-    getNode.mockReturnValue(of(node('a1', true)));
+    const { comp, getReadMark, getProgress, readState } = setup([node('a1', false), node('a2', false)]);
+    getReadMark.mockReturnValue(of({ itemId: 'a1', isRead: true }));
+    getProgress.mockReturnValue(of(progressDto({ pageIndex: 9, state: 'Completed' })));
 
     readState.notifyChanged('a1');
 
-    expect(getNode).toHaveBeenCalledWith('a1');
+    expect(getReadMark).toHaveBeenCalledWith('a1');
+    expect(getProgress).toHaveBeenCalledWith('a1');
     const updated = comp.nodes().find((n) => n.id === 'a1')!;
     expect(updated.isRead).toBe(true);
     expect(updated.readingState).toBe('Completed');
+    expect(updated.lastReadPage).toBe(9);
     // The other card, and the array identity of unrelated entries, are untouched.
     expect(comp.nodes().find((n) => n.id === 'a2')!.isRead).toBe(false);
   });
 
   it('never re-fetches the whole list — only the one changed node', () => {
-    const { comp, getNode, readState } = setup([node('a1', false)]);
+    const { comp, getReadMark, getProgress, readState } = setup([node('a1', false)]);
     const browseLibrary = (TestBed.inject(ApiService) as unknown as { browseLibrary: ReturnType<typeof vi.fn> }).browseLibrary;
     browseLibrary.mockClear();
-    getNode.mockReturnValue(of(node('a1', true)));
+    getReadMark.mockReturnValue(of({ itemId: 'a1', isRead: true }));
+    getProgress.mockReturnValue(of(progressDto()));
 
     readState.notifyChanged('a1');
 
@@ -759,17 +773,18 @@ describe('LibraryBrowseComponent stale read-status refresh (1.7.1)', () => {
   });
 
   it('ignores a change notification for an item not currently listed (no stray fetch)', () => {
-    const { comp, getNode, readState } = setup([node('a1', false)]);
+    const { comp, getReadMark, readState } = setup([node('a1', false)]);
 
     readState.notifyChanged('some-other-item');
 
-    expect(getNode).not.toHaveBeenCalled();
+    expect(getReadMark).not.toHaveBeenCalled();
     expect(comp.nodes().find((n) => n.id === 'a1')!.isRead).toBe(false);
   });
 
-  it('is non-fatal when the refresh fetch fails — the card keeps its last-known state', () => {
-    const { comp, getNode, readState } = setup([node('a1', false)]);
-    getNode.mockReturnValue(throwError(() => new Error('network')));
+  it('is non-fatal when the read-mark fetch fails — the card keeps its last-known state', () => {
+    const { comp, getReadMark, getProgress, readState } = setup([node('a1', false)]);
+    getReadMark.mockReturnValue(throwError(() => new Error('network')));
+    getProgress.mockReturnValue(of(progressDto()));
 
     expect(() => readState.notifyChanged('a1')).not.toThrow();
     expect(comp.nodes().find((n) => n.id === 'a1')!.isRead).toBe(false);
