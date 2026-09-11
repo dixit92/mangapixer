@@ -9,7 +9,7 @@ import { of } from 'rxjs';
 import { LibraryBrowseComponent } from './library-browse.component';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { CatalogNodeDto, LibraryDto, LibraryViewPreferencesDto, PageResponse, JumpIndexBucketDto } from '../../core/api/api-types';
+import { CatalogNodeDto, LibraryDto, LibraryViewPreferencesDto, PageResponse, JumpIndexBucketDto, ReadingState } from '../../core/api/api-types';
 
 /**
  * Breadcrumb tests for LibraryBrowseComponent. Two behaviors:
@@ -262,3 +262,189 @@ function comp_jump(fixture: ComponentFixture<LibraryBrowseComponent>, label: str
   expect(bucket).toBeDefined();
   comp.jumpToBucket(bucket!);
 }
+
+/**
+ * Card view + size slider (1.6.0). The former Grid/Poster modes collapse into a
+ * single Card view whose size is a continuous slider that subsumes the old
+ * comfortable/compact density. These tests drive the migration of pre-1.6.0 stored
+ * preferences and the persistence of the new card size through the component's
+ * public surface.
+ */
+describe('LibraryBrowseComponent card view', () => {
+  function setup(prefs: Partial<LibraryViewPreferencesDto>) {
+    const fullPrefs = { viewMode: 'card', density: 'comfortable', sort: 'name', ...prefs } as LibraryViewPreferencesDto;
+    const libs: LibraryDto[] = [{ id: 'lib1', name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }];
+    const emptyPage: PageResponse<CatalogNodeDto> = { items: [], totalCount: 0, nextCursor: null, hasMore: false };
+    const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
+
+    const apiSpy = {
+      getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
+      setLibraryPreferences,
+      getLibraries: vi.fn().mockReturnValue(of(libs)),
+      browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getNode: vi.fn().mockReturnValue(of({} as CatalogNodeDto)),
+    };
+    const authSpy = { isAdmin: () => false };
+
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: authSpy },
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : null) }) } },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges();
+    return { fixture, comp: fixture.componentInstance, setLibraryPreferences };
+  }
+
+  it('offers exactly Card and List in the view menu (Grid/Poster/density are gone)', () => {
+    const { comp } = setup({ viewMode: 'card' });
+    expect(comp.viewOptions.map((o) => o.value)).toEqual(['card', 'list']);
+  });
+
+  it('migrates legacy poster+comfortable to card at the former poster size', () => {
+    const { comp } = setup({ viewMode: 'poster', density: 'comfortable' });
+    expect(comp.viewMode()).toBe('card');
+    expect(comp.cardSize()).toBe(210);
+  });
+
+  it('migrates legacy grid+compact to card at the former compact grid size', () => {
+    const { comp } = setup({ viewMode: 'grid', density: 'compact' });
+    expect(comp.viewMode()).toBe('card');
+    expect(comp.cardSize()).toBe(112);
+  });
+
+  it('keeps a stored list preference as list', () => {
+    const { comp } = setup({ viewMode: 'list' });
+    expect(comp.viewMode()).toBe('list');
+  });
+
+  it('prefers an explicit stored cardSize over the legacy derivation', () => {
+    const { comp } = setup({ viewMode: 'card', density: 'compact', cardSize: '200' });
+    expect(comp.cardSize()).toBe(200);
+  });
+
+  it('setCardSize clamps out-of-range values and persists the new size', () => {
+    const { comp, setLibraryPreferences } = setup({ viewMode: 'card' });
+    comp.setCardSize(9999);
+    expect(comp.cardSize()).toBe(comp.cardSizeMax);
+    expect(setLibraryPreferences).toHaveBeenCalledWith(
+      expect.objectContaining({ viewMode: 'card', cardSize: String(comp.cardSizeMax) }));
+  });
+
+  it('shows the size slider only in card mode', () => {
+    const { fixture, comp } = setup({ viewMode: 'card' });
+    expect(fixture.nativeElement.querySelector('.size-slider')).not.toBeNull();
+    comp.setViewMode('list');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.size-slider')).toBeNull();
+  });
+
+  it('feeds the card size into the grid as the --card-size custom property', () => {
+    const { fixture } = setup({ viewMode: 'card', cardSize: '180' });
+    const nodes = fixture.nativeElement.querySelector('.nodes') as HTMLElement;
+    expect(nodes.style.getPropertyValue('--card-size')).toBe('180px');
+  });
+});
+
+/**
+ * Mark-unread fix (1.6.0). Clearing the sticky read-mark is a no-op for an item
+ * that was opened but never marked read (InProgress, no read-mark), so it would
+ * stay "reading". The selection-mode mark-unread path must ALSO reset progress for
+ * InProgress archives so they leave the browse "Reading" badge and the
+ * continue-reading strip.
+ */
+describe('LibraryBrowseComponent mark unread', () => {
+  function archive(id: string, state: ReadingState | null, isRead = false): CatalogNodeDto {
+    return {
+      id, parentId: 'p', libraryId: 'lib1', kind: 'Archive', displayName: id,
+      availability: 'Available', coverUrl: null, childFolderCount: null, childArchiveCount: null,
+      pageCount: 10, readingState: state, lastReadPage: state === 'InProgress' ? 3 : null,
+      readerDefault: null, isRead,
+    } as CatalogNodeDto;
+  }
+
+  function setup(nodes: CatalogNodeDto[]) {
+    const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
+    const setItemRead = vi.fn().mockReturnValue(of({ itemId: '', isRead: false }));
+    const resetProgress = vi.fn().mockReturnValue(of(undefined));
+    const setFolderRead = vi.fn().mockReturnValue(of({ affected: 0, total: 0 }));
+
+    const apiSpy = {
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+      setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      browseLibrary: vi.fn().mockReturnValue(of(page)),
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getNode: vi.fn().mockReturnValue(of({} as CatalogNodeDto)),
+      setItemRead,
+      resetProgress,
+      setFolderRead,
+    };
+    const authSpy = { isAdmin: () => false };
+
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: authSpy },
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : null) }) } },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges();
+    return { fixture, comp: fixture.componentInstance, setItemRead, resetProgress };
+  }
+
+  function selectAll(comp: LibraryBrowseComponent) {
+    comp.selected.set(new Set(comp.nodes().map((n) => n.id)));
+  }
+
+  it('resets progress for an InProgress archive when marking unread and clears its Reading state', () => {
+    const { comp, setItemRead, resetProgress } = setup([archive('a1', 'InProgress')]);
+    selectAll(comp);
+
+    comp.bulkMarkRead(false);
+
+    expect(setItemRead).toHaveBeenCalledWith('a1', false);
+    expect(resetProgress).toHaveBeenCalledWith('a1');
+    const node = comp.nodes().find((n) => n.id === 'a1')!;
+    expect(node.readingState).toBe('Unread');
+    expect(node.lastReadPage).toBeNull();
+    expect(node.isRead).toBe(false);
+  });
+
+  it('does not reset progress for an archive that is not InProgress', () => {
+    const { comp, setItemRead, resetProgress } = setup([archive('a2', 'Unread')]);
+    selectAll(comp);
+
+    comp.bulkMarkRead(false);
+
+    expect(setItemRead).toHaveBeenCalledWith('a2', false);
+    expect(resetProgress).not.toHaveBeenCalled();
+  });
+
+  it('never resets progress when marking READ (the intended mark-read path is unchanged)', () => {
+    const { comp, setItemRead, resetProgress } = setup([archive('a3', 'InProgress')]);
+    selectAll(comp);
+
+    comp.bulkMarkRead(true);
+
+    expect(setItemRead).toHaveBeenCalledWith('a3', true);
+    expect(resetProgress).not.toHaveBeenCalled();
+    expect(comp.nodes().find((n) => n.id === 'a3')!.isRead).toBe(true);
+  });
+});

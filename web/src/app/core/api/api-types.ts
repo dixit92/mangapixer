@@ -46,6 +46,11 @@ export interface CatalogNodeDto {
   readerDefault: ReaderMode | null;
   /** Whether the current user marked this item read (1.2.0 sticky flag). Archives only. */
   isRead: boolean;
+  /**
+   * Derived read rollup over a folder's readable descendant archives (1.6.0).
+   * Browse only, folders only; null for archives, empty folders, and search results.
+   */
+  readRollup: FolderReadRollup | null;
 }
 
 export interface BreadcrumbEntry {
@@ -80,6 +85,12 @@ export interface SearchResultsDto {
 }
 
 export type ReadingState = 'Unread' | 'InProgress' | 'Completed';
+
+/**
+ * Derived, display-only read state of a folder rolled up over its descendant
+ * archives (1.6.0). Rendered by `FolderRollupBadgeComponent`.
+ */
+export type FolderReadRollup = 'Unread' | 'Reading' | 'Read';
 
 export interface ReadingProgressDto {
   itemId: string;
@@ -170,8 +181,17 @@ export interface ThumbnailRegenerateResponse {
   queuedCount: number;
 }
 
-/** Known library view modes (1.2.0). Tolerant: unknown values fall back to 'grid'. */
-export type LibraryViewMode = 'grid' | 'list' | 'poster';
+/**
+ * Known library view modes. As of 1.6.0 the former 'grid' and 'poster' modes are
+ * merged into a single 'card' view whose size is a continuous slider (see cardSize);
+ * 'list' stays a separate mode. Tolerant: legacy/unknown persisted values ('grid',
+ * 'poster') are read as 'card'.
+ */
+export type LibraryViewMode = 'card' | 'list';
+/**
+ * Legacy grid density (1.2.0), subsumed by the Card size slider (1.6.0). Retained
+ * only so the stored preference round-trips unchanged for other/older frontends.
+ */
 export type LibraryGridDensity = 'comfortable' | 'compact';
 export type LibrarySortOrder = 'name' | 'recentlyAdded' | 'recentlyRead';
 
@@ -192,6 +212,12 @@ export interface LibraryViewPreferencesDto {
   sort: string;
   /** Optional (1.5.0): omitted/unrecognized falls back to the sort-specific default. */
   direction?: string;
+  /**
+   * Optional (1.6.0): stringified min card column width in px for the merged Card
+   * view (e.g. "150"). Omitted/unrecognized → the frontend derives an initial size
+   * from the legacy viewMode + density, so pre-1.6.0 stored prefs keep their size.
+   */
+  cardSize?: string;
 }
 
 // --- YACReader progress import (1.2.0, admin-only) ---
@@ -410,12 +436,25 @@ export interface ItemReadiness {
 
 export type LogLevel = 'Verbose' | 'Debug' | 'Information' | 'Warning' | 'Error' | 'Fatal';
 
+export interface LogCategoryLevelDto {
+  name: string;
+  level: string;
+  inherited: boolean;
+}
+
+export interface LogCategoryOverride {
+  name: string;
+  level: string | null;
+}
+
 export interface LogLevelDto {
   level: string;
+  categories: LogCategoryLevelDto[];
 }
 
 export interface UpdateLogLevelRequest {
-  level: string;
+  level?: string;
+  categories?: LogCategoryOverride[];
 }
 
 export interface RotatingBackupStatusDto {

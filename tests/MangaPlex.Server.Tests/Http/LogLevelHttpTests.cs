@@ -177,6 +177,232 @@ public sealed class LogLevelHttpTests : IDisposable
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
+
+    // --- Per-category debug control (1.6.0 Lane E) ---
+
+    [Fact]
+    public async Task GetLoggingLevel_ReturnsCategories()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var response = await client.GetAsync("/api/v1/operations/logging");
+
+        response.EnsureSuccessStatusCode();
+        var dto = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Information", dto.GetProperty("level").GetString());
+
+        var categories = dto.GetProperty("categories");
+        Assert.Equal(JsonValueKind.Array, categories.ValueKind);
+        var catList = categories.EnumerateArray().ToList();
+        Assert.NotEmpty(catList);
+
+        // Each category should default to Information + inherited
+        foreach (var cat in catList)
+        {
+            Assert.Equal("Information", cat.GetProperty("level").GetString());
+            Assert.True(cat.GetProperty("inherited").GetBoolean());
+        }
+
+        // The known categories should be present
+        var names = catList.Select(c => c.GetProperty("name").GetString()).ToList();
+        Assert.Contains("Scanning", names);
+        Assert.Contains("Media", names);
+        Assert.Contains("Reading", names);
+    }
+
+    [Fact]
+    public async Task PutLoggingLevel_Category_SetsCategoryAndDetachesFromGlobal()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        // Set Scanning to Debug via per-category override
+        var putResponse = await client.PutAsJsonAsync("/api/v1/operations/logging",
+            new
+            {
+                categories = new[]
+                {
+                    new { name = "Scanning", level = "Debug" },
+                },
+            });
+        putResponse.EnsureSuccessStatusCode();
+        var dto = await putResponse.Content.ReadFromJsonAsync<JsonElement>();
+
+        // Global level should remain Information
+        Assert.Equal("Information", dto.GetProperty("level").GetString());
+
+        // Scanning should be Debug + not inherited
+        var scanning = dto.GetProperty("categories")
+            .EnumerateArray()
+            .First(c => c.GetProperty("name").GetString() == "Scanning");
+        Assert.Equal("Debug", scanning.GetProperty("level").GetString());
+        Assert.False(scanning.GetProperty("inherited").GetBoolean());
+
+        // Other categories should still be inherited
+        var media = dto.GetProperty("categories")
+            .EnumerateArray()
+            .First(c => c.GetProperty("name").GetString() == "Media");
+        Assert.True(media.GetProperty("inherited").GetBoolean());
+    }
+
+    [Fact]
+    public async Task PutLoggingLevel_GlobalChange_SyncsInheritedCategories()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        // Set global to Debug
+        await client.PutAsJsonAsync("/api/v1/operations/logging",
+            new { level = "Debug" });
+
+        // All categories should follow (inherited + Debug)
+        var getResponse = await client.GetAsync("/api/v1/operations/logging");
+        var dto = await getResponse.Content.ReadFromJsonAsync<JsonElement>();
+        foreach (var cat in dto.GetProperty("categories").EnumerateArray())
+        {
+            Assert.Equal("Debug", cat.GetProperty("level").GetString());
+            Assert.True(cat.GetProperty("inherited").GetBoolean());
+        }
+    }
+
+    [Fact]
+    public async Task PutLoggingLevel_GlobalChange_DoesNotAffectExplicitCategory()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        // Set Scanning to Debug (explicit)
+        await client.PutAsJsonAsync("/api/v1/operations/logging",
+            new
+            {
+                categories = new[]
+                {
+                    new { name = "Scanning", level = "Debug" },
+                },
+            });
+
+        // Now set global to Warning
+        await client.PutAsJsonAsync("/api/v1/operations/logging",
+            new { level = "Warning" });
+
+        // Scanning should still be Debug (explicit, not synced)
+        var getResponse = await client.GetAsync("/api/v1/operations/logging");
+        var dto = await getResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var scanning = dto.GetProperty("categories")
+            .EnumerateArray()
+            .First(c => c.GetProperty("name").GetString() == "Scanning");
+        Assert.Equal("Debug", scanning.GetProperty("level").GetString());
+        Assert.False(scanning.GetProperty("inherited").GetBoolean());
+
+        // Media should be Warning (inherited, synced to global)
+        var media = dto.GetProperty("categories")
+            .EnumerateArray()
+            .First(c => c.GetProperty("name").GetString() == "Media");
+        Assert.Equal("Warning", media.GetProperty("level").GetString());
+        Assert.True(media.GetProperty("inherited").GetBoolean());
+    }
+
+    [Fact]
+    public async Task PutLoggingLevel_CategoryClear_ReturnsToInherit()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        // Set Scanning to Debug (explicit)
+        await client.PutAsJsonAsync("/api/v1/operations/logging",
+            new
+            {
+                categories = new[]
+                {
+                    new { name = "Scanning", level = "Debug" },
+                },
+            });
+
+        // Clear Scanning (null level = inherit)
+        var putResponse = await client.PutAsJsonAsync("/api/v1/operations/logging",
+            new
+            {
+                categories = new[]
+                {
+                    new { name = "Scanning", level = (string?)null },
+                },
+            });
+        putResponse.EnsureSuccessStatusCode();
+        var dto = await putResponse.Content.ReadFromJsonAsync<JsonElement>();
+
+        var scanning = dto.GetProperty("categories")
+            .EnumerateArray()
+            .First(c => c.GetProperty("name").GetString() == "Scanning");
+        Assert.Equal("Information", scanning.GetProperty("level").GetString());
+        Assert.True(scanning.GetProperty("inherited").GetBoolean());
+    }
+
+    [Fact]
+    public async Task PutLoggingLevel_InvalidCategory_Returns400()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var response = await client.PutAsJsonAsync("/api/v1/operations/logging",
+            new
+            {
+                categories = new[]
+                {
+                    new { name = "Nonexistent", level = "Debug" },
+                },
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PutLoggingLevel_CategoryIsolation_DebugOnlyFromOneCategory()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        // Set global to Warning (suppress all Debug), then enable Debug only
+        // for Scanning.
+        await client.PutAsJsonAsync("/api/v1/operations/logging",
+            new
+            {
+                level = "Warning",
+                categories = new[]
+                {
+                    new { name = "Scanning", level = "Debug" },
+                },
+            });
+
+        _factory.Sink.Clear();
+
+        // Emit a Debug event with SourceContext in the Scanning namespace
+        var scanningLogger = Log.Logger.ForContext("SourceContext", "com.lifepixer.mangaplex.Server.Scanning.LibraryScanCoordinator");
+        scanningLogger.Debug("Scanning debug test message");
+
+        // Emit a Debug event with SourceContext in the Media namespace
+        var mediaLogger = Log.Logger.ForContext("SourceContext", "com.lifepixer.mangaplex.Server.Media.MediaWorkerPool");
+        mediaLogger.Debug("Media debug test message");
+
+        // Only the Scanning Debug event should be captured
+        Assert.True(_factory.Sink.ContainsMessage("Scanning debug test message"),
+            "Scanning Debug event should be captured when Scanning is at Debug");
+        Assert.False(_factory.Sink.ContainsMessage("Media debug test message"),
+            "Media Debug event should NOT be captured when global is Warning and Media is inherited");
+    }
+
+    [Fact]
+    public async Task PutLoggingLevel_CategoryChange_LogsAtInformation()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        _factory.Sink.Clear();
+
+        await client.PutAsJsonAsync("/api/v1/operations/logging",
+            new
+            {
+                categories = new[]
+                {
+                    new { name = "Scanning", level = "Debug" },
+                },
+            });
+
+        Assert.True(_factory.Sink.ContainsMessageAtLevel(LogEventLevel.Information, "Log category"),
+            "Category change should be logged at Information");
+    }
 }
 
 /// <summary>
@@ -189,6 +415,7 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
     private readonly CollectingSink _sink = new();
     private readonly string _tempRoot;
     private readonly LoggingLevelSwitch _levelSwitch = new(LogEventLevel.Information);
+    private readonly Dictionary<string, LoggingLevelSwitch> _categorySwitches = new();
     private Serilog.ILogger? _originalLogger;
     private readonly Dictionary<string, string?> _savedEnv = new();
     private HttpClient? _cachedAdminClient;
@@ -201,6 +428,11 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
         Directory.CreateDirectory(Path.Combine(_tempRoot, "data"));
         Directory.CreateDirectory(Path.Combine(_tempRoot, "cache"));
         Directory.CreateDirectory(Path.Combine(_tempRoot, "scratch"));
+
+        // Create per-category switches matching the production catalog so
+        // LogLevelSettingsService can mutate them. All default to Information.
+        foreach (var (name, _) in com.lifepixer.mangaplex.Server.Logging.DebugCategories.All)
+            _categorySwitches[name] = new LoggingLevelSwitch(LogEventLevel.Information);
 
         SetEnv("MangaPlex__Storage__DataRoot", Path.Combine(_tempRoot, "data"));
         SetEnv("MangaPlex__Storage__CacheRoot", Path.Combine(_tempRoot, "cache"));
@@ -235,9 +467,20 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
                 services.Remove(existingSwitch);
             services.AddSingleton(_levelSwitch);
 
+            // Replace the per-category switch dictionary so LogLevelSettingsService
+            // mutates the same switches wired into the test logger below.
+            var existingCatDict = services.FirstOrDefault(
+                d => d.ServiceType == typeof(IReadOnlyDictionary<string, LoggingLevelSwitch>));
+            if (existingCatDict is not null)
+                services.Remove(existingCatDict);
+            services.AddSingleton<IReadOnlyDictionary<string, LoggingLevelSwitch>>(_categorySwitches);
+
             _originalLogger = Log.Logger;
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.ControlledBy(_levelSwitch)
+            var testLoggerConfig = new LoggerConfiguration()
+                .MinimumLevel.ControlledBy(_levelSwitch);
+            foreach (var (name, prefix) in com.lifepixer.mangaplex.Server.Logging.DebugCategories.All)
+                testLoggerConfig.MinimumLevel.Override(prefix, _categorySwitches[name]);
+            Log.Logger = testLoggerConfig
                 .WriteTo.Sink(_sink)
                 .WriteTo.Logger(_originalLogger)
                 .CreateLogger();

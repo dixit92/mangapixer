@@ -380,6 +380,16 @@ public sealed class ReaderPreferencesEntity
     /// </summary>
     public string LibraryDirection { get; set; } = "";
 
+    /// <summary>
+    /// Card size for the merged Card view (1.6.0): "" | a stringified min column
+    /// width in px (e.g. "150"). Empty means unset — the frontend derives an initial
+    /// size from the legacy LibraryViewMode + LibraryGridDensity, so rows written
+    /// before this column existed keep their effective card size. Subsumes the (now
+    /// legacy) comfortable/compact density split. Stored verbatim; never interpreted
+    /// server-side.
+    /// </summary>
+    public string LibraryCardSize { get; set; } = "";
+
     public UserEntity? User { get; set; }
 }
 

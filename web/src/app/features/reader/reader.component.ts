@@ -15,11 +15,17 @@ import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode } 
 
 type ReaderPhase = 'preparing' | 'ready' | 'error';
 type ReaderView = 'paged' | 'spread' | 'webtoon';
-// Per-device default page mode (owner request, 1.2.x): a device-local override of
-// the layout, distinct from the server's content-semantic ReaderMode. 'auto' picks
+// Per-device default PAGED LAYOUT (owner request, 1.2.x; scoped to paged-only,
+// 2026-09-11 "Option A" fix). A device-local override of single/double/auto page
+// layout, distinct from the server's content-semantic ReaderMode. 'auto' picks
 // paged (portrait) / spread (landscape) live as the device rotates. `null` (unset)
-// means "follow whatever the server resolves for the item".
-type ViewPref = 'auto' | 'paged' | 'spread' | 'webtoon';
+// means "follow whatever the server resolves for the item". This can no longer
+// hold 'webtoon': webtoon-vs-paged is CONTENT ORIENTATION, resolved server-side
+// (`ReaderModeResolver`) and must never be forced device-global across libraries
+// (that was the reader-mode-sticky bug — vertical bleeding from a webtoon into the
+// next manga opened on the same device). Picking "Vertical (webtoon)" from the
+// menu is instead a per-item/session-only override; see `chooseView`.
+type ViewPref = 'auto' | 'paged' | 'spread';
 type FitMode = 'screen' | 'width' | 'height' | 'original';
 
 /**
@@ -104,15 +110,15 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
           </button>
           <mat-menu #modeMenu="matMenu">
             <button mat-menu-item (click)="chooseView('auto')">
-              <mat-icon>{{ viewPref() === 'auto' ? 'check' : 'screen_rotation' }}</mat-icon> Auto (orientation)</button>
+              <mat-icon>{{ viewPref() === 'auto' && view() !== 'webtoon' ? 'check' : 'screen_rotation' }}</mat-icon> Auto (orientation)</button>
             <button mat-menu-item (click)="chooseView('paged')">
-              <mat-icon>{{ viewPref() === 'paged' ? 'check' : 'crop_portrait' }}</mat-icon> Single page</button>
+              <mat-icon>{{ viewPref() === 'paged' && view() !== 'webtoon' ? 'check' : 'crop_portrait' }}</mat-icon> Single page</button>
             <button mat-menu-item (click)="chooseSpread(false)">
-              <mat-icon>{{ viewPref() === 'spread' && !coverIsStandalone() ? 'check' : 'import_contacts' }}</mat-icon> Double page</button>
+              <mat-icon>{{ viewPref() === 'spread' && !coverIsStandalone() && view() !== 'webtoon' ? 'check' : 'import_contacts' }}</mat-icon> Double page</button>
             <button mat-menu-item (click)="chooseSpread(true)">
-              <mat-icon>{{ viewPref() === 'spread' && coverIsStandalone() ? 'check' : 'auto_stories' }}</mat-icon> Double page (offset cover)</button>
+              <mat-icon>{{ viewPref() === 'spread' && coverIsStandalone() && view() !== 'webtoon' ? 'check' : 'auto_stories' }}</mat-icon> Double page (offset cover)</button>
             <button mat-menu-item (click)="chooseView('webtoon')">
-              <mat-icon>{{ viewPref() === 'webtoon' ? 'check' : 'view_day' }}</mat-icon> Vertical (webtoon)</button>
+              <mat-icon>{{ view() === 'webtoon' ? 'check' : 'view_day' }}</mat-icon> Vertical (webtoon)</button>
           </mat-menu>
 
           @if (view() === 'webtoon') {
@@ -557,16 +563,21 @@ export class ReaderComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Apply the per-device layout preference over the server-resolved view. Only the
-   * VIEW changes — `direction` (RTL for manga) stays as the server resolved it. When
-   * no device preference is stored, the server default stands unchanged.
+   * Apply the per-device PAGED LAYOUT preference over the server-resolved view.
+   * Only the VIEW changes — `direction` (RTL for manga) stays as the server
+   * resolved it. Scoped to paged content (Option A fix, 2026-09-11): the server's
+   * webtoon resolution is content-orientation-authoritative and must never be
+   * overridden by a device-global layout pref left over from a different item —
+   * that cross-library bleed was the reader-mode-sticky bug. When no device
+   * preference is stored, or the item resolved to webtoon, the server default
+   * stands unchanged.
    */
   private applyDeviceViewPreference(): void {
+    if (this.view() === 'webtoon') return;
     const pref = this.viewPref();
     if (!pref) return;
     if (pref === 'auto') { this.applyAutoView(); return; }
-    if (pref === 'spread') { this.view.set('spread'); return; }
-    this.view.set(pref); // 'paged' | 'webtoon'
+    this.view.set(pref); // 'paged' | 'spread'
   }
 
   /** Auto (orientation) resolution: landscape → double page, portrait → single. */
@@ -577,11 +588,16 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
   // Live orientation reactivity: while the device preference is 'auto', flip
   // paged↔spread as the viewport rotates/resizes. Signal dedup makes this a no-op
-  // unless the orientation actually crossed the square boundary.
+  // unless the orientation actually crossed the square boundary. Guarded against
+  // webtoon (Option A fix) same as applyDeviceViewPreference — 'auto' is a
+  // paged-layout preference and must not kick a session's explicit webtoon choice
+  // back to paged just because the device rotated.
   @HostListener('window:resize')
   @HostListener('window:orientationchange')
   onViewportChange(): void {
-    if (this.phase() === 'ready' && this.viewPref() === 'auto') this.applyAutoView();
+    if (this.phase() === 'ready' && this.viewPref() === 'auto' && this.view() !== 'webtoon') {
+      this.applyAutoView();
+    }
   }
 
   @HostListener('document:fullscreenchange')
@@ -1094,7 +1110,10 @@ export class ReaderComponent implements OnInit, OnDestroy {
   private loadViewPref(): ViewPref | null {
     try {
       const raw = localStorage.getItem(ReaderComponent.ViewPrefKey);
-      if (raw === 'auto' || raw === 'paged' || raw === 'spread' || raw === 'webtoon') return raw;
+      // A stored 'webtoon' is a pre-Option-A value (from before webtoon was pulled
+      // out of the device-global pref) — it no longer matches and falls through to
+      // null, self-healing the stale sticky value instead of needing a migration.
+      if (raw === 'auto' || raw === 'paged' || raw === 'spread') return raw;
     } catch { /* private mode / unavailable */ }
     return null; // unset → follow the server-resolved mode
   }
@@ -1136,15 +1155,22 @@ export class ReaderComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Menu handlers: an explicit reading-mode pick is a per-device choice, so it is
-   * persisted (survives reloads and applies to future chapters on this device) in
-   * addition to switching the current view.
+   * Menu handlers. 'auto' | 'paged' | 'spread' are PAGED-LAYOUT picks: a per-device
+   * choice, persisted (survives reloads and applies to future PAGED chapters on
+   * this device) in addition to switching the current view. 'webtoon' is CONTENT
+   * ORIENTATION, not a layout — picking it is a per-item/session-only override
+   * (current view only, never persisted device-global); the server resolution
+   * remains authoritative for what a freshly opened item defaults to. This split
+   * is the Option A fix (2026-09-11) for the reader-mode-sticky bug, and is what
+   * keeps both vertical and paged reachable per item/session without either one
+   * bleeding across libraries.
    */
-  chooseView(pref: ViewPref): void {
+  chooseView(pref: ViewPref | 'webtoon'): void {
+    if (pref === 'webtoon') { this.setView('webtoon'); return; }
     this.viewPref.set(pref);
     this.saveViewPref(pref);
     if (pref === 'auto') this.applyAutoView();
-    else this.setView(pref === 'spread' ? 'spread' : pref);
+    else this.setView(pref);
   }
 
   chooseSpread(offset: boolean): void {
