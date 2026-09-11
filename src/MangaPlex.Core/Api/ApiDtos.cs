@@ -43,6 +43,17 @@ public sealed record PageResponse<T>
     public required int TotalCount { get; init; }
     public string? NextCursor { get; init; }
     public bool HasMore { get; init; }
+
+    /// <summary>
+    /// The folder's next-to-read descendant archive (1.7.0), surfaced as a pinned
+    /// "Continue" row above the sorted list. Only populated by catalog browse; null
+    /// for every other page response and when the browsed folder has no unread
+    /// descendant archive. Resolution: the in-progress archive if one exists (resume
+    /// the most recently updated), else the first UNREAD archive in SortKey order
+    /// (ordinal, matching NaturalOrderComparer); null when every descendant is read.
+    /// Additive - older clients that ignore it are unaffected. Never stored.
+    /// </summary>
+    public CatalogNodeDto? NextUnread { get; init; }
 }
 
 /// <summary>
