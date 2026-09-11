@@ -204,6 +204,18 @@ public sealed class ArchiveItemEntity
     /// </summary>
     public long? ThumbnailContentVersion { get; set; }
 
+    /// <summary>
+    /// Cheap content signature (1.5.0) — see
+    /// <see cref="com.lifepixer.mangaplex.Core.Media.ContentSignature"/>. Populated
+    /// when an analysis result is persisted; cleared when a scan detects an
+    /// in-place content change (the new content has not been hashed yet). Used by
+    /// the scanner to recognise a moved/renamed archive and keep its node id
+    /// (analysis, thumbnail and per-user reading state) instead of tombstoning it
+    /// and creating a fresh node. Null on rows analysed before 1.5.0, which
+    /// therefore never match as moves (safe default).
+    /// </summary>
+    public string? ContentSignature { get; set; }
+
     public CatalogNodeEntity? Node { get; set; }
     public ICollection<PageEntryEntity> Pages { get; set; } = [];
 }

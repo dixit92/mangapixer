@@ -193,6 +193,7 @@ public sealed class MangaPlexDbContext : DbContext
             e.HasKey(x => x.NodeId);
             e.Property(x => x.AnalysisError).HasMaxLength(1024);
             e.Property(x => x.StrongHash).HasMaxLength(128);
+            e.Property(x => x.ContentSignature).HasMaxLength(com.lifepixer.mangaplex.Core.Media.ContentSignature.MaxLength);
 
             e.HasOne(x => x.Node)
                 .WithOne(n => n.ArchiveItem)

@@ -31,7 +31,17 @@ public sealed class AnalysisResultPersister
         _logger = logger;
     }
 
-    public async Task PersistAsync(MangaPlexDbContext db, long nodeId, JobResult result, CancellationToken ct = default)
+    /// <param name="db">Scoped catalog context.</param>
+    /// <param name="nodeId">Archive item / catalog node id.</param>
+    /// <param name="result">Worker job result.</param>
+    /// <param name="contentSignature">
+    /// Optional <see cref="com.lifepixer.mangaplex.Core.Media.ContentSignature"/> of the
+    /// analysed bytes (1.5.0). Stored on success so a later scan can recognise the
+    /// file if it moves; ignored for failed results (the previous value, if any,
+    /// is left untouched).
+    /// </param>
+    /// <param name="ct">Cancellation.</param>
+    public async Task PersistAsync(MangaPlexDbContext db, long nodeId, JobResult result, string? contentSignature = null, CancellationToken ct = default)
     {
         var archiveItem = await db.ArchiveItems
             .Include(a => a.Pages)
@@ -97,6 +107,8 @@ public sealed class AnalysisResultPersister
         archiveItem.LastAnalyzedAt = DateTimeOffset.UtcNow;
         archiveItem.ByteLength = analyzeResult.ObservedByteLength;
         archiveItem.ModificationTicks = analyzeResult.ObservedLastWriteTicks;
+        if (!string.IsNullOrEmpty(contentSignature))
+            archiveItem.ContentSignature = contentSignature;
 
         await db.SaveChangesAsync(ct);
         _logger?.LogDebug(LogEvents.Worker.PersistCompleted, "Analysis persisted for item {ItemId}: {PageCount} pages", nodeId, analyzeResult.Pages.Count);
