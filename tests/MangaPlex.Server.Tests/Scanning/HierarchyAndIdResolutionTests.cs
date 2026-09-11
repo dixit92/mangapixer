@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangaplex.Tests.Server.Scanning;
 
+using System.Threading;
 using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Features.Catalog;
@@ -366,6 +367,17 @@ public sealed class HierarchyAndIdResolutionTests : IDisposable
     }
 
     // D34: Scan cancellation cooperatively cancels the scan.
+    //
+    // Deterministic (no timing window): a controllable filesystem blocks the
+    // scan's root enumeration until the test releases it, so the scan is
+    // guaranteed to be mid-flight when cancellation is requested. The scan's
+    // first ct.ThrowIfCancellationRequested() (at the top of the Observe loop,
+    // immediately after root enumeration returns) then observes the
+    // already-cancelled token and throws OperationCanceledException. The
+    // relative ordering of "cancel", "release", and "scan reaches the ct
+    // check" does not matter: cancellation always lands before the scan can
+    // pass the check, because the scan cannot enumerate past the root until
+    // released, and the test cancels before releasing.
     [Fact]
     public async Task ScanCancellation_CancelsCooperatively()
     {
@@ -376,19 +388,60 @@ public sealed class HierarchyAndIdResolutionTests : IDisposable
         var scanRunId = 42L;
         var ct = registry.Register(scanRunId);
 
-        var fs = new ReadOnlyLibraryFileSystem(_libRoot);
+        var fs = new ControllableLibraryFileSystem(new ReadOnlyLibraryFileSystem(_libRoot));
         var policy = new LibraryScanPolicy();
         var coordinator = new LibraryScanCoordinator(db, fs, policy, library.Id, 1, "test");
 
-        // Start the scan on a background task
+        // Start the scan on a background task. It blocks inside
+        // EnumerateEntries("") waiting for the root enumeration gate.
         var scanTask = Task.Run(() => coordinator.ScanAsync(ct));
 
-        // Cancel it
+        // Cancel while the scan is blocked (deterministic: the scan cannot
+        // progress past root enumeration until we release it below).
         registry.Cancel(scanRunId);
 
-        // The scan should throw OperationCanceledException
+        // Release the scan. It returns from EnumerateEntries("") and hits the
+        // first ct.ThrowIfCancellationRequested() in the Observe loop with the
+        // token already cancelled, throwing OperationCanceledException.
+        fs.ReleaseRootEnumeration();
+
         await Assert.ThrowsAsync<OperationCanceledException>(() => scanTask);
         registry.Complete(scanRunId);
+    }
+
+    /// <summary>
+    /// Wraps a <see cref="ReadOnlyLibraryFileSystem"/> and blocks the root
+    /// directory enumeration (relativePath == "") until
+    /// <see cref="ReleaseRootEnumeration"/> is called. Used by
+    /// <see cref="ScanCancellation_CancelsCooperatively"/> to make the scan's
+    /// start deterministic so cancellation can be requested while the scan is
+    /// mid-flight, instead of racing the scan to completion against an
+    /// immediate Cancel() (the scan of a tiny fixture library can finish
+    /// before the cancellation lands).
+    /// </summary>
+    private sealed class ControllableLibraryFileSystem : IReadOnlyLibraryFileSystem
+    {
+        private readonly IReadOnlyLibraryFileSystem _inner;
+        private readonly ManualResetEventSlim _rootGate = new(initialState: false);
+
+        public ControllableLibraryFileSystem(IReadOnlyLibraryFileSystem inner) => _inner = inner;
+
+        public void ReleaseRootEnumeration() => _rootGate.Set();
+
+        public bool RootExists() => _inner.RootExists();
+        public DirectoryEntry? GetRoot() => _inner.GetRoot();
+
+        public IReadOnlyList<FileSystemEntry> EnumerateEntries(string relativePath)
+        {
+            if (relativePath == "")
+                _rootGate.Wait();
+            return _inner.EnumerateEntries(relativePath);
+        }
+
+        public FileSystemEntry? GetEntry(string relativePath) => _inner.GetEntry(relativePath);
+        public Stream OpenRead(string relativePath) => _inner.OpenRead(relativePath);
+        public SourceStamp GetSourceStamp(string relativePath) => _inner.GetSourceStamp(relativePath);
+        public string? GetRootIdentity() => _inner.GetRootIdentity();
     }
 
     // D34: ScanRunRegistry.Cancel returns false for unknown run.
