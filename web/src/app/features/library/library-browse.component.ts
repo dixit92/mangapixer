@@ -12,7 +12,7 @@ import { forkJoin } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
-import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, JumpIndexBucketDto } from '../../core/api/api-types';
+import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryViewPreferencesDto, JumpIndexBucketDto } from '../../core/api/api-types';
 
 /**
  * Library browse component. Shows the actual folder/archive tree with keyset
@@ -59,6 +59,20 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
             <span class="current" aria-current="page">{{ currentFolderName() }}</span>
           }
         </div>
+        <!-- Card size slider (1.6.0): only meaningful for the Card view. Dragging
+             resizes the grid live (input); releasing persists the preference
+             (change). Subsumes the old comfortable/compact density toggle. -->
+        @if (viewMode() === 'card') {
+          <div class="size-control" matTooltip="Card size">
+            <mat-icon class="size-icon">photo_size_select_small</mat-icon>
+            <input type="range" class="size-slider" aria-label="Card size"
+                   [min]="cardSizeMin" [max]="cardSizeMax" [step]="cardSizeStep"
+                   [value]="cardSize()"
+                   (input)="onCardSizeInput($event)"
+                   (change)="onCardSizeChange($event)">
+            <mat-icon class="size-icon">photo_size_select_large</mat-icon>
+          </div>
+        }
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
                 matTooltip="Change how the library is displayed" aria-label="View options">
           <mat-icon>{{ viewIcon() }}</mat-icon> View
@@ -68,17 +82,6 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
             <button mat-menu-item (click)="setViewMode(opt.value)">
               <mat-icon>{{ viewMode() === opt.value ? 'check' : opt.icon }}</mat-icon>
               {{ opt.label }}
-            </button>
-          }
-          @if (viewMode() !== 'list') {
-            <mat-divider></mat-divider>
-            <button mat-menu-item (click)="setDensity('comfortable')">
-              <mat-icon>{{ density() === 'comfortable' ? 'check' : 'density_medium' }}</mat-icon>
-              Comfortable
-            </button>
-            <button mat-menu-item (click)="setDensity('compact')">
-              <mat-icon>{{ density() === 'compact' ? 'check' : 'density_small' }}</mat-icon>
-              Compact
             </button>
           }
           <mat-divider></mat-divider>
@@ -141,9 +144,9 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       </nav>
     }
 
-    <div class="nodes" [class.grid]="viewMode() === 'grid'"
-         [class.list]="viewMode() === 'list'" [class.poster]="viewMode() === 'poster'"
-         [class.compact]="density() === 'compact'">
+    <div class="nodes" [class.card]="viewMode() === 'card'"
+         [class.list]="viewMode() === 'list'"
+         [style.--card-size]="cardSize() + 'px'">
       @for (node of nodes(); track node.id) {
         <div class="node-wrap" [class.selected]="isSelected(node)">
           <a class="node-card" [routerLink]="selectMode() ? null : getNodeLink(node)"
@@ -221,18 +224,25 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     .actions { flex: 1 1 auto; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
     .actions mat-icon { margin-right: 4px; }
     .select-toggle mat-icon, .done mat-icon { margin-right: 4px; }
-    /* View modes (1.2.0). Grid/Poster are cover grids at different sizes; density
-       tightens them; List is a compact row layout with a small thumbnail. */
-    .nodes.grid {
-      display: grid; gap: 16px;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    /* Card size slider (1.6.0). Sits inline in the browse bar between the
+       breadcrumbs and the View menu; the small/large icons frame the range. */
+    .size-control { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+    .size-control .size-icon { font-size: 18px; width: 18px; height: 18px; color: #8a8a99; }
+    .size-slider {
+      width: 120px; max-width: 34vw; accent-color: #7c4dff; cursor: pointer;
+      background: transparent;
     }
-    .nodes.grid.compact { gap: 10px; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
-    .nodes.poster {
-      display: grid; gap: 20px;
-      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    @media (max-width: 560px) { .size-slider { width: 80px; } }
+    /* View modes. Card (1.6.0) is a single cover grid whose card size is a
+       continuous slider — the min column width comes from the --card-size custom
+       property fed by the component, replacing the former Grid/Poster modes and the
+       comfortable/compact density. The gap scales gently with the card size. List
+       is a compact row layout with a small thumbnail (unchanged). */
+    .nodes.card {
+      display: grid;
+      gap: clamp(10px, calc(var(--card-size, 150px) * 0.09), 20px);
+      grid-template-columns: repeat(auto-fill, minmax(var(--card-size, 150px), 1fr));
     }
-    .nodes.poster.compact { gap: 14px; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); }
     .nodes.list { display: flex; flex-direction: column; gap: 8px; }
     .nodes.list .node-wrap { width: 100%; }
     .nodes.list .node-card {
@@ -346,16 +356,28 @@ export class LibraryBrowseComponent implements OnInit {
   readonly selected = signal<Set<string>>(new Set());
   readonly busy = signal(false);
 
-  // Per-user library view mode (1.2.0). Tolerant: unknown persisted values fall back.
-  readonly viewMode = signal<LibraryViewMode>('grid');
+  // Per-user library view mode. Tolerant: unknown/legacy persisted values fall back.
+  // 1.6.0: the former Grid and Poster modes are merged into a single Card view whose
+  // size is the continuous slider below; List stays a separate mode.
+  readonly viewMode = signal<LibraryViewMode>('card');
+  // Legacy density (1.2.0), subsumed by the card-size slider. Kept only so the stored
+  // preference round-trips unchanged; there is no longer any density UI.
   readonly density = signal<LibraryGridDensity>('comfortable');
   readonly viewOptions: { value: LibraryViewMode; label: string; icon: string }[] = [
-    { value: 'grid', label: 'Grid', icon: 'grid_view' },
+    { value: 'card', label: 'Card', icon: 'grid_view' },
     { value: 'list', label: 'List', icon: 'view_list' },
-    { value: 'poster', label: 'Poster', icon: 'view_module' },
   ];
   readonly viewIcon = computed(() =>
     this.viewOptions.find((o) => o.value === this.viewMode())?.icon ?? 'grid_view');
+
+  // Card size (1.6.0): the grid's min column width in px. The slider range spans the
+  // legacy grid/poster x density sizes (112-210px today) with a little headroom on
+  // each end. Persisted as a stringified px value in LibraryViewPreferencesDto.cardSize.
+  readonly cardSizeMin = 110;
+  readonly cardSizeMax = 260;
+  readonly cardSizeStep = 10;
+  readonly defaultCardSize = 150;
+  readonly cardSize = signal<number>(this.defaultCardSize);
 
   // Per-user browse sort (post-1.2.0). Folders stay first in every mode; the sort
   // orders within kind. Omitted on the request → the server uses the stored pref;
@@ -391,9 +413,7 @@ export class LibraryBrowseComponent implements OnInit {
     // prefs handler and the route subscription would double-append — duplicate rows.)
     this.api.getLibraryPreferences().subscribe({
       next: (p) => {
-        const vm = p.viewMode as LibraryViewMode;
-        this.viewMode.set(vm === 'list' || vm === 'poster' ? vm : 'grid');
-        this.density.set(p.density === 'compact' ? 'compact' : 'comfortable');
+        this.applyStoredView(p);
         if (p.sort === 'recentlyAdded' || p.sort === 'recentlyRead') this.sort.set(p.sort);
         // Direction is optional/tolerant like the other fields: an unset or
         // unrecognized value falls back to the sort-specific default (matches
@@ -410,6 +430,36 @@ export class LibraryBrowseComponent implements OnInit {
   /** Sort-specific default direction, matching the server's fallback (1.5.0). */
   private defaultDirectionFor(sort: LibrarySortOrder): LibrarySortDirection {
     return sort === 'name' ? 'asc' : 'desc';
+  }
+
+  /**
+   * Map a stored preference blob onto the Card/List view + card size (1.6.0),
+   * tolerating pre-1.6.0 values. A stored 'list' stays List; everything else -
+   * 'card', the legacy 'grid'/'poster', and any unknown value - becomes Card. The
+   * card size uses the stored cardSize when present and valid, otherwise it is
+   * DERIVED from the legacy viewMode + density so existing users keep the effective
+   * card size they had before Grid/Poster were merged.
+   */
+  private applyStoredView(p: LibraryViewPreferencesDto): void {
+    this.viewMode.set(p.viewMode === 'list' ? 'list' : 'card');
+    this.density.set(p.density === 'compact' ? 'compact' : 'comfortable');
+    this.cardSize.set(this.resolveCardSize(p));
+  }
+
+  /**
+   * Resolve the initial card size: the stored numeric cardSize if usable, else the
+   * px width the legacy viewMode+density combination used (poster 210/168, grid
+   * 150/112), else the default. Keeps pre-1.6.0 stored prefs visually unchanged.
+   */
+  private resolveCardSize(p: LibraryViewPreferencesDto): number {
+    const stored = Number(p.cardSize);
+    if (p.cardSize != null && p.cardSize !== '' && Number.isFinite(stored)) {
+      return this.clampCardSize(stored);
+    }
+    const compact = p.density === 'compact';
+    if (p.viewMode === 'poster') return compact ? 168 : 210;
+    if (p.viewMode === 'grid') return compact ? 112 : 150;
+    return this.defaultCardSize;
   }
 
   /** Subscribe to the route params and load each folder as it is navigated. */
@@ -497,10 +547,30 @@ export class LibraryBrowseComponent implements OnInit {
     this.persistView();
   }
 
-  setDensity(d: LibraryGridDensity): void {
-    if (this.density() === d) return;
-    this.density.set(d);
+  /**
+   * Live card-size preview while dragging the slider (1.6.0): only updates the
+   * signal (which drives the grid's --card-size), deliberately WITHOUT persisting,
+   * so a drag doesn't fire a PUT per pixel. The commit happens on `change`.
+   */
+  onCardSizeInput(event: Event): void {
+    this.cardSize.set(this.clampCardSize(Number((event.target as HTMLInputElement).value)));
+  }
+
+  /** Commit the card size when the slider is released (change): persists it. */
+  onCardSizeChange(event: Event): void {
+    this.setCardSize(Number((event.target as HTMLInputElement).value));
+  }
+
+  /** Set the card size (clamped to the slider range) and persist the preference. */
+  setCardSize(px: number): void {
+    const size = this.clampCardSize(px);
+    this.cardSize.set(size);
     this.persistView();
+  }
+
+  private clampCardSize(px: number): number {
+    if (!Number.isFinite(px)) return this.defaultCardSize;
+    return Math.min(this.cardSizeMax, Math.max(this.cardSizeMin, Math.round(px)));
   }
 
   /** Change the browse sort: persist the preference and reorder from the top. */
@@ -539,6 +609,7 @@ export class LibraryBrowseComponent implements OnInit {
       density: this.density(),
       sort: this.sort(),
       direction: this.sortDirection(),
+      cardSize: String(this.cardSize()),
     }).subscribe({ error: () => { /* non-fatal: the choice still applies this session */ } });
   }
 
@@ -575,6 +646,15 @@ export class LibraryBrowseComponent implements OnInit {
    * over their descendant archives. Visible archive badges update; folder effects
    * (on items inside them) are reported by count. Selection is kept so more actions
    * can be applied to the same set.
+   *
+   * Mark-UNREAD (1.6.0 fix): clearing the sticky read-mark (DELETE .../read) is a
+   * no-op for an item that was opened but never marked read - it is InProgress with
+   * no read-mark, so it would stay "reading". So when unmarking, we ALSO reset the
+   * reading progress of any InProgress archive (DELETE .../progress -> Unread). That
+   * makes it leave both the browse "Reading" badge and the continue-reading strip.
+   * resetProgress is idempotent server-side (no-op when already unread), so it is
+   * safe to fire for the InProgress subset only. (Single-page archives auto-marking
+   * read on OPEN is intended and untouched - this is only the mark-unread action.)
    */
   bulkMarkRead(read: boolean): void {
     const ids = this.selected();
@@ -582,9 +662,15 @@ export class LibraryBrowseComponent implements OnInit {
     const archives = chosen.filter((n) => n.kind === 'Archive');
     const folders = chosen.filter((n) => n.kind === 'Folder');
 
+    // Only when marking unread: the mid-read archives whose progress must also be reset.
+    const resetArchives = read
+      ? []
+      : archives.filter((a) => a.readingState === 'InProgress');
+
     const calls = [
       ...archives.map((a) => this.api.setItemRead(a.id, read)),
       ...folders.map((f) => this.api.setFolderRead(f.id, read)),
+      ...resetArchives.map((a) => this.api.resetProgress(a.id)),
     ];
     if (calls.length === 0) return;
 
@@ -592,8 +678,20 @@ export class LibraryBrowseComponent implements OnInit {
     forkJoin(calls).subscribe({
       next: () => {
         const archiveIds = new Set(archives.map((a) => a.id));
+        const resetIds = new Set(resetArchives.map((a) => a.id));
         this.nodes.update((list) =>
-          list.map((n) => (archiveIds.has(n.id) ? { ...n, isRead: read } : n)));
+          list.map((n) => {
+            if (!archiveIds.has(n.id)) return n;
+            const updated = { ...n, isRead: read };
+            // Marking unread also cleared mid-read progress: drop the "Reading" state
+            // (and the last-read page) so the badge disappears and the item is no
+            // longer mid-read.
+            if (resetIds.has(n.id)) {
+              updated.readingState = 'Unread';
+              updated.lastReadPage = null;
+            }
+            return updated;
+          }));
 
         const folderNote = folders.length
           ? ` and ${folders.length} folder${folders.length > 1 ? 's' : ''}`
