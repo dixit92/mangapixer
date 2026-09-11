@@ -104,6 +104,18 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
 
         <!-- Requirement 3 (revised 2026-09-08): controls stay visible in fullscreen. -->
         @if (phase() === 'ready') {
+          <!-- 1.7.0 reader-bar CHAPTER arrows: move between archives in the folder
+               (distinct from page turning); disabled at the ends of the folder. -->
+          <button mat-icon-button (click)="prevChapter()" [disabled]="!hasPrevChapter()"
+                  [matTooltip]="prevNeighbor() ? 'Previous chapter: ' + prevNeighbor()!.displayName : 'No previous chapter'"
+                  [attr.aria-label]="prevNeighbor() ? 'Previous chapter: ' + prevNeighbor()!.displayName : 'No previous chapter'">
+            <mat-icon>skip_previous</mat-icon>
+          </button>
+          <button mat-icon-button (click)="nextChapter()" [disabled]="!hasNextChapter()"
+                  [matTooltip]="nextNeighbor() ? 'Next chapter: ' + nextNeighbor()!.displayName : 'No next chapter'"
+                  [attr.aria-label]="nextNeighbor() ? 'Next chapter: ' + nextNeighbor()!.displayName : 'No next chapter'">
+            <mat-icon>skip_next</mat-icon>
+          </button>
           <button mat-icon-button [matMenuTriggerFor]="modeMenu" matTooltip="Reading mode" aria-label="Reading mode"
                   (menuOpened)="menuOpen.set(true)" (menuClosed)="onMenuClosed()">
             <mat-icon>{{ viewIcon() }}</mat-icon>
@@ -181,10 +193,37 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
                  [style.aspect-ratio]="aspectRatioFor(entry)"
                  [attr.data-index]="$index" alt="Page {{ $index + 1 }}" />
           }
+          <!-- Requirement 4: end-of-chapter affordance. Auto-advance fires after a
+               short dwell at the bottom, but the buttons let the reader jump
+               explicitly (and surface where the previous chapter is). Styled inline
+               to stay within the component CSS budget. -->
+          <div class="webtoon-end"
+               style="width:100%; box-sizing:border-box; display:flex; flex-direction:column;
+                      align-items:center; gap:14px; padding:40px 16px 64px; color:#ccc; text-align:center;">
+            <button mat-stroked-button (click)="prevChapter()" [disabled]="!hasPrevChapter()"
+                    style="min-width:200px;">
+              <mat-icon>skip_previous</mat-icon> Previous chapter
+            </button>
+            <p style="margin:0; opacity:0.7; font-size:14px;">
+              {{ nextNeighbor() ? 'Keep scrolling for the next chapter' : 'End of this folder' }}
+            </p>
+            <button mat-flat-button color="primary" (click)="nextChapter()" [disabled]="!hasNextChapter()"
+                    style="min-width:200px;">
+              Next chapter <mat-icon>skip_next</mat-icon>
+            </button>
+          </div>
         </div>
       } @else {
-        <!-- Paged or double-spread: fixed viewport, one screen at a time. -->
-        <div class="reader-viewport">
+        <!-- Paged or double-spread: fixed viewport, one screen at a time.
+             Pointer handlers add direction-aware swipe page-turning (requirement 1).
+             Native touch-action is kept: on an overflowing (zoomed) page a horizontal
+             drag scrolls natively and fires pointercancel (we treat it as cancelled),
+             and two-finger pinch-zoom is guarded off via the multi-pointer check —
+             so neither native panning nor pinch-zoom is hijacked. -->
+        <div class="reader-viewport"
+             (pointerdown)="onReaderPointerDown($event)"
+             (pointerup)="onReaderPointerUp($event)"
+             (pointercancel)="onReaderPointerCancel($event)">
           @if (pageLoading()) {
             <mat-spinner class="page-spinner" diameter="36"></mat-spinner>
           }
@@ -205,8 +244,9 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
           </div>
           <button class="edge prev" (click)="onEdge('prev')" aria-label="Previous" tabindex="-1"></button>
           <button class="edge next" (click)="onEdge('next')" aria-label="Next" tabindex="-1"></button>
-          <!-- Center tap zone (Mihon-style): toggle chrome; edges still navigate. -->
-          <button class="tap-toggle" (click)="toggleChrome()" tabindex="-1"
+          <!-- Center tap zone (Mihon-style): toggle chrome; edges still navigate.
+               onCenterTap swallows the ghost click after a swipe. -->
+          <button class="tap-toggle" (click)="onCenterTap()" tabindex="-1"
                   aria-label="Show or hide controls"></button>
         </div>
       }
@@ -216,13 +256,29 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
            The bar sits in a taller invisible hit strip so it can be tapped/clicked
            (or arrow-keyed) to jump to a page — interactive page-jump. -->
       @if (phase() === 'ready') {
-        <div class="rail-hit" (click)="seekFromRail($event)" (keydown)="onRailKey($event)"
-             role="slider" tabindex="0" aria-label="Reading position (jump to page)"
+        <div class="rail-hit" [class.scrubbing]="scrubbing()"
+             (pointerdown)="onScrubStart($event)" (pointermove)="onScrubMove($event)"
+             (pointerup)="onScrubEnd($event)" (pointercancel)="onScrubEnd($event)"
+             (keydown)="onRailKey($event)"
+             role="slider" tabindex="0" aria-label="Reading position (drag to scrub pages)"
              [attr.aria-valuemin]="1" [attr.aria-valuemax]="pageCount()"
              [attr.aria-valuenow]="currentPage() + 1">
           <div class="progress-rail" [class.rtl]="direction() === 'rtl'" aria-hidden="true">
             <div class="progress-fill" [style.width.%]="progressPct()"></div>
           </div>
+          <!-- Prominent page bubble: appears ONLY while scrubbing, so nothing
+               clutters the page during normal reading. Styled inline to stay within
+               the component CSS budget; positioned by percent along the rail. -->
+          @if (scrubbing()) {
+            <div class="scrub-bubble" [style.left.%]="scrubThumbPct()" aria-hidden="true"
+                 style="position:absolute; bottom:24px; transform:translateX(-50%);
+                        background:rgba(20,20,22,0.96); color:#fff; border:1px solid rgba(255,255,255,0.18);
+                        border-radius:8px; padding:6px 12px; font-size:15px; font-weight:600;
+                        font-variant-numeric:tabular-nums; white-space:nowrap; pointer-events:none;
+                        box-shadow:0 4px 14px rgba(0,0,0,0.4);">
+              {{ currentPage() + 1 }} / {{ pageCount() }}
+            </div>
+          }
         </div>
       }
 
@@ -364,6 +420,12 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     /* RTL: fill sits at the right edge and grows leftward as pages advance. */
     .progress-rail.rtl { justify-content: flex-end; }
     .progress-fill { height: 100%; flex: none; background: #7c4dff; transition: width .2s ease; }
+    /* Scrubber (requirement 2) + webtoon end footer (requirement 4): the bulk of
+       these styles are applied inline in the template (kept out of the component
+       stylesheet to stay within the CSS budget). Only the scrubbing state that a
+       plain inline attribute can't express lives here. */
+    .rail-hit.scrubbing { height: 28px; }
+    .rail-hit.scrubbing .progress-rail { height: 8px; }
     /* The tap zones carry no visible affordance during reading (no focus ring, no
        tap highlight). They are surfaced deliberately via the Help overlay instead. */
     .edge, .tap-toggle { -webkit-tap-highlight-color: transparent; }
@@ -457,6 +519,27 @@ export class ReaderComponent implements OnInit, OnDestroy {
   readonly nextNeighbor = signal<{ id: string; displayName: string } | null>(null);
   readonly prevNeighbor = signal<{ id: string; displayName: string } | null>(null);
 
+  // 1.7.0 reader touch-UX. Chapter-arrow availability (requirement 3): the toolbar
+  // prev/next CHAPTER buttons are enabled only when a neighbor archive exists, so
+  // they grey out at the ends of a folder. Distinct from page turning.
+  readonly hasNextChapter = computed(() => !!this.nextNeighbor());
+  readonly hasPrevChapter = computed(() => !!this.prevNeighbor());
+
+  // 1.7.0 page scrubber (requirement 2): `scrubbing` is true only while the reader
+  // is actively dragging the bottom rail, which is what surfaces the prominent page
+  // bubble + enlarged bar (so nothing clutters the page otherwise). The thumb knob
+  // shows whenever chrome is visible, to advertise that the rail is draggable.
+  readonly scrubbing = signal(false);
+  // Thumb / bubble position as a percent along the rail, direction-aware (RTL fills
+  // from the right, mirroring the progress fill). At n<=1 it pins to the fill edge.
+  readonly scrubThumbPct = computed(() => {
+    const n = this.pageCount();
+    if (n <= 1) return this.direction() === 'rtl' ? 100 : 0;
+    let frac = this.currentPage() / (n - 1);
+    if (this.direction() === 'rtl') frac = 1 - frac;
+    return frac * 100;
+  });
+
   // Fallback exit route (2026-09-11, 1.6.1 owner iPad fix): the item's parent-folder
   // browse view, resolved from the catalog node so goBack() can return there even
   // when the reader was deep-linked (no SPA navigation history to walk back through).
@@ -503,6 +586,41 @@ export class ReaderComponent implements OnInit, OnDestroy {
   private static readonly RevealHotZonePx = 80;
   private destroyed = false;
 
+  // --- Swipe gesture state (requirement 1, paged/spread only) ---
+  // A single-pointer horizontal drag on the paged viewport turns the page,
+  // direction-aware like the edge zones. Multi-touch (pinch-zoom) and vertical
+  // drags are ignored so native zoom/scroll are never hijacked.
+  private static readonly SwipeMinDistancePx = 45;   // deliberate drag threshold
+  private static readonly SwipeFlickMinDistancePx = 20; // shorter if it's a fast flick
+  private static readonly SwipeFlickVelocity = 0.5;  // px/ms — a quick flick shortcut
+  private static readonly SwipeMaxOffAxisRatio = 0.75; // |dy| must stay below this * |dx|
+  private static readonly SwipeClickSuppressMs = 400; // swallow the ghost click after a swipe
+  private swipePointerId: number | null = null;
+  private swipeStartX = 0;
+  private swipeStartY = 0;
+  private swipeStartT = 0;
+  private swipeCancelled = false;
+  private activePointers = 0;
+  private lastSwipeAt = 0;
+
+  // --- Webtoon auto next/prev chapter state (requirement 4) ---
+  // Webtoon is native vertical scroll, so "the forward gesture at the end" is
+  // reaching the true bottom; the backward one is scrolling up past the top. Each
+  // arms a short dwell timer (so brushing the edge mid-read doesn't fire) and is
+  // guarded so a chapter can auto-advance at most once per open.
+  private static readonly WebtoonEdgeDwellMs = 900;
+  private webtoonHasScrolled = false;
+  private webtoonLastScrollTop = 0;
+  private webtoonEdgeTimer: ReturnType<typeof setTimeout> | null = null;
+  private webtoonEdgeArmed: 'next' | 'prev' | null = null;
+  private webtoonChapterNavigating = false;
+  // A programmatic scroll (resume-to-saved-page on entry, or a scrubber seek) fires
+  // a scroll event indistinguishable from a user scroll. Timestamp it so the edge
+  // evaluator ignores it — otherwise re-opening a finished webtoon chapter (resumed
+  // at its last page) or scrubbing to the end would instantly auto-advance.
+  private static readonly WebtoonProgrammaticScrollMs = 400;
+  private lastProgrammaticScrollAt = 0;
+
   pageUrlFor(entry: ManifestPageEntry | undefined): string {
     return entry ? `/api/v1/items/${this.itemId()}/pages/${encodeURIComponent(entry.entryKey)}` : '';
   }
@@ -525,6 +643,9 @@ export class ReaderComponent implements OnInit, OnDestroy {
       // Reset the page-prefetch cache for the new chapter (URLs are per-item).
       this.prefetchedUrls.clear();
       this.prefetchImgs = [];
+      // Reset webtoon auto-advance state so the new chapter starts fresh (no stale
+      // "already advanced" guard, no armed edge timer carried across the navigation).
+      this.resetWebtoonEdgeState();
       // "at=end" (set when arriving via previous-chapter back-navigation) asks to
       // land on the last page instead of resuming from saved progress.
       this.landOnLastPage = this.route.snapshot.queryParamMap.get('at') === 'end';
@@ -577,6 +698,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.destroyed = true;
     this.clearPoll();
     if (this.webtoonSaveTimer) clearTimeout(this.webtoonSaveTimer);
+    this.clearWebtoonEdgeTimer();
     this.clearHideTimer();
     this.saveProgress();
   }
@@ -1023,6 +1145,16 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.router.navigate(['/reader', prev.id], { queryParams: { at: 'end' } });
   }
 
+  /**
+   * Reader-bar chapter arrows (requirement 3) and the webtoon end-of-chapter
+   * footer both call these. They reuse the exact same chapter-navigation path as
+   * the auto-advance gestures (progress saved, snackbar, `/reader/:id` navigation);
+   * the toolbar buttons are disabled when there is no neighbor, so these are safe
+   * to call unconditionally.
+   */
+  nextChapter(): void { this.goToNextChapter(); }
+  prevChapter(): void { this.goToPreviousChapter(); }
+
   /** Next index in reading order, spread-aware (steps over the current spread). */
   private nextIndexFrom(from: number, dir: 1 | -1): number {
     if (this.view() !== 'spread') return from + dir;
@@ -1042,21 +1174,67 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.saveProgress();
   }
 
+  // --- Page scrubber (requirement 2): draggable position control on the rail ---
+
   /**
-   * Jump to the page under a click/tap on the progress rail. Direction-aware — in
-   * RTL the rail fills from the right, so the fraction is mirrored. Paged/spread
-   * jump discretely; webtoon scrolls to the target page (the scroll handler then
-   * reconciles currentPage and saves).
+   * Map a fraction (0..1) along the rail to a page index, direction-aware — in RTL
+   * the rail fills from the right, so the fraction is mirrored. Pure/clamped so it
+   * is unit-testable independently of the DOM.
    */
-  seekFromRail(event: MouseEvent): void {
+  private pageForRailFraction(frac: number): number {
     const n = this.pageCount();
-    if (n === 0) return;
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    if (n === 0) return 0;
+    let f = Math.min(1, Math.max(0, frac));
+    if (this.direction() === 'rtl') f = 1 - f;
+    return Math.round(f * (n - 1));
+  }
+
+  /** Begin scrubbing: reveal the prominent bubble and land the first position. */
+  onScrubStart(event: PointerEvent): void {
+    if (this.pageCount() === 0) return;
+    this.scrubbing.set(true);
+    const el = event.currentTarget as HTMLElement;
+    el.setPointerCapture?.(event.pointerId); // keep receiving moves outside the strip
+    this.scrubFromClientX(event.clientX, el);
+    event.preventDefault();
+  }
+
+  /** While dragging, update the current page LIVE (no progress save on each tick). */
+  onScrubMove(event: PointerEvent): void {
+    if (!this.scrubbing()) return;
+    this.scrubFromClientX(event.clientX, event.currentTarget as HTMLElement);
+  }
+
+  /** Release: land on the current page and persist progress once. */
+  onScrubEnd(event: PointerEvent): void {
+    if (!this.scrubbing()) return;
+    this.scrubbing.set(false);
+    (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+    this.saveProgress();
+  }
+
+  private scrubFromClientX(clientX: number, el: HTMLElement): void {
+    const rect = el.getBoundingClientRect();
     if (rect.width === 0) return;
-    let frac = (event.clientX - rect.left) / rect.width;
-    frac = Math.min(1, Math.max(0, frac));
-    if (this.direction() === 'rtl') frac = 1 - frac;
-    this.seekToPage(Math.round(frac * (n - 1)));
+    this.scrubApply(this.pageForRailFraction((clientX - rect.left) / rect.width));
+  }
+
+  /**
+   * Live scrub: move to a page without saving (save happens once on release). In
+   * webtoon this scrolls to the target so the position indicator tracks the scroll;
+   * paged/spread swap the visible page. Skips the no-op when the page is unchanged.
+   */
+  private scrubApply(index: number): void {
+    const clamped = Math.min(Math.max(index, 0), this.pageCount() - 1);
+    if (this.view() === 'webtoon') {
+      this.currentPage.set(clamped);
+      this.scrollWebtoonTo(clamped);
+      return;
+    }
+    if (clamped === this.currentPage()) return;
+    this.currentPage.set(clamped);
+    this.pageLoading.set(true);
+    this.prefetchAround(clamped);
   }
 
   /** Keyboard seek on the focused rail: arrows step a page (direction-aware); Home/End jump to the ends. */
@@ -1093,8 +1271,83 @@ export class ReaderComponent implements OnInit, OnDestroy {
    * distinct from requirement 2, which is about the visible chevron controls.
    */
   onEdge(side: 'prev' | 'next'): void {
+    // A completed swipe fires a ghost click on the zone it ended over; swallow it so
+    // the swipe doesn't also count as an edge tap (double page turn).
+    if (this.recentlySwiped()) return;
     const forward = side === 'next';
     (forward !== (this.direction() === 'rtl')) ? this.nextPage() : this.prevPage();
+  }
+
+  /** Center tap zone: toggle chrome, unless a swipe just ended here (ghost click). */
+  onCenterTap(): void {
+    if (this.recentlySwiped()) return;
+    this.toggleChrome();
+  }
+
+  private recentlySwiped(): boolean {
+    return Date.now() - this.lastSwipeAt < ReaderComponent.SwipeClickSuppressMs;
+  }
+
+  // --- Swipe gestures (requirement 1): direction-aware page turning on touch ---
+
+  /**
+   * Resolve a horizontal drag into a page action, or null when it isn't a page
+   * swipe. Rejects predominantly-vertical drags (so native vertical scrolling and
+   * pinch-pans are never stolen) and drags too short to be deliberate unless they
+   * are a fast flick. Direction-aware to match the edge zones exactly: LTR swipe
+   * left = next, right = prev; RTL (manga) mirrors it (swipe left = previous).
+   */
+  resolveSwipe(dx: number, dy: number, dtMs: number): 'next' | 'prev' | null {
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    if (absX === 0) return null;
+    if (absY > absX * ReaderComponent.SwipeMaxOffAxisRatio) return null; // too vertical
+    const velocity = dtMs > 0 ? absX / dtMs : Infinity;
+    const farEnough = absX >= ReaderComponent.SwipeMinDistancePx;
+    const flick = velocity >= ReaderComponent.SwipeFlickVelocity
+      && absX >= ReaderComponent.SwipeFlickMinDistancePx;
+    if (!farEnough && !flick) return null;
+    const leftward = dx < 0;
+    const rtl = this.direction() === 'rtl';
+    // leftward in LTR advances; leftward in RTL goes back (XOR with the RTL flag).
+    return (leftward !== rtl) ? 'next' : 'prev';
+  }
+
+  onReaderPointerDown(e: PointerEvent): void {
+    this.activePointers++;
+    // A second concurrent pointer means a pinch/zoom gesture — abandon any swipe so
+    // we never fight the browser's native pinch-zoom.
+    if (this.activePointers > 1) {
+      this.swipeCancelled = true;
+      this.swipePointerId = null;
+      return;
+    }
+    if (this.view() === 'webtoon') return; // webtoon stays native vertical scroll
+    this.swipePointerId = e.pointerId;
+    this.swipeStartX = e.clientX;
+    this.swipeStartY = e.clientY;
+    this.swipeStartT = e.timeStamp;
+    this.swipeCancelled = false;
+  }
+
+  onReaderPointerUp(e: PointerEvent): void {
+    this.activePointers = Math.max(0, this.activePointers - 1);
+    if (this.swipePointerId !== e.pointerId) return; // not the tracked pointer
+    this.swipePointerId = null;
+    if (this.swipeCancelled || this.view() === 'webtoon') { this.swipeCancelled = false; return; }
+    const action = this.resolveSwipe(
+      e.clientX - this.swipeStartX,
+      e.clientY - this.swipeStartY,
+      e.timeStamp - this.swipeStartT,
+    );
+    if (!action) return;
+    this.lastSwipeAt = Date.now(); // suppress the follow-up ghost click on the zones
+    action === 'next' ? this.nextPage() : this.prevPage();
+  }
+
+  onReaderPointerCancel(e: PointerEvent): void {
+    this.activePointers = Math.max(0, this.activePointers - 1);
+    if (this.swipePointerId === e.pointerId) { this.swipePointerId = null; this.swipeCancelled = true; }
   }
 
   /**
@@ -1266,13 +1519,82 @@ export class ReaderComponent implements OnInit, OnDestroy {
       if (this.webtoonSaveTimer) clearTimeout(this.webtoonSaveTimer);
       this.webtoonSaveTimer = setTimeout(() => this.saveProgress(), 600);
     }
+    // Requirement 4: arm/disarm webtoon auto next/prev-chapter from the scroll edges.
+    this.evaluateWebtoonEdges(el);
+  }
+
+  /**
+   * Webtoon auto next/prev chapter (requirement 4). Reaching the true bottom arms
+   * the NEXT chapter; scrolling up to the very top arms the PREVIOUS chapter. Each
+   * requires the reader to have actually scrolled first (so a short chapter that
+   * loads already at its bottom, or the initial top position, never triggers on
+   * entry) and only fires after a short dwell at the edge, so brushing the edge
+   * mid-read doesn't jump chapters. Moving away from the edge cancels a pending
+   * advance; a fired advance is guarded until the next chapter opens.
+   */
+  private evaluateWebtoonEdges(el: HTMLElement): void {
+    if (this.webtoonChapterNavigating) return;
+    const eps = ReaderComponent.WebtoonBottomEpsilonPx;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - eps;
+    const atTop = el.scrollTop <= eps;
+    const scrollingUp = el.scrollTop < this.webtoonLastScrollTop;
+    if (el.scrollTop > eps) this.webtoonHasScrolled = true;
+    this.webtoonLastScrollTop = el.scrollTop;
+
+    // Ignore the scroll event caused by our own programmatic scroll (resume /
+    // scrubber): only a genuine user scroll to an edge should arm an advance.
+    if (Date.now() - this.lastProgrammaticScrollAt < ReaderComponent.WebtoonProgrammaticScrollMs) return;
+
+    if (atBottom && this.webtoonHasScrolled && this.nextNeighbor()) {
+      this.armWebtoonAdvance('next');
+    } else if (atTop && scrollingUp && this.webtoonHasScrolled && this.prevNeighbor()) {
+      this.armWebtoonAdvance('prev');
+    } else {
+      this.disarmWebtoonAdvance();
+    }
+  }
+
+  private armWebtoonAdvance(dir: 'next' | 'prev'): void {
+    if (this.webtoonEdgeTimer && this.webtoonEdgeArmed === dir) return; // already counting down
+    this.clearWebtoonEdgeTimer();
+    this.webtoonEdgeArmed = dir;
+    this.webtoonEdgeTimer = setTimeout(() => {
+      this.webtoonEdgeTimer = null;
+      const armed = this.webtoonEdgeArmed;
+      this.webtoonEdgeArmed = null;
+      if (this.destroyed || !armed) return;
+      this.webtoonChapterNavigating = true; // guard against a second advance
+      if (armed === 'next') this.goToNextChapter();
+      else this.goToPreviousChapter();
+    }, ReaderComponent.WebtoonEdgeDwellMs);
+  }
+
+  private disarmWebtoonAdvance(): void {
+    this.clearWebtoonEdgeTimer();
+    this.webtoonEdgeArmed = null;
+  }
+
+  private clearWebtoonEdgeTimer(): void {
+    if (this.webtoonEdgeTimer) { clearTimeout(this.webtoonEdgeTimer); this.webtoonEdgeTimer = null; }
+  }
+
+  private resetWebtoonEdgeState(): void {
+    this.disarmWebtoonAdvance();
+    this.webtoonHasScrolled = false;
+    this.webtoonLastScrollTop = 0;
+    this.webtoonChapterNavigating = false;
   }
 
   private scrollWebtoonTo(index: number): void {
     const el = this.scroller()?.nativeElement;
     if (!el) return;
     const img = el.querySelectorAll<HTMLElement>('.webtoon-page')[index];
-    if (img) el.scrollTop = img.offsetTop;
+    if (img) {
+      // Mark this as programmatic so the ensuing scroll event doesn't arm an
+      // auto-advance (resume-on-entry / scrubber seeks must not jump chapters).
+      this.lastProgrammaticScrollAt = Date.now();
+      el.scrollTop = img.offsetTop;
+    }
   }
 
   private clearPoll(): void {

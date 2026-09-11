@@ -709,3 +709,370 @@ describe('ReaderComponent webtoon scroll-to-bottom completion', () => {
     expect(c.currentPage()).toBe(1);
   });
 });
+
+/**
+ * 1.7.0 reader touch-UX lane. Four additive features, all through the component's
+ * public surface: direction-aware swipe page-turning, the draggable page scrubber,
+ * reader-bar chapter arrows, and webtoon auto next/prev chapter.
+ */
+
+/** A minimal PointerEvent stand-in carrying only the fields the handlers read. */
+function pointer(overrides: Partial<{
+  pointerId: number; clientX: number; clientY: number; timeStamp: number;
+  currentTarget: unknown;
+}> = {}): PointerEvent {
+  return {
+    pointerId: 1, clientX: 0, clientY: 0, timeStamp: 0, currentTarget: null,
+    preventDefault: () => { /* noop */ },
+    ...overrides,
+  } as unknown as PointerEvent;
+}
+
+function baseProviders() {
+  return [
+    provideRouter([]),
+    provideHttpClient(),
+    provideHttpClientTesting(),
+    provideNoopAnimations(),
+    { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => 'item-1' }) } },
+  ];
+}
+
+describe('ReaderComponent swipe gestures (requirement 1)', () => {
+  function create() {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    return TestBed.createComponent(ReaderComponent).componentInstance;
+  }
+
+  describe('resolveSwipe direction-aware resolution', () => {
+    it('LTR: a leftward swipe is next, a rightward swipe is previous', () => {
+      const c = create();
+      c.direction.set('ltr');
+      expect(c.resolveSwipe(-80, 4, 120)).toBe('next');
+      expect(c.resolveSwipe(80, 4, 120)).toBe('prev');
+    });
+
+    it('RTL (manga): mirrors — a leftward swipe is previous, rightward is next', () => {
+      const c = create();
+      c.direction.set('rtl');
+      expect(c.resolveSwipe(-80, 4, 120)).toBe('prev');
+      expect(c.resolveSwipe(80, 4, 120)).toBe('next');
+    });
+
+    it('rejects a predominantly vertical drag (never steals vertical scroll/pinch)', () => {
+      const c = create();
+      expect(c.resolveSwipe(30, 120, 120)).toBeNull();
+    });
+
+    it('rejects a short slow drag but accepts a short fast flick', () => {
+      const c = create();
+      expect(c.resolveSwipe(-22, 0, 1000)).toBeNull();     // 22px, velocity 0.022 — neither far nor a flick
+      expect(c.resolveSwipe(-25, 0, 30)).toBe('next');      // 25px in 30ms → 0.83px/ms flick
+    });
+  });
+
+  describe('pointer handling', () => {
+    function paged(n = 5) {
+      const c = create();
+      c.pages.set(makePages(n));
+      c.view.set('paged');
+      c.phase.set('ready');
+      c.direction.set('ltr');
+      c.currentPage.set(1);
+      return c;
+    }
+
+    it('a leftward swipe turns to the next page; a rightward swipe turns back', () => {
+      const c = paged();
+      c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
+      c.onReaderPointerUp(pointer({ pointerId: 1, clientX: 90, clientY: 305, timeStamp: 100 }));
+      expect(c.currentPage()).toBe(2);
+
+      c.onReaderPointerDown(pointer({ pointerId: 2, clientX: 90, clientY: 300, timeStamp: 200 }));
+      c.onReaderPointerUp(pointer({ pointerId: 2, clientX: 200, clientY: 300, timeStamp: 300 }));
+      expect(c.currentPage()).toBe(1);
+    });
+
+    it('ignores a vertical drag (no page turn)', () => {
+      const c = paged();
+      c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 150, clientY: 100, timeStamp: 0 }));
+      c.onReaderPointerUp(pointer({ pointerId: 1, clientX: 150, clientY: 320, timeStamp: 120 }));
+      expect(c.currentPage()).toBe(1);
+    });
+
+    it('ignores a two-finger gesture (pinch-zoom is never hijacked)', () => {
+      const c = paged();
+      c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
+      c.onReaderPointerDown(pointer({ pointerId: 2, clientX: 100, clientY: 300, timeStamp: 10 })); // second finger
+      c.onReaderPointerUp(pointer({ pointerId: 1, clientX: 60, clientY: 300, timeStamp: 100 }));
+      c.onReaderPointerUp(pointer({ pointerId: 2, clientX: 260, clientY: 300, timeStamp: 110 }));
+      expect(c.currentPage()).toBe(1);
+    });
+
+    it('does not swipe-navigate in webtoon (native vertical scroll is preserved)', () => {
+      const c = paged();
+      c.view.set('webtoon');
+      c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
+      c.onReaderPointerUp(pointer({ pointerId: 1, clientX: 60, clientY: 305, timeStamp: 100 }));
+      expect(c.currentPage()).toBe(1);
+    });
+
+    it('suppresses the ghost edge/center tap that follows a completed swipe', () => {
+      const c = paged();
+      c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
+      c.onReaderPointerUp(pointer({ pointerId: 1, clientX: 90, clientY: 300, timeStamp: 100 }));
+      expect(c.currentPage()).toBe(2);
+      // The synthesized click on the edge zone must NOT turn a second page.
+      c.onEdge('next');
+      expect(c.currentPage()).toBe(2);
+    });
+  });
+});
+
+describe('ReaderComponent reader-bar chapter arrows (requirement 3)', () => {
+  function create() {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    return TestBed.createComponent(ReaderComponent).componentInstance;
+  }
+  afterEach(() => vi.restoreAllMocks());
+
+  it('chapter availability reflects the fetched neighbors', () => {
+    const c = create();
+    expect(c.hasPrevChapter()).toBe(false);
+    expect(c.hasNextChapter()).toBe(false);
+    c.nextNeighbor.set({ id: 'n', displayName: 'Chapter 2' });
+    c.prevNeighbor.set({ id: 'p', displayName: 'Chapter 0' });
+    expect(c.hasPrevChapter()).toBe(true);
+    expect(c.hasNextChapter()).toBe(true);
+  });
+
+  it('nextChapter()/prevChapter() reuse the existing chapter-navigation path', () => {
+    const c = create();
+    const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    c.pages.set(makePages(3));
+    c.phase.set('ready');
+    c.nextNeighbor.set({ id: 'next-item', displayName: 'Chapter 2' });
+    c.prevNeighbor.set({ id: 'prev-item', displayName: 'Chapter 0' });
+
+    c.nextChapter();
+    expect(nav).toHaveBeenCalledWith(['/reader', 'next-item']);
+
+    c.prevChapter();
+    expect(nav).toHaveBeenCalledWith(['/reader', 'prev-item'], { queryParams: { at: 'end' } });
+  });
+
+  it('renders the arrows disabled when there is no neighbor, enabled when there is', () => {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const fixture = TestBed.createComponent(ReaderComponent);
+    fixture.detectChanges(); // ngOnInit
+    const c = fixture.componentInstance;
+    c.pages.set(makePages(3));
+    c.view.set('paged');
+    c.phase.set('ready');
+    fixture.detectChanges();
+
+    const arrows = () => Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.reader-toolbar button'),
+    ).filter((b) => /skip_previous|skip_next/.test(b.textContent ?? '')) as HTMLButtonElement[];
+
+    // No neighbors yet → both chapter arrows disabled.
+    expect(arrows().length).toBe(2);
+    expect(arrows().every((b) => b.disabled)).toBe(true);
+
+    c.nextNeighbor.set({ id: 'n', displayName: 'Chapter 2' });
+    fixture.detectChanges();
+    const [prevBtn, nextBtn] = arrows();
+    expect(prevBtn.disabled).toBe(true);  // still no previous
+    expect(nextBtn.disabled).toBe(false); // next now available
+  });
+});
+
+describe('ReaderComponent page scrubber (requirement 2)', () => {
+  function create() {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.itemId.set('item-1');
+    return c;
+  }
+
+  function railFraction(c: ReaderComponent, frac: number): number {
+    return (c as unknown as { pageForRailFraction: (f: number) => number }).pageForRailFraction(frac);
+  }
+
+  /** A fake rail element with a 100px-wide box for deterministic fraction math. */
+  function fakeRail(): HTMLElement {
+    return {
+      getBoundingClientRect: () => ({ left: 0, width: 100 }) as DOMRect,
+      setPointerCapture: () => { /* noop */ },
+      releasePointerCapture: () => { /* noop */ },
+    } as unknown as HTMLElement;
+  }
+
+  it('maps a rail fraction to a page index (direction-aware)', () => {
+    const c = create();
+    c.pages.set(makePages(5)); // indices 0..4
+    c.direction.set('ltr');
+    expect(railFraction(c, 0)).toBe(0);
+    expect(railFraction(c, 0.5)).toBe(2);
+    expect(railFraction(c, 1)).toBe(4);
+    // RTL mirrors: the left end of the rail is the LAST page.
+    c.direction.set('rtl');
+    expect(railFraction(c, 0)).toBe(4);
+    expect(railFraction(c, 1)).toBe(0);
+  });
+
+  it('dragging updates the current page live and shows the prominent bubble', () => {
+    const c = create();
+    c.pages.set(makePages(5));
+    c.view.set('paged');
+    c.phase.set('ready');
+    c.currentPage.set(0);
+    const rail = fakeRail();
+
+    c.onScrubStart(pointer({ pointerId: 1, clientX: 50, currentTarget: rail })); // frac .5 → page 2
+    expect(c.scrubbing()).toBe(true);
+    expect(c.currentPage()).toBe(2);
+
+    c.onScrubMove(pointer({ pointerId: 1, clientX: 100, currentTarget: rail })); // frac 1 → page 4
+    expect(c.currentPage()).toBe(4);
+  });
+
+  it('releasing ends the scrub and persists progress once', () => {
+    const c = create();
+    const httpMock = TestBed.inject(HttpTestingController);
+    c.pages.set(makePages(5));
+    c.view.set('paged');
+    c.phase.set('ready');
+    const rail = fakeRail();
+
+    c.onScrubStart(pointer({ pointerId: 1, clientX: 50, currentTarget: rail }));
+    c.onScrubEnd(pointer({ pointerId: 1, clientX: 50, currentTarget: rail }));
+    expect(c.scrubbing()).toBe(false);
+
+    const req = httpMock.expectOne('/api/v1/reading/progress/item-1');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body.pageIndex).toBe(2);
+    req.flush({ revision: 1, alreadyApplied: false });
+  });
+});
+
+describe('ReaderComponent webtoon auto next/prev chapter (requirement 4)', () => {
+  function create() {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.itemId.set('item-1');
+    return c;
+  }
+
+  function useFakeScroller(
+    c: ReaderComponent,
+    opts: { scrollTop: number; clientHeight: number; scrollHeight: number; pageHeights: number[] },
+  ): void {
+    let top = 0;
+    const imgs = opts.pageHeights.map((h) => {
+      const img = { offsetTop: top, offsetHeight: h } as unknown as HTMLElement;
+      top += h;
+      return img;
+    });
+    const el = {
+      scrollTop: opts.scrollTop,
+      clientHeight: opts.clientHeight,
+      scrollHeight: opts.scrollHeight,
+      querySelectorAll: () => imgs,
+    } as unknown as HTMLElement;
+    (c as unknown as { scroller: () => { nativeElement: HTMLElement } }).scroller = () => ({ nativeElement: el });
+  }
+
+  function armed(c: ReaderComponent): 'next' | 'prev' | null {
+    return (c as unknown as { webtoonEdgeArmed: 'next' | 'prev' | null }).webtoonEdgeArmed;
+  }
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); vi.restoreAllMocks(); });
+
+  it('arms and (after a dwell) fires next-chapter navigation at the true bottom', () => {
+    const c = create();
+    const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    c.pages.set(makePages(3));
+    c.view.set('webtoon');
+    c.currentPage.set(1);
+    c.nextNeighbor.set({ id: 'next-item', displayName: 'Chapter 2' });
+    useFakeScroller(c, { scrollTop: 1860, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
+
+    c.onWebtoonScroll();
+    expect(armed(c)).toBe('next'); // dwell timer armed, not yet fired
+
+    vi.advanceTimersByTime(900);
+    expect(nav).toHaveBeenCalledWith(['/reader', 'next-item']);
+  });
+
+  it('does not arm at the bottom when there is no next chapter', () => {
+    const c = create();
+    c.pages.set(makePages(3));
+    c.view.set('webtoon');
+    c.currentPage.set(1);
+    c.nextNeighbor.set(null);
+    useFakeScroller(c, { scrollTop: 1860, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
+
+    c.onWebtoonScroll();
+    expect(armed(c)).toBeNull();
+  });
+
+  it('does not arm from a programmatic scroll (resume-on-entry / scrubber seek)', () => {
+    // Re-opening a finished webtoon chapter resumes at its last page via a
+    // programmatic scroll; that must NOT be treated as the reader scrolling to the
+    // bottom, or it would instantly auto-advance. Same guard covers scrubber seeks.
+    const c = create();
+    c.pages.set(makePages(3));
+    c.view.set('webtoon');
+    c.currentPage.set(1);
+    c.nextNeighbor.set({ id: 'next-item', displayName: 'Chapter 2' });
+    (c as unknown as { lastProgrammaticScrollAt: number }).lastProgrammaticScrollAt = Date.now();
+    useFakeScroller(c, { scrollTop: 1860, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
+
+    c.onWebtoonScroll();
+    expect(armed(c)).toBeNull(); // programmatic scroll ignored by the edge evaluator
+  });
+
+  it('arms previous-chapter only after scrolling back up to the very top', () => {
+    const c = create();
+    const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    c.pages.set(makePages(3));
+    c.view.set('webtoon');
+    c.prevNeighbor.set({ id: 'prev-item', displayName: 'Chapter 0' });
+
+    // First scroll down (records that the reader has actually scrolled).
+    useFakeScroller(c, { scrollTop: 1000, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
+    c.onWebtoonScroll();
+    expect(armed(c)).toBeNull();
+
+    // Then scroll up to the top → arms 'prev'.
+    useFakeScroller(c, { scrollTop: 0, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
+    c.onWebtoonScroll();
+    expect(armed(c)).toBe('prev');
+
+    vi.advanceTimersByTime(900);
+    expect(nav).toHaveBeenCalledWith(['/reader', 'prev-item'], { queryParams: { at: 'end' } });
+  });
+
+  it('moving away from the edge disarms a pending advance (no accidental jump)', () => {
+    const c = create();
+    const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    c.pages.set(makePages(3));
+    c.view.set('webtoon');
+    c.currentPage.set(1);
+    c.nextNeighbor.set({ id: 'next-item', displayName: 'Chapter 2' });
+
+    useFakeScroller(c, { scrollTop: 1860, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
+    c.onWebtoonScroll();
+    expect(armed(c)).toBe('next');
+
+    // Reader scrolls back up before the dwell elapses → disarm.
+    useFakeScroller(c, { scrollTop: 900, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
+    c.onWebtoonScroll();
+    expect(armed(c)).toBeNull();
+
+    vi.advanceTimersByTime(2000);
+    expect(nav).not.toHaveBeenCalled();
+  });
+});
