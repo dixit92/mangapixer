@@ -46,6 +46,11 @@ export interface CatalogNodeDto {
   readerDefault: ReaderMode | null;
   /** Whether the current user marked this item read (1.2.0 sticky flag). Archives only. */
   isRead: boolean;
+  /**
+   * Derived read rollup over a folder's readable descendant archives (1.6.0).
+   * Browse only, folders only; null for archives, empty folders, and search results.
+   */
+  readRollup: FolderReadRollup | null;
 }
 
 export interface BreadcrumbEntry {
@@ -80,6 +85,12 @@ export interface SearchResultsDto {
 }
 
 export type ReadingState = 'Unread' | 'InProgress' | 'Completed';
+
+/**
+ * Derived, display-only read state of a folder rolled up over its descendant
+ * archives (1.6.0). Rendered by `FolderRollupBadgeComponent`.
+ */
+export type FolderReadRollup = 'Unread' | 'Reading' | 'Read';
 
 export interface ReadingProgressDto {
   itemId: string;
