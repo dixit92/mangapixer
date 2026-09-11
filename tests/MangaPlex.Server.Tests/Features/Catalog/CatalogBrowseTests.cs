@@ -2,6 +2,7 @@ namespace com.lifepixer.mangaplex.Tests.Server.Features.Catalog;
 
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Core.Reading;
 using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Features.Catalog;
 using com.lifepixer.mangaplex.Server.Persistence;
@@ -1027,6 +1028,178 @@ public sealed class CatalogBrowseTests : IDisposable
 
             var folderNode = result.Items.Single(n => n.Kind == CatalogNodeKind.Folder);
             Assert.Null(folderNode.CoverUrl);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+    // --- Folder read rollup (1.6.0: derived Read / Reading / Unread over descendants) ---
+
+    private static async Task AddReadMarkAsync(MangaPlexDbContext db, long userId, long itemId)
+    {
+        db.ReadMarks.Add(new ReadMarkEntity
+        {
+            UserId = userId,
+            ItemId = itemId,
+            MarkedAt = DateTimeOffset.UtcNow,
+            Source = "manual",
+        });
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Browse_FolderRollup_AllDescendantsRead_IsRead()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            // Nested: Series/Vol1/{Ch1, Ch2}, Series/Ch3 - every readable archive read.
+            var series = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", "0S");
+            var vol1 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Folder, "Vol 1", "0V1");
+            var ch1 = await AddNodeAsync(db, libraryId, vol1.Id, CatalogNodeKind.Archive, "Ch 1", "1C1");
+            var ch2 = await AddNodeAsync(db, libraryId, vol1.Id, CatalogNodeKind.Archive, "Ch 2", "1C2");
+            var ch3 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 3", "1C3");
+            await AddReadMarkAsync(db, userId, ch1.Id);
+            await AddReadMarkAsync(db, userId, ch2.Id);
+            await AddReadMarkAsync(db, userId, ch3.Id);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var root = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
+            Assert.Equal(FolderReadRollup.Read, root.Items.Single().ReadRollup);
+
+            // The nested volume folder rolls up independently when browsing into Series.
+            var inside = await service.BrowseAsync(userId, libraryId, parentId: series.Id, cursor: null);
+            var volNode = inside.Items.Single(n => n.Kind == CatalogNodeKind.Folder);
+            Assert.Equal(FolderReadRollup.Read, volNode.ReadRollup);
+            // Archives never carry a rollup - they carry IsRead instead.
+            var archiveNode = inside.Items.Single(n => n.Kind == CatalogNodeKind.Archive);
+            Assert.Null(archiveNode.ReadRollup);
+            Assert.True(archiveNode.IsRead);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_FolderRollup_SomeReadOrInProgress_IsReading()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            // Folder A: one of two read (partial by read-marks only).
+            var a = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "A", "0A");
+            var a1 = await AddNodeAsync(db, libraryId, a.Id, CatalogNodeKind.Archive, "A1", "1A1");
+            await AddNodeAsync(db, libraryId, a.Id, CatalogNodeKind.Archive, "A2", "1A2");
+            await AddReadMarkAsync(db, userId, a1.Id);
+
+            // Folder B: none read, one in progress deep in a subfolder (partial by progress).
+            var b = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "B", "0B");
+            var bSub = await AddNodeAsync(db, libraryId, b.Id, CatalogNodeKind.Folder, "BSub", "0BS");
+            var b1 = await AddNodeAsync(db, libraryId, bSub.Id, CatalogNodeKind.Archive, "B1", "1B1");
+            await AddNodeAsync(db, libraryId, b.Id, CatalogNodeKind.Archive, "B2", "1B2");
+            await AddProgressAsync(db, userId, b1.Id, DateTimeOffset.UtcNow, state: (int)ReadingState.InProgress);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
+
+            Assert.Equal(FolderReadRollup.Reading, result.Items.Single(n => n.DisplayName == "A").ReadRollup);
+            Assert.Equal(FolderReadRollup.Reading, result.Items.Single(n => n.DisplayName == "B").ReadRollup);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_FolderRollup_NothingReadOrInProgress_IsUnread()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var f = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Fresh", "0F");
+            var f1 = await AddNodeAsync(db, libraryId, f.Id, CatalogNodeKind.Archive, "F1", "1F1");
+            await AddNodeAsync(db, libraryId, f.Id, CatalogNodeKind.Archive, "F2", "1F2");
+            // A Completed progress row WITHOUT a read-mark does not count as read (the
+            // archive card would show neither badge), so the folder stays Unread - the
+            // rollup composes from exactly the signals the cards display.
+            await AddProgressAsync(db, userId, f1.Id, DateTimeOffset.UtcNow, state: (int)ReadingState.Completed);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
+
+            Assert.Equal(FolderReadRollup.Unread, result.Items.Single().ReadRollup);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_FolderRollup_EmptyOrTombstonedOnly_IsNull()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Empty", "0E");
+            var gone = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "GoneOnly", "0G");
+            var tomb = await AddNodeAsync(db, libraryId, gone.Id, CatalogNodeKind.Archive, "Gone", "1G");
+            tomb.Availability = (int)CatalogNodeAvailability.Tombstoned;
+            await db.SaveChangesAsync();
+            // A read-mark on a tombstoned archive must not make the folder "Read".
+            await AddReadMarkAsync(db, userId, tomb.Id);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
+
+            Assert.Equal(2, result.Items.Count);
+            Assert.All(result.Items, n => Assert.Null(n.ReadRollup));
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_FolderRollup_IsPerUser()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var other = new UserEntity
+            {
+                PublicId = OpaqueId.Encode(3),
+                UserName = "other",
+                NormalizedUserName = "OTHER",
+                IsActive = true,
+                IsAdmin = true,
+                PasswordHash = "hash",
+                SecurityStamp = Guid.NewGuid().ToString("N"),
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.Users.Add(other);
+            await db.SaveChangesAsync();
+
+            var f = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Shared", "0S");
+            var f1 = await AddNodeAsync(db, libraryId, f.Id, CatalogNodeKind.Archive, "S1", "1S1");
+            await AddReadMarkAsync(db, userId, f1.Id);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var mine = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
+            var theirs = await service.BrowseAsync(other.Id, libraryId, parentId: null, cursor: null);
+
+            Assert.Equal(FolderReadRollup.Read, mine.Items.Single().ReadRollup);
+            Assert.Equal(FolderReadRollup.Unread, theirs.Items.Single().ReadRollup);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_FolderRollup_PopulatedAcrossAllSortModes()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var f = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "F", "0F");
+            var f1 = await AddNodeAsync(db, libraryId, f.Id, CatalogNodeKind.Archive, "F1", "1F1");
+            await AddReadMarkAsync(db, userId, f1.Id);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            foreach (var sort in new[] { "name", "recentlyAdded", "recentlyRead" })
+            {
+                var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null, sort: sort);
+                Assert.Equal(FolderReadRollup.Read, result.Items.Single().ReadRollup);
+            }
         }
         finally { await db.DisposeAsync(); }
     }

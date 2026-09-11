@@ -193,6 +193,33 @@ public sealed class CatalogBrowseService
             }
         }
 
+        // Derived folder read rollup (1.6.0): for every folder on the page, classify
+        // its readable descendant archives as Read / Reading / Unread from the same
+        // two signals the archive cards show (sticky read-mark, in-progress progress).
+        // Set-based: ONE recursive CTE over all page folders (no per-folder walk) -
+        // same shape as the cover and recency aggregates above. Folders with no
+        // readable descendant archive get null (no badge), mirroring the cover rule.
+        if (folderIds.Count > 0)
+        {
+            var folderRows = rows.Where(r => r.Kind == (int)CatalogNodeKind.Folder).ToList();
+            var rollupsByInternalId = await ResolveFolderReadRollupsAsync(
+                folderRows.Select(r => r.InternalId).ToList(), userId, ct);
+
+            if (rollupsByInternalId.Count > 0)
+            {
+                var rollupsByPublicId = folderRows
+                    .Where(r => rollupsByInternalId.ContainsKey(r.InternalId))
+                    .ToDictionary(r => r.Id, r => rollupsByInternalId[r.InternalId]);
+
+                nodes = nodes.Select(n =>
+                {
+                    if (n.Kind == CatalogNodeKind.Folder && rollupsByPublicId.TryGetValue(n.Id, out var rollup))
+                        return n with { ReadRollup = rollup };
+                    return n;
+                }).ToList();
+            }
+        }
+
         // Compute next cursor from the last row on the current page. recentlyRead
         // paginates by offset (in-memory pure-recency order); the others use a keyset.
         string? nextCursor = null;
@@ -848,6 +875,80 @@ public sealed class CatalogBrowseService
             using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
                 result[reader.GetInt64(0)] = reader.GetString(1);
+        }
+        finally
+        {
+            if (!wasOpen) await connection.CloseAsync();
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Resolves the derived read rollup (1.6.0) for each folder in
+    /// <paramref name="folderInternalIds"/> in a single set-based query: one recursive
+    /// CTE enumerates every descendant of every page folder tagged with its RootId,
+    /// then the readable archives are LEFT JOINed to the user's read_marks and
+    /// reading_progress rows and aggregated per RootId. Both joined tables have a
+    /// unique (UserId, ItemId) index, so the joins cannot multiply rows and the counts
+    /// are exact. Folders with no readable descendant archive are omitted (null rollup).
+    ///
+    /// Cost is proportional to the total descendant count of the folders on the page
+    /// (walked once via the (ParentId, Kind, SortKey) index) - the same order as the
+    /// existing cover and recently-read aggregates, so browse gains no new per-folder
+    /// round trips. Classification of the three counts lives in
+    /// <see cref="FolderReadRollupRules.Classify"/> (Core, unit-tested).
+    /// </summary>
+    private async Task<Dictionary<long, FolderReadRollup>> ResolveFolderReadRollupsAsync(
+        List<long> folderInternalIds,
+        long userId,
+        CancellationToken ct)
+    {
+        var result = new Dictionary<long, FolderReadRollup>();
+        if (folderInternalIds.Count == 0)
+            return result;
+
+        var ids = string.Join(",", folderInternalIds);
+        var connection = _db.Database.GetDbConnection();
+        var wasOpen = connection.State == System.Data.ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync(ct);
+        try
+        {
+            using var command = connection.CreateCommand();
+            // Kind = 1 is Archive; Availability = 5 is Tombstoned; State = 1 is InProgress
+            // (same literals as the sibling CTEs in this file). The root row itself is a
+            // folder (Kind 0) so it is filtered out by the archive join.
+            command.CommandText = $"""
+                WITH RECURSIVE subtree(RootId, NodeId) AS (
+                    SELECT r.Id, r.Id FROM catalog_nodes r WHERE r.Id IN ({ids})
+                    UNION ALL
+                    SELECT s.RootId, cn.Id FROM subtree s
+                    JOIN catalog_nodes cn ON cn.ParentId = s.NodeId
+                )
+                SELECT s.RootId,
+                       COUNT(*) AS Total,
+                       SUM(CASE WHEN rm.ItemId IS NOT NULL THEN 1 ELSE 0 END) AS ReadCount,
+                       SUM(CASE WHEN rm.ItemId IS NULL AND rp.State = 1 THEN 1 ELSE 0 END) AS InProgressCount
+                FROM subtree s
+                JOIN catalog_nodes a ON a.Id = s.NodeId AND a.Kind = 1 AND a.Availability != 5
+                LEFT JOIN read_marks rm ON rm.ItemId = a.Id AND rm.UserId = $user
+                LEFT JOIN reading_progress rp ON rp.ItemId = a.Id AND rp.UserId = $user
+                GROUP BY s.RootId;
+                """;
+            var p = command.CreateParameter();
+            p.ParameterName = "$user";
+            p.Value = userId;
+            command.Parameters.Add(p);
+
+            using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var rollup = FolderReadRollupRules.Classify(
+                    total: reader.GetInt32(1),
+                    read: reader.GetInt32(2),
+                    inProgress: reader.GetInt32(3));
+                if (rollup is not null)
+                    result[reader.GetInt64(0)] = rollup.Value;
+            }
         }
         finally
         {

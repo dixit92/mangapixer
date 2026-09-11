@@ -100,6 +100,16 @@ public sealed record CatalogNodeDto
     /// managed in bulk over descendants, not stored on the folder itself).
     /// </summary>
     public bool IsRead { get; init; }
+
+    /// <summary>
+    /// Derived read rollup over this folder's readable descendant archives for the
+    /// current user (1.6.0): Read when every one carries a read-mark, Reading when
+    /// some are read or in progress, Unread when none are. Only populated in browse
+    /// and only for folders that have at least one readable descendant archive; null
+    /// for archives, empty folders, and search results. Never stored - computed from
+    /// the same per-item signals as <see cref="IsRead"/> / <see cref="ReadingState"/>.
+    /// </summary>
+    public FolderReadRollup? ReadRollup { get; init; }
 }
 
 /// <summary>
