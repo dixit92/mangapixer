@@ -111,6 +111,25 @@ by other containers — pick a free one.
 - `package.json` version must match `Version.props`.
 - Git release tags: `v<version>` (not created by default).
 
+### Release ritual (owner-gated)
+
+Every release is cut on `dev` and then **`main` is fast-forwarded / merged to that
+release commit** so `main` always tracks the latest released version. This step is
+mandatory and easy to forget - it was skipped for 1.4.0 and 1.4.1 (main sat at the
+1.3.0 merge while dev moved on), which is the gap this section closes.
+
+Order, all owner-gated (do NOT do autonomously):
+
+1. Bump `Version.props` (and match `package.json`) to `<version>`; commit on `dev`.
+2. Tag `v<version>` on that commit.
+3. **Merge `dev` into `main`** (`git checkout main && git merge --no-ff dev`), so `main`
+   contains the release commit and tag. `main` is the "last released" trunk; `dev` is the
+   version-agnostic integration trunk that runs ahead.
+4. Build/deploy the tagged image as needed.
+
+Never merge `dev` into `main` for an in-progress cycle (main must track released
+versions only) - the merge happens as part of the cut, after the version bump + tag.
+
 ## Shared contracts (P02)
 
 - Opaque IDs use base36 encoding (`OpaqueId.Encode/Decode`). All ID types (`LibraryId`, `CatalogNodeId`, `ItemId`, `UserId`, `PageEntryKey`) are readonly record structs.
@@ -192,42 +211,30 @@ failures.
 
 ## Parallel worktrees (multi-agent)
 
-When several agents implement different lanes at once, isolation is mandatory.
-This process is the standard; it exists because the 2026-09-09 post-1.2.0 cycle
-proved the failure mode (see the anti-patterns below).
+The cross-runtime coordination procedure (worktree isolation, lane/integrator
+roles, one-writer-per-file docs, release-boundary and flake discipline) is
+encoded in the personal `multi-lane` skill
+(`~/.claude/skills/multi-lane/SKILL.md`), which references the vault's
+`Development Conventions - Multi-Agent Lane Development` note as the
+authoritative contract. Invoke `/multi-lane` when several agents implement
+different lanes at once. What remains here is MangaPlex-specific enforcement on
+top of that procedure.
 
-**Clarifying the "no commits by default" invariant:** that invariant forbids a
-*remote*, pushing, and landing on the integration branch without review. It does
-**not** forbid local commits on your own lane branch — those are the sanctioned
-hand-off mechanism here. The main agent merges *commits*, never working-tree
-diffs or stashes.
+**Integration trunk.** Branch off `dev`, not stale `main` or a release tag, so
+your lane already contains shipped prior work and merges cleanly. `dev` is a
+single long-lived, **version-agnostic** trunk — do **not** name it after a
+version (an earlier `dev/1.2.0` went stale the moment SemVer said the next cut
+was 1.3.0). The release number lives only in `Version.props` and the tag,
+decided at cut time.
 
-1. **One worktree + one branch per lane.**
-   `git worktree add ../lp-mangaplex.<lane> -b feature/<lane> <integration-branch>`.
-   Never share a working tree between agents, and never do lane work directly in
-   the main checkout while other agents are active.
-2. **Branch off the current integration branch** (e.g. `dev/1.2.0`), not stale
-   `main` or a release tag, so your lane already contains shipped prior work and
-   merges cleanly.
-3. **Commit to your lane branch — do not leave work as uncommitted working-tree
-   diffs.** Uncommitted lanes can't be told apart, get accidentally stashed
-   together, and are fragile to integrate. Local commits only (no remote, no
-   push). Commit early enough that a hand-off is a branch, not a dirty tree.
-4. **Never touch another agent's worktree, and never stash changes that aren't
-   yours.** If you find foreign uncommitted changes in your working tree, stop —
-   you are in a shared checkout and must move to your own worktree.
-5. **Declare file ownership up front** in the lane's plan note, and flag hot/shared
-   files (e.g. `AdminController.cs`, `CatalogBrowseService.cs`). If two lanes must
-   edit one file, sequence them or split by method region and flag it for the merge.
-6. **Verify your lane in isolation** (`sdk:10.0` container) before hand-off; report
-   tests by kind.
-7. **The main agent owns integration:** review each lane branch, merge one lane at
-   a time into the integration branch, build + test after each, resolve shared-file
-   overlaps, then re-verify combined.
-8. **Cleanup after merge:** `git worktree remove <dir>` then `git branch -d
-   feature/<lane>`. If a worktree has a `node_modules` **junction/symlink**, delete
-   the link first with `cmd //c rmdir "<path>"` (removes the link only, never
-   follows into the target) before removing the worktree.
+**Worktree naming.** `git worktree add ../lp-mangaplex.<lane> -b feature/<lane> dev`.
+
+**Hot files (declare ownership up front; sequence or split by method region if
+two lanes must edit one).** `AdminController.cs`, `CatalogBrowseService.cs`.
+
+**Verify in isolation before hand-off** using the `sdk:10.0` container (see the
+container-based build commands above); report tests by kind
+(unit / service-with-DB / HTTP / process / browser).
 
 **Anti-patterns (all observed 2026-09-09, do not repeat):**
 - Two lanes' uncommitted diffs intermixed in the shared main checkout.

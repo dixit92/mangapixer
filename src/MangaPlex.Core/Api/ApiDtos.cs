@@ -225,13 +225,41 @@ public sealed record ReadMarkDto
 /// tolerant/extensible: a frontend maps values it knows and falls back gracefully
 /// for any it doesn't (owner-settled multi-frontend rationale). Known values today:
 /// ViewMode = grid | list | poster; Density = comfortable | compact;
-/// Sort = name | recentlyAdded | recentlyRead.
+/// Sort = name | recentlyAdded | recentlyRead; Direction = "" | asc | desc.
+///
+/// Direction (1.5.0) defaults to "" (unset) rather than baking in a fixed default,
+/// because the sensible default differs per sort (Name ascending; recentlyAdded/
+/// recentlyRead descending). Consumers resolve "" to the sort-specific default —
+/// see <c>CatalogController.ParseDirection</c> — so existing stored preferences
+/// (saved before this field existed) keep their pre-1.5.0 ordering unchanged.
 /// </summary>
 public sealed record LibraryViewPreferencesDto
 {
     public string ViewMode { get; init; } = "grid";
     public string Density { get; init; } = "comfortable";
     public string Sort { get; init; } = "name";
+    public string Direction { get; init; } = "";
+}
+
+/// <summary>
+/// The current user's Private library designations (1.4.0). Libraries in this
+/// list are hidden from listing/discovery surfaces (continue-reading, search,
+/// browse-root, library list) while Incognito mode is active. Direct reader
+/// URLs remain accessible regardless. Library IDs are opaque public IDs.
+/// </summary>
+public sealed record PrivateLibrariesDto
+{
+    public required IReadOnlyList<string> LibraryIds { get; init; }
+}
+
+/// <summary>
+/// Request to replace the current user's Private library set (1.4.0). The
+/// entire list is replaced on each call. Unknown library IDs are silently
+/// skipped.
+/// </summary>
+public sealed record SetPrivateLibrariesRequest
+{
+    public required IReadOnlyList<string> LibraryIds { get; init; }
 }
 
 /// <summary>
@@ -447,18 +475,43 @@ public sealed record AdminUserDto
     public required string Username { get; init; }
     public required bool IsAdmin { get; init; }
     public required bool IsActive { get; init; }
+    public bool IsPendingActivation { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset? LastLoginAt { get; init; }
 }
 
 /// <summary>
-/// Request to create a new user.
+/// Request to create a new user. When <see cref="Password"/> is omitted the
+/// server creates the account in pending-activation state and returns a
+/// single-use activation URL for the admin to hand to the user.
 /// </summary>
 public sealed record CreateUserRequest
 {
     public required string Username { get; init; }
-    public required string Password { get; init; }
+    public string? Password { get; init; }
     public bool IsAdmin { get; init; }
+}
+
+/// <summary>
+/// Response from creating a user. When the user was created with a password
+/// <see cref="ActivationUrl"/> is null. When created without a password the
+/// activation URL is returned exactly once — it is never stored or logged in
+/// cleartext on the server.
+/// </summary>
+public sealed record CreateUserResponse
+{
+    public required AdminUserDto User { get; init; }
+    public string? ActivationUrl { get; init; }
+}
+
+/// <summary>
+/// Request to activate a pending account by setting its initial password.
+/// The token is the raw activation token from the URL the admin shared.
+/// </summary>
+public sealed record ActivateAccountRequest
+{
+    public required string Token { get; init; }
+    public required string Password { get; init; }
 }
 
 /// <summary>
@@ -637,4 +690,21 @@ public sealed record YacReaderImportResultDto
 
     /// <summary>Sticky read-marks set (for comics YACReader marked read).</summary>
     public required int ReadMarks { get; init; }
+}
+
+/// <summary>
+/// Read-only product version information (post-1.3.0 lane D). The version comes
+/// from the assembly <see cref="System.Reflection.AssemblyInformationalVersionAttribute"/>,
+/// which is sourced from <c>Version.props</c> at build time (see
+/// <c>Directory.Build.props</c>). Contains no private data; served unauthenticated
+/// so the app footer can display it before login.
+/// </summary>
+public sealed record SystemInfoDto
+{
+    /// <summary>
+    /// The full product version (SemVer plus optional build metadata, e.g.
+    /// "1.3.0+sha.abc123"). This is the <c>InformationalVersion</c>, not the
+    /// numeric <c>AssemblyVersion</c> (which stays at major.minor.0.0).
+    /// </summary>
+    public required string Version { get; init; }
 }

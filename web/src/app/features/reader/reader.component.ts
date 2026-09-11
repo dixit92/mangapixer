@@ -763,6 +763,8 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.revealChrome();
     this.prefetchAround(index);
     if (this.view() === 'webtoon') {
+      // Warm the first few pages ahead on entry (before any scroll fires).
+      this.prefetchWebtoonAhead(index);
       // Scroll the saved page into view once the DOM is present.
       queueMicrotask(() => this.scrollWebtoonTo(index));
     }
@@ -771,12 +773,21 @@ export class ReaderComponent implements OnInit, OnDestroy {
   // Bounded client-side page prefetch: warm the browser cache with the next few
   // (and previous) page images so paging is instant. Page URLs are immutable
   // (content-version-keyed cache headers), so a prefetched image is reused by the
-  // reader's <img> without a re-transfer. Webtoon is native-lazy, so skip it.
-  // Ahead-heavy since reading is overwhelmingly forward; manga flips fast, so keep a
-  // generous forward buffer. (Vertical/webtoon read-ahead is a separate concern —
-  // it relies on native lazy-load; a scroll-driven prefetch is a backlog item.)
+  // reader's <img> without a re-transfer. Ahead-heavy since reading is
+  // overwhelmingly forward; manga flips fast, so keep a generous forward buffer.
+  //
+  // Webtoon (vertical) read-ahead (2026-09-10, post-1.3.0 lane D): the paged/spread
+  // prefetch above is skipped in webtoon (native lazy-load + aspect placeholders
+  // reserve layout). But a fast vertical scroll can outrun native lazy-load and hit
+  // unloaded pages. So onWebtoonScroll warms the next few pages ahead of the scroll
+  // position via prefetchWebtoonAhead, reusing the same content-version-keyed URLs
+  // and the shared dedup/ref pool below. It never crosses the chapter boundary
+  // (pages() is per-chapter; clamping to n enforces it). Thresholds are named
+  // constants so the main agent can tune feel on real iPad/Android hardware.
   private static readonly PrefetchAhead = 6;
   private static readonly PrefetchBehind = 2;
+  /** Pages to warm ahead of the webtoon scroll position (N≈3–4; tunable). */
+  private static readonly WebtoonPrefetchAhead = 4;
   private readonly prefetchedUrls = new Set<string>();
   private prefetchImgs: HTMLImageElement[] = [];
 
@@ -794,6 +805,35 @@ export class ReaderComponent implements OnInit, OnDestroy {
       if (index - d >= 0) targets.push(index - d);
     }
 
+    this.prefetchIndices(targets);
+  }
+
+  /**
+   * Scroll-driven webtoon prefetch: warm the next {@link WebtoonPrefetchAhead}
+   * pages ahead of the current scroll position so a fast vertical scroll doesn't
+   * outrun native lazy-load. Reuses the shared content-version-keyed URL pool and
+   * dedup set; never crosses the chapter boundary (pages() is per-chapter).
+   */
+  private prefetchWebtoonAhead(fromIndex: number): void {
+    const all = this.pages();
+    const n = all.length;
+    if (n === 0) return;
+    const targets: number[] = [];
+    for (let d = 1; d <= ReaderComponent.WebtoonPrefetchAhead; d++) {
+      if (fromIndex + d < n) targets.push(fromIndex + d);
+    }
+    this.prefetchIndices(targets);
+  }
+
+  /**
+   * Shared prefetch worker: fetches the given page indices into hidden Image
+   * objects so the browser warms its cache. URLs are content-version-keyed and
+   * immutable, so a prefetched image is reused by the reader's <img> without a
+   * re-transfer. Dedup via prefetchedUrls; refs are bounded to avoid GC before
+   * caching without leaking across a long reading session.
+   */
+  private prefetchIndices(targets: number[]): void {
+    const all = this.pages();
     for (const i of targets) {
       const url = this.pageUrlFor(all[i]);
       if (!url || this.prefetchedUrls.has(url)) continue;
@@ -801,8 +841,6 @@ export class ReaderComponent implements OnInit, OnDestroy {
       const img = new Image();
       img.decoding = 'async';
       img.src = url; // browser fetches + caches; the reader <img> reuses it
-      // Retain a bounded number of refs so they aren't GC'd before caching,
-      // without leaking across a long reading session.
       this.prefetchImgs.push(img);
       if (this.prefetchImgs.length > 24) this.prefetchImgs.shift();
     }
@@ -1131,6 +1169,9 @@ export class ReaderComponent implements OnInit, OnDestroy {
     }
     if (idx !== this.currentPage()) {
       this.currentPage.set(idx);
+      // Warm the next few pages ahead of the scroll position so a fast vertical
+      // scroll doesn't outrun native lazy-load (post-1.3.0 lane D).
+      this.prefetchWebtoonAhead(idx);
       // Debounce progress writes while scrolling.
       if (this.webtoonSaveTimer) clearTimeout(this.webtoonSaveTimer);
       this.webtoonSaveTimer = setTimeout(() => this.saveProgress(), 600);

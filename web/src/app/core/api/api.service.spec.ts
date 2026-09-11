@@ -105,3 +105,61 @@ describe('ApiService rotating backup status (1.2.0)', () => {
     });
   });
 });
+
+describe('ApiService incognito / Private libraries (1.4.0)', () => {
+  let api: ApiService;
+  let httpMock: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    api = TestBed.inject(ApiService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => httpMock.verify());
+
+  it('fetches the current user Private library set', () => {
+    api.getPrivateLibraries().subscribe((dto) => {
+      expect(dto.libraryIds).toEqual(['L1', 'L3']);
+    });
+
+    const req = httpMock.expectOne('/api/v1/reading/private-libraries');
+    expect(req.request.method).toBe('GET');
+    req.flush({ libraryIds: ['L1', 'L3'] });
+  });
+
+  it('replaces the Private library set via PUT with replacement semantics', () => {
+    api.setPrivateLibraries(['L2']).subscribe();
+
+    const req = httpMock.expectOne('/api/v1/reading/private-libraries');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ libraryIds: ['L2'] });
+    req.flush(null);
+  });
+
+  it('fetches the full library list for the Private-libraries management surface', () => {
+    api.getAllLibraries().subscribe((libs) => {
+      expect(libs.length).toBe(1);
+    });
+
+    const req = httpMock.expectOne('/api/v1/libraries');
+    expect(req.request.method).toBe('GET');
+    req.flush([{ id: 'L1', name: 'Alpha', isScanning: false, itemCount: 1, lastScanCompleted: null, defaultReaderMode: null }]);
+  });
+
+  it('fetches continue-reading scoped to a single library', () => {
+    api.getContinueReadingByLibrary('L1').subscribe((entries) => {
+      expect(entries.length).toBe(1);
+      expect(entries[0].libraryId).toBe('L1');
+    });
+
+    const req = httpMock.expectOne((r) => r.url === '/api/v1/reading/continue/by-library/L1');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('limit')).toBe('20');
+    req.flush([
+      { itemId: 'i1', libraryId: 'L1', libraryName: 'Alpha', displayName: 'One', pageIndex: 0, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z' },
+    ]);
+  });
+});

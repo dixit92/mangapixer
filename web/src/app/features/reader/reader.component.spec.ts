@@ -360,3 +360,90 @@ describe('ReaderComponent per-device page mode', () => {
     expect(c.view()).toBe('webtoon');
   });
 });
+
+/**
+ * Webtoon scroll-driven prefetch (post-1.3.0 lane D). The paged/spread prefetch
+ * is skipped in webtoon; instead onWebtoonScroll warms the next N pages ahead of
+ * the scroll position. These tests drive prefetchWebtoonAhead directly (it's
+ * private, accessed via bracket notation) and assert on the shared prefetchedUrls
+ * dedup set — the same pool the paged prefetch uses.
+ */
+describe('ReaderComponent webtoon scroll prefetch', () => {
+  function create() {
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => 'item-1' }) } },
+      ],
+    });
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.itemId.set('item-1');
+    return c;
+  }
+
+  /** Read the private prefetchedUrls dedup set as an array of strings. */
+  function warmed(c: ReaderComponent): string[] {
+    return Array.from((c as unknown as { prefetchedUrls: Set<string> }).prefetchedUrls);
+  }
+
+  it('warms the next N pages ahead of the scroll position', () => {
+    const c = create();
+    c.pages.set(makePages(10));
+    c.view.set('webtoon');
+    (c as unknown as { prefetchWebtoonAhead: (i: number) => void }).prefetchWebtoonAhead(2);
+    // idx 2 → warm 3, 4, 5, 6 (WebtoonPrefetchAhead = 4)
+    expect(warmed(c)).toEqual([
+      '/api/v1/items/item-1/pages/p3',
+      '/api/v1/items/item-1/pages/p4',
+      '/api/v1/items/item-1/pages/p5',
+      '/api/v1/items/item-1/pages/p6',
+    ]);
+  });
+
+  it('does not prefetch across the chapter boundary', () => {
+    const c = create();
+    c.pages.set(makePages(5)); // indices 0–4
+    c.view.set('webtoon');
+    (c as unknown as { prefetchWebtoonAhead: (i: number) => void }).prefetchWebtoonAhead(3);
+    // idx 3 → only page 4 is ahead (3+2=5 is out of bounds)
+    expect(warmed(c)).toEqual(['/api/v1/items/item-1/pages/p4']);
+  });
+
+  it('warms nothing ahead of the last page', () => {
+    const c = create();
+    c.pages.set(makePages(5));
+    c.view.set('webtoon');
+    (c as unknown as { prefetchWebtoonAhead: (i: number) => void }).prefetchWebtoonAhead(4);
+    expect(warmed(c)).toEqual([]);
+  });
+
+  it('deduplicates: calling twice does not re-warm the same pages', () => {
+    const c = create();
+    c.pages.set(makePages(10));
+    c.view.set('webtoon');
+    const call = () => (c as unknown as { prefetchWebtoonAhead: (i: number) => void }).prefetchWebtoonAhead(2);
+    call();
+    const first = warmed(c);
+    call(); // same position — no new URLs
+    expect(warmed(c)).toEqual(first);
+    expect(warmed(c).length).toBe(4);
+  });
+
+  it('shares the dedup pool with the paged prefetch', () => {
+    const c = create();
+    c.pages.set(makePages(10));
+    c.view.set('webtoon');
+    // Warm webtoon ahead from idx 0 → pages 1,2,3,4
+    (c as unknown as { prefetchWebtoonAhead: (i: number) => void }).prefetchWebtoonAhead(0);
+    expect(warmed(c).length).toBe(4);
+    // Switch to paged and prefetch around idx 0 → pages 1–6 ahead, 0 behind.
+    // Pages 1–4 are already warmed (dedup); only 5,6 are new.
+    c.view.set('paged');
+    (c as unknown as { prefetchAround: (i: number) => void }).prefetchAround(0);
+    expect(warmed(c).length).toBe(6); // 1,2,3,4 (webtoon) + 5,6 (paged)
+  });
+});

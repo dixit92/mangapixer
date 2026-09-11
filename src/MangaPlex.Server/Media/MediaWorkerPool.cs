@@ -3,6 +3,7 @@ namespace com.lifepixer.mangaplex.Server.Media;
 using com.lifepixer.mangaplex.Server.Logging;
 
 using System.Diagnostics;
+using com.lifepixer.mangaplex.Core.Media;
 using com.lifepixer.mangaplex.Core.WorkerProtocol;
 using com.lifepixer.mangaplex.MediaWorker.Protocol;
 using com.lifepixer.mangaplex.Server.Persistence;
@@ -31,10 +32,29 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     private readonly object _poolLock = new();
     private readonly CancellationTokenSource _readCts = new();
     private readonly object _throughputLock = new();
+    private readonly SemaphoreSlim _dispatchSignal = new(0, int.MaxValue);
     private int _completedSinceSummary;
     private int _failedSinceSummary;
     private bool _isStarted;
     private bool _isShuttingDown;
+
+    /// <summary>
+    /// Count of <see cref="AcquireSlotAsync"/> calls (reader demand: on-demand
+    /// page/thumbnail extraction) currently in flight, including ones that got
+    /// a slot immediately. Read by background dispatch to decide whether to
+    /// leave one slot free — see <see cref="EffectiveBackgroundCap"/>.
+    /// </summary>
+    private int _waitingReaders;
+
+    /// <summary>
+    /// Worker-start attempts reserved but not yet resolved (success or
+    /// failure), guarded by <see cref="_poolLock"/> together with
+    /// <see cref="_workers"/>. Prevents two concurrent callers (background
+    /// dispatch and reader-demand <see cref="AcquireSlotAsync"/>) from both
+    /// deciding to start a worker from the same headroom and jointly
+    /// overshooting <see cref="WorkerPoolOptions.MaxConcurrentJobs"/>.
+    /// </summary>
+    private int _startingWorkers;
 
     /// <summary>
     /// Number of completed jobs between Information-level throughput summaries.
@@ -78,50 +98,157 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     }
 
     /// <summary>
-    /// Dispatches a job to an available worker. If no worker is available and
-    /// the pool has not reached MaxConcurrentJobs, starts a new worker.
-    /// Otherwise, the job remains in the scheduler queue.
+    /// Fills every background-eligible slot in one pass instead of dispatching
+    /// one job per call. Each dispatched job runs to completion in the
+    /// background (not awaited here) so multiple jobs run concurrently across
+    /// up to <see cref="WorkerPoolOptions.MaxConcurrentJobs"/> workers; this
+    /// method returns once no further slot/job pair is available, not once all
+    /// dispatched jobs finish. See <see cref="TryDispatchOneAsync"/> for the
+    /// per-slot reservation and the reader-demand reservation rule.
+    /// </summary>
+    public async Task DispatchAsync(CancellationToken ct = default)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            var dispatched = await TryDispatchOneAsync(ct);
+            if (!dispatched)
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Background dispatch's concurrency ceiling. Normally equal to
+    /// <see cref="WorkerPoolOptions.MaxConcurrentJobs"/>, so a pure background
+    /// burst (the common unattended-scan case) can use every configured
+    /// worker. While at least one <see cref="AcquireSlotAsync"/> caller
+    /// (reader demand — <see cref="ExtractPageAsync"/>) is actually waiting
+    /// for a slot, this drops by one so background dispatch always leaves a
+    /// slot for it rather than racing it for every freed slot (background
+    /// reacts to a freed slot immediately via <see cref="_dispatchSignal"/>,
+    /// while a reader only polls every 100ms, so an unthrottled race would
+    /// systematically starve the reader under a sustained burst). With
+    /// MaxConcurrentJobs == 1 there is nothing to reserve.
+    /// </summary>
+    private int EffectiveBackgroundCap()
+    {
+        var max = _options.MaxConcurrentJobs;
+        if (max <= 1)
+            return max;
+        return Volatile.Read(ref _waitingReaders) > 0 ? max - 1 : max;
+    }
+
+    /// <summary>
+    /// Atomically checks the reservation rule and claims a free existing
+    /// worker slot, or returns null if none may be claimed right now (either
+    /// every worker is busy, or claiming the last idle one would exceed
+    /// <see cref="EffectiveBackgroundCap"/>). Never starts a new worker.
+    /// </summary>
+    private WorkerSlot? TryClaimBackgroundSlot()
+    {
+        lock (_poolLock)
+        {
+            if (_workers.Count(w => w.IsBusy) >= EffectiveBackgroundCap())
+                return null;
+            var slot = _workers.FirstOrDefault(w => !w.IsBusy);
+            if (slot is not null)
+                slot.IsBusy = true;
+            return slot;
+        }
+    }
+
+    /// <summary>
+    /// Reserves the right to start one more worker toward <paramref name="cap"/>,
+    /// counting both existing workers and other starts already in flight
+    /// (<see cref="_startingWorkers"/>), so two concurrent callers deciding
+    /// "there's room" at the same instant cannot both start a worker and
+    /// overshoot the cap. Pair with <see cref="ReleaseWorkerStartReservation"/>.
+    /// </summary>
+    private bool TryReserveWorkerStart(int cap)
+    {
+        lock (_poolLock)
+        {
+            if (_workers.Count + _startingWorkers >= cap)
+                return false;
+            _startingWorkers++;
+            return true;
+        }
+    }
+
+    private void ReleaseWorkerStartReservation()
+    {
+        lock (_poolLock) { _startingWorkers--; }
+    }
+
+    /// <summary>
+    /// Releases anyone waiting in <see cref="WaitForDispatchSignalAsync"/> —
+    /// called whenever a worker slot frees (background job or reader-demand
+    /// extraction completes), so the dispatch loop reacts immediately instead
+    /// of waiting out its fallback poll interval.
+    /// </summary>
+    private void SignalDispatch()
+    {
+        try { _dispatchSignal.Release(); }
+        catch (ObjectDisposedException) { }
+    }
+
+    /// <summary>
+    /// Waits for a dispatch-relevant event (a worker slot freeing) or
+    /// <paramref name="fallbackPoll"/>, whichever comes first. The fallback
+    /// catches jobs enqueued directly via the <see cref="JobScheduler"/>
+    /// without a manual dispatch nudge (background analysis resume, admin
+    /// re-analyze), which this pool is not otherwise notified of.
+    /// </summary>
+    public async Task WaitForDispatchSignalAsync(TimeSpan fallbackPoll, CancellationToken ct)
+    {
+        try
+        {
+            await _dispatchSignal.WaitAsync(fallbackPoll, ct);
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    /// <summary>
+    /// Attempts to claim one slot for one background job and, if successful,
+    /// starts processing it without awaiting completion — so the pump loop in
+    /// <see cref="DispatchAsync"/> can immediately try to fill the next slot.
+    /// Returns false when nothing could be dispatched (saturated, reserved
+    /// for reader demand, or the queue is empty), which tells the pump to
+    /// stop.
     ///
     /// Audit defect D12: reserve a slot BEFORE dequeuing. If no slot is
     /// available, return without touching the queue so the job remains
     /// pending for the next dispatch cycle. Never fail a job for lack
     /// of a worker slot.
     /// </summary>
-    public async Task DispatchAsync(CancellationToken ct = default)
+    private async Task<bool> TryDispatchOneAsync(CancellationToken ct)
     {
         if (_isShuttingDown)
-            return;
+            return false;
 
-        // Reserve a slot BEFORE dequeuing (audit defect D12). Find a free worker;
-        // if none is free and we are under the concurrency cap, start ONE more
-        // (properly, via StartWorkerAsync, which performs the handshake). The old
-        // code only started a worker when the pool was completely empty, so a
-        // single stuck/busy worker would deadlock all further dispatch.
-        WorkerSlot? slot;
-        bool startAnother = false;
-        lock (_poolLock)
+        var slot = TryClaimBackgroundSlot();
+        if (slot is null)
         {
-            slot = _workers.FirstOrDefault(w => !w.IsBusy);
-            if (slot is null && _workers.Count < _options.MaxConcurrentJobs)
-                startAnother = true;
-        }
-
-        if (slot is null && startAnother)
-        {
-            _logger.LogDebug(LogEvents.Worker.PoolScaleUp, "No free worker slot; starting additional worker (current {Count}/{Max})",
-                WorkerCount, _options.MaxConcurrentJobs);
-            try
+            var cap = EffectiveBackgroundCap();
+            if (TryReserveWorkerStart(cap))
             {
-                await StartWorkerAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(LogEvents.Worker.PoolScaleUpFailed, ex, "Failed to start additional worker: {Error}", ex.GetType().Name);
-                return;
-            }
-            lock (_poolLock)
-            {
-                slot = _workers.FirstOrDefault(w => !w.IsBusy);
+                _logger.LogDebug(LogEvents.Worker.PoolScaleUp, "No free worker slot; starting additional worker (current {Count}/{Max})",
+                    WorkerCount, _options.MaxConcurrentJobs);
+                try
+                {
+                    await StartWorkerAsync(ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(LogEvents.Worker.PoolScaleUpFailed, ex, "Failed to start additional worker: {Error}", ex.GetType().Name);
+                    return false;
+                }
+                finally
+                {
+                    ReleaseWorkerStartReservation();
+                }
+                slot = TryClaimBackgroundSlot();
             }
         }
 
@@ -130,19 +257,19 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             // No available slot — leave the job in the queue (D12)
             _logger.LogDebug(LogEvents.Worker.PoolSaturatedJobQueued, "No worker slot available (saturated at {Count}/{Max}); job remains queued (pending: {Pending})",
                 WorkerCount, _options.MaxConcurrentJobs, _scheduler.PendingCount);
-            return;
+            return false;
         }
 
-        // Reserve the slot before dequeuing so a concurrent dispatch cannot grab
-        // the same worker, then dequeue the highest-priority job.
-        slot.IsBusy = true;
+        // Slot is already reserved (IsBusy = true) atomically by
+        // TryClaimBackgroundSlot; dequeue the highest-priority job.
         var job = _scheduler.Dequeue();
         if (job is null)
         {
             slot.IsBusy = false;
+            SignalDispatch();
             _logger.LogDebug(LogEvents.Worker.PoolIdleSlotReleased, "Slot {Slot} reserved but queue is empty; releasing slot", slot.Id);
             LogThroughputSummaryIfPending();
-            return;
+            return false;
         }
 
         // One Debug line per dispatched job: operation, correlation IDs, and the
@@ -151,7 +278,36 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         _logger.LogDebug(LogEvents.Worker.JobDispatched,
             "Dispatching {Operation} job {JobId} (item {ItemId}, priority {Priority}) to worker {Slot}; pending {Pending}, in-flight {InFlight}",
             job.Operation, job.JobId, job.ItemId, job.Priority, slot.Id, _scheduler.PendingCount, _scheduler.InFlightCount);
-        await ProcessJobAsync(slot, job, ct);
+
+        _ = RunJobAsync(slot, job, ct);
+        return true;
+    }
+
+    /// <summary>
+    /// Runs one dispatched job to completion and signals dispatch afterward so
+    /// the freed slot is picked up immediately. Not awaited by the caller —
+    /// this is what lets <see cref="DispatchAsync"/> fill multiple slots
+    /// concurrently instead of one job per call.
+    /// </summary>
+    private async Task RunJobAsync(WorkerSlot slot, PendingJob job, CancellationToken ct)
+    {
+        try
+        {
+            await ProcessJobAsync(slot, job, ct);
+        }
+        catch (Exception ex)
+        {
+            // ProcessJobAsync already catches and records job-level failures in
+            // its own try/catch/finally; this only guards against something
+            // escaping that (e.g. a bug in the post-completion persistence/
+            // thumbnail steps), so a fire-and-forget dispatch never becomes an
+            // unobserved task exception.
+            _logger.LogWarning(LogEvents.Worker.JobProcessingFailed, ex, "Unhandled error running dispatched job {JobId} (item {ItemId})", job.JobId, job.ItemId);
+        }
+        finally
+        {
+            SignalDispatch();
+        }
     }
 
     /// <summary>
@@ -253,49 +409,62 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         finally
         {
             slot.IsBusy = false;
+            SignalDispatch();
         }
     }
 
     /// <summary>
     /// Finds a free worker slot, starting one if under the concurrency cap, and
     /// otherwise waiting briefly for one to free up. Marks the returned slot busy.
+    /// Marks itself as a waiting reader for the duration of the call (even the
+    /// fast path where a slot is free immediately) so background dispatch can
+    /// see reader demand exists and leave it a slot — see
+    /// <see cref="EffectiveBackgroundCap"/>.
     /// </summary>
     private async Task<WorkerSlot?> AcquireSlotAsync(CancellationToken ct)
     {
         var deadline = DateTime.UtcNow.Add(_options.SourceOpenTimeout);
         _logger.LogDebug(LogEvents.Worker.ExtractSlotAcquire, "Acquiring worker slot for extract (timeout {TimeoutMs}ms, current {Count}/{Max})",
             _options.SourceOpenTimeout.TotalMilliseconds, WorkerCount, _options.MaxConcurrentJobs);
-        while (!_isShuttingDown)
+        Interlocked.Increment(ref _waitingReaders);
+        try
         {
-            WorkerSlot? slot;
-            bool startAnother = false;
-            lock (_poolLock)
+            while (!_isShuttingDown)
             {
-                slot = _workers.FirstOrDefault(w => !w.IsBusy);
-                if (slot is not null) { slot.IsBusy = true; return slot; }
-                if (_workers.Count < _options.MaxConcurrentJobs) startAnother = true;
-            }
-
-            if (startAnother)
-            {
-                try { await StartWorkerAsync(ct); }
-                catch (Exception ex) { _logger.LogWarning(LogEvents.Worker.ExtractWorkerStartFailed, ex, "Failed to start worker for extract: {Error}", ex.GetType().Name); }
+                WorkerSlot? slot;
                 lock (_poolLock)
                 {
                     slot = _workers.FirstOrDefault(w => !w.IsBusy);
                     if (slot is not null) { slot.IsBusy = true; return slot; }
                 }
-            }
 
-            if (DateTime.UtcNow >= deadline)
-            {
-                _logger.LogDebug(LogEvents.Worker.ExtractSlotAcquireTimeout, "Extract slot acquisition timed out after {TimeoutMs}ms (saturated at {Count}/{Max})",
-                    _options.SourceOpenTimeout.TotalMilliseconds, WorkerCount, _options.MaxConcurrentJobs);
-                return null;
+                if (TryReserveWorkerStart(_options.MaxConcurrentJobs))
+                {
+                    try { await StartWorkerAsync(ct); }
+                    catch (Exception ex) { _logger.LogWarning(LogEvents.Worker.ExtractWorkerStartFailed, ex, "Failed to start worker for extract: {Error}", ex.GetType().Name); }
+                    finally { ReleaseWorkerStartReservation(); }
+
+                    lock (_poolLock)
+                    {
+                        slot = _workers.FirstOrDefault(w => !w.IsBusy);
+                        if (slot is not null) { slot.IsBusy = true; return slot; }
+                    }
+                }
+
+                if (DateTime.UtcNow >= deadline)
+                {
+                    _logger.LogDebug(LogEvents.Worker.ExtractSlotAcquireTimeout, "Extract slot acquisition timed out after {TimeoutMs}ms (saturated at {Count}/{Max})",
+                        _options.SourceOpenTimeout.TotalMilliseconds, WorkerCount, _options.MaxConcurrentJobs);
+                    return null;
+                }
+                try { await Task.Delay(100, ct); } catch (OperationCanceledException) { return null; }
             }
-            try { await Task.Delay(100, ct); } catch (OperationCanceledException) { return null; }
+            return null;
         }
-        return null;
+        finally
+        {
+            Interlocked.Decrement(ref _waitingReaders);
+        }
     }
 
     /// <summary>
@@ -635,7 +804,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         // This runs AFTER the slot is released so that thumbnail generation (which
         // calls ExtractPageAsync and acquires its own slot) does not deadlock when
         // the pool is at capacity.
-        await PersistResultAsync(job.ItemId, finalResult);
+        await PersistResultAsync(job.ItemId, finalResult, ComputeContentSignature(job, finalResult));
 
         // Generate the durable cover thumbnail for successful analyses. The
         // thumbnail is the first page, downscaled to WebP by the worker and
@@ -714,7 +883,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     /// No-ops when the pool was constructed without a scope factory/persister
     /// (e.g. in unit tests that exercise dispatch behaviour only).
     /// </summary>
-    private async Task PersistResultAsync(long nodeId, JobResult result)
+    private async Task PersistResultAsync(long nodeId, JobResult result, string? contentSignature)
     {
         if (_scopeFactory is null || _persister is null)
             return;
@@ -722,7 +891,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         {
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
-            await _persister.PersistAsync(db, nodeId, result);
+            await _persister.PersistAsync(db, nodeId, result, contentSignature);
         }
         catch (Exception ex)
         {
@@ -730,9 +899,38 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Computes the cheap content signature (1.5.0 move detection) for a
+    /// successfully analysed source. Reads at most 128 KiB, read-only with read
+    /// sharing. The source stamp is re-checked after hashing so a file that is
+    /// being rewritten while we sample it never yields a signature that does not
+    /// match the bytes the worker analysed. Returns null on any doubt; a missing
+    /// signature only means "never treat this row as a move".
+    /// </summary>
+    private static string? ComputeContentSignature(PendingJob job, JobResult result)
+    {
+        if (!result.Success || result.Result is not AnalyzeResult)
+            return null;
+        try
+        {
+            var signature = ContentSignature.TryComputeFile(job.ArchivePath);
+            if (signature is null)
+                return null;
+
+            var info = new FileInfo(job.ArchivePath);
+            if (!info.Exists || info.Length != job.ExpectedByteLength || info.LastWriteTimeUtc.Ticks != job.ExpectedLastWriteTicks)
+                return null;
+
+            return signature;
+        }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+    }
+
     public async ValueTask DisposeAsync()
     {
         await StopAsync();
+        _dispatchSignal.Dispose();
     }
 
     private sealed class WorkerSlot

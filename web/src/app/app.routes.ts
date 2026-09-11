@@ -75,4 +75,9 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/auth/password-change.component').then((m) => m.PasswordChangeComponent),
   },
+  {
+    path: 'activate',
+    loadComponent: () =>
+      import('./features/auth/activate.component').then((m) => m.ActivateComponent),
+  },
 ];

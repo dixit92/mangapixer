@@ -4,6 +4,7 @@ import { Observable, tap, catchError, of, switchMap, map } from 'rxjs';
 import { ApiService } from '../api/api.service';
 import { CsrfTokenService } from './csrf-token.service';
 import {
+  ActivateAccountRequest,
   AuthUserDto,
   LoginRequest,
   ChangePasswordRequest,
@@ -110,6 +111,14 @@ export class AuthService {
   /** Changes the current user's password. */
   changePassword(request: ChangePasswordRequest): Observable<void> {
     return this.api.changePassword(request);
+  }
+
+  /** Activates a pending account with the one-time token. Signs the user in on success. */
+  activateAccount(request: ActivateAccountRequest): Observable<AuthUserDto> {
+    return this.api.activateAccount(request).pipe(
+      tap((user) => this.setUser(user)),
+      switchMap((user) => this.refreshCsrfThen(user)),
+    );
   }
 
   private refreshCsrfThen(user: AuthUserDto): Observable<AuthUserDto> {

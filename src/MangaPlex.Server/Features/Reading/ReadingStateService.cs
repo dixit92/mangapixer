@@ -140,6 +140,37 @@ public sealed class ReadingStateService
         var isCompleted = pageCount > 0 && pageIndex >= pageCount - 1;
         var state = isCompleted ? (int)ReadingState.Completed : (int)ReadingState.InProgress;
 
+        // Applies this write to an existing tracked progress row. Shared by the
+        // normal update path and the concurrent-insert recovery below.
+        void ApplyUpdate(ReadingProgressEntity p)
+        {
+            // Backwards reading does not un-complete.
+            if (p.State == (int)ReadingState.Completed && pageIndex < p.Ordinal)
+            {
+                // Allow re-reading: update position but keep completed state.
+                p.Ordinal = pageIndex;
+                p.NormalizedAnchor = normalizedAnchor;
+                p.LastMutationId = mutationId;
+                p.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                p.ContentVersion = expectedContentVersion;
+                p.EntryKey = OpaqueId.Encode(pageIndex);
+                p.Ordinal = pageIndex;
+                p.NormalizedAnchor = normalizedAnchor;
+                p.State = state;
+                p.Revision++;
+                p.LastMutationId = mutationId;
+                p.UpdatedAt = DateTimeOffset.UtcNow;
+                // Actively reading it again un-dismisses it from continue-reading.
+                p.HiddenFromContinue = false;
+                if (isCompleted && !p.CompletedAt.HasValue)
+                    p.CompletedAt = DateTimeOffset.UtcNow;
+            }
+        }
+
+        var inserted = false;
         if (progress is null)
         {
             progress = new ReadingProgressEntity
@@ -157,33 +188,11 @@ public sealed class ReadingStateService
                 CompletedAt = isCompleted ? DateTimeOffset.UtcNow : null,
             };
             _db.ReadingProgress.Add(progress);
+            inserted = true;
         }
         else
         {
-            // Backwards reading does not un-complete
-            if (progress.State == (int)ReadingState.Completed && pageIndex < progress.Ordinal)
-            {
-                // Allow re-reading: update position but keep completed state
-                progress.Ordinal = pageIndex;
-                progress.NormalizedAnchor = normalizedAnchor;
-                progress.LastMutationId = mutationId;
-                progress.UpdatedAt = DateTimeOffset.UtcNow;
-            }
-            else
-            {
-                progress.ContentVersion = expectedContentVersion;
-                progress.EntryKey = OpaqueId.Encode(pageIndex);
-                progress.Ordinal = pageIndex;
-                progress.NormalizedAnchor = normalizedAnchor;
-                progress.State = state;
-                progress.Revision++;
-                progress.LastMutationId = mutationId;
-                progress.UpdatedAt = DateTimeOffset.UtcNow;
-                // Actively reading it again un-dismisses it from continue-reading.
-                progress.HiddenFromContinue = false;
-                if (isCompleted && !progress.CompletedAt.HasValue)
-                    progress.CompletedAt = DateTimeOffset.UtcNow;
-            }
+            ApplyUpdate(progress);
         }
 
         // Sticky read-mark: reaching the last page auto-marks the item read (1.2.0).
@@ -193,9 +202,40 @@ public sealed class ReadingStateService
         if (isCompleted)
             await EnsureReadMarkTrackedAsync(userId, itemId, "completion", ct);
 
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (inserted && IsUniqueConstraintViolation(ex))
+        {
+            // Concurrency: another request created the (UserId, ItemId) row between our
+            // read and our insert, so the INSERT hit the unique index (an intermittent
+            // 500 in production). Recover by discarding the failed insert, reloading the
+            // row that now exists, and re-applying this write as a normal update
+            // (last-write-wins on position, with the same backward-reading guard).
+            _db.Entry(progress).State = EntityState.Detached;
+            var existing = await _db.ReadingProgress
+                .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == itemId, ct);
+            if (existing is null)
+                throw; // row genuinely gone (e.g. reset concurrently) - surface it
+            // The racer may have applied this exact mutation already.
+            if (!string.IsNullOrEmpty(existing.LastMutationId) && existing.LastMutationId == mutationId)
+                return UpdateProgressResult.Success(existing.Revision, alreadyApplied: true);
+            ApplyUpdate(existing);
+            await _db.SaveChangesAsync(ct);
+            progress = existing;
+        }
+
         return UpdateProgressResult.Success(progress.Revision, alreadyApplied: false);
     }
+
+    /// <summary>
+    /// True when a save failed on a SQLite constraint violation (error code 19),
+    /// e.g. two concurrent first-writes racing on the reading_progress
+    /// (UserId, ItemId) unique index.
+    /// </summary>
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+        => ex.InnerException is Microsoft.Data.Sqlite.SqliteException { SqliteErrorCode: 19 };
 
     /// <summary>
     /// Resets progress to unread for a specific item.
@@ -426,13 +466,16 @@ public sealed class ReadingStateService
 
     /// <summary>
     /// Gets continue-reading items for a user (in-progress, most recently updated first).
+    /// When <paramref name="incognito"/> is active, items in the user's Private
+    /// libraries are excluded (1.4.0).
     /// </summary>
     public async Task<IReadOnlyList<ContinueReadingEntry>> GetContinueReadingAsync(
         long userId,
         int limit = 20,
+        bool incognito = false,
         CancellationToken ct = default)
     {
-        var accessibleLibs = await _auth.GetAccessibleLibraryIdsAsync(userId, ct);
+        var visibleLibs = await _auth.GetVisibleLibraryIdsAsync(userId, incognito, ct);
 
         // DateTimeOffset is stored as a comparable long via
         // DateTimeOffsetToBinaryConverter (see MangaPlexDbContext.ConfigureConventions),
@@ -447,12 +490,55 @@ public sealed class ReadingStateService
                && p.State == (int)ReadingState.InProgress
                && !p.HiddenFromContinue
                && !_db.ReadMarks.Any(m => m.UserId == userId && m.ItemId == p.ItemId)
-               && accessibleLibs.Contains(n.LibraryId)
+               && visibleLibs.Contains(n.LibraryId)
                && n.Availability != (int)CatalogNodeAvailability.Tombstoned
             orderby p.UpdatedAt descending
             select new ContinueReadingEntry
             {
                 ItemId = n.PublicId,
+                LibraryId = n.Library != null ? n.Library.PublicId : "",
+                LibraryName = n.Library != null ? n.Library.DisplayName : "",
+                DisplayName = n.DisplayName,
+                PageIndex = p.Ordinal,
+                ContentVersion = p.ContentVersion,
+                UpdatedAt = p.UpdatedAt,
+            })
+            .Take(limit)
+            .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Gets continue-reading items for a user within a single library (1.4.0 sidebar
+    /// grouping). Same filters as <see cref="GetContinueReadingAsync"/> plus a
+    /// library filter. When <paramref name="incognito"/> is active and the requested
+    /// library is Private, returns empty (the library is hidden from listing).
+    /// </summary>
+    public async Task<IReadOnlyList<ContinueReadingEntry>> GetContinueReadingByLibraryAsync(
+        long userId,
+        long libraryId,
+        int limit = 20,
+        bool incognito = false,
+        CancellationToken ct = default)
+    {
+        var visibleLibs = await _auth.GetVisibleLibraryIdsAsync(userId, incognito, ct);
+        if (!visibleLibs.Contains(libraryId))
+            return [];
+
+        return await (
+            from p in _db.ReadingProgress
+            join n in _db.CatalogNodes on p.ItemId equals n.Id
+            where p.UserId == userId
+               && p.State == (int)ReadingState.InProgress
+               && !p.HiddenFromContinue
+               && !_db.ReadMarks.Any(m => m.UserId == userId && m.ItemId == p.ItemId)
+               && n.LibraryId == libraryId
+               && n.Availability != (int)CatalogNodeAvailability.Tombstoned
+            orderby p.UpdatedAt descending
+            select new ContinueReadingEntry
+            {
+                ItemId = n.PublicId,
+                LibraryId = n.Library != null ? n.Library.PublicId : "",
+                LibraryName = n.Library != null ? n.Library.DisplayName : "",
                 DisplayName = n.DisplayName,
                 PageIndex = p.Ordinal,
                 ContentVersion = p.ContentVersion,
@@ -612,6 +698,7 @@ public sealed class ReadingStateService
             ViewMode = prefs.LibraryViewMode,
             Density = prefs.LibraryGridDensity,
             Sort = prefs.LibrarySort,
+            Direction = prefs.LibraryDirection,
         };
     }
 
@@ -636,6 +723,77 @@ public sealed class ReadingStateService
         prefs.LibraryViewMode = preferences.ViewMode;
         prefs.LibraryGridDensity = preferences.Density;
         prefs.LibrarySort = preferences.Sort;
+        prefs.LibraryDirection = preferences.Direction;
+
+        await _db.SaveChangesAsync(ct);
+    }
+
+    // --- Private library designations (1.4.0) ---
+    //
+    // A per-(user, library) row whose presence means "Private". Private libraries
+    // are hidden from listing/discovery surfaces while Incognito mode is active,
+    // but direct reader URLs remain accessible. The set is replaced wholesale on
+    // each PUT — the client sends the complete list of library public IDs.
+
+    /// <summary>
+    /// Gets the current user's Private library designations as public IDs.
+    /// </summary>
+    public async Task<PrivateLibrariesDto> GetPrivateLibrariesAsync(
+        long userId,
+        CancellationToken ct = default)
+    {
+        var publicIds = await (
+            from p in _db.PrivateLibraries
+            join l in _db.Libraries on p.LibraryId equals l.Id
+            where p.UserId == userId
+            select l.PublicId)
+            .ToListAsync(ct);
+
+        return new PrivateLibrariesDto { LibraryIds = publicIds };
+    }
+
+    /// <summary>
+    /// Replaces the current user's Private library set. Libraries are identified
+    /// by public ID; unknown IDs are silently skipped. The entire set is
+    /// replaced on each call.
+    /// </summary>
+    public async Task SetPrivateLibrariesAsync(
+        long userId,
+        IReadOnlyList<string> libraryPublicIds,
+        CancellationToken ct = default)
+    {
+        // Resolve public IDs to internal library IDs, skipping unknowns.
+        var libIds = await _db.Libraries
+            .Where(l => libraryPublicIds.Contains(l.PublicId))
+            .Select(l => l.Id)
+            .ToListAsync(ct);
+        var libIdSet = libIds.ToHashSet();
+
+        // Remove existing designations not in the new set.
+        var existing = await _db.PrivateLibraries
+            .Where(p => p.UserId == userId)
+            .ToListAsync(ct);
+
+        var toRemove = existing.Where(p => !libIdSet.Contains(p.LibraryId)).ToList();
+        var existingIds = existing.Select(p => p.LibraryId).ToHashSet();
+        var toAdd = libIds.Where(id => !existingIds.Contains(id)).ToList();
+
+        if (toRemove.Count > 0)
+            _db.PrivateLibraries.RemoveRange(toRemove);
+
+        if (toAdd.Count > 0)
+        {
+            var now = DateTimeOffset.UtcNow;
+            foreach (var id in toAdd)
+            {
+                _db.PrivateLibraries.Add(new PrivateLibraryEntity
+                {
+                    UserId = userId,
+                    LibraryId = id,
+                    MarkedAt = now,
+                });
+            }
+        }
 
         await _db.SaveChangesAsync(ct);
     }
@@ -689,6 +847,18 @@ public enum UpdateStatus
 public sealed record ContinueReadingEntry
 {
     public required string ItemId { get; init; }
+
+    /// <summary>
+    /// Opaque public ID of the item's library (1.4.0). Enables sidebar
+    /// grouping by library without a second round-trip.
+    /// </summary>
+    public required string LibraryId { get; init; }
+
+    /// <summary>
+    /// Display name of the item's library (1.4.0).
+    /// </summary>
+    public required string LibraryName { get; init; }
+
     public required string DisplayName { get; init; }
     public required int PageIndex { get; init; }
     public required long ContentVersion { get; init; }

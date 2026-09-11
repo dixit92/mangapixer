@@ -99,6 +99,7 @@ public static class AuthServicesExtensions
         services.AddScoped<SessionService>();
         services.AddScoped<SessionOptions>();
         services.AddScoped<LibraryAuthorizationService>();
+        services.AddScoped<IncognitoAccessor>();
         services.AddScoped<LastAdminProtectionService>();
         services.AddSingleton<LoginRateLimiter>(sp =>
             new LoginRateLimiter(

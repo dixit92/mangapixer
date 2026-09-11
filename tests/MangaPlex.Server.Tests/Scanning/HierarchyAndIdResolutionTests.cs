@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangaplex.Tests.Server.Scanning;
 
 using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Features.Catalog;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
@@ -147,7 +148,7 @@ public sealed class HierarchyAndIdResolutionTests : IDisposable
         db.Users.Add(user);
         await db.SaveChangesAsync();
 
-        var browseService = new CatalogBrowseService(db);
+        var browseService = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
         var result = await browseService.BrowseAsync(user.Id, library.Id, parentId: null, cursor: null, pageSize: 50);
 
         // Root should contain: Series Alpha, Loose Stuff, Standalone One-Shot.cbz
@@ -186,7 +187,7 @@ public sealed class HierarchyAndIdResolutionTests : IDisposable
         await db.SaveChangesAsync();
 
         var seriesAlpha = await db.CatalogNodes.FirstAsync(n => n.LibraryId == library.Id && n.DisplayName == "Series Alpha");
-        var browseService = new CatalogBrowseService(db);
+        var browseService = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
 
         // Browse into Series Alpha
         var result = await browseService.BrowseAsync(user.Id, library.Id, parentId: seriesAlpha.Id, cursor: null, pageSize: 50);
@@ -225,7 +226,7 @@ public sealed class HierarchyAndIdResolutionTests : IDisposable
         await db.SaveChangesAsync();
 
         var seriesAlpha = await db.CatalogNodes.FirstAsync(n => n.LibraryId == library.Id && n.DisplayName == "Series Alpha");
-        var browseService = new CatalogBrowseService(db);
+        var browseService = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
 
         var result = await browseService.BrowseAsync(user.Id, library.Id, parentId: seriesAlpha.Id, cursor: null, pageSize: 50);
 
@@ -261,7 +262,7 @@ public sealed class HierarchyAndIdResolutionTests : IDisposable
         await db.SaveChangesAsync();
 
         var alpha001 = await db.CatalogNodes.FirstAsync(n => n.LibraryId == library.Id && n.DisplayName == "Alpha 001.cbz");
-        var browseService = new CatalogBrowseService(db);
+        var browseService = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
 
         var breadcrumbs = await browseService.GetBreadcrumbsAsync(user.Id, alpha001.Id);
 
@@ -299,7 +300,7 @@ public sealed class HierarchyAndIdResolutionTests : IDisposable
         await db.SaveChangesAsync();
 
         var alpha001 = await db.CatalogNodes.FirstAsync(n => n.LibraryId == library.Id && n.DisplayName == "Alpha 001.cbz");
-        var browseService = new CatalogBrowseService(db);
+        var browseService = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
 
         var neighbors = await browseService.GetNeighborsAsync(user.Id, alpha001.Id);
 

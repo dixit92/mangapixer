@@ -30,8 +30,36 @@
          (paged/spread, ahead-6/behind-2), and search-result cover thumbnails. No
          schema change (sort reuses the existing LibrarySort column) and no breaking
          API/contract changes → MINOR per SemVer 2.0.0. Bugfixes ship as 1.3.x. -->
+    <!-- 1.4.0 - additive minor over 1.3.0 (post-1.3.0 cycle, 2026-09-10). Incognito /
+         Private libraries (per-user Private flag + migration; server-side
+         GetVisibleLibraryIdsAsync chokepoint + X-Incognito header; session-default-ON
+         Incognito toggle), Plex-pattern home (library sidebar + grouped continue-reading +
+         per-library continue endpoint), webtoon read-ahead prefetch, app-version endpoint +
+         footer, multilingual collation jump-navigation, and two browse bugfixes (subfolder-
+         only folder cover, clickable root breadcrumb). Additive API only (new endpoints +
+         fields), no breaking changes -> MINOR per SemVer 2.0.0. Released 2026-09-10
+         after owner acceptance testing on the real Unraid library (rc.1 -> rc.4;
+         rc.4 landed the recently-read pure-recency fix). Bugfixes ship as 1.4.x. -->
+    <!-- 1.4.1 - PATCH over 1.4.0 (2026-09-10). Build/deploy tooling only, no app
+         behavior or API change: the container build now embeds the git commit SHA
+         into InformationalVersion (Dockerfile ARG/ENV -> $(GitCommitShort)/
+         $(GitIsDirty)) so images report "1.4.1+sha.<short>" instead of the bare
+         "+dirty" fallback; the deploy script's old-image cleanup no longer sends a
+         UTF-8 BOM to the remote shell and the script exits 0 on a healthy deploy. -->
+    <!-- 1.5.0 - additive minor over 1.4.1 (post-1.4.1 cycle, 2026-09-11). Five parallel
+         feature lanes plus stabilization: worker-throughput tuning (event-driven concurrent
+         dispatch + reader-slot reservation + config-bound cap); browse sort ascending/
+         descending for every sort; scan speed + content-signature move detection (batch
+         reconcile writes; preserves reading state across moves); new-user onboarding via a
+         one-time activation token; and a UI taste pass (left-edge collapsible sidebar +
+         desktop density), later extended during review with a persistent app-shell library
+         sidebar, current-folder breadcrumb, and reading-direction badges. Also a concurrency
+         fix for the reading-progress upsert (recovers the (UserId,ItemId) unique-index race
+         that caused intermittent 500s) and 7z fixture tests that skip when 7z is absent.
+         Three additive migrations (activation-token / sort-direction / content-signature);
+         no breaking API changes -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.5.x. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>3</MangaPlexVersionMinor>
+    <MangaPlexVersionMinor>5</MangaPlexVersionMinor>
     <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 

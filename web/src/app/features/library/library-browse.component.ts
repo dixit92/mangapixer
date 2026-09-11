@@ -12,7 +12,7 @@ import { forkJoin } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
-import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder } from '../../core/api/api-types';
+import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, JumpIndexBucketDto } from '../../core/api/api-types';
 
 /**
  * Library browse component. Shows the actual folder/archive tree with keyset
@@ -44,14 +44,19 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     <div class="browse-bar" [class.selecting]="selectMode()">
       @if (!selectMode()) {
         <div class="breadcrumbs">
-          @if (breadcrumbs().length > 0) {
-            <a routerLink="/libraries/{{ libraryId() }}">{{ libraryName() || 'Library' }}</a>
-            @for (crumb of breadcrumbs(); track crumb.id) {
-              <span class="sep"> / </span>
-              <a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a>
-            }
-          } @else {
-            <span class="current">{{ libraryName() || 'Library' }}</span>
+          <!-- Library root is always a clickable crumb. -->
+          <a routerLink="/libraries/{{ libraryId() }}/browse">{{ libraryName() || 'Library' }}</a>
+          <!-- Ancestors of the current folder (clickable). -->
+          @for (crumb of breadcrumbs(); track crumb.id) {
+            <span class="sep"> / </span>
+            <a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a>
+          }
+          <!-- The current folder itself: plain, non-clickable text (File Explorer
+               behavior - you are already in it). Rendered whenever we are inside a
+               folder, even at the first level where there are no ancestor crumbs. -->
+          @if (currentFolderName()) {
+            <span class="sep"> / </span>
+            <span class="current" aria-current="page">{{ currentFolderName() }}</span>
           }
         </div>
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
@@ -81,6 +86,13 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
           @for (opt of sortOptions; track opt.value) {
             <button mat-menu-item (click)="setSort(opt.value)">
               <mat-icon>{{ sort() === opt.value ? 'check' : opt.icon }}</mat-icon>
+              {{ opt.label }}
+            </button>
+          }
+          <span class="menu-caption">Order</span>
+          @for (opt of sortDirectionOptions; track opt.value) {
+            <button mat-menu-item (click)="setSortDirection(opt.value)">
+              <mat-icon>{{ sortDirection() === opt.value ? 'check' : opt.icon }}</mat-icon>
               {{ opt.label }}
             </button>
           }
@@ -115,6 +127,19 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
         </button>
       }
     </div>
+
+    @if (jumpBuckets().length > 0) {
+      <nav class="jump-rail" aria-label="Jump to letter">
+        @for (bucket of jumpBuckets(); track bucket.label) {
+          <button class="jump-chip" type="button"
+                  (click)="jumpToBucket(bucket)"
+                  [class.active]="activeJump() === bucket.label"
+                  [matTooltip]="bucket.label + ' (' + bucket.count + ')'">
+            {{ bucket.label }}
+          </button>
+        }
+      </nav>
+    }
 
     <div class="nodes" [class.grid]="viewMode() === 'grid'"
          [class.list]="viewMode() === 'list'" [class.poster]="viewMode() === 'poster'"
@@ -188,6 +213,9 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .breadcrumbs a { text-decoration: none; color: #b39dff; }
+    /* Current folder: plain text, not a link. Slightly brighter than the muted
+       ancestors' link color to read as "you are here", but no pointer/underline. */
+    .breadcrumbs .current { color: #e6e6ee; font-weight: 500; }
     .breadcrumbs.muted { color: #999; }
     .count { font-weight: 600; }
     .actions { flex: 1 1 auto; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
@@ -254,6 +282,20 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     .node-sub { font-size: 12px; color: #999; }
     .empty { color: #999; padding: 32px; text-align: center; }
     .load-more { text-align: center; margin-top: 16px; }
+    /* A–Z/script jump rail (1.4.0 Lane E). Only shown at library root level. */
+    .jump-rail {
+      display: flex; flex-wrap: wrap; gap: 4px;
+      margin-bottom: 12px; padding: 6px 8px;
+      background: rgba(255,255,255,0.03); border-radius: 8px;
+    }
+    .jump-chip {
+      min-width: 28px; padding: 4px 8px; border: none; cursor: pointer;
+      background: transparent; color: #b39dff; border-radius: 6px;
+      font-size: 12px; font-weight: 600; line-height: 1;
+      transition: background 0.1s;
+    }
+    .jump-chip:hover { background: rgba(124,77,255,0.18); }
+    .jump-chip.active { background: #7c4dff; color: #fff; }
 
     /* Touch / small screens: keep the action bar compact by dropping button labels
        (icons remain, so the controls stay usable) — requirement 1 (dual input). */
@@ -282,8 +324,22 @@ export class LibraryBrowseComponent implements OnInit {
   readonly parentId = signal<string | null>(null);
   readonly nodes = signal<CatalogNodeDto[]>([]);
   readonly breadcrumbs = signal<{ id: string; displayName: string }[]>([]);
+  /**
+   * Name of the folder currently being viewed (Task B, 1.5.0). Rendered as the
+   * last, non-clickable breadcrumb segment. The breadcrumbs endpoint only returns
+   * the current folder's *ancestors* (never the node itself), so this is sourced
+   * from the existing `GET /nodes/{id}` node lookup - a frontend-only addition,
+   * no contract change. Empty at the library root (there is no current folder).
+   */
+  readonly currentFolderName = signal('');
   readonly hasMore = signal(false);
   private cursor: string | null = null;
+
+  // Jump-index rail (1.4.0 Lane E). Only loaded at the library root (no parentId);
+  // subfolders don't have a per-folder jump index. The rail is a name-sort
+  // navigation aid, so it is hidden when the sort is not "name".
+  readonly jumpBuckets = signal<JumpIndexBucketDto[]>([]);
+  readonly activeJump = signal<string | null>(null);
 
   // Selection mode (1.2.0 read-marks + merged card actions).
   readonly selectMode = signal(false);
@@ -311,6 +367,17 @@ export class LibraryBrowseComponent implements OnInit {
     { value: 'recentlyRead', label: 'Recently read', icon: 'history' },
   ];
 
+  // Ascending/descending toggle for the active sort (1.5.0). Named "sortDirection"
+  // (not "direction") to stay distinct from the unrelated per-folder reading
+  // direction (LTR/RTL/Vertical) already on this component. Default mirrors the
+  // server's per-sort default (name -> asc; everything else -> desc) until the
+  // stored preference loads.
+  readonly sortDirection = signal<LibrarySortDirection>('asc');
+  readonly sortDirectionOptions: { value: LibrarySortDirection; label: string; icon: string }[] = [
+    { value: 'asc', label: 'Ascending', icon: 'arrow_upward' },
+    { value: 'desc', label: 'Descending', icon: 'arrow_downward' },
+  ];
+
   /** How many currently-selected nodes are folders (gates the Direction action). */
   readonly selectedFolderCount = computed(() => {
     const ids = this.selected();
@@ -328,10 +395,21 @@ export class LibraryBrowseComponent implements OnInit {
         this.viewMode.set(vm === 'list' || vm === 'poster' ? vm : 'grid');
         this.density.set(p.density === 'compact' ? 'compact' : 'comfortable');
         if (p.sort === 'recentlyAdded' || p.sort === 'recentlyRead') this.sort.set(p.sort);
+        // Direction is optional/tolerant like the other fields: an unset or
+        // unrecognized value falls back to the sort-specific default (matches
+        // CatalogController.ParseDirection) so pre-1.5.0 stored preferences
+        // keep their existing ordering.
+        this.sortDirection.set(
+          p.direction === 'asc' || p.direction === 'desc' ? p.direction : this.defaultDirectionFor(this.sort()));
         this.subscribeToRoute();
       },
       error: () => this.subscribeToRoute(), // keep defaults, still load
     });
+  }
+
+  /** Sort-specific default direction, matching the server's fallback (1.5.0). */
+  private defaultDirectionFor(sort: LibrarySortOrder): LibrarySortDirection {
+    return sort === 'name' ? 'asc' : 'desc';
   }
 
   /** Subscribe to the route params and load each folder as it is navigated. */
@@ -343,12 +421,43 @@ export class LibraryBrowseComponent implements OnInit {
       this.parentId.set(parentId);
       this.cursor = null;
       this.nodes.set([]);
+      this.activeJump.set(null);
       this.clearSelection();
       this.loadLibraryName(libId);
       this.loadNodes();
-      if (parentId) this.loadBreadcrumbs(parentId);
-      else this.breadcrumbs.set([]);
+      // The jump rail is a library-root navigation aid (1.4.0 Lane E). It is
+      // only meaningful for the name sort in ascending order — its bucket
+      // cursors assume A→Z order, and other sorts ignore the cursor entirely.
+      if (!parentId && this.sort() === 'name' && this.sortDirection() === 'asc') this.loadJumpIndex(libId);
+      else this.jumpBuckets.set([]);
+      if (parentId) {
+        this.loadBreadcrumbs(parentId);
+        this.loadCurrentFolder(parentId);
+      } else {
+        this.breadcrumbs.set([]);
+        this.currentFolderName.set('');
+      }
     });
+  }
+
+  /** Load the per-library A–Z/script jump index (1.4.0 Lane E). */
+  private loadJumpIndex(libId: string): void {
+    this.api.getJumpIndex(libId).subscribe({
+      next: (res) => this.jumpBuckets.set(res.buckets),
+      error: () => this.jumpBuckets.set([]),
+    });
+  }
+
+  /**
+   * Jump to a bucket: set the cursor to the bucket's firstCursor and reload
+   * from the top. A null cursor means the start of the listing (first page).
+   */
+  jumpToBucket(bucket: JumpIndexBucketDto): void {
+    this.cursor = bucket.firstCursor;
+    this.nodes.set([]);
+    this.clearSelection();
+    this.activeJump.set(bucket.label);
+    this.loadNodes();
   }
 
   /** Resolve the library's display name for the breadcrumb root (reader-accessible). */
@@ -401,8 +510,27 @@ export class LibraryBrowseComponent implements OnInit {
     this.persistView();
     this.cursor = null;
     this.nodes.set([]);
+    this.activeJump.set(null);
     this.clearSelection();
     this.loadNodes();
+    // The jump rail is only valid for the name sort in ascending order (the
+    // cursor is a raw SortKey that assumes A→Z order; other sorts ignore it).
+    if (s === 'name' && this.sortDirection() === 'asc' && !this.parentId()) this.loadJumpIndex(this.libraryId());
+    else this.jumpBuckets.set([]);
+  }
+
+  /** Toggle ascending/descending for the active sort: persist and reorder from the top. */
+  setSortDirection(d: LibrarySortDirection): void {
+    if (this.sortDirection() === d) return;
+    this.sortDirection.set(d);
+    this.persistView();
+    this.cursor = null;
+    this.nodes.set([]);
+    this.activeJump.set(null);
+    this.clearSelection();
+    this.loadNodes();
+    if (this.sort() === 'name' && d === 'asc' && !this.parentId()) this.loadJumpIndex(this.libraryId());
+    else this.jumpBuckets.set([]);
   }
 
   private persistView(): void {
@@ -410,6 +538,7 @@ export class LibraryBrowseComponent implements OnInit {
       viewMode: this.viewMode(),
       density: this.density(),
       sort: this.sort(),
+      direction: this.sortDirection(),
     }).subscribe({ error: () => { /* non-fatal: the choice still applies this session */ } });
   }
 
@@ -519,7 +648,7 @@ export class LibraryBrowseComponent implements OnInit {
     // Initial page (no cursor) replaces; "Load more" (cursor set) appends. Replacing
     // on the initial load keeps a stray concurrent load from duplicating rows.
     const initial = this.cursor === null;
-    this.api.browseLibrary(libId, this.parentId(), this.cursor, 50, this.sort()).subscribe({
+    this.api.browseLibrary(libId, this.parentId(), this.cursor, 50, this.sort(), this.sortDirection()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         this.nodes.update((current) => initial ? [...response.items] : [...current, ...response.items]);
         this.hasMore.set(response.hasMore);
@@ -531,6 +660,19 @@ export class LibraryBrowseComponent implements OnInit {
   private loadBreadcrumbs(nodeId: string): void {
     this.api.getBreadcrumbs(nodeId).subscribe({
       next: (response) => this.breadcrumbs.set(response.trail),
+    });
+  }
+
+  /**
+   * Resolve the current folder's display name for the trailing (non-clickable)
+   * breadcrumb segment (Task B). Uses the existing node-lookup endpoint; on error
+   * we clear the name so the breadcrumb simply omits the current segment rather
+   * than showing a stale one.
+   */
+  private loadCurrentFolder(nodeId: string): void {
+    this.api.getNode(nodeId).subscribe({
+      next: (node) => this.currentFolderName.set(node.displayName),
+      error: () => this.currentFolderName.set(''),
     });
   }
 }

@@ -34,6 +34,10 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Property<long>("ByteLength")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ContentSignature")
+                        .HasMaxLength(96)
+                        .HasColumnType("TEXT");
+
                     b.Property<long>("ContentVersion")
                         .HasColumnType("INTEGER");
 
@@ -521,6 +525,31 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("page_entries", (string)null);
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.PrivateLibraryEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("LibraryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("MarkedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "LibraryId")
+                        .IsUnique();
+
+                    b.ToTable("private_libraries", (string)null);
+                });
+
             modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ReadMarkEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -559,6 +588,10 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
 
                     b.Property<int>("DefaultReaderMode")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("LibraryDirection")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LibraryGridDensity")
                         .IsRequired()
@@ -807,6 +840,16 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("ActivationTokenConsumed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ActivationTokenExpiry")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ActivationTokenHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
                     b.Property<long>("CreatedAt")
                         .HasColumnType("INTEGER");
 
@@ -817,6 +860,9 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsAdmin")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsPendingActivation")
                         .HasColumnType("INTEGER");
 
                     b.Property<long?>("LastLoginAt")
@@ -955,6 +1001,17 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Navigation("Item");
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.PrivateLibraryEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", "User")
+                        .WithMany("PrivateLibraries")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ReadMarkEntity", b =>
                 {
                     b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", "User")
@@ -1021,6 +1078,8 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Navigation("LibraryGrants");
 
                     b.Navigation("Preferences");
+
+                    b.Navigation("PrivateLibraries");
 
                     b.Navigation("ReadingProgress");
                 });

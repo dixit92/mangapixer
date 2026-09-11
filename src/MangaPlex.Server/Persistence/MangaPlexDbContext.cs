@@ -37,6 +37,7 @@ public sealed class MangaPlexDbContext : DbContext
 
     public DbSet<LibraryEntity> Libraries => Set<LibraryEntity>();
     public DbSet<LibraryGrantEntity> LibraryGrants => Set<LibraryGrantEntity>();
+    public DbSet<PrivateLibraryEntity> PrivateLibraries => Set<PrivateLibraryEntity>();
     public DbSet<CatalogNodeEntity> CatalogNodes => Set<CatalogNodeEntity>();
     public DbSet<ArchiveItemEntity> ArchiveItems => Set<ArchiveItemEntity>();
     public DbSet<PageEntryEntity> PageEntries => Set<PageEntryEntity>();
@@ -61,6 +62,7 @@ public sealed class MangaPlexDbContext : DbContext
         ConfigureUsers(modelBuilder);
         ConfigureSessions(modelBuilder);
         ConfigureLibraries(modelBuilder);
+        ConfigurePrivateLibraries(modelBuilder);
         ConfigureCatalogNodes(modelBuilder);
         ConfigureArchiveItems(modelBuilder);
         ConfigurePageEntries(modelBuilder);
@@ -86,6 +88,7 @@ public sealed class MangaPlexDbContext : DbContext
             e.Property(x => x.NormalizedUserName).IsRequired().HasMaxLength(64);
             e.Property(x => x.PasswordHash).IsRequired();
             e.Property(x => x.SecurityStamp).IsRequired().HasMaxLength(64);
+            e.Property(x => x.ActivationTokenHash).HasMaxLength(128);
             e.HasIndex(x => x.NormalizedUserName).IsUnique();
             e.HasIndex(x => x.PublicId).IsUnique();
         });
@@ -131,6 +134,24 @@ public sealed class MangaPlexDbContext : DbContext
         });
     }
 
+    private static void ConfigurePrivateLibraries(ModelBuilder mb)
+    {
+        mb.Entity<PrivateLibraryEntity>(e =>
+        {
+            e.ToTable("private_libraries");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            // Presence of a row means "private" — one per (user, library).
+            e.HasIndex(x => new { x.UserId, x.LibraryId }).IsUnique();
+            e.HasIndex(x => x.UserId);
+
+            e.HasOne(x => x.User)
+                .WithMany(u => u.PrivateLibraries)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
     private static void ConfigureCatalogNodes(ModelBuilder mb)
     {
         mb.Entity<CatalogNodeEntity>(e =>
@@ -173,6 +194,7 @@ public sealed class MangaPlexDbContext : DbContext
             e.HasKey(x => x.NodeId);
             e.Property(x => x.AnalysisError).HasMaxLength(1024);
             e.Property(x => x.StrongHash).HasMaxLength(128);
+            e.Property(x => x.ContentSignature).HasMaxLength(com.lifepixer.mangaplex.Core.Media.ContentSignature.MaxLength);
 
             e.HasOne(x => x.Node)
                 .WithOne(n => n.ArchiveItem)

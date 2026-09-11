@@ -195,6 +195,7 @@ public sealed class ThumbnailGenerationService
                 && (a.ThumbnailState != 1 || a.ThumbnailContentVersion != a.ContentVersion)),
                   n => n.Id, a => a.NodeId,
                   (n, a) => n.Id)
+            .OrderBy(id => id)
             .Take(limit)
             .ToListAsync(ct);
     }

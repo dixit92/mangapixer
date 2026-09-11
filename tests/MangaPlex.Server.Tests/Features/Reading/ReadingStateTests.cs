@@ -699,23 +699,60 @@ public sealed class ReadingStateTests : IDisposable
             Assert.Equal("grid", def.ViewMode);
             Assert.Equal("comfortable", def.Density);
             Assert.Equal("name", def.Sort);
+            Assert.Equal("", def.Direction); // unset (1.5.0) — sort-specific default applies downstream
 
             await service.SetLibraryPreferencesAsync(userId, new LibraryViewPreferencesDto
             {
                 ViewMode = "poster",
                 Density = "compact",
                 Sort = "recentlyAdded",
+                Direction = "desc",
             });
 
             var lib = await service.GetLibraryPreferencesAsync(userId);
             Assert.Equal("poster", lib.ViewMode);
             Assert.Equal("compact", lib.Density);
             Assert.Equal("recentlyAdded", lib.Sort);
+            Assert.Equal("desc", lib.Direction);
 
             // Reader prefs survived the library-prefs write.
             var reader = await service.GetPreferencesAsync(userId);
             Assert.Equal(ReaderMode.VerticalWebtoon, reader.DefaultReaderMode);
             Assert.True(reader.ReducedMotion);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task LibraryPreferences_Direction_RoundTrips()
+    {
+        var (db, userId, _, _, _) = await SetupAsync();
+        try
+        {
+            var auth = new LibraryAuthorizationService(db);
+            var service = new ReadingStateService(db, auth);
+
+            await service.SetLibraryPreferencesAsync(userId, new LibraryViewPreferencesDto
+            {
+                Sort = "name",
+                Direction = "asc",
+            });
+            Assert.Equal("asc", (await service.GetLibraryPreferencesAsync(userId)).Direction);
+
+            await service.SetLibraryPreferencesAsync(userId, new LibraryViewPreferencesDto
+            {
+                Sort = "recentlyRead",
+                Direction = "desc",
+            });
+            Assert.Equal("desc", (await service.GetLibraryPreferencesAsync(userId)).Direction);
+
+            // Clearing back to "" (unset) round-trips too.
+            await service.SetLibraryPreferencesAsync(userId, new LibraryViewPreferencesDto
+            {
+                Sort = "recentlyRead",
+                Direction = "",
+            });
+            Assert.Equal("", (await service.GetLibraryPreferencesAsync(userId)).Direction);
         }
         finally { await db.DisposeAsync(); }
     }
@@ -747,5 +784,42 @@ public sealed class ReadingStateTests : IDisposable
             Assert.Equal(UpdateStatus.Unauthorized, result.Status);
         }
         finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task UpdateProgress_ConcurrentFirstWrites_DoNotRaceOnUniqueIndex()
+    {
+        // Regression: several "first writes" for the same (user, item) arriving at once
+        // each read no existing row and tried to INSERT, so the losers hit the
+        // reading_progress (UserId, ItemId) unique index and threw DbUpdateException - an
+        // intermittent 500 in production. The upsert now recovers a concurrent insert by
+        // re-applying the write as an update. Separate contexts share the file DB; the
+        // connection's 30s busy timeout serializes writers, so a loser hits the unique
+        // constraint (SQLite error 19) rather than SQLITE_BUSY.
+        var (seedDb, userId, _, _, itemId) = await SetupAsync();
+        await seedDb.DisposeAsync();
+
+        const int writers = 8;
+        var tasks = Enumerable.Range(0, writers).Select(async i =>
+        {
+            var db = new MangaPlexDbContext(_options);
+            try
+            {
+                var service = new ReadingStateService(db, new LibraryAuthorizationService(db));
+                return await service.UpdateProgressAsync(userId, itemId, pageIndex: i,
+                    expectedContentVersion: 1, mutationId: $"mut-{i}");
+            }
+            finally { await db.DisposeAsync(); }
+        });
+
+        var results = await Task.WhenAll(tasks);
+
+        // No writer threw; every write reports success (losers as recovered updates).
+        Assert.All(results, r => Assert.Equal(UpdateStatus.Success, r.Status));
+
+        // Exactly one progress row exists for (user, item) - no duplicate slipped through.
+        await using var verify = new MangaPlexDbContext(_options);
+        var count = await verify.ReadingProgress.CountAsync(p => p.UserId == userId && p.ItemId == itemId);
+        Assert.Equal(1, count);
     }
 }

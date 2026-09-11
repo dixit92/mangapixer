@@ -1,9 +1,11 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
+import { BYPASS_INCOGNITO } from '../incognito/incognito.interceptor';
 import {
+  ActivateAccountRequest,
   ApiError,
   AdminUserDto,
   AuthUserDto,
@@ -11,11 +13,13 @@ import {
   ChangePasswordRequest,
   ContinueReadingEntry,
   CreateUserRequest,
+  CreateUserResponse,
   EffectiveReaderModeDto,
   ReadMarkDto,
   BulkReadMarkResultDto,
   LibraryViewPreferencesDto,
   LibrarySortOrder,
+  LibrarySortDirection,
   YacReaderDetectDto,
   YacReaderImportRequest,
   YacReaderImportPreviewDto,
@@ -25,8 +29,10 @@ import {
   DirectoryListingDto,
   ItemManifest,
   ItemReadiness,
+  JumpIndexDto,
   LibraryDto,
   LogLevelDto,
+  PrivateLibrariesDto,
   RotatingBackupStatusDto,
   LoginRequest,
   PageResponse,
@@ -36,10 +42,12 @@ import {
   ResetPasswordResponse,
   ScanRunDto,
   ScanTriggeredDto,
+  SetPrivateLibrariesRequest,
   ThumbnailRegenerateResponse,
   SearchResultsDto,
   SetupRequest,
   SetupStatusDto,
+  SystemInfoDto,
   UpdateLibraryRequest,
   UpdateLogLevelRequest,
   UpdateProgressRequest,
@@ -94,18 +102,31 @@ export class ApiService {
     return this.get<LibraryDto[]>('/libraries');
   }
 
+  /**
+   * The full set of libraries the user can manage, ignoring the session's
+   * current Incognito toggle (1.4.0). Use for the Private-libraries settings
+   * list and the Administration page — management surfaces must keep showing an
+   * already-Private library (to un-mark or administer it), unlike the discovery
+   * surfaces that hide it under Incognito.
+   */
+  getAllLibraries(): Observable<LibraryDto[]> {
+    return this.get<LibraryDto[]>('/libraries', undefined, new HttpContext().set(BYPASS_INCOGNITO, true));
+  }
+
   browseLibrary(
     libraryId: string,
     parentId: string | null,
     cursor: string | null = null,
     pageSize = 50,
     sort: LibrarySortOrder | null = null,
+    direction: LibrarySortDirection | null = null,
   ): Observable<PageResponse<CatalogNodeDto>> {
     let params = new HttpParams().set('pageSize', pageSize.toString());
     if (cursor) params = params.set('cursor', cursor);
     if (parentId) params = params.set('parentId', parentId);
-    // Omitted → the server uses the caller's stored LibrarySort preference.
+    // Omitted → the server uses the caller's stored LibrarySort/direction preference.
     if (sort) params = params.set('sort', sort);
+    if (direction) params = params.set('direction', direction);
     return this.get<PageResponse<CatalogNodeDto>>(
       `/libraries/${libraryId}/browse`,
       params,
@@ -114,6 +135,11 @@ export class ApiService {
 
   getNode(nodeId: string): Observable<CatalogNodeDto> {
     return this.get<CatalogNodeDto>(`/nodes/${nodeId}`);
+  }
+
+  /** Per-library A–Z/script jump index (1.4.0 Lane E). */
+  getJumpIndex(libraryId: string): Observable<JumpIndexDto> {
+    return this.get<JumpIndexDto>(`/libraries/${libraryId}/jump-index`);
   }
 
   getBreadcrumbs(nodeId: string): Observable<{ nodeId: string; trail: { id: string; displayName: string }[] }> {
@@ -166,6 +192,22 @@ export class ApiService {
   /** Remove an item from the continue-reading strip (1.2.0), without marking it read. */
   dismissContinueReading(itemId: string): Observable<void> {
     return this.delete<void>(`/reading/continue/${itemId}`);
+  }
+
+  /** Continue-reading entries scoped to a single library (1.4.0 sidebar grouping). */
+  getContinueReadingByLibrary(libraryId: string, limit = 20): Observable<ContinueReadingEntry[]> {
+    const params = new HttpParams().set('limit', limit.toString());
+    return this.get<ContinueReadingEntry[]>(`/reading/continue/by-library/${libraryId}`, params);
+  }
+
+  /** The current user's Private library designations (1.4.0). */
+  getPrivateLibraries(): Observable<PrivateLibrariesDto> {
+    return this.get<PrivateLibrariesDto>('/reading/private-libraries');
+  }
+
+  /** Replaces the current user's Private library set (1.4.0, replacement semantics). */
+  setPrivateLibraries(libraryIds: string[]): Observable<void> {
+    return this.put<void>('/reading/private-libraries', { libraryIds } as SetPrivateLibrariesRequest);
   }
 
   /** Per-user library browse presentation preferences (1.2.0). */
@@ -287,8 +329,12 @@ export class ApiService {
     return this.get<AdminUserDto[]>('/admin/users');
   }
 
-  createUser(request: CreateUserRequest): Observable<AdminUserDto> {
-    return this.post<AdminUserDto>('/admin/users', request);
+  createUser(request: CreateUserRequest): Observable<CreateUserResponse> {
+    return this.post<CreateUserResponse>('/admin/users', request);
+  }
+
+  activateAccount(request: ActivateAccountRequest): Observable<AuthUserDto> {
+    return this.post<AuthUserDto>('/auth/activate', request);
   }
 
   getUser(id: string): Observable<AdminUserDto> {
@@ -337,6 +383,13 @@ export class ApiService {
     return this.post<RotatingBackupStatusDto>('/operations/backups/rotating', {});
   }
 
+  // --- System info (post-1.3.0 lane D) ---
+
+  /** Read-only product version (unauthenticated; shown in the app footer). */
+  getSystemInfo(): Observable<SystemInfoDto> {
+    return this.get<SystemInfoDto>('/system/info');
+  }
+
   // --- Manifest / Readiness ---
 
   getManifest(itemId: string): Observable<ItemManifest> {
@@ -353,9 +406,9 @@ export class ApiService {
 
   // --- HTTP helpers ---
 
-  private get<T>(path: string, params?: HttpParams): Observable<T> {
+  private get<T>(path: string, params?: HttpParams, context?: HttpContext): Observable<T> {
     return this.http
-      .get<T>(this.baseUrl + path, { params, withCredentials: true })
+      .get<T>(this.baseUrl + path, { params, context, withCredentials: true })
       .pipe(catchError(this.handleError));
   }
 

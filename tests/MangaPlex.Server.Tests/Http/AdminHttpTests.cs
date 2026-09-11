@@ -317,9 +317,9 @@ public sealed class AdminHttpTests : IDisposable
         });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var user = await response.Content.ReadFromJsonAsync<AdminUserDto>();
-        Assert.Equal("newuser", user!.Username);
-        Assert.False(user.IsAdmin);
+        var result = await response.Content.ReadFromJsonAsync<CreateUserResponse>();
+        Assert.Equal("newuser", result!.User.Username);
+        Assert.False(result.User.IsAdmin);
     }
 
     [Fact]
@@ -388,12 +388,13 @@ public sealed class AdminHttpTests : IDisposable
             IsAdmin = false,
         });
         Assert.Equal(HttpStatusCode.OK, createResponse.StatusCode);
-        var createdUser = await createResponse.Content.ReadFromJsonAsync<AdminUserDto>();
-        Assert.NotNull(createdUser);
+        var createResult = await createResponse.Content.ReadFromJsonAsync<CreateUserResponse>();
+        Assert.NotNull(createResult);
+        var createdUser = createResult!.User;
 
         // Reset password
         var resetResponse = await client.PostAsync(
-            $"/api/v1/admin/users/{createdUser!.Id}/reset-password", null);
+            $"/api/v1/admin/users/{createdUser.Id}/reset-password", null);
         Assert.Equal(HttpStatusCode.OK, resetResponse.StatusCode);
 
         var result = await resetResponse.Content.ReadFromJsonAsync<ResetPasswordResponse>();
@@ -421,11 +422,12 @@ public sealed class AdminHttpTests : IDisposable
             Password = "GrantedPass123!",
             IsAdmin = false,
         });
-        var createdUser = await userResponse.Content.ReadFromJsonAsync<AdminUserDto>();
+        var createdUserResult = await userResponse.Content.ReadFromJsonAsync<CreateUserResponse>();
+        var createdUser = createdUserResult!.User;
 
         // Grant access
         var grantResponse = await client.PutAsync(
-            $"/api/v1/admin/users/{createdUser!.Id}/grants/{library!.Id}", null);
+            $"/api/v1/admin/users/{createdUser.Id}/grants/{library!.Id}", null);
         Assert.Equal(HttpStatusCode.NoContent, grantResponse.StatusCode);
 
         // Login as the user and verify they can see the library
@@ -456,11 +458,12 @@ public sealed class AdminHttpTests : IDisposable
             Password = "GrantsListPass123!",
             IsAdmin = false,
         });
-        var createdUser = await userResponse.Content.ReadFromJsonAsync<AdminUserDto>();
+        var grantsListResult = await userResponse.Content.ReadFromJsonAsync<CreateUserResponse>();
+        var createdUser = grantsListResult!.User;
 
         // Initially: no grants.
         var before = await client.GetFromJsonAsync<UserGrantsDto>(
-            $"/api/v1/admin/users/{createdUser!.Id}/grants");
+            $"/api/v1/admin/users/{createdUser.Id}/grants");
         Assert.False(before!.IsAdmin);
         Assert.Empty(before.LibraryIds);
 
@@ -496,10 +499,11 @@ public sealed class AdminHttpTests : IDisposable
             Password = "RevokePass123!",
             IsAdmin = false,
         });
-        var createdUser = await userResponse.Content.ReadFromJsonAsync<AdminUserDto>();
+        var revokeResult = await userResponse.Content.ReadFromJsonAsync<CreateUserResponse>();
+        var createdUser = revokeResult!.User;
 
         await client.PutAsync(
-            $"/api/v1/admin/users/{createdUser!.Id}/grants/{library!.Id}", null);
+            $"/api/v1/admin/users/{createdUser.Id}/grants/{library!.Id}", null);
 
         // Revoke
         var revokeResponse = await client.DeleteAsync(
@@ -573,5 +577,184 @@ public sealed class AdminHttpTests : IDisposable
 
         var scans = await historyResponse.Content.ReadFromJsonAsync<List<ScanRunDto>>();
         Assert.NotNull(scans);
+    }
+
+    // --- Activation Token Tests ---
+
+    [Fact]
+    public async Task CreateUser_WithoutPassword_ReturnsPendingUserAndActivationUrl()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var response = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "activateuser1",
+            IsAdmin = false,
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<CreateUserResponse>();
+        Assert.NotNull(result);
+        Assert.NotNull(result!.ActivationUrl);
+        Assert.Contains("/activate?token=", result.ActivationUrl);
+        Assert.True(result.User.IsPendingActivation);
+        Assert.Equal("activateuser1", result.User.Username);
+    }
+
+    [Fact]
+    public async Task PendingUser_CannotLogin()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "pendinglogin",
+            IsAdmin = false,
+        });
+
+        var anonClient = _factory.CreateClient();
+        var loginResponse = await anonClient.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest
+        {
+            Username = "pendinglogin",
+            Password = "anything12345",
+        });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, loginResponse.StatusCode);
+        var error = await loginResponse.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("invalid_credentials", error!.Error);
+    }
+
+    [Fact]
+    public async Task ActivateAccount_ValidToken_ActivatesAndSignsIn()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var createResponse = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "activatevalid",
+            IsAdmin = false,
+        });
+        var createResult = await createResponse.Content.ReadFromJsonAsync<CreateUserResponse>();
+        var token = ExtractToken(createResult!.ActivationUrl!);
+
+        var anonClient = _factory.CreateClient();
+        var activateResponse = await anonClient.PostAsJsonAsync("/api/v1/auth/activate", new ActivateAccountRequest
+        {
+            Token = token,
+            Password = "MyNewPassword123!",
+        });
+
+        Assert.Equal(HttpStatusCode.OK, activateResponse.StatusCode);
+        var user = await activateResponse.Content.ReadFromJsonAsync<AuthUserDto>();
+        Assert.Equal("activatevalid", user!.Username);
+        Assert.False(user.ForcePasswordChange);
+
+        // Verify the user can now log in with the chosen password
+        var loginClient = _factory.CreateClient();
+        var loginResponse = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest
+        {
+            Username = "activatevalid",
+            Password = "MyNewPassword123!",
+        });
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ActivateAccount_ReusedToken_Fails()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var createResponse = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "activatereuse",
+            IsAdmin = false,
+        });
+        var createResult = await createResponse.Content.ReadFromJsonAsync<CreateUserResponse>();
+        var token = ExtractToken(createResult!.ActivationUrl!);
+
+        var anonClient = _factory.CreateClient();
+        var first = await anonClient.PostAsJsonAsync("/api/v1/auth/activate", new ActivateAccountRequest
+        {
+            Token = token,
+            Password = "FirstPassword123!",
+        });
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+        var second = await _factory.CreateClient().PostAsJsonAsync("/api/v1/auth/activate", new ActivateAccountRequest
+        {
+            Token = token,
+            Password = "SecondPassword123!",
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, second.StatusCode);
+        var error = await second.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("invalid_token", error!.Error);
+    }
+
+    [Fact]
+    public async Task ActivateAccount_InvalidToken_DoesNotLeakUserExistence()
+    {
+        var anonClient = _factory.CreateClient();
+        var response = await anonClient.PostAsJsonAsync("/api/v1/auth/activate", new ActivateAccountRequest
+        {
+            Token = "this-is-not-a-real-token-at-all",
+            Password = "SomePassword123!",
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("invalid_token", error!.Error);
+        Assert.Equal("Invalid or expired activation link.", error.Message);
+    }
+
+    [Fact]
+    public async Task CreateUser_WithPassword_StillWorks()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var response = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "passworduser",
+            Password = "StrongPass123!",
+            IsAdmin = false,
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<CreateUserResponse>();
+        Assert.NotNull(result);
+        Assert.Null(result!.ActivationUrl);
+        Assert.False(result.User.IsPendingActivation);
+    }
+
+    [Fact]
+    public async Task FirstRunSetup_StillWorks_WithActivationFeature()
+    {
+        using var factory = new MangaPlexWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var setupStatus = await client.GetFromJsonAsync<SetupStatusDto>("/api/v1/auth/setup-status");
+        Assert.True(setupStatus!.SetupRequired);
+
+        var setupResponse = await client.PostAsJsonAsync("/api/v1/auth/setup", new SetupRequest
+        {
+            Username = "firstadmin",
+            Password = "FirstAdmin123!",
+        });
+        Assert.Equal(HttpStatusCode.OK, setupResponse.StatusCode);
+
+        var status2 = await client.GetFromJsonAsync<SetupStatusDto>("/api/v1/auth/setup-status");
+        Assert.False(status2!.SetupRequired);
+    }
+
+    private static string ExtractToken(string activationUrl)
+    {
+        var uri = new Uri(activationUrl);
+        var pairs = uri.Query.TrimStart('?').Split('&');
+        foreach (var pair in pairs)
+        {
+            var parts = pair.Split('=', 2);
+            if (parts.Length == 2 && parts[0] == "token")
+                return Uri.UnescapeDataString(parts[1]);
+        }
+        throw new InvalidOperationException("No token query parameter in activation URL");
     }
 }

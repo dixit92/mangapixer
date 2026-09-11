@@ -51,9 +51,13 @@ public static class SevenZipFixtureGenerator
                 throw new InvalidOperationException($"7z failed with exit code {process.ExitCode}: {stderr}");
             }
         }
-        catch (FileNotFoundException)
+        catch (Exception ex) when (ex is FileNotFoundException or System.ComponentModel.Win32Exception)
         {
-            // 7z not available — create a minimal 7z signature file for format detection tests
+            // 7z not on PATH — create a minimal 7z signature file so callers detect its
+            // absence (fileInfo.Length <= 8) and skip. On Linux a missing executable
+            // surfaces as Win32Exception ("No such file or directory"), not
+            // FileNotFoundException, so both must be caught or the 7z tests fail red on
+            // any container without p7zip-full instead of skipping.
             File.WriteAllBytes(archivePath, SevenZipSignature);
         }
 

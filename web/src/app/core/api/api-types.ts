@@ -58,6 +58,19 @@ export interface BreadcrumbsDto {
   trail: BreadcrumbEntry[];
 }
 
+/** One bucket of the per-library jump index (1.4.0 Lane E). */
+export interface JumpIndexBucketDto {
+  label: string;
+  count: number;
+  firstCursor: string | null;
+}
+
+/** Per-library A–Z/script rail (1.4.0 Lane E). */
+export interface JumpIndexDto {
+  libraryId: string;
+  buckets: JumpIndexBucketDto[];
+}
+
 export interface SearchResultsDto {
   query: string;
   items: CatalogNodeDto[];
@@ -106,10 +119,29 @@ export interface UserPreferencesDto {
 
 export interface ContinueReadingEntry {
   itemId: string;
+  /** Opaque public ID of the item's library (1.4.0 Lane B). Enables sidebar grouping. */
+  libraryId: string;
+  /** Display name of the item's library (1.4.0 Lane B). */
+  libraryName: string;
   displayName: string;
   pageIndex: number;
   contentVersion: number;
   updatedAt: string;
+}
+
+/**
+ * The current user's Private library designations (1.4.0). Libraries in this
+ * list are hidden from listing/discovery surfaces (continue-reading, search,
+ * browse-root, library list) while Incognito mode is active. Direct reader
+ * URLs remain accessible regardless. Library IDs are opaque public IDs.
+ */
+export interface PrivateLibrariesDto {
+  libraryIds: string[];
+}
+
+/** Request to replace the current user's Private library set (replacement semantics). */
+export interface SetPrivateLibrariesRequest {
+  libraryIds: string[];
 }
 
 export interface LibraryDto {
@@ -143,11 +175,23 @@ export type LibraryViewMode = 'grid' | 'list' | 'poster';
 export type LibraryGridDensity = 'comfortable' | 'compact';
 export type LibrarySortOrder = 'name' | 'recentlyAdded' | 'recentlyRead';
 
+/**
+ * Browse sort direction (1.5.0). Optional/tolerant like the other library-view
+ * preference fields: absent or unrecognized means "use the sort-specific
+ * default" (name -> asc; recentlyAdded/recentlyRead -> desc), resolved by the
+ * server (`CatalogController.ParseDirection`) and mirrored client-side in
+ * LibraryBrowseComponent so the UI shows the right toggle state before the
+ * first preferences round-trip completes.
+ */
+export type LibrarySortDirection = 'asc' | 'desc';
+
 /** Per-user library browse presentation preferences (1.2.0). Strings for tolerance. */
 export interface LibraryViewPreferencesDto {
   viewMode: string;
   density: string;
   sort: string;
+  /** Optional (1.5.0): omitted/unrecognized falls back to the sort-specific default. */
+  direction?: string;
 }
 
 // --- YACReader progress import (1.2.0, admin-only) ---
@@ -289,14 +333,25 @@ export interface AdminUserDto {
   username: string;
   isAdmin: boolean;
   isActive: boolean;
+  isPendingActivation?: boolean;
   createdAt: string;
   lastLoginAt: string | null;
 }
 
 export interface CreateUserRequest {
   username: string;
-  password: string;
+  password?: string;
   isAdmin: boolean;
+}
+
+export interface CreateUserResponse {
+  user: AdminUserDto;
+  activationUrl: string | null;
+}
+
+export interface ActivateAccountRequest {
+  token: string;
+  password: string;
 }
 
 export interface UpdateUserRequest {
@@ -372,4 +427,11 @@ export interface RotatingBackupStatusDto {
   lastFailureUtc: string | null;
   lastBackupFileName: string | null;
   retainedCount: number;
+}
+
+// --- System info (post-1.3.0 lane D) ---
+
+/** Read-only product version info from GET /api/v1/system/info. */
+export interface SystemInfoDto {
+  version: string;
 }

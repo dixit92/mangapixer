@@ -295,6 +295,7 @@ import {
                 <div matListItemTitle>{{ user.username }}</div>
                 <div matListItemLine>
                   {{ user.isAdmin ? 'Admin' : 'Reader' }}
+                  @if (user.isPendingActivation) { — Pending Activation }
                   @if (!user.isActive) { — Disabled }
                 </div>
                 <span matListItemMeta class="user-meta">
@@ -344,15 +345,23 @@ import {
           <input matInput [(ngModel)]="newUsername">
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Password</mat-label>
+          <mat-label>Password (optional)</mat-label>
           <input matInput type="password" [(ngModel)]="newUserPassword">
+          <mat-hint>Leave blank to generate an activation link instead.</mat-hint>
         </mat-form-field>
         <p>
           <mat-checkbox [(ngModel)]="newUserIsAdmin">Admin role</mat-checkbox>
         </p>
-        <button mat-raised-button color="primary" (click)="createUser()" [disabled]="!newUsername() || !newUserPassword()">
+        <button mat-raised-button color="primary" (click)="createUser()" [disabled]="!newUsername()">
           Create User
         </button>
+        @if (activationUrl()) {
+          <div class="activation-link-box">
+            <p>Activation link (share with the user — single-use, expires in 48h):</p>
+            <code class="activation-url">{{ activationUrl() }}</code>
+            <button mat-stroked-button (click)="copyActivationUrl()">Copy link</button>
+          </div>
+        }
       </mat-card-content>
     </mat-card>
 
@@ -424,6 +433,15 @@ import {
     .register-actions { display: flex; gap: 12px; margin-top: 4px; }
     .browse-btn { margin-right: 12px; }
     .lib-meta, .user-meta { display: inline-flex; align-items: center; gap: 8px; }
+    /* The Direction dropdown + action buttons live in the list-item meta slot,
+       which is taller than a default list line. Let those rows grow and keep the
+       meta vertically centered so the dropdowns line up on first paint (they used
+       to stagger before the mat-form-field settled its height). */
+    ::ng-deep .mat-mdc-list-item:has(.lib-meta) {
+      height: auto !important;
+      min-height: 76px;
+    }
+    .lib-meta { align-self: center; }
     .dir-select { width: 150px; }
     .yac-panel {
       margin: 4px 0 12px 56px; padding: 12px 16px;
@@ -490,6 +508,15 @@ import {
       font-size: 13px; opacity: 0.8; margin: 4px 0 0;
       display: flex; align-items: center; gap: 6px;
     }
+    .activation-link-box {
+      margin-top: 16px; padding: 12px 16px; border-radius: 8px;
+      border: 1px solid rgba(76, 175, 80, 0.5); background: rgba(76, 175, 80, 0.06);
+    }
+    .activation-link-box p { margin: 0 0 8px; font-size: 14px; }
+    .activation-url {
+      display: block; word-break: break-all; font-size: 13px;
+      padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; margin-bottom: 8px;
+    }
   `],
 })
 export class AdminComponent implements OnInit, OnDestroy {
@@ -545,6 +572,7 @@ export class AdminComponent implements OnInit, OnDestroy {
   readonly newUsername = signal('');
   readonly newUserPassword = signal('');
   readonly newUserIsAdmin = signal(false);
+  readonly activationUrl = signal<string | null>(null);
 
   // Log-level control (section 9)
   // Global default reading direction per library (1.2.0). null = inherit.
@@ -580,7 +608,7 @@ export class AdminComponent implements OnInit, OnDestroy {
   }
 
   private loadLibraries(): void {
-    this.api.getLibraries().subscribe({
+    this.api.getAllLibraries().subscribe({
       next: (libs) => {
         this.libraries.set(libs);
         this.loadingLibs.set(false);
@@ -763,7 +791,7 @@ export class AdminComponent implements OnInit, OnDestroy {
 
   /** Refresh library rows without touching the loading flag (used while polling). */
   private refreshLibraries(): void {
-    this.api.getLibraries().subscribe({
+    this.api.getAllLibraries().subscribe({
       next: (libs) => {
         const previouslyScanning = new Set(
           this.libraries().filter(l => l.isScanning).map(l => l.id),
@@ -996,21 +1024,38 @@ export class AdminComponent implements OnInit, OnDestroy {
   }
 
   createUser(): void {
+    const password = this.newUserPassword() || undefined;
     const request: CreateUserRequest = {
       username: this.newUsername(),
-      password: this.newUserPassword(),
+      password,
       isAdmin: this.newUserIsAdmin(),
     };
+    this.activationUrl.set(null);
     this.api.createUser(request).subscribe({
-      next: (user) => {
-        this.users.update(users => [...users, user]);
+      next: (res) => {
+        this.users.update(users => [...users, res.user]);
         this.newUsername.set('');
         this.newUserPassword.set('');
         this.newUserIsAdmin.set(false);
-        this.snackBar.open(`User "${user.username}" created`, 'Close', { duration: 3000 });
+        if (res.activationUrl) {
+          this.activationUrl.set(res.activationUrl);
+          this.snackBar.open(`User "${res.user.username}" created — copy the activation link below`, 'Close', { duration: 8000 });
+        } else {
+          this.snackBar.open(`User "${res.user.username}" created with password`, 'Close', { duration: 3000 });
+        }
       },
       error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 5000 }),
     });
+  }
+
+  copyActivationUrl(): void {
+    const url = this.activationUrl();
+    if (url) {
+      navigator.clipboard.writeText(url).then(
+        () => this.snackBar.open('Activation link copied', 'Close', { duration: 2000 }),
+        () => this.snackBar.open('Copy failed — select and copy manually', 'Close', { duration: 3000 }),
+      );
+    }
   }
 
   resetPassword(userId: string): void {

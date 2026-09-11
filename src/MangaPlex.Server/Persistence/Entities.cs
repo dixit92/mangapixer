@@ -77,6 +77,23 @@ public sealed class LibraryGrantEntity
 }
 
 /// <summary>
+/// Per-user Private library designation (1.4.0). Presence of a row means the
+/// user has marked the library as Private — hidden from listing/discovery
+/// surfaces (continue-reading, search, browse-root, library list) while
+/// Incognito mode is active. Distinct from access grants: a Private
+/// designation never blocks direct item access (reader URLs), only listing.
+/// </summary>
+public sealed class PrivateLibraryEntity
+{
+    public long Id { get; set; }
+    public long UserId { get; set; }
+    public long LibraryId { get; set; }
+    public DateTimeOffset MarkedAt { get; set; }
+
+    public UserEntity? User { get; set; }
+}
+
+/// <summary>
 /// Catalog node: a folder or archive in the library tree.
 /// </summary>
 public sealed class CatalogNodeEntity
@@ -186,6 +203,18 @@ public sealed class ArchiveItemEntity
     /// next generation pass produces a fresh one.
     /// </summary>
     public long? ThumbnailContentVersion { get; set; }
+
+    /// <summary>
+    /// Cheap content signature (1.5.0) — see
+    /// <see cref="com.lifepixer.mangaplex.Core.Media.ContentSignature"/>. Populated
+    /// when an analysis result is persisted; cleared when a scan detects an
+    /// in-place content change (the new content has not been hashed yet). Used by
+    /// the scanner to recognise a moved/renamed archive and keep its node id
+    /// (analysis, thumbnail and per-user reading state) instead of tombstoning it
+    /// and creating a fresh node. Null on rows analysed before 1.5.0, which
+    /// therefore never match as moves (safe default).
+    /// </summary>
+    public string? ContentSignature { get; set; }
 
     public CatalogNodeEntity? Node { get; set; }
     public ICollection<PageEntryEntity> Pages { get; set; } = [];
@@ -342,6 +371,14 @@ public sealed class ReaderPreferencesEntity
     public string LibraryViewMode { get; set; } = "grid";
     public string LibraryGridDensity { get; set; } = "comfortable";
     public string LibrarySort { get; set; } = "name";
+
+    /// <summary>
+    /// Sort direction for the library browse view (1.5.0): "" | asc | desc. Empty
+    /// means unset — the sort-specific default applies (Name ascending; everything
+    /// else descending), so rows written before this column existed keep their
+    /// pre-1.5.0 ordering unchanged.
+    /// </summary>
+    public string LibraryDirection { get; set; } = "";
 
     public UserEntity? User { get; set; }
 }
@@ -539,6 +576,30 @@ public sealed class UserEntity
     public bool ForcePasswordChange { get; set; } = false;
 
     /// <summary>
+    /// True while the account is waiting for the user to set their own password
+    /// via the one-time activation token. Pending-activation accounts cannot log
+    /// in and are indistinguishable from non-existent users at the login endpoint.
+    /// </summary>
+    public bool IsPendingActivation { get; set; } = false;
+
+    /// <summary>
+    /// SHA-256 hash (hex) of the one-time activation token. The raw token is
+    /// returned to the admin exactly once at creation time and never stored.
+    /// </summary>
+    public string? ActivationTokenHash { get; set; }
+
+    /// <summary>
+    /// Expiry time for the activation token. After this, the token is rejected.
+    /// </summary>
+    public DateTimeOffset? ActivationTokenExpiry { get; set; }
+
+    /// <summary>
+    /// Whether the activation token has been consumed (used to set a password).
+    /// A consumed token cannot be reused.
+    /// </summary>
+    public bool ActivationTokenConsumed { get; set; } = false;
+
+    /// <summary>
     /// Number of failed login attempts. Used for rate limiting / lockout.
     /// </summary>
     public int AccessFailedCount { get; set; }
@@ -558,6 +619,7 @@ public sealed class UserEntity
 
     public ICollection<LibraryGrantEntity> LibraryGrants { get; set; } = [];
     public ICollection<ReadingProgressEntity> ReadingProgress { get; set; } = [];
+    public ICollection<PrivateLibraryEntity> PrivateLibraries { get; set; } = [];
     public ReaderPreferencesEntity? Preferences { get; set; }
 }
 

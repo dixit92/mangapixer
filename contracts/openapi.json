@@ -152,6 +152,18 @@
         }
       }
     },
+    "/api/v1/system/info": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/items/{itemId}/manifest": {
       "get": {
         "tags": [
@@ -593,6 +605,41 @@
         }
       }
     },
+    "/api/v1/reading/continue/by-library/{libraryId}": {
+      "get": {
+        "tags": [
+          "Reading"
+        ],
+        "parameters": [
+          {
+            "name": "libraryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/reading/preferences": {
       "get": {
         "tags": [
@@ -665,6 +712,48 @@
             "application/*\u002Bjson": {
               "schema": {
                 "$ref": "#/components/schemas/LibraryViewPreferencesDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/reading/private-libraries": {
+      "get": {
+        "tags": [
+          "Reading"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Reading"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPrivateLibrariesRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPrivateLibrariesRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPrivateLibrariesRequest"
               }
             }
           },
@@ -927,6 +1016,13 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1018,6 +1114,28 @@
           {
             "name": "libraryId",
             "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/libraries/{libraryId}/jump-index": {
+      "get": {
+        "tags": [
+          "JumpIndex"
+        ],
+        "parameters": [
+          {
+            "name": "libraryId",
+            "in": "path",
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -1179,6 +1297,38 @@
         "tags": [
           "Auth"
         ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/activate": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateAccountRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateAccountRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "OK"
@@ -1768,6 +1918,21 @@
   },
   "components": {
     "schemas": {
+      "ActivateAccountRequest": {
+        "required": [
+          "token",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
       "AddBookmarkRequest": {
         "required": [
           "ordinal"
@@ -1826,8 +1991,7 @@
       },
       "CreateUserRequest": {
         "required": [
-          "username",
-          "password"
+          "username"
         ],
         "type": "object",
         "properties": {
@@ -1835,7 +1999,10 @@
             "type": "string"
           },
           "password": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "isAdmin": {
             "type": "boolean"
@@ -1852,6 +2019,9 @@
             "type": "string"
           },
           "sort": {
+            "type": "string"
+          },
+          "direction": {
             "type": "string"
           }
         }
@@ -1886,6 +2056,20 @@
           },
           "rootPath": {
             "type": "string"
+          }
+        }
+      },
+      "SetPrivateLibrariesRequest": {
+        "required": [
+          "libraryIds"
+        ],
+        "type": "object",
+        "properties": {
+          "libraryIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -2054,6 +2238,9 @@
       "name": "Operations"
     },
     {
+      "name": "System"
+    },
+    {
       "name": "Manifest"
     },
     {
@@ -2067,6 +2254,9 @@
     },
     {
       "name": "Catalog"
+    },
+    {
+      "name": "JumpIndex"
     },
     {
       "name": "Auth"
