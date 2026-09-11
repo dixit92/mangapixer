@@ -284,9 +284,9 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
             <div class="scrub-track" aria-hidden="true">
               <div class="scrub-fill" [style.width.%]="scrubFillPct()"></div>
             </div>
-            <div class="scrub-thumb" [style.left.%]="scrubThumbPct()" aria-hidden="true"></div>
+            <div class="scrub-thumb" [style.left]="scrubThumbLeft()" aria-hidden="true"></div>
             @if (scrubbing()) {
-              <div class="scrub-bubble" [style.left.%]="scrubThumbPct()" aria-hidden="true">
+              <div class="scrub-bubble" [style.left]="scrubThumbLeft()" aria-hidden="true">
                 {{ currentPage() + 1 }} / {{ pageCount() }}
               </div>
             }
@@ -464,7 +464,7 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     }
     .scrub:focus-visible { outline: 2px solid #7c4dff; outline-offset: -2px; border-radius: 6px; }
     .scrub-track {
-      position: absolute; left: 0; right: 0; top: 19px; height: 6px;
+      position: absolute; left: 11px; right: 11px; top: 19px; height: 6px;
       border-radius: 3px; background: rgba(255, 255, 255, 0.18); overflow: hidden;
       display: flex;
     }
@@ -613,6 +613,46 @@ export class ReaderComponent implements OnInit, OnDestroy {
     if (this.direction() === 'rtl') frac = 1 - frac;
     return frac * 100;
   });
+  // 1.8.0 slider rework: the track fill is aligned with the thumb (LTR grows from
+  // the left, RTL from the right, so the bar reads in page order either way).
+  readonly scrubFillPct = computed(() =>
+    this.direction() === 'rtl' ? 100 - this.scrubThumbPct() : this.scrubThumbPct());
+  // Thumb / bubble centre as a CSS length. The thumb travels the track INSET by
+  // its own radius so it never overhangs the ends of the bar; the pointer math in
+  // scrubFromClientX uses the same inset so finger and thumb stay aligned.
+  readonly scrubThumbLeft = computed(() => {
+    const r = ReaderComponent.ScrubThumbRadiusPx;
+    return `calc(${r}px + (100% - ${2 * r}px) * ${this.scrubThumbPct() / 100})`;
+  });
+
+  // 1.8.0 full-surface swipe (requirement 1). `swipeDx` is the live horizontal
+  // finger offset while a page swipe is in progress (the spread row follows it);
+  // 0 when idle. The help legend labels are phrased by FINGER direction ("swipe
+  // left"), the inverse of the tap-zone labels, and mirror in RTL.
+  readonly swipeDx = signal(0);
+  readonly swipeLeftLabel = computed(() => this.direction() === 'rtl' ? 'Previous page' : 'Next page');
+  readonly swipeRightLabel = computed(() => this.direction() === 'rtl' ? 'Next page' : 'Previous page');
+  // Measured viewport overflow (see measureOverflow) and visual-viewport zoom.
+  // These decide who owns a one-finger drag: the browser (native panning) when the
+  // page is wider than the screen or pinch-zoomed in, us otherwise.
+  readonly overflowsX = signal(false);
+  readonly overflowsY = signal(false);
+  readonly zoomed = signal(false);
+  /**
+   * The paged viewport's CSS touch-action. 'auto' hands the drag to the browser
+   * (the page pans natively; we get pointercancel and stand down — 1.7.0
+   * behaviour). Otherwise we claim horizontal drags: 'pan-y pinch-zoom' keeps
+   * native vertical scrolling when the page is taller than the screen (fit-width),
+   * 'pinch-zoom' claims both axes when nothing overflows (fit-screen). Two-finger
+   * pinch-zoom is always left native. This is what makes a swipe reliable across
+   * the WHOLE surface on iPad: with 'auto', Safari claimed every horizontal touch
+   * drag for scrolling and cancelled the pointer stream before pointerup.
+   */
+  readonly touchAction = computed<string | null>(() => {
+    if (this.view() === 'webtoon') return null;
+    if (this.overflowsX() || this.zoomed()) return 'auto';
+    return this.overflowsY() ? 'pan-y pinch-zoom' : 'pinch-zoom';
+  });
 
   // Fallback exit route (2026-09-11, 1.6.1 owner iPad fix): the item's parent-folder
   // browse view, resolved from the catalog node so goBack() can return there even
@@ -669,13 +709,30 @@ export class ReaderComponent implements OnInit, OnDestroy {
   private static readonly SwipeFlickVelocity = 0.5;  // px/ms — a quick flick shortcut
   private static readonly SwipeMaxOffAxisRatio = 0.75; // |dy| must stay below this * |dx|
   private static readonly SwipeClickSuppressMs = 400; // swallow the ghost click after a swipe
+  private static readonly SwipeSlopPx = 8;           // below this it's a tap, not a drag (no axis lock yet)
+  private static readonly SwipeEdgeResistance = 0.35; // rubber-band factor when there's no page that way
+  private static readonly ScrubThumbRadiusPx = 11;   // slider thumb radius (track inset) — mirrors the CSS
   private swipePointerId: number | null = null;
   private swipeStartX = 0;
   private swipeStartY = 0;
   private swipeStartT = 0;
   private swipeCancelled = false;
-  private activePointers = 0;
+  // Axis lock, decided once the finger has moved past the slop: 'x' follows the
+  // finger and turns the page on release; 'y' stands down for the whole gesture
+  // (native vertical scroll, or nothing). Stops a wobbly vertical scroll from
+  // half-dragging the page sideways.
+  private swipeAxis: 'none' | 'x' | 'y' = 'none';
+  private swipeDragged = false;
+  // Pointers currently down on the paged viewport, by id (a second one means a
+  // pinch, which abandons the swipe). Tracked by id, not by count, because the
+  // matching up/cancel now arrives at DOCUMENT level, where unrelated pointers
+  // (toolbar, slider) also end.
+  private readonly activePointers = new Set<number>();
   private lastSwipeAt = 0;
+  private readonly onVisualViewportChange = (): void => {
+    const vv = window.visualViewport;
+    this.zoomed.set(!!vv && vv.scale > 1.01);
+  };
 
   pageUrlFor(entry: ManifestPageEntry | undefined): string {
     return entry ? `/api/v1/items/${this.itemId()}/pages/${encodeURIComponent(entry.entryKey)}` : '';
@@ -692,6 +749,8 @@ export class ReaderComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    // Pinch-zoom (visual viewport scale) hands one-finger drags back to the browser.
+    window.visualViewport?.addEventListener('resize', this.onVisualViewportChange);
     this.route.paramMap.subscribe((params) => {
       const id = params.get('itemId') ?? '';
       this.itemId.set(id);
@@ -754,6 +813,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    window.visualViewport?.removeEventListener('resize', this.onVisualViewportChange);
     this.clearPoll();
     if (this.webtoonSaveTimer) clearTimeout(this.webtoonSaveTimer);
     this.clearHideTimer();
@@ -809,6 +869,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
     if (this.phase() === 'ready' && this.viewPref() === 'auto' && this.view() !== 'webtoon') {
       this.applyAutoView();
     }
+    this.scheduleMeasure();
   }
 
   @HostListener('document:fullscreenchange')
@@ -1128,7 +1189,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
   // --- Page image lifecycle ---
 
-  onPageLoaded(): void { this.pageLoading.set(false); }
+  onPageLoaded(): void { this.pageLoading.set(false); this.scheduleMeasure(); }
   onPageError(): void {
     this.pageLoading.set(false);
     this.snackBar.open('This page could not be loaded.', 'Dismiss', { duration: 4000 });
@@ -1288,8 +1349,10 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
   private scrubFromClientX(clientX: number, el: HTMLElement): void {
     const rect = el.getBoundingClientRect();
-    if (rect.width === 0) return;
-    this.scrubApply(this.pageForRailFraction((clientX - rect.left) / rect.width));
+    const r = ReaderComponent.ScrubThumbRadiusPx;
+    const width = rect.width - 2 * r; // the thumb's travel, inset by its radius at both ends
+    if (width <= 0) return;
+    this.scrubApply(this.pageForRailFraction((clientX - rect.left - r) / width));
   }
 
   /**
@@ -1324,6 +1387,9 @@ export class ReaderComponent implements OnInit, OnDestroy {
       default: return;
     }
     event.preventDefault();
+    // Stop the window-level reader shortcuts from ALSO handling the arrow (that was
+    // a two-page step per press on the focused slider, browser-verified 1.8.0).
+    event.stopPropagation();
     this.seekToPage(target);
   }
 
@@ -1386,28 +1452,75 @@ export class ReaderComponent implements OnInit, OnDestroy {
     return (leftward !== rtl) ? 'next' : 'prev';
   }
 
+  /**
+   * Pointer down on the paged viewport (anywhere on the page surface) starts a
+   * swipe candidate. The rest of the gesture is tracked at DOCUMENT level (the
+   * host listeners below), so a swipe that ends over the toolbar, the bottom bar
+   * or outside the window still resolves. Nothing is claimed here when the browser
+   * owns the drag (touchAction 'auto': overflowing/zoomed page) or in webtoon.
+   */
   onReaderPointerDown(e: PointerEvent): void {
-    this.activePointers++;
+    if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== undefined) return;
+    this.activePointers.add(e.pointerId);
     // A second concurrent pointer means a pinch/zoom gesture — abandon any swipe so
     // we never fight the browser's native pinch-zoom.
-    if (this.activePointers > 1) {
-      this.swipeCancelled = true;
-      this.swipePointerId = null;
-      return;
-    }
-    if (this.view() === 'webtoon') return; // webtoon stays native vertical scroll
+    if (this.activePointers.size > 1) { this.abandonSwipe(); return; }
+    if (this.view() === 'webtoon' || this.touchAction() === 'auto') { this.swipePointerId = null; return; }
     this.swipePointerId = e.pointerId;
     this.swipeStartX = e.clientX;
     this.swipeStartY = e.clientY;
     this.swipeStartT = e.timeStamp;
     this.swipeCancelled = false;
+    this.swipeAxis = 'none';
+    this.swipeDragged = false;
   }
 
+  /** Follow the finger: lock the axis past the slop, then drag the spread row along. */
+  @HostListener('document:pointermove', ['$event'])
+  onReaderPointerMove(e: PointerEvent): void {
+    if (this.swipePointerId !== e.pointerId || this.swipeCancelled) return;
+    const dx = e.clientX - this.swipeStartX;
+    const dy = e.clientY - this.swipeStartY;
+    if (this.swipeAxis === 'none') {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < ReaderComponent.SwipeSlopPx) return;
+      this.swipeAxis = Math.abs(dy) > Math.abs(dx) * ReaderComponent.SwipeMaxOffAxisRatio ? 'y' : 'x';
+    }
+    if (this.swipeAxis === 'y') return; // vertical: native scroll (pan-y) or nothing — never ours
+    this.swipeDragged = true;
+    this.swipeDx.set(this.followDx(dx));
+  }
+
+  /**
+   * Visual follow offset for a horizontal drag: clamped to the viewport width and
+   * rubber-banded (resisted) when there is no page or chapter in that direction,
+   * so the end of a folder is felt rather than silently ignored.
+   */
+  private followDx(dx: number): number {
+    const width = this.viewport()?.nativeElement.clientWidth || window.innerWidth || 1;
+    const clamped = Math.max(-width, Math.min(width, dx));
+    const forward = (dx < 0) !== (this.direction() === 'rtl');
+    const blocked = forward
+      ? (this.isAtEnd() && !this.hasNextChapter())
+      : (this.isAtStart() && !this.hasPrevChapter());
+    return blocked ? clamped * ReaderComponent.SwipeEdgeResistance : clamped;
+  }
+
+  @HostListener('document:pointerup', ['$event'])
   onReaderPointerUp(e: PointerEvent): void {
-    this.activePointers = Math.max(0, this.activePointers - 1);
+    this.activePointers.delete(e.pointerId);
     if (this.swipePointerId !== e.pointerId) return; // not the tracked pointer
     this.swipePointerId = null;
+    const dragged = this.swipeDragged;
+    const lockedVertical = this.swipeAxis === 'y';
+    this.resetSwipeFollow();
     if (this.swipeCancelled || this.view() === 'webtoon') { this.swipeCancelled = false; return; }
+    // A gesture that started as a vertical drag stays one: no page turn even if the
+    // finger drifted sideways before lifting.
+    if (lockedVertical) return;
+    // Any real drag — resolved into a page turn or not — must not ALSO count as the
+    // tap the browser synthesizes on release (a short drag over the centre zone
+    // would otherwise toggle the chrome).
+    if (dragged) this.lastSwipeAt = Date.now();
     const action = this.resolveSwipe(
       e.clientX - this.swipeStartX,
       e.clientY - this.swipeStartY,
@@ -1418,9 +1531,52 @@ export class ReaderComponent implements OnInit, OnDestroy {
     action === 'next' ? this.nextPage() : this.prevPage();
   }
 
+  /**
+   * The browser took the gesture (native pan/scroll, pinch, or an OS edge gesture
+   * such as the iOS back-swipe): stand down for the rest of this pointer.
+   */
+  @HostListener('document:pointercancel', ['$event'])
   onReaderPointerCancel(e: PointerEvent): void {
-    this.activePointers = Math.max(0, this.activePointers - 1);
-    if (this.swipePointerId === e.pointerId) { this.swipePointerId = null; this.swipeCancelled = true; }
+    this.activePointers.delete(e.pointerId);
+    if (this.swipePointerId === e.pointerId) { this.swipePointerId = null; this.swipeCancelled = true; this.resetSwipeFollow(); }
+  }
+
+  private abandonSwipe(): void {
+    this.swipeCancelled = true;
+    this.swipePointerId = null;
+    this.resetSwipeFollow();
+  }
+
+  /** Release the follow offset (the CSS transition springs the row back). */
+  private resetSwipeFollow(): void {
+    this.swipeDx.set(0);
+    this.swipeAxis = 'none';
+    this.swipeDragged = false;
+  }
+
+  /**
+   * Re-measure whether the paged viewport overflows the screen (drives
+   * touchAction). Deferred a frame so the image / fit change has laid out.
+   */
+  private scheduleMeasure(): void {
+    if (typeof requestAnimationFrame !== 'function') { this.measureOverflow(); return; }
+    requestAnimationFrame(() => this.measureOverflow());
+  }
+
+  measureOverflow(): void {
+    const el = this.viewport()?.nativeElement;
+    if (!el) { this.overflowsX.set(false); this.overflowsY.set(false); return; }
+    // Measure the pages' LAYOUT boxes (offsetWidth/Height ignore CSS transforms),
+    // never the viewport's scroll extent: a page load lands inside the spread
+    // row's 180ms spring-back after a swipe, and a translated row inflates
+    // scrollWidth, which misreported a fit-screen page as overflowing, flipped
+    // touch-action to 'auto', and had the browser cancel every later swipe
+    // (browser-verified 1.8.0 regression, fixed here).
+    const pages = Array.from(el.querySelectorAll<HTMLElement>('.spread-row img'));
+    const width = pages.reduce((sum, p) => sum + p.offsetWidth, 0);
+    const height = pages.reduce((max, p) => Math.max(max, p.offsetHeight), 0);
+    this.overflowsX.set(width > el.clientWidth + 1);
+    this.overflowsY.set(height > el.clientHeight + 1);
   }
 
   /**
@@ -1457,7 +1613,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
     // isFullscreen() is updated by the fullscreenchange listener.
   }
 
-  setFitMode(mode: FitMode): void { this.fitMode.set(mode); }
+  setFitMode(mode: FitMode): void { this.fitMode.set(mode); this.scheduleMeasure(); }
   toggleDirection(): void { this.direction.update((d) => (d === 'ltr' ? 'rtl' : 'ltr')); }
 
   // --- Webtoon width (requirement 6): per-device preference in localStorage ---

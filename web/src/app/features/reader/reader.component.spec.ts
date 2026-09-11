@@ -868,6 +868,129 @@ describe('ReaderComponent swipe gestures (requirement 1)', () => {
       expect(c.currentPage()).toBe(2);
     });
   });
+
+  /**
+   * 1.8.0 full-surface swipe refinements: the gesture is followed live (swipeDx),
+   * axis-locked, and only claimed when the browser does not own the drag.
+   */
+  describe('1.8.0 full-surface swipe', () => {
+    function paged(n = 5, at = 1) {
+      const c = create();
+      c.pages.set(makePages(n));
+      c.view.set('paged');
+      c.phase.set('ready');
+      c.direction.set('ltr');
+      c.currentPage.set(at);
+      return c;
+    }
+
+    it('the spread row follows the finger during a horizontal drag and springs back on release', () => {
+      const c = paged();
+      c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
+      c.onReaderPointerMove(pointer({ pointerId: 1, clientX: 196, clientY: 301, timeStamp: 10 })); // inside slop
+      expect(c.swipeDx()).toBe(0);
+      c.onReaderPointerMove(pointer({ pointerId: 1, clientX: 140, clientY: 304, timeStamp: 60 }));
+      expect(c.swipeDx()).toBe(-60);
+      c.onReaderPointerUp(pointer({ pointerId: 1, clientX: 90, clientY: 305, timeStamp: 100 }));
+      expect(c.swipeDx()).toBe(0);
+      expect(c.currentPage()).toBe(2);
+    });
+
+    it('a gesture that starts vertical stays vertical: no follow, no page turn even if it drifts sideways', () => {
+      const c = paged();
+      c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
+      c.onReaderPointerMove(pointer({ pointerId: 1, clientX: 202, clientY: 340, timeStamp: 30 })); // locks 'y'
+      c.onReaderPointerMove(pointer({ pointerId: 1, clientX: 60, clientY: 345, timeStamp: 80 }));
+      expect(c.swipeDx()).toBe(0);
+      c.onReaderPointerUp(pointer({ pointerId: 1, clientX: 60, clientY: 345, timeStamp: 100 }));
+      expect(c.currentPage()).toBe(1);
+    });
+
+    it('a short drag that does not turn the page still swallows the ghost centre tap', () => {
+      const c = paged();
+      c.isFullscreen.set(true);
+      c.chromeVisible.set(true);
+      c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
+      c.onReaderPointerMove(pointer({ pointerId: 1, clientX: 180, clientY: 300, timeStamp: 500 }));
+      c.onReaderPointerUp(pointer({ pointerId: 1, clientX: 180, clientY: 300, timeStamp: 1000 })); // 20px, slow
+      expect(c.currentPage()).toBe(1);
+      c.onCenterTap(); // the click the browser synthesizes on release
+      expect(c.chromeVisible()).toBe(true);
+    });
+
+    it('rubber-bands the follow when there is no page or chapter in that direction', () => {
+      const c = paged(5, 4); // last page, no next chapter
+      c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
+      c.onReaderPointerMove(pointer({ pointerId: 1, clientX: 100, clientY: 300, timeStamp: 50 }));
+      expect(c.swipeDx()).toBeCloseTo(-35, 5);
+      // Backwards there IS a page: full follow.
+      c.onReaderPointerMove(pointer({ pointerId: 1, clientX: 300, clientY: 300, timeStamp: 90 }));
+      expect(c.swipeDx()).toBe(100);
+    });
+
+    it('does not claim the drag when the browser owns it (overflowing or pinch-zoomed page)', () => {
+      const c = paged();
+      c.overflowsX.set(true);
+      c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
+      c.onReaderPointerMove(pointer({ pointerId: 1, clientX: 100, clientY: 300, timeStamp: 50 }));
+      expect(c.swipeDx()).toBe(0);
+      c.onReaderPointerUp(pointer({ pointerId: 1, clientX: 60, clientY: 300, timeStamp: 100 }));
+      expect(c.currentPage()).toBe(1);
+    });
+
+    it('a pointercancel (browser/OS took the gesture) abandons the swipe and resets the follow', () => {
+      const c = paged();
+      c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
+      c.onReaderPointerMove(pointer({ pointerId: 1, clientX: 140, clientY: 300, timeStamp: 50 }));
+      expect(c.swipeDx()).toBe(-60);
+      c.onReaderPointerCancel(pointer({ pointerId: 1, clientX: 140, clientY: 300, timeStamp: 60 }));
+      expect(c.swipeDx()).toBe(0);
+      c.onReaderPointerUp(pointer({ pointerId: 1, clientX: 60, clientY: 300, timeStamp: 100 }));
+      expect(c.currentPage()).toBe(1);
+    });
+
+    it('touch-action: claims horizontal drags unless the page overflows sideways or is zoomed', () => {
+      const c = paged();
+      expect(c.touchAction()).toBe('pinch-zoom');           // fit-screen: nothing overflows
+      c.overflowsY.set(true);
+      expect(c.touchAction()).toBe('pan-y pinch-zoom');     // fit-width: keep native vertical scroll
+      c.overflowsX.set(true);
+      expect(c.touchAction()).toBe('auto');                 // original/zoomed: native panning
+      c.overflowsX.set(false); c.overflowsY.set(false);
+      c.zoomed.set(true);
+      expect(c.touchAction()).toBe('auto');
+      c.zoomed.set(false);
+      c.view.set('webtoon');
+      expect(c.touchAction()).toBeNull();                   // webtoon: untouched native scroll
+    });
+
+    it('measureOverflow compares the page LAYOUT boxes (transform-immune) with the viewport', () => {
+      const c = paged();
+      const pages = [{ offsetWidth: 1200, offsetHeight: 600 }];
+      // scrollWidth is deliberately misleading here (as it is mid spring-back): it must be ignored.
+      const el = {
+        clientWidth: 800, clientHeight: 600, scrollWidth: 800, scrollHeight: 600,
+        querySelectorAll: () => pages,
+      } as unknown as HTMLElement;
+      (c as unknown as { viewport: () => { nativeElement: HTMLElement } }).viewport = () => ({ nativeElement: el });
+      c.measureOverflow();
+      expect(c.overflowsX()).toBe(true);
+      expect(c.overflowsY()).toBe(false);
+      pages[0] = { offsetWidth: 800, offsetHeight: 600 };
+      (el as unknown as { scrollWidth: number }).scrollWidth = 960; // translated row mid-transition
+      c.measureOverflow();
+      expect(c.overflowsX()).toBe(false);
+    });
+
+    it('help legend swipe labels are by finger direction and mirror in RTL', () => {
+      const c = paged();
+      expect(c.swipeLeftLabel()).toBe('Next page');
+      expect(c.swipeRightLabel()).toBe('Previous page');
+      c.direction.set('rtl');
+      expect(c.swipeLeftLabel()).toBe('Previous page');
+      expect(c.swipeRightLabel()).toBe('Next page');
+    });
+  });
 });
 
 describe('ReaderComponent reader-bar chapter arrows (requirement 3)', () => {
@@ -1023,6 +1146,35 @@ describe('ReaderComponent page scrubber (requirement 2)', () => {
     expect(req.request.method).toBe('PUT');
     expect(req.request.body.pageIndex).toBe(2);
     req.flush({ revision: 1, alreadyApplied: false });
+  });
+
+  // 1.8.0 slider rework: the thumb travels an inset track (its radius at both
+  // ends), the fill tracks the thumb, and both mirror in RTL.
+  it('slider pointer math is inset by the thumb radius so finger and thumb align', () => {
+    const c = create();
+    c.pages.set(makePages(5));
+    c.view.set('paged');
+    c.phase.set('ready');
+    const rail = fakeRail(); // 100px wide → thumb travel is 11..89
+    c.onScrubStart(pointer({ pointerId: 1, clientX: 11, currentTarget: rail }));
+    expect(c.currentPage()).toBe(0);
+    c.onScrubMove(pointer({ pointerId: 1, clientX: 89, currentTarget: rail }));
+    expect(c.currentPage()).toBe(4);
+    c.onScrubMove(pointer({ pointerId: 1, clientX: 5, currentTarget: rail })); // before the travel: clamps
+    expect(c.currentPage()).toBe(0);
+  });
+
+  it('fill and thumb positions agree and mirror in RTL', () => {
+    const c = create();
+    c.pages.set(makePages(5));
+    c.currentPage.set(1); // 25% along
+    c.direction.set('ltr');
+    expect(c.scrubThumbPct()).toBe(25);
+    expect(c.scrubFillPct()).toBe(25);
+    expect(c.scrubThumbLeft()).toBe('calc(11px + (100% - 22px) * 0.25)');
+    c.direction.set('rtl');
+    expect(c.scrubThumbPct()).toBe(75);
+    expect(c.scrubFillPct()).toBe(25); // fill grows from the right, still 25% of the track
   });
 });
 
