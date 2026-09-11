@@ -1304,6 +1304,38 @@
         }
       }
     },
+    "/api/v1/auth/activate": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateAccountRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateAccountRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/libraries/browse": {
       "get": {
         "tags": [
@@ -1886,6 +1918,21 @@
   },
   "components": {
     "schemas": {
+      "ActivateAccountRequest": {
+        "required": [
+          "token",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
       "AddBookmarkRequest": {
         "required": [
           "ordinal"
@@ -1944,8 +1991,7 @@
       },
       "CreateUserRequest": {
         "required": [
-          "username",
-          "password"
+          "username"
         ],
         "type": "object",
         "properties": {
@@ -1953,7 +1999,10 @@
             "type": "string"
           },
           "password": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "isAdmin": {
             "type": "boolean"

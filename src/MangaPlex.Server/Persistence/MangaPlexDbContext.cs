@@ -88,6 +88,7 @@ public sealed class MangaPlexDbContext : DbContext
             e.Property(x => x.NormalizedUserName).IsRequired().HasMaxLength(64);
             e.Property(x => x.PasswordHash).IsRequired();
             e.Property(x => x.SecurityStamp).IsRequired().HasMaxLength(64);
+            e.Property(x => x.ActivationTokenHash).HasMaxLength(128);
             e.HasIndex(x => x.NormalizedUserName).IsUnique();
             e.HasIndex(x => x.PublicId).IsUnique();
         });

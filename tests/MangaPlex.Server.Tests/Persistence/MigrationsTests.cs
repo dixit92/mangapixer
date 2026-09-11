@@ -92,8 +92,10 @@ public sealed class MigrationsTests : IDisposable
             await db.GetService<IMigrator>().MigrateAsync(baseline);
             await db.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS \"__EFMigrationsHistory\";");
             await DatabaseInitialization.SetSchemaVersionAsync(db, 2);
-            db.Users.Add(SampleUser());
-            await db.SaveChangesAsync();
+            await db.Database.ExecuteSqlRawAsync(
+                @"INSERT INTO users (PublicId, UserName, NormalizedUserName, PasswordHash, SecurityStamp,
+                    IsActive, IsAdmin, ForcePasswordChange, AccessFailedCount, LockoutEnabled, CreatedAt)
+                  VALUES ('u_pub_1','admin','ADMIN','hash','stamp', 1, 0, 0, 0, 1, 0)");
         }
 
         // Migrate: adopt (stamp the baseline as applied, no data loss), then apply the

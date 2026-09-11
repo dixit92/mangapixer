@@ -287,6 +287,11 @@ public static class LogEvents
         public const int YacReaderImportApplied = 7013;
         public const int YacReaderImportFailed = 7014;
         public const int LibraryDeleted = 7015;
+        public const int ActivationTokenCreated = 7020;
+        public const int ActivationSucceeded = 7021;
+        public const int ActivationFailedInvalidToken = 7022;
+        public const int ActivationFailedExpiredToken = 7023;
+        public const int ActivationFailedConsumedToken = 7024;
     }
 
     /// <summary>App-level request pipeline errors (unhandled 500s).</summary>

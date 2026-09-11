@@ -475,18 +475,43 @@ public sealed record AdminUserDto
     public required string Username { get; init; }
     public required bool IsAdmin { get; init; }
     public required bool IsActive { get; init; }
+    public bool IsPendingActivation { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset? LastLoginAt { get; init; }
 }
 
 /// <summary>
-/// Request to create a new user.
+/// Request to create a new user. When <see cref="Password"/> is omitted the
+/// server creates the account in pending-activation state and returns a
+/// single-use activation URL for the admin to hand to the user.
 /// </summary>
 public sealed record CreateUserRequest
 {
     public required string Username { get; init; }
-    public required string Password { get; init; }
+    public string? Password { get; init; }
     public bool IsAdmin { get; init; }
+}
+
+/// <summary>
+/// Response from creating a user. When the user was created with a password
+/// <see cref="ActivationUrl"/> is null. When created without a password the
+/// activation URL is returned exactly once — it is never stored or logged in
+/// cleartext on the server.
+/// </summary>
+public sealed record CreateUserResponse
+{
+    public required AdminUserDto User { get; init; }
+    public string? ActivationUrl { get; init; }
+}
+
+/// <summary>
+/// Request to activate a pending account by setting its initial password.
+/// The token is the raw activation token from the URL the admin shared.
+/// </summary>
+public sealed record ActivateAccountRequest
+{
+    public required string Token { get; init; }
+    public required string Password { get; init; }
 }
 
 /// <summary>

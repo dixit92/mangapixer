@@ -5,6 +5,7 @@ import { catchError } from 'rxjs/operators';
 
 import { BYPASS_INCOGNITO } from '../incognito/incognito.interceptor';
 import {
+  ActivateAccountRequest,
   ApiError,
   AdminUserDto,
   AuthUserDto,
@@ -12,6 +13,7 @@ import {
   ChangePasswordRequest,
   ContinueReadingEntry,
   CreateUserRequest,
+  CreateUserResponse,
   EffectiveReaderModeDto,
   ReadMarkDto,
   BulkReadMarkResultDto,
@@ -327,8 +329,12 @@ export class ApiService {
     return this.get<AdminUserDto[]>('/admin/users');
   }
 
-  createUser(request: CreateUserRequest): Observable<AdminUserDto> {
-    return this.post<AdminUserDto>('/admin/users', request);
+  createUser(request: CreateUserRequest): Observable<CreateUserResponse> {
+    return this.post<CreateUserResponse>('/admin/users', request);
+  }
+
+  activateAccount(request: ActivateAccountRequest): Observable<AuthUserDto> {
+    return this.post<AuthUserDto>('/auth/activate', request);
   }
 
   getUser(id: string): Observable<AdminUserDto> {

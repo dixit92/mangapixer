@@ -542,6 +542,7 @@ public sealed class AdminController : ControllerBase
                 Username = u.UserName,
                 IsAdmin = u.IsAdmin,
                 IsActive = u.IsActive,
+                IsPendingActivation = u.IsPendingActivation,
                 CreatedAt = u.CreatedAt,
                 LastLoginAt = u.LastLoginAt,
             })
@@ -553,15 +554,19 @@ public sealed class AdminController : ControllerBase
     [HttpPost("users")]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
-            return BadRequest(new ApiError { Error = "invalid_request", Message = "Username and password are required." });
+        if (string.IsNullOrWhiteSpace(request.Username))
+            return BadRequest(new ApiError { Error = "invalid_request", Message = "Username is required." });
 
-        if (request.Password.Length < 8)
+        var hasPassword = !string.IsNullOrWhiteSpace(request.Password);
+
+        if (hasPassword && request.Password!.Length < 8)
             return BadRequest(new ApiError { Error = "weak_password", Message = "Password must be at least 8 characters." });
 
         var existing = await _userManager.FindByNameAsync(request.Username);
         if (existing is not null)
             return Conflict(new ApiError { Error = "duplicate_user", Message = "Username already exists." });
+
+        string? rawToken = null;
 
         var user = new UserEntity
         {
@@ -569,23 +574,60 @@ public sealed class AdminController : ControllerBase
             PublicId = OpaqueId.Encode(Random.Shared.NextInt64(1, long.MaxValue)),
             IsAdmin = request.IsAdmin,
             IsActive = true,
-            ForcePasswordChange = true,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
-        var result = await _userManager.CreateAsync(user, request.Password);
+        if (hasPassword)
+        {
+            user.ForcePasswordChange = true;
+            user.IsPendingActivation = false;
+        }
+        else
+        {
+            rawToken = GenerateActivationToken();
+            user.IsPendingActivation = true;
+            user.ForcePasswordChange = false;
+            user.ActivationTokenHash = HashToken(rawToken);
+            user.ActivationTokenExpiry = DateTimeOffset.UtcNow.AddHours(48);
+            user.ActivationTokenConsumed = false;
+        }
+
+        IdentityResult result;
+        if (hasPassword)
+        {
+            result = await _userManager.CreateAsync(user, request.Password!);
+        }
+        else
+        {
+            result = await _userManager.CreateAsync(user);
+        }
+
         if (!result.Succeeded)
             return BadRequest(new ApiError { Error = "create_failed", Message = string.Join("; ", result.Errors.Select(e => e.Description)) });
 
-        return Ok(new AdminUserDto
+        _logger.LogInformation(
+            hasPassword ? LogEvents.Auth.FirstAdminCreated : LogEvents.Administration.ActivationTokenCreated,
+            "User {PublicId} created (pending-activation: {Pending})", user.PublicId, !hasPassword);
+
+        var userDto = new AdminUserDto
         {
             Id = user.PublicId,
             Username = user.UserName,
             IsAdmin = user.IsAdmin,
             IsActive = user.IsActive,
+            IsPendingActivation = user.IsPendingActivation,
             CreatedAt = user.CreatedAt,
             LastLoginAt = null,
-        });
+        };
+
+        string? activationUrl = null;
+        if (rawToken is not null)
+        {
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            activationUrl = $"{baseUrl}/activate?token={rawToken}";
+        }
+
+        return Ok(new CreateUserResponse { User = userDto, ActivationUrl = activationUrl });
     }
 
     [HttpGet("users/{id}")]
@@ -600,6 +642,7 @@ public sealed class AdminController : ControllerBase
             Username = user.UserName,
             IsAdmin = user.IsAdmin,
             IsActive = user.IsActive,
+            IsPendingActivation = user.IsPendingActivation,
             CreatedAt = user.CreatedAt,
             LastLoginAt = user.LastLoginAt,
         });
@@ -639,6 +682,7 @@ public sealed class AdminController : ControllerBase
             Username = user.UserName,
             IsAdmin = user.IsAdmin,
             IsActive = user.IsActive,
+            IsPendingActivation = user.IsPendingActivation,
             CreatedAt = user.CreatedAt,
             LastLoginAt = user.LastLoginAt,
         });
@@ -783,5 +827,20 @@ public sealed class AdminController : ControllerBase
         for (var i = 0; i < bytes.Length; i++)
             charsArr[i] = chars[bytes[i] % chars.Length];
         return new string(charsArr);
+    }
+
+    private static string GenerateActivationToken()
+    {
+        var bytes = new byte[32];
+        RandomNumberGenerator.Fill(bytes);
+        return Convert.ToBase64String(bytes)
+            .Replace('+', '-').Replace('/', '_').TrimEnd('=');
+    }
+
+    internal static string HashToken(string rawToken)
+    {
+        var tokenBytes = System.Text.Encoding.UTF8.GetBytes(rawToken);
+        var hashBytes = System.Security.Cryptography.SHA256.HashData(tokenBytes);
+        return Convert.ToHexStringLower(hashBytes);
     }
 }
