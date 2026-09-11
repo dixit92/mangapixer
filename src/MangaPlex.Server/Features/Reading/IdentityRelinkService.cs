@@ -166,14 +166,25 @@ public sealed class IdentityRelinkService
         var targetItem = await _db.ArchiveItems.FirstOrDefaultAsync(a => a.NodeId == targetItemId, ct);
         var targetContentVersion = targetItem?.ContentVersion ?? 0;
 
-        if (overwrite)
+        // Pre-check the target. Auto-relink (overwrite=false) onto an item that
+        // already has progress would otherwise INSERT and hit the (UserId, ItemId)
+        // unique index uncaught — a 500. Keep the target's own progress and just
+        // drop the orphaned old row + relink bookmarks: the old item is gone, so
+        // its progress is orphaned either way, and the target already represents
+        // the same content. (ManualRelinkAsync returns Conflict before reaching
+        // here, so this branch only fires for the auto path.)
+        var existingTarget = await _db.ReadingProgress
+            .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == targetItemId, ct);
+        if (existingTarget is not null && !overwrite)
         {
-            // Remove existing target progress
-            var existingTarget = await _db.ReadingProgress
-                .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == targetItemId, ct);
-            if (existingTarget is not null)
-                _db.ReadingProgress.Remove(existingTarget);
+            _db.ReadingProgress.Remove(oldProgress);
+            await RelinkBookmarksAsync(userId, oldItemId, targetItemId, targetContentVersion, ct);
+            await _db.SaveChangesAsync(ct);
+            return;
         }
+
+        if (overwrite && existingTarget is not null)
+            _db.ReadingProgress.Remove(existingTarget);
 
         // Create new progress on target with same state
         var newProgress = new ReadingProgressEntity
@@ -195,7 +206,49 @@ public sealed class IdentityRelinkService
         // Remove old progress
         _db.ReadingProgress.Remove(oldProgress);
 
-        // Relink bookmarks too
+        await RelinkBookmarksAsync(userId, oldItemId, targetItemId, targetContentVersion, ct);
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            // A concurrent request created the target row between our load and our
+            // insert. Discard the failed insert and reload the row that now exists,
+            // mirroring the UpdateProgressAsync recovery. The old row removal and
+            // bookmark relink remain in the change set.
+            _db.Entry(newProgress).State = EntityState.Detached;
+            var concurrentTarget = await _db.ReadingProgress
+                .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == targetItemId, ct);
+            if (concurrentTarget is null)
+                throw; // row genuinely gone — surface it
+            if (overwrite)
+            {
+                // Replace the concurrent target's progress with the old item's state.
+                concurrentTarget.ContentVersion = targetContentVersion;
+                concurrentTarget.EntryKey = oldProgress.EntryKey;
+                concurrentTarget.Ordinal = oldProgress.Ordinal;
+                concurrentTarget.NormalizedAnchor = oldProgress.NormalizedAnchor;
+                concurrentTarget.State = oldProgress.State;
+                concurrentTarget.Revision = 1;
+                concurrentTarget.LastMutationId = oldProgress.LastMutationId;
+                concurrentTarget.UpdatedAt = DateTimeOffset.UtcNow;
+                concurrentTarget.CompletedAt = oldProgress.CompletedAt;
+            }
+            // overwrite=false: keep the concurrent target's own progress.
+            await _db.SaveChangesAsync(ct);
+        }
+    }
+
+    /// <summary>
+    /// Re-points the user's bookmarks from the old item to the target item. The
+    /// bookmarks index on (UserId, ItemId) is non-unique, so this never collides
+    /// with bookmarks the target may already have.
+    /// </summary>
+    private async Task RelinkBookmarksAsync(
+        long userId, long oldItemId, long targetItemId, long targetContentVersion, CancellationToken ct)
+    {
         var oldBookmarks = await _db.Bookmarks
             .Where(b => b.UserId == userId && b.ItemId == oldItemId)
             .ToListAsync(ct);
@@ -204,9 +257,15 @@ public sealed class IdentityRelinkService
             b.ItemId = targetItemId;
             b.ContentVersion = targetContentVersion;
         }
-
-        await _db.SaveChangesAsync(ct);
     }
+
+    /// <summary>
+    /// True when a save failed on a SQLite constraint violation (error code 19),
+    /// e.g. a concurrent first-write racing on the reading_progress
+    /// (UserId, ItemId) unique index.
+    /// </summary>
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+        => ex.InnerException is Microsoft.Data.Sqlite.SqliteException { SqliteErrorCode: 19 };
 }
 
 /// <summary>
