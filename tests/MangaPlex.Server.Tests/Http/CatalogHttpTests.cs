@@ -3,6 +3,7 @@ namespace com.lifepixer.mangaplex.Tests.Server.Http;
 using System.Net;
 using System.Net.Http.Json;
 using com.lifepixer.mangaplex.Core.Api;
+using com.lifepixer.mangaplex.Core.Reading;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -226,5 +227,141 @@ public sealed class CatalogHttpTests : IClassFixture<MangaPlexWebApplicationFact
         var client = await GetAuthenticatedClientAsync();
         var response = await client.GetAsync("/api/v1/nodes/nonexistentpub/neighbors");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+    /// <summary>
+    /// 1.6.0 folder read rollup through the public surface: the browse response
+    /// carries a derived per-folder readRollup (string enum on the wire) that
+    /// tracks the read-mark endpoints - null for an empty folder, Unread before
+    /// any read-mark, Reading after one archive is marked, Read after the bulk
+    /// folder mark, and back to Unread after the bulk clear.
+    /// </summary>
+    [Fact]
+    public async Task Browse_FolderReadRollup_TracksReadMarksThroughApi()
+    {
+        string libPublicId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var library = new LibraryEntity
+            {
+                PublicId = "rolluplib",
+                DisplayName = "Rollup Test Library",
+                RootPath = "/tmp/rolluptest",
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.Libraries.Add(library);
+            await db.SaveChangesAsync();
+            libPublicId = library.PublicId;
+
+            var series = new CatalogNodeEntity
+            {
+                PublicId = "rollupSeries",
+                LibraryId = library.Id,
+                Kind = 0,
+                DisplayName = "Series",
+                RelativePath = "Series",
+                PathKey = "Series",
+                SortKey = "0Series",
+                Availability = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            var empty = new CatalogNodeEntity
+            {
+                PublicId = "rollupEmpty",
+                LibraryId = library.Id,
+                Kind = 0,
+                DisplayName = "Empty",
+                RelativePath = "Empty",
+                PathKey = "Empty",
+                SortKey = "0Empty",
+                Availability = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.CatalogNodes.AddRange(series, empty);
+            await db.SaveChangesAsync();
+
+            var vol = new CatalogNodeEntity
+            {
+                PublicId = "rollupVol",
+                LibraryId = library.Id,
+                ParentId = series.Id,
+                Kind = 0,
+                DisplayName = "Vol 1",
+                RelativePath = "Series/Vol 1",
+                PathKey = "Series/Vol 1",
+                SortKey = "0Vol 1",
+                Availability = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.CatalogNodes.Add(vol);
+            await db.SaveChangesAsync();
+
+            db.CatalogNodes.Add(new CatalogNodeEntity
+            {
+                PublicId = "rollupCh1",
+                LibraryId = library.Id,
+                ParentId = vol.Id,
+                Kind = 1,
+                DisplayName = "Ch1.cbz",
+                RelativePath = "Series/Vol 1/Ch1.cbz",
+                PathKey = "Series/Vol 1/Ch1.cbz",
+                SortKey = "1Ch1",
+                Availability = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+            db.CatalogNodes.Add(new CatalogNodeEntity
+            {
+                PublicId = "rollupCh2",
+                LibraryId = library.Id,
+                ParentId = series.Id,
+                Kind = 1,
+                DisplayName = "Ch2.cbz",
+                RelativePath = "Series/Ch2.cbz",
+                PathKey = "Series/Ch2.cbz",
+                SortKey = "1Ch2",
+                Availability = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var client = await GetAuthenticatedClientAsync();
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        jsonOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+
+        async Task<Dictionary<string, FolderReadRollup?>> BrowseRootRollupsAsync()
+        {
+            var response = await client.GetAsync($"/api/v1/libraries/{libPublicId}/browse?sort=name");
+            response.EnsureSuccessStatusCode();
+            var page = await response.Content.ReadFromJsonAsync<PageResponse<CatalogNodeDto>>(jsonOptions);
+            Assert.NotNull(page);
+            return page!.Items.ToDictionary(n => n.Id, n => n.ReadRollup);
+        }
+
+        // Nothing read yet: Series is Unread; Empty has nothing to roll up (null).
+        var initial = await BrowseRootRollupsAsync();
+        Assert.Equal(FolderReadRollup.Unread, initial["rollupSeries"]);
+        Assert.Null(initial["rollupEmpty"]);
+
+        // Wire check: the enum travels as its string name, like every other enum.
+        var rawResponse = await client.GetAsync($"/api/v1/libraries/{libPublicId}/browse?sort=name");
+        var raw = await rawResponse.Content.ReadAsStringAsync();
+        Assert.Contains("\"readRollup\":\"Unread\"", raw);
+        Assert.Contains("\"readRollup\":null", raw);
+
+        // Mark one nested archive read -> partial.
+        var markOne = await client.PutAsJsonAsync("/api/v1/reading/rollupCh1/read", new { });
+        markOne.EnsureSuccessStatusCode();
+        Assert.Equal(FolderReadRollup.Reading, (await BrowseRootRollupsAsync())["rollupSeries"]);
+
+        // Bulk-mark the folder read -> all read.
+        var markAll = await client.PutAsJsonAsync("/api/v1/reading/folders/rollupSeries/read", new { });
+        markAll.EnsureSuccessStatusCode();
+        Assert.Equal(FolderReadRollup.Read, (await BrowseRootRollupsAsync())["rollupSeries"]);
+
+        // Bulk-clear -> back to unread.
+        var clearAll = await client.DeleteAsync("/api/v1/reading/folders/rollupSeries/read");
+        clearAll.EnsureSuccessStatusCode();
+        Assert.Equal(FolderReadRollup.Unread, (await BrowseRootRollupsAsync())["rollupSeries"]);
     }
 }
