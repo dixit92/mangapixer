@@ -135,7 +135,8 @@ describe('LibrarySidebarComponent', () => {
     const router = TestBed.inject(Router);
     await navigate(router, '/', fixture);
 
-    const count = fixture.nativeElement.querySelector('.nav-item:nth-child(2) .nav-count') as HTMLElement;
+    const items = fixture.nativeElement.querySelectorAll('.nav-item');
+    const count = items[1].querySelector('.nav-count') as HTMLElement;
     expect(count.textContent?.trim()).toBe('8715');
   });
 
