@@ -57,22 +57,99 @@ public sealed class OperationsController : ControllerBase
     [HttpGet("logging")]
     public IActionResult GetLoggingLevel()
     {
-        return Ok(new LogLevelDto { Level = _logLevel.GetCurrent().ToString() });
+        var categories = _logLevel.GetCategoryLevels()
+            .Select(c => new LogCategoryLevelDto
+            {
+                Name = c.Name,
+                Level = c.Level.ToString(),
+                Inherited = c.Inherited,
+            })
+            .ToList();
+
+        return Ok(new LogLevelDto
+        {
+            Level = _logLevel.GetCurrent().ToString(),
+            Categories = categories,
+        });
     }
 
     [HttpPut("logging")]
     public IActionResult UpdateLoggingLevel([FromBody] UpdateLogLevelRequest? request)
     {
-        if (request is null || string.IsNullOrWhiteSpace(request.Level))
-            return BadRequest(new ApiError { Error = "invalid_request", Message = "Log level is required." });
-
-        if (!Enum.TryParse<LogEventLevel>(request.Level, ignoreCase: true, out var level))
-            return BadRequest(new ApiError { Error = "invalid_level", Message = $"'{request.Level}' is not a valid log level. Allowed: Verbose, Debug, Information, Warning, Error, Fatal." });
+        if (request is null)
+            return BadRequest(new ApiError { Error = "invalid_request", Message = "Request body is required." });
 
         var userName = User.Identity?.Name ?? "unknown";
-        _logLevel.SetLevel(level, userName);
+        var hasGlobalLevel = !string.IsNullOrWhiteSpace(request.Level);
+        var hasCategories = request.Categories is { Count: > 0 };
 
-        return Ok(new LogLevelDto { Level = level.ToString() });
+        if (!hasGlobalLevel && !hasCategories)
+            return BadRequest(new ApiError { Error = "invalid_request", Message = "Either 'level' or 'categories' is required." });
+
+        // Validate the global level first (if provided).
+        LogEventLevel? globalLevel = null;
+        if (hasGlobalLevel)
+        {
+            if (!Enum.TryParse<LogEventLevel>(request.Level, ignoreCase: true, out var level))
+                return BadRequest(new ApiError { Error = "invalid_level", Message = $"'{request.Level}' is not a valid log level. Allowed: Verbose, Debug, Information, Warning, Error, Fatal." });
+            globalLevel = level;
+        }
+
+        // Validate per-category overrides (if provided).
+        if (hasCategories)
+        {
+            foreach (var cat in request.Categories!)
+            {
+                if (string.IsNullOrWhiteSpace(cat.Name))
+                    return BadRequest(new ApiError { Error = "invalid_request", Message = "Category name is required." });
+
+                if (!com.lifepixer.mangaplex.Server.Logging.DebugCategories.IsValid(cat.Name!))
+                    return BadRequest(new ApiError { Error = "invalid_category", Message = $"'{cat.Name}' is not a known debug category." });
+
+                // A null/empty level means "clear/inherit" — valid. A non-empty
+                // level must parse.
+                if (!string.IsNullOrWhiteSpace(cat.Level))
+                {
+                    if (!Enum.TryParse<LogEventLevel>(cat.Level, ignoreCase: true, out _))
+                        return BadRequest(new ApiError { Error = "invalid_level", Message = $"'{cat.Level}' is not a valid log level. Allowed: Verbose, Debug, Information, Warning, Error, Fatal." });
+                }
+            }
+        }
+
+        // Apply the global level (if provided).
+        if (globalLevel is { } gl)
+            _logLevel.SetLevel(gl, userName);
+
+        // Apply per-category overrides (if provided).
+        if (hasCategories)
+        {
+            foreach (var cat in request.Categories!)
+            {
+                if (string.IsNullOrWhiteSpace(cat.Level))
+                    _logLevel.ClearCategoryLevel(cat.Name!, userName);
+                else
+                {
+                    var catLevel = Enum.Parse<LogEventLevel>(cat.Level, ignoreCase: true);
+                    _logLevel.SetCategoryLevel(cat.Name!, catLevel, userName);
+                }
+            }
+        }
+
+        // Build the response from the live service state.
+        var categories = _logLevel.GetCategoryLevels()
+            .Select(c => new LogCategoryLevelDto
+            {
+                Name = c.Name,
+                Level = c.Level.ToString(),
+                Inherited = c.Inherited,
+            })
+            .ToList();
+
+        return Ok(new LogLevelDto
+        {
+            Level = _logLevel.GetCurrent().ToString(),
+            Categories = categories,
+        });
     }
 
     [HttpPost("backup")]
@@ -154,9 +231,24 @@ public sealed record RotatingBackupStatusDto
 public sealed record LogLevelDto
 {
     public required string Level { get; init; }
+    public required IReadOnlyList<LogCategoryLevelDto> Categories { get; init; }
+}
+
+public sealed record LogCategoryLevelDto
+{
+    public required string Name { get; init; }
+    public required string Level { get; init; }
+    public required bool Inherited { get; init; }
 }
 
 public sealed record UpdateLogLevelRequest
 {
+    public string? Level { get; init; }
+    public IReadOnlyList<LogCategoryOverride>? Categories { get; init; }
+}
+
+public sealed record LogCategoryOverride
+{
+    public string? Name { get; init; }
     public string? Level { get; init; }
 }

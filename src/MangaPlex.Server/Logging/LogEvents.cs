@@ -287,6 +287,8 @@ public static class LogEvents
         public const int YacReaderImportApplied = 7013;
         public const int YacReaderImportFailed = 7014;
         public const int LibraryDeleted = 7015;
+        public const int LogCategoryLevelChanged = 7016;
+        public const int LogCategoryLevelCleared = 7017;
         public const int ActivationTokenCreated = 7020;
         public const int ActivationSucceeded = 7021;
         public const int ActivationFailedInvalidToken = 7022;
