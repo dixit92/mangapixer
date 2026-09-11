@@ -4,11 +4,12 @@ import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 import { LibraryBrowseComponent } from './library-browse.component';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
+import { ReadStateService } from '../../core/reading/read-state.service';
 import { CatalogNodeDto, LibraryDto, LibraryViewPreferencesDto, PageResponse, JumpIndexBucketDto, ReadingState } from '../../core/api/api-types';
 
 /**
@@ -675,5 +676,102 @@ describe('LibraryBrowseComponent range multi-select', () => {
     expect(comp.selected().size).toBe(0);
     expect(comp.anchorIndex()).toBeNull();
     expect(comp.rangePromptNode()).toBeNull();
+  });
+});
+
+/**
+ * Stale read-status after Back (1.7.1 fix). The 1.6.2 `LibraryBrowseReuseStrategy`
+ * RETAINS this component instance across a reader round-trip (to preserve scroll
+ * and avoid the black-frame/top-reset regression) instead of destroying and
+ * re-creating it, so `ngOnInit` never re-runs on return from the reader — nothing
+ * would otherwise re-fetch the list. `ReadStateService` closes that gap: the
+ * reader notifies on exit, and the subscription set up once in `ngOnInit` (which
+ * — being a plain subscription on a component that is only DETACHED, never
+ * destroyed, by the reuse strategy — survives the whole round trip) patches just
+ * the affected card in place.
+ */
+describe('LibraryBrowseComponent stale read-status refresh (1.7.1)', () => {
+  function node(id: string, isRead = false): CatalogNodeDto {
+    return {
+      id, parentId: 'p', libraryId: 'lib1', kind: 'Archive', displayName: id,
+      availability: 'Available', coverUrl: null, childFolderCount: null, childArchiveCount: null,
+      pageCount: 10, readingState: isRead ? 'Completed' : 'Unread', lastReadPage: null,
+      readerDefault: null, isRead,
+    } as CatalogNodeDto;
+  }
+
+  function setup(nodes: CatalogNodeDto[]) {
+    const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
+    const getNode = vi.fn();
+    const apiSpy = {
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      browseLibrary: vi.fn().mockReturnValue(of(page)),
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getNode,
+    };
+    const authSpy = { isAdmin: () => false };
+    const readState = new ReadStateService();
+
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: authSpy },
+        { provide: ReadStateService, useValue: readState },
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : null) }) } },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges();
+    return { comp: fixture.componentInstance, getNode, readState };
+  }
+
+  it('patches the affected card in place when the reader announces a read-state change', () => {
+    const { comp, getNode, readState } = setup([node('a1', false), node('a2', false)]);
+    getNode.mockReturnValue(of(node('a1', true)));
+
+    readState.notifyChanged('a1');
+
+    expect(getNode).toHaveBeenCalledWith('a1');
+    const updated = comp.nodes().find((n) => n.id === 'a1')!;
+    expect(updated.isRead).toBe(true);
+    expect(updated.readingState).toBe('Completed');
+    // The other card, and the array identity of unrelated entries, are untouched.
+    expect(comp.nodes().find((n) => n.id === 'a2')!.isRead).toBe(false);
+  });
+
+  it('never re-fetches the whole list — only the one changed node', () => {
+    const { comp, getNode, readState } = setup([node('a1', false)]);
+    const browseLibrary = (TestBed.inject(ApiService) as unknown as { browseLibrary: ReturnType<typeof vi.fn> }).browseLibrary;
+    browseLibrary.mockClear();
+    getNode.mockReturnValue(of(node('a1', true)));
+
+    readState.notifyChanged('a1');
+
+    expect(browseLibrary).not.toHaveBeenCalled();
+    expect(comp.nodes().length).toBe(1);
+  });
+
+  it('ignores a change notification for an item not currently listed (no stray fetch)', () => {
+    const { comp, getNode, readState } = setup([node('a1', false)]);
+
+    readState.notifyChanged('some-other-item');
+
+    expect(getNode).not.toHaveBeenCalled();
+    expect(comp.nodes().find((n) => n.id === 'a1')!.isRead).toBe(false);
+  });
+
+  it('is non-fatal when the refresh fetch fails — the card keeps its last-known state', () => {
+    const { comp, getNode, readState } = setup([node('a1', false)]);
+    getNode.mockReturnValue(throwError(() => new Error('network')));
+
+    expect(() => readState.notifyChanged('a1')).not.toThrow();
+    expect(comp.nodes().find((n) => n.id === 'a1')!.isRead).toBe(false);
   });
 });

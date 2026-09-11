@@ -11,6 +11,7 @@ import { forkJoin } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
+import { ReadStateService } from '../../core/reading/read-state.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { ContinueRowComponent } from '../../shared/continue-row/continue-row.component';
@@ -376,6 +377,7 @@ export class LibraryBrowseComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly readState = inject(ReadStateService);
   readonly auth = inject(AuthService);
 
   // Per-folder direction override options (1.2.0). null = inherit (clear).
@@ -489,6 +491,13 @@ export class LibraryBrowseComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    // 1.7.1 stale-read-status fix: subscribed ONCE here, so it stays alive across
+    // the 1.6.2 reuse strategy's detach/reattach round-trip through the reader
+    // (ngOnInit never re-runs on reattach — that's the whole point of retaining
+    // the instance). Patches only the affected card; never re-fetches the list
+    // or touches scroll.
+    this.readState.itemChanged$.subscribe((itemId) => this.refreshNodeStatus(itemId));
+
     // Load the per-user view preference FIRST (tolerate unknown values), then start
     // routing. Sequencing matters: the sort must be known before the first browse so
     // it issues a single, correctly-ordered request. (Loading nodes from both the
@@ -985,6 +994,29 @@ export class LibraryBrowseComponent implements OnInit {
         this.cursor = response.nextCursor;
         if (initial) this.nextUnread.set(response.nextUnread ?? null);
       },
+    });
+  }
+
+  /**
+   * Patch one node's read/progress fields in place from a fresh server fetch
+   * (1.7.1). Fixes the stale card the 1.6.2 browse-retention regression left
+   * behind: finishing a chapter and pressing Back re-attaches this SAME
+   * instance (no `ngOnInit`, no re-fetch), so without this the just-finished
+   * item keeps showing its pre-reading read/progress state until a manual
+   * refresh. No-ops when the item isn't currently listed (a different folder,
+   * or scrolled off a page not yet loaded); never re-fetches the whole list or
+   * disturbs scroll.
+   */
+  private refreshNodeStatus(itemId: string): void {
+    if (!this.nodes().some((n) => n.id === itemId)) return;
+    this.api.getNode(itemId).subscribe({
+      next: (fresh) => {
+        this.nodes.update((list) => list.map((n) =>
+          n.id === itemId
+            ? { ...n, isRead: fresh.isRead, readingState: fresh.readingState, lastReadPage: fresh.lastReadPage }
+            : n));
+      },
+      error: () => { /* non-fatal: the card keeps its last-known state */ },
     });
   }
 
