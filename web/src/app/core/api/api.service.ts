@@ -375,6 +375,10 @@ export class ApiService {
     return this.put<LogLevelDto>('/operations/logging', { level } as UpdateLogLevelRequest);
   }
 
+  setLoggingCategories(categories: LogCategoryOverride[]): Observable<LogLevelDto> {
+    return this.put<LogLevelDto>('/operations/logging', { categories } as UpdateLogLevelRequest);
+  }
+
   getRotatingBackupStatus(): Observable<RotatingBackupStatusDto> {
     return this.get<RotatingBackupStatusDto>('/operations/backups');
   }

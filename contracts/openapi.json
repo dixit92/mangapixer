@@ -2026,6 +2026,23 @@
           }
         }
       },
+      "LogCategoryOverride": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "level": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "LoginRequest": {
         "required": [
           "username",
@@ -2118,6 +2135,15 @@
               "null",
               "string"
             ]
+          },
+          "categories": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/LogCategoryOverride"
+            }
           }
         }
       },

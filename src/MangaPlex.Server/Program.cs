@@ -49,10 +49,27 @@ public sealed partial class Program
         // can raise/lower verbosity at runtime without a restart (section 9).
         // The switch resets to Information on restart (ephemeral by design).
         var levelSwitch = new LoggingLevelSwitch(LogEventLevel.Information);
+
+        // Per-category debug switches (section 9, 1.6.0 Lane E). Each category
+        // gets its own LoggingLevelSwitch wired via MinimumLevel.Override so an
+        // admin can enable Debug for ONE subsystem without the whole firehose.
+        // All switches default to Information (matching the global default) so
+        // the global switch remains the single control until a category is
+        // explicitly overridden. LogLevelSettingsService keeps inherit-mode
+        // category switches in sync with the global switch on SetLevel.
+        var categorySwitches = new Dictionary<string, LoggingLevelSwitch>();
+        foreach (var (name, prefix) in com.lifepixer.mangaplex.Server.Logging.DebugCategories.All)
+            categorySwitches[name] = new LoggingLevelSwitch(LogEventLevel.Information);
+
         var logConfig = new LoggerConfiguration()
             .MinimumLevel.ControlledBy(levelSwitch)
             .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
-            .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+            .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning);
+
+        foreach (var (name, prefix) in com.lifepixer.mangaplex.Server.Logging.DebugCategories.All)
+            logConfig.MinimumLevel.Override(prefix, categorySwitches[name]);
+
+        logConfig
             .Enrich.WithProperty("Application", "MangaPlex")
             .Enrich.With<RedactingDestructuringPolicy>();
 
@@ -125,6 +142,7 @@ public sealed partial class Program
             // Log-level control (section 9) — singleton so the switch survives
             // across requests and mutates the live Serilog pipeline.
             builder.Services.AddSingleton(levelSwitch);
+            builder.Services.AddSingleton<IReadOnlyDictionary<string, LoggingLevelSwitch>>(categorySwitches);
             builder.Services.AddSingleton<LogLevelSettingsService>();
 
             // Data Protection — persist keys in application-owned data so

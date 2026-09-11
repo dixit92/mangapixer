@@ -410,12 +410,25 @@ export interface ItemReadiness {
 
 export type LogLevel = 'Verbose' | 'Debug' | 'Information' | 'Warning' | 'Error' | 'Fatal';
 
+export interface LogCategoryLevelDto {
+  name: string;
+  level: string;
+  inherited: boolean;
+}
+
+export interface LogCategoryOverride {
+  name: string;
+  level: string | null;
+}
+
 export interface LogLevelDto {
   level: string;
+  categories: LogCategoryLevelDto[];
 }
 
 export interface UpdateLogLevelRequest {
-  level: string;
+  level?: string;
+  categories?: LogCategoryOverride[];
 }
 
 export interface RotatingBackupStatusDto {
