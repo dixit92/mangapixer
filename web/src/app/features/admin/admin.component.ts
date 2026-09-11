@@ -62,6 +62,17 @@ import {
         <mat-card-title>Libraries</mat-card-title>
       </mat-card-header>
       <mat-card-content>
+        @if (!loadingLibs() && libraries().length > 0) {
+          <div class="lib-actions-bar">
+            <button mat-stroked-button type="button" (click)="scanAll()"
+                    [disabled]="scanAllBusy()"
+                    matTooltip="Scan every registered library now; libraries already scanning are skipped"
+                    aria-label="Scan all libraries">
+              <mat-icon>{{ scanAllBusy() ? 'hourglass_empty' : 'refresh' }}</mat-icon>
+              {{ scanAllBusy() ? 'Starting…' : 'Scan all libraries' }}
+            </button>
+          </div>
+        }
         @if (loadingLibs()) {
           <p>Loading...</p>
         } @else if (libraries().length === 0) {
@@ -428,6 +439,7 @@ import {
       display: flex; align-items: center; gap: 6px;
       font-size: 13px; opacity: 0.85; margin: 0 0 8px;
     }
+    .lib-actions-bar { margin: 0 0 12px; }
     .register-form { max-width: 640px; }
     .register-form mat-form-field { display: block; width: 100%; margin-right: 0; }
     .register-actions { display: flex; gap: 12px; margin-top: 4px; }
@@ -557,6 +569,9 @@ export class AdminComponent implements OnInit, OnDestroy {
   // target the active run. `cancelling` guards double-cancel clicks.
   private readonly runningScans = signal<Map<string, string>>(new Map());
   readonly cancelling = signal<Set<string>>(new Set());
+
+  // Scan-all (1.8.0): in-flight guard for the "Scan all libraries" action.
+  readonly scanAllBusy = signal(false);
 
   /** True while any library is scanning — register is paused then (SQLite single-writer). */
   readonly anyScanning = computed(() =>
@@ -945,6 +960,46 @@ export class AdminComponent implements OnInit, OnDestroy {
         this.syncPolling();
       },
       error: (err) => this.snackBar.open(`Scan failed: ${err.message}`, 'Close', { duration: 5000 }),
+    });
+  }
+
+  /**
+   * Trigger a scan for every registered library at once (1.8.0). Libraries
+   * already scanning are skipped server-side; surface the started/skipped
+   * counts, then refresh the rows so the scanning chips reflect server state.
+   * Scan-run ids are backfilled per newly-scanning library so Cancel works.
+   */
+  scanAll(): void {
+    if (this.scanAllBusy() || this.libraries().length === 0) return;
+    this.scanAllBusy.set(true);
+    this.api.scanAllLibraries().subscribe({
+      next: (r) => {
+        this.scanAllBusy.set(false);
+        const skipped = r.skippedCount;
+        const started = r.startedCount;
+        const msg = started > 0
+          ? `Started ${started} scan${started === 1 ? '' : 's'}${skipped > 0 ? `, skipped ${skipped} already running` : ''}.`
+          : `All ${skipped} librar${skipped === 1 ? 'y is' : 'ies are'} already scanning.`;
+        this.snackBar.open(msg, 'Close', { duration: 4000 });
+        // Refresh rows (without re-running YAC detection) and backfill scan-run
+        // ids for any library that is now scanning but not yet tracked, so the
+        // Cancel control works immediately. The poll loop keeps state accurate.
+        this.api.getAllLibraries().subscribe({
+          next: (libs) => {
+            this.libraries.set(libs);
+            for (const lib of libs) {
+              if (lib.isScanning && !this.runningScans().get(lib.id)) {
+                this.backfillScanRunId(lib.id);
+              }
+            }
+            this.syncPolling();
+          },
+        });
+      },
+      error: (err) => {
+        this.scanAllBusy.set(false);
+        this.snackBar.open(`Scan-all failed: ${err.message}`, 'Close', { duration: 5000 });
+      },
     });
   }
 

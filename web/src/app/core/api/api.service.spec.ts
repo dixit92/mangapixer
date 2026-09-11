@@ -163,3 +163,30 @@ describe('ApiService incognito / Private libraries (1.4.0)', () => {
     ]);
   });
 });
+
+describe('ApiService scan-all libraries (1.8.0)', () => {
+  let api: ApiService;
+  let httpMock: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    api = TestBed.inject(ApiService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => httpMock.verify());
+
+  it('triggers a scan for every library via POST and reports started/skipped counts', () => {
+    api.scanAllLibraries().subscribe((dto) => {
+      expect(dto.startedCount).toBe(2);
+      expect(dto.skippedCount).toBe(1);
+      expect(dto.scanRunIds).toEqual(['run-a', 'run-b']);
+    });
+
+    const req = httpMock.expectOne('/api/v1/admin/libraries/scan-all');
+    expect(req.request.method).toBe('POST');
+    req.flush({ startedCount: 2, skippedCount: 1, scanRunIds: ['run-a', 'run-b'] });
+  });
+});

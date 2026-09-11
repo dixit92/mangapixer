@@ -1646,6 +1646,18 @@
         }
       }
     },
+    "/api/v1/admin/libraries/scan-all": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/scans/{scanRunId}/cancel": {
       "post": {
         "tags": [

@@ -473,6 +473,20 @@ public sealed record ScanTriggeredDto
 }
 
 /// <summary>
+/// Response when a scan is triggered for every registered library at once
+/// (1.8.0). Libraries already scanning are skipped rather than failing the
+/// batch, so <see cref="StartedCount"/> + <see cref="SkippedCount"/> equals the
+/// total number of registered libraries. <see cref="ScanRunIds"/> holds the
+/// opaque ids of the scans that were actually started, in registration order.
+/// </summary>
+public sealed record ScanAllResultDto
+{
+    public required int StartedCount { get; init; }
+    public required int SkippedCount { get; init; }
+    public required IReadOnlyList<string> ScanRunIds { get; init; }
+}
+
+/// <summary>
 /// Response when durable thumbnail regeneration is enqueued for a library.
 /// Generation runs in the background; <see cref="QueuedCount"/> is the number
 /// of items that lacked a current thumbnail.

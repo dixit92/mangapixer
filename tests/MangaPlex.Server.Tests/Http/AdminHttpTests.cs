@@ -554,6 +554,120 @@ public sealed class AdminHttpTests : IDisposable
     }
 
     [Fact]
+    public async Task ScanAllLibraries_StartsScanForEveryLibrary()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        // Two distinct, non-nested roots (duplicate/nested roots are rejected by
+        // LibraryRegistrationService).
+        var rootA = Path.Combine(Path.GetTempPath(), "mangaplex-scanallA-" + Guid.NewGuid().ToString("N")[..8]);
+        var rootB = Path.Combine(Path.GetTempPath(), "mangaplex-scanallB-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(rootA);
+        Directory.CreateDirectory(rootB);
+        Directory.CreateDirectory(Path.Combine(rootA, "SeriesA"));
+        Directory.CreateDirectory(Path.Combine(rootB, "SeriesB"));
+        try
+        {
+            var libA = await (await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+            {
+                DisplayName = "ScanAll A",
+                RootPath = rootA,
+            })).Content.ReadFromJsonAsync<LibraryDto>();
+            var libB = await (await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+            {
+                DisplayName = "ScanAll B",
+                RootPath = rootB,
+            })).Content.ReadFromJsonAsync<LibraryDto>();
+
+            var response = await client.PostAsync("/api/v1/admin/libraries/scan-all", null);
+            Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+
+            var result = await response.Content.ReadFromJsonAsync<ScanAllResultDto>();
+            Assert.NotNull(result);
+            Assert.Equal(2, result!.StartedCount);
+            Assert.Equal(0, result.SkippedCount);
+            Assert.Equal(2, result.ScanRunIds.Count);
+            Assert.All(result.ScanRunIds, id => Assert.False(string.IsNullOrEmpty(id)));
+        }
+        finally
+        {
+            try { Directory.Delete(rootA, true); } catch { }
+            try { Directory.Delete(rootB, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task ScanAllLibraries_SkipsLibraryAlreadyScanning()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var rootA = Path.Combine(Path.GetTempPath(), "mangaplex-scanallSkipA-" + Guid.NewGuid().ToString("N")[..8]);
+        var rootB = Path.Combine(Path.GetTempPath(), "mangaplex-scanallSkipB-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(rootA);
+        Directory.CreateDirectory(rootB);
+        try
+        {
+            var libA = await (await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+            {
+                DisplayName = "ScanAll Skip A",
+                RootPath = rootA,
+            })).Content.ReadFromJsonAsync<LibraryDto>();
+            await (await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+            {
+                DisplayName = "ScanAll Skip B",
+                RootPath = rootB,
+            })).Content.ReadFromJsonAsync<LibraryDto>();
+
+            // Seed a running scan (Status == 1) for libA so the per-library guard
+            // skips it during scan-all (deterministic; avoids racing a real
+            // background scan that could finish before scan-all checks the lease).
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<com.lifepixer.mangaplex.Server.Persistence.MangaPlexDbContext>();
+                var library = db.Libraries.First(l => l.PublicId == libA!.Id);
+                db.ScanRuns.Add(new com.lifepixer.mangaplex.Server.Persistence.Entities.ScanRunEntity
+                {
+                    LibraryId = library.Id,
+                    ScanRevision = 1,
+                    Status = 1, // running
+                    StartedAt = DateTimeOffset.UtcNow,
+                    LeaseExpiry = DateTimeOffset.UtcNow.AddMinutes(30),
+                });
+                await db.SaveChangesAsync();
+            }
+
+            var response = await client.PostAsync("/api/v1/admin/libraries/scan-all", null);
+            Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+
+            var result = await response.Content.ReadFromJsonAsync<ScanAllResultDto>();
+            Assert.NotNull(result);
+            Assert.Equal(1, result!.StartedCount);
+            Assert.Equal(1, result.SkippedCount);
+            Assert.Single(result.ScanRunIds);
+        }
+        finally
+        {
+            try { Directory.Delete(rootA, true); } catch { }
+            try { Directory.Delete(rootB, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task ScanAllLibraries_NoLibraries_Returns202WithZeroCounts()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var response = await client.PostAsync("/api/v1/admin/libraries/scan-all", null);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<ScanAllResultDto>();
+        Assert.NotNull(result);
+        Assert.Equal(0, result!.StartedCount);
+        Assert.Equal(0, result.SkippedCount);
+        Assert.Empty(result.ScanRunIds);
+    }
+
+    [Fact]
     public async Task GetScanHistory_ReturnsList()
     {
         var client = await _factory.LoginAsAdminWithChangedPasswordAsync();

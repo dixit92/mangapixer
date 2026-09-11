@@ -43,6 +43,7 @@ import {
   ResetPasswordResponse,
   ScanRunDto,
   ScanTriggeredDto,
+  ScanAllResultDto,
   SetPrivateLibrariesRequest,
   ThumbnailRegenerateResponse,
   SearchResultsDto,
@@ -311,6 +312,14 @@ export class ApiService {
 
   triggerScan(libraryId: string): Observable<ScanTriggeredDto> {
     return this.post<ScanTriggeredDto>(`/admin/libraries/${libraryId}/scan`, {});
+  }
+
+  /**
+   * Trigger a scan for every registered library at once (1.8.0). Libraries
+   * already scanning are skipped; the response reports started/skipped counts.
+   */
+  scanAllLibraries(): Observable<ScanAllResultDto> {
+    return this.post<ScanAllResultDto>(`/admin/libraries/scan-all`, {});
   }
 
   cancelScan(scanRunId: string): Observable<void> {
