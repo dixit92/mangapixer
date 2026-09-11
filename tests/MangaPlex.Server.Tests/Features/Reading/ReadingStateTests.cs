@@ -785,4 +785,41 @@ public sealed class ReadingStateTests : IDisposable
         }
         finally { await db.DisposeAsync(); }
     }
+
+    [Fact]
+    public async Task UpdateProgress_ConcurrentFirstWrites_DoNotRaceOnUniqueIndex()
+    {
+        // Regression: several "first writes" for the same (user, item) arriving at once
+        // each read no existing row and tried to INSERT, so the losers hit the
+        // reading_progress (UserId, ItemId) unique index and threw DbUpdateException - an
+        // intermittent 500 in production. The upsert now recovers a concurrent insert by
+        // re-applying the write as an update. Separate contexts share the file DB; the
+        // connection's 30s busy timeout serializes writers, so a loser hits the unique
+        // constraint (SQLite error 19) rather than SQLITE_BUSY.
+        var (seedDb, userId, _, _, itemId) = await SetupAsync();
+        await seedDb.DisposeAsync();
+
+        const int writers = 8;
+        var tasks = Enumerable.Range(0, writers).Select(async i =>
+        {
+            var db = new MangaPlexDbContext(_options);
+            try
+            {
+                var service = new ReadingStateService(db, new LibraryAuthorizationService(db));
+                return await service.UpdateProgressAsync(userId, itemId, pageIndex: i,
+                    expectedContentVersion: 1, mutationId: $"mut-{i}");
+            }
+            finally { await db.DisposeAsync(); }
+        });
+
+        var results = await Task.WhenAll(tasks);
+
+        // No writer threw; every write reports success (losers as recovered updates).
+        Assert.All(results, r => Assert.Equal(UpdateStatus.Success, r.Status));
+
+        // Exactly one progress row exists for (user, item) - no duplicate slipped through.
+        await using var verify = new MangaPlexDbContext(_options);
+        var count = await verify.ReadingProgress.CountAsync(p => p.UserId == userId && p.ItemId == itemId);
+        Assert.Equal(1, count);
+    }
 }

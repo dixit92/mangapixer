@@ -140,6 +140,37 @@ public sealed class ReadingStateService
         var isCompleted = pageCount > 0 && pageIndex >= pageCount - 1;
         var state = isCompleted ? (int)ReadingState.Completed : (int)ReadingState.InProgress;
 
+        // Applies this write to an existing tracked progress row. Shared by the
+        // normal update path and the concurrent-insert recovery below.
+        void ApplyUpdate(ReadingProgressEntity p)
+        {
+            // Backwards reading does not un-complete.
+            if (p.State == (int)ReadingState.Completed && pageIndex < p.Ordinal)
+            {
+                // Allow re-reading: update position but keep completed state.
+                p.Ordinal = pageIndex;
+                p.NormalizedAnchor = normalizedAnchor;
+                p.LastMutationId = mutationId;
+                p.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                p.ContentVersion = expectedContentVersion;
+                p.EntryKey = OpaqueId.Encode(pageIndex);
+                p.Ordinal = pageIndex;
+                p.NormalizedAnchor = normalizedAnchor;
+                p.State = state;
+                p.Revision++;
+                p.LastMutationId = mutationId;
+                p.UpdatedAt = DateTimeOffset.UtcNow;
+                // Actively reading it again un-dismisses it from continue-reading.
+                p.HiddenFromContinue = false;
+                if (isCompleted && !p.CompletedAt.HasValue)
+                    p.CompletedAt = DateTimeOffset.UtcNow;
+            }
+        }
+
+        var inserted = false;
         if (progress is null)
         {
             progress = new ReadingProgressEntity
@@ -157,33 +188,11 @@ public sealed class ReadingStateService
                 CompletedAt = isCompleted ? DateTimeOffset.UtcNow : null,
             };
             _db.ReadingProgress.Add(progress);
+            inserted = true;
         }
         else
         {
-            // Backwards reading does not un-complete
-            if (progress.State == (int)ReadingState.Completed && pageIndex < progress.Ordinal)
-            {
-                // Allow re-reading: update position but keep completed state
-                progress.Ordinal = pageIndex;
-                progress.NormalizedAnchor = normalizedAnchor;
-                progress.LastMutationId = mutationId;
-                progress.UpdatedAt = DateTimeOffset.UtcNow;
-            }
-            else
-            {
-                progress.ContentVersion = expectedContentVersion;
-                progress.EntryKey = OpaqueId.Encode(pageIndex);
-                progress.Ordinal = pageIndex;
-                progress.NormalizedAnchor = normalizedAnchor;
-                progress.State = state;
-                progress.Revision++;
-                progress.LastMutationId = mutationId;
-                progress.UpdatedAt = DateTimeOffset.UtcNow;
-                // Actively reading it again un-dismisses it from continue-reading.
-                progress.HiddenFromContinue = false;
-                if (isCompleted && !progress.CompletedAt.HasValue)
-                    progress.CompletedAt = DateTimeOffset.UtcNow;
-            }
+            ApplyUpdate(progress);
         }
 
         // Sticky read-mark: reaching the last page auto-marks the item read (1.2.0).
@@ -193,9 +202,40 @@ public sealed class ReadingStateService
         if (isCompleted)
             await EnsureReadMarkTrackedAsync(userId, itemId, "completion", ct);
 
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (inserted && IsUniqueConstraintViolation(ex))
+        {
+            // Concurrency: another request created the (UserId, ItemId) row between our
+            // read and our insert, so the INSERT hit the unique index (an intermittent
+            // 500 in production). Recover by discarding the failed insert, reloading the
+            // row that now exists, and re-applying this write as a normal update
+            // (last-write-wins on position, with the same backward-reading guard).
+            _db.Entry(progress).State = EntityState.Detached;
+            var existing = await _db.ReadingProgress
+                .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == itemId, ct);
+            if (existing is null)
+                throw; // row genuinely gone (e.g. reset concurrently) - surface it
+            // The racer may have applied this exact mutation already.
+            if (!string.IsNullOrEmpty(existing.LastMutationId) && existing.LastMutationId == mutationId)
+                return UpdateProgressResult.Success(existing.Revision, alreadyApplied: true);
+            ApplyUpdate(existing);
+            await _db.SaveChangesAsync(ct);
+            progress = existing;
+        }
+
         return UpdateProgressResult.Success(progress.Revision, alreadyApplied: false);
     }
+
+    /// <summary>
+    /// True when a save failed on a SQLite constraint violation (error code 19),
+    /// e.g. two concurrent first-writes racing on the reading_progress
+    /// (UserId, ItemId) unique index.
+    /// </summary>
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+        => ex.InnerException is Microsoft.Data.Sqlite.SqliteException { SqliteErrorCode: 19 };
 
     /// <summary>
     /// Resets progress to unread for a specific item.
