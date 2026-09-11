@@ -12,6 +12,7 @@ import { forkJoin } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
+import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryViewPreferencesDto, JumpIndexBucketDto } from '../../core/api/api-types';
 
 /**
@@ -36,6 +37,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     MatTooltipModule,
     MatDividerModule,
     CoverImageDirective,
+    FolderRollupBadgeComponent,
   ],
   template: `
     <!-- Sticky top bar: breadcrumbs + Select normally; the merged action set while
@@ -162,6 +164,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               } @else if (node.readingState === 'InProgress') {
                 <span class="badge reading">Reading</span>
               }
+              <app-folder-rollup-badge [rollup]="node.readRollup" />
 
               <!-- Admin folders show their current direction override as a small,
                    non-interactive chip (the control now lives in the action bar). -->
