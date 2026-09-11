@@ -1,14 +1,15 @@
 import { vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 
 import { ReaderComponent } from './reader.component';
-import { ManifestPageEntry } from '../../core/api/api-types';
+import { ManifestPageEntry, CatalogNodeDto } from '../../core/api/api-types';
 
 function makePages(n: number): ManifestPageEntry[] {
   return Array.from({ length: n }, (_, i) => ({
@@ -20,6 +21,27 @@ function makePages(n: number): ManifestPageEntry[] {
     animationState: 'None',
     byteSize: 1000,
   }));
+}
+
+function makeNode(overrides: Partial<CatalogNodeDto> = {}): CatalogNodeDto {
+  return {
+    id: 'item-1',
+    parentId: 'folder-9',
+    libraryId: 'lib-1',
+    kind: 'Archive',
+    displayName: 'Chapter 1',
+    availability: 'Available',
+    coverUrl: null,
+    childFolderCount: null,
+    childArchiveCount: null,
+    pageCount: null,
+    readingState: null,
+    lastReadPage: null,
+    readerDefault: null,
+    isRead: false,
+    readRollup: null,
+    ...overrides,
+  };
 }
 
 /**
@@ -205,6 +227,142 @@ describe('ReaderComponent double-spread pairing', () => {
     c.nextPage();
     expect(nav).not.toHaveBeenCalled();
     expect(c.currentPage()).toBe(2); // stays put
+  });
+
+  /**
+   * 1.6.1 owner iPad fix (bug G): in spread view `currentPage` holds the FIRST
+   * index of the displayed pair, so on a final pair like [3,4] (5-page chapter,
+   * standalone cover) it can sit at 3 while the true last manifest index is 4 —
+   * the server's completion check (`pageIndex >= pageCount - 1`) never fires.
+   * `effectivePageIndex()` is what `saveProgress()` actually persists.
+   */
+  describe('effectivePageIndex (spread completion, bug G)', () => {
+    function effectiveIndex(c: ReaderComponent): number {
+      return (c as unknown as { effectivePageIndex: () => number }).effectivePageIndex();
+    }
+
+    it('is the LAST index of the pair on the final (odd-first-index) spread', () => {
+      const c = create();
+      c.pages.set(makePages(5)); // spreads with a standalone cover: [0],[1,2],[3,4]
+      c.view.set('spread');
+      c.coverIsStandalone.set(true);
+      c.currentPage.set(3); // the group's first index, per nextIndexFrom
+      expect(effectiveIndex(c)).toBe(4); // the manifest's true last index
+    });
+
+    it('matches currentPage when the pair already starts at the last index', () => {
+      const c = create();
+      c.pages.set(makePages(5)); // no standalone cover: [0,1],[2,3],[4]
+      c.view.set('spread');
+      c.coverIsStandalone.set(false);
+      c.currentPage.set(2); // group [2,3] — currentPage isn't the group's max here
+      expect(effectiveIndex(c)).toBe(3);
+    });
+
+    it('is just currentPage outside of spread view (paged/webtoon are unaffected)', () => {
+      const c = create();
+      c.pages.set(makePages(5));
+      c.view.set('paged');
+      c.currentPage.set(2);
+      expect(effectiveIndex(c)).toBe(2);
+    });
+  });
+
+  it('persists the true last manifest index when the final spread pair is reached (bug G)', () => {
+    const c = create();
+    const httpMock = TestBed.inject(HttpTestingController);
+    c.itemId.set('item-1');
+    c.pages.set(makePages(5)); // standalone cover: [0],[1,2],[3,4]
+    c.view.set('spread');
+    c.coverIsStandalone.set(true);
+    c.phase.set('ready');
+    c.nextNeighbor.set(null);
+    c.currentPage.set(2); // showing [1,2]
+
+    c.nextPage(); // advances into the final pair [3,4]; currentPage becomes 3 (group's first index)
+    expect(c.currentPage()).toBe(3);
+
+    const req = httpMock.expectOne('/api/v1/reading/progress/item-1');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body.pageIndex).toBe(4); // not 3 — the completion trigger needs the true last index
+    req.flush({ revision: 1, alreadyApplied: false });
+  });
+});
+
+/**
+ * Exit navigation (1.6.1 owner iPad fix, bug B): goBack() must return to the
+ * browse view the reader was opened from, never unconditionally to Home.
+ */
+describe('ReaderComponent exit navigation (goBack)', () => {
+  function create() {
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => 'item-1' }) } },
+      ],
+    });
+    return TestBed.createComponent(ReaderComponent).componentInstance;
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('walks back through browser history when the reader was reached via in-app navigation', () => {
+    const c = create();
+    history.pushState({ navigationId: 2 }, ''); // simulates a 2nd+ Angular Router navigation
+    const back = vi.spyOn(TestBed.inject(Location), 'back').mockReturnValue(undefined);
+    const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+    c.goBack();
+
+    expect(back).toHaveBeenCalled();
+    expect(nav).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the resolved parent-folder route when deep-linked (no in-app history)', () => {
+    const c = create();
+    history.pushState({ navigationId: 1 }, ''); // the session's first navigation
+    const back = vi.spyOn(TestBed.inject(Location), 'back').mockReturnValue(undefined);
+    const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    c.fallbackBackRoute.set(['/libraries', 'lib-1', 'browse', 'folder-9']);
+
+    c.goBack();
+
+    expect(back).not.toHaveBeenCalled();
+    expect(nav).toHaveBeenCalledWith(['/libraries', 'lib-1', 'browse', 'folder-9']);
+  });
+
+  it('falls back to the library root browse route, not Home, when the item has no resolved parent yet', () => {
+    const c = create();
+    history.pushState(null, ''); // no navigationId at all — no history to walk back to
+    const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    c.fallbackBackRoute.set(['/libraries', 'lib-1', 'browse']);
+
+    c.goBack();
+
+    expect(nav).toHaveBeenCalledWith(['/libraries', 'lib-1', 'browse']);
+  });
+
+  it('resolves the parent-folder browse route from the catalog node', () => {
+    const c = create();
+    const httpMock = TestBed.inject(HttpTestingController);
+    (c as unknown as { loadFallbackBackRoute: (id: string) => void }).loadFallbackBackRoute('item-1');
+    httpMock.expectOne('/api/v1/nodes/item-1').flush(makeNode({ parentId: 'folder-9', libraryId: 'lib-1' }));
+
+    expect(c.fallbackBackRoute()).toEqual(['/libraries', 'lib-1', 'browse', 'folder-9']);
+  });
+
+  it('resolves the library root browse route when the item sits at the library root', () => {
+    const c = create();
+    const httpMock = TestBed.inject(HttpTestingController);
+    (c as unknown as { loadFallbackBackRoute: (id: string) => void }).loadFallbackBackRoute('item-1');
+    // CatalogBrowseService encodes a library-root item's parent as "" (empty), not null.
+    httpMock.expectOne('/api/v1/nodes/item-1').flush(makeNode({ parentId: '', libraryId: 'lib-1' }));
+
+    expect(c.fallbackBackRoute()).toEqual(['/libraries', 'lib-1', 'browse']);
   });
 });
 
@@ -474,5 +632,80 @@ describe('ReaderComponent webtoon scroll prefetch', () => {
     c.view.set('paged');
     (c as unknown as { prefetchAround: (i: number) => void }).prefetchAround(0);
     expect(warmed(c).length).toBe(6); // 1,2,3,4 (webtoon) + 5,6 (paged)
+  });
+});
+
+/**
+ * Webtoon scroll-to-bottom completion (1.6.1 owner iPad fix, bug G). The
+ * centre-crossing heuristic alone can never resolve the final page when it lays
+ * out shorter than half the viewport (a short last page, or one whose aspect
+ * ratio isn't reserved yet) — the viewport centre never crosses into it even at
+ * maximum scroll, so the chapter's completion trigger (which needs
+ * `currentPage === pageCount - 1`) silently never fires. onWebtoonScroll now
+ * detects "scrolled to the true bottom" directly and forces the last page.
+ */
+describe('ReaderComponent webtoon scroll-to-bottom completion', () => {
+  function create() {
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => 'item-1' }) } },
+      ],
+    });
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.itemId.set('item-1');
+    return c;
+  }
+
+  /** Wires a fake `.webtoon-page` scroller onto the component's private viewChild. */
+  function useFakeScroller(
+    c: ReaderComponent,
+    opts: { scrollTop: number; clientHeight: number; scrollHeight: number; pageHeights: number[] },
+  ): void {
+    let top = 0;
+    const imgs = opts.pageHeights.map((h) => {
+      const img = { offsetTop: top, offsetHeight: h } as unknown as HTMLElement;
+      top += h;
+      return img;
+    });
+    const el = {
+      scrollTop: opts.scrollTop,
+      clientHeight: opts.clientHeight,
+      scrollHeight: opts.scrollHeight,
+      querySelectorAll: () => imgs,
+    } as unknown as HTMLElement;
+    (c as unknown as { scroller: () => { nativeElement: HTMLElement } }).scroller = () => ({ nativeElement: el });
+  }
+
+  it('resolves to the last page at the true scroll bottom even when the final page is too short to cross the viewport centre', () => {
+    const c = create();
+    c.pages.set(makePages(3));
+    c.view.set('webtoon');
+    c.currentPage.set(1);
+    // Pages 1000/1000/20 tall, 160px viewport: at max scroll the centre-crossing
+    // heuristic alone would still resolve to page index 1 (the 20px final page
+    // never reaches the centre) — this is exactly the bug.
+    useFakeScroller(c, { scrollTop: 1860, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
+
+    c.onWebtoonScroll();
+
+    expect(c.currentPage()).toBe(2);
+  });
+
+  it('still uses the centre-crossing heuristic when not at the bottom', () => {
+    const c = create();
+    c.pages.set(makePages(3));
+    c.view.set('webtoon');
+    c.currentPage.set(0);
+    useFakeScroller(c, { scrollTop: 1000, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
+    // Not scrolled to bottom (1000+160=1160 << 2020); centre = 1000+80=1080, inside page 1's [1000,2000) span.
+
+    c.onWebtoonScroll();
+
+    expect(c.currentPage()).toBe(1);
   });
 });

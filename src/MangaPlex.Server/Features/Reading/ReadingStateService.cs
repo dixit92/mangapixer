@@ -342,6 +342,9 @@ public sealed class ReadingStateService
     /// <summary>
     /// Sets or clears read-marks in bulk across every readable descendant archive of a
     /// folder. Returns null if the node is missing, not a folder, or inaccessible.
+    /// When clearing (read: false), also resets reading_progress for each descendant
+    /// archive (1.6.1) — mirroring the single-item ResetProgressAsync fix — so that
+    /// InProgress archives return to Unread and the folder read-rollup recomputes.
     /// </summary>
     public async Task<BulkReadMarkResultDto?> SetFolderReadAsync(
         long userId,
@@ -386,11 +389,29 @@ public sealed class ReadingStateService
         }
         else
         {
+            // 1.6.1: the bulk UNREAD path must also reset reading_progress for each
+            // descendant archive. Clearing a read-mark is a no-op for an InProgress
+            // archive with no read-mark, so reading_progress keeps State = InProgress
+            // and the folder read-rollup stays "Reading". Mirror the single-item fix
+            // (ResetProgressAsync deletes the progress row -> Unread) so a folder-unread
+            // returns descendants to Unread and the rollup recomputes to Unread.
+            // The MARK-READ path above is unchanged.
             var toRemove = await _db.ReadMarks
                 .Where(m => m.UserId == userId && archiveIds.Contains(m.ItemId))
                 .ToListAsync(ct);
             _db.ReadMarks.RemoveRange(toRemove);
-            affected = toRemove.Count;
+
+            var progressToRemove = await _db.ReadingProgress
+                .Where(p => p.UserId == userId && archiveIds.Contains(p.ItemId))
+                .ToListAsync(ct);
+            _db.ReadingProgress.RemoveRange(progressToRemove);
+
+            // Affected = distinct archives that had either a read-mark or a
+            // progress row removed (an archive with neither was already unread).
+            var affectedItems = new HashSet<long>(toRemove.Select(m => m.ItemId));
+            foreach (var p in progressToRemove)
+                affectedItems.Add(p.ItemId);
+            affected = affectedItems.Count;
         }
 
         if (affected > 0)

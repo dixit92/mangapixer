@@ -1,5 +1,5 @@
 import { Component, inject, signal, computed, OnInit, OnDestroy, HostListener, ElementRef, viewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -408,6 +408,7 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
 export class ReaderComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
 
@@ -455,6 +456,13 @@ export class ReaderComponent implements OnInit, OnDestroy {
   // catalog's neighbor endpoint.
   readonly nextNeighbor = signal<{ id: string; displayName: string } | null>(null);
   readonly prevNeighbor = signal<{ id: string; displayName: string } | null>(null);
+
+  // Fallback exit route (2026-09-11, 1.6.1 owner iPad fix): the item's parent-folder
+  // browse view, resolved from the catalog node so goBack() can return there even
+  // when the reader was deep-linked (no SPA navigation history to walk back through).
+  // A library-root item's parentId is "" (CatalogBrowseService), which resolves to
+  // the library's root browse route rather than a nested :nodeId segment.
+  readonly fallbackBackRoute = signal<string[]>(['/']);
 
   // Set when this chapter was entered via "previous chapter" back-navigation, which
   // asks to land on the LAST page (query param at=end). While the reader is still
@@ -532,6 +540,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
       });
       this.loadManifest();
       this.loadNeighbors(id);
+      this.loadFallbackBackRoute(id);
     });
   }
 
@@ -542,6 +551,25 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.api.getNeighbors(itemId).subscribe({
       next: (n) => { this.nextNeighbor.set(n.next); this.prevNeighbor.set(n.previous); },
       error: () => { /* no neighbors / not available — auto-advance simply no-ops */ },
+    });
+  }
+
+  /**
+   * Resolve the browse route to fall back to on exit when there is no in-app
+   * history to walk back through (see {@link goBack}) — the item's parent folder,
+   * or the library's root browse when the item sits at the library root.
+   */
+  private loadFallbackBackRoute(itemId: string): void {
+    this.fallbackBackRoute.set(['/']);
+    this.api.getNode(itemId).subscribe({
+      next: (node) => {
+        this.fallbackBackRoute.set(
+          node.parentId
+            ? ['/libraries', node.libraryId, 'browse', node.parentId]
+            : ['/libraries', node.libraryId, 'browse'],
+        );
+      },
+      error: () => { /* keep the Home fallback — item metadata unavailable */ },
     });
   }
 
@@ -1069,7 +1097,30 @@ export class ReaderComponent implements OnInit, OnDestroy {
     (forward !== (this.direction() === 'rtl')) ? this.nextPage() : this.prevPage();
   }
 
-  goBack(): void { this.saveProgress(); this.router.navigate(['/']); }
+  /**
+   * Exit the reader back to the BROWSE view it was opened from (1.6.1 owner iPad
+   * fix) — never unconditionally to Home. Escape (line ~630) shares this method.
+   *
+   * Prefers walking back through real browser history (`Location.back()`) when the
+   * reader was reached via in-app navigation, since that's a genuine `popstate` and
+   * restores the browse list's native scroll position for free — a fresh
+   * `router.navigate` would reload the list at the top. Angular's Router stamps
+   * `navigationId` into `history.state` on every navigation, starting at 1 for the
+   * first navigation of the session/tab; `navigationId > 1` means at least one
+   * earlier in-app navigation exists to go back to. A deep link or a hard refresh
+   * makes the reader the session's first navigation (`navigationId` 1 or unset), so
+   * there is nothing to walk back to — fall back to the resolved parent-folder route
+   * (never Home) instead.
+   */
+  goBack(): void {
+    this.saveProgress();
+    const navigationId = (history.state as { navigationId?: number } | null)?.navigationId ?? 0;
+    if (navigationId > 1) {
+      this.location.back();
+    } else {
+      this.router.navigate(this.fallbackBackRoute());
+    }
+  }
 
   toggleFullscreen(): void {
     if (!document.fullscreenElement) {
@@ -1181,17 +1232,30 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
   // --- Webtoon scroll tracking ---
 
+  /** Sub-pixel slack for the "scrolled to the very bottom" check below. */
+  private static readonly WebtoonBottomEpsilonPx = 2;
+
   onWebtoonScroll(): void {
     const el = this.scroller()?.nativeElement;
     if (!el) return;
-    // The "current" page is the one crossing the vertical center of the viewport.
-    const center = el.scrollTop + el.clientHeight / 2;
     const imgs = el.querySelectorAll<HTMLElement>('.webtoon-page');
     let idx = this.currentPage();
-    for (let i = 0; i < imgs.length; i++) {
-      const top = imgs[i].offsetTop;
-      const bottom = top + imgs[i].offsetHeight;
-      if (center >= top && center < bottom) { idx = i; break; }
+    // Reaching the true bottom of the scroller must always resolve to the last
+    // page (1.6.1 owner iPad fix), regardless of the centre-crossing heuristic
+    // below: a short final page (or one whose aspect ratio isn't reserved yet, so
+    // it lays out shorter than half the viewport) may never cross the viewport's
+    // vertical centre even at max scroll, leaving completion permanently untriggered.
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - ReaderComponent.WebtoonBottomEpsilonPx;
+    if (atBottom && imgs.length > 0) {
+      idx = imgs.length - 1;
+    } else {
+      // Otherwise, the "current" page is the one crossing the vertical centre.
+      const center = el.scrollTop + el.clientHeight / 2;
+      for (let i = 0; i < imgs.length; i++) {
+        const top = imgs[i].offsetTop;
+        const bottom = top + imgs[i].offsetHeight;
+        if (center >= top && center < bottom) { idx = i; break; }
+      }
     }
     if (idx !== this.currentPage()) {
       this.currentPage.set(idx);
@@ -1215,6 +1279,21 @@ export class ReaderComponent implements OnInit, OnDestroy {
     if (this.pollTimer) { clearTimeout(this.pollTimer); this.pollTimer = null; }
   }
 
+  /**
+   * The page index to persist as "reached" for progress/completion (1.6.1 owner
+   * iPad fix). In spread view `currentPage` holds the FIRST index of the displayed
+   * pair (see {@link nextIndexFrom}), so on the final spread of an odd-first-index
+   * pairing it can sit one page short of the manifest's true last index — the
+   * server's completion check (`pageIndex >= pageCount - 1`) then never fires even
+   * though both pages of that final pair are on screen. Persisting the spread's
+   * LAST index instead reflects everything actually visible, in every view mode.
+   */
+  private effectivePageIndex(): number {
+    if (this.view() !== 'spread') return this.currentPage();
+    const spread = this.spreads().find((s) => s.includes(this.currentPage()));
+    return spread ? spread[spread.length - 1] : this.currentPage();
+  }
+
   private saveProgress(): void {
     if (this.phase() !== 'ready' || this.pageCount() === 0) return;
     // Suppress the save while parked on a chapter's last page that we merely landed on
@@ -1225,9 +1304,10 @@ export class ReaderComponent implements OnInit, OnDestroy {
       if (this.currentPage() >= this.pageCount() - 1) return;
       this.landedOnLastPage = false;
     }
-    const entry = this.pages()[this.currentPage()];
+    const pageIndex = this.effectivePageIndex();
+    const entry = this.pages()[pageIndex];
     this.api.updateProgress(this.itemId(), {
-      pageIndex: this.currentPage(),
+      pageIndex,
       expectedContentVersion: this.contentVersion,
       mutationId: this.newMutationId(),
       entryKey: entry?.entryKey,
