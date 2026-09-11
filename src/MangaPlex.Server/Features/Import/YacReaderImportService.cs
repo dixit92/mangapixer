@@ -34,6 +34,19 @@ public sealed class YacReaderImportService
 
     private const int PreviewSampleLimit = 50;
 
+    /// <summary>
+    /// Testability seam (1.8.0): invoked once immediately before the bulk-save
+    /// transaction in <see cref="ApplyAsync"/>, after the pre-check has loaded
+    /// existing progress and staged all Added/Modified entries. Production
+    /// leaves this null (a no-op; DI never sets it). Tests set it to seed a
+    /// concurrent progress row via a second DbContext, deterministically
+    /// forcing the reading_progress (UserId, ItemId) unique-index collision
+    /// and the recovery catch - without timing-dependent concurrency or a
+    /// fragile EF interceptor (the 1.7.3 interceptor attempt was fragile due
+    /// to EF Core batched-command behavior). See the 1.8.0 lane note.
+    /// </summary>
+    internal Func<CancellationToken, Task>? BeforeBulkSaveAsync { get; set; }
+
     public YacReaderImportService(
         MangaPlexDbContext db,
         YacReaderLibraryReader reader,
@@ -223,6 +236,13 @@ public sealed class YacReaderImportService
 
         if (imported > 0)
         {
+            // Testability seam (1.8.0): production no-op. Tests set
+            // BeforeBulkSaveAsync to seed a concurrent progress row that
+            // races this bulk insert, deterministically exercising the
+            // recovery catch below.
+            if (BeforeBulkSaveAsync is not null)
+                await BeforeBulkSaveAsync(ct);
+
             // The bulk insert can race a concurrent progress write (e.g. the user
             // opening an imported item mid-import) on the reading_progress
             // (UserId, ItemId) unique index. Recover per-collided-row — mirroring
