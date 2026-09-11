@@ -12,22 +12,36 @@ import { AuthService } from '../../core/auth/auth.service';
 import { CatalogNodeDto, LibraryDto, LibraryViewPreferencesDto, PageResponse, JumpIndexBucketDto } from '../../core/api/api-types';
 
 /**
- * Breadcrumb tests for LibraryBrowseComponent (1.3.1 fix — Lane A). The library-name
- * crumb must link to the browse root `/libraries/{id}/browse` — not the library
- * landing page `/libraries/{id}` — and must be clickable at the root level too
- * (where there are no sub-folder breadcrumbs).
+ * Breadcrumb tests for LibraryBrowseComponent. Two behaviors:
+ *  - (1.3.1 fix — Lane A) the library-name crumb must link to the browse root
+ *    `/libraries/{id}/browse` — not the library landing page `/libraries/{id}` —
+ *    and must be clickable at the root level too (no sub-folder breadcrumbs).
+ *  - (1.5.0 Task B) the folder you are currently in is shown as the LAST segment
+ *    as plain, non-clickable text; ancestors stay clickable. Its name comes from
+ *    the existing `GET /nodes/{id}` lookup (frontend-only, no contract change).
  */
-describe('LibraryBrowseComponent breadcrumb root link', () => {
-  function setup(libraryId: string, parentId: string | null) {
+describe('LibraryBrowseComponent breadcrumbs', () => {
+  function setup(
+    libraryId: string,
+    parentId: string | null,
+    trail: { id: string; displayName: string }[] = [],
+    folderName = 'Current Folder',
+  ) {
     const prefs: LibraryViewPreferencesDto = { viewMode: 'grid', density: 'comfortable', sort: 'name' };
     const libs: LibraryDto[] = [{ id: libraryId, name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }];
     const emptyPage: PageResponse<CatalogNodeDto> = { items: [], totalCount: 0, nextCursor: null, hasMore: false };
+    const currentNode = {
+      id: parentId ?? 'x', parentId: 'p', libraryId, kind: 'Folder', displayName: folderName,
+      availability: 'Available', coverUrl: null, childFolderCount: null, childArchiveCount: null,
+      pageCount: null, readingState: null, lastReadPage: null, readerDefault: null, isRead: false,
+    } as CatalogNodeDto;
 
     const apiSpy = {
       getLibraryPreferences: vi.fn().mockReturnValue(of(prefs)),
       getLibraries: vi.fn().mockReturnValue(of(libs)),
       browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
-      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: parentId ?? 'x', trail })),
+      getNode: vi.fn().mockReturnValue(of(currentNode)),
     };
     const authSpy = { isAdmin: () => false };
 
@@ -50,12 +64,14 @@ describe('LibraryBrowseComponent breadcrumb root link', () => {
   }
 
   it('links the library-name crumb to the browse root when sub-breadcrumbs exist', () => {
-    const { fixture } = setup('lib1', 'node1');
+    const { fixture } = setup('lib1', 'node1', [{ id: 'anc1', displayName: 'Ancestor' }]);
     const el: HTMLElement = fixture.nativeElement;
     const links = el.querySelectorAll('.breadcrumbs a');
     // First link is the library-name crumb; it must point to /libraries/lib1/browse
     expect(links.length).toBeGreaterThan(0);
     expect(links[0].getAttribute('href')).toBe('/libraries/lib1/browse');
+    // The ancestor is a clickable crumb pointing at its own browse node.
+    expect(links[1].getAttribute('href')).toBe('/libraries/lib1/browse/anc1');
   });
 
   it('links the library-name crumb to the browse root at the root level too', () => {
@@ -73,6 +89,35 @@ describe('LibraryBrowseComponent breadcrumb root link', () => {
     for (const link of Array.from(links)) {
       expect(link.getAttribute('href')).not.toBe('/libraries/lib1');
     }
+  });
+
+  // Task B (1.5.0): current folder as the last, non-clickable segment.
+  it('renders the current folder name as plain, non-clickable text', () => {
+    const { fixture } = setup('lib1', 'node1', [{ id: 'anc1', displayName: 'Ancestor' }], 'My Folder');
+    const el: HTMLElement = fixture.nativeElement;
+
+    const current = el.querySelector('.breadcrumbs .current');
+    expect(current).not.toBeNull();
+    expect(current!.textContent?.trim()).toBe('My Folder');
+    // It must not be a link (no <a>, and aria-current marks it as the location).
+    expect(current!.tagName).toBe('SPAN');
+    expect(current!.getAttribute('aria-current')).toBe('page');
+
+    // The folder name must not appear as any clickable breadcrumb link.
+    const linkHrefs = Array.from(el.querySelectorAll('.breadcrumbs a')).map((a) => a.textContent?.trim());
+    expect(linkHrefs).not.toContain('My Folder');
+  });
+
+  it('populates the current folder from the node lookup (getNode)', () => {
+    const { fixture } = setup('lib1', 'node1', [], 'Deep One');
+    expect(fixture.componentInstance.currentFolderName()).toBe('Deep One');
+  });
+
+  it('shows no current-folder segment at the library root', () => {
+    const { fixture } = setup('lib1', null);
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.breadcrumbs .current')).toBeNull();
+    expect(fixture.componentInstance.currentFolderName()).toBe('');
   });
 });
 
