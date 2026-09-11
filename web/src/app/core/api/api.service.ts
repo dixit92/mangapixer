@@ -31,6 +31,7 @@ import {
   ItemReadiness,
   JumpIndexDto,
   LibraryDto,
+  LogCategoryOverride,
   LogLevelDto,
   PrivateLibrariesDto,
   RotatingBackupStatusDto,
