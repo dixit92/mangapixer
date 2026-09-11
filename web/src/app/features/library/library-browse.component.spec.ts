@@ -4,7 +4,7 @@ import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of, throwError } from 'rxjs';
+import { of, throwError, Subject } from 'rxjs';
 
 import { LibraryBrowseComponent } from './library-browse.component';
 import { ApiService } from '../../core/api/api.service';
@@ -759,7 +759,7 @@ describe('LibraryBrowseComponent stale read-status refresh (1.7.1)', () => {
     expect(comp.nodes().find((n) => n.id === 'a2')!.isRead).toBe(false);
   });
 
-  it('never re-fetches the whole list — only the one changed node', () => {
+  it('never rebuilds the node list itself — only the one changed node is patched', () => {
     const { comp, getReadMark, getProgress, readState } = setup([node('a1', false)]);
     const browseLibrary = (TestBed.inject(ApiService) as unknown as { browseLibrary: ReturnType<typeof vi.fn> }).browseLibrary;
     browseLibrary.mockClear();
@@ -768,7 +768,11 @@ describe('LibraryBrowseComponent stale read-status refresh (1.7.1)', () => {
 
     readState.notifyChanged('a1');
 
-    expect(browseLibrary).not.toHaveBeenCalled();
+    // 1.7.3: itemChanged$ ALSO drives a targeted pageSize:1 fetch for the pinned
+    // Continue row (see "continue-row refresh" below) — but that fetch never
+    // touches nodes()/cursor/hasMore, so the loaded list stays exactly as it was.
+    expect(browseLibrary).toHaveBeenCalledTimes(1);
+    expect(browseLibrary.mock.calls[0][3]).toBe(1); // pageSize
     expect(comp.nodes().length).toBe(1);
   });
 
@@ -788,5 +792,143 @@ describe('LibraryBrowseComponent stale read-status refresh (1.7.1)', () => {
 
     expect(() => readState.notifyChanged('a1')).not.toThrow();
     expect(comp.nodes().find((n) => n.id === 'a1')!.isRead).toBe(false);
+  });
+});
+
+/**
+ * Continue-row auto-refresh (1.7.3 fix). The pinned Continue row
+ * (`app-continue-row`) is purely presentational — it just renders whatever
+ * `nextUnread` this component hands it, and never re-fetches on its own. Before
+ * this fix, finishing the folder's current chapter never recomputed
+ * `nextUnread`, so the row kept pointing at the just-finished chapter until a
+ * manual refresh. `ReadStateService.itemChanged$` (the same signal the 1.7.1
+ * stale-card fix uses) now also drives a targeted, pageSize:1 `browseLibrary`
+ * fetch that reads only `PageResponse.nextUnread` — folder-scoped, independent
+ * of pagination — so it can never disturb `nodes()`/cursor/scroll.
+ */
+describe('LibraryBrowseComponent continue-row refresh (1.7.3)', () => {
+  function unreadNode(id: string): CatalogNodeDto {
+    return {
+      id, parentId: 'p', libraryId: 'lib1', kind: 'Archive', displayName: id,
+      availability: 'Available', coverUrl: null, childFolderCount: null, childArchiveCount: null,
+      pageCount: 10, readingState: 'Unread', lastReadPage: null, readerDefault: null, isRead: false,
+    } as CatalogNodeDto;
+  }
+
+  function setup(initialNextUnread: CatalogNodeDto | null, browseLibraryImpl?: (...args: unknown[]) => unknown) {
+    const initialPage: PageResponse<CatalogNodeDto> = {
+      items: [], totalCount: 0, nextCursor: null, hasMore: false, nextUnread: initialNextUnread,
+    };
+    const browseLibrary = browseLibraryImpl
+      ? vi.fn(browseLibraryImpl)
+      : vi.fn().mockReturnValue(of(initialPage));
+    const apiSpy = {
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      browseLibrary,
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getReadMark: vi.fn().mockReturnValue(of({ itemId: '', isRead: false })),
+      getProgress: vi.fn().mockReturnValue(of(null)),
+    };
+    const authSpy = { isAdmin: () => false };
+    const readState = new ReadStateService();
+
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: authSpy },
+        { provide: ReadStateService, useValue: readState },
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : null) }) } },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges(); // ngOnInit → initial browseLibrary call, seeds nextUnread
+    return { comp: fixture.componentInstance, browseLibrary, readState };
+  }
+
+  it('re-fetches nextUnread and updates the Continue row when the reader announces a change', () => {
+    const finished = unreadNode('ch1');
+    const next = unreadNode('ch2');
+    let call = 0;
+    const { comp, readState } = setup(finished, () => of(
+      call++ === 0
+        ? { items: [], totalCount: 0, nextCursor: null, hasMore: false, nextUnread: finished }
+        : { items: [], totalCount: 0, nextCursor: null, hasMore: false, nextUnread: next },
+    ));
+    expect(comp.nextUnread()?.id).toBe('ch1');
+
+    readState.notifyChanged('ch1');
+
+    expect(comp.nextUnread()?.id).toBe('ch2');
+  });
+
+  it('requests a lightweight pageSize:1 page — never the full list — and never touches nodes()/cursor', () => {
+    const { comp, browseLibrary, readState } = setup(null);
+    browseLibrary.mockClear();
+
+    readState.notifyChanged('ch1');
+
+    expect(browseLibrary).toHaveBeenCalledTimes(1);
+    const [libraryId, parentId, cursor, pageSize] = browseLibrary.mock.calls[0];
+    expect(libraryId).toBe('lib1');
+    expect(parentId).toBeNull();
+    expect(cursor).toBeNull();
+    expect(pageSize).toBe(1);
+    expect(comp.nodes().length).toBe(0);
+    expect(comp.hasMore()).toBe(false);
+  });
+
+  it('drops off the finished chapter (nextUnread → null) once the folder has nothing left unread', () => {
+    let call = 0;
+    const { comp, readState } = setup(unreadNode('ch1'), () => of(
+      call++ === 0
+        ? { items: [], totalCount: 0, nextCursor: null, hasMore: false, nextUnread: unreadNode('ch1') }
+        : { items: [], totalCount: 0, nextCursor: null, hasMore: false, nextUnread: null },
+    ));
+    expect(comp.nextUnread()).not.toBeNull();
+
+    readState.notifyChanged('ch1');
+
+    expect(comp.nextUnread()).toBeNull();
+  });
+
+  it('guards against double-refresh churn: switchMap cancels a still-in-flight refresh', () => {
+    // responses[0] is the ngOnInit browse call (unrelated, left unresolved —
+    // irrelevant here); responses[1]/[2] are the two overlapping continue-row
+    // refreshes triggered below, one per notifyChanged.
+    const responses: Subject<PageResponse<CatalogNodeDto>>[] = [];
+    const { comp, readState } = setup(null, () => {
+      const subject = new Subject<PageResponse<CatalogNodeDto>>();
+      responses.push(subject);
+      return subject.asObservable();
+    });
+
+    readState.notifyChanged('ch1');
+    readState.notifyChanged('ch2'); // arrives before ch1's refresh resolves
+    expect(responses.length).toBe(3);
+
+    // Resolving the now-STALE (ch1) refresh must not win over the newer one —
+    // switchMap already unsubscribed it when ch2's request started.
+    responses[1].next({ items: [], totalCount: 0, nextCursor: null, hasMore: false, nextUnread: unreadNode('stale') });
+    responses[2].next({ items: [], totalCount: 0, nextCursor: null, hasMore: false, nextUnread: unreadNode('fresh') });
+
+    expect(comp.nextUnread()?.id).toBe('fresh');
+  });
+
+  it('is non-fatal when the refresh fetch fails — the row keeps its last-known nextUnread', () => {
+    const finished = unreadNode('ch1');
+    let call = 0;
+    const { comp, readState } = setup(finished, () => call++ === 0
+      ? of({ items: [], totalCount: 0, nextCursor: null, hasMore: false, nextUnread: finished })
+      : throwError(() => new Error('network')));
+
+    expect(() => readState.notifyChanged('ch1')).not.toThrow();
+    expect(comp.nextUnread()?.id).toBe('ch1');
   });
 });

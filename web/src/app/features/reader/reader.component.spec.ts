@@ -902,6 +902,35 @@ describe('ReaderComponent reader-bar chapter arrows (requirement 3)', () => {
     expect(nav).toHaveBeenCalledWith(['/reader', 'prev-item'], { queryParams: { at: 'end' }, replaceUrl: true });
   });
 
+  /**
+   * 1.7.3 fix (gap b): chapter-advance reuses this SAME component instance —
+   * the route only changes :itemId, so `ngOnDestroy` never runs for the
+   * chapter being left. Before this fix, the browse card and Continue row for
+   * that just-finished chapter stayed stale until the reader was closed
+   * entirely. `notifyChanged` must fire with the LEAVING item's id (not the
+   * neighbor being navigated to), and while `itemId()` still holds it — i.e.
+   * before the paramMap subscription would flip it to the new item.
+   */
+  it('notifies ReadStateService with the LEAVING item id when advancing chapters in-reader', () => {
+    const c = create();
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    const notify = vi.spyOn(TestBed.inject(ReadStateService), 'notifyChanged');
+    c.pages.set(makePages(3));
+    c.phase.set('ready');
+    c.itemId.set('current-item');
+    c.nextNeighbor.set({ id: 'next-item', displayName: 'Chapter 2' });
+    c.prevNeighbor.set({ id: 'prev-item', displayName: 'Chapter 0' });
+
+    c.nextChapter();
+    expect(notify).toHaveBeenCalledWith('current-item');
+    expect(notify).not.toHaveBeenCalledWith('next-item');
+
+    notify.mockClear();
+    c.prevChapter();
+    expect(notify).toHaveBeenCalledWith('current-item');
+    expect(notify).not.toHaveBeenCalledWith('prev-item');
+  });
+
   it('renders the arrows disabled when there is no neighbor, enabled when there is', () => {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     const fixture = TestBed.createComponent(ReaderComponent);
