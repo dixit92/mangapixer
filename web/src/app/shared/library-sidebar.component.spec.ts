@@ -115,6 +115,31 @@ describe('LibrarySidebarComponent', () => {
     expect(items[2].querySelector('.nav-dir')).toBeNull();
   });
 
+  it('renders large item counts without altering the count column markup (overflow fix)', async () => {
+    const bigLibs: LibraryDto[] = [
+      { id: 'L1', name: 'A Library With A Fairly Long Name', isScanning: false, itemCount: 8715, lastScanCompleted: null, defaultReaderMode: null },
+    ];
+    const apiSpy = { getLibraries: vi.fn().mockReturnValue(of(bigLibs)) };
+    TestBed.configureTestingModule({
+      imports: [LibrarySidebarComponent],
+      providers: [
+        provideNoopAnimations(),
+        provideRouter([
+          { path: '', component: BlankComponent },
+          { path: 'libraries/:libraryId/browse', component: BlankComponent },
+        ]),
+        { provide: ApiService, useValue: apiSpy },
+      ],
+    });
+    const fixture = TestBed.createComponent(LibrarySidebarComponent);
+    const router = TestBed.inject(Router);
+    await navigate(router, '/', fixture);
+
+    const items = fixture.nativeElement.querySelectorAll('.nav-item');
+    const count = items[1].querySelector('.nav-count') as HTMLElement;
+    expect(count.textContent?.trim()).toBe('8715');
+  });
+
   it('toggles and persists the collapsed state under the shell-scoped key', async () => {
     const { fixture, router } = create();
     await navigate(router, '/', fixture);
