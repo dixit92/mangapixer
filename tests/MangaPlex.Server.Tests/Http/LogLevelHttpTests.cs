@@ -6,6 +6,7 @@ using System.Text.Json;
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Server.Hosting;
 using com.lifepixer.mangaplex.Server.Operations;
+using com.lifepixer.mangaplex.TestSupport.Hosting;
 using com.lifepixer.mangaplex.Tests.Server.Hosting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -434,11 +435,25 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
         foreach (var (name, _) in com.lifepixer.mangaplex.Server.Logging.DebugCategories.All)
             _categorySwitches[name] = new LoggingLevelSwitch(LogEventLevel.Information);
 
-        SetEnv("MangaPlex__Storage__DataRoot", Path.Combine(_tempRoot, "data"));
-        SetEnv("MangaPlex__Storage__CacheRoot", Path.Combine(_tempRoot, "cache"));
-        SetEnv("MangaPlex__Storage__ScratchRoot", Path.Combine(_tempRoot, "scratch"));
-        SetEnv("Media__WorkerExecutablePath", "");
-        SetEnv("MangaPlex__Security__RateLimit__Disabled", "true");
+        // Serialize env-set + host boot across parallel factories (see
+        // TestHostBootGate). The storage env vars are process-global and
+        // Program.Main reads them at the top of Main, before ConfigureWebHost
+        // runs, so they must be ours at the moment of boot — otherwise a
+        // parallel factory can overwrite them first and both hosts resolve
+        // the same SQLite file, colliding on CREATE TABLE audit_events.
+        using (TestHostBootGate.Acquire())
+        {
+            SetEnv("MangaPlex__Storage__DataRoot", Path.Combine(_tempRoot, "data"));
+            SetEnv("MangaPlex__Storage__CacheRoot", Path.Combine(_tempRoot, "cache"));
+            SetEnv("MangaPlex__Storage__ScratchRoot", Path.Combine(_tempRoot, "scratch"));
+            SetEnv("Media__WorkerExecutablePath", "");
+            SetEnv("MangaPlex__Security__RateLimit__Disabled", "true");
+
+            // Force the host to boot now while our env vars are in effect.
+            // The throwaway client is disposed at once; the host stays alive
+            // until this factory is disposed.
+            using var bootClient = CreateClient();
+        }
     }
 
     private void SetEnv(string key, string value)

@@ -5,6 +5,7 @@ using com.lifepixer.mangaplex.Server.Media;
 using com.lifepixer.mangaplex.Server.Operations;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangaplex.TestSupport.Hosting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -340,11 +341,25 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
         Directory.CreateDirectory(Path.Combine(_tempRoot, "cache"));
         Directory.CreateDirectory(Path.Combine(_tempRoot, "scratch"));
 
-        Environment.SetEnvironmentVariable("MangaPlex__Storage__DataRoot", Path.Combine(_tempRoot, "data"));
-        Environment.SetEnvironmentVariable("MangaPlex__Storage__CacheRoot", Path.Combine(_tempRoot, "cache"));
-        Environment.SetEnvironmentVariable("MangaPlex__Storage__ScratchRoot", Path.Combine(_tempRoot, "scratch"));
-        Environment.SetEnvironmentVariable("Media__WorkerExecutablePath", "");
-        Environment.SetEnvironmentVariable("MangaPlex__Security__RateLimit__Disabled", "true");
+        // Serialize env-set + host boot across parallel factories (see
+        // TestHostBootGate). The storage env vars are process-global and
+        // Program.Main reads them at the top of Main, before ConfigureWebHost
+        // runs, so they must be ours at the moment of boot — otherwise a
+        // parallel factory can overwrite them first and both hosts resolve
+        // the same SQLite file, colliding on CREATE TABLE audit_events.
+        using (TestHostBootGate.Acquire())
+        {
+            Environment.SetEnvironmentVariable("MangaPlex__Storage__DataRoot", Path.Combine(_tempRoot, "data"));
+            Environment.SetEnvironmentVariable("MangaPlex__Storage__CacheRoot", Path.Combine(_tempRoot, "cache"));
+            Environment.SetEnvironmentVariable("MangaPlex__Storage__ScratchRoot", Path.Combine(_tempRoot, "scratch"));
+            Environment.SetEnvironmentVariable("Media__WorkerExecutablePath", "");
+            Environment.SetEnvironmentVariable("MangaPlex__Security__RateLimit__Disabled", "true");
+
+            // Force the host to boot now while our env vars are in effect.
+            // The throwaway client is disposed at once; the host stays alive
+            // until this factory is disposed.
+            using var bootClient = CreateClient();
+        }
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
