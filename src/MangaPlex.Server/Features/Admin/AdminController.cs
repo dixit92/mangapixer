@@ -236,9 +236,65 @@ public sealed class AdminController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var lease = await _leaseService.AcquireLeaseAsync(library.Id, $"server:{userId.Value}", TimeSpan.FromMinutes(30), ct);
+        var lease = await StartScanAsync(library, userId.Value, ct);
         if (lease is null)
             return Conflict(new ApiError { Error = "scan_in_progress", Message = "A scan is already running for this library." });
+
+        return Accepted(new ScanTriggeredDto { ScanRunId = OpaqueId.Encode(lease.Id) });
+    }
+
+    /// <summary>
+    /// Triggers a scan for every registered library at once (1.8.0). Libraries
+    /// already scanning are skipped (per-library guard) rather than failing the
+    /// whole batch; the response reports how many started vs. skipped. Each
+    /// started scan runs on the same background path as <see cref="TriggerScan"/>
+    /// (lease + <see cref="ScanRunRegistry"/> + maintenance), so cancel/history
+    /// semantics are identical to a per-library scan.
+    /// </summary>
+    [HttpPost("libraries/scan-all")]
+    public async Task<IActionResult> ScanAllLibraries(CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var libraries = await _db.Libraries.OrderBy(l => l.Id).ToListAsync(ct);
+
+        var started = new List<string>();
+        var skipped = 0;
+        foreach (var library in libraries)
+        {
+            var lease = await StartScanAsync(library, userId.Value, ct);
+            if (lease is not null)
+                started.Add(OpaqueId.Encode(lease.Id));
+            else
+                skipped++;
+        }
+
+        _logger.LogInformation(LogEvents.Scanning.AdminScanCompleted, "Scan-all triggered: {Started} started, {Skipped} skipped (of {Total} libraries)",
+            started.Count, skipped, libraries.Count);
+
+        return Accepted(new ScanAllResultDto
+        {
+            StartedCount = started.Count,
+            SkippedCount = skipped,
+            ScanRunIds = started,
+        });
+    }
+
+    /// <summary>
+    /// Acquires a scan lease for a library and launches the background scan on
+    /// the same path used by both per-library <see cref="TriggerScan"/> and
+    /// <see cref="ScanAllLibraries"/>. Returns the acquired lease, or null when
+    /// a scan is already running for that library (per-library guard). The HTTP
+    /// request returns immediately; the scan runs on a background task with a
+    /// dedicated DI scope so scoped services (DbContext, etc.) outlive the
+    /// request scope.
+    /// </summary>
+    private async Task<ScanRunEntity?> StartScanAsync(LibraryEntity library, long userId, CancellationToken ct)
+    {
+        var lease = await _leaseService.AcquireLeaseAsync(library.Id, $"server:{userId}", TimeSpan.FromMinutes(30), ct);
+        if (lease is null)
+            return null;
 
         // Register a cancellation token so CancelScan can cooperatively
         // cancel the background scan (audit defect D34).
@@ -354,7 +410,7 @@ public sealed class AdminController : ControllerBase
             }
         }, CancellationToken.None);
 
-        return Accepted(new ScanTriggeredDto { ScanRunId = OpaqueId.Encode(lease.Id) });
+        return lease;
     }
 
     /// <summary>

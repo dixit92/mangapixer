@@ -351,6 +351,18 @@ export interface ScanTriggeredDto {
   scanRunId: string;
 }
 
+/**
+ * Response when a scan is triggered for every registered library at once (1.8.0).
+ * Libraries already scanning are skipped rather than failing the batch, so
+ * startedCount + skippedCount equals the total number of registered libraries.
+ * scanRunIds holds the opaque ids of the scans that were actually started.
+ */
+export interface ScanAllResultDto {
+  startedCount: number;
+  skippedCount: number;
+  scanRunIds: string[];
+}
+
 export interface ScanRunDto {
   id: string;
   status: string;
