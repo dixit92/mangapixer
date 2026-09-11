@@ -60,7 +60,7 @@
          no breaking API changes -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.5.x. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
     <MangaPlexVersionMinor>6</MangaPlexVersionMinor>
-    <MangaPlexVersionPatch>1</MangaPlexVersionPatch>
+    <MangaPlexVersionPatch>2</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
