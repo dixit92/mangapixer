@@ -44,14 +44,19 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     <div class="browse-bar" [class.selecting]="selectMode()">
       @if (!selectMode()) {
         <div class="breadcrumbs">
-          @if (breadcrumbs().length > 0) {
-            <a routerLink="/libraries/{{ libraryId() }}/browse">{{ libraryName() || 'Library' }}</a>
-            @for (crumb of breadcrumbs(); track crumb.id) {
-              <span class="sep"> / </span>
-              <a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a>
-            }
-          } @else {
-            <a routerLink="/libraries/{{ libraryId() }}/browse">{{ libraryName() || 'Library' }}</a>
+          <!-- Library root is always a clickable crumb. -->
+          <a routerLink="/libraries/{{ libraryId() }}/browse">{{ libraryName() || 'Library' }}</a>
+          <!-- Ancestors of the current folder (clickable). -->
+          @for (crumb of breadcrumbs(); track crumb.id) {
+            <span class="sep"> / </span>
+            <a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a>
+          }
+          <!-- The current folder itself: plain, non-clickable text (File Explorer
+               behavior - you are already in it). Rendered whenever we are inside a
+               folder, even at the first level where there are no ancestor crumbs. -->
+          @if (currentFolderName()) {
+            <span class="sep"> / </span>
+            <span class="current" aria-current="page">{{ currentFolderName() }}</span>
           }
         </div>
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
@@ -208,6 +213,9 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .breadcrumbs a { text-decoration: none; color: #b39dff; }
+    /* Current folder: plain text, not a link. Slightly brighter than the muted
+       ancestors' link color to read as "you are here", but no pointer/underline. */
+    .breadcrumbs .current { color: #e6e6ee; font-weight: 500; }
     .breadcrumbs.muted { color: #999; }
     .count { font-weight: 600; }
     .actions { flex: 1 1 auto; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
@@ -316,6 +324,14 @@ export class LibraryBrowseComponent implements OnInit {
   readonly parentId = signal<string | null>(null);
   readonly nodes = signal<CatalogNodeDto[]>([]);
   readonly breadcrumbs = signal<{ id: string; displayName: string }[]>([]);
+  /**
+   * Name of the folder currently being viewed (Task B, 1.5.0). Rendered as the
+   * last, non-clickable breadcrumb segment. The breadcrumbs endpoint only returns
+   * the current folder's *ancestors* (never the node itself), so this is sourced
+   * from the existing `GET /nodes/{id}` node lookup - a frontend-only addition,
+   * no contract change. Empty at the library root (there is no current folder).
+   */
+  readonly currentFolderName = signal('');
   readonly hasMore = signal(false);
   private cursor: string | null = null;
 
@@ -414,8 +430,13 @@ export class LibraryBrowseComponent implements OnInit {
       // cursors assume A→Z order, and other sorts ignore the cursor entirely.
       if (!parentId && this.sort() === 'name' && this.sortDirection() === 'asc') this.loadJumpIndex(libId);
       else this.jumpBuckets.set([]);
-      if (parentId) this.loadBreadcrumbs(parentId);
-      else this.breadcrumbs.set([]);
+      if (parentId) {
+        this.loadBreadcrumbs(parentId);
+        this.loadCurrentFolder(parentId);
+      } else {
+        this.breadcrumbs.set([]);
+        this.currentFolderName.set('');
+      }
     });
   }
 
@@ -639,6 +660,19 @@ export class LibraryBrowseComponent implements OnInit {
   private loadBreadcrumbs(nodeId: string): void {
     this.api.getBreadcrumbs(nodeId).subscribe({
       next: (response) => this.breadcrumbs.set(response.trail),
+    });
+  }
+
+  /**
+   * Resolve the current folder's display name for the trailing (non-clickable)
+   * breadcrumb segment (Task B). Uses the existing node-lookup endpoint; on error
+   * we clear the name so the breadcrumb simply omits the current segment rather
+   * than showing a stale one.
+   */
+  private loadCurrentFolder(nodeId: string): void {
+    this.api.getNode(nodeId).subscribe({
+      next: (node) => this.currentFolderName.set(node.displayName),
+      error: () => this.currentFolderName.set(''),
     });
   }
 }

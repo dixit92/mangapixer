@@ -9,10 +9,18 @@ import { MatMenuModule } from '@angular/material/menu';
 
 import { AuthService } from '../core/auth/auth.service';
 import { IncognitoService } from '../core/incognito/incognito.service';
+import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
 
 /**
- * Main layout shell. Contains the toolbar with navigation and user menu.
- * Responsive: collapses menu on small screens.
+ * Main layout shell. Toolbar + user menu, and (1.5.0) the persistent
+ * app-shell **library sidebar** rendered as a two-column shell beside the
+ * router-outlet on content routes.
+ *
+ * The sidebar is excluded from the immersive reader (`/reader/:id`), which is a
+ * fullscreen overlay; the auth routes (login / setup / activate /
+ * password-change) are top-level routes *outside* this component, so they never
+ * mount the shell and need no gating here. Responsive: the shell stacks and the
+ * sidebar becomes a horizontal rail on narrow screens.
  */
 @Component({
   selector: 'app-layout',
@@ -24,6 +32,7 @@ import { IncognitoService } from '../core/incognito/incognito.service';
     MatButtonModule,
     MatIconModule,
     MatMenuModule,
+    LibrarySidebarComponent,
   ],
   template: `
     <mat-toolbar color="primary">
@@ -62,9 +71,14 @@ import { IncognitoService } from '../core/incognito/incognito.service';
       }
     </mat-toolbar>
 
-    <main class="content" [class.full-bleed]="isHome()">
-      <router-outlet></router-outlet>
-    </main>
+    <div class="shell">
+      @if (showSidebar()) {
+        <app-library-sidebar></app-library-sidebar>
+      }
+      <main class="content" [class.full-bleed]="!showSidebar()">
+        <router-outlet></router-outlet>
+      </main>
+    </div>
   `,
   styles: [`
     .brand {
@@ -74,17 +88,28 @@ import { IncognitoService } from '../core/incognito/incognito.service';
       margin-right: 16px;
     }
     .spacer { flex: 1 1 auto; }
-    /* Density (1.5.0): the old shell hard-capped content at 1200px and centered
-       it, leaving large empty gutters on a normal desktop monitor. It now fills
-       up to --mp-content-max with a responsive side gutter. */
-    .content {
-      padding: var(--mp-gutter-y) var(--mp-gutter);
-      max-width: var(--mp-content-max);
-      margin: 0 auto;
+    /* Two-column app shell (1.5.0): the persistent library sidebar sits on the
+       window's left edge with the content column beside it. The sidebar reaches
+       the edge itself, so the content column no longer needs the old home
+       full-bleed hack. */
+    .shell {
+      display: flex; align-items: stretch;
+      min-height: calc(100dvh - 64px); /* 64px = mat-toolbar height */
     }
-    /* Home is full-bleed so its library sidebar can sit on the actual left edge
-       of the window (it manages its own inner padding). */
-    .content.full-bleed { padding: 0; max-width: none; }
+    /* Density (1.5.0): the old shell hard-capped content at 1200px; the content
+       column now fills the space left of the sidebar with a responsive gutter. */
+    .content {
+      flex: 1 1 auto; min-width: 0;
+      padding: var(--mp-gutter-y) var(--mp-gutter);
+    }
+    /* Sidebar-less routes (the immersive reader) get the full viewport width with
+       no gutter - the reader paints its own fullscreen surface. */
+    .content.full-bleed { padding: 0; }
+    /* Narrow screens: stack the shell so the sidebar becomes a horizontal rail
+       above the content (the sidebar's own media query switches it to a row). */
+    @media (max-width: 700px) {
+      .shell { flex-direction: column; min-height: 0; }
+    }
     .user-info {
       padding: 8px 16px; font-weight: 500;
       display: flex; align-items: center; gap: 8px; opacity: 0.85;
@@ -98,21 +123,23 @@ export class LayoutComponent {
   private readonly router = inject(Router);
 
   /**
-   * True on the home route (`/`). Home is rendered full-bleed so its library
-   * sidebar reaches the window's left edge; every other route keeps the
-   * width-capped, gutter-padded content column. Tracked reactively off router
-   * navigation (seeded with the current URL for the first paint / a deep link).
+   * Whether the app-shell library sidebar (and the two-column, gutter-padded
+   * content layout) is shown. The only in-shell route that must be excluded is
+   * the immersive reader (`/reader/:id`) - a fullscreen overlay. The auth routes
+   * live outside this component entirely, so they need no check here. Tracked
+   * reactively off router navigation (seeded with the current URL for the first
+   * paint / a deep link).
    */
-  private isHomeUrl(): boolean {
-    return this.router.url.split(/[?#]/)[0] === '/';
+  private isReaderUrl(): boolean {
+    return this.router.url.split(/[?#]/)[0].startsWith('/reader');
   }
-  readonly isHome = toSignal(
+  readonly showSidebar = toSignal(
     this.router.events.pipe(
       filter((e) => e instanceof NavigationEnd),
-      map(() => this.isHomeUrl()),
-      startWith(this.isHomeUrl()),
+      map(() => !this.isReaderUrl()),
+      startWith(!this.isReaderUrl()),
     ),
-    { initialValue: this.isHomeUrl() },
+    { initialValue: !this.isReaderUrl() },
   );
 
   /**
