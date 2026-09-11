@@ -292,12 +292,41 @@ describe('ReaderComponent per-device page mode', () => {
 
   beforeEach(() => localStorage.clear());
 
-  it('chooseView persists the device preference and switches the view', () => {
+  it('chooseView("webtoon") switches the view but does NOT persist a device-global preference', () => {
+    // Option A fix (reader-mode-sticky bug): webtoon is content orientation, not a
+    // device layout choice, so picking it from the menu is per-item/session only.
     const c = create();
     c.chooseView('webtoon');
-    expect(c.viewPref()).toBe('webtoon');
+    expect(c.viewPref()).toBeNull();
     expect(c.view()).toBe('webtoon');
-    expect(localStorage.getItem('mangaplex-reader-view')).toBe('webtoon');
+    expect(localStorage.getItem('mangaplex-reader-view')).toBeNull();
+  });
+
+  it('a paged-layout preference set on a paged item does not survive a stale localStorage "webtoon" value', () => {
+    // Pre-Option-A localStorage could hold 'webtoon' (from the old sticky bug).
+    // loadViewPref must not resurrect it as a device pref.
+    localStorage.setItem('mangaplex-reader-view', 'webtoon');
+    const c = create();
+    expect(c.viewPref()).toBeNull();
+  });
+
+  it('applyDeviceViewPreference never forces webtoon content back to the stored paged layout', () => {
+    // The core regression: a device-global paged/spread/auto preference from a
+    // previously read manga item must not stomp the server-resolved webtoon mode
+    // when the next item opened is a webtoon.
+    const c = create();
+    c.chooseView('paged'); // persists a device-global paged preference
+    c.view.set('webtoon'); // simulates the server resolving THIS item to webtoon
+    (c as unknown as { applyDeviceViewPreference: () => void }).applyDeviceViewPreference();
+    expect(c.view()).toBe('webtoon');
+  });
+
+  it('an explicit paged/auto pick still applies immediately to a currently-open webtoon item (session-only)', () => {
+    // Hard constraint: paged must stay reachable on a webtoon item, per item/session.
+    const c = create();
+    c.view.set('webtoon');
+    c.chooseView('paged');
+    expect(c.view()).toBe('paged');
   });
 
   it('chooseView("auto") resolves paged in portrait and spread in landscape', () => {
