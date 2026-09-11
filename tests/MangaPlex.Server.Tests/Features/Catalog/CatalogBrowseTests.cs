@@ -1239,4 +1239,264 @@ public sealed class CatalogBrowseTests : IDisposable
         }
         finally { await db.DisposeAsync(); }
     }
+
+    // --- Next-unread "Continue" row (1.7.0: pinned next-to-read descendant archive) ---
+
+    [Fact]
+    public async Task Browse_NextUnread_FirstUnreadArchiveBySortKey_WhenNothingRead()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var series = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", "0S");
+            await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 2", "1Ch2");
+            var ch1 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 1", "1Ch1");
+            await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 3", "1Ch3");
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: series.Id, cursor: null);
+
+            // Nothing read -> first UNREAD by SortKey (ordinal): "1Ch1" -> "Ch 1".
+            Assert.NotNull(result.NextUnread);
+            Assert.Equal(ch1.PublicId, result.NextUnread!.Id);
+            Assert.Equal("Ch 1", result.NextUnread.DisplayName);
+            Assert.Equal(CatalogNodeKind.Archive, result.NextUnread.Kind);
+            Assert.Equal($"/api/v1/items/{ch1.PublicId}/cover", result.NextUnread.CoverUrl);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_NextUnread_ResumesInProgressArchive_EvenWhenNotFirstBySort()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var series = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", "0S");
+            await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 1", "1Ch1");
+            var ch2 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 2", "1Ch2");
+            await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 3", "1Ch3");
+
+            // Ch 2 (sorts after Ch 1) is in progress -> it wins over the first-by-sort unread.
+            await AddProgressAsync(db, userId, ch2.Id, DateTimeOffset.UtcNow, state: (int)ReadingState.InProgress);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: series.Id, cursor: null);
+
+            Assert.NotNull(result.NextUnread);
+            Assert.Equal(ch2.PublicId, result.NextUnread!.Id);
+            Assert.Equal(ReadingState.InProgress, result.NextUnread.ReadingState);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_NextUnread_ResumesMostRecentlyUpdatedInProgressArchive()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var series = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", "0S");
+            var ch1 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 1", "1Ch1");
+            var ch2 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 2", "1Ch2");
+
+            // Both in progress; Ch 1 was updated more recently -> it wins.
+            await AddProgressAsync(db, userId, ch2.Id, new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero), state: (int)ReadingState.InProgress);
+            await AddProgressAsync(db, userId, ch1.Id, new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero), state: (int)ReadingState.InProgress);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: series.Id, cursor: null);
+
+            Assert.NotNull(result.NextUnread);
+            Assert.Equal(ch1.PublicId, result.NextUnread!.Id);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_NextUnread_SkipsReadArchives_AndPicksFirstUnread()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var series = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", "0S");
+            var ch1 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 1", "1Ch1");
+            var ch2 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 2", "1Ch2");
+            await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 3", "1Ch3");
+
+            // Ch 1 read -> skipped; Ch 2 is the first unread by sort.
+            await AddReadMarkAsync(db, userId, ch1.Id);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: series.Id, cursor: null);
+
+            Assert.NotNull(result.NextUnread);
+            Assert.Equal(ch2.PublicId, result.NextUnread!.Id);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_NextUnread_NullWhenEveryDescendantRead()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var series = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", "0S");
+            var vol = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Folder, "Vol 1", "0V1");
+            var ch1 = await AddNodeAsync(db, libraryId, vol.Id, CatalogNodeKind.Archive, "Ch 1", "1Ch1");
+            var ch2 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 2", "1Ch2");
+            await AddReadMarkAsync(db, userId, ch1.Id);
+            await AddReadMarkAsync(db, userId, ch2.Id);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: series.Id, cursor: null);
+
+            Assert.Null(result.NextUnread);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_NextUnread_RecursesIntoSubfolders()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            // Series/Vol 1/Ch 1 (read), Series/Vol 2/Ch 2 (unread, deeper) -> Continue = Ch 2.
+            var series = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", "0S");
+            var vol1 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Folder, "Vol 1", "0V1");
+            var vol2 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Folder, "Vol 2", "0V2");
+            var ch1 = await AddNodeAsync(db, libraryId, vol1.Id, CatalogNodeKind.Archive, "Ch 1", "1Ch1");
+            var ch2 = await AddNodeAsync(db, libraryId, vol2.Id, CatalogNodeKind.Archive, "Ch 2", "1Ch2");
+            await AddReadMarkAsync(db, userId, ch1.Id);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: series.Id, cursor: null);
+
+            Assert.NotNull(result.NextUnread);
+            Assert.Equal(ch2.PublicId, result.NextUnread!.Id);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_NextUnread_RootBrowsesWholeLibrary()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            // Two top-level folders; the only unread archive lives in the second.
+            var a = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "A", "0A");
+            var b = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "B", "0B");
+            var a1 = await AddNodeAsync(db, libraryId, a.Id, CatalogNodeKind.Archive, "A1", "1A1");
+            var b1 = await AddNodeAsync(db, libraryId, b.Id, CatalogNodeKind.Archive, "B1", "1B1");
+            await AddReadMarkAsync(db, userId, a1.Id);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            // Browsing the library root -> descendants span both folders.
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);
+
+            Assert.NotNull(result.NextUnread);
+            Assert.Equal(b1.PublicId, result.NextUnread!.Id);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_NextUnread_NullForFolderWithNoReadableDescendants()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var empty = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Empty", "0E");
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: empty.Id, cursor: null);
+
+            Assert.Null(result.NextUnread);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_NextUnread_IgnoresTombstonedArchives()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var series = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", "0S");
+            var gone = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 0", "1Ch0");
+            gone.Availability = (int)CatalogNodeAvailability.Tombstoned;
+            await db.SaveChangesAsync();
+            var ch1 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 1", "1Ch1");
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: series.Id, cursor: null);
+
+            Assert.NotNull(result.NextUnread);
+            Assert.Equal(ch1.PublicId, result.NextUnread!.Id);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_NextUnread_IsPerUser()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var other = new UserEntity
+            {
+                PublicId = OpaqueId.Encode(3),
+                UserName = "other",
+                NormalizedUserName = "OTHER",
+                IsActive = true,
+                IsAdmin = true,
+                PasswordHash = "hash",
+                SecurityStamp = Guid.NewGuid().ToString("N"),
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.Users.Add(other);
+            await db.SaveChangesAsync();
+
+            var series = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", "0S");
+            var ch1 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 1", "1Ch1");
+            var ch2 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 2", "1Ch2");
+
+            // The primary user read Ch 1; the other user read nothing.
+            await AddReadMarkAsync(db, userId, ch1.Id);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var mine = await service.BrowseAsync(userId, libraryId, parentId: series.Id, cursor: null);
+            var theirs = await service.BrowseAsync(other.Id, libraryId, parentId: series.Id, cursor: null);
+
+            Assert.Equal(ch2.PublicId, mine.NextUnread!.Id);
+            Assert.Equal(ch1.PublicId, theirs.NextUnread!.Id);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_NextUnread_ReadMarkBeatsStaleInProgress_ResumeIsNotRead()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var series = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", "0S");
+            var ch1 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 1", "1Ch1");
+            var ch2 = await AddNodeAsync(db, libraryId, series.Id, CatalogNodeKind.Archive, "Ch 2", "1Ch2");
+
+            // Ch 1 has BOTH a read-mark and stale in-progress progress: it is "read"
+            // (read-mark wins, matching the rollup), so Continue skips to Ch 2.
+            await AddReadMarkAsync(db, userId, ch1.Id);
+            await AddProgressAsync(db, userId, ch1.Id, DateTimeOffset.UtcNow, state: (int)ReadingState.InProgress);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: series.Id, cursor: null);
+
+            Assert.Equal(ch2.PublicId, result.NextUnread!.Id);
+        }
+        finally { await db.DisposeAsync(); }
+    }
 }

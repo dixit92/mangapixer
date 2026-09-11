@@ -230,12 +230,18 @@ public sealed class CatalogBrowseService
                 : EncodeCursor(sort, rows[^1]);
         }
 
+        // Pinned "Continue" row (1.7.0): the folder's next-to-read descendant archive,
+        // resolved set-based over the same recursive descendant walk the cover/recency
+        // aggregates use. Surfaced above the sorted list; the list order is unchanged.
+        var nextUnread = await ResolveNextUnreadAsync(libraryId, parentId, userId, ct);
+
         return new PageResponse<CatalogNodeDto>
         {
             Items = nodes,
             TotalCount = totalCount,
             NextCursor = nextCursor,
             HasMore = hasMore,
+            NextUnread = nextUnread,
         };
     }
 
@@ -955,6 +961,125 @@ public sealed class CatalogBrowseService
             if (!wasOpen) await connection.CloseAsync();
         }
         return result;
+    }
+
+    /// <summary>
+    /// Resolves the browsed folder's next-to-read descendant archive (1.7.0): the
+    /// in-progress archive if one exists (resume the most recently updated), else
+    /// the first UNREAD archive in SortKey order (ordinal, matching
+    /// <c>NaturalOrderComparer</c> / <c>StringComparer.Ordinal</c>); null when every
+    /// descendant is read. Set-based via a single recursive CTE - the same descendant
+    /// walk the cover and recency aggregates use, so browse gains no new per-folder
+    /// round trip. "Read" = a sticky read-mark exists (the same signal the archive
+    /// cards and the folder rollup use); "in-progress" = no read-mark and a
+    /// ReadingProgress row with State = InProgress. At the library root
+    /// (<paramref name="parentId"/> null) the descendants are every archive in the
+    /// library; at a folder they are that folder's recursive descendants (the folder
+    /// itself is never a candidate). Tombstoned archives are excluded. The returned
+    /// DTO carries the same read-state fields the archive card shows (IsRead,
+    /// ReadingState, LastReadPage) so the Continue row's affordance matches the list.
+    /// </summary>
+    private async Task<CatalogNodeDto?> ResolveNextUnreadAsync(
+        long libraryId,
+        long? parentId,
+        long userId,
+        CancellationToken ct)
+    {
+        var connection = _db.Database.GetDbConnection();
+        var wasOpen = connection.State == System.Data.ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync(ct);
+        try
+        {
+            using var command = connection.CreateCommand();
+            // Kind = 1 is Archive; Availability = 5 is Tombstoned; State = 1 is
+            // InProgress (same literals as the sibling CTEs in this file). The seed is
+            // the browsed folder's direct children (or every root-level node when
+            // browsing the library root); recursion reaches every descendant. Only
+            // not-read archives (no read-mark) are candidates. An in-progress one wins
+            // (resume the most recently updated); otherwise the first by SortKey.
+            command.CommandText = """
+                WITH RECURSIVE descendants(NodeId) AS (
+                    SELECT cn.Id FROM catalog_nodes cn
+                    WHERE cn.LibraryId = $lib
+                      AND cn.Availability != 5
+                      AND (($parent IS NULL AND cn.ParentId IS NULL) OR cn.ParentId = $parent)
+                    UNION ALL
+                    SELECT cn.Id FROM descendants d
+                    JOIN catalog_nodes cn ON cn.ParentId = d.NodeId
+                    WHERE cn.Availability != 5
+                )
+                SELECT cn.PublicId,
+                       parent.PublicId AS ParentPublicId,
+                       lib.PublicId AS LibraryPublicId,
+                       cn.DisplayName,
+                       cn.Availability,
+                       ai.PageCount,
+                       rm.ItemId IS NOT NULL AS IsRead,
+                       rp.State,
+                       rp.Ordinal
+                FROM descendants d
+                JOIN catalog_nodes cn ON cn.Id = d.NodeId AND cn.Kind = 1
+                LEFT JOIN catalog_nodes parent ON cn.ParentId = parent.Id
+                JOIN libraries lib ON lib.Id = cn.LibraryId
+                LEFT JOIN archive_items ai ON ai.NodeId = cn.Id
+                LEFT JOIN read_marks rm ON rm.ItemId = cn.Id AND rm.UserId = $user
+                LEFT JOIN reading_progress rp ON rp.ItemId = cn.Id AND rp.UserId = $user
+                WHERE rm.ItemId IS NULL
+                ORDER BY
+                    CASE WHEN rp.State = 1 THEN 0 ELSE 1 END,
+                    CASE WHEN rp.State = 1 THEN rp.UpdatedAt END DESC,
+                    cn.SortKey,
+                    cn.Id
+                LIMIT 1;
+                """;
+
+            var libParam = command.CreateParameter();
+            libParam.ParameterName = "$lib";
+            libParam.Value = libraryId;
+            command.Parameters.Add(libParam);
+
+            var parentParam = command.CreateParameter();
+            parentParam.ParameterName = "$parent";
+            parentParam.Value = (object?)parentId ?? DBNull.Value;
+            command.Parameters.Add(parentParam);
+
+            var userParam = command.CreateParameter();
+            userParam.ParameterName = "$user";
+            userParam.Value = userId;
+            command.Parameters.Add(userParam);
+
+            using var reader = await command.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct))
+                return null;
+
+            var publicId = reader.GetString(reader.GetOrdinal("PublicId"));
+            var parentOrdinal = reader.GetOrdinal("ParentPublicId");
+            var libraryPublicId = reader.GetString(reader.GetOrdinal("LibraryPublicId"));
+            var displayName = reader.GetString(reader.GetOrdinal("DisplayName"));
+            var availability = reader.GetInt32(reader.GetOrdinal("Availability"));
+            var pageCountOrdinal = reader.GetOrdinal("PageCount");
+            var stateOrdinal = reader.GetOrdinal("State");
+            var ordinalOrdinal = reader.GetOrdinal("Ordinal");
+
+            return new CatalogNodeDto
+            {
+                Id = publicId,
+                ParentId = reader.IsDBNull(parentOrdinal) ? "" : reader.GetString(parentOrdinal),
+                LibraryId = libraryPublicId,
+                Kind = CatalogNodeKind.Archive,
+                DisplayName = displayName,
+                Availability = (CatalogNodeAvailability)availability,
+                PageCount = reader.IsDBNull(pageCountOrdinal) ? null : reader.GetInt32(pageCountOrdinal),
+                CoverUrl = $"/api/v1/items/{publicId}/cover",
+                IsRead = reader.GetBoolean(reader.GetOrdinal("IsRead")),
+                ReadingState = reader.IsDBNull(stateOrdinal) ? null : (ReadingState)reader.GetInt32(stateOrdinal),
+                LastReadPage = reader.IsDBNull(ordinalOrdinal) ? null : reader.GetInt32(ordinalOrdinal),
+            };
+        }
+        finally
+        {
+            if (!wasOpen) await connection.CloseAsync();
+        }
     }
 
     private async Task<List<long>> GetAccessibleLibraryIdsAsync(long userId, CancellationToken ct)
