@@ -439,6 +439,7 @@ import {
       display: flex; align-items: center; gap: 6px;
       font-size: 13px; opacity: 0.85; margin: 0 0 8px;
     }
+    .lib-actions-bar { margin: 0 0 12px; }
     .register-form { max-width: 640px; }
     .register-form mat-form-field { display: block; width: 100%; margin-right: 0; }
     .register-actions { display: flex; gap: 12px; margin-top: 4px; }
