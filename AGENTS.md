@@ -111,6 +111,25 @@ by other containers — pick a free one.
 - `package.json` version must match `Version.props`.
 - Git release tags: `v<version>` (not created by default).
 
+### Release ritual (owner-gated)
+
+Every release is cut on `dev` and then **`main` is fast-forwarded / merged to that
+release commit** so `main` always tracks the latest released version. This step is
+mandatory and easy to forget - it was skipped for 1.4.0 and 1.4.1 (main sat at the
+1.3.0 merge while dev moved on), which is the gap this section closes.
+
+Order, all owner-gated (do NOT do autonomously):
+
+1. Bump `Version.props` (and match `package.json`) to `<version>`; commit on `dev`.
+2. Tag `v<version>` on that commit.
+3. **Merge `dev` into `main`** (`git checkout main && git merge --no-ff dev`), so `main`
+   contains the release commit and tag. `main` is the "last released" trunk; `dev` is the
+   version-agnostic integration trunk that runs ahead.
+4. Build/deploy the tagged image as needed.
+
+Never merge `dev` into `main` for an in-progress cycle (main must track released
+versions only) - the merge happens as part of the cut, after the version bump + tag.
+
 ## Shared contracts (P02)
 
 - Opaque IDs use base36 encoding (`OpaqueId.Encode/Decode`). All ID types (`LibraryId`, `CatalogNodeId`, `ItemId`, `UserId`, `PageEntryKey`) are readonly record structs.
