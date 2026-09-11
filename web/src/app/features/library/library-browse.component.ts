@@ -7,7 +7,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { forkJoin, of, catchError } from 'rxjs';
+import { forkJoin, of, catchError, filter, switchMap } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
@@ -497,6 +497,22 @@ export class LibraryBrowseComponent implements OnInit {
     // the instance). Patches only the affected card; never re-fetches the list
     // or touches scroll.
     this.readState.itemChanged$.subscribe((itemId) => this.refreshNodeStatus(itemId));
+
+    // 1.7.3: the pinned Continue row is purely presentational — it renders
+    // whatever `nextUnread` this component hands it and never re-fetches on its
+    // own — so without this it kept pointing at a just-finished chapter after
+    // exiting the reader. `switchMap` cancels a still-in-flight refresh if
+    // another item change arrives before it resolves (guards against
+    // back-to-back reader exits/advances piling up requests); the targeted
+    // pageSize:1 fetch reads only `PageResponse.nextUnread` (folder-scoped,
+    // independent of pagination — see api-types.ts), so it never touches
+    // `nodes()`, the cursor, or the 1.6.2 scroll retention.
+    this.readState.itemChanged$.pipe(
+      filter(() => !!this.libraryId()),
+      switchMap(() => this.api.browseLibrary(
+        this.libraryId(), this.parentId(), null, 1, this.sort(), this.sortDirection())
+        .pipe(catchError(() => of(null)))),
+    ).subscribe((res) => { if (res) this.nextUnread.set(res.nextUnread ?? null); });
 
     // Load the per-user view preference FIRST (tolerate unknown values), then start
     // routing. Sequencing matters: the sort must be known before the first browse so
