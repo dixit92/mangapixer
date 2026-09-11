@@ -222,7 +222,88 @@ public sealed class YacReaderImportService
         }
 
         if (imported > 0)
-            await _db.SaveChangesAsync(ct);
+        {
+            // The bulk insert can race a concurrent progress write (e.g. the user
+            // opening an imported item mid-import) on the reading_progress
+            // (UserId, ItemId) unique index. Recover per-collided-row — mirroring
+            // UpdateProgressAsync: detach the failed insert, reload the row a
+            // concurrent request created, and re-apply as an update (overwrite) or
+            // skip (no overwrite, respecting the no-overwrite import policy), then
+            // retry the save. A concurrent read-mark collision is satisfied by
+            // detaching (the mark already exists).
+            //
+            // The save is wrapped in an explicit transaction so the bulk insert is
+            // atomic: a collision rolls back every sibling row in the same batch
+            // (EF Core's single-batch SaveChanges otherwise auto-commits earlier
+            // rows in the batch, which would then collide on the retry). After
+            // rollback the pending Added entries remain Added, the failed entry is
+            // reconciled to an update/skip, and the retry re-saves the rest cleanly.
+            var maxPasses = mappedNodes.Count + 1;
+            for (int pass = 0; ; pass++)
+            {
+                await using var tx = await _db.Database.BeginTransactionAsync(ct);
+                try
+                {
+                    await _db.SaveChangesAsync(ct);
+                    await tx.CommitAsync(ct);
+                    break;
+                }
+                catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+                {
+                    await tx.RollbackAsync(ct);
+                    if (pass >= maxPasses)
+                        throw; // safety valve — a collision per pass is not expected
+                    var failed = ex.Entries
+                        .Where(e => e.State == EntityState.Added &&
+                                    (e.Entity is ReadingProgressEntity || e.Entity is ReadMarkEntity))
+                        .ToList();
+                    if (failed.Count == 0)
+                        throw; // not a progress/mark insert collision — surface it
+                    foreach (var entry in failed)
+                    {
+                        if (entry.Entity is ReadingProgressEntity rp)
+                        {
+                            _db.Entry(rp).State = EntityState.Detached;
+                            existingProgress.Remove(rp.ItemId);
+                            var existing = await _db.ReadingProgress
+                                .FirstOrDefaultAsync(p => p.UserId == rp.UserId && p.ItemId == rp.ItemId, ct);
+                            if (existing is null)
+                                throw; // row genuinely gone — surface it
+                            if (request.Overwrite)
+                            {
+                                existing.ContentVersion = rp.ContentVersion;
+                                existing.EntryKey = rp.EntryKey;
+                                existing.Ordinal = rp.Ordinal;
+                                existing.NormalizedAnchor = rp.NormalizedAnchor;
+                                existing.State = rp.State;
+                                existing.Revision++;
+                                existing.LastMutationId = rp.LastMutationId;
+                                existing.UpdatedAt = now;
+                                if (rp.CompletedAt.HasValue && !existing.CompletedAt.HasValue)
+                                    existing.CompletedAt = now;
+                                existingProgress[existing.ItemId] = existing;
+                            }
+                            else
+                            {
+                                // No-overwrite policy: leave the concurrent row as-is
+                                // and count the comic as skipped rather than imported.
+                                imported--;
+                                skipped++;
+                            }
+                        }
+                        else
+                        {
+                            // ReadMarkEntity: a concurrent mark already exists — the
+                            // "mark read" intent is satisfied. Detach; this import
+                            // did not add the mark.
+                            _db.Entry(entry.Entity).State = EntityState.Detached;
+                            readMarks--;
+                        }
+                    }
+                    // retry the save (new transaction) with the recovered change set
+                }
+            }
+        }
 
         _logger.LogInformation(LogEvents.Administration.YacReaderImportApplied,
             "YACReader import applied for library {LibraryId} user {UserId}: {Imported} imported, {Skipped} skipped, {ReadMarks} read marks, {Unmapped} unmapped",
@@ -465,6 +546,14 @@ public sealed class YacReaderImportService
             zeroBased = count - 1;
         return zeroBased;
     }
+
+    /// <summary>
+    /// True when a save failed on a SQLite constraint violation (error code 19),
+    /// e.g. a concurrent progress write racing the bulk import on the
+    /// reading_progress (UserId, ItemId) unique index.
+    /// </summary>
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+        => ex.InnerException is Microsoft.Data.Sqlite.SqliteException { SqliteErrorCode: 19 };
 
     private sealed class ImportPlan
     {

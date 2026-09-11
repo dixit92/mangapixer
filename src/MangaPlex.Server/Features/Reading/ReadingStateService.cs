@@ -7,6 +7,7 @@ using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 /// <summary>
 /// Reading state service. Provides revisioned/idempotent progress,
@@ -27,11 +28,13 @@ public sealed class ReadingStateService
 {
     private readonly MangaPlexDbContext _db;
     private readonly LibraryAuthorizationService _auth;
+    private readonly ILogger<ReadingStateService>? _logger;
 
-    public ReadingStateService(MangaPlexDbContext db, LibraryAuthorizationService auth)
+    public ReadingStateService(MangaPlexDbContext db, LibraryAuthorizationService auth, ILogger<ReadingStateService>? logger = null)
     {
         _db = db;
         _auth = auth;
+        _logger = logger;
     }
 
     /// <summary>
@@ -209,10 +212,18 @@ public sealed class ReadingStateService
         catch (DbUpdateException ex) when (inserted && IsUniqueConstraintViolation(ex))
         {
             // Concurrency: another request created the (UserId, ItemId) row between our
-            // read and our insert, so the INSERT hit the unique index (an intermittent
-            // 500 in production). Recover by discarding the failed insert, reloading the
-            // row that now exists, and re-applying this write as a normal update
-            // (last-write-wins on position, with the same backward-reading guard).
+            // read and our insert, so the INSERT hit the unique index. Recover by
+            // discarding the failed insert, reloading the row that now exists, and
+            // re-applying this write as a normal update (last-write-wins on position,
+            // with the same backward-reading guard).
+            //
+            // EF Core logs the failed command at Error level BEFORE this catch runs
+            // (RelationalEventId.CommandError), so a recovered race still surfaced as
+            // an error in production (~10/24h). The host Serilog filter drops that
+            // specific EF log line; this Debug log keeps the recovery observable when
+            // an admin enables the Reading debug category, without re-introducing an
+            // error-level line for an expected, recovered condition.
+            _logger?.LogDebug("Recovered concurrent reading_progress insert (user={UserId}, item={ItemId}); re-applied as update", userId, itemId);
             _db.Entry(progress).State = EntityState.Detached;
             var existing = await _db.ReadingProgress
                 .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == itemId, ct);

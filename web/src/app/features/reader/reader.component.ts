@@ -1114,6 +1114,11 @@ export class ReaderComponent implements OnInit, OnDestroy {
       return;
     }
     this.saveProgress();
+    // 1.7.3: this in-reader transition reuses the SAME component instance (the
+    // route only changes :itemId), so ngOnDestroy never runs for the chapter
+    // being left — without this notify, the just-finished item's browse card
+    // and the Continue row stayed stale until the reader was closed entirely.
+    this.readState.notifyChanged(this.itemId());
     this.snackBar.open(`Next chapter: ${next.displayName}`, '', { duration: 2000 });
     // 1.7.1 (owner-approved): REPLACE the history entry so chapter-to-chapter
     // navigation via the buttons never builds a chain Back has to walk — Back
@@ -1132,6 +1137,8 @@ export class ReaderComponent implements OnInit, OnDestroy {
       return;
     }
     this.saveProgress();
+    // 1.7.3: same in-reader-transition notify as goToNextChapter — see there.
+    this.readState.notifyChanged(this.itemId());
     this.snackBar.open(`Previous chapter: ${prev.displayName}`, '', { duration: 2000 });
     // 1.7.1: same replaceUrl treatment as goToNextChapter — Back always exits
     // to the folder, never walks a chain of previously-visited chapters.
