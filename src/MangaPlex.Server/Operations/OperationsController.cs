@@ -20,6 +20,8 @@ public sealed class OperationsController : ControllerBase
     private readonly RotatingBackupOptions _rotatingOptions;
     private readonly RotatingBackupState _rotatingState;
     private readonly LogLevelSettingsService _logLevel;
+    private readonly DbRestoreService _dbRestore;
+    private readonly DbRestoreOptions _dbRestoreOptions;
     private readonly ILogger<OperationsController> _logger;
 
     public OperationsController(
@@ -29,6 +31,8 @@ public sealed class OperationsController : ControllerBase
         RotatingBackupOptions rotatingOptions,
         RotatingBackupState rotatingState,
         LogLevelSettingsService logLevel,
+        DbRestoreService dbRestore,
+        DbRestoreOptions dbRestoreOptions,
         ILogger<OperationsController> logger)
     {
         _diagnostics = diagnostics;
@@ -37,6 +41,8 @@ public sealed class OperationsController : ControllerBase
         _rotatingOptions = rotatingOptions;
         _rotatingState = rotatingState;
         _logLevel = logLevel;
+        _dbRestore = dbRestore;
+        _dbRestoreOptions = dbRestoreOptions;
         _logger = logger;
     }
 
@@ -209,6 +215,39 @@ public sealed class OperationsController : ControllerBase
             RetainedCount = retained,
         };
     }
+
+    /// <summary>
+    /// Imports a MangaPlex SQLite backup and stages it for restore. The
+    /// uploaded file is validated (SQLite magic, size cap, integrity check,
+    /// expected schema), a pre-restore snapshot of the current DB is taken, and
+    /// the validated upload is staged under the app's private data root. The
+    /// actual atomic swap is applied on the next server restart (no live DB
+    /// overwrite while connections are open). Admin-only.
+    ///
+    /// Accepts multipart/form-data with a single "file" field. A caller-
+    /// supplied filesystem path is NEVER accepted.
+    /// </summary>
+    [HttpPost("restore")]
+    [RequestSizeLimit(1073741824)]
+    public async Task<IActionResult> Restore([FromForm] RestoreUploadRequest? request, CancellationToken ct)
+    {
+        if (request?.File is null || request.File.Length == 0)
+            return BadRequest(new ApiError { Error = "invalid_request", Message = "A backup file is required." });
+
+        var actor = User.Identity?.Name ?? "unknown";
+
+        await using var stream = request.File.OpenReadStream();
+        var result = await _dbRestore.StageRestoreAsync(stream, actor, ct);
+
+        if (!result.Succeeded)
+            return BadRequest(new ApiError { Error = result.Error ?? "restore_failed", Message = result.Message ?? "Restore failed." });
+
+        return Accepted(new RestoreStageResponseDto
+        {
+            PreRestoreBackupFileName = result.PreRestoreBackupFileName,
+            Message = result.Message,
+        });
+    }
 }
 
 public sealed record BackupRequest
@@ -251,4 +290,17 @@ public sealed record LogCategoryOverride
 {
     public string? Name { get; init; }
     public string? Level { get; init; }
+}
+
+/// <summary>Upload request for a DB restore (multipart/form-data).</summary>
+public sealed class RestoreUploadRequest
+{
+    public Microsoft.AspNetCore.Http.IFormFile? File { get; init; }
+}
+
+/// <summary>Response for a staged restore (202 Accepted).</summary>
+public sealed record RestoreStageResponseDto
+{
+    public required string? PreRestoreBackupFileName { get; init; }
+    public required string? Message { get; init; }
 }
