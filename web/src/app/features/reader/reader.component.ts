@@ -11,6 +11,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 
 import { ApiService } from '../../core/api/api.service';
+import { ReadStateService } from '../../core/reading/read-state.service';
 import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode } from '../../core/api/api-types';
 
 type ReaderPhase = 'preparing' | 'ready' | 'error';
@@ -94,7 +95,7 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
       <mat-toolbar class="reader-toolbar" [class.immersive]="isFullscreen()"
                    [class.chrome-hidden]="!chromeVisible()"
                    (mouseenter)="lockChrome(true)" (mouseleave)="lockChrome(false)">
-        <button mat-icon-button (click)="goBack()" matTooltip="Back to library" aria-label="Back to library">
+        <button mat-icon-button (click)="goBack()" matTooltip="Back to folder" aria-label="Back to folder">
           <mat-icon>arrow_back</mat-icon>
         </button>
         <span class="page-info">
@@ -193,10 +194,9 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
                  [style.aspect-ratio]="aspectRatioFor(entry)"
                  [attr.data-index]="$index" alt="Page {{ $index + 1 }}" />
           }
-          <!-- Requirement 4: end-of-chapter affordance. Auto-advance fires after a
-               short dwell at the bottom, but the buttons let the reader jump
-               explicitly (and surface where the previous chapter is). Styled inline
-               to stay within the component CSS budget. -->
+          <!-- End-of-chapter affordance: explicit Previous/Next chapter buttons
+               (1.7.1: webtoon no longer auto-advances on scroll — owner revert).
+               Styled inline to stay within the component CSS budget. -->
           <div class="webtoon-end"
                style="width:100%; box-sizing:border-box; display:flex; flex-direction:column;
                       align-items:center; gap:14px; padding:40px 16px 64px; color:#ccc; text-align:center;">
@@ -205,7 +205,7 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
               <mat-icon>skip_previous</mat-icon> Previous chapter
             </button>
             <p style="margin:0; opacity:0.7; font-size:14px;">
-              {{ nextNeighbor() ? 'Keep scrolling for the next chapter' : 'End of this folder' }}
+              {{ nextNeighbor() ? 'Tap Next chapter to continue' : 'End of this folder' }}
             </p>
             <button mat-flat-button color="primary" (click)="nextChapter()" [disabled]="!hasNextChapter()"
                     style="min-width:200px;">
@@ -420,7 +420,7 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     /* RTL: fill sits at the right edge and grows leftward as pages advance. */
     .progress-rail.rtl { justify-content: flex-end; }
     .progress-fill { height: 100%; flex: none; background: #7c4dff; transition: width .2s ease; }
-    /* Scrubber (requirement 2) + webtoon end footer (requirement 4): the bulk of
+    /* Scrubber (requirement 2) + webtoon end footer: the bulk of
        these styles are applied inline in the template (kept out of the component
        stylesheet to stay within the CSS budget). Only the scrubbing state that a
        plain inline attribute can't express lives here. */
@@ -473,6 +473,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
   private readonly location = inject(Location);
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly readState = inject(ReadStateService);
 
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
 
@@ -603,24 +604,6 @@ export class ReaderComponent implements OnInit, OnDestroy {
   private activePointers = 0;
   private lastSwipeAt = 0;
 
-  // --- Webtoon auto next/prev chapter state (requirement 4) ---
-  // Webtoon is native vertical scroll, so "the forward gesture at the end" is
-  // reaching the true bottom; the backward one is scrolling up past the top. Each
-  // arms a short dwell timer (so brushing the edge mid-read doesn't fire) and is
-  // guarded so a chapter can auto-advance at most once per open.
-  private static readonly WebtoonEdgeDwellMs = 900;
-  private webtoonHasScrolled = false;
-  private webtoonLastScrollTop = 0;
-  private webtoonEdgeTimer: ReturnType<typeof setTimeout> | null = null;
-  private webtoonEdgeArmed: 'next' | 'prev' | null = null;
-  private webtoonChapterNavigating = false;
-  // A programmatic scroll (resume-to-saved-page on entry, or a scrubber seek) fires
-  // a scroll event indistinguishable from a user scroll. Timestamp it so the edge
-  // evaluator ignores it — otherwise re-opening a finished webtoon chapter (resumed
-  // at its last page) or scrubbing to the end would instantly auto-advance.
-  private static readonly WebtoonProgrammaticScrollMs = 400;
-  private lastProgrammaticScrollAt = 0;
-
   pageUrlFor(entry: ManifestPageEntry | undefined): string {
     return entry ? `/api/v1/items/${this.itemId()}/pages/${encodeURIComponent(entry.entryKey)}` : '';
   }
@@ -643,9 +626,6 @@ export class ReaderComponent implements OnInit, OnDestroy {
       // Reset the page-prefetch cache for the new chapter (URLs are per-item).
       this.prefetchedUrls.clear();
       this.prefetchImgs = [];
-      // Reset webtoon auto-advance state so the new chapter starts fresh (no stale
-      // "already advanced" guard, no armed edge timer carried across the navigation).
-      this.resetWebtoonEdgeState();
       // "at=end" (set when arriving via previous-chapter back-navigation) asks to
       // land on the last page instead of resuming from saved progress.
       this.landOnLastPage = this.route.snapshot.queryParamMap.get('at') === 'end';
@@ -665,13 +645,18 @@ export class ReaderComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Load adjacent archives in the folder so we can auto-advance across chapters. */
+  /**
+   * Load adjacent archives in the folder — feeds the reader-bar/webtoon-footer
+   * chapter buttons' enabled state (`hasNextChapter` / `hasPrevChapter`) and the
+   * paged/spread end-of-screen chapter advance. Webtoon no longer auto-advances
+   * on scroll (1.7.1 revert); its chapter buttons still use these neighbors.
+   */
   private loadNeighbors(itemId: string): void {
     this.nextNeighbor.set(null);
     this.prevNeighbor.set(null);
     this.api.getNeighbors(itemId).subscribe({
       next: (n) => { this.nextNeighbor.set(n.next); this.prevNeighbor.set(n.previous); },
-      error: () => { /* no neighbors / not available — auto-advance simply no-ops */ },
+      error: () => { /* no neighbors / not available — chapter buttons simply stay disabled */ },
     });
   }
 
@@ -698,9 +683,12 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.destroyed = true;
     this.clearPoll();
     if (this.webtoonSaveTimer) clearTimeout(this.webtoonSaveTimer);
-    this.clearWebtoonEdgeTimer();
     this.clearHideTimer();
     this.saveProgress();
+    // 1.7.1: tell the retained browse view this item's read/progress state may
+    // have changed, so it can patch the card in place on the next reattach
+    // without a full re-fetch or losing the 1.6.2 scroll retention.
+    this.readState.notifyChanged(this.itemId());
   }
 
   private applyDefaultMode(mode: ReaderMode): void {
@@ -1127,7 +1115,10 @@ export class ReaderComponent implements OnInit, OnDestroy {
     }
     this.saveProgress();
     this.snackBar.open(`Next chapter: ${next.displayName}`, '', { duration: 2000 });
-    this.router.navigate(['/reader', next.id]);
+    // 1.7.1 (owner-approved): REPLACE the history entry so chapter-to-chapter
+    // navigation via the buttons never builds a chain Back has to walk — Back
+    // from any chapter reached this way exits straight to the folder.
+    this.router.navigate(['/reader', next.id], { replaceUrl: true });
   }
 
   /**
@@ -1142,7 +1133,9 @@ export class ReaderComponent implements OnInit, OnDestroy {
     }
     this.saveProgress();
     this.snackBar.open(`Previous chapter: ${prev.displayName}`, '', { duration: 2000 });
-    this.router.navigate(['/reader', prev.id], { queryParams: { at: 'end' } });
+    // 1.7.1: same replaceUrl treatment as goToNextChapter — Back always exits
+    // to the folder, never walks a chain of previously-visited chapters.
+    this.router.navigate(['/reader', prev.id], { queryParams: { at: 'end' }, replaceUrl: true });
   }
 
   /**
@@ -1519,70 +1512,10 @@ export class ReaderComponent implements OnInit, OnDestroy {
       if (this.webtoonSaveTimer) clearTimeout(this.webtoonSaveTimer);
       this.webtoonSaveTimer = setTimeout(() => this.saveProgress(), 600);
     }
-    // Requirement 4: arm/disarm webtoon auto next/prev-chapter from the scroll edges.
-    this.evaluateWebtoonEdges(el);
-  }
-
-  /**
-   * Webtoon auto next/prev chapter (requirement 4). Reaching the true bottom arms
-   * the NEXT chapter; scrolling up to the very top arms the PREVIOUS chapter. Each
-   * requires the reader to have actually scrolled first (so a short chapter that
-   * loads already at its bottom, or the initial top position, never triggers on
-   * entry) and only fires after a short dwell at the edge, so brushing the edge
-   * mid-read doesn't jump chapters. Moving away from the edge cancels a pending
-   * advance; a fired advance is guarded until the next chapter opens.
-   */
-  private evaluateWebtoonEdges(el: HTMLElement): void {
-    if (this.webtoonChapterNavigating) return;
-    const eps = ReaderComponent.WebtoonBottomEpsilonPx;
-    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - eps;
-    const atTop = el.scrollTop <= eps;
-    const scrollingUp = el.scrollTop < this.webtoonLastScrollTop;
-    if (el.scrollTop > eps) this.webtoonHasScrolled = true;
-    this.webtoonLastScrollTop = el.scrollTop;
-
-    // Ignore the scroll event caused by our own programmatic scroll (resume /
-    // scrubber): only a genuine user scroll to an edge should arm an advance.
-    if (Date.now() - this.lastProgrammaticScrollAt < ReaderComponent.WebtoonProgrammaticScrollMs) return;
-
-    if (atBottom && this.webtoonHasScrolled && this.nextNeighbor()) {
-      this.armWebtoonAdvance('next');
-    } else if (atTop && scrollingUp && this.webtoonHasScrolled && this.prevNeighbor()) {
-      this.armWebtoonAdvance('prev');
-    } else {
-      this.disarmWebtoonAdvance();
-    }
-  }
-
-  private armWebtoonAdvance(dir: 'next' | 'prev'): void {
-    if (this.webtoonEdgeTimer && this.webtoonEdgeArmed === dir) return; // already counting down
-    this.clearWebtoonEdgeTimer();
-    this.webtoonEdgeArmed = dir;
-    this.webtoonEdgeTimer = setTimeout(() => {
-      this.webtoonEdgeTimer = null;
-      const armed = this.webtoonEdgeArmed;
-      this.webtoonEdgeArmed = null;
-      if (this.destroyed || !armed) return;
-      this.webtoonChapterNavigating = true; // guard against a second advance
-      if (armed === 'next') this.goToNextChapter();
-      else this.goToPreviousChapter();
-    }, ReaderComponent.WebtoonEdgeDwellMs);
-  }
-
-  private disarmWebtoonAdvance(): void {
-    this.clearWebtoonEdgeTimer();
-    this.webtoonEdgeArmed = null;
-  }
-
-  private clearWebtoonEdgeTimer(): void {
-    if (this.webtoonEdgeTimer) { clearTimeout(this.webtoonEdgeTimer); this.webtoonEdgeTimer = null; }
-  }
-
-  private resetWebtoonEdgeState(): void {
-    this.disarmWebtoonAdvance();
-    this.webtoonHasScrolled = false;
-    this.webtoonLastScrollTop = 0;
-    this.webtoonChapterNavigating = false;
+    // 1.7.1 (owner revert): webtoon no longer auto-advances chapters on scroll —
+    // the scroll-up-at-top gesture fought the fullscreen-exit gesture on touch.
+    // The explicit prev/next chapter buttons (toolbar + end-of-chapter footer)
+    // remain the only way to move between chapters in webtoon.
   }
 
   private scrollWebtoonTo(index: number): void {
@@ -1590,9 +1523,6 @@ export class ReaderComponent implements OnInit, OnDestroy {
     if (!el) return;
     const img = el.querySelectorAll<HTMLElement>('.webtoon-page')[index];
     if (img) {
-      // Mark this as programmatic so the ensuing scroll event doesn't arm an
-      // auto-advance (resume-on-entry / scrubber seeks must not jump chapters).
-      this.lastProgrammaticScrollAt = Date.now();
       el.scrollTop = img.offsetTop;
     }
   }

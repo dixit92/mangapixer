@@ -38,7 +38,7 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
     <mat-toolbar color="primary">
       <a routerLink="/" class="brand">
         <img src="assets/icons/icon.svg" alt="" class="brand-mark" />
-        MangaPlex
+        <span class="brand-text">MangaPlex</span>
       </a>
       <span class="spacer"></span>
 
@@ -99,6 +99,9 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
       border-radius: 6px;
       flex: none;
     }
+    /* Icon + wordmark are inline (flex row, centered); nudge the text up slightly so it
+       optically centers against the icon mark rather than sitting low. */
+    .brand-text { position: relative; top: -2px; }
     .spacer { flex: 1 1 auto; }
     /* Two-column app shell (1.5.0): the persistent library sidebar sits on the
        window's left edge with the content column beside it. The sidebar reaches
