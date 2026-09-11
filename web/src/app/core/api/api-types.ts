@@ -17,6 +17,14 @@ export interface PageResponse<T> {
   totalCount: number;
   nextCursor: string | null;
   hasMore: boolean;
+  /**
+   * The folder's next-to-read descendant archive (1.7.0), surfaced as a pinned
+   * "Continue" row above the sorted list. Browse only; null when the browsed
+   * folder has no unread descendant archive. Optional on the client so existing
+   * PageResponse fixtures keep compiling (the server always sends it); rendered
+   * by `ContinueRowComponent`, which hides itself when absent/null.
+   */
+  nextUnread?: CatalogNodeDto | null;
 }
 
 export type CatalogNodeKind = 'Folder' | 'Archive';

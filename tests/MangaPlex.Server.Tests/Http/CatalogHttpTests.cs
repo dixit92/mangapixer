@@ -3,6 +3,7 @@ namespace com.lifepixer.mangaplex.Tests.Server.Http;
 using System.Net;
 using System.Net.Http.Json;
 using com.lifepixer.mangaplex.Core.Api;
+using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Core.Reading;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
@@ -363,5 +364,118 @@ public sealed class CatalogHttpTests : IClassFixture<MangaPlexWebApplicationFact
         var clearAll = await client.DeleteAsync("/api/v1/reading/folders/rollupSeries/read");
         clearAll.EnsureSuccessStatusCode();
         Assert.Equal(FolderReadRollup.Unread, (await BrowseRootRollupsAsync())["rollupSeries"]);
+    }
+
+    /// <summary>
+    /// 1.7.0 next-unread "Continue" row through the public surface: the browse
+    /// response carries an additive <c>nextUnread</c> field pointing at the folder's
+    /// next-to-read descendant archive. It is null when every descendant is read and
+    /// resumes an in-progress archive over the first-by-sort unread one.
+    /// </summary>
+    [Fact]
+    public async Task Browse_NextUnread_TracksReadMarksThroughApi()
+    {
+        string libPublicId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var library = new LibraryEntity
+            {
+                PublicId = "nextunreadlib",
+                DisplayName = "Next Unread Library",
+                RootPath = "/tmp/nextunread",
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.Libraries.Add(library);
+            await db.SaveChangesAsync();
+            libPublicId = library.PublicId;
+
+            var series = new CatalogNodeEntity
+            {
+                PublicId = "nuSeries",
+                LibraryId = library.Id,
+                Kind = 0,
+                DisplayName = "Series",
+                RelativePath = "Series",
+                PathKey = "Series",
+                SortKey = "0Series",
+                Availability = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.CatalogNodes.Add(series);
+            await db.SaveChangesAsync();
+
+            db.CatalogNodes.Add(new CatalogNodeEntity
+            {
+                PublicId = "nuCh1",
+                LibraryId = library.Id,
+                ParentId = series.Id,
+                Kind = 1,
+                DisplayName = "Ch1.cbz",
+                RelativePath = "Series/Ch1.cbz",
+                PathKey = "Series/Ch1.cbz",
+                SortKey = "1Ch1",
+                Availability = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+            db.CatalogNodes.Add(new CatalogNodeEntity
+            {
+                PublicId = "nuCh2",
+                LibraryId = library.Id,
+                ParentId = series.Id,
+                Kind = 1,
+                DisplayName = "Ch2.cbz",
+                RelativePath = "Series/Ch2.cbz",
+                PathKey = "Series/Ch2.cbz",
+                SortKey = "1Ch2",
+                Availability = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var client = await GetAuthenticatedClientAsync();
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        jsonOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+
+        async Task<PageResponse<CatalogNodeDto>?> BrowseSeriesAsync()
+        {
+            var response = await client.GetAsync($"/api/v1/libraries/{libPublicId}/browse?parentId=nuSeries&sort=name");
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<PageResponse<CatalogNodeDto>>(jsonOptions);
+        }
+
+        // Nothing read -> Continue points at the first unread by sort (Ch1).
+        var initial = await BrowseSeriesAsync();
+        Assert.NotNull(initial);
+        Assert.NotNull(initial!.NextUnread);
+        Assert.Equal("nuCh1", initial.NextUnread!.Id);
+        Assert.Equal("Ch1.cbz", initial.NextUnread.DisplayName);
+        Assert.Equal(CatalogNodeKind.Archive, initial.NextUnread.Kind);
+
+        // Wire check: the additive field travels as `nextUnread` (camelCase).
+        var rawResponse = await client.GetAsync($"/api/v1/libraries/{libPublicId}/browse?parentId=nuSeries&sort=name");
+        var raw = await rawResponse.Content.ReadAsStringAsync();
+        Assert.Contains("\"nextUnread\":", raw);
+        Assert.Contains("\"nuCh1\"", raw);
+
+        // Mark Ch1 read -> Continue advances to Ch2.
+        var markOne = await client.PutAsJsonAsync("/api/v1/reading/nuCh1/read", new { });
+        markOne.EnsureSuccessStatusCode();
+        var afterOne = await BrowseSeriesAsync();
+        Assert.Equal("nuCh2", afterOne!.NextUnread!.Id);
+
+        // Mark Ch2 read -> no unread descendant -> nextUnread is null.
+        var markTwo = await client.PutAsJsonAsync("/api/v1/reading/nuCh2/read", new { });
+        markTwo.EnsureSuccessStatusCode();
+        var afterAll = await BrowseSeriesAsync();
+        Assert.Null(afterAll!.NextUnread);
+
+        // Library-root browse also surfaces the next-unread over the whole library.
+        var rootResponse = await client.GetAsync($"/api/v1/libraries/{libPublicId}/browse?sort=name");
+        rootResponse.EnsureSuccessStatusCode();
+        var rootPage = await rootResponse.Content.ReadFromJsonAsync<PageResponse<CatalogNodeDto>>(jsonOptions);
+        // Both chapters read -> null at the root too.
+        Assert.Null(rootPage!.NextUnread);
     }
 }
