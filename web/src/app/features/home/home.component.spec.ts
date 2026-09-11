@@ -97,4 +97,31 @@ describe('HomeComponent', () => {
 
     expect(cmp.continueReading().map((e) => e.itemId)).toEqual(['i2']);
   });
+
+  // Sidebar collapse (1.5.0 taste pass): a per-device UI preference persisted to
+  // localStorage so the icon-rail choice survives reloads.
+  describe('sidebar collapse', () => {
+    beforeEach(() => localStorage.removeItem('mangaplex-home-nav-collapsed'));
+
+    it('defaults to expanded and toggles + persists the collapsed state', () => {
+      const fixture = createComponent();
+      const cmp = fixture.componentInstance;
+
+      expect(cmp.collapsed()).toBe(false);
+
+      cmp.toggleCollapsed();
+      expect(cmp.collapsed()).toBe(true);
+      expect(localStorage.getItem('mangaplex-home-nav-collapsed')).toBe('1');
+
+      cmp.toggleCollapsed();
+      expect(cmp.collapsed()).toBe(false);
+      expect(localStorage.getItem('mangaplex-home-nav-collapsed')).toBe('0');
+    });
+
+    it('restores a persisted collapsed state on init', () => {
+      localStorage.setItem('mangaplex-home-nav-collapsed', '1');
+      const fixture = createComponent();
+      expect(fixture.componentInstance.collapsed()).toBe(true);
+    });
+  });
 });
