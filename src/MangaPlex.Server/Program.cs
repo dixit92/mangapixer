@@ -69,6 +69,18 @@ public sealed partial class Program
         foreach (var (name, prefix) in com.lifepixer.mangaplex.Server.Logging.DebugCategories.All)
             logConfig.MinimumLevel.Override(prefix, categorySwitches[name]);
 
+        // Drop the EF Core CommandError log line for the recovered reading_progress
+        // unique-constraint race (SQLite error 19). EF logs the failed INSERT at Error
+        // BEFORE ReadingStateService catches and recovers it, so a recovered race still
+        // surfaced as an error (~10/24h in production). The filter excludes ONLY that
+        // specific EF log event (SourceContext under Microsoft.EntityFrameworkCore + a
+        // SQLite-19 reading_progress message). A genuine uncaught failure still
+        // surfaces via the unhandled-exception middleware (LogEvents.Http.UnhandledRequestError),
+        // which has a different SourceContext, so real 500s are not masked. The recovery
+        // itself is observable at Debug via ReadingStateService when the Reading debug
+        // category is enabled. See RecoveredRaceNoiseFilter.
+        logConfig.Filter.With(new RecoveredRaceNoiseFilter());
+
         logConfig
             .Enrich.WithProperty("Application", "MangaPlex")
             .Enrich.With<RedactingDestructuringPolicy>();

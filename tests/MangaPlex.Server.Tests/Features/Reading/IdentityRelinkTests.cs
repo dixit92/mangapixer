@@ -197,4 +197,67 @@ public sealed class IdentityRelinkTests : IDisposable
         Assert.Equal(9, overwritten.Ordinal);
         Assert.Null(await db.ReadingProgress.FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == oldId));
     }
+
+    [Fact]
+    public async Task AutoRelink_OntoItemWithExistingProgress_DoesNotThrowAndDropsOrphanedRow()
+    {
+        // Regression for the unguarded relink insert path. Auto-relink (overwrite=false)
+        // onto a target that already has progress would previously INSERT a second
+        // (UserId, ItemId) row and hit the unique index uncaught — a 500. The hardened
+        // path keeps the target's own progress, drops the orphaned old row, and relinks
+        // bookmarks without throwing.
+        var (db, userId, libraryId) = await BaseAsync();
+        var oldId = await AddArchiveAsync(db, libraryId, 100, "old.cbz", "HASH-A", availability: 5);
+        var targetId = await AddArchiveAsync(db, libraryId, 101, "target.cbz", "HASH-A", availability: 0);
+        await AddProgressAsync(db, userId, oldId, ordinal: 9);
+        await AddProgressAsync(db, userId, targetId, ordinal: 1); // target already has progress
+
+        var result = await Service(db).AutoRelinkByHashAsync(userId, oldId);
+
+        Assert.Equal(RelinkStatus.Success, result.Status);
+
+        // The orphaned old row is gone.
+        Assert.Null(await db.ReadingProgress.FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == oldId));
+
+        // The target keeps its own progress (not overwritten by the auto-relink).
+        var target = await db.ReadingProgress.FirstAsync(p => p.UserId == userId && p.ItemId == targetId);
+        Assert.Equal(1, target.Ordinal);
+
+        // Exactly one row for the target — no duplicate slipped through the race.
+        var count = await db.ReadingProgress.CountAsync(p => p.UserId == userId && p.ItemId == targetId);
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public async Task ManualRelink_OverwriteOntoConcurrentTarget_Insert_RaceRecovered()
+    {
+        // Regression for the relink insert race under overwrite=true. A concurrent
+        // request creates the target row between the relink's load and its insert,
+        // so the relink's INSERT hits the unique index. The hardened path recovers
+        // by reloading the concurrent row and re-applying the old item's state as an
+        // update (overwrite semantics preserved), instead of throwing a 500.
+        var (seedDb, userId, libraryId) = await BaseAsync();
+        var oldId = await AddArchiveAsync(seedDb, libraryId, 100, "old.cbz", "HASH-A", availability: 5);
+        var targetId = await AddArchiveAsync(seedDb, libraryId, 101, "target.cbz", "HASH-A", availability: 0);
+        await AddProgressAsync(seedDb, userId, oldId, ordinal: 9);
+        await seedDb.DisposeAsync();
+
+        // Concurrent writer creates the target row first (simulating the race).
+        await using (var racer = new MangaPlexDbContext(_options))
+        {
+            await AddProgressAsync(racer, userId, targetId, ordinal: 1);
+        }
+
+        // The relink now sees no target row at load time, inserts, and collides.
+        // Recovery must reload the concurrent row and overwrite it with old's state.
+        await using var db = new MangaPlexDbContext(_options);
+        var result = await Service(db).ManualRelinkAsync(userId, oldId, targetId, overwrite: true);
+
+        Assert.Equal(RelinkStatus.Success, result.Status);
+        var target = await db.ReadingProgress.FirstAsync(p => p.UserId == userId && p.ItemId == targetId);
+        Assert.Equal(9, target.Ordinal); // overwritten with old's state
+        Assert.Null(await db.ReadingProgress.FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == oldId));
+        var count = await db.ReadingProgress.CountAsync(p => p.UserId == userId && p.ItemId == targetId);
+        Assert.Equal(1, count);
+    }
 }
