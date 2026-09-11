@@ -378,19 +378,15 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     }
     .node-sub { font-size: 12px; color: #999; }
     .empty { color: #999; padding: 32px; text-align: center; }
-    .scroll-sentinel {
-      min-height: 24px; margin-top: 16px; padding: 8px; text-align: center;
-      color: #999; font-size: 12px;
-    }
-    /* A–Z/script jump rail (1.4.0 Lane E). Only shown at library root level.
-       Sticky (1.8.0): `top` is bound to the measured top-bar height so the rail
-       stacks under the bar; z-index stays below the bar's 20 so the bar wins.
-       Opaque background so cards don't show through while stuck. */
+    .scroll-sentinel { min-height: 40px; text-align: center; color: #999; font-size: 12px; }
+    /* A–Z/script jump rail (1.4.0 Lane E), root level only. Sticky under the
+       top bar (1.8.0): top = measured bar height, z-index below the bar's 20;
+       opaque so cards don't show through while stuck. */
     .jump-rail {
       position: sticky; z-index: 10;
       display: flex; flex-wrap: wrap; gap: 4px;
       margin-bottom: 12px; padding: 6px 8px;
-      background: #14141c; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+      background: #14141c; border-radius: 8px;
     }
     .jump-chip {
       min-width: 28px; padding: 4px 8px; border: none; cursor: pointer;
@@ -783,13 +779,22 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     try { target?.scrollTo({ top: 0, behavior }); } catch { /* jsdom: scrollTo not implemented */ }
   }
 
-  /** Scroll so the card at `index` sits just under the sticky bar + rail. False if it isn't rendered. */
+  /**
+   * Scroll so the card at `index` sits just under the sticky bar + rail. False if
+   * it isn't rendered. The sticky stack's bottom edge depends on the scroll
+   * position (in normal flow near the top of the page, pinned once scrolled), so
+   * one scroll computed from the pre-scroll geometry can land the card a stack's
+   * height off; re-measure after each instant scroll and correct until it settles.
+   */
   private scrollToCard(index: number): boolean {
     const card = this.host.nativeElement.querySelectorAll<HTMLElement>('.node-wrap')[index];
     if (!card) return false;
     const target = this.scrollParent() ?? (typeof window !== 'undefined' ? window : null);
-    const delta = card.getBoundingClientRect().top - this.stickyBottom() - 8;
-    try { target?.scrollBy({ top: delta, behavior: 'auto' }); } catch { /* jsdom */ }
+    for (let pass = 0; pass < 3; pass++) {
+      const delta = card.getBoundingClientRect().top - this.stickyBottom() - 8;
+      if (Math.abs(delta) < 1) break;
+      try { target?.scrollBy({ top: delta, behavior: 'auto' }); } catch { return true; /* jsdom */ }
+    }
     return true;
   }
 

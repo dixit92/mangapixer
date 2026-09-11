@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { ActivatedRoute, provideRouter } from '@angular/router';
+import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
@@ -1172,11 +1172,13 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
     const { el } = setup({});
     const scrollTo = vi.fn();
     (window as unknown as { scrollTo: unknown }).scrollTo = scrollTo;
-    const link = el.querySelector('.breadcrumbs a') as HTMLElement;
-    link.addEventListener('click', (e) => e.preventDefault()); // don't navigate in the test
-    link.click();
+    // The crumb's own RouterLink handler must still run (it navigates); the
+    // test router has no routes, so stub the navigation itself.
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    (el.querySelector('.breadcrumbs a') as HTMLElement).click();
     (el.querySelector('.select-toggle') as HTMLElement).click();
     expect(scrollTo).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledTimes(1);
   });
 
   // --- sticky rail + scroll-spy ---
@@ -1234,11 +1236,18 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
       buckets: [{ label: 'A', count: 1, firstCursor: null }, { label: 'B', count: 1, firstCursor: 'cA' }],
       browse: () => of(page([node('a1', 'Alpha'), node('b1', 'Beta')], null)),
     });
-    const scrollBy = vi.fn();
+    // A responsive fake scroll: each scrollBy shifts the cards, as the real
+    // document would, so the jump's settle loop converges.
+    let cardBottoms = [300, 300];
+    const scrollBy = vi.fn((opts: ScrollToOptions) => {
+      cardBottoms = cardBottoms.map((b) => b - (opts.top ?? 0));
+      layout(el, 100, cardBottoms);
+    });
     (window as unknown as { scrollBy: unknown }).scrollBy = scrollBy;
-    layout(el, 100, [300, 300]);
+    layout(el, 100, cardBottoms);
     comp.jumpToBucket({ label: 'B', count: 1, firstCursor: 'cA' });
     expect(scrollBy).toHaveBeenCalledTimes(1);
+    expect(scrollBy.mock.calls[0][0].top).toBe(300 - 200 - 100 - 8); // card top (300-200) to just under the rail (100)
     expect(browseLibrary).toHaveBeenCalledTimes(1); // no reload
     expect(comp.activeJump()).toBe('B');
     expect(comp.nodes().length).toBe(2);
