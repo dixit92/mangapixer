@@ -240,8 +240,23 @@ public sealed partial class Program
             // degrade-to-health-only catch used for the rest of initialization. Any
             // pre-migration backup taken by the orchestrator is preserved on the
             // data volume for recovery.
+            //
+            // Apply a pending DB restore BEFORE any connection to the live DB
+            // is opened (1.7.0). An admin uploads a validated backup via
+            // POST /api/v1/operations/restore; the validated file is staged and
+            // a marker written. The atomic swap happens here, at startup, with
+            // no connections open — so the live DB is never overwritten while
+            // in use. On failure the system rolls back to the original DB.
+            com.lifepixer.mangaplex.Server.Operations.RestoreApplyOutcome restoreOutcome =
+                com.lifepixer.mangaplex.Server.Operations.RestoreApplyOutcome.None;
             using (var migrateScope = app.Services.CreateScope())
             {
+                restoreOutcome = com.lifepixer.mangaplex.Server.Operations.DbRestoreService
+                    .ApplyPendingRestoreAsync(dataRoot, databasePath,
+                        migrateScope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+                            .CreateLogger("MangaPlex.DbRestore"))
+                    .GetAwaiter().GetResult();
+
                 var db = migrateScope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
                 var backup = migrateScope.ServiceProvider.GetRequiredService<BackupService>();
                 var dbLogger = migrateScope.ServiceProvider
@@ -261,6 +276,22 @@ public sealed partial class Program
                 {
                     var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
                     DatabaseInitialization.ConfigureDatabaseAsync(db).GetAwaiter().GetResult();
+
+                    // Audit a completed DB restore (1.7.0). The swap happened
+                    // before migrate; the audit row lands in the restored DB.
+                    if (restoreOutcome.Applied)
+                    {
+                        var dbRestore = scope.ServiceProvider.GetRequiredService<com.lifepixer.mangaplex.Server.Operations.DbRestoreService>();
+                        dbRestore.AuditRestoreAsync(
+                            "db_restore", "applied",
+                            restoreOutcome.ActorUserName,
+                            correlationId: null).GetAwaiter().GetResult();
+                    }
+                    else if (restoreOutcome.Failed)
+                    {
+                        Log.Logger.ForContext("EventId", LogEvents.Backup.RestoreRolledBack)
+                            .Warning("Pending DB restore did not apply: {Error}", restoreOutcome.Error ?? "unknown");
+                    }
 
                     // No default credential is created (audit finding F2). On a
                     // fresh instance the first admin is created by the user via

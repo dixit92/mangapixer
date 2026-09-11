@@ -100,6 +100,21 @@ public static class HostingServicesExtensions
         services.AddSingleton<RotatingBackupState>();
         services.AddScoped<RotatingBackupService>();
 
+        // DB backup import/restore (1.7.0). Admin-only upload + validate +
+        // stage; the atomic swap is applied on the next restart (see
+        // Program.cs). Size cap is admin-configurable via
+        // MangaPlex:Backups:MaxRestoreUploadBytes (default 512 MiB).
+        services.AddSingleton(sp =>
+        {
+            var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var options = new DbRestoreOptions();
+            if (long.TryParse(config["MangaPlex:Backups:MaxRestoreUploadBytes"],
+                    System.Globalization.CultureInfo.InvariantCulture, out var cap) && cap > 0)
+                options.MaxUploadBytes = cap;
+            return options;
+        });
+        services.AddScoped<DbRestoreService>();
+
         // Hosted services — order matters for startup recovery, which runs
         // before the worker pool starts dispatching. The thumbnail backfill
         // runs after the worker pool so it can dispatch generation jobs.

@@ -273,6 +273,15 @@ public static class LogEvents
         public const int ScheduledRotatingError = 6017;
 
         public const int MaintenanceFailed = 6020;
+
+        // 1.7.0 DB backup import/restore — staged upload + apply-on-restart
+        public const int RestoreUploadRejected = 6030;
+        public const int RestorePreSnapshotFailed = 6031;
+        public const int RestoreStaged = 6032;
+        public const int RestoreApplyPending = 6033;
+        public const int RestoreApplied = 6034;
+        public const int RestoreApplyFailed = 6035;
+        public const int RestoreRolledBack = 6036;
     }
 
     /// <summary>Admin actions on users and server configuration.</summary>
