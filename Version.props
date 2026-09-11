@@ -59,8 +59,8 @@
          Three additive migrations (activation-token / sort-direction / content-signature);
          no breaking API changes -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.5.x. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>6</MangaPlexVersionMinor>
-    <MangaPlexVersionPatch>2</MangaPlexVersionPatch>
+    <MangaPlexVersionMinor>7</MangaPlexVersionMinor>
+    <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
