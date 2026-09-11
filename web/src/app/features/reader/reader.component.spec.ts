@@ -1018,6 +1018,22 @@ describe('ReaderComponent webtoon auto next/prev chapter (requirement 4)', () =>
     expect(armed(c)).toBeNull();
   });
 
+  it('does not arm from a programmatic scroll (resume-on-entry / scrubber seek)', () => {
+    // Re-opening a finished webtoon chapter resumes at its last page via a
+    // programmatic scroll; that must NOT be treated as the reader scrolling to the
+    // bottom, or it would instantly auto-advance. Same guard covers scrubber seeks.
+    const c = create();
+    c.pages.set(makePages(3));
+    c.view.set('webtoon');
+    c.currentPage.set(1);
+    c.nextNeighbor.set({ id: 'next-item', displayName: 'Chapter 2' });
+    (c as unknown as { lastProgrammaticScrollAt: number }).lastProgrammaticScrollAt = Date.now();
+    useFakeScroller(c, { scrollTop: 1860, clientHeight: 160, scrollHeight: 2020, pageHeights: [1000, 1000, 20] });
+
+    c.onWebtoonScroll();
+    expect(armed(c)).toBeNull(); // programmatic scroll ignored by the edge evaluator
+  });
+
   it('arms previous-chapter only after scrolling back up to the very top', () => {
     const c = create();
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);

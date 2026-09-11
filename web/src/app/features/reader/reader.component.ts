@@ -614,6 +614,12 @@ export class ReaderComponent implements OnInit, OnDestroy {
   private webtoonEdgeTimer: ReturnType<typeof setTimeout> | null = null;
   private webtoonEdgeArmed: 'next' | 'prev' | null = null;
   private webtoonChapterNavigating = false;
+  // A programmatic scroll (resume-to-saved-page on entry, or a scrubber seek) fires
+  // a scroll event indistinguishable from a user scroll. Timestamp it so the edge
+  // evaluator ignores it — otherwise re-opening a finished webtoon chapter (resumed
+  // at its last page) or scrubbing to the end would instantly auto-advance.
+  private static readonly WebtoonProgrammaticScrollMs = 400;
+  private lastProgrammaticScrollAt = 0;
 
   pageUrlFor(entry: ManifestPageEntry | undefined): string {
     return entry ? `/api/v1/items/${this.itemId()}/pages/${encodeURIComponent(entry.entryKey)}` : '';
@@ -1535,6 +1541,10 @@ export class ReaderComponent implements OnInit, OnDestroy {
     if (el.scrollTop > eps) this.webtoonHasScrolled = true;
     this.webtoonLastScrollTop = el.scrollTop;
 
+    // Ignore the scroll event caused by our own programmatic scroll (resume /
+    // scrubber): only a genuine user scroll to an edge should arm an advance.
+    if (Date.now() - this.lastProgrammaticScrollAt < ReaderComponent.WebtoonProgrammaticScrollMs) return;
+
     if (atBottom && this.webtoonHasScrolled && this.nextNeighbor()) {
       this.armWebtoonAdvance('next');
     } else if (atTop && scrollingUp && this.webtoonHasScrolled && this.prevNeighbor()) {
@@ -1579,7 +1589,12 @@ export class ReaderComponent implements OnInit, OnDestroy {
     const el = this.scroller()?.nativeElement;
     if (!el) return;
     const img = el.querySelectorAll<HTMLElement>('.webtoon-page')[index];
-    if (img) el.scrollTop = img.offsetTop;
+    if (img) {
+      // Mark this as programmatic so the ensuing scroll event doesn't arm an
+      // auto-advance (resume-on-entry / scrubber seeks must not jump chapters).
+      this.lastProgrammaticScrollAt = Date.now();
+      el.scrollTop = img.offsetTop;
+    }
   }
 
   private clearPoll(): void {
