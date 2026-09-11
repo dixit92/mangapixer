@@ -725,6 +725,9 @@ public sealed class CatalogBrowseService
             """;
 
         var results = new List<CatalogNodeDto>();
+        // Folder internal id -> public id, so we can resolve folder covers for search
+        // results the same way BrowseAsync does (folders otherwise show no thumbnail).
+        var folderInternalToPublic = new Dictionary<long, string>();
         using var connection = _db.Database.GetDbConnection();
         await connection.OpenAsync(ct);
         using var command = connection.CreateCommand();
@@ -737,22 +740,46 @@ public sealed class CatalogBrowseService
         using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
+            var publicId = reader.GetString(reader.GetOrdinal("PublicId"));
+            var kind = (CatalogNodeKind)reader.GetInt32(reader.GetOrdinal("Kind"));
             results.Add(new CatalogNodeDto
             {
-                Id = reader.GetString(reader.GetOrdinal("PublicId")),
+                Id = publicId,
                 ParentId = reader.IsDBNull(reader.GetOrdinal("ParentPublicId"))
                     ? ""
                     : reader.GetString(reader.GetOrdinal("ParentPublicId")),
                 LibraryId = reader.GetString(reader.GetOrdinal("LibraryPublicId")),
-                Kind = (CatalogNodeKind)reader.GetInt32(reader.GetOrdinal("Kind")),
+                Kind = kind,
                 DisplayName = reader.GetString(reader.GetOrdinal("DisplayName")),
                 Availability = (CatalogNodeAvailability)reader.GetInt32(reader.GetOrdinal("Availability")),
             });
+            if (kind == CatalogNodeKind.Folder)
+                folderInternalToPublic[reader.GetInt64(reader.GetOrdinal("Id"))] = publicId;
         }
 
         var hasMore = results.Count > pageSize;
         if (hasMore)
             results = results.Take(pageSize).ToList();
+
+        // Resolve folder covers for search results (parity with BrowseAsync) - a folder
+        // in search otherwise renders with no thumbnail. Same recursive-CTE cover
+        // resolution (first descendant archive by SortKey) as browse; folders with no
+        // readable descendant stay coverless.
+        if (folderInternalToPublic.Count > 0)
+        {
+            var coversByInternalId = await ResolveFolderCoversAsync(folderInternalToPublic.Keys.ToList(), ct);
+            var coversByPublicId = folderInternalToPublic
+                .Where(kv => coversByInternalId.ContainsKey(kv.Key))
+                .ToDictionary(kv => kv.Value, kv => coversByInternalId[kv.Key]);
+            results = results.Select(n =>
+            {
+                if (n.Kind != CatalogNodeKind.Folder)
+                    return n;
+                if (coversByPublicId.TryGetValue(n.Id, out var coverPublicId))
+                    return n with { CoverUrl = $"/api/v1/items/{coverPublicId}/cover" };
+                return n;
+            }).ToList();
+        }
 
         // Compute total count with a separate query (audit defect D6/D28)
         var countSql = $"""
