@@ -1,5 +1,7 @@
 import { Component, inject } from '@angular/core';
-import { RouterOutlet, RouterLink, Router } from '@angular/router';
+import { RouterOutlet, RouterLink, Router, NavigationEnd } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { filter, map, startWith } from 'rxjs/operators';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -60,7 +62,7 @@ import { IncognitoService } from '../core/incognito/incognito.service';
       }
     </mat-toolbar>
 
-    <main class="content">
+    <main class="content" [class.full-bleed]="isHome()">
       <router-outlet></router-outlet>
     </main>
   `,
@@ -72,7 +74,17 @@ import { IncognitoService } from '../core/incognito/incognito.service';
       margin-right: 16px;
     }
     .spacer { flex: 1 1 auto; }
-    .content { padding: 16px; max-width: 1200px; margin: 0 auto; }
+    /* Density (1.5.0): the old shell hard-capped content at 1200px and centered
+       it, leaving large empty gutters on a normal desktop monitor. It now fills
+       up to --mp-content-max with a responsive side gutter. */
+    .content {
+      padding: var(--mp-gutter-y) var(--mp-gutter);
+      max-width: var(--mp-content-max);
+      margin: 0 auto;
+    }
+    /* Home is full-bleed so its library sidebar can sit on the actual left edge
+       of the window (it manages its own inner padding). */
+    .content.full-bleed { padding: 0; max-width: none; }
     .user-info {
       padding: 8px 16px; font-weight: 500;
       display: flex; align-items: center; gap: 8px; opacity: 0.85;
@@ -84,6 +96,24 @@ export class LayoutComponent {
   readonly auth = inject(AuthService);
   readonly incognito = inject(IncognitoService);
   private readonly router = inject(Router);
+
+  /**
+   * True on the home route (`/`). Home is rendered full-bleed so its library
+   * sidebar reaches the window's left edge; every other route keeps the
+   * width-capped, gutter-padded content column. Tracked reactively off router
+   * navigation (seeded with the current URL for the first paint / a deep link).
+   */
+  private isHomeUrl(): boolean {
+    return this.router.url.split(/[?#]/)[0] === '/';
+  }
+  readonly isHome = toSignal(
+    this.router.events.pipe(
+      filter((e) => e instanceof NavigationEnd),
+      map(() => this.isHomeUrl()),
+      startWith(this.isHomeUrl()),
+    ),
+    { initialValue: this.isHomeUrl() },
+  );
 
   /**
    * Toggles Incognito, then reloads so every already-fetched view re-requests with

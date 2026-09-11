@@ -19,3 +19,25 @@ html, body {
   margin: 0;
   font-family: Roboto, "Helvetica Neue", sans-serif;
 }
+
+/* Additive layout tokens (1.5.0 UI taste pass). Scoped to app chrome/density —
+   NOT a general theming feature (that is deferred). Kept here so the shell and
+   the home sidebar share one source of truth for content width, gutters and the
+   left-nav surface. */
+:root {
+  /* Content column cap. The old shell hard-capped at 1200px, which wasted half a
+     wide desktop monitor; 1600 fills a normal 1440–1536 desktop edge-to-edge and
+     still stops text lines from stretching absurdly on ultrawide displays. */
+  --mp-content-max: 1600px;
+  /* Responsive side gutter: tight on phones, roomier on large desktops. */
+  --mp-gutter: clamp(16px, 2.4vw, 32px);
+  --mp-gutter-y: 20px;
+
+  /* Left-nav (home library sidebar) surface, pinned to the window's left edge. */
+  --mp-nav-width: 224px;
+  --mp-nav-width-collapsed: 60px;
+  --mp-nav-bg: rgba(255, 255, 255, 0.03);
+  --mp-nav-border: rgba(255, 255, 255, 0.08);
+  --mp-accent: #b39dff;
+  --mp-accent-bg: rgba(124, 77, 255, 0.18);
+}

@@ -36,15 +36,26 @@ import { LibraryDto, ContinueReadingEntry } from '../../core/api/api-types';
     CoverImageDirective,
   ],
   template: `
-    <div class="home">
-      <nav class="sidebar" aria-label="Libraries">
+    <div class="home" [class.nav-collapsed]="collapsed()">
+      <nav class="sidebar" [class.collapsed]="collapsed()" aria-label="Libraries">
+        <div class="nav-head">
+          <span class="nav-head-label">Library</span>
+          <button type="button" class="nav-collapse" (click)="toggleCollapsed()"
+                  [matTooltip]="collapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
+                  [attr.aria-label]="collapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
+                  [attr.aria-expanded]="!collapsed()">
+            <mat-icon>{{ collapsed() ? 'chevron_right' : 'chevron_left' }}</mat-icon>
+          </button>
+        </div>
         <button type="button" class="nav-item" [class.active]="selectedLibraryId() === null"
-                (click)="select(null)">
+                (click)="select(null)"
+                [matTooltip]="collapsed() ? 'Home' : ''" matTooltipPosition="right">
           <mat-icon>home</mat-icon><span class="nav-label">Home</span>
         </button>
         @for (lib of libraries(); track lib.id) {
           <button type="button" class="nav-item" [class.active]="selectedLibraryId() === lib.id"
-                  (click)="select(lib.id)">
+                  (click)="select(lib.id)"
+                  [matTooltip]="collapsed() ? lib.name : ''" matTooltipPosition="right">
             <mat-icon>folder</mat-icon>
             <span class="nav-label">{{ lib.name }}</span>
             @if (lib.itemCount !== null) { <span class="nav-count">{{ lib.itemCount }}</span> }
@@ -122,28 +133,65 @@ import { LibraryDto, ContinueReadingEntry } from '../../core/api/api-types';
     </div>
   `,
   styles: [`
-    h2 { margin: 8px 0 12px; }
+    h2 { margin: 0 0 16px; font-size: 24px; font-weight: 600; }
     h3 { margin: 8px 0 12px; }
     .muted { color: #999; font-size: 14px; }
-    /* Plex-pattern two-column layout: library sidebar + main area. Collapses to a
-       horizontal scroll rail above the content on narrow screens. */
-    .home { display: flex; gap: 20px; align-items: flex-start; }
-    .sidebar {
-      flex: 0 0 208px; display: flex; flex-direction: column; gap: 2px;
-      position: sticky; top: 16px;
+    /* Plex-pattern layout (1.5.0 taste pass): the library sidebar is a full-height
+       panel pinned to the actual LEFT EDGE of the window (home is rendered
+       full-bleed by the shell), with the main area to its right. The sidebar is
+       collapsible to an icon rail on desktop; on narrow screens it becomes a
+       horizontal scroll rail above the content. */
+    .home {
+      display: flex; align-items: stretch;
+      min-height: calc(100dvh - 64px); /* 64px = mat-toolbar height */
     }
+    .sidebar {
+      flex: 0 0 var(--mp-nav-width);
+      display: flex; flex-direction: column; gap: 2px;
+      padding: 12px 10px;
+      background: var(--mp-nav-bg);
+      border-right: 1px solid var(--mp-nav-border);
+      position: sticky; top: 0; align-self: flex-start;
+      height: calc(100dvh - 64px);
+      box-sizing: border-box;
+      transition: flex-basis .16s ease;
+    }
+    .sidebar.collapsed { flex-basis: var(--mp-nav-width-collapsed); }
+    .nav-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 2px 6px 8px; min-height: 32px;
+    }
+    .nav-head-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
+      text-transform: uppercase; color: #8a8a99; white-space: nowrap; overflow: hidden;
+    }
+    .sidebar.collapsed .nav-head { justify-content: center; }
+    .sidebar.collapsed .nav-head-label { display: none; }
+    .nav-collapse {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 30px; height: 30px; flex: 0 0 auto;
+      border: none; border-radius: 8px; background: transparent; color: #b8b8c4;
+      cursor: pointer; transition: background .12s ease;
+    }
+    .nav-collapse:hover { background: rgba(255,255,255,0.08); }
+    .nav-collapse mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .nav-item {
       display: flex; align-items: center; gap: 10px;
-      width: 100%; padding: 8px 12px; border: none; border-radius: 8px;
+      width: 100%; padding: 9px 12px; border: none; border-radius: 8px;
       background: transparent; color: inherit; font: inherit; text-align: left;
       cursor: pointer; transition: background .12s ease;
     }
     .nav-item:hover { background: rgba(255,255,255,0.06); }
-    .nav-item.active { background: rgba(124,77,255,0.18); color: #b39dff; }
+    .nav-item.active { background: var(--mp-accent-bg); color: var(--mp-accent); }
     .nav-item mat-icon { font-size: 20px; width: 20px; height: 20px; flex: 0 0 auto; }
     .nav-label { flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .nav-count { flex: 0 0 auto; font-size: 12px; color: #999; }
-    .main { flex: 1 1 auto; min-width: 0; }
+    /* Collapsed rail: icons only, centered; labels/counts hidden (names surface
+       as tooltips). */
+    .sidebar.collapsed .nav-item { justify-content: center; padding: 9px 0; }
+    .sidebar.collapsed .nav-label,
+    .sidebar.collapsed .nav-count { display: none; }
+    .main { flex: 1 1 auto; min-width: 0; padding: var(--mp-gutter-y) var(--mp-gutter); }
     .strip-section { margin-bottom: 28px; }
     .strip { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; }
     .cont-wrap { position: relative; flex: 0 0 auto; width: 140px; }
@@ -175,12 +223,20 @@ import { LibraryDto, ContinueReadingEntry } from '../../core/api/api-types';
     .library-card { cursor: pointer; }
     .lib-icon { font-size: 40px; width: 40px; height: 40px; color: #888; }
 
+    /* Narrow screens: the sidebar becomes a horizontal scroll rail above the
+       content. Collapse is a desktop-only affordance, so the collapsed class is
+       neutralized here and the collapse toggle is hidden. */
     @media (max-width: 700px) {
-      .home { flex-direction: column; }
-      .sidebar {
-        flex: 0 0 auto; flex-direction: row; width: 100%; position: static;
-        overflow-x: auto; padding-bottom: 6px;
+      .home { flex-direction: column; min-height: 0; }
+      .sidebar, .sidebar.collapsed {
+        flex: 0 0 auto; flex-basis: auto; flex-direction: row; width: 100%;
+        height: auto; position: static; align-self: stretch;
+        overflow-x: auto; padding: 8px var(--mp-gutter);
+        border-right: none; border-bottom: 1px solid var(--mp-nav-border);
       }
+      .nav-head { display: none; }
+      .sidebar.collapsed .nav-item { justify-content: flex-start; padding: 8px 12px; }
+      .sidebar.collapsed .nav-label { display: inline; }
       .nav-item { width: auto; white-space: nowrap; }
       .nav-count { display: none; }
     }
@@ -193,6 +249,25 @@ export class HomeComponent implements OnInit {
   readonly libraries = signal<LibraryDto[]>([]);
   readonly continueReading = signal<ContinueReadingEntry[]>([]);
   readonly selectedLibraryId = signal<string | null>(null);
+
+  /**
+   * Desktop sidebar collapse (1.5.0 taste pass). Collapses the library sidebar to
+   * an icon-only rail so the content area can breathe on a normal desktop monitor.
+   * Persisted per device in localStorage; ignored on narrow screens (the sidebar
+   * is a horizontal rail there — see the component's media query).
+   */
+  private static readonly CollapsedKey = 'mangaplex-home-nav-collapsed';
+  readonly collapsed = signal<boolean>(this.loadCollapsed());
+
+  toggleCollapsed(): void {
+    const next = !this.collapsed();
+    this.collapsed.set(next);
+    try { localStorage.setItem(HomeComponent.CollapsedKey, next ? '1' : '0'); } catch { /* private mode */ }
+  }
+
+  private loadCollapsed(): boolean {
+    try { return localStorage.getItem(HomeComponent.CollapsedKey) === '1'; } catch { return false; }
+  }
 
   /** Continue-reading for the selected library, fetched via the per-library endpoint. */
   private readonly libraryContinueReading = signal<ContinueReadingEntry[]>([]);
