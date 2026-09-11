@@ -46,9 +46,21 @@
          $(GitIsDirty)) so images report "1.4.1+sha.<short>" instead of the bare
          "+dirty" fallback; the deploy script's old-image cleanup no longer sends a
          UTF-8 BOM to the remote shell and the script exits 0 on a healthy deploy. -->
+    <!-- 1.5.0 - additive minor over 1.4.1 (post-1.4.1 cycle, 2026-09-11). Five parallel
+         feature lanes plus stabilization: worker-throughput tuning (event-driven concurrent
+         dispatch + reader-slot reservation + config-bound cap); browse sort ascending/
+         descending for every sort; scan speed + content-signature move detection (batch
+         reconcile writes; preserves reading state across moves); new-user onboarding via a
+         one-time activation token; and a UI taste pass (left-edge collapsible sidebar +
+         desktop density), later extended during review with a persistent app-shell library
+         sidebar, current-folder breadcrumb, and reading-direction badges. Also a concurrency
+         fix for the reading-progress upsert (recovers the (UserId,ItemId) unique-index race
+         that caused intermittent 500s) and 7z fixture tests that skip when 7z is absent.
+         Three additive migrations (activation-token / sort-direction / content-signature);
+         no breaking API changes -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.5.x. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>4</MangaPlexVersionMinor>
-    <MangaPlexVersionPatch>1</MangaPlexVersionPatch>
+    <MangaPlexVersionMinor>5</MangaPlexVersionMinor>
+    <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
