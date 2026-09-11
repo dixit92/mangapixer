@@ -36,7 +36,10 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
   ],
   template: `
     <mat-toolbar color="primary">
-      <a routerLink="/" class="brand">MangaPlex</a>
+      <a routerLink="/" class="brand">
+        <img src="assets/icons/icon.svg" alt="" class="brand-mark" />
+        MangaPlex
+      </a>
       <span class="spacer"></span>
 
       @if (auth.isAuthenticated()) {
@@ -82,10 +85,19 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
   `,
   styles: [`
     .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       text-decoration: none;
       color: inherit;
       font-weight: 500;
       margin-right: 16px;
+    }
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      flex: none;
     }
     .spacer { flex: 1 1 auto; }
     /* Two-column app shell (1.5.0): the persistent library sidebar sits on the
