@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, effect, viewChild, ElementRef, NgZone, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -35,6 +35,16 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
  * first if needed) - tap = one, long-press = range fill. "Select all" /
  * "Select all unread" / "Select all read" act over the currently-listed nodes
  * for whole-folder selection.
+ *
+ * Infinite scroll + sticky navigation (1.8.0): the manual "Load More" button is
+ * replaced by an IntersectionObserver sentinel that appends the next cursor page
+ * as the user nears the bottom (the 1.7.3 read-state refresh and the 1.6.2
+ * reuse-strategy scroll retention are untouched - pages are APPENDED via
+ * `nodes.update`, never rebuilt). The A-Z jump rail is sticky just below the
+ * sticky top bar and acts as a scroll-spy position indicator: `activeJump`
+ * tracks the topmost visible card's bucket. Tapping the top bar's neutral area
+ * scrolls the list back to the top. The initial/per-page item count is a
+ * per-user preference (`LibraryViewPreferencesDto.libraryPageSize`).
  */
 @Component({
   selector: 'app-library-browse',
@@ -55,7 +65,8 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     <!-- Sticky top bar: breadcrumbs + Select normally; the merged action set while
          selecting. Sticky so the controls stay reachable when scrolling a long
          folder (touch-friendly — requirement 3). -->
-    <div class="browse-bar" [class.selecting]="selectMode()">
+    <div class="browse-bar" #browseBar [class.selecting]="selectMode()"
+         (click)="onBarClick($event)">
       @if (!selectMode()) {
         <div class="breadcrumbs">
           <!-- Library root is always a clickable crumb. -->
@@ -113,6 +124,15 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               {{ opt.label }}
             </button>
           }
+          <mat-divider></mat-divider>
+          <!-- Initial/per-page item count for the infinite scroll (1.8.0, per-user). -->
+          <span class="menu-caption">Items per load</span>
+          @for (n of pageSizeOptions; track n) {
+            <button mat-menu-item class="page-size-option" (click)="setPageSize(n)">
+              <mat-icon>{{ pageSize() === n ? 'check' : 'format_list_numbered' }}</mat-icon>
+              {{ n }}
+            </button>
+          }
         </mat-menu>
         <button mat-stroked-button class="select-toggle" (click)="toggleSelectMode()">
           <mat-icon>checklist</mat-icon> Select
@@ -161,7 +181,9 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     </div>
 
     @if (jumpBuckets().length > 0) {
-      <nav class="jump-rail" aria-label="Jump to letter">
+      <!-- Sticky (1.8.0): stacked directly under the sticky top bar, whose measured
+           height is the rail's sticky offset, so both follow the user down the page. -->
+      <nav class="jump-rail" aria-label="Jump to letter" [style.top.px]="barHeight()">
         @for (bucket of jumpBuckets(); track bucket.label) {
           <button class="jump-chip" type="button"
                   (click)="jumpToBucket(bucket)"
@@ -239,8 +261,15 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     </div>
 
     @if (hasMore()) {
-      <div class="load-more">
-        <button mat-raised-button (click)="loadMore()">Load More</button>
+      <!-- Infinite-scroll sentinel (1.8.0): observed by an IntersectionObserver that
+           appends the next page as it approaches the viewport. The button is only a
+           fallback for engines without IntersectionObserver. -->
+      <div class="scroll-sentinel" #sentinel>
+        @if (loadingMore()) {
+          <span class="loading-more" role="status">Loading more…</span>
+        } @else if (!autoLoadSupported) {
+          <button mat-raised-button (click)="loadMore()">Load More</button>
+        }
       </div>
     }
   `,
@@ -349,12 +378,19 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     }
     .node-sub { font-size: 12px; color: #999; }
     .empty { color: #999; padding: 32px; text-align: center; }
-    .load-more { text-align: center; margin-top: 16px; }
-    /* A–Z/script jump rail (1.4.0 Lane E). Only shown at library root level. */
+    .scroll-sentinel {
+      min-height: 24px; margin-top: 16px; padding: 8px; text-align: center;
+      color: #999; font-size: 12px;
+    }
+    /* A–Z/script jump rail (1.4.0 Lane E). Only shown at library root level.
+       Sticky (1.8.0): `top` is bound to the measured top-bar height so the rail
+       stacks under the bar; z-index stays below the bar's 20 so the bar wins.
+       Opaque background so cards don't show through while stuck. */
     .jump-rail {
+      position: sticky; z-index: 10;
       display: flex; flex-wrap: wrap; gap: 4px;
       margin-bottom: 12px; padding: 6px 8px;
-      background: rgba(255,255,255,0.03); border-radius: 8px;
+      background: #14141c; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
     }
     .jump-chip {
       min-width: 28px; padding: 4px 8px; border: none; cursor: pointer;
@@ -373,8 +409,10 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     }
   `],
 })
-export class LibraryBrowseComponent implements OnInit {
+export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly zone = inject(NgZone);
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly readState = inject(ReadStateService);
@@ -406,6 +444,42 @@ export class LibraryBrowseComponent implements OnInit {
   readonly currentFolderName = signal('');
   readonly hasMore = signal(false);
   private cursor: string | null = null;
+  /** True while a browse page (initial or append) is in flight; gates the sentinel. */
+  readonly loadingMore = signal(false);
+  /** Monotonic request generation: a response from a superseded load is dropped. */
+  private loadGen = 0;
+  /**
+   * Whether the loaded window starts at the listing's first item (cursor null).
+   * A jump-rail click for a letter that is already loaded scrolls to it in place
+   * only in that case; after a mid-list cursor jump the true first item of a
+   * bucket may lie before the window, so the cursor reload is used instead.
+   */
+  private loadedFromStart = true;
+  /** IntersectionObserver is absent in some engines (and jsdom); then the fallback button shows. */
+  readonly autoLoadSupported = typeof IntersectionObserver !== 'undefined';
+  private readonly sentinel = viewChild<ElementRef<HTMLElement>>('sentinel');
+  private sentinelObserver: IntersectionObserver | null = null;
+
+  /**
+   * Initial/per-page item count (1.8.0, per-user). Replaces the former hardcoded
+   * 50. Persisted as `libraryPageSize`; 0/absent/out-of-range resolves to the
+   * default so pre-1.8.0 rows and older clients behave as before.
+   */
+  readonly defaultPageSize = 50;
+  readonly pageSizeOptions = [25, 50, 100, 200];
+  readonly pageSizeMin = 10;
+  readonly pageSizeMax = 500;
+  readonly pageSize = signal<number>(this.defaultPageSize);
+
+  /** Measured height of the sticky top bar: the jump rail's sticky offset. */
+  readonly barHeight = signal(0);
+  private readonly browseBar = viewChild<ElementRef<HTMLElement>>('browseBar');
+  private barResize: ResizeObserver | null = null;
+
+  // Scroll-spy (1.8.0): the element whose scroll events drive the active letter.
+  private scrollTarget: HTMLElement | Window | null = null;
+  private scrollSpyFrame: number | null = null;
+  private readonly onScroll = (): void => this.scheduleScrollSpy();
 
   // Jump-index rail (1.4.0 Lane E). Only loaded at the library root (no parentId);
   // subfolders don't have a per-folder jump index. The rail is a name-sort
@@ -490,7 +564,25 @@ export class LibraryBrowseComponent implements OnInit {
     return this.nodes().filter((n) => ids.has(n.id) && n.kind === 'Folder').length;
   });
 
+  constructor() {
+    // The sentinel lives inside `@if (hasMore())`, so it comes and goes; re-arm the
+    // observer on the element the view query currently resolves to.
+    effect(() => this.observeSentinel(this.sentinel()?.nativeElement ?? null));
+    // The top bar's height depends on wrapping/selection state; measure it live so
+    // the rail's sticky offset stays exact.
+    effect(() => this.observeBarHeight(this.browseBar()?.nativeElement ?? null));
+    // A new page or a rail change moves the bucket boundaries: recompute.
+    effect(() => { this.nodes(); this.jumpBuckets(); this.scheduleScrollSpy(); });
+  }
+
   ngOnInit(): void {
+    // Scroll-spy listener (1.8.0). Registered outside the zone: scroll fires many
+    // times per second and the handler only writes a signal (rAF-throttled), which
+    // schedules change detection on its own; no per-event zone turn is needed.
+    this.scrollTarget = this.scrollParent() ?? (typeof window !== 'undefined' ? window : null);
+    this.zone.runOutsideAngular(() =>
+      this.scrollTarget?.addEventListener('scroll', this.onScroll, { passive: true }));
+
     // 1.7.1 stale-read-status fix: subscribed ONCE here, so it stays alive across
     // the 1.6.2 reuse strategy's detach/reattach round-trip through the reader
     // (ngOnInit never re-runs on reattach — that's the whole point of retaining
@@ -534,6 +626,15 @@ export class LibraryBrowseComponent implements OnInit {
     });
   }
 
+  ngOnDestroy(): void {
+    this.scrollTarget?.removeEventListener('scroll', this.onScroll);
+    this.sentinelObserver?.disconnect();
+    this.barResize?.disconnect();
+    if (this.scrollSpyFrame !== null && typeof cancelAnimationFrame !== 'undefined') {
+      cancelAnimationFrame(this.scrollSpyFrame);
+    }
+  }
+
   /** Sort-specific default direction, matching the server's fallback (1.5.0). */
   private defaultDirectionFor(sort: LibrarySortOrder): LibrarySortDirection {
     return sort === 'name' ? 'asc' : 'desc';
@@ -551,6 +652,13 @@ export class LibraryBrowseComponent implements OnInit {
     this.viewMode.set(p.viewMode === 'list' ? 'list' : 'card');
     this.density.set(p.density === 'compact' ? 'compact' : 'comfortable');
     this.cardSize.set(this.resolveCardSize(p));
+    this.pageSize.set(this.resolvePageSize(p));
+  }
+
+  /** Stored libraryPageSize when it is a sane integer, else the default (50). */
+  private resolvePageSize(p: LibraryViewPreferencesDto): number {
+    const n = Number(p.libraryPageSize);
+    return Number.isInteger(n) && n >= this.pageSizeMin && n <= this.pageSizeMax ? n : this.defaultPageSize;
   }
 
   /**
@@ -576,10 +684,7 @@ export class LibraryBrowseComponent implements OnInit {
       const parentId = params.get('nodeId');
       this.libraryId.set(libId);
       this.parentId.set(parentId);
-      this.cursor = null;
-      this.nodes.set([]);
-      this.activeJump.set(null);
-      this.clearSelection();
+      this.resetList();
       this.loadLibraryName(libId);
       this.loadNodes();
       // The jump rail is a library-root navigation aid (1.4.0 Lane E). It is
@@ -606,15 +711,162 @@ export class LibraryBrowseComponent implements OnInit {
   }
 
   /**
-   * Jump to a bucket: set the cursor to the bucket's firstCursor and reload
-   * from the top. A null cursor means the start of the listing (first page).
+   * Jump to a bucket. If the window was loaded from the listing start and the
+   * bucket's first item is already loaded, just scroll to it (1.8.0 - no reload,
+   * nothing lost). Otherwise set the cursor to the bucket's firstCursor and
+   * reload from the top (a null cursor means the start of the listing).
    */
   jumpToBucket(bucket: JumpIndexBucketDto): void {
-    this.cursor = bucket.firstCursor;
-    this.nodes.set([]);
-    this.clearSelection();
     this.activeJump.set(bucket.label);
+    if (this.loadedFromStart) {
+      const index = this.nodes().findIndex((n) => jumpLabelFor(n.displayName) === bucket.label);
+      if (index !== -1 && this.scrollToCard(index)) return;
+    }
+    this.cursor = bucket.firstCursor;
+    this.loadedFromStart = bucket.firstCursor === null;
+    this.nodes.set([]);
+    this.hasMore.set(false);
+    this.clearSelection();
     this.loadNodes();
+    this.scrollToTop('auto');
+  }
+
+  /**
+   * Scroll-spy (1.8.0): set `activeJump` to the bucket of the topmost visible
+   * card - the first card whose bottom edge clears the sticky bar + rail stack.
+   * Cards in a grid row share that edge, so within the first visible row the
+   * current label is kept if any card in the row carries it: the indicator
+   * doesn't flip on a row that merely ends the previous letter, and a click
+   * that scrolled to a letter's first card shows that letter even when an
+   * earlier card shares its row. Public so tests can drive it synchronously.
+   */
+  updateActiveJump(): void {
+    if (this.jumpBuckets().length === 0) return;
+    const hostEl = this.host.nativeElement;
+    if (!hostEl.isConnected) return; // detached by the reuse strategy: nothing visible
+    const nodes = this.nodes();
+    const cards = hostEl.querySelectorAll<HTMLElement>('.node-wrap');
+    if (nodes.length === 0 || cards.length !== nodes.length) return;
+
+    const threshold = this.stickyBottom();
+    // Cards are in document order, so their bottom edges are non-decreasing:
+    // binary-search the first one that ends below the sticky stack.
+    let lo = 0, hi = cards.length - 1, first = cards.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (cards[mid].getBoundingClientRect().bottom > threshold) { first = mid; hi = mid - 1; }
+      else lo = mid + 1;
+    }
+    const rowBottom = cards[first].getBoundingClientRect().bottom;
+    const current = this.activeJump();
+    let label = jumpLabelFor(nodes[first].displayName);
+    for (let i = first; i < cards.length && Math.abs(cards[i].getBoundingClientRect().bottom - rowBottom) < 1; i++) {
+      if (jumpLabelFor(nodes[i].displayName) === current) { label = current; break; }
+    }
+    this.activeJump.set(label);
+  }
+
+  /**
+   * Tap the top bar's neutral area to scroll back to the top (1.8.0). Clicks on
+   * the breadcrumb links, the slider, and the View/Select/action buttons are
+   * left alone (their own handlers run; no scroll).
+   */
+  onBarClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('a, button, input, label, .size-control, [role="menuitem"]')) return;
+    this.scrollToTop('smooth');
+  }
+
+  /** Scroll the list's actual scroll container (the window unless an ancestor scrolls) to the top. */
+  scrollToTop(behavior: ScrollBehavior = 'smooth'): void {
+    const target = this.scrollParent() ?? (typeof window !== 'undefined' ? window : null);
+    try { target?.scrollTo({ top: 0, behavior }); } catch { /* jsdom: scrollTo not implemented */ }
+  }
+
+  /** Scroll so the card at `index` sits just under the sticky bar + rail. False if it isn't rendered. */
+  private scrollToCard(index: number): boolean {
+    const card = this.host.nativeElement.querySelectorAll<HTMLElement>('.node-wrap')[index];
+    if (!card) return false;
+    const target = this.scrollParent() ?? (typeof window !== 'undefined' ? window : null);
+    const delta = card.getBoundingClientRect().top - this.stickyBottom() - 8;
+    try { target?.scrollBy({ top: delta, behavior: 'auto' }); } catch { /* jsdom */ }
+    return true;
+  }
+
+  /**
+   * The nearest scrolling ancestor, or null when the document itself scrolls
+   * (today's layout: `main.content` has no overflow, so the window is the
+   * container the reuse strategy's scroll restoration retains).
+   */
+  private scrollParent(): HTMLElement | null {
+    if (typeof getComputedStyle === 'undefined') return null;
+    let el = this.host.nativeElement.parentElement;
+    while (el && el !== document.body && el !== document.documentElement) {
+      const oy = getComputedStyle(el).overflowY;
+      if (oy === 'auto' || oy === 'scroll') return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  /** Viewport-y of the bottom edge of the sticky stack (rail if shown, else the bar). */
+  private stickyBottom(): number {
+    const rail = this.host.nativeElement.querySelector<HTMLElement>('.jump-rail');
+    if (rail) return rail.getBoundingClientRect().bottom;
+    return this.browseBar()?.nativeElement.getBoundingClientRect().bottom ?? 0;
+  }
+
+  private scheduleScrollSpy(): void {
+    if (this.scrollSpyFrame !== null || typeof requestAnimationFrame === 'undefined') return;
+    this.scrollSpyFrame = requestAnimationFrame(() => {
+      this.scrollSpyFrame = null;
+      this.updateActiveJump();
+    });
+  }
+
+  /** (Re)attach the infinite-scroll observer to the current sentinel element. */
+  private observeSentinel(el: HTMLElement | null): void {
+    this.sentinelObserver?.disconnect();
+    this.sentinelObserver = null;
+    if (!el || !this.autoLoadSupported) return;
+    // The root margin pre-fetches a screen or so before the sentinel is in view.
+    this.sentinelObserver = new IntersectionObserver(
+      (entries) => { if (entries.some((e) => e.isIntersecting)) this.loadMore(); },
+      { root: this.scrollParent(), rootMargin: '0px 0px 600px 0px' });
+    this.sentinelObserver.observe(el);
+  }
+
+  /**
+   * IntersectionObserver reports threshold CROSSINGS only: after a short page is
+   * appended the sentinel may still be inside the margin without ever leaving it,
+   * so nothing would fire again. Re-observing yields a fresh entry for the
+   * current state, which loads the next page when it is still needed.
+   */
+  private rearmSentinel(): void {
+    const el = this.sentinel()?.nativeElement;
+    if (!el || !this.sentinelObserver) return;
+    this.sentinelObserver.unobserve(el);
+    this.sentinelObserver.observe(el);
+  }
+
+  private observeBarHeight(el: HTMLElement | null): void {
+    this.barResize?.disconnect();
+    this.barResize = null;
+    if (!el) return;
+    this.barHeight.set(el.offsetHeight);
+    if (typeof ResizeObserver === 'undefined') return;
+    this.barResize = new ResizeObserver(() => this.barHeight.set(el.offsetHeight));
+    this.barResize.observe(el);
+  }
+
+  /** Reset the list window to "not loaded": cursor, nodes, paging, rail state, selection. */
+  private resetList(): void {
+    this.cursor = null;
+    this.loadedFromStart = true;
+    this.nodes.set([]);
+    this.hasMore.set(false);
+    this.activeJump.set(null);
+    this.clearSelection();
   }
 
   /** Resolve the library's display name for the breadcrumb root (reader-accessible). */
@@ -625,8 +877,21 @@ export class LibraryBrowseComponent implements OnInit {
     });
   }
 
+  /** Append the next page (sentinel callback / fallback button). No-op while one is in flight. */
   loadMore(): void {
+    if (this.loadingMore() || !this.hasMore()) return;
     this.loadNodes();
+  }
+
+  /** Change the initial/per-page count (1.8.0): persist and reload from the top at the new size. */
+  setPageSize(n: number): void {
+    const size = Number.isInteger(n) && n >= this.pageSizeMin && n <= this.pageSizeMax ? n : this.defaultPageSize;
+    if (this.pageSize() === size) return;
+    this.pageSize.set(size);
+    this.persistView();
+    this.resetList();
+    this.loadNodes();
+    this.scrollToTop('auto');
   }
 
   getNodeLink(node: CatalogNodeDto): string[] {
@@ -685,10 +950,7 @@ export class LibraryBrowseComponent implements OnInit {
     if (this.sort() === s) return;
     this.sort.set(s);
     this.persistView();
-    this.cursor = null;
-    this.nodes.set([]);
-    this.activeJump.set(null);
-    this.clearSelection();
+    this.resetList();
     this.loadNodes();
     // The jump rail is only valid for the name sort in ascending order (the
     // cursor is a raw SortKey that assumes A→Z order; other sorts ignore it).
@@ -701,10 +963,7 @@ export class LibraryBrowseComponent implements OnInit {
     if (this.sortDirection() === d) return;
     this.sortDirection.set(d);
     this.persistView();
-    this.cursor = null;
-    this.nodes.set([]);
-    this.activeJump.set(null);
-    this.clearSelection();
+    this.resetList();
     this.loadNodes();
     if (this.sort() === 'name' && d === 'asc' && !this.parentId()) this.loadJumpIndex(this.libraryId());
     else this.jumpBuckets.set([]);
@@ -717,6 +976,7 @@ export class LibraryBrowseComponent implements OnInit {
       sort: this.sort(),
       direction: this.sortDirection(),
       cardSize: String(this.cardSize()),
+      libraryPageSize: this.pageSize(),
     }).subscribe({ error: () => { /* non-fatal: the choice still applies this session */ } });
   }
 
@@ -1000,16 +1260,24 @@ export class LibraryBrowseComponent implements OnInit {
     const libId = this.libraryId();
     if (!libId) return;
 
-    // Initial page (no cursor) replaces; "Load more" (cursor set) appends. Replacing
-    // on the initial load keeps a stray concurrent load from duplicating rows.
+    // Initial page (no cursor) replaces; infinite-scroll pages (cursor set) APPEND
+    // through `nodes.update`, so `@for (track node.id)` only inserts the new cards
+    // and the retained DOM/scroll position is untouched. A response from a load
+    // that a later reset superseded (folder change, sort, page size) is dropped.
     const initial = this.cursor === null;
-    this.api.browseLibrary(libId, this.parentId(), this.cursor, 50, this.sort(), this.sortDirection()).subscribe({
+    const gen = ++this.loadGen;
+    this.loadingMore.set(true);
+    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
+        if (gen !== this.loadGen) return;
         this.nodes.update((current) => initial ? [...response.items] : [...current, ...response.items]);
         this.hasMore.set(response.hasMore);
         this.cursor = response.nextCursor;
+        this.loadingMore.set(false);
         if (initial) this.nextUnread.set(response.nextUnread ?? null);
+        if (response.hasMore) this.rearmSentinel();
       },
+      error: () => { if (gen === this.loadGen) this.loadingMore.set(false); },
     });
   }
 
@@ -1068,4 +1336,43 @@ export class LibraryBrowseComponent implements OnInit {
       error: () => this.currentFolderName.set(''),
     });
   }
+}
+
+/**
+ * Client-side port of the server's `JumpIndexService.BucketLabelFor` (1.8.0
+ * scroll-spy). The browse DTO carries no bucket, so the rail's active letter is
+ * derived from the visible card's display name with the same rules the server
+ * used to build the buckets: skip a small set of leading punctuation, Latin
+ * letters -> A-Z, digits -> "#", recognised script blocks -> their group label,
+ * anything else -> "Other". Keep in sync with the server when the rules change.
+ */
+export function jumpLabelFor(displayName: string): string {
+  if (!displayName) return 'Other';
+  const skippable = ' \t"\'()[]{}-_.,!?*#@~';
+  let i = 0;
+  while (i < displayName.length) {
+    const ch = displayName[i];
+    if (/[\p{L}\p{Nd}]/u.test(ch)) break;
+    if (skippable.includes(ch)) { i++; continue; }
+    break;
+  }
+  if (i >= displayName.length) return 'Other';
+
+  const cp = displayName.codePointAt(i)!;
+  if ((cp >= 0x41 && cp <= 0x5a) || (cp >= 0x61 && cp <= 0x7a)) {
+    return String.fromCodePoint(cp).toUpperCase();
+  }
+  if (/\p{Nd}/u.test(displayName[i])) return '#';
+
+  const c = cp;
+  if ((c >= 0x3040 && c <= 0x30ff) || (c >= 0xff65 && c <= 0xff9f)) return 'Kana';
+  if ((c >= 0x1100 && c <= 0x11ff) || (c >= 0xac00 && c <= 0xd7af) || (c >= 0x3130 && c <= 0x318f)) return 'Hangul';
+  if ((c >= 0x4e00 && c <= 0x9fff) || (c >= 0x3400 && c <= 0x4dbf) ||
+      (c >= 0x20000 && c <= 0x2ffff) || (c >= 0x2e80 && c <= 0x2eff) || (c >= 0x2f00 && c <= 0x2fdf)) return 'CJK';
+  if (c >= 0x0400 && c <= 0x052f) return 'Cyrillic';
+  if ((c >= 0x0370 && c <= 0x03ff) || (c >= 0x1f00 && c <= 0x1fff)) return 'Greek';
+  if ((c >= 0x0600 && c <= 0x06ff) || (c >= 0x0750 && c <= 0x077f)) return 'Arabic';
+  if (c >= 0x0590 && c <= 0x05ff) return 'Hebrew';
+  if (c >= 0x0e00 && c <= 0x0e7f) return 'Thai';
+  return 'Other';
 }

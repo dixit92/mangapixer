@@ -2057,6 +2057,10 @@
           },
           "cardSize": {
             "type": "string"
+          },
+          "libraryPageSize": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },

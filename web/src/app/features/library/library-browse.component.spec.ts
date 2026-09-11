@@ -6,7 +6,7 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError, Subject } from 'rxjs';
 
-import { LibraryBrowseComponent } from './library-browse.component';
+import { LibraryBrowseComponent, jumpLabelFor } from './library-browse.component';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
@@ -930,5 +930,328 @@ describe('LibraryBrowseComponent continue-row refresh (1.7.3)', () => {
 
     expect(() => readState.notifyChanged('ch1')).not.toThrow();
     expect(comp.nextUnread()?.id).toBe('ch1');
+  });
+});
+
+/**
+ * Infinite scroll + sticky navigation (1.8.0). The manual "Load More" is
+ * replaced by an IntersectionObserver sentinel; the jump rail is sticky with a
+ * scroll-spy active letter; tapping the top bar's neutral area scrolls to the
+ * top; the initial/per-page count is a per-user preference. jsdom has no
+ * IntersectionObserver/ResizeObserver, so a recording fake is installed where
+ * a test needs one (the component treats their absence as "fallback button").
+ */
+describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
+  type IoCallback = (entries: { isIntersecting: boolean }[]) => void;
+  class FakeIntersectionObserver {
+    static instances: FakeIntersectionObserver[] = [];
+    readonly observe = vi.fn();
+    readonly unobserve = vi.fn();
+    readonly disconnect = vi.fn();
+    constructor(readonly cb: IoCallback, readonly opts?: IntersectionObserverInit) {
+      FakeIntersectionObserver.instances.push(this);
+    }
+    /** Simulate the sentinel entering the root margin. */
+    intersect(): void { this.cb([{ isIntersecting: true }]); }
+  }
+
+  function node(id: string, displayName = id): CatalogNodeDto {
+    return {
+      id, parentId: 'p', libraryId: 'lib1', kind: 'Archive', displayName,
+      availability: 'Available', coverUrl: null, childFolderCount: null, childArchiveCount: null,
+      pageCount: 10, readingState: 'Unread', lastReadPage: null, readerDefault: null, isRead: false,
+      readRollup: null,
+    } as CatalogNodeDto;
+  }
+
+  function page(items: CatalogNodeDto[], nextCursor: string | null): PageResponse<CatalogNodeDto> {
+    return { items, totalCount: items.length, nextCursor, hasMore: nextCursor !== null };
+  }
+
+  function setup(opts: {
+    prefs?: Partial<LibraryViewPreferencesDto>;
+    browse?: (...args: unknown[]) => unknown;
+    buckets?: JumpIndexBucketDto[];
+    withIntersectionObserver?: boolean;
+  } = {}) {
+    if (opts.withIntersectionObserver) {
+      FakeIntersectionObserver.instances = [];
+      vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+    }
+    const prefs = { viewMode: 'card', density: 'comfortable', sort: 'name', ...opts.prefs } as LibraryViewPreferencesDto;
+    const browseLibrary = vi.fn(opts.browse ?? (() => of(page([], null))));
+    const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
+    const apiSpy = {
+      getLibraryPreferences: vi.fn().mockReturnValue(of(prefs)),
+      setLibraryPreferences,
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      browseLibrary,
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: opts.buckets ?? [] })),
+      getReadMark: vi.fn().mockReturnValue(of({ itemId: '', isRead: false })),
+      getProgress: vi.fn().mockReturnValue(of(null)),
+    };
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: { isAdmin: () => false } },
+        { provide: ReadStateService, useValue: new ReadStateService() },
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : null) }) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges();
+    return { fixture, comp: fixture.componentInstance, browseLibrary, setLibraryPreferences, el: fixture.nativeElement as HTMLElement };
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  // --- bucket label port ---
+
+  it('jumpLabelFor mirrors the server bucketing (Latin, leading noise, digits, scripts, other)', () => {
+    expect(jumpLabelFor('berserk')).toBe('B');
+    expect(jumpLabelFor('[Archive] Apple')).toBe('A');
+    expect(jumpLabelFor('"The" Thing')).toBe('T');
+    expect(jumpLabelFor('20th Century Boys')).toBe('#');
+    expect(jumpLabelFor('ワンピース')).toBe('Kana');
+    expect(jumpLabelFor('나루토')).toBe('Hangul');
+    expect(jumpLabelFor('進撃の巨人')).toBe('CJK');
+    expect(jumpLabelFor('Война')).toBe('Cyrillic');
+    expect(jumpLabelFor('★☆')).toBe('Other');
+    expect(jumpLabelFor('')).toBe('Other');
+    expect(jumpLabelFor('...')).toBe('Other');
+  });
+
+  // --- infinite scroll ---
+
+  it('renders a sentinel (and no Load More button) while more pages exist', () => {
+    const { el } = setup({ withIntersectionObserver: true, browse: () => of(page([node('a')], 'c1')) });
+    expect(el.querySelector('.scroll-sentinel')).not.toBeNull();
+    expect(el.querySelector('.scroll-sentinel button')).toBeNull();
+  });
+
+  it('shows no sentinel once the last page is loaded', () => {
+    const { el } = setup({ withIntersectionObserver: true, browse: () => of(page([node('a')], null)) });
+    expect(el.querySelector('.scroll-sentinel')).toBeNull();
+  });
+
+  it('appends the next page (never rebuilds) when the sentinel intersects, then re-arms the observer', () => {
+    let call = 0;
+    const { comp, browseLibrary, fixture } = setup({
+      withIntersectionObserver: true,
+      browse: () => of(call++ === 0 ? page([node('a')], 'c1') : page([node('b')], null)),
+    });
+    expect(FakeIntersectionObserver.instances.length).toBe(1);
+    const io = FakeIntersectionObserver.instances[0];
+    expect(io.observe).toHaveBeenCalledTimes(1);
+    expect(io.opts?.rootMargin).toContain('600px');
+
+    const before = comp.nodes()[0];
+    io.intersect();
+    fixture.detectChanges();
+
+    expect(browseLibrary).toHaveBeenCalledTimes(2);
+    expect(browseLibrary.mock.calls[1][2]).toBe('c1'); // cursor of the next page
+    expect(comp.nodes().map((n) => n.id)).toEqual(['a', 'b']);
+    expect(comp.nodes()[0]).toBe(before); // same object: the existing card is untouched
+    expect(comp.hasMore()).toBe(false);
+    expect(fixture.nativeElement.querySelector('.scroll-sentinel')).toBeNull();
+  });
+
+  it('re-observes the sentinel after an append that still has more (crossing-only observer semantics)', () => {
+    let call = 0;
+    const { fixture } = setup({
+      withIntersectionObserver: true,
+      browse: () => of(call++ === 0 ? page([node('a')], 'c1') : page([node('b')], 'c2')),
+    });
+    const io = FakeIntersectionObserver.instances[0];
+    io.intersect();
+    fixture.detectChanges();
+    expect(io.unobserve).toHaveBeenCalledTimes(1);
+    expect(io.observe).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not double-load while a page is in flight', () => {
+    const pending = new Subject<PageResponse<CatalogNodeDto>>();
+    let call = 0;
+    const { comp, browseLibrary } = setup({
+      withIntersectionObserver: true,
+      browse: () => (call++ === 0 ? of(page([node('a')], 'c1')) : pending.asObservable()),
+    });
+    const io = FakeIntersectionObserver.instances[0];
+    io.intersect();
+    io.intersect();
+    comp.loadMore();
+    expect(browseLibrary).toHaveBeenCalledTimes(2);
+    expect(comp.loadingMore()).toBe(true);
+    pending.next(page([node('b')], null));
+    expect(comp.loadingMore()).toBe(false);
+    expect(comp.nodes().length).toBe(2);
+  });
+
+  it('drops a late append response when the list was reset meanwhile (sort change)', () => {
+    const pending = new Subject<PageResponse<CatalogNodeDto>>();
+    let call = 0;
+    const { comp } = setup({
+      withIntersectionObserver: true,
+      browse: () => {
+        const n = call++;
+        if (n === 0) return of(page([node('a')], 'c1'));
+        if (n === 1) return pending.asObservable();       // the append, still in flight
+        return of(page([node('z')], null));               // the reload after setSort
+      },
+    });
+    FakeIntersectionObserver.instances[0].intersect();
+    comp.setSort('recentlyAdded');
+    expect(comp.nodes().map((n) => n.id)).toEqual(['z']);
+    pending.next(page([node('b')], null)); // stale
+    expect(comp.nodes().map((n) => n.id)).toEqual(['z']);
+    expect(comp.loadingMore()).toBe(false);
+  });
+
+  it('falls back to a Load More button when IntersectionObserver is unavailable', () => {
+    const { el, comp } = setup({ browse: () => of(page([node('a')], 'c1')) });
+    expect(comp.autoLoadSupported).toBe(false);
+    expect(el.querySelector('.scroll-sentinel button')).not.toBeNull();
+  });
+
+  // --- initial-count preference ---
+
+  it('requests the stored libraryPageSize for the initial page', () => {
+    const { browseLibrary } = setup({ prefs: { libraryPageSize: 100 } });
+    expect(browseLibrary.mock.calls[0][3]).toBe(100);
+  });
+
+  it('falls back to 50 when libraryPageSize is unset, 0, or out of range', () => {
+    expect(setup({}).browseLibrary.mock.calls[0][3]).toBe(50);
+    TestBed.resetTestingModule();
+    expect(setup({ prefs: { libraryPageSize: 0 } }).browseLibrary.mock.calls[0][3]).toBe(50);
+    TestBed.resetTestingModule();
+    expect(setup({ prefs: { libraryPageSize: 5000 } }).browseLibrary.mock.calls[0][3]).toBe(50);
+  });
+
+  it('setPageSize persists the choice and reloads from the top at the new size', () => {
+    const { comp, browseLibrary, setLibraryPreferences } = setup({ browse: () => of(page([node('a')], 'c1')) });
+    comp.setPageSize(200);
+    expect(comp.pageSize()).toBe(200);
+    expect(setLibraryPreferences).toHaveBeenCalledWith(expect.objectContaining({ libraryPageSize: 200 }));
+    const last = browseLibrary.mock.calls.at(-1)!;
+    expect(last[2]).toBeNull(); // from the top
+    expect(last[3]).toBe(200);
+  });
+
+  it('setPageSize with the current value is a no-op (no persist, no reload)', () => {
+    const { comp, browseLibrary, setLibraryPreferences } = setup({});
+    comp.setPageSize(50);
+    expect(setLibraryPreferences).not.toHaveBeenCalled();
+    expect(browseLibrary).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers the page-size choices in the View menu model', () => {
+    const { comp } = setup({});
+    expect(comp.pageSizeOptions).toEqual([25, 50, 100, 200]);
+  });
+
+  // --- tap top bar -> scroll to top ---
+
+  it('tapping the top bar\'s neutral area scrolls the window to the top', () => {
+    const { el } = setup({});
+    const scrollTo = vi.fn();
+    vi.stubGlobal('scrollTo', scrollTo);
+    (window as unknown as { scrollTo: unknown }).scrollTo = scrollTo;
+    (el.querySelector('.browse-bar') as HTMLElement).click();
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 0 }));
+  });
+
+  it('does not hijack the breadcrumb link or the buttons in the bar', () => {
+    const { el } = setup({});
+    const scrollTo = vi.fn();
+    (window as unknown as { scrollTo: unknown }).scrollTo = scrollTo;
+    const link = el.querySelector('.breadcrumbs a') as HTMLElement;
+    link.addEventListener('click', (e) => e.preventDefault()); // don't navigate in the test
+    link.click();
+    (el.querySelector('.select-toggle') as HTMLElement).click();
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  // --- sticky rail + scroll-spy ---
+
+  it('binds the rail\'s sticky offset to the measured top-bar height', () => {
+    const { comp, el, fixture } = setup({ buckets: [{ label: 'A', count: 1, firstCursor: null }] });
+    comp.barHeight.set(57);
+    fixture.detectChanges();
+    expect((el.querySelector('.jump-rail') as HTMLElement).style.top).toBe('57px');
+  });
+
+  /** Fake layout: the rail's bottom edge and each card's bottom edge, in viewport px. */
+  function layout(el: HTMLElement, railBottom: number, cardBottoms: number[]): void {
+    const rail = el.querySelector('.jump-rail') as HTMLElement;
+    rail.getBoundingClientRect = () => ({ bottom: railBottom, top: railBottom - 40 } as DOMRect);
+    const cards = el.querySelectorAll<HTMLElement>('.node-wrap');
+    expect(cards.length).toBe(cardBottoms.length);
+    cards.forEach((c, i) => { c.getBoundingClientRect = () => ({ bottom: cardBottoms[i], top: cardBottoms[i] - 200 } as DOMRect); });
+  }
+
+  it('scroll-spy marks the bucket of the topmost card still below the sticky stack', () => {
+    const { comp, el } = setup({
+      buckets: [{ label: 'A', count: 2, firstCursor: null }, { label: 'B', count: 1, firstCursor: 'cA' }],
+      browse: () => of(page([node('a1', 'Alpha'), node('a2', 'Apex'), node('b1', 'Beta')], null)),
+    });
+    // Row 1 (Alpha, Apex) has scrolled under the rail; row 2 (Beta) is the first visible.
+    layout(el, 100, [80, 80, 300]);
+    comp.updateActiveJump();
+    expect(comp.activeJump()).toBe('B');
+
+    // Scrolled back up: row 1 visible again.
+    layout(el, 100, [250, 250, 470]);
+    comp.updateActiveJump();
+    expect(comp.activeJump()).toBe('A');
+  });
+
+  it('scroll-spy keeps the current letter while a row that ends it is still the first visible row', () => {
+    const { comp, el } = setup({
+      buckets: [{ label: 'A', count: 1, firstCursor: null }, { label: 'B', count: 1, firstCursor: 'cA' }],
+      browse: () => of(page([node('a1', 'Alpha'), node('b1', 'Beta')], null)),
+    });
+    // One row holding [Alpha, Beta]; the user jumped to B, so B stays highlighted.
+    comp.activeJump.set('B');
+    layout(el, 100, [300, 300]);
+    comp.updateActiveJump();
+    expect(comp.activeJump()).toBe('B');
+    // Without a current letter in that row, the row's first card wins.
+    comp.activeJump.set(null);
+    comp.updateActiveJump();
+    expect(comp.activeJump()).toBe('A');
+  });
+
+  it('a rail click for a letter already loaded from the start scrolls in place instead of reloading', () => {
+    const { comp, el, browseLibrary } = setup({
+      buckets: [{ label: 'A', count: 1, firstCursor: null }, { label: 'B', count: 1, firstCursor: 'cA' }],
+      browse: () => of(page([node('a1', 'Alpha'), node('b1', 'Beta')], null)),
+    });
+    const scrollBy = vi.fn();
+    (window as unknown as { scrollBy: unknown }).scrollBy = scrollBy;
+    layout(el, 100, [300, 300]);
+    comp.jumpToBucket({ label: 'B', count: 1, firstCursor: 'cA' });
+    expect(scrollBy).toHaveBeenCalledTimes(1);
+    expect(browseLibrary).toHaveBeenCalledTimes(1); // no reload
+    expect(comp.activeJump()).toBe('B');
+    expect(comp.nodes().length).toBe(2);
+  });
+
+  it('a rail click for a letter outside the loaded window still reloads from the bucket cursor', () => {
+    const { comp, browseLibrary } = setup({
+      buckets: [{ label: 'A', count: 1, firstCursor: null }, { label: 'Z', count: 1, firstCursor: 'cY' }],
+      browse: () => of(page([node('a1', 'Alpha')], 'c1')),
+    });
+    comp.jumpToBucket({ label: 'Z', count: 1, firstCursor: 'cY' });
+    expect(browseLibrary).toHaveBeenCalledTimes(2);
+    expect(browseLibrary.mock.calls[1][2]).toBe('cY');
+    expect(comp.activeJump()).toBe('Z');
   });
 });

@@ -218,6 +218,11 @@ export interface LibraryViewPreferencesDto {
   viewMode: string;
   density: string;
   sort: string;
+  /**
+   * Optional (1.8.0): the per-user initial/per-page item count for the browse
+   * view's infinite scroll. 0/omitted/unrecognized → the frontend default (50).
+   */
+  libraryPageSize?: number;
   /** Optional (1.5.0): omitted/unrecognized falls back to the sort-specific default. */
   direction?: string;
   /**
