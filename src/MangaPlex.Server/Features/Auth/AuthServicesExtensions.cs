@@ -15,7 +15,19 @@ public static class AuthServicesExtensions
     /// <summary>
     /// Registers all authentication and authorization services.
     /// </summary>
-    public static IServiceCollection AddMangaPlexAuth(this IServiceCollection services, string databasePath)
+    /// <param name="services">The service collection.</param>
+    /// <param name="databasePath">Path to the SQLite database file.</param>
+    /// <param name="rateLimitDisabledOverride">
+    /// Test-only override for <see cref="LoginRateLimitOptions.Disabled"/>,
+    /// taking precedence over the bound <c>MangaPlex:Security:RateLimit:Disabled</c>
+    /// configuration value when non-null (1.9.0 Lane C — test-host-isolation;
+    /// see <c>TestHostStorageOverride</c>). Always null in production, where
+    /// the configuration-bound value is used unchanged.
+    /// </param>
+    public static IServiceCollection AddMangaPlexAuth(
+        this IServiceCollection services,
+        string databasePath,
+        bool? rateLimitDisabledOverride = null)
     {
         // IHttpContextAccessor — required by SignInManager
         services.AddHttpContextAccessor();
@@ -110,6 +122,8 @@ public static class AuthServicesExtensions
             var config = sp.GetService<Microsoft.Extensions.Configuration.IConfiguration>();
             var options = new LoginRateLimitOptions();
             config?.GetSection("MangaPlex:Security:RateLimit").Bind(options);
+            if (rateLimitDisabledOverride is not null)
+                options.Disabled = rateLimitDisabledOverride.Value;
             return options;
         });
         // First-run setup. No default credential is created at startup

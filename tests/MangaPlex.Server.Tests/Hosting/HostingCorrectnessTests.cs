@@ -1,11 +1,11 @@
 namespace com.lifepixer.mangaplex.Tests.Server.Hosting;
 
 using com.lifepixer.mangaplex.Server.Features.Auth;
+using com.lifepixer.mangaplex.Server.Hosting;
 using com.lifepixer.mangaplex.Server.Media;
 using com.lifepixer.mangaplex.Server.Operations;
 using com.lifepixer.mangaplex.Server.Persistence;
 using com.lifepixer.mangaplex.Server.Persistence.Entities;
-using com.lifepixer.mangaplex.TestSupport.Hosting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -21,6 +21,21 @@ using Xunit;
 /// DateTimeOffset translation, cache eviction without spurious warnings,
 /// and schema validation against the bumped version.
 /// </summary>
+/// <remarks>
+/// In the "HttpSerial" collection (1.9.0 Lane C) alongside every other
+/// WebApplicationFactory-booting Server.Tests class. This is unrelated to
+/// storage isolation (each host already gets its own DataRoot via
+/// TestHostStorageOverride) — it exists because EVERY host boot
+/// unconditionally reassigns the process-global Serilog <c>Log.Logger</c>
+/// static in <c>Program.Main</c>, and this test's factory
+/// (<see cref="C00WebApplicationFactory"/>) wraps whatever logger is
+/// current at boot time with its own collecting sink. A concurrently
+/// booting host from a different collection can clobber that wrapper (or
+/// have its own logger clobbered) mid-test, which is exactly what
+/// surfaced as an intermittent failure here once assembly-level
+/// parallelization was restored (see TestParallelization.cs).
+/// </remarks>
+[Collection("HttpSerial")]
 public sealed class HostingCorrectnessTests
 {
     // (a) WebApplicationFactory test: startup log has no "Startup recovery
@@ -341,21 +356,23 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
         Directory.CreateDirectory(Path.Combine(_tempRoot, "cache"));
         Directory.CreateDirectory(Path.Combine(_tempRoot, "scratch"));
 
-        // Serialize env-set + host boot across parallel factories (see
-        // TestHostBootGate). The storage env vars are process-global and
-        // Program.Main reads them at the top of Main, before ConfigureWebHost
-        // runs, so they must be ours at the moment of boot — otherwise a
-        // parallel factory can overwrite them first and both hosts resolve
-        // the same SQLite file, colliding on CREATE TABLE audit_events.
-        using (TestHostBootGate.Acquire())
-        {
-            Environment.SetEnvironmentVariable("MangaPlex__Storage__DataRoot", Path.Combine(_tempRoot, "data"));
-            Environment.SetEnvironmentVariable("MangaPlex__Storage__CacheRoot", Path.Combine(_tempRoot, "cache"));
-            Environment.SetEnvironmentVariable("MangaPlex__Storage__ScratchRoot", Path.Combine(_tempRoot, "scratch"));
-            Environment.SetEnvironmentVariable("Media__WorkerExecutablePath", "");
-            Environment.SetEnvironmentVariable("MangaPlex__Security__RateLimit__Disabled", "true");
+        // Non-global storage-injection seam (1.9.0 Lane C): push this
+        // factory's storage roots as the ambient TestHostStorageOverride for
+        // the duration of the synchronous host boot below — see the remarks
+        // on MangaPlexWebApplicationFactory and TestHostStorageOverride for
+        // why this (and not ConfigureAppConfiguration or an env var) is what
+        // actually reaches Program.Main in time, race-free under parallel
+        // factory boots.
+        var storageOverride = new StorageRootOverride(
+            DataRoot: Path.Combine(_tempRoot, "data"),
+            CacheRoot: Path.Combine(_tempRoot, "cache"),
+            ScratchRoot: Path.Combine(_tempRoot, "scratch"),
+            WorkerExecutablePath: "",
+            RateLimitDisabled: true);
 
-            // Force the host to boot now while our env vars are in effect.
+        using (TestHostStorageOverride.Push(storageOverride))
+        {
+            // Force the host to boot now while the override is in effect.
             // The throwaway client is disposed at once; the host stays alive
             // until this factory is disposed.
             using var bootClient = CreateClient();
@@ -400,12 +417,6 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
             // Restore the original logger
             if (_originalLogger is not null)
                 Log.Logger = _originalLogger;
-
-            Environment.SetEnvironmentVariable("MangaPlex__Storage__DataRoot", null);
-            Environment.SetEnvironmentVariable("MangaPlex__Storage__CacheRoot", null);
-            Environment.SetEnvironmentVariable("MangaPlex__Storage__ScratchRoot", null);
-            Environment.SetEnvironmentVariable("Media__WorkerExecutablePath", null);
-            Environment.SetEnvironmentVariable("MangaPlex__Security__RateLimit__Disabled", null);
 
             try { Directory.Delete(_tempRoot, true); } catch { }
         }
