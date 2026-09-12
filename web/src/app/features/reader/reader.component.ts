@@ -12,6 +12,8 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 
 import { ApiService } from '../../core/api/api.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
+import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
+import { ReaderSettingsMenuComponent } from './reader-settings-menu.component';
 import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode } from '../../core/api/api-types';
 
 type ReaderPhase = 'preparing' | 'ready' | 'error';
@@ -89,6 +91,7 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     MatSliderModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
+    ReaderSettingsMenuComponent,
   ],
   template: `
     <div class="reader-container">
@@ -163,6 +166,14 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
             </button>
           }
 
+          @if (view() !== 'webtoon') {
+            <!-- 1.9.0 page-transition picker (Slide / Reveal / None). A separate
+                 component so the reader only needs this one-line wiring point; it
+                 pins the chrome while its menu is open, like the mode/fit menus. -->
+            <app-reader-settings-menu
+              (opened)="menuOpen.set(true)" (closed)="onMenuClosed()"></app-reader-settings-menu>
+          }
+
           <button mat-icon-button (click)="toggleHelp()" matTooltip="Reading help" aria-label="Reading help">
             <mat-icon>help_outline</mat-icon>
           </button>
@@ -234,9 +245,14 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
             <mat-spinner class="page-spinner" diameter="36"></mat-spinner>
           }
           <div class="spread-row" [class.rtl-flow]="direction() === 'rtl'"
-               [class.dragging]="swipeDx() !== 0"
+               [class.dragging]="swipeDx() !== 0 || committing()"
                [style.transform]="swipeDx() !== 0 ? 'translateX(' + swipeDx() + 'px)' : null">
             @for (entry of currentSpreadEntries(); track entry.entryKey) {
+              <!-- 1.9.0 page-turn transition. The <img> is re-created on every page
+                   change (track entryKey), so a CSS keyframe on the fresh element
+                   plays exactly once per turn — no Angular animations dep. The enter
+                   side is reading-direction aware (navEnter); reveal needs no side.
+                   prefers-reduced-motion disables it in CSS regardless of setting. -->
               <img
                 [src]="pageUrlFor(entry)"
                 [class.fit-screen]="fitMode() === 'screen'"
@@ -244,6 +260,10 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
                 [class.fit-height]="fitMode() === 'height'"
                 [class.original]="fitMode() === 'original'"
                 [class.paired]="currentSpreadEntries().length > 1"
+                [class.anim-slide]="pageAnimActive() && prefs.pageAnimation() === 'slide'"
+                [class.anim-reveal]="pageAnimActive() && prefs.pageAnimation() === 'reveal'"
+                [class.from-right]="navEnter() === 'from-right'"
+                [class.from-left]="navEnter() === 'from-left'"
                 (load)="onPageLoaded()"
                 (error)="onPageError()"
                 draggable="false"
@@ -534,8 +554,30 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
       padding: 1px 6px; font-family: monospace; font-size: 12px;
     }
     .help-dismiss { margin: 12px 0 0; opacity: 0.65; font-size: 13px; text-align: center; }
+    /* 1.9.0 page-turn transition (paged / spread). GPU-friendly: only transform +
+       opacity animate, so there is no layout thrash. The incoming <img> is a fresh
+       element each turn, so the keyframe plays once on mount. 'Slide' eases the new
+       page in from the direction of travel (navEnter); 'Reveal' is a quick fade. */
+    .spread-row img.anim-slide.from-right { animation: mp-slide-from-right .22s cubic-bezier(.22,.61,.36,1) both; }
+    .spread-row img.anim-slide.from-left  { animation: mp-slide-from-left  .22s cubic-bezier(.22,.61,.36,1) both; }
+    .spread-row img.anim-reveal           { animation: mp-reveal           .2s ease both; }
+    @keyframes mp-slide-from-right {
+      from { transform: translate3d(22%, 0, 0); opacity: 0.35; }
+      to   { transform: translate3d(0, 0, 0);   opacity: 1; }
+    }
+    @keyframes mp-slide-from-left {
+      from { transform: translate3d(-22%, 0, 0); opacity: 0.35; }
+      to   { transform: translate3d(0, 0, 0);    opacity: 1; }
+    }
+    @keyframes mp-reveal {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
     @media (prefers-reduced-motion: reduce) {
       .reader-toolbar, .progress-fill { transition: none; }
+      /* Fall back to an instant page swap when the reader prefers reduced motion,
+         regardless of the chosen transition. */
+      .spread-row img.anim-slide, .spread-row img.anim-reveal { animation: none; }
     }
   `],
 })
@@ -546,6 +588,8 @@ export class ReaderComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly readState = inject(ReadStateService);
+  // Public so the template can read the persisted page-transition preference.
+  readonly prefs = inject(ReaderPreferencesService);
 
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
   private readonly viewport = viewChild<ElementRef<HTMLElement>>('viewport');
@@ -586,6 +630,43 @@ export class ReaderComponent implements OnInit, OnDestroy {
   readonly helpVisible = signal(false);
   readonly leftZoneLabel = computed(() => this.direction() === 'rtl' ? 'Next page' : 'Previous page');
   readonly rightZoneLabel = computed(() => this.direction() === 'rtl' ? 'Previous page' : 'Next page');
+
+  // --- Page-turn transition (1.9.0) ---
+  // `navEnter` is the PHYSICAL edge the incoming page eases in from, resolved from
+  // the travel direction and the reading direction (see enterSideForNav). It is set
+  // just before `currentPage` changes so the freshly mounted <img> carries the right
+  // class. `committing` suppresses the swipe spring-back transition for one turn so a
+  // completed swipe hands straight off to the slide-in instead of snapping the old
+  // page back to centre first (the 1.8.x jank this feature removes).
+  readonly navEnter = signal<'from-right' | 'from-left' | null>(null);
+  readonly committing = signal(false);
+  private commitTimer: ReturnType<typeof setTimeout> | null = null;
+  // Guards the one-shot onboarding help auto-show so it fires at most once per
+  // reader instance (localStorage stops it recurring across instances/sessions).
+  private autoHelpChecked = false;
+
+  /**
+   * Whether a page-turn transition should play right now. Off when the preference
+   * is 'none', while scrubbing (rapid page swaps would strobe), and when the page
+   * overflows horizontally or is pinch-zoomed (you don't slide a zoomed-in page,
+   * and it keeps the transform inside the viewport so it never adds a scrollbar).
+   */
+  readonly pageAnimActive = computed(() =>
+    this.prefs.pageAnimation() !== 'none'
+    && this.view() !== 'webtoon'
+    && !this.scrubbing()
+    && !this.overflowsX()
+    && !this.zoomed());
+
+  /**
+   * The physical edge a newly shown page enters from. Forward travel (next page)
+   * enters from the right in LTR and from the left in RTL (manga); backward travel
+   * mirrors it. Pure, so it is unit-testable without the DOM.
+   */
+  enterSideForNav(forward: boolean): 'from-right' | 'from-left' {
+    const fromRight = forward !== (this.direction() === 'rtl');
+    return fromRight ? 'from-right' : 'from-left';
+  }
 
   // Adjacent chapters (archives in the same folder), for auto-advance past the last
   // page (next) and before the first page (previous). Fetched per item from the
@@ -816,6 +897,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
     window.visualViewport?.removeEventListener('resize', this.onVisualViewportChange);
     this.clearPoll();
     if (this.webtoonSaveTimer) clearTimeout(this.webtoonSaveTimer);
+    if (this.commitTimer) clearTimeout(this.commitTimer);
     this.clearHideTimer();
     this.saveProgress();
     // 1.7.1: tell the retained browse view this item's read/progress state may
@@ -946,6 +1028,22 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
   closeHelp(): void { this.helpVisible.set(false); }
 
+  /**
+   * One-shot onboarding: on the first reader open on this device, surface the help
+   * overlay so the (otherwise invisible) tap zones and shortcuts are discoverable,
+   * then mark it seen so it never auto-shows again. Guarded per-instance
+   * (`autoHelpChecked`) so opening more chapters in the same session doesn't re-run
+   * the check; persistence is per-device via localStorage (no backend preference).
+   */
+  private maybeAutoShowHelp(): void {
+    if (this.autoHelpChecked) return;
+    this.autoHelpChecked = true;
+    if (this.prefs.hasSeenHelp()) return;
+    this.prefs.markHelpSeen();
+    this.helpVisible.set(true);
+    this.revealChrome(); // keep the toolbar up behind the overlay
+  }
+
   @HostListener('document:mousemove', ['$event'])
   onPointerMove(e: MouseEvent): void {
     if (this.phase() !== 'ready') return;
@@ -1049,6 +1147,10 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.phase.set('ready');
     // Show the chrome briefly on entry, then let it auto-hide for immersion.
     this.revealChrome();
+    // Onboarding (1.9.0): auto-show the help overlay the FIRST time this device
+    // opens the reader, then remember it (localStorage, per-device) so it never
+    // auto-shows again. The '?' button still reopens it manually any time.
+    this.maybeAutoShowHelp();
     this.prefetchAround(index);
     if (this.view() === 'webtoon') {
       // Warm the first few pages ahead on entry (before any scroll fires).
@@ -1302,6 +1404,9 @@ export class ReaderComponent implements OnInit, OnDestroy {
   private goToPage(index: number): void {
     const clamped = Math.min(Math.max(index, 0), this.pageCount() - 1);
     if (clamped === this.currentPage()) return;
+    // Resolve the transition enter-side from the travel direction before the page
+    // swaps, so the freshly mounted <img> animates in from the correct edge.
+    this.navEnter.set(this.enterSideForNav(clamped > this.currentPage()));
     this.currentPage.set(clamped);
     this.pageLoading.set(true);
     this.prefetchAround(clamped);
@@ -1528,7 +1633,24 @@ export class ReaderComponent implements OnInit, OnDestroy {
     );
     if (!action) return;
     this.lastSwipeAt = Date.now(); // suppress the follow-up ghost click on the zones
+    // A completed swipe drag hands straight off to the slide-in: keep the row's
+    // transition suppressed (committing) so the old page doesn't spring back to
+    // centre before the new page animates in. No-op when the page didn't visibly
+    // drag (a flick) — there's nothing to spring back.
+    if (dragged) this.beginCommit();
     action === 'next' ? this.nextPage() : this.prevPage();
+  }
+
+  /**
+   * Suppress the spread-row spring-back transition for the duration of one page
+   * turn, so a swipe commit flows into the incoming-page transition instead of
+   * snapping the outgoing page back to centre first. Cleared on a timer just past
+   * the transition length.
+   */
+  private beginCommit(): void {
+    this.committing.set(true);
+    if (this.commitTimer) clearTimeout(this.commitTimer);
+    this.commitTimer = setTimeout(() => this.committing.set(false), 240);
   }
 
   /**
