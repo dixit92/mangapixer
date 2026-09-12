@@ -357,11 +357,11 @@ describe('LibraryBrowseComponent card view', () => {
 });
 
 /**
- * Mark-unread fix (1.6.0). Clearing the sticky read-mark is a no-op for an item
- * that was opened but never marked read (InProgress, no read-mark), so it would
- * stay "reading". The selection-mode mark-unread path must ALSO reset progress for
- * InProgress archives so they leave the browse "Reading" badge and the
- * continue-reading strip.
+ * Mark-unread (1.9.0). Clearing the sticky read-mark is now a deliberate FULL RESET
+ * server-side (DELETE .../read wipes both the mark and the reading position), so the
+ * browse mark-unread path no longer issues a separate resetProgress call (rule 6
+ * retirement) — it just calls setItemRead(id, false) and patches the card back to
+ * Unread. No UI action can leave a read-badge-with-no-position state.
  */
 describe('LibraryBrowseComponent mark unread', () => {
   function archive(id: string, state: ReadingState | null, isRead = false): CatalogNodeDto {
@@ -414,21 +414,23 @@ describe('LibraryBrowseComponent mark unread', () => {
     comp.selected.set(new Set(comp.nodes().map((n) => n.id)));
   }
 
-  it('resets progress for an InProgress archive when marking unread and clears its Reading state', () => {
+  it('clears an InProgress archive to Unread when marking unread, via the single clear call', () => {
     const { comp, setItemRead, resetProgress } = setup([archive('a1', 'InProgress')]);
     selectAll(comp);
 
     comp.bulkMarkRead(false);
 
     expect(setItemRead).toHaveBeenCalledWith('a1', false);
-    expect(resetProgress).toHaveBeenCalledWith('a1');
+    // Rule 6: the old compensating resetProgress call is retired — the single-item
+    // clear now performs the full reset server-side.
+    expect(resetProgress).not.toHaveBeenCalled();
     const node = comp.nodes().find((n) => n.id === 'a1')!;
     expect(node.readingState).toBe('Unread');
     expect(node.lastReadPage).toBeNull();
     expect(node.isRead).toBe(false);
   });
 
-  it('does not reset progress for an archive that is not InProgress', () => {
+  it('patches any marked-unread archive to Unread (no separate progress reset)', () => {
     const { comp, setItemRead, resetProgress } = setup([archive('a2', 'Unread')]);
     selectAll(comp);
 
@@ -436,9 +438,12 @@ describe('LibraryBrowseComponent mark unread', () => {
 
     expect(setItemRead).toHaveBeenCalledWith('a2', false);
     expect(resetProgress).not.toHaveBeenCalled();
+    const node = comp.nodes().find((n) => n.id === 'a2')!;
+    expect(node.readingState).toBe('Unread');
+    expect(node.isRead).toBe(false);
   });
 
-  it('never resets progress when marking READ (the intended mark-read path is unchanged)', () => {
+  it('marks READ without any progress reset call (mark-read path stays a mark op)', () => {
     const { comp, setItemRead, resetProgress } = setup([archive('a3', 'InProgress')]);
     selectAll(comp);
 

@@ -1019,9 +1019,14 @@ export class ReaderComponent implements OnInit, OnDestroy {
     this.api.getProgress(this.itemId()).subscribe({
       next: (progress) => {
         this.revision = progress.revision;
+        // 1.9.0 open-position rule: the server resolves where a READ archive should
+        // open (finished-on-last-page / "always open read from start") into
+        // openPageIndex, non-destructively. Unread/Reading items resume as before
+        // (openPageIndex == pageIndex). Older servers omit it — fall back to pageIndex.
+        const resume = progress.openPageIndex ?? progress.pageIndex;
         const start = this.landOnLastPage
           ? last
-          : Math.min(Math.max(progress.pageIndex, 0), last);
+          : Math.min(Math.max(resume, 0), last);
         this.consumeLandIntent();
         this.showPage(start);
       },

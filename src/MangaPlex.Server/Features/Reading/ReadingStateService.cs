@@ -57,9 +57,21 @@ public sealed class ReadingStateService
 
         var item = await _db.ArchiveItems.FirstOrDefaultAsync(a => a.NodeId == itemId, ct);
 
+        // 1.9.0 open-position rule: a READ archive (one carrying a read-mark) reopens
+        // from the start in the "finished on the last page" / opted-in cases. Computed
+        // here, non-destructively — the stored Ordinal is never rewritten — so the rule
+        // is observable over HTTP and toggling the preference is instant and reversible.
+        var hasMark = await _db.ReadMarks.AnyAsync(m => m.UserId == userId && m.ItemId == itemId, ct);
+        var alwaysFromStart = hasMark && await _db.ReaderPreferences
+            .Where(p => p.UserId == userId)
+            .Select(p => p.AlwaysOpenReadFromStart)
+            .FirstOrDefaultAsync(ct);
+
         if (progress is null)
         {
-            // No progress record — return unread state instead of null
+            // No progress record — return unread state instead of null. OpenPageIndex is
+            // 0 either way (no saved position; a marked-but-unpositioned item also opens
+            // at page 1 — the PageCount-unknown manual-mark edge, rule 3).
             return new ReadingProgressDto
             {
                 ItemId = OpaqueId.Encode(itemId),
@@ -69,6 +81,7 @@ public sealed class ReadingStateService
                 State = ReadingState.Unread,
                 Revision = 0,
                 IsStale = false,
+                OpenPageIndex = 0,
             };
         }
 
@@ -83,7 +96,32 @@ public sealed class ReadingStateService
             State = (ReadingState)progress.State,
             Revision = progress.Revision,
             IsStale = isStale,
+            OpenPageIndex = ComputeOpenPageIndex(hasMark, progress.Ordinal, item?.PageCount, alwaysFromStart),
         };
+    }
+
+    /// <summary>
+    /// Computes the page index the reader should OPEN at (1.9.0), keyed off POSITION
+    /// (Ordinal vs PageCount) rather than the Completed enum so it is robust to the
+    /// re-read State-flip. See <see cref="ReadingProgressDto.OpenPageIndex"/>.
+    /// </summary>
+    internal static int ComputeOpenPageIndex(bool hasMark, int ordinal, int? pageCount, bool alwaysOpenReadFromStart)
+    {
+        // No read-mark (Unread/Reading): resume exactly where the user left off.
+        if (!hasMark)
+            return ordinal < 0 ? 0 : ordinal;
+
+        // Read archive, finished on the last page: always reopen from the start,
+        // regardless of the preference.
+        if (pageCount is int pc && pc > 0 && ordinal >= pc - 1)
+            return 0;
+
+        // Read archive, mid-position: start from page 1 only when opted in; otherwise
+        // resume the saved (re-read) spot.
+        if (alwaysOpenReadFromStart)
+            return 0;
+
+        return ordinal < 0 ? 0 : ordinal;
     }
 
     /// <summary>
@@ -317,6 +355,16 @@ public sealed class ReadingStateService
     /// <summary>
     /// Sets or clears the sticky read-mark for a single item. Idempotent.
     /// Returns false only if the user lacks access to the item.
+    ///
+    /// 1.9.0 semantics:
+    /// - <paramref name="read"/> == true (manual mark-read): add the sticky mark AND
+    ///   record progress Completed at the last page (when PageCount is known), so the
+    ///   item reopens at page 1 via the universal open-position rule and drops out of
+    ///   continue-reading — identical to finishing by reaching the last page (rule 3).
+    /// - <paramref name="read"/> == false (clear mark): a deliberate full RESET — wipe
+    ///   BOTH the mark and the reading position so the item returns to Unread and
+    ///   reopens at page 1 (rule 1), via the shared <see cref="ResetItemsStateAsync"/>
+    ///   primitive that single-item, multi-select and folder "unread" all use.
     /// </summary>
     public async Task<bool> SetItemReadAsync(
         long userId,
@@ -327,35 +375,116 @@ public sealed class ReadingStateService
         if (!await _auth.CanAccessItemAsync(userId, itemId, ct))
             return false;
 
-        var existing = await _db.ReadMarks
-            .FirstOrDefaultAsync(m => m.UserId == userId && m.ItemId == itemId, ct);
-
-        if (read && existing is null)
+        if (read)
         {
-            _db.ReadMarks.Add(new ReadMarkEntity
-            {
-                UserId = userId,
-                ItemId = itemId,
-                MarkedAt = DateTimeOffset.UtcNow,
-                Source = "manual",
-            });
+            await EnsureReadMarkTrackedAsync(userId, itemId, "manual", ct);
+            await MarkProgressReadAtEndTrackedAsync(userId, itemId, ct);
             await _db.SaveChangesAsync(ct);
         }
-        else if (!read && existing is not null)
+        else
         {
-            _db.ReadMarks.Remove(existing);
-            await _db.SaveChangesAsync(ct);
+            await ResetItemsStateAsync(userId, new[] { itemId }, ct);
         }
 
         return true;
     }
 
     /// <summary>
+    /// Shared reset primitive (1.9.0): removes BOTH the sticky read-mark and the
+    /// reading-progress row for each of <paramref name="itemIds"/> belonging to
+    /// <paramref name="userId"/>, so the items return to Unread and reopen at page 1.
+    /// Used by the single-item clear, multi-select unread (which goes through the
+    /// single-item path per archive), and folder unread. Returns the number of distinct
+    /// items that actually had a mark or a progress row removed (an item that had
+    /// neither was already unread). Commits once.
+    /// </summary>
+    private async Task<int> ResetItemsStateAsync(
+        long userId,
+        IReadOnlyCollection<long> itemIds,
+        CancellationToken ct)
+    {
+        if (itemIds.Count == 0)
+            return 0;
+
+        var marks = await _db.ReadMarks
+            .Where(m => m.UserId == userId && itemIds.Contains(m.ItemId))
+            .ToListAsync(ct);
+        var progress = await _db.ReadingProgress
+            .Where(p => p.UserId == userId && itemIds.Contains(p.ItemId))
+            .ToListAsync(ct);
+
+        if (marks.Count == 0 && progress.Count == 0)
+            return 0;
+
+        _db.ReadMarks.RemoveRange(marks);
+        _db.ReadingProgress.RemoveRange(progress);
+
+        var affected = new HashSet<long>(marks.Select(m => m.ItemId));
+        foreach (var p in progress)
+            affected.Add(p.ItemId);
+
+        await _db.SaveChangesAsync(ct);
+        return affected.Count;
+    }
+
+    /// <summary>
+    /// Records reading progress as Completed at the last page for a manual mark-read
+    /// (rule 3), WITHOUT saving — the caller commits it. When PageCount is unknown the
+    /// last page can't be computed, so this is a no-op and the read-mark alone stands
+    /// (the open-position rule still reopens a marked item at page 1). Tracked alongside
+    /// the read-mark so both commit atomically.
+    /// </summary>
+    private async Task MarkProgressReadAtEndTrackedAsync(long userId, long itemId, CancellationToken ct)
+    {
+        var item = await _db.ArchiveItems.FirstOrDefaultAsync(a => a.NodeId == itemId, ct);
+        if (item?.PageCount is not int pageCount || pageCount <= 0)
+            return;
+
+        var lastPage = pageCount - 1;
+        var now = DateTimeOffset.UtcNow;
+        var progress = await _db.ReadingProgress
+            .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == itemId, ct);
+
+        if (progress is null)
+        {
+            _db.ReadingProgress.Add(new ReadingProgressEntity
+            {
+                UserId = userId,
+                ItemId = itemId,
+                ContentVersion = item.ContentVersion,
+                EntryKey = OpaqueId.Encode(lastPage),
+                Ordinal = lastPage,
+                NormalizedAnchor = 0.0,
+                State = (int)ReadingState.Completed,
+                Revision = 1,
+                LastMutationId = string.Empty,
+                UpdatedAt = now,
+                CompletedAt = now,
+            });
+        }
+        else
+        {
+            progress.ContentVersion = item.ContentVersion;
+            progress.EntryKey = OpaqueId.Encode(lastPage);
+            progress.Ordinal = lastPage;
+            progress.State = (int)ReadingState.Completed;
+            progress.Revision++;
+            progress.UpdatedAt = now;
+            progress.CompletedAt ??= now;
+            // Finished => no longer mid-read; the read-mark already excludes it from
+            // continue-reading, but keep the dismiss flag out of the way of a later
+            // genuine re-read (forward progress clears it again via UpdateProgressAsync).
+            progress.HiddenFromContinue = false;
+        }
+    }
+
+    /// <summary>
     /// Sets or clears read-marks in bulk across every readable descendant archive of a
     /// folder. Returns null if the node is missing, not a folder, or inaccessible.
-    /// When clearing (read: false), also resets reading_progress for each descendant
-    /// archive (1.6.1) — mirroring the single-item ResetProgressAsync fix — so that
-    /// InProgress archives return to Unread and the folder read-rollup recomputes.
+    /// When clearing (read: false), performs the full reset of each descendant archive
+    /// via the shared <see cref="ResetItemsStateAsync"/> primitive (1.9.0; folder-scale
+    /// form of the single-item clear) — removing both the read-mark and reading_progress
+    /// so InProgress archives return to Unread and the derived folder rollup recomputes.
     /// </summary>
     public async Task<BulkReadMarkResultDto?> SetFolderReadAsync(
         long userId,
@@ -375,15 +504,15 @@ public sealed class ReadingStateService
         if (archiveIds.Count == 0)
             return new BulkReadMarkResultDto { Affected = 0, Total = 0 };
 
-        var already = await _db.ReadMarks
-            .Where(m => m.UserId == userId && archiveIds.Contains(m.ItemId))
-            .Select(m => m.ItemId)
-            .ToListAsync(ct);
-        var alreadySet = already.ToHashSet();
-
         int affected;
         if (read)
         {
+            var already = await _db.ReadMarks
+                .Where(m => m.UserId == userId && archiveIds.Contains(m.ItemId))
+                .Select(m => m.ItemId)
+                .ToListAsync(ct);
+            var alreadySet = already.ToHashSet();
+
             var now = DateTimeOffset.UtcNow;
             var toAdd = archiveIds.Where(id => !alreadySet.Contains(id)).ToList();
             foreach (var id in toAdd)
@@ -397,36 +526,19 @@ public sealed class ReadingStateService
                 });
             }
             affected = toAdd.Count;
+            if (affected > 0)
+                await _db.SaveChangesAsync(ct);
         }
         else
         {
-            // 1.6.1: the bulk UNREAD path must also reset reading_progress for each
-            // descendant archive. Clearing a read-mark is a no-op for an InProgress
-            // archive with no read-mark, so reading_progress keeps State = InProgress
-            // and the folder read-rollup stays "Reading". Mirror the single-item fix
-            // (ResetProgressAsync deletes the progress row -> Unread) so a folder-unread
-            // returns descendants to Unread and the rollup recomputes to Unread.
-            // The MARK-READ path above is unchanged.
-            var toRemove = await _db.ReadMarks
-                .Where(m => m.UserId == userId && archiveIds.Contains(m.ItemId))
-                .ToListAsync(ct);
-            _db.ReadMarks.RemoveRange(toRemove);
-
-            var progressToRemove = await _db.ReadingProgress
-                .Where(p => p.UserId == userId && archiveIds.Contains(p.ItemId))
-                .ToListAsync(ct);
-            _db.ReadingProgress.RemoveRange(progressToRemove);
-
-            // Affected = distinct archives that had either a read-mark or a
-            // progress row removed (an archive with neither was already unread).
-            var affectedItems = new HashSet<long>(toRemove.Select(m => m.ItemId));
-            foreach (var p in progressToRemove)
-                affectedItems.Add(p.ItemId);
-            affected = affectedItems.Count;
+            // Folder "unread" is a full reset of every descendant archive — the
+            // folder-scale form of the single-item clear (rule 1). Delegated to the
+            // shared ResetItemsStateAsync primitive so single-item, multi-select and
+            // folder unread all produce the identical Unread-and-reopen-at-page-1 outcome
+            // (removes mark + progress; descendants return to Unread and the derived
+            // folder rollup recomputes). The MARK-READ path above is unchanged.
+            affected = await ResetItemsStateAsync(userId, archiveIds, ct);
         }
-
-        if (affected > 0)
-            await _db.SaveChangesAsync(ct);
 
         return new BulkReadMarkResultDto { Affected = affected, Total = archiveIds.Count };
     }
@@ -676,6 +788,7 @@ public sealed class ReadingStateService
             PreferDoubleSpread = prefs.PreferDoubleSpread,
             ReducedMotion = prefs.ReducedMotion,
             PreferredBackground = prefs.PreferredBackground,
+            AlwaysOpenReadFromStart = prefs.AlwaysOpenReadFromStart,
         };
     }
 
@@ -698,6 +811,7 @@ public sealed class ReadingStateService
                 PreferDoubleSpread = preferences.PreferDoubleSpread,
                 ReducedMotion = preferences.ReducedMotion,
                 PreferredBackground = preferences.PreferredBackground,
+                AlwaysOpenReadFromStart = preferences.AlwaysOpenReadFromStart,
             };
             _db.ReaderPreferences.Add(prefs);
         }
@@ -707,6 +821,7 @@ public sealed class ReadingStateService
             prefs.PreferDoubleSpread = preferences.PreferDoubleSpread;
             prefs.ReducedMotion = preferences.ReducedMotion;
             prefs.PreferredBackground = preferences.PreferredBackground;
+            prefs.AlwaysOpenReadFromStart = preferences.AlwaysOpenReadFromStart;
         }
 
         await _db.SaveChangesAsync(ct);
