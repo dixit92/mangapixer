@@ -69,9 +69,16 @@
          parallelism via per-host storage isolation (no global env var). One additive migration
          (AddAlwaysOpenReadFromStart); additive API only (OpenPageIndex, AlwaysOpenReadFromStart)
          -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.9.x. -->
+    <!-- 1.9.1 - PATCH over 1.9.0 (2026-09-12), web-only, no API/schema change. Reworks the
+         1.9.0 reader page-turn "Reveal" mode: it was a ~0.2s opacity fade that read almost
+         identically to "None", so it is now a direction-aware clip-path inset WIPE
+         (cover/uncover) - Slide (translate) / Reveal (wipe) / None (instant) are now
+         categorically distinct. Also fixes the prefers-reduced-motion override (it was less
+         specific than the per-direction rules and did not actually disable the animation;
+         now animation:none !important). Owner feedback from the 1.9.0 deploy. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
     <MangaPlexVersionMinor>9</MangaPlexVersionMinor>
-    <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
+    <MangaPlexVersionPatch>1</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
