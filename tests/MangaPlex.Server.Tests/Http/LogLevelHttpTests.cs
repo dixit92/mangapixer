@@ -6,7 +6,6 @@ using System.Text.Json;
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Server.Hosting;
 using com.lifepixer.mangaplex.Server.Operations;
-using com.lifepixer.mangaplex.TestSupport.Hosting;
 using com.lifepixer.mangaplex.Tests.Server.Hosting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -418,7 +417,6 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
     private readonly LoggingLevelSwitch _levelSwitch = new(LogEventLevel.Information);
     private readonly Dictionary<string, LoggingLevelSwitch> _categorySwitches = new();
     private Serilog.ILogger? _originalLogger;
-    private readonly Dictionary<string, string?> _savedEnv = new();
     private HttpClient? _cachedAdminClient;
 
     public CollectingSink Sink => _sink;
@@ -435,31 +433,27 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
         foreach (var (name, _) in com.lifepixer.mangaplex.Server.Logging.DebugCategories.All)
             _categorySwitches[name] = new LoggingLevelSwitch(LogEventLevel.Information);
 
-        // Serialize env-set + host boot across parallel factories (see
-        // TestHostBootGate). The storage env vars are process-global and
-        // Program.Main reads them at the top of Main, before ConfigureWebHost
-        // runs, so they must be ours at the moment of boot — otherwise a
-        // parallel factory can overwrite them first and both hosts resolve
-        // the same SQLite file, colliding on CREATE TABLE audit_events.
-        using (TestHostBootGate.Acquire())
-        {
-            SetEnv("MangaPlex__Storage__DataRoot", Path.Combine(_tempRoot, "data"));
-            SetEnv("MangaPlex__Storage__CacheRoot", Path.Combine(_tempRoot, "cache"));
-            SetEnv("MangaPlex__Storage__ScratchRoot", Path.Combine(_tempRoot, "scratch"));
-            SetEnv("Media__WorkerExecutablePath", "");
-            SetEnv("MangaPlex__Security__RateLimit__Disabled", "true");
+        // Non-global storage-injection seam (1.9.0 Lane C): push this
+        // factory's storage roots as the ambient TestHostStorageOverride for
+        // the duration of the synchronous host boot below — see the remarks
+        // on MangaPlexWebApplicationFactory and TestHostStorageOverride for
+        // why this (and not ConfigureAppConfiguration or an env var) is what
+        // actually reaches Program.Main in time, race-free under parallel
+        // factory boots.
+        var storageOverride = new StorageRootOverride(
+            DataRoot: Path.Combine(_tempRoot, "data"),
+            CacheRoot: Path.Combine(_tempRoot, "cache"),
+            ScratchRoot: Path.Combine(_tempRoot, "scratch"),
+            WorkerExecutablePath: "",
+            RateLimitDisabled: true);
 
-            // Force the host to boot now while our env vars are in effect.
+        using (TestHostStorageOverride.Push(storageOverride))
+        {
+            // Force the host to boot now while the override is in effect.
             // The throwaway client is disposed at once; the host stays alive
             // until this factory is disposed.
             using var bootClient = CreateClient();
         }
-    }
-
-    private void SetEnv(string key, string value)
-    {
-        _savedEnv[key] = Environment.GetEnvironmentVariable(key);
-        Environment.SetEnvironmentVariable(key, value);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -575,9 +569,6 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
         {
             if (_originalLogger is not null)
                 Log.Logger = _originalLogger;
-
-            foreach (var kvp in _savedEnv)
-                Environment.SetEnvironmentVariable(kvp.Key, kvp.Value);
 
             try { Directory.Delete(_tempRoot, true); } catch { }
         }

@@ -13,7 +13,17 @@ using Xunit;
 /// against contracts/openapi.json. When MANGAPLEX_UPDATE_SNAPSHOT=1,
 /// writes the live document to the snapshot instead of comparing.
 /// </summary>
+/// <remarks>
+/// In the "HttpSerial" collection (1.9.0 Lane C) alongside every other
+/// WebApplicationFactory-booting Server.Tests class — not for storage
+/// isolation (each host already gets its own DataRoot), but because every
+/// host boot unconditionally reassigns the process-global Serilog
+/// <c>Log.Logger</c> static in <c>Program.Main</c>; concurrent boots from
+/// different collections could otherwise clobber a Log.Logger-wrapping
+/// test elsewhere (see the remarks on HostingCorrectnessTests).
+/// </remarks>
 [Trait("Category", "Http")]
+[Collection("HttpSerial")]
 public sealed class OpenApiSnapshotTests
 {
     private static readonly string SnapshotPath = Path.Combine(

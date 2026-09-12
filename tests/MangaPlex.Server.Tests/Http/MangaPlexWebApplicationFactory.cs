@@ -5,7 +5,6 @@ using System.Net.Http.Json;
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Server;
 using com.lifepixer.mangaplex.Server.Hosting;
-using com.lifepixer.mangaplex.TestSupport.Hosting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -19,53 +18,87 @@ using Xunit;
 /// The media worker hosted service is replaced with a no-op so tests don't
 /// spawn real worker processes.
 /// </summary>
+/// <remarks>
+/// Storage isolation seam (1.9.0 Lane C — restores <c>Server.Tests</c>
+/// parallelism): storage roots are injected per-instance via
+/// <see cref="TestHostStorageOverride"/>, a test-only ambient
+/// (<see cref="AsyncLocal{T}"/>-based) override consulted at the top of
+/// <c>Program.Main</c> — NOT via a process-global environment variable.
+/// <c>IWebHostBuilder.ConfigureAppConfiguration</c> was tried first but does
+/// not reach <c>Program.Main</c>'s synchronous pre-<c>Build()</c> reads for
+/// this minimal-hosting entry point (see the remarks on
+/// <see cref="TestHostStorageOverride"/> for why). Each factory instance
+/// pushes its own unique DataRoot/CacheRoot/ScratchRoot immediately before
+/// triggering its host's boot, on the same call stack, so concurrent
+/// factories booting on different threads can never resolve the same
+/// SQLite file. This eliminates the boot race that used to require both a
+/// process-wide boot gate (<c>TestHostBootGate</c>, no longer used here) and
+/// disabling assembly-level test parallelization (see TestParallelization.cs).
+/// </remarks>
 public sealed class MangaPlexWebApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "mangaplex-http-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly IReadOnlyDictionary<string, string?>? _extraConfiguration;
 
     public string DataRoot => Path.Combine(_tempRoot, "data");
     public string CacheRoot => Path.Combine(_tempRoot, "cache");
     public string ScratchRoot => Path.Combine(_tempRoot, "scratch");
 
-    // Environment variables set before the host starts. These are read by
-    // builder.Configuration.AddEnvironmentVariables() in Program.cs.
-    // We save and restore them so parallel test classes don't interfere.
-    private readonly Dictionary<string, string?> _savedEnv = new();
-
-    public MangaPlexWebApplicationFactory()
+    /// <summary>
+    /// xUnit's <c>IClassFixture&lt;T&gt;</c> requires the fixture type to
+    /// define exactly one PUBLIC constructor, so the extra-configuration
+    /// overload below is private — reached instead through the static
+    /// <see cref="WithExtraConfiguration"/> factory method — to keep this
+    /// class usable both as a directly-constructed factory (most HTTP test
+    /// classes) and as an <c>IClassFixture</c> (e.g. SearchHttpTests,
+    /// CatalogHttpTests) without breaking either usage.
+    /// </summary>
+    public MangaPlexWebApplicationFactory() : this(null)
     {
+    }
+
+    /// <summary>
+    /// Creates a factory with additional per-instance configuration overrides
+    /// (e.g. a feature knob under test) layered on top of the isolated
+    /// storage roots. Uses the same non-global injection seam as the storage
+    /// roots — no environment variables are touched — so tests that need a
+    /// specific config value no longer need
+    /// <c>Environment.SetEnvironmentVariable</c> and the cross-test
+    /// contamination that comes with process-global state.
+    /// </summary>
+    public static MangaPlexWebApplicationFactory WithExtraConfiguration(
+        IReadOnlyDictionary<string, string?> extraConfiguration) => new(extraConfiguration);
+
+    private MangaPlexWebApplicationFactory(IReadOnlyDictionary<string, string?>? extraConfiguration)
+    {
+        _extraConfiguration = extraConfiguration;
+
         Directory.CreateDirectory(DataRoot);
         Directory.CreateDirectory(CacheRoot);
         Directory.CreateDirectory(ScratchRoot);
 
-        // Serialize "set my storage env vars" + "boot my host" into one
-        // process-wide critical section (see TestHostBootGate). The storage
-        // env vars are process-global and Program.Main reads them at the top
-        // of Main, before ConfigureWebHost runs, so they must be ours at the
-        // moment of boot. Without this gate two factories booting in parallel
-        // can both resolve the same DataRoot/SQLite file and collide on
-        // CREATE TABLE audit_events ("audit_events already exists").
-        using (TestHostBootGate.Acquire())
+        // Push this factory's storage override for the duration of the
+        // synchronous host boot triggered by CreateClient() below — see the
+        // class-level remarks and TestHostStorageOverride for why this (and
+        // not ConfigureAppConfiguration or an env var) is the seam that
+        // actually reaches Program.Main in time, without any global state.
+        using (TestHostStorageOverride.Push(BuildStorageOverride()))
         {
-            SetEnv("MangaPlex__Storage__DataRoot", DataRoot);
-            SetEnv("MangaPlex__Storage__CacheRoot", CacheRoot);
-            SetEnv("MangaPlex__Storage__ScratchRoot", ScratchRoot);
-            SetEnv("Media__WorkerExecutablePath", "");
-            SetEnv("MangaPlex__Security__RateLimit__Disabled", "true");
-
-            // Force the host to boot now while our env vars are in effect.
+            // Force the host to boot now while the override is in effect.
             // The throwaway client is disposed at once; the host stays alive
             // until this factory is disposed. Subsequent CreateClient() calls
-            // reuse the already-booted host (no further env read).
+            // reuse the already-booted host (no further override read).
             using var bootClient = CreateClient();
         }
     }
 
-    private void SetEnv(string key, string value)
-    {
-        _savedEnv[key] = Environment.GetEnvironmentVariable(key);
-        Environment.SetEnvironmentVariable(key, value);
-    }
+    private StorageRootOverride BuildStorageOverride() => new(
+        DataRoot: DataRoot,
+        CacheRoot: CacheRoot,
+        ScratchRoot: ScratchRoot,
+        WorkerExecutablePath: "",
+        RateLimitDisabled: true,
+        ExtraConfiguration: _extraConfiguration);
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -186,10 +219,6 @@ public sealed class MangaPlexWebApplicationFactory : WebApplicationFactory<Progr
     {
         if (disposing)
         {
-            // Restore environment variables
-            foreach (var kvp in _savedEnv)
-                Environment.SetEnvironmentVariable(kvp.Key, kvp.Value);
-
             try { Directory.Delete(_tempRoot, true); } catch { }
         }
         base.Dispose(disposing);
