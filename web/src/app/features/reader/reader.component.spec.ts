@@ -10,6 +10,7 @@ import { of } from 'rxjs';
 
 import { ReaderComponent } from './reader.component';
 import { ReadStateService } from '../../core/reading/read-state.service';
+import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import { ManifestPageEntry, CatalogNodeDto } from '../../core/api/api-types';
 
 function makePages(n: number): ManifestPageEntry[] {
@@ -1256,5 +1257,144 @@ describe('ReaderComponent webtoon auto-advance REMOVED (1.7.1 owner revert)', ()
 
     c.prevChapter();
     expect(nav).toHaveBeenCalledWith(['/reader', 'prev-item'], { queryParams: { at: 'end' }, replaceUrl: true });
+  });
+});
+
+/**
+ * 1.9.0 page-navigation transition. The transition is presentation-only (it never
+ * changes which page is shown), reading-direction aware, and gated off where it
+ * would be wrong (webtoon, scrubbing, zoomed/overflowing pages, the 'none' pref).
+ */
+describe('ReaderComponent page-navigation transition (1.9.0)', () => {
+  function create() {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    localStorage.clear();
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.pages.set(makePages(6));
+    c.view.set('paged');
+    return c;
+  }
+
+  describe('enterSideForNav (reading-direction aware)', () => {
+    it('LTR: forward enters from the right, backward from the left', () => {
+      const c = create();
+      c.direction.set('ltr');
+      expect(c.enterSideForNav(true)).toBe('from-right');
+      expect(c.enterSideForNav(false)).toBe('from-left');
+    });
+
+    it('RTL (manga): forward enters from the left, backward from the right', () => {
+      const c = create();
+      c.direction.set('rtl');
+      expect(c.enterSideForNav(true)).toBe('from-left');
+      expect(c.enterSideForNav(false)).toBe('from-right');
+    });
+  });
+
+  it('goToPage sets navEnter from the travel direction before the page swaps', () => {
+    const c = create();
+    c.direction.set('ltr');
+    c.currentPage.set(2);
+    (c as unknown as { goToPage: (n: number) => void }).goToPage(3); // forward
+    expect(c.currentPage()).toBe(3);
+    expect(c.navEnter()).toBe('from-right');
+
+    (c as unknown as { goToPage: (n: number) => void }).goToPage(1); // backward
+    expect(c.navEnter()).toBe('from-left');
+  });
+
+  describe('pageAnimActive gating', () => {
+    it('is active for slide on a normal (non-overflowing) paged view', () => {
+      const c = create();
+      TestBed.inject(ReaderPreferencesService).setPageAnimation('slide');
+      c.overflowsX.set(false);
+      c.zoomed.set(false);
+      c.scrubbing.set(false);
+      expect(c.pageAnimActive()).toBe(true);
+    });
+
+    it('is off when the preference is none', () => {
+      const c = create();
+      TestBed.inject(ReaderPreferencesService).setPageAnimation('none');
+      expect(c.pageAnimActive()).toBe(false);
+    });
+
+    it('is off while scrubbing, when zoomed, when overflowing horizontally, and in webtoon', () => {
+      const c = create();
+      const prefs = TestBed.inject(ReaderPreferencesService);
+      prefs.setPageAnimation('slide');
+
+      c.scrubbing.set(true);
+      expect(c.pageAnimActive()).toBe(false);
+      c.scrubbing.set(false);
+
+      c.zoomed.set(true);
+      expect(c.pageAnimActive()).toBe(false);
+      c.zoomed.set(false);
+
+      c.overflowsX.set(true);
+      expect(c.pageAnimActive()).toBe(false);
+      c.overflowsX.set(false);
+
+      c.view.set('webtoon');
+      expect(c.pageAnimActive()).toBe(false);
+    });
+  });
+
+  describe('swipe commit suppresses the spring-back (committing)', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+
+    it('beginCommit holds committing true then clears it after the transition window', () => {
+      const c = create();
+      expect(c.committing()).toBe(false);
+      (c as unknown as { beginCommit: () => void }).beginCommit();
+      expect(c.committing()).toBe(true);
+      vi.advanceTimersByTime(250);
+      expect(c.committing()).toBe(false);
+    });
+  });
+});
+
+/**
+ * 1.9.0 onboarding: the reader help overlay auto-shows on the FIRST reader open on
+ * a device (localStorage-persisted, per-device) and never again, while the manual
+ * '?' control still reopens it any time.
+ */
+describe('ReaderComponent onboarding help auto-show (1.9.0)', () => {
+  function create() {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    return TestBed.createComponent(ReaderComponent).componentInstance;
+  }
+
+  beforeEach(() => localStorage.clear());
+
+  it('auto-shows help the first time and records it seen (per-device)', () => {
+    const c = create();
+    const prefs = TestBed.inject(ReaderPreferencesService);
+    expect(prefs.hasSeenHelp()).toBe(false);
+
+    (c as unknown as { maybeAutoShowHelp: () => void }).maybeAutoShowHelp();
+
+    expect(c.helpVisible()).toBe(true);
+    expect(prefs.hasSeenHelp()).toBe(true);
+    expect(localStorage.getItem(ReaderPreferencesService.HelpSeenKey)).toBe('1');
+  });
+
+  it('does not auto-show again within the same instance (per-instance guard)', () => {
+    const c = create();
+    (c as unknown as { maybeAutoShowHelp: () => void }).maybeAutoShowHelp();
+    c.closeHelp();
+    (c as unknown as { maybeAutoShowHelp: () => void }).maybeAutoShowHelp();
+    expect(c.helpVisible()).toBe(false);
+  });
+
+  it('does not auto-show for a device that has already seen it', () => {
+    // Seed the per-device flag before the component (and its service) exist.
+    localStorage.setItem(ReaderPreferencesService.HelpSeenKey, '1');
+    const c = create();
+    expect(TestBed.inject(ReaderPreferencesService).hasSeenHelp()).toBe(true);
+    (c as unknown as { maybeAutoShowHelp: () => void }).maybeAutoShowHelp();
+    expect(c.helpVisible()).toBe(false);
   });
 });

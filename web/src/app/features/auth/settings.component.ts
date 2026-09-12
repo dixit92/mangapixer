@@ -9,6 +9,7 @@ import { MatCheckboxModule, MatCheckboxChange } from '@angular/material/checkbox
 import { AuthService } from '../../core/auth/auth.service';
 import { ApiService } from '../../core/api/api.service';
 import { ApiError, LibraryDto } from '../../core/api/api-types';
+import { ReadingPreferencesCardComponent } from './reading-preferences-card.component';
 
 /**
  * Settings component. Allows the user to change their password and to mark
@@ -26,6 +27,7 @@ import { ApiError, LibraryDto } from '../../core/api/api-types';
     MatInputModule,
     MatButtonModule,
     MatCheckboxModule,
+    ReadingPreferencesCardComponent,
   ],
   template: `
     <mat-card>
@@ -104,6 +106,8 @@ import { ApiError, LibraryDto } from '../../core/api/api-types';
         }
       </mat-card-content>
     </mat-card>
+
+    <app-reading-preferences-card />
   `,
   styles: [`
     mat-card { max-width: 600px; margin: 0 auto; }

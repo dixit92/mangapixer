@@ -31,8 +31,8 @@ import { CoverImageDirective } from '../cover-image.directive';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (node(); as n) {
-      <a class="continue-row" [routerLink]="['/reader', n.id]" [matTooltip]="'Continue reading ' + n.displayName"
-         [attr.aria-label]="'Continue reading ' + n.displayName">
+      <a class="continue-row" [routerLink]="['/reader', n.id]" [matTooltip]="actionLabel() + ' ' + n.displayName"
+         [attr.aria-label]="actionLabel() + ' ' + n.displayName">
         <div class="cover">
           @if (n.coverUrl) {
             <img appCover [src]="n.coverUrl" alt="" loading="lazy">
@@ -40,7 +40,7 @@ import { CoverImageDirective } from '../cover-image.directive';
           <mat-icon class="cover-fallback">menu_book</mat-icon>
         </div>
         <div class="info">
-          <span class="label">Continue</span>
+          <span class="label">{{ actionLabel() }}</span>
           <span class="title" [title]="n.displayName">{{ n.displayName }}</span>
         </div>
         <mat-icon class="resume" aria-hidden="true">play_arrow</mat-icon>
@@ -93,4 +93,14 @@ export class ContinueRowComponent {
 
   /** Whether a row is currently shown (null/undefined input hides the host content). */
   readonly present = computed(() => this.node() != null);
+
+  /**
+   * Per-folder row label (1.9.0): "Continue" when the target is already in progress,
+   * "Start reading" when it is unread. The NextUnread target is always either
+   * InProgress or Unread (items with a read-mark are excluded server-side), so a
+   * null/absent readingState reads as "Start reading". This is only the per-folder
+   * pinned row; the global/home Continue-reading strip keeps its "Continue" wording.
+   */
+  readonly actionLabel = computed(() =>
+    this.node()?.readingState === 'InProgress' ? 'Continue' : 'Start reading');
 }

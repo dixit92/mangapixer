@@ -27,11 +27,21 @@ public sealed partial class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // Resolve storage roots from builder.Configuration so that
-        // WebApplicationFactory.ConfigureAppConfiguration is visible.
-        var dataRoot = ResolveRoot(builder.Configuration, "MangaPlex:Storage:DataRoot", "data");
-        var scratchRoot = ResolveRoot(builder.Configuration, "MangaPlex:Storage:ScratchRoot", "scratch");
-        var cacheRoot = ResolveRoot(builder.Configuration, "MangaPlex:Storage:CacheRoot", "cache");
+        // Resolve storage roots from builder.Configuration, with a test-only
+        // ambient override checked first (1.9.0 Lane C — test-host-isolation).
+        // See the remarks on TestHostStorageOverride for why the override
+        // exists: WebApplicationFactory's ConfigureAppConfiguration does not
+        // reach these reads in time for this minimal-hosting entry point, and
+        // a process-global environment variable would race under parallel
+        // test-host boots. TestHostStorageOverride.Current is always null in
+        // production, so this is a no-op outside tests.
+        var storageOverride = TestHostStorageOverride.Current;
+        var dataRoot = storageOverride?.DataRoot
+            ?? ResolveRoot(builder.Configuration, "MangaPlex:Storage:DataRoot", "data");
+        var scratchRoot = storageOverride?.ScratchRoot
+            ?? ResolveRoot(builder.Configuration, "MangaPlex:Storage:ScratchRoot", "scratch");
+        var cacheRoot = storageOverride?.CacheRoot
+            ?? ResolveRoot(builder.Configuration, "MangaPlex:Storage:CacheRoot", "cache");
         Directory.CreateDirectory(dataRoot);
         Directory.CreateDirectory(scratchRoot);
         Directory.CreateDirectory(cacheRoot);
@@ -42,7 +52,26 @@ public sealed partial class Program
         Directory.CreateDirectory(keysRoot);
 
         var databasePath = Path.Combine(dataRoot, "mangaplex.db");
-        var workerExe = builder.Configuration["Media:WorkerExecutablePath"];
+        var workerExe = storageOverride?.WorkerExecutablePath
+            ?? builder.Configuration["Media:WorkerExecutablePath"];
+
+        // Re-inject the fully-resolved absolute roots (and worker path) back
+        // into configuration so any OTHER code that re-reads these same keys
+        // via a DI-resolved IConfiguration later (e.g. AppRootOptions and the
+        // rotating-backups directory in HostingServicesExtensions.AddMangaPlexHosting)
+        // sees exactly what Program.Main itself resolved above — including a
+        // test-only TestHostStorageOverride — rather than independently
+        // re-deriving a possibly-different (or unresolved/relative) value
+        // straight from configuration. Without this, a test override only
+        // reached the four locals above and every other DI-resolved consumer
+        // silently fell back to its own default.
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["MangaPlex:Storage:DataRoot"] = dataRoot,
+            ["MangaPlex:Storage:CacheRoot"] = cacheRoot,
+            ["MangaPlex:Storage:ScratchRoot"] = scratchRoot,
+            ["Media:WorkerExecutablePath"] = workerExe,
+        });
 
         // Serilog bootstrap — plain text console for both container and dev.
         // The default level is controlled by a LoggingLevelSwitch so an admin
@@ -107,15 +136,15 @@ public sealed partial class Program
                 .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("MangaPlex server is running"));
 
             // Auth + database (registers DbContext, Identity, cookie auth, auth services)
-            builder.Services.AddMangaPlexAuth(databasePath);
+            builder.Services.AddMangaPlexAuth(databasePath, storageOverride?.RateLimitDisabled);
 
             // Media worker pool, scheduler, cache, scratch
             // Storage budgets are admin-configurable (bytes). Defaults live in
             // WorkerPoolOptions (1 GiB cache / 1 GiB scratch); override via
             // MangaPlex:Storage:CacheBudgetBytes / ScratchBudgetBytes.
-            var cacheBudget = ReadByteBudget(builder.Configuration, "MangaPlex:Storage:CacheBudgetBytes");
-            var scratchBudget = ReadByteBudget(builder.Configuration, "MangaPlex:Storage:ScratchBudgetBytes");
-            var maxConcurrentJobs = ReadPositiveInt(builder.Configuration, "MangaPlex:Media:MaxConcurrentJobs");
+            var cacheBudget = ReadByteBudget(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPlex:Storage:CacheBudgetBytes"));
+            var scratchBudget = ReadByteBudget(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPlex:Storage:ScratchBudgetBytes"));
+            var maxConcurrentJobs = ReadPositiveInt(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPlex:Media:MaxConcurrentJobs"));
             builder.Services.AddMangaPlexMedia(options =>
             {
                 options.ScratchRoot = scratchRoot;
@@ -383,13 +412,33 @@ public sealed partial class Program
     }
 
     /// <summary>
+    /// Resolves a configuration value, checking the test-only
+    /// <see cref="TestHostStorageOverride"/>'s <c>ExtraConfiguration</c> map
+    /// first (when an override is pushed) before falling back to
+    /// <paramref name="configuration"/>. Always falls back to
+    /// <paramref name="configuration"/> in production, where no override is
+    /// ever pushed. See TestHostStorageOverride for why this exists — the
+    /// values resolved here (media/storage knobs) are read synchronously
+    /// before <c>builder.Build()</c>, where WebApplicationFactory's
+    /// ConfigureAppConfiguration overrides are not yet visible.
+    /// </summary>
+    private static string? ResolveConfigValue(
+        IConfiguration configuration,
+        StorageRootOverride? storageOverride,
+        string key)
+    {
+        if (storageOverride?.ExtraConfiguration is { } extra && extra.TryGetValue(key, out var overrideValue))
+            return overrideValue;
+        return configuration[key];
+    }
+
+    /// <summary>
     /// Reads an optional byte budget from config. Returns null when unset/invalid
     /// so the caller keeps the WorkerPoolOptions default. Accepts a plain byte
     /// count (e.g. 268435456) — deployments can compute from MiB/GiB as needed.
     /// </summary>
-    private static long? ReadByteBudget(IConfiguration configuration, string key)
+    private static long? ReadByteBudget(string? value)
     {
-        var value = configuration[key];
         if (string.IsNullOrWhiteSpace(value)) return null;
         return long.TryParse(value.Trim(), out var bytes) && bytes > 0 ? bytes : null;
     }
@@ -398,9 +447,8 @@ public sealed partial class Program
     /// Reads an optional positive integer from config. Returns null when
     /// unset/invalid so the caller keeps the WorkerPoolOptions default (2).
     /// </summary>
-    private static int? ReadPositiveInt(IConfiguration configuration, string key)
+    private static int? ReadPositiveInt(string? value)
     {
-        var value = configuration[key];
         if (string.IsNullOrWhiteSpace(value)) return null;
         return int.TryParse(value.Trim(), out var n) && n > 0 ? n : null;
     }

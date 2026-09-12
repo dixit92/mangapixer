@@ -58,9 +58,20 @@
          that caused intermittent 500s) and 7z fixture tests that skip when 7z is absent.
          Three additive migrations (activation-token / sort-direction / content-signature);
          no breaking API changes -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.5.x. -->
+    <!-- 1.9.0 - additive minor over 1.8.1 (post-1.8.1 cycle, 2026-09-12). Read-state
+         consistency + resume-position option: single-item/multi-select "unread" now fully
+         resets (shared reset primitive, consistent with folder-unread); new
+         AlwaysOpenReadFromStart preference (default OFF) keys the reader open-page off
+         POSITION (last-page -> page 1; mid -> resume unless the option forces page 1), not
+         the Completed enum; manual mark-read treated as fully read; per-folder Continue/Start
+         label. Plus a configurable reader page-turn animation (Slide/Reveal/None,
+         reduced-motion aware) + help-overlay onboarding auto-show, and restored Server.Tests
+         parallelism via per-host storage isolation (no global env var). One additive migration
+         (AddAlwaysOpenReadFromStart); additive API only (OpenPageIndex, AlwaysOpenReadFromStart)
+         -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.9.x. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>8</MangaPlexVersionMinor>
-    <MangaPlexVersionPatch>1</MangaPlexVersionPatch>
+    <MangaPlexVersionMinor>9</MangaPlexVersionMinor>
+    <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

@@ -10,29 +10,38 @@ using Xunit;
 /// WorkerPoolOptions default of 2, with no override path). Boots the full
 /// host via WebApplicationFactory (no HTTP request needed) to verify the
 /// value that DI actually resolves.
+///
+/// Uses the static <see cref="MangaPlexWebApplicationFactory.WithExtraConfiguration"/>
+/// factory (1.9.0 Lane C) instead of <c>Environment.SetEnvironmentVariable</c>
+/// — a process-global env var here would race with every other
+/// concurrently-booting factory once assembly parallelization is restored
+/// (see TestParallelization.cs). The extra-configuration constructor is
+/// private (reached only through that static method) so
+/// <see cref="MangaPlexWebApplicationFactory"/> still exposes exactly one
+/// PUBLIC constructor, which xUnit's <c>IClassFixture&lt;T&gt;</c> requires
+/// in other test classes.
+///
+/// In the "HttpSerial" collection alongside every other
+/// WebApplicationFactory-booting Server.Tests class — not for storage
+/// isolation, but because every host boot unconditionally reassigns the
+/// process-global Serilog <c>Log.Logger</c> static in <c>Program.Main</c>
+/// (see the remarks on HostingCorrectnessTests).
 /// </summary>
+[Collection("HttpSerial")]
 public sealed class WorkerConcurrencyConfigTests
 {
     [Fact]
     public async Task MaxConcurrentJobs_BoundFromConfig_OverridesDefault()
     {
-        Environment.SetEnvironmentVariable("MangaPlex__Media__MaxConcurrentJobs", "5");
-        try
-        {
-            await using var factory = new MangaPlexWebApplicationFactory();
-            var options = factory.Services.GetRequiredService<WorkerPoolOptions>();
-            Assert.Equal(5, options.MaxConcurrentJobs);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("MangaPlex__Media__MaxConcurrentJobs", null);
-        }
+        await using var factory = MangaPlexWebApplicationFactory.WithExtraConfiguration(
+            new Dictionary<string, string?> { ["MangaPlex:Media:MaxConcurrentJobs"] = "5" });
+        var options = factory.Services.GetRequiredService<WorkerPoolOptions>();
+        Assert.Equal(5, options.MaxConcurrentJobs);
     }
 
     [Fact]
     public async Task MaxConcurrentJobs_Unset_KeepsDefaultOfTwo()
     {
-        Environment.SetEnvironmentVariable("MangaPlex__Media__MaxConcurrentJobs", null);
         await using var factory = new MangaPlexWebApplicationFactory();
         var options = factory.Services.GetRequiredService<WorkerPoolOptions>();
         Assert.Equal(2, options.MaxConcurrentJobs);
@@ -41,16 +50,9 @@ public sealed class WorkerConcurrencyConfigTests
     [Fact]
     public async Task MaxConcurrentJobs_InvalidValue_KeepsDefaultOfTwo()
     {
-        Environment.SetEnvironmentVariable("MangaPlex__Media__MaxConcurrentJobs", "not-a-number");
-        try
-        {
-            await using var factory = new MangaPlexWebApplicationFactory();
-            var options = factory.Services.GetRequiredService<WorkerPoolOptions>();
-            Assert.Equal(2, options.MaxConcurrentJobs);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("MangaPlex__Media__MaxConcurrentJobs", null);
-        }
+        await using var factory = MangaPlexWebApplicationFactory.WithExtraConfiguration(
+            new Dictionary<string, string?> { ["MangaPlex:Media:MaxConcurrentJobs"] = "not-a-number" });
+        var options = factory.Services.GetRequiredService<WorkerPoolOptions>();
+        Assert.Equal(2, options.MaxConcurrentJobs);
     }
 }

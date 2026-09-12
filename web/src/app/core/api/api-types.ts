@@ -109,6 +109,15 @@ export interface ReadingProgressDto {
   /** Server revision for optimistic concurrency; sent back as If-Match on PUT. */
   revision: number;
   isStale: boolean;
+  /**
+   * The page the reader should OPEN at (1.9.0), computed server-side and
+   * non-destructively from the read-mark, saved position vs page count, and the
+   * user's `alwaysOpenReadFromStart` preference. Unread/Reading items resume
+   * (equals `pageIndex`); a read item finished on the last page, or opted into
+   * start-from-first, opens at 0. Optional for older servers/fixtures — fall back
+   * to `pageIndex` when absent.
+   */
+  openPageIndex?: number;
 }
 
 export interface UpdateProgressRequest {
@@ -134,6 +143,12 @@ export interface UserPreferencesDto {
   preferDoubleSpread: boolean;
   reducedMotion: boolean;
   preferredBackground: string | null;
+  /**
+   * When true, archives the user has marked read reopen from the first page (1.9.0);
+   * when false (default) read titles resume where they left off, except ones finished
+   * on the last page which always start from page 1. Optional for older servers.
+   */
+  alwaysOpenReadFromStart?: boolean;
 }
 
 export interface ContinueReadingEntry {
