@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Server;
 using com.lifepixer.mangaplex.Server.Hosting;
+using com.lifepixer.mangaplex.TestSupport.Hosting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -37,11 +38,27 @@ public sealed class MangaPlexWebApplicationFactory : WebApplicationFactory<Progr
         Directory.CreateDirectory(CacheRoot);
         Directory.CreateDirectory(ScratchRoot);
 
-        SetEnv("MangaPlex__Storage__DataRoot", DataRoot);
-        SetEnv("MangaPlex__Storage__CacheRoot", CacheRoot);
-        SetEnv("MangaPlex__Storage__ScratchRoot", ScratchRoot);
-        SetEnv("Media__WorkerExecutablePath", "");
-        SetEnv("MangaPlex__Security__RateLimit__Disabled", "true");
+        // Serialize "set my storage env vars" + "boot my host" into one
+        // process-wide critical section (see TestHostBootGate). The storage
+        // env vars are process-global and Program.Main reads them at the top
+        // of Main, before ConfigureWebHost runs, so they must be ours at the
+        // moment of boot. Without this gate two factories booting in parallel
+        // can both resolve the same DataRoot/SQLite file and collide on
+        // CREATE TABLE audit_events ("audit_events already exists").
+        using (TestHostBootGate.Acquire())
+        {
+            SetEnv("MangaPlex__Storage__DataRoot", DataRoot);
+            SetEnv("MangaPlex__Storage__CacheRoot", CacheRoot);
+            SetEnv("MangaPlex__Storage__ScratchRoot", ScratchRoot);
+            SetEnv("Media__WorkerExecutablePath", "");
+            SetEnv("MangaPlex__Security__RateLimit__Disabled", "true");
+
+            // Force the host to boot now while our env vars are in effect.
+            // The throwaway client is disposed at once; the host stays alive
+            // until this factory is disposed. Subsequent CreateClient() calls
+            // reuse the already-booted host (no further env read).
+            using var bootClient = CreateClient();
+        }
     }
 
     private void SetEnv(string key, string value)

@@ -218,6 +218,11 @@ export interface LibraryViewPreferencesDto {
   viewMode: string;
   density: string;
   sort: string;
+  /**
+   * Optional (1.8.0): the per-user initial/per-page item count for the browse
+   * view's infinite scroll. 0/omitted/unrecognized → the frontend default (50).
+   */
+  libraryPageSize?: number;
   /** Optional (1.5.0): omitted/unrecognized falls back to the sort-specific default. */
   direction?: string;
   /**
@@ -349,6 +354,18 @@ export interface UpdateLibraryRequest {
 
 export interface ScanTriggeredDto {
   scanRunId: string;
+}
+
+/**
+ * Response when a scan is triggered for every registered library at once (1.8.0).
+ * Libraries already scanning are skipped rather than failing the batch, so
+ * startedCount + skippedCount equals the total number of registered libraries.
+ * scanRunIds holds the opaque ids of the scans that were actually started.
+ */
+export interface ScanAllResultDto {
+  startedCount: number;
+  skippedCount: number;
+  scanRunIds: string[];
 }
 
 export interface ScanRunDto {

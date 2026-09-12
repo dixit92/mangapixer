@@ -497,4 +497,138 @@ public sealed class YacReaderImportServiceTests : IDisposable
         var progress = await db.ReadingProgress.FirstAsync(p => p.ItemId == node1.Id);
         Assert.Equal(9, progress.Ordinal); // clamped to last page (0-based 9)
     }
+
+    // 1.8.0 - deterministic race-recovery coverage. The 1.7.3 hardening wrapped
+    // the bulk insert in a transaction with a per-collided-row retry, but the
+    // recovery catch was not deterministically exercised (an EF interceptor
+    // attempt was fragile due to EF Core batched-command behavior). These tests
+    // use the BeforeBulkSaveAsync seam to seed a conflicting reading_progress
+    // row via a real second DbContext - between the import's pre-check (which
+    // saw no existing progress) and its bulk save - so the bulk insert collides
+    // on the (UserId, ItemId) unique index and the recovery catch runs. EF Core
+    // 10 returns only the colliding entry in DbUpdateException.Entries (verified
+    // empirically), so the sibling row (node2) is left Added and inserts cleanly
+    // on the retry - this also guards against a regression that wrongly detaches
+    // a non-colliding sibling.
+
+    /// <summary>
+    /// Overwrite path: a concurrent progress write races the bulk insert; the
+    /// recovery reloads the concurrent row and overwrites it with the import's
+    /// state. No 500, one row per (user, item), sibling row still imports.
+    /// </summary>
+    [Fact]
+    public async Task Apply_ConcurrentInsertRace_OverwritePath_UpdatesExistingRow()
+    {
+        var setup = await SetupAsync();
+        var (db, library, user, node1, node2) = setup;
+
+        // Both comics in-progress (no read marks) to focus on the progress race.
+        var yacDir = BuildYacLibrary(_tempDir,
+            (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true),
+            (2, "/Series/Volume 2.cbz", "Volume 2.cbz", 20, read: false, hasBeenOpened: true));
+
+        var service = CreateService(db);
+
+        // Deterministic race: a concurrent progress write commits a row for
+        // node1 AFTER the import's pre-check (which saw no existing progress)
+        // but BEFORE the bulk save. The seam fires at exactly that point.
+        service.BeforeBulkSaveAsync = async ct =>
+        {
+            await using var concurrent = new MangaPlexDbContext(_options);
+            concurrent.ReadingProgress.Add(new ReadingProgressEntity
+            {
+                UserId = user.Id,
+                ItemId = node1.Id,
+                ContentVersion = 1,
+                EntryKey = OpaqueId.Encode(0),
+                Ordinal = 0,
+                NormalizedAnchor = 0.0,
+                State = (int)Core.Reading.ReadingState.InProgress,
+                Revision = 1,
+                LastMutationId = "concurrent-write",
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await concurrent.SaveChangesAsync(ct);
+        };
+
+        var result = await service.ApplyAsync(Request(yacDir, library.PublicId, user.PublicId, overwrite: true), default);
+
+        Assert.True(result.Success, $"{result.Error}: {result.Message}");
+        Assert.Equal(2, result.Value!.Imported);
+        Assert.Equal(0, result.Value.Skipped);
+
+        // One row per (user, item) - no duplicate slipped through, no 500.
+        Assert.Equal(1, await db.ReadingProgress.CountAsync(p => p.UserId == user.Id && p.ItemId == node1.Id));
+        Assert.Equal(1, await db.ReadingProgress.CountAsync(p => p.UserId == user.Id && p.ItemId == node2.Id));
+
+        // Overwrite recovery: the concurrent row was reloaded and overwritten
+        // with the import's state (mutation id + imported page position).
+        var progress1 = await db.ReadingProgress.FirstAsync(p => p.ItemId == node1.Id);
+        Assert.StartsWith("yacreader-import:", progress1.LastMutationId);
+        Assert.Equal(4, progress1.Ordinal); // currentPage 5 -> 0-based 4
+        Assert.Equal(2, progress1.Revision); // incremented by the overwrite recovery
+
+        // Sibling row imported cleanly despite sharing the failed batch.
+        var progress2 = await db.ReadingProgress.FirstAsync(p => p.ItemId == node2.Id);
+        Assert.StartsWith("yacreader-import:", progress2.LastMutationId);
+        Assert.Equal(19, progress2.Ordinal); // currentPage 20 -> 0-based 19
+    }
+
+    /// <summary>
+    /// No-overwrite path: a concurrent progress write races the bulk insert; the
+    /// recovery leaves the concurrent row as-is and counts the comic as skipped.
+    /// No 500, one row per (user, item), sibling row still imports.
+    /// </summary>
+    [Fact]
+    public async Task Apply_ConcurrentInsertRace_NoOverwritePath_SkipsAndCountsSkipped()
+    {
+        var setup = await SetupAsync();
+        var (db, library, user, node1, node2) = setup;
+
+        var yacDir = BuildYacLibrary(_tempDir,
+            (1, "/Series/Volume 1.cbz", "Volume 1.cbz", 5, read: false, hasBeenOpened: true),
+            (2, "/Series/Volume 2.cbz", "Volume 2.cbz", 20, read: false, hasBeenOpened: true));
+
+        var service = CreateService(db);
+
+        service.BeforeBulkSaveAsync = async ct =>
+        {
+            await using var concurrent = new MangaPlexDbContext(_options);
+            concurrent.ReadingProgress.Add(new ReadingProgressEntity
+            {
+                UserId = user.Id,
+                ItemId = node1.Id,
+                ContentVersion = 1,
+                EntryKey = OpaqueId.Encode(0),
+                Ordinal = 0,
+                NormalizedAnchor = 0.0,
+                State = (int)Core.Reading.ReadingState.InProgress,
+                Revision = 1,
+                LastMutationId = "concurrent-write",
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await concurrent.SaveChangesAsync(ct);
+        };
+
+        var result = await service.ApplyAsync(Request(yacDir, library.PublicId, user.PublicId, overwrite: false), default);
+
+        Assert.True(result.Success, $"{result.Error}: {result.Message}");
+        Assert.Equal(1, result.Value!.Imported); // node2 only
+        Assert.Equal(1, result.Value.Skipped);   // node1 raced and was skipped
+
+        // One row per (user, item) - no duplicate, no 500.
+        Assert.Equal(1, await db.ReadingProgress.CountAsync(p => p.UserId == user.Id && p.ItemId == node1.Id));
+        Assert.Equal(1, await db.ReadingProgress.CountAsync(p => p.UserId == user.Id && p.ItemId == node2.Id));
+
+        // No-overwrite recovery: the concurrent row is left untouched (import policy).
+        var progress1 = await db.ReadingProgress.FirstAsync(p => p.ItemId == node1.Id);
+        Assert.Equal("concurrent-write", progress1.LastMutationId);
+        Assert.Equal(0, progress1.Ordinal); // unchanged
+        Assert.Equal(1, progress1.Revision); // unchanged
+
+        // Sibling row imported cleanly.
+        var progress2 = await db.ReadingProgress.FirstAsync(p => p.ItemId == node2.Id);
+        Assert.StartsWith("yacreader-import:", progress2.LastMutationId);
+        Assert.Equal(19, progress2.Ordinal);
+    }
 }
