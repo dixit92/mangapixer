@@ -441,6 +441,30 @@ public sealed class CatalogBrowseTests : IDisposable
     // --- Sort tests (view-mode sort follow-up) ---
 
     [Fact]
+    public async Task Search_FolderWithDescendantArchive_ResolvesCover()
+    {
+        // Contract guard for the 1.8.1 search folder-cover fix: the search
+        // endpoint must return a coverUrl for a folder that has a readable
+        // descendant archive (ResolveFolderCoversAsync, parity with browse).
+        // The frontend search component renders this coverUrl; without it a
+        // folder result shows only the generic folder icon.
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var folder = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Failure Frame", "0Failure Frame");
+            await AddNodeAsync(db, libraryId, folder.Id, CatalogNodeKind.Archive, "Failure Frame Vol 1", "1Failure Frame Vol 1");
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.SearchAsync(userId, "Failure");
+
+            var folderNode = result.Items.Single(n => n.Kind == CatalogNodeKind.Folder);
+            Assert.NotNull(folderNode.CoverUrl);
+            Assert.Equal($"/api/v1/items/{result.Items.Single(n => n.Kind == CatalogNodeKind.Archive).Id}/cover", folderNode.CoverUrl);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
     public async Task Browse_RecentlyAdded_ReturnsCorrectOrder()
     {
         var (db, userId, libraryId) = await SetupAsync();

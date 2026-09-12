@@ -1,5 +1,6 @@
 using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangaplex.Core.Ordering;
 using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Features.Catalog;
 using com.lifepixer.mangaplex.Server.Persistence;
@@ -120,8 +121,11 @@ public sealed class JumpIndexServiceTests : IDisposable
             var result = await service.GetJumpIndexAsync(userId, libraryId);
 
             var labels = result.Buckets.Select(b => b.Label).ToList();
-            // Rail order: A, B, C, #, Kana, CJK, Cyrillic, Other
-            Assert.Equal(new[] { "A", "B", "C", "#", "Kana", "CJK", "Cyrillic", "Other" }, labels);
+            // Rail order: #, A, B, C, Kana, CJK, Cyrillic, Other. "#" leads the
+            // rail as the numeric/symbol bucket (by convention, as in a typical
+            // A–Z index); its cursor still lands on the first numeric node in
+            // persisted SortKey order.
+            Assert.Equal(new[] { "#", "A", "B", "C", "Kana", "CJK", "Cyrillic", "Other" }, labels);
 
             var a = result.Buckets.First(b => b.Label == "A");
             Assert.Equal(2, a.Count); // Apple + Avocado
@@ -216,6 +220,58 @@ public sealed class JumpIndexServiceTests : IDisposable
             // The first item must be "Delta" — the bucket's first node.
             Assert.NotEmpty(page.Items);
             Assert.Equal("Delta", page.Items[0].DisplayName);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task GetJumpIndex_HashBucketLeadsRailAndCursorLandsOnFirstNumericNode()
+    {
+        // "#" must lead the rail, and its cursor must land on the first numeric
+        // node in browse name-sort order — even when a letter folder sorts ahead
+        // of the numeric nodes (within folders, SortKey is ordinal, so 'A' < 'D'
+        // and a letter folder precedes a numeric folder). Uses real SortKeys via
+        // SortKey.ForNode so the cursor contract is exercised against the actual
+        // browse ordering, not hand-crafted keys.
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var root = SortKey.ForLibraryRoot();
+            await AddNodeAsync(db, libraryId, CatalogNodeKind.Folder, "Apple", SortKey.ForNode(CatalogNodeKind.Folder, "Apple", root));
+            await AddNodeAsync(db, libraryId, CatalogNodeKind.Folder, "10-Title", SortKey.ForNode(CatalogNodeKind.Folder, "10-Title", root));
+            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "Banana", SortKey.ForNode(CatalogNodeKind.Archive, "Banana", root));
+            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "7-Title", SortKey.ForNode(CatalogNodeKind.Archive, "7-Title", root));
+
+            var jumpService = new JumpIndexService(db);
+            var browseService = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+
+            var index = await jumpService.GetJumpIndexAsync(userId, libraryId);
+
+            // "#" leads the rail.
+            Assert.Equal("#", index.Buckets[0].Label);
+
+            var hash = index.Buckets.First(b => b.Label == "#");
+            // The first numeric node is the "10-Title" folder (it follows the
+            // "Apple" letter folder in SortKey order), so the "#" cursor is the
+            // Apple SortKey — non-null, because "#" is NOT the global first node.
+            Assert.NotNull(hash.FirstCursor);
+            Assert.Equal(SortKey.ForNode(CatalogNodeKind.Folder, "Apple", root), hash.FirstCursor);
+
+            // The "A" bucket's first node ("Apple") IS the global first node, so
+            // its cursor is null regardless of rail position.
+            var a = index.Buckets.First(b => b.Label == "A");
+            Assert.Null(a.FirstCursor);
+
+            // End-to-end: passing the "#" cursor to browse lands on "10-Title",
+            // the first numeric node — not the end of the listing.
+            var page = await browseService.BrowseAsync(
+                userId, libraryId, parentId: null, cursor: hash.FirstCursor,
+                pageSize: 50, sort: "name");
+            Assert.NotEmpty(page.Items);
+            Assert.Equal("10-Title", page.Items[0].DisplayName);
         }
         finally
         {
@@ -368,19 +424,19 @@ public sealed class JumpIndexServiceTests : IDisposable
     }
 
     [Fact]
-    public void RailRank_LatinAZThenHashThenScriptsThenOther()
+    public void RailRank_HashThenLatinAZThenScriptsThenOther()
     {
-        Assert.Equal(0, JumpIndexService.RailRank("A"));
-        Assert.Equal(25, JumpIndexService.RailRank("Z"));
-        Assert.Equal(26, JumpIndexService.RailRank("#"));
+        Assert.Equal(0, JumpIndexService.RailRank("#"));
+        Assert.Equal(1, JumpIndexService.RailRank("A"));
+        Assert.Equal(26, JumpIndexService.RailRank("Z"));
         Assert.Equal(27, JumpIndexService.RailRank("Kana"));
         Assert.Equal(28, JumpIndexService.RailRank("Hangul"));
         Assert.Equal(29, JumpIndexService.RailRank("CJK"));
         Assert.Equal(30, JumpIndexService.RailRank("Cyrillic"));
         Assert.Equal(99, JumpIndexService.RailRank("Other"));
-        // Latin sorts before #, which sorts before scripts, which sort before Other.
-        Assert.True(JumpIndexService.RailRank("A") < JumpIndexService.RailRank("#"));
-        Assert.True(JumpIndexService.RailRank("#") < JumpIndexService.RailRank("Kana"));
+        // # sorts before A, which sorts before scripts, which sort before Other.
+        Assert.True(JumpIndexService.RailRank("#") < JumpIndexService.RailRank("A"));
+        Assert.True(JumpIndexService.RailRank("A") < JumpIndexService.RailRank("Kana"));
         Assert.True(JumpIndexService.RailRank("Thai") < JumpIndexService.RailRank("Other"));
     }
 }
