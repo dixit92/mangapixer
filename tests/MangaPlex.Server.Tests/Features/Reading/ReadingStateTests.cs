@@ -497,8 +497,11 @@ public sealed class ReadingStateTests : IDisposable
     // --- Sticky read-marks (1.2.0) ---
 
     [Fact]
-    public async Task SetItemRead_TogglesStickyFlag_WithoutOpening()
+    public async Task SetItemRead_ManualMark_RecordsCompletedAtLastPage_AndOpensAtStart()
     {
+        // Rule 3 (1.9.0): a manual mark-read is treated as fully read — it records
+        // progress Completed at the last page so the universal open-position rule
+        // reopens the title at page 1 and it drops out of continue-reading.
         var (db, userId, _, _, itemId) = await SetupAsync();
         try
         {
@@ -508,17 +511,22 @@ public sealed class ReadingStateTests : IDisposable
             // Not read initially.
             Assert.False(await service.IsReadAsync(userId, itemId));
 
-            // Set read without any reading progress recorded.
+            // Mark read without ever opening the reader (no prior progress).
             Assert.True(await service.SetItemReadAsync(userId, itemId, read: true));
             Assert.True(await service.IsReadAsync(userId, itemId));
 
-            // No progress row was created — read-mark is decoupled from position.
+            // Progress is now Completed at the last page (index 9 of a 10-page item),
+            // and the open-position rule resolves to page 1.
             var progress = await service.GetProgressAsync(userId, itemId);
-            Assert.Equal(ReadingState.Unread, progress!.State);
+            Assert.Equal(ReadingState.Completed, progress!.State);
+            Assert.Equal(9, progress.PageIndex);
+            Assert.Equal(0, progress.OpenPageIndex);
 
-            // Clear it again.
+            // Clearing it is a full reset (rule 1): mark gone, progress gone.
             Assert.True(await service.SetItemReadAsync(userId, itemId, read: false));
             Assert.False(await service.IsReadAsync(userId, itemId));
+            var afterClear = await service.GetProgressAsync(userId, itemId);
+            Assert.Equal(ReadingState.Unread, afterClear!.State);
         }
         finally { await db.DisposeAsync(); }
     }
@@ -581,8 +589,11 @@ public sealed class ReadingStateTests : IDisposable
     }
 
     [Fact]
-    public async Task ClearReadMark_DoesNotTouchProgress()
+    public async Task ClearReadMark_IsFullReset_WipesProgress()
     {
+        // Rule 1 (1.9.0): clearing a read-mark is a deliberate full reset — it wipes
+        // BOTH the mark and the reading position, so the item returns to Unread and
+        // reopens at page 1 (the same outcome folder "unread" already produced).
         var (db, userId, _, _, itemId) = await SetupAsync();
         try
         {
@@ -592,13 +603,15 @@ public sealed class ReadingStateTests : IDisposable
             await service.UpdateProgressAsync(userId, itemId, 9, 1, mutationId: "mut-1");
             Assert.True(await service.IsReadAsync(userId, itemId));
 
-            // Clearing the read-mark leaves the reading position/state intact.
             await service.SetItemReadAsync(userId, itemId, read: false);
 
             Assert.False(await service.IsReadAsync(userId, itemId));
+            // Progress row removed -> Unread, reopens at page 1.
             var progress = await service.GetProgressAsync(userId, itemId);
-            Assert.Equal(ReadingState.Completed, progress!.State);
-            Assert.Equal(9, progress.PageIndex);
+            Assert.Equal(ReadingState.Unread, progress!.State);
+            Assert.Equal(0, progress.PageIndex);
+            Assert.Equal(0, progress.OpenPageIndex);
+            Assert.False(await db.ReadingProgress.AnyAsync(p => p.UserId == userId && p.ItemId == itemId));
         }
         finally { await db.DisposeAsync(); }
     }

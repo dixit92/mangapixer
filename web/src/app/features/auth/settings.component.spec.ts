@@ -39,6 +39,11 @@ describe('SettingsComponent — Private libraries', () => {
       { id: 'L2', name: 'Beta', isScanning: false, itemCount: 5, lastScanCompleted: null, defaultReaderMode: null },
     ]);
     httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: ['L2'] });
+    // The embedded reading-preferences card (1.9.0) loads the user's preferences on init.
+    httpMock.expectOne('/api/v1/reading/preferences').flush({
+      defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false,
+      preferredBackground: null, alwaysOpenReadFromStart: false,
+    });
     return fixture;
   }
 

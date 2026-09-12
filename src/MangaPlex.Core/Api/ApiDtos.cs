@@ -169,6 +169,20 @@ public sealed record ReadingProgressDto
     public required long Revision { get; init; }
 
     /// <summary>
+    /// The page index the reader should OPEN at for this item (1.9.0), computed
+    /// per-archive at read time and NON-DESTRUCTIVELY (the stored <see cref="PageIndex"/>
+    /// is never rewritten because of this). For an item WITHOUT a read-mark this equals
+    /// <see cref="PageIndex"/> (resume where you left off). For a READ item (has a
+    /// read-mark): the last page (PageIndex &gt;= PageCount-1) always opens at 0; a
+    /// mid-archive position opens at 0 when the user's
+    /// <see cref="UserPreferencesDto.AlwaysOpenReadFromStart"/> is on, else resumes; no
+    /// saved position opens at 0. Keys off POSITION, not the Completed enum, so it is
+    /// robust to the re-read State-flip. Additive — older clients ignore it and keep
+    /// using <see cref="PageIndex"/>.
+    /// </summary>
+    public int OpenPageIndex { get; init; }
+
+    /// <summary>
     /// Content version the progress was recorded against.
     /// If the current content version differs, the progress is stale.
     /// </summary>
@@ -221,6 +235,17 @@ public sealed record UserPreferencesDto
     /// Theme preference: "dark", "light", or "system" (audit defect D23).
     /// </summary>
     public string Theme { get; init; } = "dark";
+
+    /// <summary>
+    /// When on, archives the user has marked read reopen from the FIRST page (1.9.0).
+    /// When off (default), read titles reopen where the user left off; titles they
+    /// finished (saved position on the last page) still start from the first page.
+    /// Only affects archives that carry a read-mark — Unread/Reading archives always
+    /// resume. Evaluated non-destructively at open time (see
+    /// <see cref="ReadingProgressDto.OpenPageIndex"/>), so toggling it is instant and
+    /// fully reversible.
+    /// </summary>
+    public bool AlwaysOpenReadFromStart { get; init; } = false;
 }
 
 /// <summary>

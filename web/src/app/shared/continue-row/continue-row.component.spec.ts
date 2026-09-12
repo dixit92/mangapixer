@@ -72,6 +72,25 @@ describe('ContinueRowComponent', () => {
     expect(el!.textContent).toContain('Chapter 1.cbz');
   });
 
+  it('labels the row "Continue" when the target is in progress (1.9.0)', () => {
+    const fixture = create(makeNode({ readingState: 'InProgress' }));
+    const el = row(fixture)!;
+    expect(el.textContent).toContain('Continue');
+    expect(el.textContent).not.toContain('Start reading');
+  });
+
+  it('labels the row "Start reading" when the target is unread (1.9.0)', () => {
+    const fixture = create(makeNode({ readingState: 'Unread', lastReadPage: null }));
+    const el = row(fixture)!;
+    expect(el.textContent).toContain('Start reading');
+  });
+
+  it('falls back to "Start reading" when the target has no reading state (1.9.0)', () => {
+    const fixture = create(makeNode({ readingState: null, lastReadPage: null }));
+    const el = row(fixture)!;
+    expect(el.textContent).toContain('Start reading');
+  });
+
   it('shows the cover image when coverUrl is present', () => {
     const fixture = create(makeNode({ coverUrl: '/api/v1/items/abc/cover' }));
     const img = fixture.nativeElement.querySelector('app-continue-row .cover img') as HTMLImageElement | null;

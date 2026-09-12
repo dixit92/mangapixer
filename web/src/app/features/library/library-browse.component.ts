@@ -1202,14 +1202,13 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * (on items inside them) are reported by count. Selection is kept so more actions
    * can be applied to the same set.
    *
-   * Mark-UNREAD (1.6.0 fix): clearing the sticky read-mark (DELETE .../read) is a
-   * no-op for an item that was opened but never marked read - it is InProgress with
-   * no read-mark, so it would stay "reading". So when unmarking, we ALSO reset the
-   * reading progress of any InProgress archive (DELETE .../progress -> Unread). That
-   * makes it leave both the browse "Reading" badge and the continue-reading strip.
-   * resetProgress is idempotent server-side (no-op when already unread), so it is
-   * safe to fire for the InProgress subset only. (Single-page archives auto-marking
-   * read on OPEN is intended and untouched - this is only the mark-unread action.)
+   * Mark-UNREAD (1.9.0): clearing the sticky read-mark (DELETE .../read) is now a
+   * deliberate FULL RESET server-side - it wipes both the read-mark AND the reading
+   * position in one call, so an InProgress archive leaves both the browse "Reading"
+   * badge and the continue-reading strip with no separate progress reset. The old
+   * compensating DELETE .../progress call (retired with rule 6) is gone, so no UI
+   * action can leave a read-badge-with-no-position state. (Single-page archives
+   * auto-marking read on OPEN is intended and untouched - this is only mark-unread.)
    */
   bulkMarkRead(read: boolean): void {
     const ids = this.selected();
@@ -1217,15 +1216,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const archives = chosen.filter((n) => n.kind === 'Archive');
     const folders = chosen.filter((n) => n.kind === 'Folder');
 
-    // Only when marking unread: the mid-read archives whose progress must also be reset.
-    const resetArchives = read
-      ? []
-      : archives.filter((a) => a.readingState === 'InProgress');
-
     const calls = [
       ...archives.map((a) => this.api.setItemRead(a.id, read)),
       ...folders.map((f) => this.api.setFolderRead(f.id, read)),
-      ...resetArchives.map((a) => this.api.resetProgress(a.id)),
     ];
     if (calls.length === 0) return;
 
@@ -1233,15 +1226,13 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     forkJoin(calls).subscribe({
       next: () => {
         const archiveIds = new Set(archives.map((a) => a.id));
-        const resetIds = new Set(resetArchives.map((a) => a.id));
         this.nodes.update((list) =>
           list.map((n) => {
             if (!archiveIds.has(n.id)) return n;
             const updated = { ...n, isRead: read };
-            // Marking unread also cleared mid-read progress: drop the "Reading" state
-            // (and the last-read page) so the badge disappears and the item is no
-            // longer mid-read.
-            if (resetIds.has(n.id)) {
+            // Marking unread is a full reset: drop the "Reading" state and last-read
+            // page so the badge disappears and the item is no longer mid-read.
+            if (!read) {
               updated.readingState = 'Unread';
               updated.lastReadPage = null;
             }

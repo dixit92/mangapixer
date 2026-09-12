@@ -364,6 +364,15 @@ public sealed class ReaderPreferencesEntity
     public string? PreferredBackground { get; set; }
 
     /// <summary>
+    /// When true, archives the user has marked read reopen from the first page (1.9.0);
+    /// when false (default) read archives resume where the user left off, except ones
+    /// finished on the last page which always open at page 1. Consumed non-destructively
+    /// at read time to compute <c>ReadingProgressDto.OpenPageIndex</c>. Defaults to false
+    /// so rows written before this column existed keep today's resume behaviour.
+    /// </summary>
+    public bool AlwaysOpenReadFromStart { get; set; }
+
+    /// <summary>
     /// Per-user library browse presentation (1.2.0). Stored as tolerant strings
     /// (not enums) so future frontends can map/fall back gracefully rather than being
     /// hard-coupled to one set of modes. Defaults: grid / comfortable / name.
