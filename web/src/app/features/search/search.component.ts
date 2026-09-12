@@ -41,8 +41,8 @@ import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
         @for (node of results(); track node.id) {
           <a [routerLink]="getNodeLink(node)" class="result-card">
             <div class="cover">
-              @if (node.kind === 'Archive') {
-                <img appCover [src]="coverUrl(node.id)" alt="" loading="lazy">
+              @if (coverSrc(node); as src) {
+                <img appCover [src]="src" alt="" loading="lazy">
               }
               <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
             </div>
@@ -99,9 +99,15 @@ export class SearchComponent {
     return ['/reader', node.id];
   }
 
-  /** Cover URL for an archive result (folders keep the icon — search has no folder cover). */
-  coverUrl(itemId: string): string {
-    return `/api/v1/items/${itemId}/cover`;
+  /**
+   * Resolved cover URL for a search result. Folders use the backend-provided
+   * `coverUrl` (resolved from the first descendant archive by SortKey — parity
+   * with browse, added for search in 1.8.0); archives fall back to their own
+   * cover endpoint (the search projection does not set coverUrl for archives).
+   * Folders with no readable descendant stay coverless and render the icon.
+   */
+  coverSrc(node: CatalogNodeDto): string | null {
+    return node.coverUrl ?? (node.kind === 'Archive' ? `/api/v1/items/${node.id}/cover` : null);
   }
 
   private doSearch(): void {

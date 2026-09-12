@@ -231,23 +231,38 @@ public sealed class JumpIndexService
         c is ' ' or '\t' or '"' or '\'' or '(' or ')' or '[' or ']' or '{' or '}' or '-' or '_' or '.' or ',' or '!' or '?' or '*' or '#' or '@' or '~';
 
     /// <summary>
-    /// Fixed rail rank for a bucket label. Lower sorts first. Latin A–Z keep
-    /// their natural order; "#" follows Z; script groups follow in a stable,
-    /// UI-sensible order; "Other" is last.
+    /// Fixed rail rank for a bucket label. Lower sorts first. "#" (numeric/symbol)
+    /// leads the rail so numeric-leading titles get their own leading bucket, then
+    /// Latin A–Z in their natural order, then script groups in a stable, UI-sensible
+    /// order, with "Other" last.
+    ///
+    /// The rail is a coarse A–Z navigation aid, not a 1:1 mirror of the persisted
+    /// <c>SortKey</c> listing. Within each kind, <c>SortKey.EncodeName</c> orders
+    /// letter-leading names ahead of digit-leading names (digit runs are encoded
+    /// with a leading 'D' > 'A'), so numeric titles do not globally lead browse;
+    /// the "#" bucket is placed first by convention (as in a typical A–Z index).
+    /// The bucket's <c>FirstCursor</c> still honours <c>SortKey</c> order: it is the
+    /// key of the node immediately before the first numeric node, so the browse
+    /// endpoint's exclusive <c>SortKey > cursor</c> filter lands on that first
+    /// numeric node wherever it falls in the listing.
     /// </summary>
     internal static int RailRank(string label)
     {
-        // Latin A–Z → ranks 0..25.
+        // "#" (numeric/symbol) first — a leading numeric/symbol bucket by
+        // convention (as in a typical A–Z index). The cursor is the SortKey of
+        // the node just before the first numeric node, so browse lands on that
+        // first numeric node; numeric titles do not globally lead the persisted
+        // SortKey listing (letters precede digits within each kind).
+        if (label == "#")
+            return 0;
+
+        // Latin A–Z → ranks 1..26.
         if (label.Length == 1)
         {
             var c = label[0];
             if (c >= 'A' && c <= 'Z')
-                return c - 'A';
+                return c - 'A' + 1;
         }
-
-        // "#" after Z.
-        if (label == "#")
-            return 26;
 
         // Script groups in a fixed, stable order.
         return label switch

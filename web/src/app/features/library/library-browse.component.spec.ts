@@ -1264,3 +1264,122 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
     expect(comp.activeJump()).toBe('Z');
   });
 });
+
+/**
+ * View-menu selected-state highlight (1.8.1). The four View submenus (view mode,
+ * Sort by, Order, Items per load) used to mark the active option with a checkmark
+ * ICON; this replaces that with an accent COLOR HIGHLIGHT (the `selected-option`
+ * class + accent background/text) while keeping the option's own icon. For
+ * accessibility the active option is a `menuitemradio` carrying `aria-checked`.
+ *
+ * The menu renders in a CDK overlay (outside the component's host element), so
+ * these tests OPEN the menu via its trigger and then query the overlay through
+ * `document` (the panel carries the `view-options-menu` class applied on
+ * <mat-menu>), rather than `fixture.nativeElement`.
+ */
+describe('LibraryBrowseComponent view menu selected highlight (1.8.1)', () => {
+  function setup(prefs: Partial<LibraryViewPreferencesDto> = {}) {
+    const fullPrefs = { viewMode: 'card', density: 'comfortable', sort: 'name', direction: 'asc', ...prefs } as LibraryViewPreferencesDto;
+    const emptyPage: PageResponse<CatalogNodeDto> = { items: [], totalCount: 0, nextCursor: null, hasMore: false };
+    const apiSpy = {
+      getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
+      setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
+      getReadMark: vi.fn().mockReturnValue(of({ itemId: '', isRead: false })),
+      getProgress: vi.fn().mockReturnValue(of(null)),
+    };
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: { isAdmin: () => false } },
+        { provide: ReadStateService, useValue: new ReadStateService() },
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : null) }) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges();
+    return { fixture, comp: fixture.componentInstance, el: fixture.nativeElement as HTMLElement };
+  }
+
+  /** Open the View menu and return its overlay panel element. */
+  function openViewMenu(el: HTMLElement, fixture: ComponentFixture<LibraryBrowseComponent>): HTMLElement {
+    (el.querySelector('.view-toggle') as HTMLElement).click();
+    fixture.detectChanges();
+    const panel = document.querySelector('.view-options-menu') as HTMLElement;
+    expect(panel, 'the view-options-menu overlay panel').not.toBeNull();
+    return panel;
+  }
+
+  /** Find a menu item button by its (whitespace-normalized) trailing label text. */
+  function itemByLabel(panel: HTMLElement, label: string): HTMLElement {
+    const items = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'));
+    const match = items.find((i) => (i.textContent ?? '').replace(/\s+/g, ' ').trim().endsWith(label));
+    expect(match, `menu item ending with "${label}"`).toBeDefined();
+    return match!;
+  }
+
+  it('every menu item is a menuitemradio (single-selection semantics for a11y)', () => {
+    const { fixture, el } = setup();
+    const panel = openViewMenu(el, fixture);
+    const items = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'));
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) {
+      expect(item.getAttribute('role')).toBe('menuitemradio');
+    }
+  });
+
+  it('highlights the DEFAULT selection (card / name / asc / 50) in all four submenus', () => {
+    const { fixture, el } = setup(); // card, name, asc, default pageSize 50
+    const panel = openViewMenu(el, fixture);
+
+    // Each pair: the active option carries the highlight class + aria-checked=true;
+    // the inactive sibling does not.
+    for (const [active, inactive] of [
+      ['Card', 'List'],
+      ['Name', 'Recently added'],
+      ['Ascending', 'Descending'],
+      ['50', '100'],
+    ]) {
+      const on = itemByLabel(panel, active);
+      const off = itemByLabel(panel, inactive);
+      expect(on.classList.contains('selected-option'), `${active} highlighted`).toBe(true);
+      expect(on.getAttribute('aria-checked'), `${active} aria-checked`).toBe('true');
+      expect(off.classList.contains('selected-option'), `${inactive} not highlighted`).toBe(false);
+      expect(off.getAttribute('aria-checked'), `${inactive} aria-checked`).toBe('false');
+    }
+  });
+
+  it('the selected option keeps its OWN icon (the checkmark is gone)', () => {
+    const { fixture, el } = setup(); // card is the active view mode
+    const panel = openViewMenu(el, fixture);
+    const card = itemByLabel(panel, 'Card');
+    // Icons are rendered as ligature text; the active item shows grid_view, not check.
+    expect(card.querySelector('mat-icon')?.textContent?.trim()).toBe('grid_view');
+    expect(card.querySelector('mat-icon')?.textContent?.trim()).not.toBe('check');
+  });
+
+  it('the highlight follows a NON-default stored selection in every submenu', () => {
+    const { fixture, el } = setup({ viewMode: 'list', sort: 'recentlyAdded', direction: 'desc', libraryPageSize: 100 });
+    const panel = openViewMenu(el, fixture);
+
+    for (const [active, inactive] of [
+      ['List', 'Card'],
+      ['Recently added', 'Name'],
+      ['Descending', 'Ascending'],
+      ['100', '50'],
+    ]) {
+      expect(itemByLabel(panel, active).classList.contains('selected-option'), `${active} highlighted`).toBe(true);
+      expect(itemByLabel(panel, inactive).classList.contains('selected-option'), `${inactive} not highlighted`).toBe(false);
+    }
+    // And the active list item shows its own glyph, not a checkmark.
+    expect(itemByLabel(panel, 'List').querySelector('mat-icon')?.textContent?.trim()).toBe('view_list');
+  });
+});
