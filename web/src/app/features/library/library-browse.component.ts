@@ -102,25 +102,43 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                 matTooltip="Change how the library is displayed" aria-label="View options">
           <mat-icon>{{ viewIcon() }}</mat-icon> View
         </button>
-        <mat-menu #viewMenu="matMenu">
+        <!-- View menu (1.8.1): the selected option in each of the four submenus is
+             marked with an accent COLOR HIGHLIGHT (background + text) rather than a
+             checkmark - a clearer selected-state that reads at a glance and frees the
+             icon slot to keep showing each option's own glyph. Each item is a
+             menuitemradio carrying aria-checked so the single-selection semantics are
+             exposed to assistive tech; Material's FocusKeyManager drives arrow-key nav
+             off the items regardless of role, so keyboard navigation is unchanged. The
+             view-options-menu panel class is the styling hook (the menu renders in a
+             CDK overlay outside this component's DOM - see the ::ng-deep block). -->
+        <mat-menu #viewMenu="matMenu" class="view-options-menu">
           @for (opt of viewOptions; track opt.value) {
-            <button mat-menu-item (click)="setViewMode(opt.value)">
-              <mat-icon>{{ viewMode() === opt.value ? 'check' : opt.icon }}</mat-icon>
+            <button mat-menu-item role="menuitemradio"
+                    [class.selected-option]="viewMode() === opt.value"
+                    [attr.aria-checked]="viewMode() === opt.value"
+                    (click)="setViewMode(opt.value)">
+              <mat-icon>{{ opt.icon }}</mat-icon>
               {{ opt.label }}
             </button>
           }
           <mat-divider></mat-divider>
           <span class="menu-caption">Sort by</span>
           @for (opt of sortOptions; track opt.value) {
-            <button mat-menu-item (click)="setSort(opt.value)">
-              <mat-icon>{{ sort() === opt.value ? 'check' : opt.icon }}</mat-icon>
+            <button mat-menu-item role="menuitemradio"
+                    [class.selected-option]="sort() === opt.value"
+                    [attr.aria-checked]="sort() === opt.value"
+                    (click)="setSort(opt.value)">
+              <mat-icon>{{ opt.icon }}</mat-icon>
               {{ opt.label }}
             </button>
           }
           <span class="menu-caption">Order</span>
           @for (opt of sortDirectionOptions; track opt.value) {
-            <button mat-menu-item (click)="setSortDirection(opt.value)">
-              <mat-icon>{{ sortDirection() === opt.value ? 'check' : opt.icon }}</mat-icon>
+            <button mat-menu-item role="menuitemradio"
+                    [class.selected-option]="sortDirection() === opt.value"
+                    [attr.aria-checked]="sortDirection() === opt.value"
+                    (click)="setSortDirection(opt.value)">
+              <mat-icon>{{ opt.icon }}</mat-icon>
               {{ opt.label }}
             </button>
           }
@@ -128,8 +146,11 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
           <!-- Initial/per-page item count for the infinite scroll (1.8.0, per-user). -->
           <span class="menu-caption">Items per load</span>
           @for (n of pageSizeOptions; track n) {
-            <button mat-menu-item class="page-size-option" (click)="setPageSize(n)">
-              <mat-icon>{{ pageSize() === n ? 'check' : 'format_list_numbered' }}</mat-icon>
+            <button mat-menu-item role="menuitemradio" class="page-size-option"
+                    [class.selected-option]="pageSize() === n"
+                    [attr.aria-checked]="pageSize() === n"
+                    (click)="setPageSize(n)">
+              <mat-icon>format_list_numbered</mat-icon>
               {{ n }}
             </button>
           }
@@ -277,6 +298,18 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     .menu-caption {
       display: block; padding: 6px 16px 2px; font-size: 11px; font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.5px; color: #8a8a99;
+    }
+    /* View menu selected-state (1.8.1): accent highlight replaces the per-item
+       checkmark in all four submenus. The panel renders in a CDK overlay, so the
+       rules are scoped via class="view-options-menu" on <mat-menu> and reach the
+       projected items with ::ng-deep. The subtle background lets Material's
+       higher-specificity hover/focus states still read on top. */
+    ::ng-deep .view-options-menu .selected-option {
+      background: rgba(124, 77, 255, 0.16);
+    }
+    ::ng-deep .view-options-menu .selected-option,
+    ::ng-deep .view-options-menu .selected-option .mat-icon {
+      color: #b39dff;
     }
     .browse-bar {
       position: sticky; top: 0; z-index: 20;

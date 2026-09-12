@@ -439,7 +439,10 @@ import {
       display: flex; align-items: center; gap: 6px;
       font-size: 13px; opacity: 0.85; margin: 0 0 8px;
     }
-    .lib-actions-bar { margin: 0 0 12px; }
+    /* "Scan all libraries" action bar (1.8.1 spacing fix): more breathing room
+       ABOVE so it sits clearly below the "Libraries" card title, and less BELOW so
+       it reads as attached to the library list it acts on (was 0 top / 12px bottom). */
+    .lib-actions-bar { margin: 16px 0 4px; }
     .register-form { max-width: 640px; }
     .register-form mat-form-field { display: block; width: 100%; margin-right: 0; }
     .register-actions { display: flex; gap: 12px; margin-top: 4px; }
