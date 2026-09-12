@@ -251,7 +251,7 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
               <!-- 1.9.0 page-turn transition. The <img> is re-created on every page
                    change (track entryKey), so a CSS keyframe on the fresh element
                    plays exactly once per turn — no Angular animations dep. The enter
-                   side is reading-direction aware (navEnter); reveal needs no side.
+                   side is reading-direction aware (navEnter); slide translates, reveal wipes.
                    prefers-reduced-motion disables it in CSS regardless of setting. -->
               <img
                 [src]="pageUrlFor(entry)"
@@ -554,13 +554,18 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
       padding: 1px 6px; font-family: monospace; font-size: 12px;
     }
     .help-dismiss { margin: 12px 0 0; opacity: 0.65; font-size: 13px; text-align: center; }
-    /* 1.9.0 page-turn transition (paged / spread). GPU-friendly: only transform +
-       opacity animate, so there is no layout thrash. The incoming <img> is a fresh
+    /* 1.9.0 page-turn transition (paged / spread). The incoming <img> is a fresh
        element each turn, so the keyframe plays once on mount. 'Slide' eases the new
-       page in from the direction of travel (navEnter); 'Reveal' is a quick fade. */
-    .spread-row img.anim-slide.from-right { animation: mp-slide-from-right .22s cubic-bezier(.22,.61,.36,1) both; }
-    .spread-row img.anim-slide.from-left  { animation: mp-slide-from-left  .22s cubic-bezier(.22,.61,.36,1) both; }
-    .spread-row img.anim-reveal           { animation: mp-reveal           .2s ease both; }
+       page in from the direction of travel (navEnter; transform). 'Reveal' wipes the
+       new page into view from the leading edge (clip-path) for a cover/uncover feel.
+       'None' applies no class (instant swap). Both slide and reveal are
+       reading-direction aware. (1.9.1: Reveal was a short opacity fade, which read
+       almost identically to None; changed to a clip-path wipe so the three modes are
+       categorically distinct motions.) */
+    .spread-row img.anim-slide.from-right  { animation: mp-slide-from-right  .22s cubic-bezier(.22,.61,.36,1) both; }
+    .spread-row img.anim-slide.from-left   { animation: mp-slide-from-left   .22s cubic-bezier(.22,.61,.36,1) both; }
+    .spread-row img.anim-reveal.from-right { animation: mp-reveal-from-right .3s ease both; }
+    .spread-row img.anim-reveal.from-left  { animation: mp-reveal-from-left  .3s ease both; }
     @keyframes mp-slide-from-right {
       from { transform: translate3d(22%, 0, 0); opacity: 0.35; }
       to   { transform: translate3d(0, 0, 0);   opacity: 1; }
@@ -569,15 +574,22 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
       from { transform: translate3d(-22%, 0, 0); opacity: 0.35; }
       to   { transform: translate3d(0, 0, 0);    opacity: 1; }
     }
-    @keyframes mp-reveal {
-      from { opacity: 0; }
-      to   { opacity: 1; }
+    /* Reveal: uncover the new page from the leading edge via an animated clip-path
+       inset - from-right uncovers right->left, from-left uncovers left->right. */
+    @keyframes mp-reveal-from-right {
+      from { clip-path: inset(0 0 0 100%); }
+      to   { clip-path: inset(0 0 0 0); }
+    }
+    @keyframes mp-reveal-from-left {
+      from { clip-path: inset(0 100% 0 0); }
+      to   { clip-path: inset(0 0 0 0); }
     }
     @media (prefers-reduced-motion: reduce) {
       .reader-toolbar, .progress-fill { transition: none; }
       /* Fall back to an instant page swap when the reader prefers reduced motion,
-         regardless of the chosen transition. */
-      .spread-row img.anim-slide, .spread-row img.anim-reveal { animation: none; }
+         regardless of the chosen transition. !important so this reliably wins over
+         the per-direction rules above, which are otherwise more specific. */
+      .spread-row img.anim-slide, .spread-row img.anim-reveal { animation: none !important; }
     }
   `],
 })
