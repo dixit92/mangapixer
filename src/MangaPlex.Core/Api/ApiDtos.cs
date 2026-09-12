@@ -262,6 +262,13 @@ public sealed record ReadMarkDto
 /// a frontend derives an initial size from the legacy ViewMode + Density, so rows
 /// saved before this field existed keep their effective card size. The server never
 /// interprets these presentation strings — they are stored and returned verbatim.
+///
+/// LibraryPageSize (1.8.0) is the per-user initial/per-page item count the browse
+/// view requests as it infinite-scrolls. 0 means unset (the frontend applies its
+/// default of 50), so rows saved before this field existed — and PUTs from older
+/// clients that omit it — behave exactly as before. Stored verbatim, never clamped
+/// or interpreted server-side (browse still takes pageSize as an explicit query
+/// parameter).
 /// </summary>
 public sealed record LibraryViewPreferencesDto
 {
@@ -270,6 +277,7 @@ public sealed record LibraryViewPreferencesDto
     public string Sort { get; init; } = "name";
     public string Direction { get; init; } = "";
     public string CardSize { get; init; } = "";
+    public int LibraryPageSize { get; init; }
 }
 
 /// <summary>

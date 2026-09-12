@@ -390,6 +390,15 @@ public sealed class ReaderPreferencesEntity
     /// </summary>
     public string LibraryCardSize { get; set; } = "";
 
+    /// <summary>
+    /// Initial/per-page item count for the library browse view (1.8.0 infinite
+    /// scroll): 0 = unset (the frontend applies its default, 50). Stored verbatim
+    /// like the other presentation columns; the browse endpoint still takes the
+    /// page size as an explicit query parameter, so this is purely the client's
+    /// remembered choice.
+    /// </summary>
+    public int LibraryPageSize { get; set; }
+
     public UserEntity? User { get; set; }
 }
 

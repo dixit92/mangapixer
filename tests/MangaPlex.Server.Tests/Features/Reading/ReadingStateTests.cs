@@ -786,6 +786,7 @@ public sealed class ReadingStateTests : IDisposable
             Assert.Equal("name", def.Sort);
             Assert.Equal("", def.Direction); // unset (1.5.0) — sort-specific default applies downstream
             Assert.Equal("", def.CardSize); // unset (1.6.0) — frontend derives from legacy ViewMode/Density
+            Assert.Equal(0, def.LibraryPageSize); // unset (1.8.0) — frontend applies its default (50)
 
             await service.SetLibraryPreferencesAsync(userId, new LibraryViewPreferencesDto
             {
@@ -794,6 +795,7 @@ public sealed class ReadingStateTests : IDisposable
                 Sort = "recentlyAdded",
                 Direction = "desc",
                 CardSize = "168",
+                LibraryPageSize = 100,
             });
 
             var lib = await service.GetLibraryPreferencesAsync(userId);
@@ -802,6 +804,7 @@ public sealed class ReadingStateTests : IDisposable
             Assert.Equal("recentlyAdded", lib.Sort);
             Assert.Equal("desc", lib.Direction);
             Assert.Equal("168", lib.CardSize); // 1.6.0 card size round-trips
+            Assert.Equal(100, lib.LibraryPageSize); // 1.8.0 page size round-trips
 
             // Reader prefs survived the library-prefs write.
             var reader = await service.GetPreferencesAsync(userId);

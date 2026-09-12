@@ -732,6 +732,7 @@ public sealed class ReadingStateService
             Sort = prefs.LibrarySort,
             Direction = prefs.LibraryDirection,
             CardSize = prefs.LibraryCardSize,
+            LibraryPageSize = prefs.LibraryPageSize,
         };
     }
 
@@ -758,6 +759,7 @@ public sealed class ReadingStateService
         prefs.LibrarySort = preferences.Sort;
         prefs.LibraryDirection = preferences.Direction;
         prefs.LibraryCardSize = preferences.CardSize;
+        prefs.LibraryPageSize = preferences.LibraryPageSize;
 
         await _db.SaveChangesAsync(ct);
     }
