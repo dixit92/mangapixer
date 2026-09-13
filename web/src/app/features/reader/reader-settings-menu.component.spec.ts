@@ -113,6 +113,9 @@ describe('ReaderOptionsSheetComponent', () => {
 
   function create(host: ReaderOptionsHost = makeHost()) {
     const ref = { dismiss: vi.fn() };
+    // Reset first so a single test may call create() several times (the
+    // activeLayout test creates the sheet once per layout scenario).
+    TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [ReaderOptionsSheetComponent],
       providers: [

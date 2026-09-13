@@ -1105,9 +1105,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
     if (this.optionsOpen()) return;
     this.optionsOpen.set(true);
     this.menuOpen.set(true);
-    const host: ReaderOptionsHost = this;
     const ref = this.bottomSheet.open(ReaderOptionsSheetComponent, {
-      data: host,
+      data: this as ReaderOptionsHost,
       panelClass: 'reader-options-sheet',
       ariaLabel: 'Reader options',
     });
