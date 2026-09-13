@@ -478,4 +478,127 @@ public sealed class CatalogHttpTests : IClassFixture<MangaPlexWebApplicationFact
         // Both chapters read -> null at the root too.
         Assert.Null(rootPage!.NextUnread);
     }
+
+    /// <summary>
+    /// 1.10.0 read-state filter (F1) through the public surface: the browse endpoint
+    /// takes a `readState` query param (all/reading/read/unread) that restricts the
+    /// listed archives to the current user's per-item read state, and it works at a
+    /// subfolder AND at the library root. Folders are always kept so navigation is
+    /// unaffected. Read = a sticky read-mark; Reading = in-progress progress, no mark;
+    /// Unread = neither.
+    /// </summary>
+    [Fact]
+    public async Task Browse_ReadStateFilter_RestrictsArchivesThroughApi()
+    {
+        // Sign in first so the admin user row exists, then seed nodes + this user's
+        // read-mark / in-progress rows directly (the progress-write flow has its own
+        // CSRF/manifest tests; here we exercise the browse `readState` query param).
+        var client = await GetAuthenticatedClientAsync();
+
+        string libPublicId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var adminId = (await db.Users.FirstAsync(u => u.NormalizedUserName == "ADMIN")).Id;
+
+            var library = new LibraryEntity
+            {
+                PublicId = "readstatelib",
+                DisplayName = "Read State Library",
+                RootPath = "/tmp/readstate",
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.Libraries.Add(library);
+            await db.SaveChangesAsync();
+            libPublicId = library.PublicId;
+
+            var series = new CatalogNodeEntity
+            {
+                PublicId = "rsSeries",
+                LibraryId = library.Id,
+                Kind = 0,
+                DisplayName = "Series",
+                RelativePath = "Series",
+                PathKey = "Series",
+                SortKey = "0Series",
+                Availability = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.CatalogNodes.Add(series);
+            await db.SaveChangesAsync();
+
+            var byPid = new Dictionary<string, CatalogNodeEntity>();
+            foreach (var (pid, name, key) in new[]
+                     {
+                         ("rsCh1", "Ch1.cbz", "1Ch1"),
+                         ("rsCh2", "Ch2.cbz", "1Ch2"),
+                         ("rsCh3", "Ch3.cbz", "1Ch3"),
+                     })
+            {
+                var node = new CatalogNodeEntity
+                {
+                    PublicId = pid,
+                    LibraryId = library.Id,
+                    ParentId = series.Id,
+                    Kind = 1,
+                    DisplayName = name,
+                    RelativePath = $"Series/{name}",
+                    PathKey = $"Series/{name}",
+                    SortKey = key,
+                    Availability = 0,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                };
+                db.CatalogNodes.Add(node);
+                byPid[pid] = node;
+            }
+            await db.SaveChangesAsync();
+
+            // Ch1 read (sticky read-mark); Ch2 in-progress (progress row, no mark); Ch3 untouched.
+            db.ReadMarks.Add(new ReadMarkEntity
+            {
+                UserId = adminId,
+                ItemId = byPid["rsCh1"].Id,
+                MarkedAt = DateTimeOffset.UtcNow,
+                Source = "manual",
+            });
+            db.ReadingProgress.Add(new ReadingProgressEntity
+            {
+                UserId = adminId,
+                ItemId = byPid["rsCh2"].Id,
+                ContentVersion = 1,
+                EntryKey = "entry1",
+                Ordinal = 1,
+                State = (int)ReadingState.InProgress,
+                Revision = 1,
+                LastMutationId = Guid.NewGuid().ToString("N"),
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        jsonOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+
+        async Task<List<string>> BrowseFilteredAsync(string parentQuery, string readState)
+        {
+            var response = await client.GetAsync(
+                $"/api/v1/libraries/{libPublicId}/browse?sort=name{parentQuery}&readState={readState}");
+            response.EnsureSuccessStatusCode();
+            var page = await response.Content.ReadFromJsonAsync<PageResponse<CatalogNodeDto>>(jsonOptions);
+            return page!.Items.Select(n => n.Id).ToList();
+        }
+
+        // Inside the Series folder, each filter restricts to the matching archive.
+        Assert.Equal(new[] { "rsCh1" }, (await BrowseFilteredAsync("&parentId=rsSeries", "read")).ToArray());
+        Assert.Equal(new[] { "rsCh2" }, (await BrowseFilteredAsync("&parentId=rsSeries", "reading")).ToArray());
+        Assert.Equal(new[] { "rsCh3" }, (await BrowseFilteredAsync("&parentId=rsSeries", "unread")).ToArray());
+
+        // "all" (and an unknown value) return every archive.
+        Assert.Equal(3, (await BrowseFilteredAsync("&parentId=rsSeries", "all")).Count);
+        Assert.Equal(3, (await BrowseFilteredAsync("&parentId=rsSeries", "bogus")).Count);
+
+        // At the library root the filter keeps the Series folder (folders are always
+        // navigable regardless of the filter) — proving it works "at any folder level".
+        Assert.Equal(new[] { "rsSeries" }, (await BrowseFilteredAsync(string.Empty, "read")).ToArray());
+    }
 }

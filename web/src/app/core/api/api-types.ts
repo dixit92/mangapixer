@@ -228,6 +228,15 @@ export type LibrarySortOrder = 'name' | 'recentlyAdded' | 'recentlyRead';
  */
 export type LibrarySortDirection = 'asc' | 'desc';
 
+/**
+ * Browse read-state filter (1.10.0). Restricts the listed archives to the current
+ * user's per-item read state; 'all' disables the filter. Semantics match the archive
+ * cards / folder rollup: 'read' = a sticky read-mark; 'reading' = an in-progress
+ * archive with no mark; 'unread' = neither. Sent as the `readState` browse query
+ * param. Not a persisted preference — a transient view control on the toolbar.
+ */
+export type LibraryReadStateFilter = 'all' | 'reading' | 'read' | 'unread';
+
 /** Per-user library browse presentation preferences (1.2.0). Strings for tolerance. */
 export interface LibraryViewPreferencesDto {
   viewMode: string;

@@ -5,10 +5,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule, MatCheckboxChange } from '@angular/material/checkbox';
+import { MatSelectModule, MatSelectChange } from '@angular/material/select';
 
 import { AuthService } from '../../core/auth/auth.service';
 import { ApiService } from '../../core/api/api.service';
-import { ApiError, LibraryDto } from '../../core/api/api-types';
+import { ApiError, LibraryDto, LibraryViewPreferencesDto } from '../../core/api/api-types';
 import { ReadingPreferencesCardComponent } from './reading-preferences-card.component';
 
 /**
@@ -27,6 +28,7 @@ import { ReadingPreferencesCardComponent } from './reading-preferences-card.comp
     MatInputModule,
     MatButtonModule,
     MatCheckboxModule,
+    MatSelectModule,
     ReadingPreferencesCardComponent,
   ],
   template: `
@@ -108,10 +110,43 @@ import { ReadingPreferencesCardComponent } from './reading-preferences-card.comp
     </mat-card>
 
     <app-reading-preferences-card />
+
+    <mat-card class="performance-card">
+      <mat-card-header>
+        <mat-card-title>Performance</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p class="hint">
+          How many items the library loads per batch as you scroll. A smaller size
+          loads the first screen faster on slow connections or very large libraries; a
+          larger size scrolls further with fewer pauses. Applies the next time a library
+          view loads.
+        </p>
+
+        @if (pageSizeLoaded()) {
+          <mat-form-field appearance="outline">
+            <mat-label>Items per load</mat-label>
+            <mat-select [value]="pageSize()" [disabled]="pageSizeSaving()"
+                        (selectionChange)="setPageSize($event)">
+              @for (n of pageSizeOptions; track n) {
+                <mat-option [value]="n">{{ n }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          @if (pageSizeError()) {
+            <div class="error">{{ pageSizeError() }}</div>
+          }
+        } @else {
+          <p class="muted">Loading…</p>
+        }
+      </mat-card-content>
+    </mat-card>
   `,
   styles: [`
     mat-card { max-width: 600px; margin: 0 auto; }
     .private-libraries-card { margin-top: 24px; }
+    .performance-card { margin-top: 24px; }
+    .performance-card mat-form-field { width: 160px; }
     form { display: flex; flex-direction: column; gap: 16px; }
     .error { color: #f44336; font-size: 14px; }
     .success { color: #4caf50; font-size: 14px; }
@@ -136,6 +171,24 @@ export class SettingsComponent implements OnInit {
   readonly privateSaving = signal(false);
   readonly privateLibrariesError = signal<string | null>(null);
 
+  // Items-per-load performance option (1.10.0, F5). Relocated OUT of the browse
+  // View menu into Settings: it is the per-user initial/per-page item count for the
+  // library's infinite scroll (LibraryViewPreferencesDto.libraryPageSize, reused from
+  // 1.8.0 — not a new preference), which is an initial-load/performance trade-off, not
+  // a browse control. The full preferences blob is loaded first and echoed back on
+  // save so the browse view's other fields (viewMode, sort, direction, cardSize) are
+  // never clobbered by this single change.
+  readonly pageSizeOptions = [25, 50, 100, 200];
+  readonly defaultPageSize = 50;
+  private readonly pageSizeMin = 10;
+  private readonly pageSizeMax = 500;
+  readonly pageSize = signal<number>(this.defaultPageSize);
+  readonly pageSizeLoaded = signal(false);
+  readonly pageSizeSaving = signal(false);
+  readonly pageSizeError = signal<string | null>(null);
+  /** Last-loaded library-view preferences, echoed back on save so nothing else is lost. */
+  private libraryPrefs: LibraryViewPreferencesDto | null = null;
+
   readonly form = this.fb.nonNullable.group({
     currentPassword: ['', Validators.required],
     newPassword: ['', [Validators.required, Validators.minLength(8)]],
@@ -150,6 +203,47 @@ export class SettingsComponent implements OnInit {
     this.api.getPrivateLibraries().subscribe({
       next: (dto) => this.privateLibraryIds.set(new Set(dto.libraryIds)),
       error: () => { /* leave the list empty; nothing marked Private is a safe default */ },
+    });
+    this.api.getLibraryPreferences().subscribe({
+      next: (p) => {
+        this.libraryPrefs = p;
+        this.pageSize.set(this.resolvePageSize(p.libraryPageSize));
+        this.pageSizeLoaded.set(true);
+      },
+      error: () => this.pageSizeLoaded.set(true), // show the default (50)
+    });
+  }
+
+  /** A stored libraryPageSize that is a sane integer, else the default (50). */
+  private resolvePageSize(value: number | undefined): number {
+    const n = Number(value);
+    return Number.isInteger(n) && n >= this.pageSizeMin && n <= this.pageSizeMax ? n : this.defaultPageSize;
+  }
+
+  /**
+   * Persist the chosen items-per-load size. Echoes the whole last-loaded library-view
+   * preferences blob back with only libraryPageSize changed, so the browse view's other
+   * presentation fields round-trip untouched. Reverts the control on failure.
+   */
+  setPageSize(change: MatSelectChange): void {
+    const next = Number(change.value);
+    if (!this.pageSizeOptions.includes(next) || next === this.pageSize()) return;
+    const previous = this.pageSize();
+    this.pageSize.set(next);
+    this.pageSizeSaving.set(true);
+    this.pageSizeError.set(null);
+
+    const body: LibraryViewPreferencesDto = {
+      ...(this.libraryPrefs ?? { viewMode: 'card', density: 'comfortable', sort: 'name' }),
+      libraryPageSize: next,
+    };
+    this.api.setLibraryPreferences(body).subscribe({
+      next: () => { this.libraryPrefs = body; this.pageSizeSaving.set(false); },
+      error: (err: ApiError) => {
+        this.pageSize.set(previous);
+        this.pageSizeSaving.set(false);
+        this.pageSizeError.set(err.message || 'Failed to save the items-per-load setting');
+      },
     });
   }
 
