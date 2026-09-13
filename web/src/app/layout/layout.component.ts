@@ -1,7 +1,8 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { RouterOutlet, RouterLink, Router, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs/operators';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -19,8 +20,14 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
  * The sidebar is excluded from the immersive reader (`/reader/:id`), which is a
  * fullscreen overlay; the auth routes (login / setup / activate /
  * password-change) are top-level routes *outside* this component, so they never
- * mount the shell and need no gating here. Responsive: the shell stacks and the
- * sidebar becomes a horizontal rail on narrow screens.
+ * mount the shell and need no gating here.
+ *
+ * Responsive (1.10.0, F3): on phone breakpoints the shell no longer mounts the
+ * sidebar at all (it used to become a cramped horizontal rail above the
+ * content, which didn't work well on real devices) - instead the toolbar shows
+ * a nav control that routes to a dedicated `mobile-library-nav.component` page
+ * reusing the same sidebar content. Desktop and iPad (comfortably above the
+ * phone breakpoint) keep the persistent sidebar exactly as before.
  */
 @Component({
   selector: 'app-layout',
@@ -36,6 +43,12 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
   ],
   template: `
     <mat-toolbar color="primary">
+      @if (auth.isAuthenticated() && isPhone() && showSidebar()) {
+        <button mat-icon-button class="mobile-nav-btn" routerLink="/library-nav"
+                aria-label="Open library navigation">
+          <mat-icon>menu</mat-icon>
+        </button>
+      }
       <a routerLink="/" class="brand">
         <img src="assets/icons/icon.svg" alt="" class="brand-mark" />
         <span class="brand-text">MangaPlex</span>
@@ -75,7 +88,7 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
     </mat-toolbar>
 
     <div class="shell">
-      @if (showSidebar()) {
+      @if (showShellSidebar()) {
         <app-library-sidebar></app-library-sidebar>
       }
       <main class="content" [class.full-bleed]="!showSidebar()">
@@ -84,6 +97,7 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
     </div>
   `,
   styles: [`
+    .mobile-nav-btn { margin-right: 4px; }
     .brand {
       display: flex;
       align-items: center;
@@ -120,11 +134,6 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
     /* Sidebar-less routes (the immersive reader) get the full viewport width with
        no gutter - the reader paints its own fullscreen surface. */
     .content.full-bleed { padding: 0; }
-    /* Narrow screens: stack the shell so the sidebar becomes a horizontal rail
-       above the content (the sidebar's own media query switches it to a row). */
-    @media (max-width: 700px) {
-      .shell { flex-direction: column; min-height: 0; }
-    }
     .user-info {
       padding: 8px 16px; font-weight: 500;
       display: flex; align-items: center; gap: 8px; opacity: 0.85;
@@ -136,6 +145,7 @@ export class LayoutComponent {
   readonly auth = inject(AuthService);
   readonly incognito = inject(IncognitoService);
   private readonly router = inject(Router);
+  private readonly breakpointObserver = inject(BreakpointObserver);
 
   /**
    * Whether the app-shell library sidebar (and the two-column, gutter-padded
@@ -156,6 +166,30 @@ export class LayoutComponent {
     ),
     { initialValue: !this.isReaderUrl() },
   );
+
+  /**
+   * True on phone-width viewports (1.10.0, F3). Uses the same `700px` threshold
+   * as `library-sidebar.component`'s own phone media query, so "phone" means the
+   * same thing here as it does there. iPad's smallest portrait width (768px) is
+   * comfortably above this, so tablet/desktop are unaffected - only phone gets
+   * the separate-page treatment. `BreakpointObserver.observe` emits
+   * synchronously on subscribe, so `toSignal` picks up the correct value before
+   * first render (the `initialValue` is just a type-level fallback).
+   */
+  private static readonly PhoneQuery = '(max-width: 700px)';
+  readonly isPhone = toSignal(
+    this.breakpointObserver.observe(LayoutComponent.PhoneQuery).pipe(map((state) => state.matches)),
+    { initialValue: false },
+  );
+
+  /**
+   * Whether the persistent shell sidebar is mounted. Same as `showSidebar()`
+   * (i.e. off the immersive reader) but additionally gated to non-phone
+   * widths - on phone the sidebar isn't mounted anywhere in the shell at all;
+   * the toolbar's nav control routes to the dedicated
+   * `mobile-library-nav.component` page instead.
+   */
+  readonly showShellSidebar = computed(() => this.showSidebar() && !this.isPhone());
 
   /**
    * Toggles Incognito, then reloads so every already-fetched view re-requests with

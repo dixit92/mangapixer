@@ -135,6 +135,7 @@ public sealed class CatalogController : ControllerBase
         [FromQuery] int pageSize = 50,
         [FromQuery] string? sort = null,
         [FromQuery] string? direction = null,
+        [FromQuery] string? readState = null,
         CancellationToken ct = default)
     {
         var userId = GetUserId();
@@ -171,9 +172,28 @@ public sealed class CatalogController : ControllerBase
         var result = await _browseService.BrowseAsync(
             userId.Value, library.Id, parentIdLong, cursor, pageSize,
             direction: ParseDirection(direction, storedDirection, effectiveSort),
-            sort: effectiveSort, incognito: _incognito.IsIncognito, ct: ct);
+            sort: effectiveSort, incognito: _incognito.IsIncognito,
+            readState: ParseReadState(readState), ct: ct);
 
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Parses the read-state filter query param (1.10.0). Tolerant of the wire values
+    /// "reading"/"read"/"unread" (case-insensitive); anything else — including null and
+    /// "all" — disables the filter, so older clients and omitted params behave as before.
+    /// </summary>
+    private static BrowseReadStateFilter ParseReadState(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return BrowseReadStateFilter.All;
+        if (value.Equals("reading", StringComparison.OrdinalIgnoreCase))
+            return BrowseReadStateFilter.Reading;
+        if (value.Equals("read", StringComparison.OrdinalIgnoreCase))
+            return BrowseReadStateFilter.Read;
+        if (value.Equals("unread", StringComparison.OrdinalIgnoreCase))
+            return BrowseReadStateFilter.Unread;
+        return BrowseReadStateFilter.All;
     }
 
     /// <summary>

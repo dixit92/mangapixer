@@ -20,6 +20,7 @@ import {
   LibraryViewPreferencesDto,
   LibrarySortOrder,
   LibrarySortDirection,
+  LibraryReadStateFilter,
   YacReaderDetectDto,
   YacReaderImportRequest,
   YacReaderImportPreviewDto,
@@ -122,6 +123,7 @@ export class ApiService {
     pageSize = 50,
     sort: LibrarySortOrder | null = null,
     direction: LibrarySortDirection | null = null,
+    readState: LibraryReadStateFilter | null = null,
   ): Observable<PageResponse<CatalogNodeDto>> {
     let params = new HttpParams().set('pageSize', pageSize.toString());
     if (cursor) params = params.set('cursor', cursor);
@@ -129,6 +131,8 @@ export class ApiService {
     // Omitted → the server uses the caller's stored LibrarySort/direction preference.
     if (sort) params = params.set('sort', sort);
     if (direction) params = params.set('direction', direction);
+    // Read-state filter (1.10.0). Omitted or 'all' → no filter (server default).
+    if (readState && readState !== 'all') params = params.set('readState', readState);
     return this.get<PageResponse<CatalogNodeDto>>(
       `/libraries/${libraryId}/browse`,
       params,

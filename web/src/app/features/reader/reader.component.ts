@@ -1,6 +1,9 @@
 import { Component, inject, signal, computed, OnInit, OnDestroy, HostListener, ElementRef, viewChild } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
+import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
+import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -9,27 +12,21 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
+import { map } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
-import { ReaderSettingsMenuComponent } from './reader-settings-menu.component';
+import {
+  ReaderSettingsMenuComponent, ReaderOptionsSheetComponent, ReaderOptionsHost,
+  ReaderView, ViewPref, FitMode, ReadingDirection, FIT_OPTIONS,
+} from './reader-settings-menu.component';
 import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode } from '../../core/api/api-types';
 
 type ReaderPhase = 'preparing' | 'ready' | 'error';
-type ReaderView = 'paged' | 'spread' | 'webtoon';
-// Per-device default PAGED LAYOUT (owner request, 1.2.x; scoped to paged-only,
-// 2026-09-11 "Option A" fix). A device-local override of single/double/auto page
-// layout, distinct from the server's content-semantic ReaderMode. 'auto' picks
-// paged (portrait) / spread (landscape) live as the device rotates. `null` (unset)
-// means "follow whatever the server resolves for the item". This can no longer
-// hold 'webtoon': webtoon-vs-paged is CONTENT ORIENTATION, resolved server-side
-// (`ReaderModeResolver`) and must never be forced device-global across libraries
-// (that was the reader-mode-sticky bug — vertical bleeding from a webtoon into the
-// next manga opened on the same device). Picking "Vertical (webtoon)" from the
-// menu is instead a per-item/session-only override; see `chooseView`.
-type ViewPref = 'auto' | 'paged' | 'spread';
-type FitMode = 'screen' | 'width' | 'height' | 'original';
+// ReaderView / ViewPref (the per-device paged-layout preference; see the note on
+// its definition) / FitMode live with the settings surface in
+// reader-settings-menu.component.ts, shared with the phone options sheet.
 
 /**
  * Manifest-first reader (audit defects D3, D14, D36) with paged / double-spread /
@@ -77,6 +74,13 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
  *     the first screen loads the PREVIOUS archive (`prevNeighbor`) and lands on its
  *     last page (via the `at=end` query param). Merely landing there does not save
  *     progress, so it never falsely completes/marks-read an unread chapter.
+ * 10. Phone bar (1.10.0, finding F2): at handset width (`compact`, CDK XSmall,
+ *     < 600px) the full icon bar - ~8 controls that no longer fit - collapses to
+ *     the two actions a reader reaches for mid-read (Next chapter, Fullscreen) plus
+ *     a "Reader options" trigger that opens `ReaderOptionsSheetComponent`, a bottom
+ *     sheet holding the rest, grouped. Desktop and tablet keep the full bar as is.
+ *     Reader menus everywhere mark the active option with the accent highlight
+ *     instead of a checkmark (finding F4, matching the 1.8.1 View menu).
  */
 @Component({
   selector: 'app-reader',
@@ -107,7 +111,26 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
         <span class="spacer"></span>
 
         <!-- Requirement 3 (revised 2026-09-08): controls stay visible in fullscreen. -->
-        @if (phase() === 'ready') {
+        @if (phase() === 'ready' && compact()) {
+          <!-- PHONE bar (requirement 10): Next chapter + Fullscreen stay where they
+               were (first and last of the right-hand group), everything else is
+               one tap away in the options sheet. -->
+          <button mat-icon-button (click)="nextChapter()" [disabled]="!hasNextChapter()"
+                  [matTooltip]="nextNeighbor() ? 'Next chapter: ' + nextNeighbor()!.displayName : 'No next chapter'"
+                  [attr.aria-label]="nextNeighbor() ? 'Next chapter: ' + nextNeighbor()!.displayName : 'No next chapter'">
+            <mat-icon>skip_next</mat-icon>
+          </button>
+          <button mat-icon-button (click)="toggleFullscreen()"
+                  [matTooltip]="isFullscreen() ? 'Exit fullscreen' : 'Fullscreen'"
+                  [attr.aria-label]="isFullscreen() ? 'Exit fullscreen' : 'Enter fullscreen'">
+            <mat-icon>{{ isFullscreen() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
+          </button>
+          <button mat-icon-button class="options-trigger" (click)="openOptions()"
+                  matTooltip="Reader options" aria-label="Reader options"
+                  aria-haspopup="dialog" [attr.aria-expanded]="optionsOpen()">
+            <mat-icon>more_vert</mat-icon>
+          </button>
+        } @else if (phase() === 'ready') {
           <!-- 1.7.0 reader-bar CHAPTER arrows: move between archives in the folder
                (distinct from page turning); disabled at the ends of the folder. -->
           <button mat-icon-button (click)="prevChapter()" [disabled]="!hasPrevChapter()"
@@ -124,17 +147,31 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
                   (menuOpened)="menuOpen.set(true)" (menuClosed)="onMenuClosed()">
             <mat-icon>{{ viewIcon() }}</mat-icon>
           </button>
-          <mat-menu #modeMenu="matMenu">
-            <button mat-menu-item (click)="chooseView('auto')">
-              <mat-icon>{{ viewPref() === 'auto' && view() !== 'webtoon' ? 'check' : 'screen_rotation' }}</mat-icon> Auto (orientation)</button>
-            <button mat-menu-item (click)="chooseView('paged')">
-              <mat-icon>{{ viewPref() === 'paged' && view() !== 'webtoon' ? 'check' : 'crop_portrait' }}</mat-icon> Single page</button>
-            <button mat-menu-item (click)="chooseSpread(false)">
-              <mat-icon>{{ viewPref() === 'spread' && !coverIsStandalone() && view() !== 'webtoon' ? 'check' : 'import_contacts' }}</mat-icon> Double page</button>
-            <button mat-menu-item (click)="chooseSpread(true)">
-              <mat-icon>{{ viewPref() === 'spread' && coverIsStandalone() && view() !== 'webtoon' ? 'check' : 'auto_stories' }}</mat-icon> Double page (offset cover)</button>
-            <button mat-menu-item (click)="chooseView('webtoon')">
-              <mat-icon>{{ view() === 'webtoon' ? 'check' : 'view_day' }}</mat-icon> Vertical (webtoon)</button>
+          <!-- Reader menus (1.10.0, F4): the active option carries the accent
+               COLOR HIGHLIGHT (selected-option) and keeps its own glyph; no
+               checkmark. Items are menuitemradio + aria-checked for AT. The panel
+               class is the ::ng-deep styling hook (CDK overlay). -->
+          <mat-menu #modeMenu="matMenu" class="reader-options-menu">
+            <button mat-menu-item role="menuitemradio" (click)="chooseView('auto')"
+                    [class.selected-option]="viewPref() === 'auto' && view() !== 'webtoon'"
+                    [attr.aria-checked]="viewPref() === 'auto' && view() !== 'webtoon'">
+              <mat-icon>screen_rotation</mat-icon> Auto (orientation)</button>
+            <button mat-menu-item role="menuitemradio" (click)="chooseView('paged')"
+                    [class.selected-option]="viewPref() === 'paged' && view() !== 'webtoon'"
+                    [attr.aria-checked]="viewPref() === 'paged' && view() !== 'webtoon'">
+              <mat-icon>crop_portrait</mat-icon> Single page</button>
+            <button mat-menu-item role="menuitemradio" (click)="chooseSpread(false)"
+                    [class.selected-option]="viewPref() === 'spread' && !coverIsStandalone() && view() !== 'webtoon'"
+                    [attr.aria-checked]="viewPref() === 'spread' && !coverIsStandalone() && view() !== 'webtoon'">
+              <mat-icon>import_contacts</mat-icon> Double page</button>
+            <button mat-menu-item role="menuitemradio" (click)="chooseSpread(true)"
+                    [class.selected-option]="viewPref() === 'spread' && coverIsStandalone() && view() !== 'webtoon'"
+                    [attr.aria-checked]="viewPref() === 'spread' && coverIsStandalone() && view() !== 'webtoon'">
+              <mat-icon>auto_stories</mat-icon> Double page (offset cover)</button>
+            <button mat-menu-item role="menuitemradio" (click)="chooseView('webtoon')"
+                    [class.selected-option]="view() === 'webtoon'"
+                    [attr.aria-checked]="view() === 'webtoon'">
+              <mat-icon>view_day</mat-icon> Vertical (webtoon)</button>
           </mat-menu>
 
           @if (view() === 'webtoon') {
@@ -150,11 +187,13 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
                     (menuOpened)="menuOpen.set(true)" (menuClosed)="onMenuClosed()">
               <mat-icon>aspect_ratio</mat-icon>
             </button>
-            <mat-menu #fitMenu="matMenu">
-              <button mat-menu-item (click)="setFitMode('screen')">Fit screen</button>
-              <button mat-menu-item (click)="setFitMode('width')">Fit width</button>
-              <button mat-menu-item (click)="setFitMode('height')">Fit height</button>
-              <button mat-menu-item (click)="setFitMode('original')">Original size</button>
+            <mat-menu #fitMenu="matMenu" class="reader-options-menu">
+              @for (opt of fitOptions; track opt.value) {
+                <button mat-menu-item role="menuitemradio" (click)="setFitMode(opt.value)"
+                        [class.selected-option]="fitMode() === opt.value"
+                        [attr.aria-checked]="fitMode() === opt.value">
+                  <mat-icon>{{ opt.icon }}</mat-icon> {{ opt.label }}</button>
+              }
             </mat-menu>
           }
 
@@ -388,6 +427,13 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     }
     .page-info { margin-left: 8px; font-variant-numeric: tabular-nums; }
     .spacer { flex: 1 1 auto; }
+    /* Reader menus' selected-state (1.10.0, F4): accent highlight instead of a
+       checkmark, same values as the 1.8.1 browse View menu. The panels render in
+       a CDK overlay, so the rules are scoped via the reader-options-menu panel
+       class and reach the projected items with ::ng-deep. */
+    ::ng-deep .reader-options-menu .selected-option { background: rgba(124, 77, 255, 0.16); }
+    ::ng-deep .reader-options-menu .selected-option,
+    ::ng-deep .reader-options-menu .selected-option .mat-icon { color: #b39dff; }
     .status {
       flex: 1; display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 16px;
@@ -593,15 +639,32 @@ type FitMode = 'screen' | 'width' | 'height' | 'original';
     }
   `],
 })
-export class ReaderComponent implements OnInit, OnDestroy {
+export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly readState = inject(ReadStateService);
+  private readonly bottomSheet = inject(MatBottomSheet);
+  private readonly breakpoints = inject(BreakpointObserver);
   // Public so the template can read the persisted page-transition preference.
   readonly prefs = inject(ReaderPreferencesService);
+  readonly fitOptions = FIT_OPTIONS;
+
+  /**
+   * Handset-width layout (requirement 10): CDK's XSmall breakpoint (< 600px CSS
+   * width) - phones in portrait, a narrow iPad Split View pane. Width-driven, not
+   * device-driven, because the trigger is simply that the full bar no longer
+   * fits; a phone in landscape (>= 640px) and every tablet/desktop keep the full
+   * bar. Live, so rotating the device re-evaluates it.
+   */
+  readonly compact = toSignal(
+    this.breakpoints.observe(Breakpoints.XSmall).pipe(map((r) => r.matches)),
+    { initialValue: this.breakpoints.isMatched(Breakpoints.XSmall) },
+  );
+  /** True while the phone options sheet is open (drives the trigger's aria-expanded). */
+  readonly optionsOpen = signal(false);
 
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
   private readonly viewport = viewChild<ElementRef<HTMLElement>>('viewport');
@@ -614,7 +677,7 @@ export class ReaderComponent implements OnInit, OnDestroy {
   readonly pages = signal<ManifestPageEntry[]>([]);
   readonly pageLoading = signal(true);
   readonly fitMode = signal<FitMode>('screen'); // Requirement 1
-  readonly direction = signal<'ltr' | 'rtl'>('ltr');
+  readonly direction = signal<ReadingDirection>('ltr');
   readonly view = signal<ReaderView>('paged');
   readonly isFullscreen = signal(false);
   // Double-page pairing phase (the "offset"): when true, page 0 (the cover) is
@@ -1031,6 +1094,26 @@ export class ReaderComponent implements OnInit, OnDestroy {
   onMenuClosed(): void {
     this.menuOpen.set(false);
     this.scheduleChromeHide();
+  }
+
+  /**
+   * Phone "Reader options" (requirement 10): open the bottom sheet with this
+   * reader as its host (live signals in, actions out - see `ReaderOptionsHost`).
+   * Pins the chrome like an open menu does, and releases it on dismiss.
+   */
+  openOptions(): void {
+    if (this.optionsOpen()) return;
+    this.optionsOpen.set(true);
+    this.menuOpen.set(true);
+    const ref = this.bottomSheet.open(ReaderOptionsSheetComponent, {
+      data: this as ReaderOptionsHost,
+      panelClass: 'reader-options-sheet',
+      ariaLabel: 'Reader options',
+    });
+    ref.afterDismissed().subscribe(() => {
+      this.optionsOpen.set(false);
+      this.onMenuClosed();
+    });
   }
 
   toggleHelp(): void {
@@ -1754,6 +1837,8 @@ export class ReaderComponent implements OnInit, OnDestroy {
 
   setFitMode(mode: FitMode): void { this.fitMode.set(mode); this.scheduleMeasure(); }
   toggleDirection(): void { this.direction.update((d) => (d === 'ltr' ? 'rtl' : 'ltr')); }
+  /** Explicit direction pick (the phone sheet's radio pair; the bar button toggles). */
+  setDirection(direction: ReadingDirection): void { this.direction.set(direction); }
 
   // --- Webtoon width (requirement 6): per-device preference in localStorage ---
 

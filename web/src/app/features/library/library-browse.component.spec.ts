@@ -1140,26 +1140,42 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
     expect(setup({ prefs: { libraryPageSize: 5000 } }).browseLibrary.mock.calls[0][3]).toBe(50);
   });
 
-  it('setPageSize persists the choice and reloads from the top at the new size', () => {
-    const { comp, browseLibrary, setLibraryPreferences } = setup({ browse: () => of(page([node('a')], 'c1')) });
-    comp.setPageSize(200);
-    expect(comp.pageSize()).toBe(200);
-    expect(setLibraryPreferences).toHaveBeenCalledWith(expect.objectContaining({ libraryPageSize: 200 }));
-    const last = browseLibrary.mock.calls.at(-1)!;
-    expect(last[2]).toBeNull(); // from the top
-    expect(last[3]).toBe(200);
+  // --- Read-state filter (1.10.0, F1) ---
+
+  it('the initial browse sends no readState filter (all → server default)', () => {
+    const { browseLibrary } = setup({});
+    // browseLibrary(libId, parentId, cursor, pageSize, sort, direction, readState)
+    expect(browseLibrary.mock.calls[0][6]).toBe('all');
   });
 
-  it('setPageSize with the current value is a no-op (no persist, no reload)', () => {
-    const { comp, browseLibrary, setLibraryPreferences } = setup({});
-    comp.setPageSize(50);
-    expect(setLibraryPreferences).not.toHaveBeenCalled();
+  it('setReadStateFilter reloads from the top and passes the filter to the API', () => {
+    const { comp, browseLibrary } = setup({ browse: () => of(page([node('a')], 'c1')) });
+    comp.setReadStateFilter('unread');
+    expect(comp.readStateFilter()).toBe('unread');
+    const last = browseLibrary.mock.calls.at(-1)!;
+    expect(last[2]).toBeNull();      // reloaded from the top (cursor null)
+    expect(last[6]).toBe('unread');  // filter forwarded
+  });
+
+  it('setReadStateFilter with the current value is a no-op (no reload)', () => {
+    const { comp, browseLibrary } = setup({});
+    comp.setReadStateFilter('all');
     expect(browseLibrary).toHaveBeenCalledTimes(1);
   });
 
-  it('offers the page-size choices in the View menu model', () => {
+  it('hides the jump rail while a filter is active and restores it at All', () => {
+    const { comp } = setup({ buckets: [{ label: 'A', count: 1, firstCursor: null }] });
+    expect(comp.jumpBuckets().length).toBe(1);
+    comp.setReadStateFilter('read');
+    expect(comp.jumpBuckets().length).toBe(0); // rail hidden under a filter
+    comp.setReadStateFilter('all');
+    expect(comp.jumpBuckets().length).toBe(1); // restored (name+asc+root)
+  });
+
+  it('does not expose the removed items-per-load browse control (moved to Settings)', () => {
     const { comp } = setup({});
-    expect(comp.pageSizeOptions).toEqual([25, 50, 100, 200]);
+    expect((comp as unknown as { setPageSize?: unknown }).setPageSize).toBeUndefined();
+    expect((comp as unknown as { pageSizeOptions?: unknown }).pageSizeOptions).toBeUndefined();
   });
 
   // --- tap top bar -> scroll to top ---
@@ -1271,11 +1287,12 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
 });
 
 /**
- * View-menu selected-state highlight (1.8.1). The four View submenus (view mode,
- * Sort by, Order, Items per load) used to mark the active option with a checkmark
- * ICON; this replaces that with an accent COLOR HIGHLIGHT (the `selected-option`
- * class + accent background/text) while keeping the option's own icon. For
- * accessibility the active option is a `menuitemradio` carrying `aria-checked`.
+ * View-menu selected-state highlight (1.8.1). The View submenus (view mode, Sort by,
+ * Order) mark the active option with an accent COLOR HIGHLIGHT (the `selected-option`
+ * class + accent background/text) rather than a checkmark ICON, keeping the option's
+ * own icon. For accessibility the active option is a `menuitemradio` carrying
+ * `aria-checked`. (1.10.0: "Items per load" moved to Settings and is no longer a
+ * submenu here; the new read-state Filter menu uses the SAME highlight — F4.)
  *
  * The menu renders in a CDK overlay (outside the component's host element), so
  * these tests OPEN the menu via its trigger and then query the overlay through
@@ -1341,8 +1358,8 @@ describe('LibraryBrowseComponent view menu selected highlight (1.8.1)', () => {
     }
   });
 
-  it('highlights the DEFAULT selection (card / name / asc / 50) in all four submenus', () => {
-    const { fixture, el } = setup(); // card, name, asc, default pageSize 50
+  it('highlights the DEFAULT selection (card / name / asc) in the View submenus', () => {
+    const { fixture, el } = setup(); // card, name, asc
     const panel = openViewMenu(el, fixture);
 
     // Each pair: the active option carries the highlight class + aria-checked=true;
@@ -1351,7 +1368,6 @@ describe('LibraryBrowseComponent view menu selected highlight (1.8.1)', () => {
       ['Card', 'List'],
       ['Name', 'Recently added'],
       ['Ascending', 'Descending'],
-      ['50', '100'],
     ]) {
       const on = itemByLabel(panel, active);
       const off = itemByLabel(panel, inactive);
@@ -1372,19 +1388,40 @@ describe('LibraryBrowseComponent view menu selected highlight (1.8.1)', () => {
   });
 
   it('the highlight follows a NON-default stored selection in every submenu', () => {
-    const { fixture, el } = setup({ viewMode: 'list', sort: 'recentlyAdded', direction: 'desc', libraryPageSize: 100 });
+    const { fixture, el } = setup({ viewMode: 'list', sort: 'recentlyAdded', direction: 'desc' });
     const panel = openViewMenu(el, fixture);
 
     for (const [active, inactive] of [
       ['List', 'Card'],
       ['Recently added', 'Name'],
       ['Descending', 'Ascending'],
-      ['100', '50'],
     ]) {
       expect(itemByLabel(panel, active).classList.contains('selected-option'), `${active} highlighted`).toBe(true);
       expect(itemByLabel(panel, inactive).classList.contains('selected-option'), `${inactive} not highlighted`).toBe(false);
     }
     // And the active list item shows its own glyph, not a checkmark.
     expect(itemByLabel(panel, 'List').querySelector('mat-icon')?.textContent?.trim()).toBe('view_list');
+  });
+
+  /**
+   * The read-state Filter menu (1.10.0, F1) shares the View menu's color-highlight
+   * selected-state (F4): it renders in the same view-options-menu overlay panel, its
+   * options are menuitemradio, and only the active option carries `selected-option` +
+   * aria-checked. Default is "All".
+   */
+  it('the Filter menu highlights the active read-state option (F4 consistency)', () => {
+    const { fixture, el } = setup();
+    (el.querySelector('.filter-toggle') as HTMLElement).click();
+    fixture.detectChanges();
+    const panel = document.querySelector('.view-options-menu') as HTMLElement;
+    expect(panel, 'the filter menu overlay panel').not.toBeNull();
+
+    const all = itemByLabel(panel, 'All');
+    const unread = itemByLabel(panel, 'Unread');
+    expect(all.getAttribute('role')).toBe('menuitemradio');
+    expect(all.classList.contains('selected-option'), 'All highlighted by default').toBe(true);
+    expect(all.getAttribute('aria-checked')).toBe('true');
+    expect(unread.classList.contains('selected-option'), 'Unread not highlighted').toBe(false);
+    expect(unread.getAttribute('aria-checked')).toBe('false');
   });
 });

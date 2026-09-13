@@ -54,6 +54,7 @@ public sealed class CatalogBrowseService
         SortDirection? direction = null,
         string sort = "name",
         bool incognito = false,
+        BrowseReadStateFilter readState = BrowseReadStateFilter.All,
         CancellationToken ct = default)
     {
         // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
@@ -93,6 +94,43 @@ public sealed class CatalogBrowseService
             baseQuery = baseQuery.Where(n => n.ParentId == null);
         else
             baseQuery = baseQuery.Where(n => n.ParentId == parentId);
+
+        // Read-state filter (1.10.0, additive) — restrict ARCHIVES to the chosen
+        // per-user read state, applied to the base query BEFORE counting/pagination
+        // (alongside the authorization filter) so it composes with the keyset paging +
+        // infinite scroll and yields an accurate TotalCount. Semantics match the archive
+        // cards and the folder rollup exactly: Read = a sticky read-mark exists; Reading
+        // = no mark AND an in-progress ReadingProgress row; Unread = neither. FOLDERS
+        // carry no per-item read signal, so they are always kept regardless of the
+        // filter — hiding them would make the filter unable to reach archives nested in
+        // subfolders, yet the finding requires it to work "at any folder level". Folders
+        // therefore stay navigable while the archives listed honor the filter (a filter
+        // over an all-folders level is simply a no-op, which is the intended behavior).
+        switch (readState)
+        {
+            case BrowseReadStateFilter.Read:
+                baseQuery = baseQuery.Where(n =>
+                    n.Kind != (int)CatalogNodeKind.Archive
+                    || _db.ReadMarks.Any(m => m.UserId == userId && m.ItemId == n.Id));
+                break;
+            case BrowseReadStateFilter.Reading:
+                baseQuery = baseQuery.Where(n =>
+                    n.Kind != (int)CatalogNodeKind.Archive
+                    || (!_db.ReadMarks.Any(m => m.UserId == userId && m.ItemId == n.Id)
+                        && _db.ReadingProgress.Any(p =>
+                            p.UserId == userId && p.ItemId == n.Id && p.State == (int)ReadingState.InProgress)));
+                break;
+            case BrowseReadStateFilter.Unread:
+                baseQuery = baseQuery.Where(n =>
+                    n.Kind != (int)CatalogNodeKind.Archive
+                    || (!_db.ReadMarks.Any(m => m.UserId == userId && m.ItemId == n.Id)
+                        && !_db.ReadingProgress.Any(p =>
+                            p.UserId == userId && p.ItemId == n.Id && p.State == (int)ReadingState.InProgress)));
+                break;
+            case BrowseReadStateFilter.All:
+            default:
+                break;
+        }
 
         // Total count from the base query (before cursor — fixes the decreasing-count bug
         // where the old code counted after the cursor filter).
@@ -1123,6 +1161,21 @@ public sealed class CatalogBrowseService
             .Select(g => g.LibraryId)
             .ToListAsync(ct);
     }
+}
+
+/// <summary>
+/// Browse read-state filter (1.10.0). Restricts the browsed archives to the chosen
+/// per-user read state; <see cref="All"/> disables the filter. Semantics match the
+/// archive cards and folder rollup: Read = a sticky read-mark; Reading = no mark and
+/// an in-progress ReadingProgress row; Unread = neither. Folders are always kept
+/// (they have no per-item read signal and must stay navigable at any folder level).
+/// </summary>
+public enum BrowseReadStateFilter
+{
+    All,
+    Reading,
+    Read,
+    Unread,
 }
 
 /// <summary>

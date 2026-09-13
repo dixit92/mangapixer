@@ -1050,6 +1050,13 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "readState",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
