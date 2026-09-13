@@ -1,14 +1,17 @@
 import { vi } from 'vitest';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of } from 'rxjs';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { MatBottomSheet, MatBottomSheetRef } from '@angular/material/bottom-sheet';
+import { of, Subject } from 'rxjs';
 
 import { ReaderComponent } from './reader.component';
+import { ReaderOptionsSheetComponent } from './reader-settings-menu.component';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import { ManifestPageEntry, CatalogNodeDto } from '../../core/api/api-types';
@@ -1396,5 +1399,162 @@ describe('ReaderComponent onboarding help auto-show (1.9.0)', () => {
     expect(TestBed.inject(ReaderPreferencesService).hasSeenHelp()).toBe(true);
     (c as unknown as { maybeAutoShowHelp: () => void }).maybeAutoShowHelp();
     expect(c.helpVisible()).toBe(false);
+  });
+});
+
+/**
+ * 1.10.0 phone controls (finding F2) + menu highlight (finding F4).
+ *
+ * At handset width (CDK XSmall) the bar keeps only Next chapter + Fullscreen +
+ * a "Reader options" trigger that opens the options bottom sheet; everywhere
+ * else the full 8-control bar is UNCHANGED (guarded here so a later change
+ * cannot silently drift the desktop/tablet chrome). The reader menus mark the
+ * active option with the `selected-option` highlight, not a checkmark; they
+ * render in a CDK overlay so the tests open them and query `document` (same
+ * approach as the 1.8.1 browse View-menu tests).
+ */
+describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
+  function render(compact: boolean) {
+    const breakpoints = {
+      observe: () => of({ matches: compact, breakpoints: {} }),
+      isMatched: () => compact,
+    };
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [...baseProviders(), { provide: BreakpointObserver, useValue: breakpoints }],
+    });
+    const fixture = TestBed.createComponent(ReaderComponent);
+    fixture.detectChanges(); // ngOnInit
+    const c = fixture.componentInstance;
+    c.pages.set(makePages(3));
+    c.view.set('paged');
+    c.phase.set('ready');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const labels = () => Array.from(el.querySelectorAll<HTMLElement>('.reader-toolbar button'))
+      .map((b) => b.getAttribute('aria-label'));
+    return { fixture, c, el, labels };
+  }
+  afterEach(() => vi.restoreAllMocks());
+
+  it('PHONE: the bar keeps only Back, Next chapter, Fullscreen and the Reader options trigger', () => {
+    const { c, labels } = render(true);
+    expect(c.compact()).toBe(true);
+    expect(labels()).toEqual(['Back to folder', 'No next chapter', 'Enter fullscreen', 'Reader options']);
+  });
+
+  it('PHONE: the options trigger is an accessible menu button (haspopup + expanded state)', () => {
+    const { c, el, fixture } = render(true);
+    const trigger = el.querySelector('.options-trigger') as HTMLElement;
+    expect(trigger.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    c.optionsOpen.set(true);
+    fixture.detectChanges();
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('DESKTOP / TABLET: the full bar is unchanged (all eight controls, no overflow trigger)', () => {
+    const { c, labels } = render(false);
+    expect(c.compact()).toBe(false);
+    expect(labels()).toEqual([
+      'Back to folder',
+      'No previous chapter', 'No next chapter',
+      'Reading mode', 'Image fit', 'Switch to right-to-left', 'Page transition',
+      'Reading help', 'Enter fullscreen',
+    ]);
+  });
+
+  it('PHONE webtoon: the bar width slider moves into the sheet too', () => {
+    const { c, el, fixture } = render(true);
+    c.view.set('webtoon');
+    fixture.detectChanges();
+    expect(el.querySelector('.reader-toolbar .width-slider')).toBeNull();
+    expect(el.querySelector('.options-trigger')).toBeTruthy();
+  });
+
+  it('openOptions opens the sheet with the reader as host, pins the chrome, and releases it on dismiss', () => {
+    const { c } = render(true);
+    const dismissed = new Subject<void>();
+    const open = vi.spyOn(TestBed.inject(MatBottomSheet), 'open')
+      .mockReturnValue({ afterDismissed: () => dismissed.asObservable() } as unknown as MatBottomSheetRef<ReaderOptionsSheetComponent>);
+
+    c.openOptions();
+    expect(open).toHaveBeenCalledTimes(1);
+    const [component, config] = open.mock.calls[0];
+    expect(component).toBe(ReaderOptionsSheetComponent);
+    expect(config?.data).toBe(c);
+    expect(config?.panelClass).toBe('reader-options-sheet');
+    expect(c.optionsOpen()).toBe(true);
+    expect(c.menuOpen()).toBe(true);
+
+    c.openOptions(); // a re-entrant tap while open is a no-op
+    expect(open).toHaveBeenCalledTimes(1);
+
+    dismissed.next();
+    expect(c.optionsOpen()).toBe(false);
+    expect(c.menuOpen()).toBe(false);
+  });
+
+  it('setDirection sets an explicit direction (the sheet radio pair); toggleDirection still flips', () => {
+    const { c } = render(false);
+    c.setDirection('rtl');
+    expect(c.direction()).toBe('rtl');
+    c.setDirection('rtl');
+    expect(c.direction()).toBe('rtl');
+    c.toggleDirection();
+    expect(c.direction()).toBe('ltr');
+  });
+
+  /** Open an overlay menu through its bar trigger and return the panel. */
+  function openMenu(el: HTMLElement, fixture: ComponentFixture<ReaderComponent>, triggerLabel: string): HTMLElement {
+    (el.querySelector(`.reader-toolbar button[aria-label="${triggerLabel}"]`) as HTMLElement).click();
+    fixture.detectChanges();
+    const panel = document.querySelector('.reader-options-menu') as HTMLElement;
+    expect(panel, 'the reader-options-menu overlay panel').not.toBeNull();
+    return panel;
+  }
+  function items(panel: HTMLElement): HTMLElement[] {
+    return Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'));
+  }
+  function itemByLabel(panel: HTMLElement, label: string): HTMLElement {
+    const match = items(panel).find((i) => (i.textContent ?? '').replace(/\s+/g, ' ').trim().endsWith(label));
+    expect(match, `menu item ending with "${label}"`).toBeDefined();
+    return match!;
+  }
+
+  it('F4 reading-mode menu: menuitemradio items, the active one highlighted with its OWN glyph (no tick)', () => {
+    const { c, el, fixture } = render(false);
+    c.viewPref.set('spread');
+    c.coverIsStandalone.set(true);
+    c.view.set('spread');
+    fixture.detectChanges();
+    const panel = openMenu(el, fixture, 'Reading mode');
+
+    expect(items(panel).length).toBe(5);
+    for (const item of items(panel)) expect(item.getAttribute('role')).toBe('menuitemradio');
+    const on = itemByLabel(panel, 'Double page (offset cover)');
+    expect(on.classList.contains('selected-option')).toBe(true);
+    expect(on.getAttribute('aria-checked')).toBe('true');
+    expect(on.querySelector('mat-icon')?.textContent?.trim()).toBe('auto_stories');
+    for (const item of items(panel)) {
+      expect(item.querySelector('mat-icon')?.textContent?.trim()).not.toBe('check');
+      if (item !== on) {
+        expect(item.classList.contains('selected-option')).toBe(false);
+        expect(item.getAttribute('aria-checked')).toBe('false');
+      }
+    }
+  });
+
+  it('F4 image-fit menu: the active fit is highlighted (it previously had no selected-state at all)', () => {
+    const { c, el, fixture } = render(false);
+    c.setFitMode('width');
+    fixture.detectChanges();
+    const panel = openMenu(el, fixture, 'Image fit');
+    expect(items(panel).map((i) => i.getAttribute('role'))).toEqual(Array(4).fill('menuitemradio'));
+    expect(itemByLabel(panel, 'Fit width').classList.contains('selected-option')).toBe(true);
+    expect(itemByLabel(panel, 'Fit width').getAttribute('aria-checked')).toBe('true');
+    expect(itemByLabel(panel, 'Fit screen').classList.contains('selected-option')).toBe(false);
+    expect(itemByLabel(panel, 'Fit screen').getAttribute('aria-checked')).toBe('false');
+    expect(panel.querySelectorAll('mat-icon').length).toBe(4); // every option keeps a glyph
   });
 });
