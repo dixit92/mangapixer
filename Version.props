@@ -89,9 +89,17 @@
          schema change -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.10.x. Known follow-up: the
          three lanes used slightly different phone breakpoints (560 / 599.98 / 700 px) - harmonize
          later (does not affect phone or iPad, only the 560-700px band). -->
+    <!-- 1.10.1 - PATCH over 1.10.0 (2026-09-13), web-only, no API/schema change. Mobile
+         library-view polish from live iPad/phone use: (1) the mobile library-nav hamburger is
+         now a toggle (second tap closes + returns to origin); (2) breadcrumb current folder
+         clamped to two lines with ellipsis on phone (the 1.10.0 redesign ballooned long titles);
+         (3) card-size icons swapped from photo_size_select_* (looked like broken images) to
+         zoom_out/zoom_in + grid_view; (4) the A-Z jump rail collapses to a letter-picker button
+         + menu on phone (it wrapped into an unusable band). All phone-breakpoint-only; desktop +
+         iPad unchanged. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
     <MangaPlexVersionMinor>10</MangaPlexVersionMinor>
-    <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
+    <MangaPlexVersionPatch>1</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

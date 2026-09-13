@@ -92,28 +92,28 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
              cramped toolbar width; desktop + iPad keep this inline control unchanged. -->
         @if (viewMode() === 'card') {
           <div class="size-control size-control-inline" matTooltip="Card size">
-            <mat-icon class="size-icon">photo_size_select_small</mat-icon>
+            <mat-icon class="size-icon">zoom_out</mat-icon>
             <input type="range" class="size-slider" aria-label="Card size"
                    [min]="cardSizeMin" [max]="cardSizeMax" [step]="cardSizeStep"
                    [value]="cardSize()"
                    (input)="onCardSizeInput($event)"
                    (change)="onCardSizeChange($event)">
-            <mat-icon class="size-icon">photo_size_select_large</mat-icon>
+            <mat-icon class="size-icon">zoom_in</mat-icon>
           </div>
           <!-- Phone-only submenu trigger for the same slider (hidden on desktop/iPad). -->
           <button mat-icon-button class="size-menu-trigger" [matMenuTriggerFor]="sizeMenu"
                   matTooltip="Card size" aria-label="Card size">
-            <mat-icon>photo_size_select_large</mat-icon>
+            <mat-icon>grid_view</mat-icon>
           </button>
           <mat-menu #sizeMenu="matMenu" class="size-options-menu">
             <div class="size-control size-control-menu" (click)="$event.stopPropagation()">
-              <mat-icon class="size-icon">photo_size_select_small</mat-icon>
+              <mat-icon class="size-icon">zoom_out</mat-icon>
               <input type="range" class="size-slider" aria-label="Card size"
                      [min]="cardSizeMin" [max]="cardSizeMax" [step]="cardSizeStep"
                      [value]="cardSize()"
                      (input)="onCardSizeInput($event)"
                      (change)="onCardSizeChange($event)">
-              <mat-icon class="size-icon">photo_size_select_large</mat-icon>
+              <mat-icon class="size-icon">zoom_in</mat-icon>
             </div>
           </mat-menu>
         }
@@ -236,7 +236,9 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
 
     @if (jumpBuckets().length > 0) {
       <!-- Sticky (1.8.0): stacked directly under the sticky top bar, whose measured
-           height is the rail's sticky offset, so both follow the user down the page. -->
+           height is the rail's sticky offset, so both follow the user down the page.
+           1.10.1: hidden on the phone breakpoint (it wrapped into an unusable band);
+           replaced there by the A-Z letter-picker button below. -->
       <nav class="jump-rail" aria-label="Jump to letter" [style.top.px]="barHeight()">
         @for (bucket of jumpBuckets(); track bucket.label) {
           <button class="jump-chip" type="button"
@@ -247,6 +249,24 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
           </button>
         }
       </nav>
+      <!-- Phone-only (1.10.1): the rail collapses to a single A-Z button that opens a
+           compact letter-picker menu, reclaiming the cramped top area. Hidden on
+           desktop/iPad, where the full rail above is used instead. -->
+      <button mat-stroked-button class="jump-menu-trigger" [matMenuTriggerFor]="jumpMenu"
+              aria-label="Jump to letter">
+        <mat-icon>sort_by_alpha</mat-icon> {{ activeJump() || 'A-Z' }}
+      </button>
+      <mat-menu #jumpMenu="matMenu" class="jump-picker-menu">
+        <div class="jump-picker" (click)="$event.stopPropagation()">
+          @for (bucket of jumpBuckets(); track bucket.label) {
+            <button class="jump-chip" type="button"
+                    (click)="jumpToBucket(bucket)"
+                    [class.active]="activeJump() === bucket.label">
+              {{ bucket.label }}
+            </button>
+          }
+        </div>
+      </mat-menu>
     }
 
     <app-continue-row [node]="nextUnread()" />
@@ -475,6 +495,20 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     }
     .jump-chip:hover { background: rgba(124,77,255,0.18); }
     .jump-chip.active { background: #7c4dff; color: #fff; }
+    /* Phone A-Z letter-picker (1.10.1): the trigger is hidden on desktop/iPad (the
+       full rail is used there); shown on the phone breakpoint. The picker grid + its
+       chips render in a CDK overlay outside this component, so they are styled via
+       ::ng-deep like the other menus. */
+    .jump-menu-trigger { display: none; margin-bottom: 12px; }
+    ::ng-deep .jump-picker-menu .jump-picker {
+      display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; max-width: 300px;
+    }
+    ::ng-deep .jump-picker-menu .jump-chip {
+      min-width: 34px; padding: 8px 10px; border: none; cursor: pointer;
+      background: transparent; color: #b39dff; border-radius: 6px;
+      font-size: 14px; font-weight: 600; line-height: 1;
+    }
+    ::ng-deep .jump-picker-menu .jump-chip.active { background: #7c4dff; color: #fff; }
 
     /* Touch / small screens: keep the action bar compact by dropping button labels
        (icons remain, so the controls stay usable) — requirement 1 (dual input). */
@@ -495,6 +529,10 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       .size-control-inline { display: none; }
       .size-menu-trigger { display: inline-flex; }
 
+      /* Jump rail -> A-Z letter-picker button on phone (1.10.1). */
+      .jump-rail { display: none; }
+      .jump-menu-trigger { display: inline-flex; }
+
       .breadcrumbs {
         white-space: normal;         /* let the trail wrap instead of ellipsing away */
         overflow: visible;
@@ -503,10 +541,14 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       }
       .breadcrumbs a { padding: 2px 0; }
       .breadcrumbs .sep { color: #6b6b78; }
-      /* The current folder: the largest, brightest crumb — the mobile "you are here". */
+      /* The current folder: the brightest crumb — the mobile "you are here".
+         1.10.1: bounded to two lines with an ellipsis (and a more moderate size)
+         so a long folder name truncates instead of ballooning the whole top bar. */
       .breadcrumbs .current {
         flex-basis: 100%;
-        font-size: 18px; font-weight: 700; color: #f0f0f6;
+        font-size: 16px; font-weight: 700; color: #f0f0f6;
+        display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+        overflow: hidden;
       }
     }
   `],
