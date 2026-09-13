@@ -15,7 +15,7 @@ import { ReadStateService } from '../../core/reading/read-state.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { ContinueRowComponent } from '../../shared/continue-row/continue-row.component';
-import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryViewPreferencesDto, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
+import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
 
 /**
  * Library browse component. Shows the actual folder/archive tree with keyset
@@ -86,9 +86,12 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
         </div>
         <!-- Card size slider (1.6.0): only meaningful for the Card view. Dragging
              resizes the grid live (input); releasing persists the preference
-             (change). Subsumes the old comfortable/compact density toggle. -->
+             (change). Subsumes the old comfortable/compact density toggle.
+             1.10.0 (F3): on the PHONE breakpoint the inline control is hidden and the
+             slider moves into a submenu (the size-menu-trigger below) to reclaim the
+             cramped toolbar width; desktop + iPad keep this inline control unchanged. -->
         @if (viewMode() === 'card') {
-          <div class="size-control" matTooltip="Card size">
+          <div class="size-control size-control-inline" matTooltip="Card size">
             <mat-icon class="size-icon">photo_size_select_small</mat-icon>
             <input type="range" class="size-slider" aria-label="Card size"
                    [min]="cardSizeMin" [max]="cardSizeMax" [step]="cardSizeStep"
@@ -97,6 +100,22 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                    (change)="onCardSizeChange($event)">
             <mat-icon class="size-icon">photo_size_select_large</mat-icon>
           </div>
+          <!-- Phone-only submenu trigger for the same slider (hidden on desktop/iPad). -->
+          <button mat-icon-button class="size-menu-trigger" [matMenuTriggerFor]="sizeMenu"
+                  matTooltip="Card size" aria-label="Card size">
+            <mat-icon>photo_size_select_large</mat-icon>
+          </button>
+          <mat-menu #sizeMenu="matMenu" class="size-options-menu">
+            <div class="size-control size-control-menu" (click)="$event.stopPropagation()">
+              <mat-icon class="size-icon">photo_size_select_small</mat-icon>
+              <input type="range" class="size-slider" aria-label="Card size"
+                     [min]="cardSizeMin" [max]="cardSizeMax" [step]="cardSizeStep"
+                     [value]="cardSize()"
+                     (input)="onCardSizeInput($event)"
+                     (change)="onCardSizeChange($event)">
+              <mat-icon class="size-icon">photo_size_select_large</mat-icon>
+            </div>
+          </mat-menu>
         }
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
                 matTooltip="Change how the library is displayed" aria-label="View options">
@@ -142,16 +161,30 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               {{ opt.label }}
             </button>
           }
-          <mat-divider></mat-divider>
-          <!-- Initial/per-page item count for the infinite scroll (1.8.0, per-user). -->
-          <span class="menu-caption">Items per load</span>
-          @for (n of pageSizeOptions; track n) {
-            <button mat-menu-item role="menuitemradio" class="page-size-option"
-                    [class.selected-option]="pageSize() === n"
-                    [attr.aria-checked]="pageSize() === n"
-                    (click)="setPageSize(n)">
-              <mat-icon>format_list_numbered</mat-icon>
-              {{ n }}
+          <!-- 1.10.0 (F5): "Items per load" moved OUT of this menu into User Settings
+               as an initial-load / performance option (settings.component.ts). It is a
+               per-user preference (LibraryViewPreferencesDto.libraryPageSize), not a
+               browse control, so it no longer belongs on the browse toolbar. -->
+        </mat-menu>
+        <!-- Read-state filter (1.10.0, F1): All / Reading / Read / Unread, at the root
+             AND in any subfolder. The selected option uses the same accent COLOR
+             HIGHLIGHT as the View menu (F4) via the shared view-options-menu panel
+             class. The button shows the active state so the filter is visible at a
+             glance; it applies at all sizes (not a layout-breaking change). -->
+        <button mat-stroked-button class="filter-toggle" [matMenuTriggerFor]="filterMenu"
+                [class.filter-active]="readStateFilter() !== 'all'"
+                matTooltip="Filter by read state" aria-label="Filter by read state">
+          <mat-icon>filter_list</mat-icon> {{ readStateLabel() }}
+        </button>
+        <mat-menu #filterMenu="matMenu" class="view-options-menu">
+          <span class="menu-caption">Show</span>
+          @for (opt of readStateOptions; track opt.value) {
+            <button mat-menu-item role="menuitemradio"
+                    [class.selected-option]="readStateFilter() === opt.value"
+                    [attr.aria-checked]="readStateFilter() === opt.value"
+                    (click)="setReadStateFilter(opt.value)">
+              <mat-icon>{{ opt.icon }}</mat-icon>
+              {{ opt.label }}
             </button>
           }
         </mat-menu>
@@ -340,7 +373,20 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       width: 120px; max-width: 34vw; accent-color: #7c4dff; cursor: pointer;
       background: transparent;
     }
-    @media (max-width: 560px) { .size-slider { width: 80px; } }
+    /* Read-state filter button (1.10.0): a normal toolbar control; when a filter is
+       active it wears the accent so the constrained view reads at a glance. */
+    .filter-toggle mat-icon { margin-right: 4px; }
+    .filter-toggle.filter-active {
+      border-color: #7c4dff; color: #b39dff;
+    }
+    .filter-toggle.filter-active mat-icon { color: #b39dff; }
+    /* Phone-only card-size submenu trigger (1.10.0, F3). Hidden on desktop + iPad,
+       where the inline .size-control-inline slider is used instead. */
+    .size-menu-trigger { display: none; flex: 0 0 auto; }
+    /* The slider laid out inside its phone submenu gets breathing room + a wider track. */
+    ::ng-deep .size-options-menu .size-control-menu { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+    ::ng-deep .size-options-menu .size-slider { width: 180px; max-width: 60vw; accent-color: #7c4dff; }
+    @media (max-width: 560px) { .size-control-inline .size-slider { width: 80px; } }
     /* View modes. Card (1.6.0) is a single cover grid whose card size is a
        continuous slider — the min column width comes from the --card-size custom
        property fed by the component, replacing the former Grid/Poster modes and the
@@ -436,6 +482,33 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       .actions .lbl { display: none; }
       .actions mat-icon { margin-right: 0; }
     }
+
+    /* --- PHONE breakpoint only (1.10.0, F3). Desktop + iPad (>=561px) are untouched:
+       every rule that changes layout lives inside this media query. It covers two
+       findings from mobile use:
+        - the card-size slider is relocated OFF the cramped toolbar into a submenu
+          (the inline control is hidden; the icon-button trigger is shown);
+        - the breadcrumb is redesigned for legibility: it was too small to read/tap.
+          The trail is allowed to wrap, the type is larger, and the current folder is
+          the prominent, high-contrast element so "where am I" reads at a glance. --- */
+    @media (max-width: 560px) {
+      .size-control-inline { display: none; }
+      .size-menu-trigger { display: inline-flex; }
+
+      .breadcrumbs {
+        white-space: normal;         /* let the trail wrap instead of ellipsing away */
+        overflow: visible;
+        display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 4px;
+        font-size: 15px; line-height: 1.35;
+      }
+      .breadcrumbs a { padding: 2px 0; }
+      .breadcrumbs .sep { color: #6b6b78; }
+      /* The current folder: the largest, brightest crumb — the mobile "you are here". */
+      .breadcrumbs .current {
+        flex-basis: 100%;
+        font-size: 18px; font-weight: 700; color: #f0f0f6;
+      }
+    }
   `],
 })
 export class LibraryBrowseComponent implements OnInit, OnDestroy {
@@ -495,10 +568,30 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * default so pre-1.8.0 rows and older clients behave as before.
    */
   readonly defaultPageSize = 50;
-  readonly pageSizeOptions = [25, 50, 100, 200];
   readonly pageSizeMin = 10;
   readonly pageSizeMax = 500;
   readonly pageSize = signal<number>(this.defaultPageSize);
+
+  /**
+   * Read-state filter (1.10.0, F1): restricts the listed archives to All / Reading /
+   * Read / Unread, at the library root AND in any subfolder. Server-side (an additive
+   * `readState` browse param), so it composes with the keyset pagination + infinite
+   * scroll. A transient toolbar control, NOT a persisted preference — it survives
+   * folder navigation within the session (resetList keeps it) but is not round-tripped
+   * through library-preferences. 'all' sends no param (server default = unfiltered).
+   */
+  readonly readStateFilter = signal<LibraryReadStateFilter>('all');
+  readonly readStateOptions: { value: LibraryReadStateFilter; label: string; icon: string }[] = [
+    { value: 'all', label: 'All', icon: 'filter_list' },
+    { value: 'reading', label: 'Reading', icon: 'auto_stories' },
+    { value: 'read', label: 'Read', icon: 'check_circle' },
+    { value: 'unread', label: 'Unread', icon: 'radio_button_unchecked' },
+  ];
+  /** Toolbar button label: "Filter" when inactive, else the active option's label. */
+  readonly readStateLabel = computed(() =>
+    this.readStateFilter() === 'all'
+      ? 'Filter'
+      : this.readStateOptions.find((o) => o.value === this.readStateFilter())?.label ?? 'Filter');
 
   /** Measured height of the sticky top bar: the jump rail's sticky offset. */
   readonly barHeight = signal(0);
@@ -718,8 +811,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       this.loadNodes();
       // The jump rail is a library-root navigation aid (1.4.0 Lane E). It is
       // only meaningful for the name sort in ascending order — its bucket
-      // cursors assume A→Z order, and other sorts ignore the cursor entirely.
-      if (!parentId && this.sort() === 'name' && this.sortDirection() === 'asc') this.loadJumpIndex(libId);
+      // cursors assume A→Z order — and only over the UNFILTERED listing (1.10.0).
+      if (this.shouldShowJumpRail()) this.loadJumpIndex(libId);
       else this.jumpBuckets.set([]);
       if (parentId) {
         this.loadBreadcrumbs(parentId);
@@ -921,15 +1014,34 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     this.loadNodes();
   }
 
-  /** Change the initial/per-page count (1.8.0): persist and reload from the top at the new size. */
-  setPageSize(n: number): void {
-    const size = Number.isInteger(n) && n >= this.pageSizeMin && n <= this.pageSizeMax ? n : this.defaultPageSize;
-    if (this.pageSize() === size) return;
-    this.pageSize.set(size);
-    this.persistView();
+  /**
+   * Change the read-state filter (1.10.0, F1): reload the list from the top at the new
+   * filter. Not persisted (a transient view control). The jump rail is a name-sort
+   * navigation aid built over the UNFILTERED listing, so it is hidden while a filter is
+   * active and restored when the filter returns to All (subject to the usual name+asc+
+   * root conditions).
+   */
+  setReadStateFilter(filter: LibraryReadStateFilter): void {
+    if (this.readStateFilter() === filter) return;
+    this.readStateFilter.set(filter);
     this.resetList();
     this.loadNodes();
+    if (this.shouldShowJumpRail()) this.loadJumpIndex(this.libraryId());
+    else this.jumpBuckets.set([]);
     this.scrollToTop('auto');
+  }
+
+  /**
+   * Whether the A-Z jump rail applies: it is a library-root name-sort (ascending)
+   * navigation aid whose bucket cursors assume the full, unfiltered A->Z listing, so it
+   * is meaningless in a subfolder, under another sort/direction, or while a read-state
+   * filter is narrowing the listing.
+   */
+  private shouldShowJumpRail(): boolean {
+    return !this.parentId()
+      && this.sort() === 'name'
+      && this.sortDirection() === 'asc'
+      && this.readStateFilter() === 'all';
   }
 
   getNodeLink(node: CatalogNodeDto): string[] {
@@ -992,7 +1104,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     this.loadNodes();
     // The jump rail is only valid for the name sort in ascending order (the
     // cursor is a raw SortKey that assumes A→Z order; other sorts ignore it).
-    if (s === 'name' && this.sortDirection() === 'asc' && !this.parentId()) this.loadJumpIndex(this.libraryId());
+    if (this.shouldShowJumpRail()) this.loadJumpIndex(this.libraryId());
     else this.jumpBuckets.set([]);
   }
 
@@ -1003,7 +1115,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     this.persistView();
     this.resetList();
     this.loadNodes();
-    if (this.sort() === 'name' && d === 'asc' && !this.parentId()) this.loadJumpIndex(this.libraryId());
+    if (this.shouldShowJumpRail()) this.loadJumpIndex(this.libraryId());
     else this.jumpBuckets.set([]);
   }
 
@@ -1296,7 +1408,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const initial = this.cursor === null;
     const gen = ++this.loadGen;
     this.loadingMore.set(true);
-    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection()).subscribe({
+    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         if (gen !== this.loadGen) return;
         this.nodes.update((current) => initial ? [...response.items] : [...current, ...response.items]);
