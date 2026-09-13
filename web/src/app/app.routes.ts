@@ -40,6 +40,13 @@ export const routes: Routes = [
           import('./features/search/search.component').then((m) => m.SearchComponent),
       },
       {
+        // Phone-only library nav page (1.10.0, F3) - see layout.component's
+        // `isPhone`/toolbar nav control and mobile-library-nav.component.
+        path: 'library-nav',
+        loadComponent: () =>
+          import('./layout/mobile-library-nav.component').then((m) => m.MobileLibraryNavComponent),
+      },
+      {
         path: 'settings',
         loadComponent: () =>
           import('./features/auth/settings.component').then((m) => m.SettingsComponent),

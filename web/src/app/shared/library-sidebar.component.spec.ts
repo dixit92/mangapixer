@@ -160,4 +160,48 @@ describe('LibrarySidebarComponent', () => {
     await navigate(router, '/', fixture);
     expect(fixture.componentInstance.collapsed()).toBe(true);
   });
+
+  describe('page mode (1.10.0, F3)', () => {
+    it('defaults to shell mode: no page-mode class, collapse toggle present', async () => {
+      const { fixture, router } = create();
+      await navigate(router, '/', fixture);
+
+      const nav = fixture.nativeElement.querySelector('nav.sidebar');
+      expect(nav.classList.contains('page-mode')).toBe(false);
+      expect(fixture.nativeElement.querySelector('.nav-collapse')).not.toBeNull();
+    });
+
+    it('applies the page-mode class and omits the collapse toggle when pageMode is set', async () => {
+      const { fixture, router } = create();
+      fixture.componentRef.setInput('pageMode', true);
+      await navigate(router, '/', fixture);
+
+      const nav = fixture.nativeElement.querySelector('nav.sidebar');
+      expect(nav.classList.contains('page-mode')).toBe(true);
+      expect(nav.classList.contains('collapsed')).toBe(false);
+      expect(fixture.nativeElement.querySelector('.nav-head')).toBeNull();
+      expect(fixture.nativeElement.querySelector('.nav-collapse')).toBeNull();
+    });
+
+    it('still renders Home plus a navigable item per library in page mode', async () => {
+      const { fixture, router } = create();
+      fixture.componentRef.setInput('pageMode', true);
+      await navigate(router, '/libraries/L1/browse', fixture);
+
+      const items = fixture.nativeElement.querySelectorAll('.nav-item');
+      expect(items).toHaveLength(3); // Home + L1 + L2
+      expect(items[1].classList.contains('active')).toBe(true); // L1
+    });
+
+    it('never shows as collapsed in page mode even if the shell collapse flag is persisted', async () => {
+      localStorage.setItem('mangaplex-nav-collapsed', '1');
+      const { fixture, router } = create();
+      fixture.componentRef.setInput('pageMode', true);
+      await navigate(router, '/', fixture);
+
+      expect(fixture.componentInstance.collapsed()).toBe(true); // underlying state is still loaded
+      const nav = fixture.nativeElement.querySelector('nav.sidebar');
+      expect(nav.classList.contains('collapsed')).toBe(false); // but never applied visually in page mode
+    });
+  });
 });

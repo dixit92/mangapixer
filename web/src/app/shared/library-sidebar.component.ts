@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, Router, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -27,25 +27,34 @@ import { readerModeGlyph } from './reader-mode-glyph';
  *    `readerModeGlyph` helper.
  *
  * Desktop collapse persists to localStorage under a **shell-scoped** key (the old
- * home-scoped `mangaplex-home-nav-collapsed` key belonged to the home page). On
- * narrow screens the media query turns the column into a horizontal scroll rail
- * and collapse is neutralized (a desktop-only affordance).
+ * home-scoped `mangaplex-home-nav-collapsed` key belonged to the home page).
+ *
+ * **Page mode (1.10.0, F3):** on phone breakpoints, `layout.component` no longer
+ * mounts this component inside the shell at all - it mounts a dedicated route
+ * (`mobile-library-nav.component`) instead, reached via a nav control in the
+ * toolbar. That page renders this same component with `[pageMode]="true"`,
+ * which swaps the narrow sticky column (and its collapse affordance, which
+ * makes no sense as a standalone page) for a plain full-width vertical list.
+ * Desktop/tablet keep the default (shell, `pageMode` false) rendering
+ * unchanged.
  */
 @Component({
   selector: 'app-library-sidebar',
   standalone: true,
   imports: [CommonModule, RouterLink, MatIconModule, MatTooltipModule],
   template: `
-    <nav class="sidebar" [class.collapsed]="collapsed()" aria-label="Libraries">
-      <div class="nav-head">
-        <span class="nav-head-label">Library</span>
-        <button type="button" class="nav-collapse" (click)="toggleCollapsed()"
-                [matTooltip]="collapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
-                [attr.aria-label]="collapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
-                [attr.aria-expanded]="!collapsed()">
-          <mat-icon>{{ collapsed() ? 'chevron_right' : 'chevron_left' }}</mat-icon>
-        </button>
-      </div>
+    <nav class="sidebar" [class.collapsed]="collapsed() && !pageMode()" [class.page-mode]="pageMode()" aria-label="Libraries">
+      @if (!pageMode()) {
+        <div class="nav-head">
+          <span class="nav-head-label">Library</span>
+          <button type="button" class="nav-collapse" (click)="toggleCollapsed()"
+                  [matTooltip]="collapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
+                  [attr.aria-label]="collapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
+                  [attr.aria-expanded]="!collapsed()">
+            <mat-icon>{{ collapsed() ? 'chevron_right' : 'chevron_left' }}</mat-icon>
+          </button>
+        </div>
+      }
 
       <a class="nav-item" routerLink="/" [class.active]="isHome()"
          [attr.aria-current]="isHome() ? 'page' : null"
@@ -71,8 +80,9 @@ import { readerModeGlyph } from './reader-mode-glyph';
   styles: [`
     /* Ported from the old home sidebar (1.5.0 taste pass) and generalized for the
        shell. The sidebar is a full-height panel pinned to the window's left edge;
-       collapsible to an icon rail on desktop; a horizontal scroll rail on narrow
-       screens. Height uses the toolbar offset (64px). */
+       collapsible to an icon rail on desktop/tablet. On phone it isn't mounted
+       in the shell at all (1.10.0, F3 - see the media query below and
+       layout.component). Height uses the toolbar offset (64px). */
     .sidebar {
       flex: 0 0 var(--mp-nav-width);
       display: flex; flex-direction: column; gap: 2px;
@@ -85,6 +95,21 @@ import { readerModeGlyph } from './reader-mode-glyph';
       transition: flex-basis .16s ease;
     }
     .sidebar.collapsed { flex-basis: var(--mp-nav-width-collapsed); }
+    /* Page mode (1.10.0, F3): the dedicated phone nav page renders this same
+       component full-width instead of as a narrow sticky shell column. No
+       collapse affordance (the nav-head is omitted entirely - see template),
+       full width, roomier touch targets. Applies at every viewport width;
+       in practice only the phone page uses it. */
+    .sidebar.page-mode {
+      position: static;
+      height: auto;
+      flex: 1 1 auto;
+      width: 100%;
+      box-sizing: border-box;
+      border-right: none;
+      padding: 4px var(--mp-gutter) var(--mp-gutter-y);
+    }
+    .sidebar.page-mode .nav-item { padding: 14px 12px; }
     .nav-head {
       display: flex; align-items: center; justify-content: space-between;
       padding: 2px 6px 8px; min-height: 32px;
@@ -140,21 +165,18 @@ import { readerModeGlyph } from './reader-mode-glyph';
     .sidebar.collapsed .nav-dir,
     .sidebar.collapsed .nav-count { display: none; }
 
-    /* Narrow screens: horizontal scroll rail above the content. Collapse is a
-       desktop-only affordance, so the collapsed class is neutralized and the
-       toggle is hidden. */
+    /* Narrow screens (1.10.0, F3): the old horizontal scroll rail at the top of
+       the shell is gone - layout.component stops mounting this component in
+       the shell altogether at this width and shows a nav control that routes to
+       the dedicated phone page (page-mode) instead. This rule is a defensive
+       fallback that hides the shell variant outright if it were ever mounted
+       here, rather than falling back to the old cramped rail. page-mode is
+       untouched by this query and keeps its normal full-width vertical list at
+       every viewport width - that page IS the phone experience. */
     @media (max-width: 700px) {
-      .sidebar, .sidebar.collapsed {
-        flex: 0 0 auto; flex-basis: auto; flex-direction: row; width: 100%;
-        height: auto; position: static; align-self: stretch;
-        overflow-x: auto; padding: 8px var(--mp-gutter);
-        border-right: none; border-bottom: 1px solid var(--mp-nav-border);
+      .sidebar:not(.page-mode) {
+        display: none;
       }
-      .nav-head { display: none; }
-      .sidebar.collapsed .nav-item { justify-content: flex-start; padding: 8px 12px; }
-      .sidebar.collapsed .nav-label { display: inline; }
-      .nav-item { width: auto; white-space: nowrap; }
-      .nav-dir, .nav-count { display: none; }
     }
   `],
 })
@@ -162,12 +184,20 @@ export class LibrarySidebarComponent {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
 
+  /**
+   * Page mode (1.10.0, F3): renders as a plain full-width vertical list with no
+   * collapse affordance, for the dedicated phone nav page. Defaults to the
+   * existing shell (narrow, sticky, collapsible) rendering used on
+   * desktop/tablet - unchanged.
+   */
+  readonly pageMode = input(false);
+
   readonly libraries = signal<LibraryDto[]>([]);
 
   /**
-   * Desktop sidebar collapse. Shell-scoped localStorage key (distinct from the
-   * old home-only `mangaplex-home-nav-collapsed`). Ignored on narrow screens
-   * (the sidebar is a horizontal rail there - see the media query).
+   * Desktop/tablet sidebar collapse. Shell-scoped localStorage key (distinct
+   * from the old home-only `mangaplex-home-nav-collapsed`). Never applied in
+   * page mode (1.10.0, F3) - see the template's `[class.collapsed]` binding.
    */
   private static readonly CollapsedKey = 'mangaplex-nav-collapsed';
   readonly collapsed = signal<boolean>(this.loadCollapsed());
