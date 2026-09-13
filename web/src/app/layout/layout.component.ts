@@ -44,9 +44,10 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
   template: `
     <mat-toolbar color="primary">
       @if (auth.isAuthenticated() && isPhone() && showSidebar()) {
-        <button mat-icon-button class="mobile-nav-btn" routerLink="/library-nav"
-                aria-label="Open library navigation">
-          <mat-icon>menu</mat-icon>
+        <button mat-icon-button class="mobile-nav-btn" (click)="toggleLibraryNav()"
+                [attr.aria-label]="onLibraryNav() ? 'Close library navigation' : 'Open library navigation'"
+                [attr.aria-expanded]="onLibraryNav()">
+          <mat-icon>{{ onLibraryNav() ? 'close' : 'menu' }}</mat-icon>
         </button>
       }
       <a routerLink="/" class="brand">
@@ -167,6 +168,19 @@ export class LayoutComponent {
     { initialValue: !this.isReaderUrl() },
   );
 
+  /** True when the current route is the dedicated mobile library-nav page. */
+  private isLibraryNavUrl(): boolean {
+    return this.router.url.split(/[?#]/)[0] === '/library-nav';
+  }
+  readonly onLibraryNav = toSignal(
+    this.router.events.pipe(
+      filter((e) => e instanceof NavigationEnd),
+      map(() => this.isLibraryNavUrl()),
+      startWith(this.isLibraryNavUrl()),
+    ),
+    { initialValue: this.isLibraryNavUrl() },
+  );
+
   /**
    * True on phone-width viewports (1.10.0, F3). Uses the same `700px` threshold
    * as `library-sidebar.component`'s own phone media query, so "phone" means the
@@ -197,6 +211,24 @@ export class LayoutComponent {
    * navigate away and back" bug). The toggle survives the reload because
    * IncognitoService persists it to sessionStorage.
    */
+  /**
+   * The phone toolbar's library-nav control is a TOGGLE: it opens the dedicated
+   * `/library-nav` page, and a second tap closes it, returning to wherever the
+   * user opened it from. Fixes the 1.10.0 bug where the control only navigated
+   * to the page, so a second tap re-navigated to the same page (never closing).
+   */
+  private navReturnUrl: string | null = null;
+  toggleLibraryNav(): void {
+    if (this.isLibraryNavUrl()) {
+      const back = this.navReturnUrl ?? '/';
+      this.navReturnUrl = null;
+      this.router.navigateByUrl(back);
+    } else {
+      this.navReturnUrl = this.router.url;
+      this.router.navigate(['/library-nav']);
+    }
+  }
+
   toggleIncognito(): void {
     this.incognito.toggle();
     window.location.reload();

@@ -138,6 +138,26 @@ describe('LayoutComponent sidebar visibility', () => {
       expect(router.url).toBe('/library-nav');
     });
 
+    it('on phone, the nav control TOGGLES: a second tap closes and returns to origin', async () => {
+      const { fixture, router } = create({ authenticated: true, phone: true });
+      await go(router, '/', fixture);
+      const navBtn = () => fixture.nativeElement.querySelector('.mobile-nav-btn') as HTMLButtonElement;
+
+      // First tap opens the dedicated nav page; the control flips to a close affordance.
+      navBtn().click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(router.url).toBe('/library-nav');
+      expect(navBtn().getAttribute('aria-label')).toBe('Close library navigation');
+
+      // Second tap closes, returning to wherever it was opened from.
+      navBtn().click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(router.url).toBe('/');
+      expect(navBtn().getAttribute('aria-label')).toBe('Open library navigation');
+    });
+
     it('does not show the mobile nav control when unauthenticated, even on phone', async () => {
       const { fixture, router } = create({ authenticated: false, phone: true });
       await go(router, '/', fixture);
