@@ -76,9 +76,22 @@
          categorically distinct. Also fixes the prefers-reduced-motion override (it was less
          specific than the per-direction rules and did not actually disable the animation;
          now animation:none !important). Owner feedback from the 1.9.0 deploy. -->
+    <!-- 1.10.0 - additive minor over 1.9.1 (post-1.9.1 cycle, 2026-09-13). Mobile/UI polish
+         from the owner's live iPad + phone use, 3 lanes: (F1) library read-state filter
+         (Reading / Read / Unread) at ANY folder level - additive `readState` browse query param
+         applied before pagination; (F5) items-per-load moved out of the browse menu into a
+         Settings "Performance" card; (F4) app-wide color-highlight for the active menu option
+         (browse + reader menus), replacing checkmark ticks; (F2) reader controls consolidated
+         into a mobile bottom sheet on phones (Fable-designed - kept Next-chapter + Fullscreen on
+         the bar); (F3) mobile library sidebar -> a separate /library-nav page, poster-size slider
+         -> submenu, and breadcrumb redesign, all at phone breakpoints. Desktop + iPad layouts
+         unchanged (purely responsive, phone-only). Additive API (one browse query param), no
+         schema change -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.10.x. Known follow-up: the
+         three lanes used slightly different phone breakpoints (560 / 599.98 / 700 px) - harmonize
+         later (does not affect phone or iPad, only the 560-700px band). -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>9</MangaPlexVersionMinor>
-    <MangaPlexVersionPatch>1</MangaPlexVersionPatch>
+    <MangaPlexVersionMinor>10</MangaPlexVersionMinor>
+    <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
