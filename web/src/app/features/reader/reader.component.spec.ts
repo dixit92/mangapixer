@@ -163,6 +163,72 @@ describe('ReaderComponent double-spread pairing', () => {
     expect(c.progressPct()).toBe(100);
   });
 
+  describe('currentPageIndicator (double-page page numbers)', () => {
+    it('shows both page numbers in spread mode with two distinct pages: "12-13"', () => {
+      const c = create();
+      c.pages.set(makePages(6));
+      c.view.set('spread');
+      c.coverIsStandalone.set(true); // [0],[1,2],[3,4],[5]
+      c.currentPage.set(1); // in the [1,2] pair
+      expect(c.currentPageIndicator()).toBe('2-3');
+    });
+
+    it('shows single page in spread mode with one wide page', () => {
+      const c = create();
+      const pages = makePages(5);
+      pages[2] = { ...pages[2], width: 2000, height: 1200 }; // wide
+      c.pages.set(pages);
+      c.view.set('spread');
+      c.coverIsStandalone.set(false); // [0,1],[2],[3,4]
+      c.currentPage.set(2); // the wide page, alone
+      expect(c.currentPageIndicator()).toBe('3');
+    });
+
+    it('shows single page in spread mode with standalone cover', () => {
+      const c = create();
+      c.pages.set(makePages(3));
+      c.view.set('spread');
+      c.coverIsStandalone.set(true); // [0],[1,2]
+      c.currentPage.set(0); // the cover
+      expect(c.currentPageIndicator()).toBe('1');
+    });
+
+    it('shows single page in paged mode regardless of spread pairing', () => {
+      const c = create();
+      c.pages.set(makePages(4));
+      c.view.set('paged');
+      c.coverIsStandalone.set(false); // would be [0,1],[2,3]
+      c.currentPage.set(1);
+      expect(c.currentPageIndicator()).toBe('2');
+    });
+
+    it('shows single page in webtoon mode', () => {
+      const c = create();
+      c.pages.set(makePages(5));
+      c.view.set('webtoon');
+      c.currentPage.set(3);
+      expect(c.currentPageIndicator()).toBe('4');
+    });
+
+    it('shows both page numbers for the last pair in spread mode', () => {
+      const c = create();
+      c.pages.set(makePages(5));
+      c.view.set('spread');
+      c.coverIsStandalone.set(true); // [0],[1,2],[3,4]
+      c.currentPage.set(3); // final pair [3,4]
+      expect(c.currentPageIndicator()).toBe('4-5');
+    });
+
+    it('handles odd trailing page in spread mode (shows single number)', () => {
+      const c = create();
+      c.pages.set(makePages(5));
+      c.view.set('spread');
+      c.coverIsStandalone.set(false); // [0,1],[2,3],[4]
+      c.currentPage.set(4); // odd trailing page
+      expect(c.currentPageIndicator()).toBe('5');
+    });
+  });
+
   it('renders a wide (stitched-spread) page solo and resumes pairing after it', () => {
     const c = create();
     const pages = makePages(5);
