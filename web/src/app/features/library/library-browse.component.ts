@@ -18,18 +18,6 @@ import { ContinueRowComponent } from '../../shared/continue-row/continue-row.com
 import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
 
 /**
- * Browse sort, widened locally for 1.12.0's "Recently updated" option. The backend
- * for `recentlyUpdated` (and the `api-types.ts` / `api.service.ts` contract) is
- * delivered by another lane in this cycle; this component is frontend-only and
- * does not own those files, so the new value is added here rather than to
- * `LibrarySortOrder` itself. `ApiService.browseLibrary` forwards `sort` as a plain
- * string query param, so casting to `LibrarySortOrder` at that boundary (see
- * `apiSort()`) is safe; once the API layer widens `LibrarySortOrder` to include
- * this value, the casts become redundant no-ops.
- */
-type BrowseSortOrder = LibrarySortOrder | 'recentlyUpdated';
-
-/**
  * Library browse component. Shows the actual folder/archive tree with keyset
  * pagination, breadcrumbs, and item state indicators.
  *
@@ -780,7 +768,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   // Per-user browse sort (post-1.2.0). Folders stay first in every mode; the sort
   // orders within kind. Omitted on the request → the server uses the stored pref;
   // we pass it explicitly so a change reorders immediately without a persist race.
-  readonly sort = signal<BrowseSortOrder>('name');
+  readonly sort = signal<LibrarySortOrder>('name');
   /**
    * `hint` is a short tooltip/subtitle shown on the menu item (1.12.0): it exists
    * only to distinguish "Recently added" (new items appear in the library) from
@@ -788,7 +776,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * easily-confused recency sorts that otherwise read almost the same. Name and
    * Recently read are unambiguous, so they carry no hint.
    */
-  readonly sortOptions: { value: BrowseSortOrder; label: string; icon: string; hint?: string }[] = [
+  readonly sortOptions: { value: LibrarySortOrder; label: string; icon: string; hint?: string }[] = [
     { value: 'name', label: 'Name', icon: 'sort_by_alpha' },
     { value: 'recentlyAdded', label: 'Recently added', icon: 'schedule', hint: 'New items appear' },
     { value: 'recentlyRead', label: 'Recently read', icon: 'history' },
@@ -852,7 +840,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     this.readState.itemChanged$.pipe(
       filter(() => !!this.libraryId()),
       switchMap(() => this.api.browseLibrary(
-        this.libraryId(), this.parentId(), null, 1, this.apiSort(), this.sortDirection())
+        this.libraryId(), this.parentId(), null, 1, this.sort(), this.sortDirection())
         .pipe(catchError(() => of(null)))),
     ).subscribe((res) => { if (res) this.nextUnread.set(res.nextUnread ?? null); });
 
@@ -887,18 +875,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   /** Sort-specific default direction, matching the server's fallback (1.5.0). */
-  private defaultDirectionFor(sort: BrowseSortOrder): LibrarySortDirection {
+  private defaultDirectionFor(sort: LibrarySortOrder): LibrarySortDirection {
     return sort === 'name' ? 'asc' : 'desc';
-  }
-
-  /**
-   * Cast the local `sort` signal to the `ApiService`-typed `LibrarySortOrder` at the
-   * API boundary. See the `BrowseSortOrder` doc comment: the value is forwarded to
-   * the server as a plain string query param, so this is safe even for the not-yet-
-   * widened 'recentlyUpdated'.
-   */
-  private apiSort(): LibrarySortOrder {
-    return this.sort() as LibrarySortOrder;
   }
 
   /**
@@ -1273,7 +1251,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   /** Change the browse sort: persist the preference and reorder from the top. */
-  setSort(s: BrowseSortOrder): void {
+  setSort(s: LibrarySortOrder): void {
     if (this.sort() === s) return;
     this.sort.set(s);
     // Recency sorts are always descending (newest first); only Name uses the asc/desc toggle,
@@ -1593,7 +1571,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const initial = this.cursor === null;
     const gen = ++this.loadGen;
     this.loadingMore.set(true);
-    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.apiSort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders()).subscribe({
+    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         if (gen !== this.loadGen) return;
         this.nodes.update((current) => isAppend ? [...current, ...response.items] : [...response.items]);
@@ -1630,7 +1608,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const container = this.scrollParent();
     const prevHeight = this.scrollHeightOf(container);
     this.loadingPrevious.set(true);
-    this.api.browseLibrary(libId, this.parentId(), null, this.pageSize(), this.apiSort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), before).subscribe({
+    this.api.browseLibrary(libId, this.parentId(), null, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), before).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         if (gen !== this.loadGen) { this.loadingPrevious.set(false); return; }
         if (response.items.length > 0) {
