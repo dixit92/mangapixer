@@ -125,9 +125,13 @@ export class ApiService {
     direction: LibrarySortDirection | null = null,
     readState: LibraryReadStateFilter | null = null,
     hideEmpty = false,
+    before: string | null = null,
   ): Observable<PageResponse<CatalogNodeDto>> {
     let params = new HttpParams().set('pageSize', pageSize.toString());
     if (cursor) params = params.set('cursor', cursor);
+    // Backward page (1.11.0): fetch the page BEFORE `before` (upward scroll after a jump).
+    // Mutually exclusive with `cursor` at call sites (forward vs backward paging).
+    if (before) params = params.set('before', before);
     if (parentId) params = params.set('parentId', parentId);
     // Omitted → the server uses the caller's stored LibrarySort/direction preference.
     if (sort) params = params.set('sort', sort);

@@ -1218,6 +1218,62 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
     expect((comp as unknown as { pageSizeOptions?: unknown }).pageSizeOptions).toBeUndefined();
   });
 
+  // --- Backward / upward infinite scroll after a jump (1.11.0, D) ---
+
+  /** A page carrying backward-paging fields (a window that started mid-list). */
+  function midListPage(items: CatalogNodeDto[], prevCursor: string | null): PageResponse<CatalogNodeDto> {
+    return { items, totalCount: items.length, nextCursor: null, hasMore: false, prevCursor, hasPrevious: prevCursor !== null };
+  }
+
+  it('captures the window-top backward state (hasPrevious + prevCursor) from a fresh load', () => {
+    const { comp } = setup({ browse: () => of(midListPage([node('b'), node('c')], 'p1')) });
+    expect(comp.hasPrevious()).toBe(true);
+  });
+
+  it('loadPrevious prepends the previous page and forwards the before cursor', () => {
+    const { comp, browseLibrary } = setup({
+      browse: (...args: unknown[]) => {
+        const before = args[8] as string | null;
+        return before === 'p1'
+          ? of(midListPage([node('a')], null))            // the page above; now at the start
+          : of(midListPage([node('b'), node('c')], 'p1')); // initial mid-list window
+      },
+    });
+    expect(comp.nodes().map((n) => n.id)).toEqual(['b', 'c']);
+    comp.loadPrevious();
+    const last = browseLibrary.mock.calls.at(-1)!;
+    expect(last[2]).toBeNull();   // forward cursor null for a backward fetch
+    expect(last[8]).toBe('p1');   // before cursor forwarded
+    expect(comp.nodes().map((n) => n.id)).toEqual(['a', 'b', 'c']); // prepended, order preserved
+    expect(comp.hasPrevious()).toBe(false); // reached the start
+  });
+
+  it('loadPrevious is a no-op when nothing precedes the window', () => {
+    const { comp, browseLibrary } = setup({ browse: () => of(midListPage([node('a')], null)) });
+    expect(comp.hasPrevious()).toBe(false);
+    browseLibrary.mockClear();
+    comp.loadPrevious();
+    expect(browseLibrary).not.toHaveBeenCalled();
+  });
+
+  it('a forward loadMore does not overwrite the window-top backward state', () => {
+    const { comp, browseLibrary } = setup({
+      browse: (...args: unknown[]) => {
+        const before = args[8] as string | null;
+        const cursor = args[2] as string | null;
+        if (before === 'p1') return of(midListPage([node('a')], null));
+        if (cursor === 'n1') return of({ items: [node('d')], totalCount: 1, nextCursor: null, hasMore: false, prevCursor: 'ignored', hasPrevious: true });
+        return of({ items: [node('b'), node('c')], totalCount: 2, nextCursor: 'n1', hasMore: true, prevCursor: 'p1', hasPrevious: true });
+      },
+    });
+    comp.loadMore(); // appends [d]; must NOT touch prevCursor/hasPrevious
+    expect(comp.nodes().map((n) => n.id)).toEqual(['b', 'c', 'd']);
+    expect(comp.hasPrevious()).toBe(true);
+    comp.loadPrevious(); // still uses the original window-top cursor 'p1'
+    expect(browseLibrary.mock.calls.at(-1)![8]).toBe('p1');
+    expect(comp.nodes().map((n) => n.id)).toEqual(['a', 'b', 'c', 'd']);
+  });
+
   // --- tap top bar -> scroll to top ---
 
   it('tapping the top bar\'s neutral area scrolls the window to the top', () => {
