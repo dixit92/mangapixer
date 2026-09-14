@@ -18,6 +18,19 @@ export interface PageResponse<T> {
   nextCursor: string | null;
   hasMore: boolean;
   /**
+   * Backward (upward) keyset cursor (1.11.0): pass as the browse `before` param to
+   * fetch the page immediately BEFORE this window's first item. Null when this window
+   * starts at the listing's true first item, or for sorts without backward paging (only
+   * the name sort supports it). Optional on the client so older fixtures keep compiling.
+   */
+  prevCursor?: string | null;
+  /**
+   * Whether a page exists BEFORE this window's first item (1.11.0). Pairs with
+   * `prevCursor`; true means the client may scroll up and prepend the previous page.
+   * Optional/defaulted false so older fixtures keep compiling.
+   */
+  hasPrevious?: boolean;
+  /**
    * The folder's next-to-read descendant archive (1.7.0), surfaced as a pinned
    * "Continue" row above the sorted list. Browse only; null when the browsed
    * folder has no unread descendant archive. Optional on the client so existing
@@ -522,4 +535,45 @@ export interface RotatingBackupStatusDto {
 /** Read-only product version info from GET /api/v1/system/info. */
 export interface SystemInfoDto {
   version: string;
+}
+
+// --- Home "New chapters" (1.11.0 Lane C) ---
+
+/**
+ * Home "New chapters" response: the most-recently-added archives for each
+ * library the caller can see, grouped by library, newest first, capped per
+ * library. Respects Incognito/Private visibility like the other discovery
+ * surfaces - a Private library's items never leak.
+ */
+export interface RecentChaptersDto {
+  libraries: RecentChaptersLibraryGroup[];
+}
+
+/**
+ * One library's "New chapters" group: its most-recently-added archives,
+ * newest first, capped to the requested per-library limit. Empty items when
+ * the library has no (visible, non-tombstoned) archives.
+ */
+export interface RecentChaptersLibraryGroup {
+  libraryId: string;
+  libraryName: string;
+  items: RecentChapterEntry[];
+}
+
+/**
+ * A single recently-added archive (chapter). Carries its immediate parent
+ * folder so the frontend can label/group by series where natural.
+ */
+export interface RecentChapterEntry {
+  itemId: string;
+  displayName: string;
+  libraryId: string;
+  /** Opaque public id of the immediate parent folder, or '' at library root. */
+  parentId: string;
+  /** Display name of the immediate parent folder (the "series"), or null at root. */
+  seriesName: string | null;
+  /** When the archive was added (scan-observed creation time). Newest first. */
+  addedAt: string;
+  /** Page count when known, else null. */
+  pageCount: number | null;
 }

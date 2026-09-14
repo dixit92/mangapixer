@@ -180,7 +180,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
              class. The button shows the active state so the filter is visible at a
              glance; it applies at all sizes (not a layout-breaking change). -->
         <button mat-stroked-button class="filter-toggle" [matMenuTriggerFor]="filterMenu"
-                [class.filter-active]="readStateFilter() !== 'all'"
+                [class.filter-active]="filterActive()"
                 matTooltip="Filter by read state" aria-label="Filter by read state">
           <mat-icon>filter_list</mat-icon> {{ readStateLabel() }}
         </button>
@@ -195,6 +195,16 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               {{ opt.label }}
             </button>
           }
+          <!-- Hide-empty-folders (1.11.0): a SEPARATE filter axis (a toggle, not part of
+               the read-state radio group), so it composes with the read-state filter. -->
+          <span class="menu-caption">Folders</span>
+          <button mat-menu-item role="menuitemcheckbox"
+                  [class.selected-option]="hideEmptyFolders()"
+                  [attr.aria-checked]="hideEmptyFolders()"
+                  (click)="toggleHideEmpty($event)">
+            <mat-icon>{{ hideEmptyFolders() ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
+            Hide empty folders
+          </button>
         </mat-menu>
         <button mat-stroked-button class="select-toggle" (click)="toggleSelectMode()">
           <mat-icon>checklist</mat-icon> Select
@@ -278,6 +288,19 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     }
 
     <app-continue-row [node]="nextUnread()" />
+
+    @if (hasPrevious()) {
+      <!-- Backward/upward infinite-scroll sentinel (1.11.0, D): after a mid-list jump the
+           window no longer starts at the first item; scrolling up to here prepends the page
+           above (scroll-anchored). A fallback button for engines without IntersectionObserver. -->
+      <div class="scroll-sentinel top-sentinel" #topSentinel>
+        @if (loadingPrevious()) {
+          Loading previous…
+        } @else if (!autoLoadSupported) {
+          <button mat-raised-button (click)="loadPrevious()">Load previous</button>
+        }
+      </div>
+    }
 
     <div class="nodes" [class.card]="viewMode() === 'card'"
          [class.list]="viewMode() === 'list'"
@@ -602,6 +625,17 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private cursor: string | null = null;
   /** True while a browse page (initial or append) is in flight; gates the sentinel. */
   readonly loadingMore = signal(false);
+  /**
+   * Backward/upward paging (1.11.0, D): after a mid-list jump the window no longer
+   * starts at the listing's first item, so `hasPrevious` is true and `prevCursor`
+   * points at the page ABOVE the window's first item. Scrolling up to the top
+   * sentinel (or the fallback button) prepends that page with scroll anchoring. Both
+   * describe the window TOP, so a forward append (load-more) leaves them untouched.
+   */
+  readonly hasPrevious = signal(false);
+  private prevCursor: string | null = null;
+  /** True while a backward (prepend) page is in flight; gates the top sentinel. */
+  readonly loadingPrevious = signal(false);
   /** Monotonic request generation: a response from a superseded load is dropped. */
   private loadGen = 0;
   /**
@@ -615,6 +649,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   readonly autoLoadSupported = typeof IntersectionObserver !== 'undefined';
   private readonly sentinel = viewChild<ElementRef<HTMLElement>>('sentinel');
   private sentinelObserver: IntersectionObserver | null = null;
+  /** Top sentinel for backward/upward paging (1.11.0, D); present only when hasPrevious(). */
+  private readonly topSentinel = viewChild<ElementRef<HTMLElement>>('topSentinel');
+  private topSentinelObserver: IntersectionObserver | null = null;
 
   /**
    * Initial/per-page item count (1.8.0, per-user). Replaces the former hardcoded
@@ -641,10 +678,21 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     { value: 'read', label: 'Read', icon: 'check_circle' },
     { value: 'unread', label: 'Unread', icon: 'radio_button_unchecked' },
   ];
-  /** Toolbar button label: "Filter" when inactive, else the active option's label. */
+  /**
+   * Hide-empty-folders filter (1.11.0): a SEPARATE, additive filter axis that hides
+   * folders whose subtree contains no archives. Composes WITH the read-state filter
+   * (both can be active at once) - it is a toggle, not part of the read-state radio
+   * group. A transient view control, not a persisted preference; 'off' sends no param.
+   */
+  readonly hideEmptyFolders = signal(false);
+
+  /** True when ANY browse filter narrows the listing (read-state or hide-empty). */
+  readonly filterActive = computed(() => this.readStateFilter() !== 'all' || this.hideEmptyFolders());
+
+  /** Toolbar button label: "Filter" when inactive, else the active read-state option's label. */
   readonly readStateLabel = computed(() =>
     this.readStateFilter() === 'all'
-      ? 'Filter'
+      ? (this.hideEmptyFolders() ? 'Filtered' : 'Filter')
       : this.readStateOptions.find((o) => o.value === this.readStateFilter())?.label ?? 'Filter');
 
   /** Measured height of the sticky top bar: the jump rail's sticky offset. */
@@ -744,6 +792,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     // The sentinel lives inside `@if (hasMore())`, so it comes and goes; re-arm the
     // observer on the element the view query currently resolves to.
     effect(() => this.observeSentinel(this.sentinel()?.nativeElement ?? null));
+    // The top sentinel lives inside `@if (hasPrevious())`; re-arm on the current element.
+    effect(() => this.observeTopSentinel(this.topSentinel()?.nativeElement ?? null));
     // The top bar's height depends on wrapping/selection state; measure it live so
     // the rail's sticky offset stays exact.
     effect(() => this.observeBarHeight(this.browseBar()?.nativeElement ?? null));
@@ -805,6 +855,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.scrollTarget?.removeEventListener('scroll', this.onScroll);
     this.sentinelObserver?.disconnect();
+    this.topSentinelObserver?.disconnect();
     this.barResize?.disconnect();
     if (this.scrollSpyFrame !== null && typeof cancelAnimationFrame !== 'undefined') {
       cancelAnimationFrame(this.scrollSpyFrame);
@@ -1034,6 +1085,25 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     this.sentinelObserver.observe(el);
   }
 
+  /** (Re)attach the backward-paging observer to the current top-sentinel element. */
+  private observeTopSentinel(el: HTMLElement | null): void {
+    this.topSentinelObserver?.disconnect();
+    this.topSentinelObserver = null;
+    if (!el || !this.autoLoadSupported) return;
+    this.topSentinelObserver = new IntersectionObserver(
+      (entries) => { if (entries.some((e) => e.isIntersecting)) this.loadPrevious(); },
+      { root: this.scrollParent(), rootMargin: '600px 0px 0px 0px' });
+    this.topSentinelObserver.observe(el);
+  }
+
+  /** Re-observe the top sentinel after a prepend so a still-in-margin sentinel fires again. */
+  private rearmTopSentinel(): void {
+    const el = this.topSentinel()?.nativeElement;
+    if (!el || !this.topSentinelObserver) return;
+    this.topSentinelObserver.unobserve(el);
+    this.topSentinelObserver.observe(el);
+  }
+
   private observeBarHeight(el: HTMLElement | null): void {
     this.barResize?.disconnect();
     this.barResize = null;
@@ -1047,9 +1117,11 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   /** Reset the list window to "not loaded": cursor, nodes, paging, rail state, selection. */
   private resetList(): void {
     this.cursor = null;
+    this.prevCursor = null;
     this.loadedFromStart = true;
     this.nodes.set([]);
     this.hasMore.set(false);
+    this.hasPrevious.set(false);
     this.activeJump.set(null);
     this.clearSelection();
   }
@@ -1062,10 +1134,10 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Append the next page (sentinel callback / fallback button). No-op while one is in flight. */
+  /** Append the next page (sentinel callback / fallback button). No-op while any page is in flight. */
   loadMore(): void {
-    if (this.loadingMore() || !this.hasMore()) return;
-    this.loadNodes();
+    if (this.loadingMore() || this.loadingPrevious() || !this.hasMore()) return;
+    this.loadNodes(true);
   }
 
   /**
@@ -1086,6 +1158,22 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * Toggle the hide-empty-folders filter (1.11.0): reload the list from the top. Like
+   * the read-state filter, this narrows the listing, so the A-Z jump rail (built over
+   * the unfiltered listing) is hidden while it is active and restored when it is off.
+   * `$event` is swallowed so the mat-menu stays open for further toggling. Not persisted.
+   */
+  toggleHideEmpty(event?: Event): void {
+    event?.stopPropagation();
+    this.hideEmptyFolders.update((v) => !v);
+    this.resetList();
+    this.loadNodes();
+    if (this.shouldShowJumpRail()) this.loadJumpIndex(this.libraryId());
+    else this.jumpBuckets.set([]);
+    this.scrollToTop('auto');
+  }
+
+  /**
    * Whether the A-Z jump rail applies: it is a library-root name-sort (ascending)
    * navigation aid whose bucket cursors assume the full, unfiltered A->Z listing, so it
    * is meaningless in a subfolder, under another sort/direction, or while a read-state
@@ -1095,7 +1183,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     return !this.parentId()
       && this.sort() === 'name'
       && this.sortDirection() === 'asc'
-      && this.readStateFilter() === 'all';
+      && this.readStateFilter() === 'all'
+      && !this.hideEmptyFolders();
   }
 
   getNodeLink(node: CatalogNodeDto): string[] {
@@ -1454,29 +1543,96 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     });
   }
 
-  private loadNodes(): void {
+  /**
+   * Load a browse page. A FRESH window load (`isAppend` false: initial, jump, filter/
+   * sort change) REPLACES the list and captures the window-top backward-paging state
+   * (`prevCursor` / `hasPrevious`); a forward append (`isAppend` true, from `loadMore`)
+   * APPENDS through `nodes.update` so `@for (track node.id)` only inserts the new cards
+   * and the retained DOM/scroll position is untouched, and leaves the window-top state
+   * alone. A response from a load a later reset superseded (folder change, sort, filter)
+   * is dropped via the generation guard.
+   */
+  private loadNodes(isAppend = false): void {
     const libId = this.libraryId();
     if (!libId) return;
 
-    // Initial page (no cursor) replaces; infinite-scroll pages (cursor set) APPEND
-    // through `nodes.update`, so `@for (track node.id)` only inserts the new cards
-    // and the retained DOM/scroll position is untouched. A response from a load
-    // that a later reset superseded (folder change, sort, page size) is dropped.
     const initial = this.cursor === null;
     const gen = ++this.loadGen;
     this.loadingMore.set(true);
-    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter()).subscribe({
+    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         if (gen !== this.loadGen) return;
-        this.nodes.update((current) => initial ? [...response.items] : [...current, ...response.items]);
+        this.nodes.update((current) => isAppend ? [...current, ...response.items] : [...response.items]);
         this.hasMore.set(response.hasMore);
         this.cursor = response.nextCursor;
         this.loadingMore.set(false);
         if (initial) this.nextUnread.set(response.nextUnread ?? null);
+        if (!isAppend) {
+          // Window-top backward-paging state: a jump lands mid-list (hasPrevious true),
+          // a load from the start has nothing above it (hasPrevious false).
+          this.prevCursor = response.prevCursor ?? null;
+          this.hasPrevious.set(response.hasPrevious ?? false);
+        }
         if (response.hasMore) this.rearmSentinel();
+        if (this.hasPrevious()) this.rearmTopSentinel();
       },
       error: () => { if (gen === this.loadGen) this.loadingMore.set(false); },
     });
+  }
+
+  /**
+   * Load and PREPEND the page above the window's first item (1.11.0, D): upward
+   * infinite-scroll after a mid-list jump. Anchors the scroll position so prepending
+   * cards above the viewport does not make it jump. No-op unless a page exists above
+   * and no other page is in flight. Does not bump the generation counter (so it never
+   * cancels a forward load), but is dropped if a reset happened while it was in flight.
+   */
+  loadPrevious(): void {
+    if (this.loadingMore() || this.loadingPrevious() || !this.hasPrevious() || !this.prevCursor) return;
+    const libId = this.libraryId();
+    if (!libId) return;
+    const gen = this.loadGen;
+    const before = this.prevCursor;
+    const container = this.scrollParent();
+    const prevHeight = this.scrollHeightOf(container);
+    this.loadingPrevious.set(true);
+    this.api.browseLibrary(libId, this.parentId(), null, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), before).subscribe({
+      next: (response: PageResponse<CatalogNodeDto>) => {
+        if (gen !== this.loadGen) { this.loadingPrevious.set(false); return; }
+        if (response.items.length > 0) {
+          this.nodes.update((current) => [...response.items, ...current]);
+        }
+        this.prevCursor = response.prevCursor ?? null;
+        this.hasPrevious.set(response.hasPrevious ?? false);
+        this.loadedFromStart = !this.hasPrevious();
+        this.loadingPrevious.set(false);
+        this.anchorAfterPrepend(container, prevHeight);
+        if (this.hasPrevious()) this.rearmTopSentinel();
+      },
+      error: () => { if (gen === this.loadGen) this.loadingPrevious.set(false); },
+    });
+  }
+
+  /** Current scrollHeight of the list's scroll container (element, or the document). */
+  private scrollHeightOf(container: HTMLElement | null): number {
+    if (container) return container.scrollHeight;
+    return typeof document !== 'undefined' ? document.documentElement.scrollHeight : 0;
+  }
+
+  /**
+   * After a backward page is prepended, shift the scroll position DOWN by the height the
+   * new cards added, so the content the user was looking at stays put (no upward jump).
+   * Runs after the next frame so the prepended cards have been laid out. Guarded for jsdom.
+   */
+  private anchorAfterPrepend(container: HTMLElement | null, prevHeight: number): void {
+    const apply = (): void => {
+      const delta = this.scrollHeightOf(container) - prevHeight;
+      if (delta <= 0) return;
+      const target = container ?? (typeof window !== 'undefined' ? window : null);
+      try { target?.scrollBy({ top: delta, behavior: 'auto' }); } catch { /* jsdom: scrollBy not implemented */ }
+    };
+    if (typeof requestAnimationFrame !== 'undefined') requestAnimationFrame(apply);
+    else apply();
   }
 
   /**

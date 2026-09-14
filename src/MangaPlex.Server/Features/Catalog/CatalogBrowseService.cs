@@ -55,6 +55,8 @@ public sealed class CatalogBrowseService
         string sort = "name",
         bool incognito = false,
         BrowseReadStateFilter readState = BrowseReadStateFilter.All,
+        bool hideEmpty = false,
+        string? before = null,
         CancellationToken ct = default)
     {
         // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
@@ -100,59 +102,132 @@ public sealed class CatalogBrowseService
         else
             baseQuery = baseQuery.Where(n => n.ParentId == parentId);
 
-        // Read-state filter (1.10.0, additive) — restrict ARCHIVES to the chosen
-        // per-user read state, applied to the base query BEFORE counting/pagination
-        // (alongside the authorization filter) so it composes with the keyset paging +
-        // infinite scroll and yields an accurate TotalCount. Semantics match the archive
-        // cards and the folder rollup exactly: Read = a sticky read-mark exists; Reading
-        // = no mark AND an in-progress ReadingProgress row; Unread = neither. FOLDERS
-        // carry no per-item read signal, so they are always kept regardless of the
-        // filter — hiding them would make the filter unable to reach archives nested in
-        // subfolders, yet the finding requires it to work "at any folder level". Folders
-        // therefore stay navigable while the archives listed honor the filter (a filter
-        // over an all-folders level is simply a no-op, which is the intended behavior).
-        switch (readState)
+        // Read-state filter (1.10.0) + hide-empty filter (1.11.0), applied to the base
+        // query BEFORE counting/pagination (alongside the authorization filter) so both
+        // compose with keyset paging + infinite scroll and yield an accurate TotalCount.
+        //
+        // ARCHIVES honor the read state exactly as the cards / folder rollup do: Read =
+        // a sticky read-mark; Reading = no mark AND an in-progress ReadingProgress row;
+        // Unread = neither.
+        //
+        // FOLDERS are filtered by their descendant read ROLLUP (1.11.0 fix - previously
+        // folders were always kept, so at an all-folders level the filter did nothing,
+        // the owner's "filters do not work" report). The rollup is the SAME aggregate the
+        // badge uses (ResolveFolderReadRollupsAsync -> FolderReadRollupRules.Classify),
+        // computed here in a PRE-PASS over this level's direct child folders so the
+        // matching set is folded into the base query BEFORE the page is cut - keeping
+        // TotalCount, HasMore, and the cursor correct across page boundaries. Mapping:
+        // Read keeps folders that roll up to Read (every readable descendant archive is
+        // read); Reading keeps Reading; Unread keeps Unread AND empty folders (no readable
+        // descendant archive = no activity = not "read"; use hideEmpty to drop those).
+        //
+        // hide-empty (1.11.0) drops folders whose entire subtree contains no readable
+        // archive. A folder appears in the rollup dictionary IFF it has >=1 readable
+        // descendant archive, so "present in the rollups" is exactly the non-empty
+        // predicate - it reuses the same pre-pass and composes with the read state.
+        if (readState != BrowseReadStateFilter.All || hideEmpty)
         {
-            case BrowseReadStateFilter.Read:
-                baseQuery = baseQuery.Where(n =>
-                    n.Kind != (int)CatalogNodeKind.Archive
-                    || _db.ReadMarks.Any(m => m.UserId == userId && m.ItemId == n.Id));
-                break;
-            case BrowseReadStateFilter.Reading:
-                baseQuery = baseQuery.Where(n =>
-                    n.Kind != (int)CatalogNodeKind.Archive
-                    || (!_db.ReadMarks.Any(m => m.UserId == userId && m.ItemId == n.Id)
-                        && _db.ReadingProgress.Any(p =>
-                            p.UserId == userId && p.ItemId == n.Id && p.State == (int)ReadingState.InProgress)));
-                break;
-            case BrowseReadStateFilter.Unread:
-                baseQuery = baseQuery.Where(n =>
-                    n.Kind != (int)CatalogNodeKind.Archive
-                    || (!_db.ReadMarks.Any(m => m.UserId == userId && m.ItemId == n.Id)
-                        && !_db.ReadingProgress.Any(p =>
-                            p.UserId == userId && p.ItemId == n.Id && p.State == (int)ReadingState.InProgress)));
-                break;
-            case BrowseReadStateFilter.All:
-            default:
-                break;
+            var levelFolderIds = await baseQuery
+                .Where(n => n.Kind == (int)CatalogNodeKind.Folder)
+                .Select(n => n.Id)
+                .ToListAsync(ct);
+
+            var folderRollups = levelFolderIds.Count > 0
+                ? await ResolveFolderReadRollupsAsync(levelFolderIds, userId, ct)
+                : new Dictionary<long, FolderReadRollup>();
+
+            IEnumerable<long> keptFolders = levelFolderIds;
+            if (readState != BrowseReadStateFilter.All)
+                keptFolders = keptFolders.Where(id => MatchesFolderReadState(folderRollups, id, readState));
+            if (hideEmpty)
+                keptFolders = keptFolders.Where(folderRollups.ContainsKey);
+            var keptFolderIds = keptFolders.ToList();
+
+            switch (readState)
+            {
+                case BrowseReadStateFilter.Read:
+                    baseQuery = baseQuery.Where(n =>
+                        (n.Kind == (int)CatalogNodeKind.Archive
+                            && _db.ReadMarks.Any(m => m.UserId == userId && m.ItemId == n.Id))
+                        || (n.Kind == (int)CatalogNodeKind.Folder && keptFolderIds.Contains(n.Id)));
+                    break;
+                case BrowseReadStateFilter.Reading:
+                    baseQuery = baseQuery.Where(n =>
+                        (n.Kind == (int)CatalogNodeKind.Archive
+                            && !_db.ReadMarks.Any(m => m.UserId == userId && m.ItemId == n.Id)
+                            && _db.ReadingProgress.Any(p =>
+                                p.UserId == userId && p.ItemId == n.Id && p.State == (int)ReadingState.InProgress))
+                        || (n.Kind == (int)CatalogNodeKind.Folder && keptFolderIds.Contains(n.Id)));
+                    break;
+                case BrowseReadStateFilter.Unread:
+                    baseQuery = baseQuery.Where(n =>
+                        (n.Kind == (int)CatalogNodeKind.Archive
+                            && !_db.ReadMarks.Any(m => m.UserId == userId && m.ItemId == n.Id)
+                            && !_db.ReadingProgress.Any(p =>
+                                p.UserId == userId && p.ItemId == n.Id && p.State == (int)ReadingState.InProgress))
+                        || (n.Kind == (int)CatalogNodeKind.Folder && keptFolderIds.Contains(n.Id)));
+                    break;
+                case BrowseReadStateFilter.All:
+                default:
+                    // hide-empty only: keep every archive, keep only non-empty folders.
+                    baseQuery = baseQuery.Where(n =>
+                        n.Kind == (int)CatalogNodeKind.Archive
+                        || keptFolderIds.Contains(n.Id));
+                    break;
+            }
         }
 
         // Total count from the base query (before cursor — fixes the decreasing-count bug
         // where the old code counted after the cursor filter).
         var totalCount = await baseQuery.CountAsync(ct);
 
-        // Sort-specific query: ordering, keyset cursor filter, projection, and paging.
-        List<BrowseRow> rows = sort switch
+        // Backward (upward) paging (1.11.0): when `before` is set, return the page
+        // immediately BEFORE that keyset (name sort only - the jump rail is name-sort, and
+        // the recency sorts paginate differently). Symmetric to the forward keyset: filter
+        // strictly past `before` in the display direction, order the OPPOSITE way, take a
+        // page (+1 to detect a further previous page), then reverse back to display order.
+        var backward = !string.IsNullOrEmpty(before) && sort == "name";
+        List<BrowseRow> rows;
+        bool hasMore;
+        var hasPrevious = false;
+        string? prevCursor = null;
+        if (backward)
         {
-            "recentlyAdded" => await QueryRecentlyAddedAsync(baseQuery, cursor, pageSize, effectiveDirection, ct),
-            "recentlyRead" => await QueryRecentlyReadAsync(baseQuery, userId, cursor, pageSize, effectiveDirection, ct),
-            _ => await QueryNameAsync(baseQuery, cursor, pageSize, effectiveDirection, ct),
-        };
+            (rows, hasPrevious) = await QueryNameBackwardAsync(baseQuery, before!, pageSize, effectiveDirection, ct);
+            // The window the client already holds sits just below this page, so forward
+            // continuation always exists; the client keeps its own forward cursor.
+            hasMore = rows.Count > 0;
+            prevCursor = hasPrevious && rows.Count > 0 ? rows[0].SortKey : null;
+        }
+        else
+        {
+            // Sort-specific query: ordering, keyset cursor filter, projection, and paging.
+            rows = sort switch
+            {
+                "recentlyAdded" => await QueryRecentlyAddedAsync(baseQuery, cursor, pageSize, effectiveDirection, ct),
+                "recentlyRead" => await QueryRecentlyReadAsync(baseQuery, userId, cursor, pageSize, effectiveDirection, ct),
+                _ => await QueryNameAsync(baseQuery, cursor, pageSize, effectiveDirection, ct),
+            };
 
-        // Check hasMore and trim to pageSize (the +1 was only to detect hasMore).
-        var hasMore = rows.Count > pageSize;
-        if (hasMore)
-            rows = rows.Take(pageSize).ToList();
+            // Check hasMore and trim to pageSize (the +1 was only to detect hasMore).
+            hasMore = rows.Count > pageSize;
+            if (hasMore)
+                rows = rows.Take(pageSize).ToList();
+
+            // Forward name pages started from a mid-list cursor (a jump-rail landing) may
+            // have items before them; report a backward cursor so the client can scroll
+            // up. A window loaded from the true start (null / non-name cursor) never can.
+            if (sort == "name" && rows.Count > 0 && !string.IsNullOrEmpty(cursor)
+                && !cursor.StartsWith("a:", StringComparison.Ordinal)
+                && !cursor.StartsWith("r:", StringComparison.Ordinal))
+            {
+                var firstKey = rows[0].SortKey;
+                hasPrevious = effectiveDirection == SortDirection.Ascending
+                    ? await baseQuery.AnyAsync(n => string.Compare(n.SortKey, firstKey) < 0, ct)
+                    : await baseQuery.AnyAsync(n => string.Compare(n.SortKey, firstKey) > 0, ct);
+                prevCursor = hasPrevious ? firstKey : null;
+            }
+        }
 
         // Convert to DTOs for enrichment.
         var nodes = rows.Select(ToDto).ToList();
@@ -265,6 +340,8 @@ public sealed class CatalogBrowseService
 
         // Compute next cursor from the last row on the current page. recentlyRead
         // paginates by offset (in-memory pure-recency order); the others use a keyset.
+        // A backward page's last row is the item just above the client's existing window,
+        // so forward continuation from it is that window - a plain keyset cursor.
         string? nextCursor = null;
         if (hasMore && rows.Count > 0)
         {
@@ -284,6 +361,8 @@ public sealed class CatalogBrowseService
             TotalCount = totalCount,
             NextCursor = nextCursor,
             HasMore = hasMore,
+            PrevCursor = prevCursor,
+            HasPrevious = hasPrevious,
             NextUnread = nextUnread,
         };
     }
@@ -337,6 +416,71 @@ public sealed class CatalogBrowseService
                 SortKey = n.SortKey,
             })
             .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Name sort, BACKWARD (1.11.0): the page immediately BEFORE <paramref name="before"/>
+    /// in the display order. Mirrors <see cref="QueryNameAsync"/> with the comparison and
+    /// ordering flipped, fetching <c>pageSize + 1</c> to detect a further previous page,
+    /// then reversing the trimmed page back to display order. Returns the page rows (in
+    /// display order) and whether a page exists before them.
+    /// </summary>
+    private async Task<(List<BrowseRow> Rows, bool HasPrevious)> QueryNameBackwardAsync(
+        IQueryable<CatalogNodeEntity> baseQuery,
+        string before,
+        int pageSize,
+        SortDirection direction,
+        CancellationToken ct)
+    {
+        IQueryable<CatalogNodeEntity> query = direction == SortDirection.Ascending
+            ? baseQuery.Where(n => string.Compare(n.SortKey, before) < 0).OrderByDescending(n => n.SortKey)
+            : baseQuery.Where(n => string.Compare(n.SortKey, before) > 0).OrderBy(n => n.SortKey);
+
+        var rows = await query
+            .Take(pageSize + 1)
+            .Select(n => new BrowseRow
+            {
+                Id = n.PublicId,
+                ParentId = n.Parent != null ? n.Parent.PublicId : "",
+                LibraryId = n.Library != null ? n.Library.PublicId : "",
+                Kind = n.Kind,
+                DisplayName = n.DisplayName,
+                Availability = n.Availability,
+                PageCount = n.ArchiveItem != null ? n.ArchiveItem.PageCount : null,
+                CoverUrl = n.Kind == 1 ? "/api/v1/items/" + n.PublicId + "/cover" : null,
+                InternalId = n.Id,
+                CreatedAt = n.CreatedAt,
+                SortKey = n.SortKey,
+            })
+            .ToListAsync(ct);
+
+        var hasPrevious = rows.Count > pageSize;
+        if (hasPrevious)
+            rows = rows.Take(pageSize).ToList();
+        rows.Reverse(); // fetched in reverse (desc) order; restore ascending display order
+        return (rows, hasPrevious);
+    }
+
+    /// <summary>
+    /// Whether a folder matches the read-state filter by its descendant read ROLLUP
+    /// (1.11.0). <paramref name="rollups"/> holds an entry only for folders with at least
+    /// one readable descendant archive, so a MISSING entry means an empty subtree (no
+    /// activity). Read/Reading require the matching rollup; Unread also keeps empty folders
+    /// (nothing read = not "read"); anything else keeps the folder.
+    /// </summary>
+    private static bool MatchesFolderReadState(
+        Dictionary<long, FolderReadRollup> rollups,
+        long folderId,
+        BrowseReadStateFilter readState)
+    {
+        var has = rollups.TryGetValue(folderId, out var rollup);
+        return readState switch
+        {
+            BrowseReadStateFilter.Read => has && rollup == FolderReadRollup.Read,
+            BrowseReadStateFilter.Reading => has && rollup == FolderReadRollup.Reading,
+            BrowseReadStateFilter.Unread => !has || rollup == FolderReadRollup.Unread,
+            _ => true,
+        };
     }
 
     /// <summary>

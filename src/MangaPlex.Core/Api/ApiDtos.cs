@@ -45,6 +45,25 @@ public sealed record PageResponse<T>
     public bool HasMore { get; init; }
 
     /// <summary>
+    /// Backward (upward) keyset cursor (1.11.0): the opaque token to pass as the
+    /// browse <c>before</c> param to fetch the page immediately BEFORE this window's
+    /// first item. Null when this window starts at the true first item of the listing
+    /// (nothing precedes it) or when the sort does not support backward paging (only
+    /// the name sort does today - the jump rail is name-sort only). Additive; older
+    /// clients ignore it. Enables upward infinite-scroll after a mid-list jump, where
+    /// the forward-only cursor previously stranded the user (1.8.0 finding).
+    /// </summary>
+    public string? PrevCursor { get; init; }
+
+    /// <summary>
+    /// Whether a page exists BEFORE this window's first item (1.11.0). Pairs with
+    /// <see cref="PrevCursor"/>: true means the client may scroll up and prepend the
+    /// previous page. Always false for a window loaded from the listing start and for
+    /// sorts without backward paging. Additive.
+    /// </summary>
+    public bool HasPrevious { get; init; }
+
+    /// <summary>
     /// The folder's next-to-read descendant archive (1.7.0), surfaced as a pinned
     /// "Continue" row above the sorted list. Only populated by catalog browse; null
     /// for every other page response and when the browsed folder has no unread
