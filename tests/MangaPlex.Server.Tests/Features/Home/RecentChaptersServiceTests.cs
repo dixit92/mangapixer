@@ -1,4 +1,3 @@
-using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Features.Home;
@@ -10,10 +9,11 @@ using Xunit;
 namespace com.lifepixer.mangaplex.Tests.Server.Features.Home;
 
 /// <summary>
-/// Service-with-DB tests for RecentChaptersService (1.11.0 Lane C). Uses real
-/// file-backed SQLite. Verifies per-library grouping, the per-library cap,
-/// newest-first ordering, tombstone exclusion, the empty state, and that
-/// Incognito/Private visibility excludes a Private library's items.
+/// Service-with-DB tests for the RecentChaptersService stacking rewrite (1.12.0). Uses real
+/// file-backed SQLite. Verifies top-level stacking (deep archives attribute to their top-level
+/// ancestor), standalone loose archives, the per-library STACK cap, NewCount, newest-activity
+/// ordering, tombstone exclusion, the recency window, home-excluded libraries, the empty state,
+/// and Incognito/Private exclusion.
 /// </summary>
 public sealed class RecentChaptersServiceTests : IDisposable
 {
@@ -37,39 +37,25 @@ public sealed class RecentChaptersServiceTests : IDisposable
         try { Directory.Delete(_tempDir, true); } catch { }
     }
 
+    // Recent seeds are anchored to "now" so they fall inside the service recency window.
+    private static readonly DateTimeOffset Now = DateTimeOffset.UtcNow;
+
     private async Task<(MangaPlexDbContext db, long userId, long libAId, long libBId)> SetupAsync()
     {
         var db = new MangaPlexDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
-        var libA = new LibraryEntity
-        {
-            PublicId = "recLibA",
-            DisplayName = "Alpha Library",
-            RootPath = "/private/alpha",
-            CreatedAt = DateTimeOffset.UtcNow,
-        };
-        var libB = new LibraryEntity
-        {
-            PublicId = "recLibB",
-            DisplayName = "Beta Library",
-            RootPath = "/private/beta",
-            CreatedAt = DateTimeOffset.UtcNow,
-        };
+        var libA = new LibraryEntity { PublicId = "recLibA", DisplayName = "Alpha Library", RootPath = "/private/alpha", CreatedAt = Now };
+        var libB = new LibraryEntity { PublicId = "recLibB", DisplayName = "Beta Library", RootPath = "/private/beta", CreatedAt = Now };
         db.Libraries.AddRange(libA, libB);
         await db.SaveChangesAsync();
 
         var user = new UserEntity
         {
-            PublicId = "recUser",
-            UserName = "admin",
-            NormalizedUserName = "ADMIN",
-            IsActive = true,
-            IsAdmin = true,
-            PasswordHash = "hash",
-            SecurityStamp = Guid.NewGuid().ToString("N"),
-            CreatedAt = DateTimeOffset.UtcNow,
+            PublicId = "recUser", UserName = "admin", NormalizedUserName = "ADMIN",
+            IsActive = true, IsAdmin = true, PasswordHash = "hash",
+            SecurityStamp = Guid.NewGuid().ToString("N"), CreatedAt = Now,
         };
         db.Users.Add(user);
         await db.SaveChangesAsync();
@@ -78,26 +64,16 @@ public sealed class RecentChaptersServiceTests : IDisposable
     }
 
     private static async Task<CatalogNodeEntity> AddArchiveAsync(
-        MangaPlexDbContext db,
-        long libraryId,
-        string publicId,
-        string displayName,
-        DateTimeOffset createdAt,
-        long? parentId = null,
+        MangaPlexDbContext db, long libraryId, string publicId, string displayName,
+        DateTimeOffset createdAt, long? parentId = null,
         int availability = (int)CatalogNodeAvailability.Available)
     {
         var node = new CatalogNodeEntity
         {
-            PublicId = publicId,
-            LibraryId = libraryId,
-            ParentId = parentId,
-            Kind = (int)CatalogNodeKind.Archive,
-            DisplayName = displayName,
-            RelativePath = "/private/" + displayName,
-            PathKey = "/private/" + displayName.ToLowerInvariant(),
-            SortKey = "1" + displayName,
-            Availability = availability,
-            CreatedAt = createdAt,
+            PublicId = publicId, LibraryId = libraryId, ParentId = parentId,
+            Kind = (int)CatalogNodeKind.Archive, DisplayName = displayName,
+            RelativePath = "/private/" + displayName, PathKey = "/private/" + displayName.ToLowerInvariant() + "-" + publicId,
+            SortKey = "1" + displayName, Availability = availability, CreatedAt = createdAt,
         };
         db.CatalogNodes.Add(node);
         await db.SaveChangesAsync();
@@ -105,22 +81,14 @@ public sealed class RecentChaptersServiceTests : IDisposable
     }
 
     private static async Task<CatalogNodeEntity> AddFolderAsync(
-        MangaPlexDbContext db,
-        long libraryId,
-        string publicId,
-        string displayName)
+        MangaPlexDbContext db, long libraryId, string publicId, string displayName, long? parentId = null)
     {
         var node = new CatalogNodeEntity
         {
-            PublicId = publicId,
-            LibraryId = libraryId,
-            Kind = (int)CatalogNodeKind.Folder,
-            DisplayName = displayName,
-            RelativePath = "/private/" + displayName,
-            PathKey = "/private/" + displayName.ToLowerInvariant(),
-            SortKey = "0" + displayName,
-            Availability = (int)CatalogNodeAvailability.Available,
-            CreatedAt = DateTimeOffset.UtcNow,
+            PublicId = publicId, LibraryId = libraryId, ParentId = parentId,
+            Kind = (int)CatalogNodeKind.Folder, DisplayName = displayName,
+            RelativePath = "/private/" + displayName, PathKey = "/private/" + displayName.ToLowerInvariant() + "-" + publicId,
+            SortKey = "0" + displayName, Availability = (int)CatalogNodeAvailability.Available, CreatedAt = Now,
         };
         db.CatalogNodes.Add(node);
         await db.SaveChangesAsync();
@@ -128,155 +96,179 @@ public sealed class RecentChaptersServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetRecentChapters_GroupsByLibrary_NewestFirst_CapsPerLibrary()
+    public async Task Stacks_ByTopLevelFolder_NewCount_LatestItem_NewestFirst()
     {
-        var (db, userId, libAId, libBId) = await SetupAsync();
+        var (db, userId, libAId, _) = await SetupAsync();
         try
         {
-            var baseTime = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero);
-            // Alpha: three archives, deliberately inserted out of recency order.
-            await AddArchiveAsync(db, libAId, "a1", "Old.cbz", baseTime);
-            await AddArchiveAsync(db, libAId, "a3", "Newest.cbz", baseTime.AddHours(2));
-            await AddArchiveAsync(db, libAId, "a2", "Mid.cbz", baseTime.AddHours(1));
-            // Beta: one archive, older than Alpha's newest.
-            await AddArchiveAsync(db, libBId, "b1", "BetaCh.cbz", baseTime.AddHours(3));
+            // Series A (top level) -> Volume 1 -> two archives; the newest defines the stack.
+            var seriesA = await AddFolderAsync(db, libAId, "seriesA", "Series A");
+            var vol1 = await AddFolderAsync(db, libAId, "vol1", "Volume 1", parentId: seriesA.Id);
+            await AddArchiveAsync(db, libAId, "a_ch1", "Ch1.cbz", Now.AddHours(-5), parentId: vol1.Id);
+            var newest = await AddArchiveAsync(db, libAId, "a_ch2", "Ch2.cbz", Now.AddHours(-1), parentId: vol1.Id);
+
+            // Series B (top level) with one recent archive, older than Series A's newest.
+            var seriesB = await AddFolderAsync(db, libAId, "seriesB", "Series B");
+            await AddArchiveAsync(db, libAId, "b_ch1", "BCh1.cbz", Now.AddHours(-3), parentId: seriesB.Id);
+
+            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
+            var result = await service.GetRecentChaptersAsync(userId);
+
+            var alpha = result.Libraries.First(g => g.LibraryId == "recLibA");
+            // Two stacks (Series A, Series B), Series A first (newest activity).
+            Assert.Equal(new[] { "seriesA", "seriesB" }, alpha.Stacks.Select(s => s.Id).ToArray());
+
+            var stackA = alpha.Stacks[0];
+            Assert.True(stackA.IsFolder);
+            Assert.Equal("Series A", stackA.DisplayName);
+            Assert.Equal(2, stackA.NewCount);                 // both chapters attributed to Series A
+            Assert.Equal("a_ch2", stackA.LatestItemId);       // newest descendant archive
+            Assert.Equal("Ch2.cbz", stackA.LatestItemName);
+            // Compare against the DB-stored value (the binary converter is coarser than the
+            // in-memory seed's sub-tick precision).
+            var newestCreatedAt = await db.CatalogNodes.Where(n => n.Id == newest.Id).Select(n => n.CreatedAt).FirstAsync();
+            Assert.Equal(newestCreatedAt, stackA.LatestAddedAt);
+            Assert.NotNull(stackA.CoverUrl);                  // folder cover resolved
+
+            var stackB = alpha.Stacks[1];
+            Assert.Equal("seriesB", stackB.Id);
+            Assert.Equal(1, stackB.NewCount);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task StandaloneLooseArchive_IsOwnStack_NotAFolder()
+    {
+        var (db, userId, libAId, _) = await SetupAsync();
+        try
+        {
+            var loose = await AddArchiveAsync(db, libAId, "loose1", "Loose.cbz", Now.AddHours(-2));
+
+            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
+            var result = await service.GetRecentChaptersAsync(userId);
+
+            var alpha = result.Libraries.First(g => g.LibraryId == "recLibA");
+            var stack = Assert.Single(alpha.Stacks);
+            Assert.False(stack.IsFolder);
+            Assert.Equal("loose1", stack.Id);
+            Assert.Equal("loose1", stack.LatestItemId);       // Id == LatestItemId for a loose archive
+            Assert.Equal("Loose.cbz", stack.DisplayName);
+            Assert.Equal(1, stack.NewCount);
+            Assert.Equal($"/api/v1/items/{loose.PublicId}/cover", stack.CoverUrl);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task PerLibrary_Caps_Stacks_NotArchives()
+    {
+        var (db, userId, libAId, _) = await SetupAsync();
+        try
+        {
+            // 5 top-level folders, each with 3 recent archives (15 archives, 5 stacks).
+            for (var s = 0; s < 5; s++)
+            {
+                var folder = await AddFolderAsync(db, libAId, "s" + s, "Series " + s);
+                for (var c = 0; c < 3; c++)
+                    await AddArchiveAsync(db, libAId, $"s{s}c{c}", $"Ch{c}.cbz", Now.AddHours(-(s * 10 + c)), parentId: folder.Id);
+            }
 
             var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
             var result = await service.GetRecentChaptersAsync(userId, perLibrary: 2);
 
-            // Two library groups, ordered by display name (Alpha before Beta).
-            Assert.Equal(new[] { "recLibA", "recLibB" }, result.Libraries.Select(g => g.LibraryId).ToArray());
             var alpha = result.Libraries.First(g => g.LibraryId == "recLibA");
-            var beta = result.Libraries.First(g => g.LibraryId == "recLibB");
-
-            // Cap honored: Alpha has 3 archives but only 2 returned.
-            Assert.Equal(2, alpha.Items.Count);
-            // Newest first: Newest.cbz then Mid.cbz (Old.cbz capped off).
-            Assert.Equal(new[] { "Newest.cbz", "Mid.cbz" }, alpha.Items.Select(i => i.DisplayName).ToArray());
-            Assert.Equal(new[] { "a3", "a2" }, alpha.Items.Select(i => i.ItemId).ToArray());
-
-            Assert.Single(beta.Items);
-            Assert.Equal("BetaCh.cbz", beta.Items[0].DisplayName);
+            // Cap is on STACKS: 2 stacks, each still reports its full NewCount of 3.
+            Assert.Equal(2, alpha.Stacks.Count);
+            Assert.All(alpha.Stacks, st => Assert.Equal(3, st.NewCount));
+            // Newest-activity ordering: Series 0 then Series 1 (lower index = more recent seed).
+            Assert.Equal(new[] { "s0", "s1" }, alpha.Stacks.Select(st => st.Id).ToArray());
         }
-        finally
-        {
-            await db.DisposeAsync();
-        }
+        finally { await db.DisposeAsync(); }
     }
 
     [Fact]
-    public async Task GetRecentChapters_ExcludesTombstonedAndFolders_AndCarriesSeries()
+    public async Task ExcludesTombstoned_And_OutsideWindow()
     {
-        var (db, userId, libAId, libBId) = await SetupAsync();
+        var (db, userId, libAId, _) = await SetupAsync();
         try
         {
-            var t = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero);
             var series = await AddFolderAsync(db, libAId, "seriesA", "Series A");
-            await AddArchiveAsync(db, libAId, "live", "Live.cbz", t.AddHours(1), parentId: series.Id);
-            await AddArchiveAsync(db, libAId, "tomb", "Tomb.cbz", t.AddHours(2),
+            await AddArchiveAsync(db, libAId, "live", "Live.cbz", Now.AddHours(-1), parentId: series.Id);
+            await AddArchiveAsync(db, libAId, "tomb", "Tomb.cbz", Now.AddHours(-2), parentId: series.Id,
                 availability: (int)CatalogNodeAvailability.Tombstoned);
+            // An archive older than the recency window must not count.
+            await AddArchiveAsync(db, libAId, "old", "Old.cbz", Now - RecentChaptersService.RecentWindow - TimeSpan.FromDays(1), parentId: series.Id);
 
             var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
             var result = await service.GetRecentChaptersAsync(userId);
 
             var alpha = result.Libraries.First(g => g.LibraryId == "recLibA");
-            // Only the live archive; the tombstoned one and the folder are excluded.
-            Assert.Single(alpha.Items);
-            var entry = alpha.Items[0];
-            Assert.Equal("Live.cbz", entry.DisplayName);
-            // Series name comes from the immediate parent folder.
-            Assert.Equal("seriesA", entry.ParentId);
-            Assert.Equal("Series A", entry.SeriesName);
+            var stack = Assert.Single(alpha.Stacks);
+            Assert.Equal(1, stack.NewCount);                 // only the live, in-window archive
+            Assert.Equal("live", stack.LatestItemId);
         }
-        finally
-        {
-            await db.DisposeAsync();
-        }
+        finally { await db.DisposeAsync(); }
     }
 
     [Fact]
-    public async Task GetRecentChapters_EmptyState_WhenNoArchives()
+    public async Task EmptyState_WhenNoRecentArchives()
     {
-        var (db, userId, libAId, libBId) = await SetupAsync();
+        var (db, userId, _, _) = await SetupAsync();
         try
         {
-            // No archives seeded. Both libraries appear with empty items.
             var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
             var result = await service.GetRecentChaptersAsync(userId);
 
             Assert.Equal(2, result.Libraries.Count);
-            Assert.All(result.Libraries, g => Assert.Empty(g.Items));
+            Assert.All(result.Libraries, g => Assert.Empty(g.Stacks));
         }
-        finally
-        {
-            await db.DisposeAsync();
-        }
+        finally { await db.DisposeAsync(); }
     }
 
     [Fact]
-    public async Task GetRecentChapters_Incognito_ExcludesPrivateLibraryItems()
+    public async Task HomeExcludedLibraries_AreDropped()
     {
         var (db, userId, libAId, libBId) = await SetupAsync();
         try
         {
-            var t = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero);
-            await AddArchiveAsync(db, libAId, "a1", "AlphaCh.cbz", t);
-            await AddArchiveAsync(db, libBId, "b1", "BetaCh.cbz", t);
+            await AddArchiveAsync(db, libAId, "a1", "A.cbz", Now.AddHours(-1));
+            await AddArchiveAsync(db, libBId, "b1", "B.cbz", Now.AddHours(-1));
 
-            // Mark Beta as Private for this user.
-            db.PrivateLibraries.Add(new PrivateLibraryEntity
-            {
-                UserId = userId,
-                LibraryId = libBId,
-                MarkedAt = DateTimeOffset.UtcNow,
-            });
+            db.HomeExcludedLibraries.Add(new HomeExcludedLibraryEntity { UserId = userId, LibraryId = libBId, MarkedAt = Now });
+            await db.SaveChangesAsync();
+
+            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
+            var result = await service.GetRecentChaptersAsync(userId);
+
+            // Beta is hidden from home entirely (no group at all).
+            Assert.Single(result.Libraries);
+            Assert.Equal("recLibA", result.Libraries[0].LibraryId);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Incognito_ExcludesPrivateLibrary()
+    {
+        var (db, userId, libAId, libBId) = await SetupAsync();
+        try
+        {
+            await AddArchiveAsync(db, libAId, "a1", "A.cbz", Now.AddHours(-1));
+            await AddArchiveAsync(db, libBId, "b1", "B.cbz", Now.AddHours(-1));
+
+            db.PrivateLibraries.Add(new PrivateLibraryEntity { UserId = userId, LibraryId = libBId, MarkedAt = Now });
             await db.SaveChangesAsync();
 
             var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
 
-            // Without incognito: both libraries visible.
             var normal = await service.GetRecentChaptersAsync(userId, incognito: false);
             Assert.Equal(new[] { "recLibA", "recLibB" }, normal.Libraries.Select(g => g.LibraryId).ToArray());
 
-            // With incognito: Beta (Private) is excluded entirely - no group, no items.
             var incog = await service.GetRecentChaptersAsync(userId, incognito: true);
             Assert.Single(incog.Libraries);
             Assert.Equal("recLibA", incog.Libraries[0].LibraryId);
-            Assert.DoesNotContain(incog.Libraries, g => g.LibraryId == "recLibB");
         }
-        finally
-        {
-            await db.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task GetRecentChapters_ClampsPerLibraryCap()
-    {
-        var (db, userId, libAId, libBId) = await SetupAsync();
-        try
-        {
-            var t = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero);
-            // Seed more than MaxPerLibrary so the clamps are observable: an
-            // above-max request is clamped to MaxPerLibrary (50), and a below-1
-            // request falls back to the default (12) - both below the 15 seeded.
-            for (var i = 0; i < 15; i++)
-                await AddArchiveAsync(db, libAId, "a" + i, "Ch" + i + ".cbz", t.AddHours(i));
-
-            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
-
-            // Above-max cap is clamped to MaxPerLibrary (50) -> all 15 returned.
-            var clampedHigh = await service.GetRecentChaptersAsync(userId, perLibrary: 999);
-            Assert.Equal(15, clampedHigh.Libraries.First(g => g.LibraryId == "recLibA").Items.Count);
-
-            // Below-1 falls back to the default (12) -> only 12 returned.
-            var clampedLow = await service.GetRecentChaptersAsync(userId, perLibrary: 0);
-            Assert.Equal(RecentChaptersService.DefaultPerLibrary,
-                clampedLow.Libraries.First(g => g.LibraryId == "recLibA").Items.Count);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-        }
+        finally { await db.DisposeAsync(); }
     }
 }

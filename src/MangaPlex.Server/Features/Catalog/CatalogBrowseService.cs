@@ -62,7 +62,7 @@ public sealed class CatalogBrowseService
         // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
         sort = sort switch
         {
-            "recentlyAdded" or "recentlyRead" => sort,
+            "recentlyAdded" or "recentlyRead" or "recentlyUpdated" => sort,
             _ => "name",
         };
 
@@ -206,6 +206,7 @@ public sealed class CatalogBrowseService
             {
                 "recentlyAdded" => await QueryRecentlyAddedAsync(baseQuery, cursor, pageSize, effectiveDirection, ct),
                 "recentlyRead" => await QueryRecentlyReadAsync(baseQuery, userId, cursor, pageSize, effectiveDirection, ct),
+                "recentlyUpdated" => await QueryRecentlyUpdatedAsync(baseQuery, cursor, pageSize, ct),
                 _ => await QueryNameAsync(baseQuery, cursor, pageSize, effectiveDirection, ct),
             };
 
@@ -550,6 +551,96 @@ public sealed class CatalogBrowseService
     }
 
     /// <summary>
+    /// Recently-updated sort (1.12.0): ranks each node by its "effective recency" — a FOLDER
+    /// by its maintained <see cref="CatalogNodeEntity.LatestDescendantAddedAt"/> (the newest
+    /// CreatedAt among its non-tombstoned descendant archives), an ARCHIVE by its own
+    /// <c>CreatedAt</c>. Folders and archives INTERLEAVE by that key (not folders-first), newest
+    /// first. DESCENDING-ONLY — like recentlyAdded/recentlyRead the label bakes in the direction,
+    /// so the <c>direction</c> param is ignored (1.10.4 convention). Folders whose value is null
+    /// (no descendant archive yet) sort LAST, ordered among themselves by SortKey.
+    ///
+    /// SQLite orders NULLs last under <c>DESC</c>, giving the nulls-last split for free; SortKey
+    /// then Id are the tie/within-null order — a total order the keyset cursor mirrors. Cursor
+    /// prefix <c>u:</c> encodes <c>{hasValue}:{effectiveTimestampBinary}:{Id}:{SortKey}</c> (the
+    /// SortKey tail may itself contain ':'), so paging is correct across the non-null → null
+    /// boundary: from a non-null cursor the filter keeps strictly-later non-nulls AND every null;
+    /// from a null cursor only later nulls remain. The ordering + Take then slice the page.
+    /// </summary>
+    private async Task<List<BrowseRow>> QueryRecentlyUpdatedAsync(
+        IQueryable<CatalogNodeEntity> baseQuery,
+        string? cursor,
+        int pageSize,
+        CancellationToken ct)
+    {
+        const int folder = (int)CatalogNodeKind.Folder;
+
+        // effective = folder ? LatestDescendantAddedAt : CreatedAt (nullable; only null folders
+        // are null). OrderByDescending places NULLs last (SQLite), then SortKey, then Id.
+        IQueryable<CatalogNodeEntity> query = baseQuery
+            .OrderByDescending(n => n.Kind == folder ? n.LatestDescendantAddedAt : (DateTimeOffset?)n.CreatedAt)
+            .ThenBy(n => n.SortKey)
+            .ThenBy(n => n.Id);
+
+        if (!string.IsNullOrEmpty(cursor) && cursor.StartsWith("u:", StringComparison.Ordinal))
+        {
+            // u:{h}:{tsBinary}:{id}:{sortKey}. SortKey is the tail (may contain ':').
+            var parts = cursor[2..].Split(':', 4);
+            if (parts.Length == 4
+                && int.TryParse(parts[0], CultureInfo.InvariantCulture, out var ch)
+                && long.TryParse(parts[1], CultureInfo.InvariantCulture, out var cb)
+                && long.TryParse(parts[2], CultureInfo.InvariantCulture, out var cid))
+            {
+                var cs = parts[3];
+                if (ch == 1)
+                {
+                    try
+                    {
+                        var cts = new DateTimeOffset(DateTime.FromBinary(cb), TimeSpan.Zero);
+                        query = query.Where(n =>
+                            // non-null bucket, strictly older
+                            (n.Kind == folder ? n.LatestDescendantAddedAt : (DateTimeOffset?)n.CreatedAt) < cts
+                            // same timestamp, later by SortKey
+                            || ((n.Kind == folder ? n.LatestDescendantAddedAt : (DateTimeOffset?)n.CreatedAt) == cts
+                                && string.Compare(n.SortKey, cs) > 0)
+                            // same timestamp & SortKey, later by Id
+                            || ((n.Kind == folder ? n.LatestDescendantAddedAt : (DateTimeOffset?)n.CreatedAt) == cts
+                                && n.SortKey == cs && n.Id > cid)
+                            // crossed into the null bucket (null folders always sort after any value)
+                            || (n.Kind == folder && n.LatestDescendantAddedAt == null));
+                    }
+                    catch { /* invalid binary DateTimeOffset — ignore cursor, start from beginning */ }
+                }
+                else
+                {
+                    // Cursor is already in the null bucket; only later null folders remain.
+                    query = query.Where(n =>
+                        n.Kind == folder && n.LatestDescendantAddedAt == null
+                        && (string.Compare(n.SortKey, cs) > 0 || (n.SortKey == cs && n.Id > cid)));
+                }
+            }
+        }
+
+        return await query
+            .Take(pageSize + 1)
+            .Select(n => new BrowseRow
+            {
+                Id = n.PublicId,
+                ParentId = n.Parent != null ? n.Parent.PublicId : "",
+                LibraryId = n.Library != null ? n.Library.PublicId : "",
+                Kind = n.Kind,
+                DisplayName = n.DisplayName,
+                Availability = n.Availability,
+                PageCount = n.ArchiveItem != null ? n.ArchiveItem.PageCount : null,
+                CoverUrl = n.Kind == 1 ? "/api/v1/items/" + n.PublicId + "/cover" : null,
+                InternalId = n.Id,
+                CreatedAt = n.CreatedAt,
+                LatestDescendantAddedAt = n.LatestDescendantAddedAt,
+                SortKey = n.SortKey,
+            })
+            .ToListAsync(ct);
+    }
+
+    /// <summary>
     /// Recently-read sort (1.4.0 rewrite): PURE RECENCY. Every node ranks by the most
     /// recent reading activity in its subtree — most-recent first, nodes with no activity
     /// last (by name). "Activity" = the later of ReadingProgress.UpdatedAt and
@@ -694,8 +785,24 @@ public sealed class CatalogBrowseService
     private static string EncodeCursor(string sort, BrowseRow row) => sort switch
     {
         "recentlyAdded" => $"a:{row.Kind}:{row.CreatedAt.UtcDateTime.ToBinary()}:{row.InternalId}",
+        "recentlyUpdated" => EncodeRecentlyUpdatedCursor(row),
         _ => row.SortKey,
     };
+
+    /// <summary>
+    /// Encodes the recentlyUpdated keyset cursor: <c>u:{hasValue}:{effectiveTimestampBinary}:{Id}:{SortKey}</c>.
+    /// The effective timestamp is the folder's <see cref="BrowseRow.LatestDescendantAddedAt"/> or the
+    /// archive's <see cref="BrowseRow.CreatedAt"/>; a null-timestamp folder encodes hasValue=0 so the
+    /// next page resumes inside the nulls-last (SortKey-ordered) bucket. SortKey is the tail so it may
+    /// contain ':'.
+    /// </summary>
+    private static string EncodeRecentlyUpdatedCursor(BrowseRow row)
+    {
+        var effective = row.Kind == (int)CatalogNodeKind.Folder ? row.LatestDescendantAddedAt : row.CreatedAt;
+        return effective is null
+            ? $"u:0:0:{row.InternalId}:{row.SortKey}"
+            : $"u:1:{effective.Value.UtcDateTime.ToBinary()}:{row.InternalId}:{row.SortKey}";
+    }
 
     /// <summary>
     /// Converts a browse row to a CatalogNodeDto (strips cursor-only fields).
@@ -728,6 +835,13 @@ public sealed class CatalogBrowseService
         public string? CoverUrl { get; init; }
         public long InternalId { get; init; }
         public DateTimeOffset CreatedAt { get; init; }
+
+        /// <summary>
+        /// Maintained per-folder recency primitive (1.12.0); null for archives and for folders
+        /// with no non-tombstoned descendant archive. Carried so the recentlyUpdated cursor can
+        /// encode a folder's effective timestamp without a re-fetch.
+        /// </summary>
+        public DateTimeOffset? LatestDescendantAddedAt { get; init; }
         public string SortKey { get; init; } = "";
     }
 

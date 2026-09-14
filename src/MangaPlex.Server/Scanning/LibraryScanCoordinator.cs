@@ -47,6 +47,15 @@ public sealed class LibraryScanCoordinator
     private readonly string _leaseOwner;
     private readonly ILogger<LibraryScanCoordinator>? _logger;
 
+    /// <summary>
+    /// Parent folder ids whose descendant-archive set changed this scan (an archive was
+    /// added, moved, resurrected from a tombstone, or tombstoned). Their
+    /// <see cref="CatalogNodeEntity.LatestDescendantAddedAt"/> — and every ancestor's — is
+    /// recomputed once, set-based, after reconciliation (1.12.0). Kept as the affected
+    /// PARENT ids; the ancestor closure is walked at maintenance time.
+    /// </summary>
+    private readonly HashSet<long> _recencyParentSeeds = [];
+
     public LibraryScanCoordinator(
         MangaPlexDbContext db,
         IReadOnlyLibraryFileSystem fs,
@@ -111,6 +120,11 @@ public sealed class LibraryScanCoordinator
         {
             _logger?.LogDebug(LogEvents.Scanning.ScanPhaseTombstoning, "Scan {LibraryId} phase 3: tombstoning", _libraryId);
             reconciliation.NodesTombstoned = await TombstoneMissingNodesAsync(ct);
+
+            // Phase 3b: recency-primitive maintenance (1.12.0). Recompute
+            // LatestDescendantAddedAt for every folder whose descendant-archive set changed
+            // this scan, plus their ancestors — set-based, bounded to the affected paths.
+            await MaintainLatestDescendantAddedAtAsync(ct);
         }
         var tombstoneMs = total.ElapsedMilliseconds - tombstoneStart;
 
@@ -240,6 +254,13 @@ public sealed class LibraryScanCoordinator
         var pendingInBatch = 0;
         var now = DateTimeOffset.UtcNow;
 
+        // Recency-primitive maintenance (1.12.0): archives whose presence/location changed
+        // this scan. Their parent ids are read AFTER the final save (a freshly-added folder's
+        // id is assigned then); moves also contribute their OLD parent id, captured before it
+        // is overwritten. See MaintainLatestDescendantAddedAtAsync.
+        var recencyAffectedArchives = new List<CatalogNodeEntity>();
+        var movedOldParentIds = new List<long>();
+
         foreach (var obs in sorted)
         {
             ct.ThrowIfCancellationRequested();
@@ -272,6 +293,9 @@ public sealed class LibraryScanCoordinator
                 {
                     existing.Availability = 0; // available again
                     needsUpdate = true;
+                    // A resurrected archive re-enters its ancestors' descendant set.
+                    if (existing.Kind == 1)
+                        recencyAffectedArchives.Add(existing);
                 }
 
                 // Repair parent if it differs (fixes libraries scanned before
@@ -319,6 +343,11 @@ public sealed class LibraryScanCoordinator
                 // Same content at a new path: re-point the existing node. Node id,
                 // ContentVersion, page manifest, thumbnail and every per-user row
                 // keyed by ItemId survive; no re-analysis is queued.
+                // Capture the OLD parent before it is overwritten so its (now smaller)
+                // descendant set is recomputed alongside the new location's.
+                if (moved.ParentId is long oldParentId)
+                    movedOldParentIds.Add(oldParentId);
+                recencyAffectedArchives.Add(moved);
                 moved.RelativePath = obs.RelativePath;
                 moved.PathKey = obs.PathKey;
                 moved.DisplayName = obs.DisplayName;
@@ -370,6 +399,8 @@ public sealed class LibraryScanCoordinator
 
                 _db.CatalogNodes.Add(node);
                 pathToNode[obs.PathKey] = node;
+                if (obs.Kind == 1)
+                    recencyAffectedArchives.Add(node);
                 result.NodesAdded++;
 
                 if (++pendingInBatch >= ReconcileBatchSize)
@@ -381,6 +412,14 @@ public sealed class LibraryScanCoordinator
         }
 
         await _db.SaveChangesAsync(ct);
+
+        // Now that every add is persisted (parent ids assigned), record the affected
+        // parent folders for recency-primitive maintenance.
+        foreach (var archive in recencyAffectedArchives)
+            if (archive.ParentId is long pid)
+                _recencyParentSeeds.Add(pid);
+        foreach (var oldParentId in movedOldParentIds)
+            _recencyParentSeeds.Add(oldParentId);
 
         if (result.NodesMoved > 0)
             _logger?.LogInformation(LogEvents.Scanning.ScanMovesApplied, "Scan {LibraryId}: {Count} archives recognised as moved (analysis and reading state preserved)", _libraryId, result.NodesMoved);
@@ -548,11 +587,50 @@ public sealed class LibraryScanCoordinator
         {
             node.Availability = 5; // tombstoned
             node.UpdatedAt = DateTimeOffset.UtcNow;
+            // A tombstoned node leaves its ancestors' descendant-archive set (directly, for
+            // an archive; via its own tombstoned descendants, for a folder). Recompute those
+            // ancestors from the parent up.
+            if (node.ParentId is long pid)
+                _recencyParentSeeds.Add(pid);
         }
 
         await _db.SaveChangesAsync(ct);
         _logger?.LogInformation(LogEvents.Scanning.ScanTombstoned, "Scan {LibraryId}: tombstoned {Count} missing nodes", _libraryId, missingNodes.Count);
         return missingNodes.Count;
+    }
+
+    /// <summary>
+    /// Recomputes <see cref="CatalogNodeEntity.LatestDescendantAddedAt"/> for every folder
+    /// whose descendant-archive set changed this scan and every ancestor of those folders
+    /// (1.12.0). The seed set (<see cref="_recencyParentSeeds"/>) holds the affected PARENT
+    /// ids; the ancestor closure is walked in memory from a single (Id, ParentId) projection
+    /// of this library, then one set-based recursive-CTE UPDATE recomputes exactly the
+    /// affected folders — no per-node round trip. Preserves the invariant: a folder's value
+    /// is the MAX CreatedAt of its non-tombstoned descendant archives, or null.
+    /// </summary>
+    private async Task MaintainLatestDescendantAddedAtAsync(CancellationToken ct)
+    {
+        if (_recencyParentSeeds.Count == 0)
+            return;
+
+        // Parent map for this library (one projection). Walking up from each seed collects the
+        // affected folder + all of its ancestors, bounded to the touched paths.
+        var parentMap = await _db.CatalogNodes
+            .Where(n => n.LibraryId == _libraryId)
+            .Select(n => new { n.Id, n.ParentId })
+            .ToDictionaryAsync(x => x.Id, x => x.ParentId, ct);
+
+        var affected = new HashSet<long>();
+        foreach (var seed in _recencyParentSeeds)
+        {
+            var current = (long?)seed;
+            // Follow the parent chain inclusive of the seed; stop at the root or a cycle.
+            while (current is long id && affected.Add(id))
+                current = parentMap.TryGetValue(id, out var parent) ? parent : null;
+        }
+
+        if (affected.Count > 0)
+            await LatestDescendantAddedAtMaintenance.RecomputeFoldersAsync(_db, affected, ct);
     }
 
     private static string BuildSortKey(int kind, string name)
