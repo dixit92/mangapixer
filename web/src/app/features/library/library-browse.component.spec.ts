@@ -1542,3 +1542,115 @@ describe('LibraryBrowseComponent view menu selected highlight (1.8.1)', () => {
     expect(unread.getAttribute('aria-checked')).toBe('false');
   });
 });
+
+/**
+ * "Recently updated" browse sort (1.12.0, Lane C). The backend that actually orders
+ * by last-updated content is delivered by another lane (api-types.ts / api.service.ts
+ * are out of scope for this frontend-only lane and stay untouched) - so these tests
+ * cover only what this component owns: the option is offered as a RECENCY sort
+ * (descending-only, same as Recently added/read - the Order submenu stays hidden), the
+ * choice is forwarded to `ApiService.browseLibrary` as a plain string, and it is
+ * distinguished from "Recently added" by a short hint (added = new items appear;
+ * updated = a folder just got new content).
+ */
+describe('LibraryBrowseComponent "Recently updated" sort (1.12.0)', () => {
+  function setup(prefs: Partial<LibraryViewPreferencesDto> = {}) {
+    const fullPrefs = { viewMode: 'card', density: 'comfortable', sort: 'name', direction: 'asc', ...prefs } as LibraryViewPreferencesDto;
+    const emptyPage: PageResponse<CatalogNodeDto> = { items: [], totalCount: 0, nextCursor: null, hasMore: false };
+    const browseLibrary = vi.fn().mockReturnValue(of(emptyPage));
+    const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
+    const apiSpy = {
+      getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
+      setLibraryPreferences,
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      browseLibrary,
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
+      getReadMark: vi.fn().mockReturnValue(of({ itemId: '', isRead: false })),
+      getProgress: vi.fn().mockReturnValue(of(null)),
+    };
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: { isAdmin: () => false } },
+        { provide: ReadStateService, useValue: new ReadStateService() },
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : null) }) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges();
+    return { fixture, comp: fixture.componentInstance, el: fixture.nativeElement as HTMLElement, browseLibrary, setLibraryPreferences };
+  }
+
+  /** Open the View menu and return its overlay panel element. */
+  function openViewMenu(el: HTMLElement, fixture: ComponentFixture<LibraryBrowseComponent>): HTMLElement {
+    (el.querySelector('.view-toggle') as HTMLElement).click();
+    fixture.detectChanges();
+    const panel = document.querySelector('.view-options-menu') as HTMLElement;
+    expect(panel, 'the view-options-menu overlay panel').not.toBeNull();
+    return panel;
+  }
+
+  it('offers "Recently updated" next to "Recently added", each with a distinguishing hint', () => {
+    const { comp } = setup();
+    const added = comp.sortOptions.find((o) => o.value === 'recentlyAdded');
+    const updated = comp.sortOptions.find((o) => o.value === 'recentlyUpdated');
+    expect(added).toBeDefined();
+    expect(updated).toBeDefined();
+    expect(updated!.label).toBe('Recently updated');
+    expect(updated!.icon).toBe('update');
+    // Both carry a short, distinct hint so "added" vs "updated" reads at a glance.
+    expect(added!.hint).toBeTruthy();
+    expect(updated!.hint).toBeTruthy();
+    expect(added!.hint).not.toBe(updated!.hint);
+  });
+
+  it('setSort("recentlyUpdated") sets the sort, forces descending, and forwards both to browseLibrary', () => {
+    const { comp, browseLibrary } = setup();
+    browseLibrary.mockClear();
+    comp.setSort('recentlyUpdated');
+    expect(comp.sort()).toBe('recentlyUpdated');
+    expect(comp.sortDirection()).toBe('desc');
+    const last = browseLibrary.mock.calls.at(-1)!;
+    expect(last[4]).toBe('recentlyUpdated'); // sort param
+    expect(last[5]).toBe('desc'); // direction param
+  });
+
+  it('setSort("recentlyUpdated") is a no-op when already the active sort', () => {
+    const { comp, browseLibrary } = setup({ sort: 'recentlyUpdated', direction: 'desc' });
+    browseLibrary.mockClear();
+    comp.setSort('recentlyUpdated');
+    expect(browseLibrary).not.toHaveBeenCalled();
+  });
+
+  it('renders "Recently updated" as a selectable, highlighted option in the View menu when active', () => {
+    const { fixture, el } = setup({ sort: 'recentlyUpdated', direction: 'desc' });
+    const panel = openViewMenu(el, fixture);
+    const items = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'));
+    const updated = items.find((i) => (i.textContent ?? '').replace(/\s+/g, ' ').trim().endsWith('Recently updated'));
+    expect(updated, 'Recently updated menu item').toBeDefined();
+    expect(updated!.getAttribute('role')).toBe('menuitemradio');
+    expect(updated!.classList.contains('selected-option')).toBe(true);
+    expect(updated!.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('hides the Order (asc/desc) submenu for "Recently updated" - descending-only, like the other recency sorts', () => {
+    const { fixture, el } = setup({ sort: 'recentlyUpdated', direction: 'desc' });
+    const panel = openViewMenu(el, fixture);
+    const labels = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'))
+      .map((i) => (i.textContent ?? '').replace(/\s+/g, ' ').trim());
+    expect(labels.some((l) => l.endsWith('Ascending'))).toBe(false);
+    expect(labels.some((l) => l.endsWith('Descending'))).toBe(false);
+  });
+
+  it('round-trips a stored "recentlyUpdated" preference on load', () => {
+    const { comp } = setup({ sort: 'recentlyUpdated', direction: 'desc' });
+    expect(comp.sort()).toBe('recentlyUpdated');
+    expect(comp.sortDirection()).toBe('desc');
+  });
+});
