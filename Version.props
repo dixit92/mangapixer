@@ -104,9 +104,15 @@
          slider. (2) Harmonized the phone breakpoint to a single 599.98px (Material XSmall) across
          browse (was 560), reader (already XSmall), and shell/sidebar (was 700). Phone-only;
          desktop + iPad unchanged. -->
+    <!-- 1.10.3 - PATCH over 1.10.2 (2026-09-14), web-only, no API/schema change. Two small
+         polish items from live desktop use: (1) webtoon page-width slider floor lowered 30% -> 15%
+         so the long strip can be zoomed out further on a wide desktop (slider min + the
+         setWebtoonWidth/loadWebtoonWidth clamps). (2) the app-shell library sidebar now defaults to
+         COLLAPSED when no preference is stored (owner preference); an explicit stored choice is
+         still respected and page-mode is unaffected. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
     <MangaPlexVersionMinor>10</MangaPlexVersionMinor>
-    <MangaPlexVersionPatch>2</MangaPlexVersionPatch>
+    <MangaPlexVersionPatch>3</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
