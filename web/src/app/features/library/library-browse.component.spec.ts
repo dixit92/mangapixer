@@ -1394,13 +1394,34 @@ describe('LibraryBrowseComponent view menu selected highlight (1.8.1)', () => {
     for (const [active, inactive] of [
       ['List', 'Card'],
       ['Recently added', 'Name'],
-      ['Descending', 'Ascending'],
     ]) {
       expect(itemByLabel(panel, active).classList.contains('selected-option'), `${active} highlighted`).toBe(true);
       expect(itemByLabel(panel, inactive).classList.contains('selected-option'), `${inactive} not highlighted`).toBe(false);
     }
     // And the active list item shows its own glyph, not a checkmark.
     expect(itemByLabel(panel, 'List').querySelector('mat-icon')?.textContent?.trim()).toBe('view_list');
+  });
+
+  /** Whitespace-normalized trailing labels of every menu item in a panel. */
+  function menuLabels(panel: HTMLElement): string[] {
+    return Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'))
+      .map((i) => (i.textContent ?? '').replace(/\s+/g, ' ').trim());
+  }
+
+  it('hides the Order (asc/desc) submenu for a recency sort - the toggle is a misnomer (1.10.4)', () => {
+    // "Recently added" ascending would put the OLDEST item at the top, contradicting
+    // the label, so recency sorts are always newest-first and the direction toggle is removed.
+    const { fixture, el } = setup({ viewMode: 'card', sort: 'recentlyAdded', direction: 'desc' });
+    const labels = menuLabels(openViewMenu(el, fixture));
+    expect(labels.some((l) => l.endsWith('Ascending'))).toBe(false);
+    expect(labels.some((l) => l.endsWith('Descending'))).toBe(false);
+  });
+
+  it('keeps the Order (asc/desc) submenu for the Name sort (1.10.4)', () => {
+    const { fixture, el } = setup({ viewMode: 'card', sort: 'name', direction: 'asc' });
+    const labels = menuLabels(openViewMenu(el, fixture));
+    expect(labels.some((l) => l.endsWith('Ascending'))).toBe(true);
+    expect(labels.some((l) => l.endsWith('Descending'))).toBe(true);
   });
 
   /**

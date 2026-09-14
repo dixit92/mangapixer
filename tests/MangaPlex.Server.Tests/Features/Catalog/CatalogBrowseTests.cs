@@ -749,7 +749,7 @@ public sealed class CatalogBrowseTests : IDisposable
     }
 
     [Fact]
-    public async Task Browse_RecentlyAdded_Ascending_ReversesOrder()
+    public async Task Browse_RecentlyAdded_IgnoresAscendingDirection()
     {
         var (db, userId, libraryId) = await SetupAsync();
         try
@@ -765,23 +765,27 @@ public sealed class CatalogBrowseTests : IDisposable
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive New", "1AN", t2);
 
             var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
-            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
+            // 1.10.4: recency sorts are inherently newest-first; an Ascending direction is IGNORED
+            // and yields the same order as Descending (an ascending "Recently added" would show the
+            // OLDEST first, contradicting the label).
+            var asc = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
                 sort: "recentlyAdded", direction: SortDirection.Ascending);
+            var desc = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
+                sort: "recentlyAdded", direction: SortDirection.Descending);
 
-            // Full reversal of the descending default: archives (oldest first),
-            // then folders (oldest first).
-            Assert.Equal(5, result.Items.Count);
-            Assert.Equal("Archive Old", result.Items[0].DisplayName);
-            Assert.Equal("Archive Mid", result.Items[1].DisplayName);
-            Assert.Equal("Archive New", result.Items[2].DisplayName);
-            Assert.Equal("Folder Old", result.Items[3].DisplayName);
-            Assert.Equal("Folder New", result.Items[4].DisplayName);
+            Assert.Equal(
+                desc.Items.Select(i => i.DisplayName).ToList(),
+                asc.Items.Select(i => i.DisplayName).ToList());
+            // Newest-added precedes oldest-added regardless of the requested direction.
+            var names = asc.Items.Select(i => i.DisplayName).ToList();
+            Assert.True(names.IndexOf("Archive New") < names.IndexOf("Archive Old"));
+            Assert.True(names.IndexOf("Folder New") < names.IndexOf("Folder Old"));
         }
         finally { await db.DisposeAsync(); }
     }
 
     [Fact]
-    public async Task Browse_RecentlyAdded_Ascending_PagesCorrectlyAcrossBoundary()
+    public async Task Browse_RecentlyAdded_Ascending_PagesLikeDescending()
     {
         var (db, userId, libraryId) = await SetupAsync();
         try
@@ -794,6 +798,14 @@ public sealed class CatalogBrowseTests : IDisposable
             }
 
             var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+
+            // 1.10.4: an Ascending request for a recency sort is ignored. Paginating with
+            // Ascending must produce the SAME newest-first sequence as a single Descending
+            // fetch - and correct paging (no gaps/dupes) is preserved across the page boundary.
+            var expected = (await service.BrowseAsync(userId, libraryId, parentId: null,
+                cursor: null, pageSize: 100, sort: "recentlyAdded", direction: SortDirection.Descending))
+                .Items.Select(n => n.DisplayName).ToList();
+
             var allNames = new List<string>();
             string? cursor = null;
             bool hasMore;
@@ -807,17 +819,15 @@ public sealed class CatalogBrowseTests : IDisposable
                 hasMore = page.HasMore;
             } while (hasMore);
 
-            // Oldest first (reverse of the descending default's Archive 0..6 order).
             Assert.Equal(7, allNames.Count);
             Assert.Equal(7, allNames.Distinct().Count());
-            for (int i = 0; i < 7; i++)
-                Assert.Equal($"Archive {6 - i}", allNames[i]);
+            Assert.Equal(expected, allNames);
         }
         finally { await db.DisposeAsync(); }
     }
 
     [Fact]
-    public async Task Browse_RecentlyRead_Ascending_ReversesOrder()
+    public async Task Browse_RecentlyRead_IgnoresAscendingDirection()
     {
         var (db, userId, libraryId) = await SetupAsync();
         try
@@ -835,23 +845,26 @@ public sealed class CatalogBrowseTests : IDisposable
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Archive Unread A", "1AUA", t0);
 
             var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
-            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
+            // 1.10.4: "Recently read" is inherently most-recent-first; an Ascending direction is
+            // IGNORED and yields the same order as Descending (the most-recently-read archive stays
+            // at the top).
+            var asc = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
                 sort: "recentlyRead", direction: SortDirection.Ascending);
+            var desc = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
+                sort: "recentlyRead", direction: SortDirection.Descending);
 
-            // Full reversal of the descending default: no-activity group first (by
-            // reverse SortKey), then activity group oldest-first.
-            Assert.Equal(5, result.Items.Count);
-            Assert.Equal("Archive Unread B", result.Items[0].DisplayName);
-            Assert.Equal("Archive Unread A", result.Items[1].DisplayName);
-            Assert.Equal("Folder A", result.Items[2].DisplayName);
-            Assert.Equal("Archive Read Old", result.Items[3].DisplayName);
-            Assert.Equal("Archive Read New", result.Items[4].DisplayName);
+            Assert.Equal(
+                desc.Items.Select(i => i.DisplayName).ToList(),
+                asc.Items.Select(i => i.DisplayName).ToList());
+            // Most-recently-read precedes the older read regardless of the requested direction.
+            var names = asc.Items.Select(i => i.DisplayName).ToList();
+            Assert.True(names.IndexOf("Archive Read New") < names.IndexOf("Archive Read Old"));
         }
         finally { await db.DisposeAsync(); }
     }
 
     [Fact]
-    public async Task Browse_RecentlyRead_Ascending_PagesCorrectlyAcrossSegments()
+    public async Task Browse_RecentlyRead_Ascending_PagesLikeDescending()
     {
         var (db, userId, libraryId) = await SetupAsync();
         try
@@ -870,6 +883,14 @@ public sealed class CatalogBrowseTests : IDisposable
             await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "Unread2", "1U2", t0);
 
             var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+
+            // 1.10.4: an Ascending request for "recently read" is ignored. Paginating with
+            // Ascending must produce the SAME order as a single Descending fetch - including
+            // correct paging (no gaps/dupes) across the activity/no-activity segment boundary.
+            var expected = (await service.BrowseAsync(userId, libraryId, parentId: null,
+                cursor: null, pageSize: 100, sort: "recentlyRead", direction: SortDirection.Descending))
+                .Items.Select(n => n.DisplayName).ToList();
+
             var allNames = new List<string>();
             string? cursor = null;
             bool hasMore;
@@ -883,17 +904,9 @@ public sealed class CatalogBrowseTests : IDisposable
                 hasMore = page.HasMore;
             } while (hasMore);
 
-            // Reverse of the descending-default order (Read2, Read1, Folder, Unread1,
-            // Unread2, Unread3): no-activity group first by reverse SortKey, then
-            // activity group oldest-first.
             Assert.Equal(6, allNames.Count);
             Assert.Equal(6, allNames.Distinct().Count());
-            Assert.Equal("Unread3", allNames[0]);
-            Assert.Equal("Unread2", allNames[1]);
-            Assert.Equal("Unread1", allNames[2]);
-            Assert.Equal("Folder", allNames[3]);
-            Assert.Equal("Read1", allNames[4]);
-            Assert.Equal("Read2", allNames[5]);
+            Assert.Equal(expected, allNames);
         }
         finally { await db.DisposeAsync(); }
     }
