@@ -135,15 +135,20 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               {{ opt.label }}
             </button>
           }
-          <span class="menu-caption">Order</span>
-          @for (opt of sortDirectionOptions; track opt.value) {
-            <button mat-menu-item role="menuitemradio"
-                    [class.selected-option]="sortDirection() === opt.value"
-                    [attr.aria-checked]="sortDirection() === opt.value"
-                    (click)="setSortDirection(opt.value)">
-              <mat-icon>{{ opt.icon }}</mat-icon>
-              {{ opt.label }}
-            </button>
+          <!-- Order (asc/desc) applies ONLY to Name sort. The recency sorts are inherently
+               newest-first (the backend forces Descending), so offering asc/desc there is a
+               misnomer - "Recently added" ascending shows the OLDEST first - and is hidden. (1.10.4) -->
+          @if (sort() === 'name') {
+            <span class="menu-caption">Order</span>
+            @for (opt of sortDirectionOptions; track opt.value) {
+              <button mat-menu-item role="menuitemradio"
+                      [class.selected-option]="sortDirection() === opt.value"
+                      [attr.aria-checked]="sortDirection() === opt.value"
+                      (click)="setSortDirection(opt.value)">
+                <mat-icon>{{ opt.icon }}</mat-icon>
+                {{ opt.label }}
+              </button>
+            }
           }
           <!-- Card size (1.10.2): on PHONE the slider lives HERE in the View menu (no
                inline toolbar slider and no separate size button on phone - that combo
@@ -1148,6 +1153,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   setSort(s: LibrarySortOrder): void {
     if (this.sort() === s) return;
     this.sort.set(s);
+    // Recency sorts are always descending (newest first); only Name uses the asc/desc toggle,
+    // so keep the user's Name direction but never leave a recency sort ascending. (1.10.4)
+    if (s !== 'name') this.sortDirection.set('desc');
     this.persistView();
     this.resetList();
     this.loadNodes();

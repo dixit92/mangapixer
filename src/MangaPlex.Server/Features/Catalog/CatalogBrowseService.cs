@@ -64,10 +64,15 @@ public sealed class CatalogBrowseService
             _ => "name",
         };
 
-        // Default direction is sort-specific (1.5.0), so a caller that doesn't specify
-        // one gets the pre-1.5.0 behavior unchanged: Name ascending, recentlyAdded/
-        // recentlyRead descending (newest/most-recent first).
-        var effectiveDirection = direction ?? (sort == "name" ? SortDirection.Ascending : SortDirection.Descending);
+        // Direction is sort-specific. Name honors the asc/desc toggle (default ascending).
+        // The recency sorts (recentlyAdded / recentlyRead) are inherently newest-first - the
+        // label bakes in the direction - so they are ALWAYS Descending, IGNORING the direction
+        // param (an ascending "Recently added" would show the OLDEST at the top, contradicting
+        // the label). (1.10.4; previously recency merely DEFAULTED to descending but honored an
+        // explicit ascending, which was a misnomer.)
+        var effectiveDirection = sort == "name"
+            ? (direction ?? SortDirection.Ascending)
+            : SortDirection.Descending;
 
         // Authorization filter — applied before pagination.
         // Uses visible-ids (accessible minus Private) when incognito is active,
