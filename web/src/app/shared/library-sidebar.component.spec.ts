@@ -145,13 +145,14 @@ describe('LibrarySidebarComponent', () => {
     await navigate(router, '/', fixture);
     const comp = fixture.componentInstance;
 
-    expect(comp.collapsed()).toBe(false);
-    comp.toggleCollapsed();
+    // 1.10.3: the shell sidebar now defaults to COLLAPSED when no preference is stored.
     expect(comp.collapsed()).toBe(true);
-    expect(localStorage.getItem('mangaplex-nav-collapsed')).toBe('1');
+    comp.toggleCollapsed();
+    expect(comp.collapsed()).toBe(false);
+    expect(localStorage.getItem('mangaplex-nav-collapsed')).toBe('0');
 
     comp.toggleCollapsed();
-    expect(localStorage.getItem('mangaplex-nav-collapsed')).toBe('0');
+    expect(localStorage.getItem('mangaplex-nav-collapsed')).toBe('1');
   });
 
   it('restores a persisted collapsed state on init', async () => {

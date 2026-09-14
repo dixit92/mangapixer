@@ -214,7 +214,7 @@ export interface ReaderOptionsHost {
           <h3 class="group-label" id="reader-options-width">
             Page width <span class="value">{{ host.webtoonWidthPct() }}%</span>
           </h3>
-          <mat-slider class="width-slider" min="30" max="100" step="5">
+          <mat-slider class="width-slider" min="15" max="100" step="5">
             <input matSliderThumb [value]="host.webtoonWidthPct()"
                    (valueChange)="host.setWebtoonWidth($event)" aria-labelledby="reader-options-width">
           </mat-slider>
