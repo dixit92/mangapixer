@@ -12,9 +12,9 @@ import { HomeComponent } from './home.component';
 /**
  * Home page tests (1.5.0). The library sidebar was promoted to the app shell, so
  * home no longer owns a sidebar and no longer filters continue-reading by a
- * locally selected library. Home is now just the consolidated continue-reading
- * row plus the library grid (each card carrying a Task C reading-direction
- * indicator).
+ * locally selected library. Home is now the consolidated continue-reading row,
+ * the New chapters row (1.11.0 Lane C), plus the library grid (each card
+ * carrying a Task C reading-direction indicator).
  */
 describe('HomeComponent', () => {
   let httpMock: HttpTestingController;
@@ -41,6 +41,17 @@ describe('HomeComponent', () => {
       { itemId: 'i1', displayName: 'One', pageIndex: 2, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z', libraryId: 'L1', libraryName: 'Alpha' },
       { itemId: 'i2', displayName: 'Two', pageIndex: 0, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z', libraryId: 'L2', libraryName: 'Beta' },
     ]);
+    httpMock.expectOne((r) => r.url === '/api/v1/home/recent-chapters').flush({
+      libraries: [
+        {
+          libraryId: 'L1', libraryName: 'Alpha', items: [
+            { itemId: 'r1', displayName: 'Ch1.cbz', libraryId: 'L1', parentId: 's1', seriesName: 'Series A', addedAt: '2026-09-12T00:00:00Z', pageCount: 20 },
+            { itemId: 'r2', displayName: 'Ch2.cbz', libraryId: 'L1', parentId: 's1', seriesName: 'Series A', addedAt: '2026-09-11T00:00:00Z', pageCount: 18 },
+          ],
+        },
+        { libraryId: 'L2', libraryName: 'Beta', items: [] },
+      ],
+    });
     fixture.detectChanges();
     return fixture;
   }
@@ -86,5 +97,59 @@ describe('HomeComponent', () => {
     httpMock.expectOne('/api/v1/reading/continue/i1').flush(null);
 
     expect(cmp.continueReading().map((e) => e.itemId)).toEqual(['i2']);
+  });
+
+  it('renders the New chapters row grouped by library with the newest archives', () => {
+    const fixture = createComponent();
+    const cmp = fixture.componentInstance;
+
+    // Only libraries with at least one recent archive are surfaced (Beta has
+    // none, so it is filtered out client-side and the row shows just Alpha).
+    expect(cmp.recentGroups().map((g) => g.libraryId)).toEqual(['L1']);
+
+    const section = fixture.nativeElement.querySelector('.strip-section:nth-of-type(2)');
+    expect(section).not.toBeNull();
+    expect(section!.querySelector('h3')!.textContent).toContain('New chapters');
+
+    const libBlocks = section!.querySelectorAll('.recent-lib') as NodeListOf<HTMLElement>;
+    expect(libBlocks).toHaveLength(1);
+    expect(libBlocks[0].querySelector('h4')!.textContent).toContain('Alpha');
+
+    // Two archives, newest first, each linking to the reader with its series label.
+    const cards = libBlocks[0].querySelectorAll('.cont-card') as NodeListOf<HTMLElement>;
+    expect(cards).toHaveLength(2);
+    expect(cards[0].getAttribute('ng-reflect-router-link') ?? cards[0].textContent).toContain('Ch1');
+    expect(cards[1].textContent).toContain('Ch2');
+    expect(libBlocks[0].textContent).toContain('Series A');
+  });
+
+  it('hides the New chapters section when no visible library has recent archives', () => {
+    TestBed.configureTestingModule({
+      imports: [HomeComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        provideNoopAnimations(),
+      ],
+    });
+    const fixture = TestBed.createComponent(HomeComponent);
+    httpMock = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+
+    httpMock.expectOne('/api/v1/libraries').flush([
+      { id: 'L1', name: 'Alpha', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null },
+    ]);
+    httpMock.expectOne((r) => r.url === '/api/v1/reading/continue').flush([]);
+    httpMock.expectOne((r) => r.url === '/api/v1/home/recent-chapters').flush({
+      libraries: [
+        { libraryId: 'L1', libraryName: 'Alpha', items: [] },
+      ],
+    });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.recentGroups().length).toBe(0);
+    const headings = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(headings).not.toContain('New chapters');
   });
 });

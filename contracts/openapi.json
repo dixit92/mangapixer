@@ -962,6 +962,32 @@
         }
       }
     },
+    "/api/v1/home/recent-chapters": {
+      "get": {
+        "tags": [
+          "RecentChapters"
+        ],
+        "parameters": [
+          {
+            "name": "perLibrary",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/libraries": {
       "get": {
         "tags": [
@@ -2341,6 +2367,9 @@
     },
     {
       "name": "YacReaderImport"
+    },
+    {
+      "name": "RecentChapters"
     },
     {
       "name": "Catalog"

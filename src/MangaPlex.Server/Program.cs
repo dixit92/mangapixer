@@ -4,6 +4,7 @@ using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Server.Logging;
 using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Features.Catalog;
+using com.lifepixer.mangaplex.Server.Features.Home;
 using com.lifepixer.mangaplex.Server.Features.Reading;
 using com.lifepixer.mangaplex.Server.Hosting;
 using com.lifepixer.mangaplex.Server.Media;
@@ -175,6 +176,10 @@ public sealed partial class Program
             builder.Services.AddScoped<ReaderModeResolver>();
             // Jump-index (1.4.0 Lane E) — separate from CatalogBrowseService.
             builder.Services.AddScoped<JumpIndexService>();
+
+            // Home "New chapters" (1.11.0 Lane C) — separate service so the
+            // parallel browse lane owns CatalogBrowseService without contention.
+            builder.Services.AddScoped<RecentChaptersService>();
 
             // Operations services
             builder.Services.AddScoped<BackupService>();
