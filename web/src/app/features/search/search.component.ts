@@ -6,6 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { ApiService } from '../../core/api/api.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
@@ -25,6 +26,7 @@ import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
     MatFormFieldModule,
     MatInputModule,
     MatButtonModule,
+    MatTooltipModule,
     CoverImageDirective,
   ],
   template: `
@@ -44,7 +46,13 @@ import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
               @if (coverSrc(node); as src) {
                 <img appCover [src]="src" alt="" loading="lazy">
               }
-              <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
+              <mat-icon class="cover-fallback">{{ kindIcon(node) }}</mat-icon>
+              <!-- Folder-vs-archive badge (1.12.0): shown over every result - including
+                   ones with a real cover image, where the fallback icon above is hidden -
+                   so the result kind stays legible regardless of cover art. -->
+              <span class="kind-badge" [matTooltip]="kindLabel(node)" [attr.aria-label]="kindLabel(node)" role="img">
+                <mat-icon>{{ kindIcon(node) }}</mat-icon>
+              </span>
             </div>
             <div class="result-title" [title]="node.displayName">{{ node.displayName }}</div>
           </a>
@@ -70,6 +78,17 @@ import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
     }
     .cover img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
     .cover-fallback { font-size: 44px; width: 44px; height: 44px; color: #777; position: absolute; z-index: 0; }
+    /* Folder-vs-archive kind badge (1.12.0): a small, legible corner marker so the
+       node kind reads at a glance even when a real cover image is showing (the
+       cover-fallback icon above is hidden then). Mirrors the compact circular-chip
+       sizing already used for browse's list-view badges. */
+    .kind-badge {
+      position: absolute; top: 4px; left: 4px; z-index: 2;
+      display: flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: rgba(0, 0, 0, 0.65); color: #fff;
+    }
+    .kind-badge mat-icon { font-size: 14px; width: 14px; height: 14px; line-height: 14px; }
     .result-title {
       margin-top: 6px; font-size: 13px; font-weight: 500;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -108,6 +127,16 @@ export class SearchComponent {
    */
   coverSrc(node: CatalogNodeDto): string | null {
     return node.coverUrl ?? (node.kind === 'Archive' ? `/api/v1/items/${node.id}/cover` : null);
+  }
+
+  /** Material-symbol icon for a result's kind (1.12.0) - matches the browse grid's iconography. */
+  kindIcon(node: CatalogNodeDto): string {
+    return node.kind === 'Folder' ? 'folder' : 'menu_book';
+  }
+
+  /** Accessible label for the folder/archive kind badge (1.12.0). */
+  kindLabel(node: CatalogNodeDto): string {
+    return node.kind === 'Folder' ? 'Folder' : 'Archive';
   }
 
   private doSearch(): void {
