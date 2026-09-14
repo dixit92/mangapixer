@@ -180,7 +180,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
              class. The button shows the active state so the filter is visible at a
              glance; it applies at all sizes (not a layout-breaking change). -->
         <button mat-stroked-button class="filter-toggle" [matMenuTriggerFor]="filterMenu"
-                [class.filter-active]="readStateFilter() !== 'all'"
+                [class.filter-active]="filterActive()"
                 matTooltip="Filter by read state" aria-label="Filter by read state">
           <mat-icon>filter_list</mat-icon> {{ readStateLabel() }}
         </button>
@@ -195,6 +195,16 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               {{ opt.label }}
             </button>
           }
+          <!-- Hide-empty-folders (1.11.0): a SEPARATE filter axis (a toggle, not part of
+               the read-state radio group), so it composes with the read-state filter. -->
+          <span class="menu-caption">Folders</span>
+          <button mat-menu-item role="menuitemcheckbox"
+                  [class.selected-option]="hideEmptyFolders()"
+                  [attr.aria-checked]="hideEmptyFolders()"
+                  (click)="toggleHideEmpty($event)">
+            <mat-icon>{{ hideEmptyFolders() ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
+            Hide empty folders
+          </button>
         </mat-menu>
         <button mat-stroked-button class="select-toggle" (click)="toggleSelectMode()">
           <mat-icon>checklist</mat-icon> Select
@@ -641,10 +651,21 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     { value: 'read', label: 'Read', icon: 'check_circle' },
     { value: 'unread', label: 'Unread', icon: 'radio_button_unchecked' },
   ];
-  /** Toolbar button label: "Filter" when inactive, else the active option's label. */
+  /**
+   * Hide-empty-folders filter (1.11.0): a SEPARATE, additive filter axis that hides
+   * folders whose subtree contains no archives. Composes WITH the read-state filter
+   * (both can be active at once) - it is a toggle, not part of the read-state radio
+   * group. A transient view control, not a persisted preference; 'off' sends no param.
+   */
+  readonly hideEmptyFolders = signal(false);
+
+  /** True when ANY browse filter narrows the listing (read-state or hide-empty). */
+  readonly filterActive = computed(() => this.readStateFilter() !== 'all' || this.hideEmptyFolders());
+
+  /** Toolbar button label: "Filter" when inactive, else the active read-state option's label. */
   readonly readStateLabel = computed(() =>
     this.readStateFilter() === 'all'
-      ? 'Filter'
+      ? (this.hideEmptyFolders() ? 'Filtered' : 'Filter')
       : this.readStateOptions.find((o) => o.value === this.readStateFilter())?.label ?? 'Filter');
 
   /** Measured height of the sticky top bar: the jump rail's sticky offset. */
@@ -1086,6 +1107,22 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * Toggle the hide-empty-folders filter (1.11.0): reload the list from the top. Like
+   * the read-state filter, this narrows the listing, so the A-Z jump rail (built over
+   * the unfiltered listing) is hidden while it is active and restored when it is off.
+   * `$event` is swallowed so the mat-menu stays open for further toggling. Not persisted.
+   */
+  toggleHideEmpty(event?: Event): void {
+    event?.stopPropagation();
+    this.hideEmptyFolders.update((v) => !v);
+    this.resetList();
+    this.loadNodes();
+    if (this.shouldShowJumpRail()) this.loadJumpIndex(this.libraryId());
+    else this.jumpBuckets.set([]);
+    this.scrollToTop('auto');
+  }
+
+  /**
    * Whether the A-Z jump rail applies: it is a library-root name-sort (ascending)
    * navigation aid whose bucket cursors assume the full, unfiltered A->Z listing, so it
    * is meaningless in a subfolder, under another sort/direction, or while a read-state
@@ -1095,7 +1132,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     return !this.parentId()
       && this.sort() === 'name'
       && this.sortDirection() === 'asc'
-      && this.readStateFilter() === 'all';
+      && this.readStateFilter() === 'all'
+      && !this.hideEmptyFolders();
   }
 
   getNodeLink(node: CatalogNodeDto): string[] {
@@ -1465,7 +1503,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const initial = this.cursor === null;
     const gen = ++this.loadGen;
     this.loadingMore.set(true);
-    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter()).subscribe({
+    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         if (gen !== this.loadGen) return;
         this.nodes.update((current) => initial ? [...response.items] : [...current, ...response.items]);

@@ -124,6 +124,7 @@ export class ApiService {
     sort: LibrarySortOrder | null = null,
     direction: LibrarySortDirection | null = null,
     readState: LibraryReadStateFilter | null = null,
+    hideEmpty = false,
   ): Observable<PageResponse<CatalogNodeDto>> {
     let params = new HttpParams().set('pageSize', pageSize.toString());
     if (cursor) params = params.set('cursor', cursor);
@@ -133,6 +134,9 @@ export class ApiService {
     if (direction) params = params.set('direction', direction);
     // Read-state filter (1.10.0). Omitted or 'all' → no filter (server default).
     if (readState && readState !== 'all') params = params.set('readState', readState);
+    // Hide-empty-folders filter (1.11.0). Omitted/false → folders with no archive
+    // descendants are kept (server default). Composes with the read-state filter.
+    if (hideEmpty) params = params.set('hideEmpty', 'true');
     return this.get<PageResponse<CatalogNodeDto>>(
       `/libraries/${libraryId}/browse`,
       params,

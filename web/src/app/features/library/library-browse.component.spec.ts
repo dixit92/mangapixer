@@ -1172,6 +1172,46 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
     expect(comp.jumpBuckets().length).toBe(1); // restored (name+asc+root)
   });
 
+  // --- Hide-empty-folders filter (1.11.0, A2) ---
+
+  it('the initial browse sends hideEmpty=false (server default)', () => {
+    const { browseLibrary } = setup({});
+    // browseLibrary(libId, parentId, cursor, pageSize, sort, direction, readState, hideEmpty)
+    expect(browseLibrary.mock.calls[0][7]).toBe(false);
+  });
+
+  it('toggleHideEmpty reloads from the top and forwards hideEmpty=true', () => {
+    const { comp, browseLibrary } = setup({ browse: () => of(page([node('a')], 'c1')) });
+    comp.toggleHideEmpty();
+    expect(comp.hideEmptyFolders()).toBe(true);
+    const last = browseLibrary.mock.calls.at(-1)!;
+    expect(last[2]).toBeNull();   // reloaded from the top (cursor null)
+    expect(last[7]).toBe(true);   // hideEmpty forwarded
+    // Toggling again turns it off and forwards false.
+    comp.toggleHideEmpty();
+    expect(comp.hideEmptyFolders()).toBe(false);
+    expect(browseLibrary.mock.calls.at(-1)![7]).toBe(false);
+  });
+
+  it('hide-empty composes WITH the read-state filter (both forwarded)', () => {
+    const { comp, browseLibrary } = setup({ browse: () => of(page([node('a')], 'c1')) });
+    comp.setReadStateFilter('unread');
+    comp.toggleHideEmpty();
+    const last = browseLibrary.mock.calls.at(-1)!;
+    expect(last[6]).toBe('unread'); // read-state still active
+    expect(last[7]).toBe(true);     // and hide-empty on top of it
+    expect(comp.filterActive()).toBe(true);
+  });
+
+  it('hides the jump rail while hide-empty is active and restores it when off', () => {
+    const { comp } = setup({ buckets: [{ label: 'A', count: 1, firstCursor: null }] });
+    expect(comp.jumpBuckets().length).toBe(1);
+    comp.toggleHideEmpty();
+    expect(comp.jumpBuckets().length).toBe(0); // rail hidden under a filter
+    comp.toggleHideEmpty();
+    expect(comp.jumpBuckets().length).toBe(1); // restored (name+asc+root, no filter)
+  });
+
   it('does not expose the removed items-per-load browse control (moved to Settings)', () => {
     const { comp } = setup({});
     expect((comp as unknown as { setPageSize?: unknown }).setPageSize).toBeUndefined();
