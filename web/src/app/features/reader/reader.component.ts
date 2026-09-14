@@ -126,7 +126,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
           <mat-icon>arrow_back</mat-icon>
         </button>
         <span class="page-info">
-          @if (phase() === 'ready') { {{ currentPage() + 1 }} / {{ pageCount() }} }
+          @if (phase() === 'ready') { {{ currentPageIndicator() }} / {{ pageCount() }} }
         </span>
         <span class="spacer"></span>
 
@@ -784,6 +784,26 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   readonly toolbarHover = signal(false);
   readonly progressPct = computed(() =>
     this.pageCount() > 0 ? ((this.currentPage() + 1) / this.pageCount()) * 100 : 0);
+
+  /**
+   * Page indicator for the toolbar: shows current page(s) as "12-13" when in
+   * double-page mode with two distinct pages, or single page number otherwise.
+   * Reuses the current spread's page indices to avoid recomputing.
+   */
+  readonly currentPageIndicator = computed(() => {
+    // In non-spread modes (paged, webtoon), just show the current page
+    if (this.effectiveView() !== 'spread') {
+      return String(this.currentPage() + 1);
+    }
+    // In spread mode, check if the current spread has 2 distinct pages
+    const spread = this.spreads().find((s) => s.includes(this.currentPage()));
+    if (!spread || spread.length === 0) return String(this.currentPage() + 1);
+    if (spread.length === 2) {
+      return `${spread[0] + 1}-${spread[1] + 1}`;
+    }
+    // Single page in spread (cover, wide page, or odd trailing page)
+    return String(spread[0] + 1);
+  });
 
   // Help overlay: reveals the (normally invisible) tap zones prominently and lists
   // keyboard shortcuts. The zones are direction-aware — the physical left edge goes
