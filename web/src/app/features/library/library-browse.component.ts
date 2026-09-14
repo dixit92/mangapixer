@@ -85,11 +85,11 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
           }
         </div>
         <!-- Card size slider (1.6.0): only meaningful for the Card view. Dragging
-             resizes the grid live (input); releasing persists the preference
-             (change). Subsumes the old comfortable/compact density toggle.
-             1.10.0 (F3): on the PHONE breakpoint the inline control is hidden and the
-             slider moves into a submenu (the size-menu-trigger below) to reclaim the
-             cramped toolbar width; desktop + iPad keep this inline control unchanged. -->
+             resizes the grid live (input); releasing persists the preference (change).
+             1.10.2: on the PHONE breakpoint the inline control is hidden and the slider
+             lives inside the View menu instead (the "Card size" section below) - this
+             removed the separate size button that cramped the phone top bar. Desktop +
+             iPad keep this inline toolbar control unchanged. -->
         @if (viewMode() === 'card') {
           <div class="size-control size-control-inline" matTooltip="Card size">
             <mat-icon class="size-icon">zoom_out</mat-icon>
@@ -100,22 +100,6 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                    (change)="onCardSizeChange($event)">
             <mat-icon class="size-icon">zoom_in</mat-icon>
           </div>
-          <!-- Phone-only submenu trigger for the same slider (hidden on desktop/iPad). -->
-          <button mat-icon-button class="size-menu-trigger" [matMenuTriggerFor]="sizeMenu"
-                  matTooltip="Card size" aria-label="Card size">
-            <mat-icon>grid_view</mat-icon>
-          </button>
-          <mat-menu #sizeMenu="matMenu" class="size-options-menu">
-            <div class="size-control size-control-menu" (click)="$event.stopPropagation()">
-              <mat-icon class="size-icon">zoom_out</mat-icon>
-              <input type="range" class="size-slider" aria-label="Card size"
-                     [min]="cardSizeMin" [max]="cardSizeMax" [step]="cardSizeStep"
-                     [value]="cardSize()"
-                     (input)="onCardSizeInput($event)"
-                     (change)="onCardSizeChange($event)">
-              <mat-icon class="size-icon">zoom_in</mat-icon>
-            </div>
-          </mat-menu>
         }
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
                 matTooltip="Change how the library is displayed" aria-label="View options">
@@ -160,6 +144,25 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               <mat-icon>{{ opt.icon }}</mat-icon>
               {{ opt.label }}
             </button>
+          }
+          <!-- Card size (1.10.2): on PHONE the slider lives HERE in the View menu (no
+               inline toolbar slider and no separate size button on phone - that combo
+               cramped the top bar). Desktop/iPad use the inline toolbar slider, so this
+               section is hidden there via the ::ng-deep + media-query CSS below. -->
+          @if (viewMode() === 'card') {
+            <mat-divider></mat-divider>
+            <div class="view-size-section" (click)="$event.stopPropagation()">
+              <span class="menu-caption">Card size</span>
+              <div class="size-control size-control-menu">
+                <mat-icon class="size-icon">zoom_out</mat-icon>
+                <input type="range" class="size-slider" aria-label="Card size"
+                       [min]="cardSizeMin" [max]="cardSizeMax" [step]="cardSizeStep"
+                       [value]="cardSize()"
+                       (input)="onCardSizeInput($event)"
+                       (change)="onCardSizeChange($event)">
+                <mat-icon class="size-icon">zoom_in</mat-icon>
+              </div>
+            </div>
           }
           <!-- 1.10.0 (F5): "Items per load" moved OUT of this menu into User Settings
                as an initial-load / performance option (settings.component.ts). It is a
@@ -400,13 +403,18 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       border-color: #7c4dff; color: #b39dff;
     }
     .filter-toggle.filter-active mat-icon { color: #b39dff; }
-    /* Phone-only card-size submenu trigger (1.10.0, F3). Hidden on desktop + iPad,
-       where the inline .size-control-inline slider is used instead. */
-    .size-menu-trigger { display: none; flex: 0 0 auto; }
-    /* The slider laid out inside its phone submenu gets breathing room + a wider track. */
-    ::ng-deep .size-options-menu .size-control-menu { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
-    ::ng-deep .size-options-menu .size-slider { width: 180px; max-width: 60vw; accent-color: #7c4dff; }
-    @media (max-width: 560px) { .size-control-inline .size-slider { width: 80px; } }
+    /* Card-size section inside the View menu (1.10.2). Hidden on desktop + iPad (they
+       use the inline .size-control-inline toolbar slider); shown on the phone
+       breakpoint, where the inline control and the old separate size button are gone.
+       The menu renders in a CDK overlay, so it is styled + gated via ::ng-deep and a
+       viewport media query. */
+    ::ng-deep .view-options-menu .view-size-section { display: none; padding: 2px 12px 10px; }
+    ::ng-deep .view-options-menu .size-control-menu { display: flex; align-items: center; gap: 8px; padding: 6px 0 0; }
+    ::ng-deep .view-options-menu .size-control-menu .size-icon { font-size: 18px; width: 18px; height: 18px; color: #8a8a99; }
+    ::ng-deep .view-options-menu .size-slider { width: 180px; max-width: 60vw; accent-color: #7c4dff; }
+    @media (max-width: 599.98px) {
+      ::ng-deep .view-options-menu .view-size-section { display: block; }
+    }
     /* View modes. Card (1.6.0) is a single cover grid whose card size is a
        continuous slider — the min column width comes from the --card-size custom
        property fed by the component, replacing the former Grid/Poster modes and the
@@ -512,7 +520,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
 
     /* Touch / small screens: keep the action bar compact by dropping button labels
        (icons remain, so the controls stay usable) — requirement 1 (dual input). */
-    @media (max-width: 560px) {
+    @media (max-width: 599.98px) {
       .actions .lbl { display: none; }
       .actions mat-icon { margin-right: 0; }
     }
@@ -525,9 +533,8 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
         - the breadcrumb is redesigned for legibility: it was too small to read/tap.
           The trail is allowed to wrap, the type is larger, and the current folder is
           the prominent, high-contrast element so "where am I" reads at a glance. --- */
-    @media (max-width: 560px) {
+    @media (max-width: 599.98px) {
       .size-control-inline { display: none; }
-      .size-menu-trigger { display: inline-flex; }
 
       /* Jump rail -> A-Z letter-picker button on phone (1.10.1). */
       .jump-rail { display: none; }
