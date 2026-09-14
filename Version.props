@@ -97,9 +97,16 @@
          zoom_out/zoom_in + grid_view; (4) the A-Z jump rail collapses to a letter-picker button
          + menu on phone (it wrapped into an unusable band). All phone-breakpoint-only; desktop +
          iPad unchanged. -->
+    <!-- 1.10.2 - PATCH over 1.10.1 (2026-09-14), web-only, no API/schema change. Continued
+         mobile library-view polish from live phone use: (1) the card-size slider moved into the
+         View menu on phone, removing the standalone size button (a grid_view icon that duplicated
+         the View button's icon and cramped the top bar); desktop/iPad keep the inline toolbar
+         slider. (2) Harmonized the phone breakpoint to a single 599.98px (Material XSmall) across
+         browse (was 560), reader (already XSmall), and shell/sidebar (was 700). Phone-only;
+         desktop + iPad unchanged. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
     <MangaPlexVersionMinor>10</MangaPlexVersionMinor>
-    <MangaPlexVersionPatch>1</MangaPlexVersionPatch>
+    <MangaPlexVersionPatch>2</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
