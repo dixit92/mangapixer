@@ -364,6 +364,36 @@ public sealed class ReadingController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Gets the current user's home-excluded libraries (1.12.0) as public IDs. Libraries in
+    /// this set are hidden from the home "New chapters" surface.
+    /// </summary>
+    [HttpGet("home-libraries")]
+    public async Task<IActionResult> GetHomeLibraries(CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var prefs = await _stateService.GetHomeLibrariesAsync(userId.Value, ct);
+        return Ok(prefs);
+    }
+
+    /// <summary>
+    /// Replaces the current user's home-excluded library set (1.12.0). The entire list is
+    /// replaced on each call; ids the user cannot access are silently skipped.
+    /// </summary>
+    [HttpPut("home-libraries")]
+    public async Task<IActionResult> SetHomeLibraries(
+        [FromBody] HomeLibraryVisibilityDto request,
+        CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        await _stateService.SetHomeLibrariesAsync(userId.Value, request.ExcludedLibraryIds, ct);
+        return NoContent();
+    }
+
     [HttpGet("{itemId}/bookmarks")]
     public async Task<IActionResult> GetBookmarks(string itemId, CancellationToken ct)
     {

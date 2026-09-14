@@ -1,29 +1,27 @@
 namespace com.lifepixer.mangaplex.Core.Api;
 
 /// <summary>
-/// Home "New chapters" response (1.11.0 Lane C). The most-recently-added
-/// archives for each library the caller can see, grouped by library, newest
-/// first, capped per library. An archive is a readable chapter. Respects
-/// Incognito/Private visibility exactly like the other discovery surfaces
-/// (continue-reading, search, browse-root, library list): a Private library
-/// the caller has marked is excluded entirely while Incognito is active, and
-/// a library the caller has no grant for never appears. No source paths.
+/// Home "New chapters" response (1.12.0). Recently-added archives STACKED by their
+/// top-level unit (the direct library child they descend from) for each library the
+/// caller can see, grouped by library. Respects Incognito/Private visibility exactly
+/// like the other discovery surfaces, and additionally drops libraries the caller has
+/// hidden from home (see <see cref="HomeLibraryVisibilityDto"/>). No source paths.
 /// </summary>
 public sealed record RecentChaptersDto
 {
     /// <summary>
-    /// One group per visible library, ordered by library display name. A
-    /// library with no recent archives still appears here with an empty
-    /// <see cref="RecentChaptersLibraryGroup.Items"/> list so the frontend can
-    /// render a consistent per-library row shape; callers that want only
-    /// non-empty groups filter client-side.
+    /// One group per visible, non-hidden library, ordered by library display name. A
+    /// library with no recent stacks still appears here with an empty
+    /// <see cref="RecentChaptersLibraryGroup.Stacks"/> list so the frontend can render a
+    /// consistent per-library shape; callers that want only non-empty groups filter
+    /// client-side.
     /// </summary>
     public required IReadOnlyList<RecentChaptersLibraryGroup> Libraries { get; init; }
 }
 
 /// <summary>
-/// One library's "New chapters" group: its most-recently-added archives,
-/// newest first, capped to the requested per-library limit.
+/// One library's "New chapters" group: its recently-updated stacks, newest activity
+/// first, capped to the requested per-library stack limit.
 /// </summary>
 public sealed record RecentChaptersLibraryGroup
 {
@@ -34,51 +32,71 @@ public sealed record RecentChaptersLibraryGroup
     public required string LibraryName { get; init; }
 
     /// <summary>
-    /// The library's most-recently-added archives, newest first, capped to the
-    /// requested per-library limit. Empty when the library has no (visible,
-    /// non-tombstoned) archives.
+    /// The library's recently-updated stacks, ordered by <see cref="RecentChapterStack.LatestAddedAt"/>
+    /// descending, capped to the requested per-library limit. Empty when the library has
+    /// no recently-added archives.
     /// </summary>
-    public required IReadOnlyList<RecentChapterEntry> Items { get; init; }
+    public required IReadOnlyList<RecentChapterStack> Stacks { get; init; }
 }
 
 /// <summary>
-/// A single recently-added archive (chapter) in a library's New-chapters row.
-/// Carries its immediate parent folder so the frontend can group/label by
-/// series where natural. No source paths.
+/// A single "New chapters" stack: a top-level unit (whatever the user's layout puts at
+/// the library root) that has recently-added descendant archives. A loose archive at the
+/// library root is its own standalone stack. Convention-agnostic: not assumed to be a
+/// "series". No source paths.
 /// </summary>
-public sealed record RecentChapterEntry
+public sealed record RecentChapterStack
 {
-    /// <summary>Opaque public ID of the archive node (the readable chapter).</summary>
-    public required string ItemId { get; init; }
+    /// <summary>
+    /// Top-level folder public id, OR the archive public id for a loose top-level archive.
+    /// </summary>
+    public required string Id { get; init; }
 
-    /// <summary>Display name of the archive (filename stem).</summary>
+    /// <summary>
+    /// Top-level folder name, OR the archive name for a loose archive.
+    /// </summary>
     public required string DisplayName { get; init; }
 
-    /// <summary>Opaque public ID of the item's library.</summary>
-    public required string LibraryId { get; init; }
+    /// <summary>
+    /// True = a stacked folder card (tap → folder browse sorted recentlyUpdated); false =
+    /// a standalone archive (tap → reader).
+    /// </summary>
+    public required bool IsFolder { get; init; }
 
     /// <summary>
-    /// Opaque public ID of the archive's immediate parent folder, or an empty
-    /// string when the archive sits at the library root.
+    /// Folder cover (its first descendant archive) or the archive's own cover; null when
+    /// none is resolvable.
     /// </summary>
-    public required string ParentId { get; init; }
+    public string? CoverUrl { get; init; }
 
     /// <summary>
-    /// Display name of the immediate parent folder (the natural "series" label
-    /// for a typical Library/Series/Chapter layout), or null when the archive
-    /// sits at the library root. This is the immediate parent only; deeper
-    /// nesting (Library/Series/Volume/Chapter) shows the volume name, which is
-    /// the natural per-chapter grouping label for the home row.
+    /// Newest descendant archive public id (equals <see cref="Id"/> when
+    /// <see cref="IsFolder"/> is false).
     /// </summary>
-    public string? SeriesName { get; init; }
+    public required string LatestItemId { get; init; }
+
+    /// <summary>Newest descendant archive display name.</summary>
+    public required string LatestItemName { get; init; }
 
     /// <summary>
-    /// When the archive was added to the catalog (scan-observed creation
-    /// time). Newest first means descending by this (then by internal id as a
-    /// stable tiebreaker).
+    /// Stack ordering key: the newest descendant archive's CreatedAt (scan-observed
+    /// creation time).
     /// </summary>
-    public required DateTimeOffset AddedAt { get; init; }
+    public required DateTimeOffset LatestAddedAt { get; init; }
 
-    /// <summary>Page count when known (archive has a manifest), else null.</summary>
-    public int? PageCount { get; init; }
+    /// <summary>
+    /// Count of recently-added descendant archives attributed to this stack (always ≥ 1).
+    /// </summary>
+    public required int NewCount { get; init; }
+}
+
+/// <summary>
+/// The current user's Home library-visibility preference (1.12.0). Libraries in this list
+/// are hidden from the home "New chapters" surface. Independent of the Private designation
+/// and of Incognito mode; never affects browse, search, or direct access. Library IDs are
+/// opaque public IDs.
+/// </summary>
+public sealed record HomeLibraryVisibilityDto
+{
+    public required IReadOnlyList<string> ExcludedLibraryIds { get; init; }
 }

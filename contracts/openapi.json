@@ -793,6 +793,48 @@
         }
       }
     },
+    "/api/v1/reading/home-libraries": {
+      "get": {
+        "tags": [
+          "Reading"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Reading"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HomeLibraryVisibilityDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HomeLibraryVisibilityDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/HomeLibraryVisibilityDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/reading/{itemId}/bookmarks": {
       "get": {
         "tags": [
@@ -2093,6 +2135,20 @@
           },
           "isAdmin": {
             "type": "boolean"
+          }
+        }
+      },
+      "HomeLibraryVisibilityDto": {
+        "required": [
+          "excludedLibraryIds"
+        ],
+        "type": "object",
+        "properties": {
+          "excludedLibraryIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
