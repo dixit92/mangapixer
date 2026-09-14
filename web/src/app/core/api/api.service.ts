@@ -125,15 +125,23 @@ export class ApiService {
     sort: LibrarySortOrder | null = null,
     direction: LibrarySortDirection | null = null,
     readState: LibraryReadStateFilter | null = null,
+    hideEmpty = false,
+    before: string | null = null,
   ): Observable<PageResponse<CatalogNodeDto>> {
     let params = new HttpParams().set('pageSize', pageSize.toString());
     if (cursor) params = params.set('cursor', cursor);
+    // Backward page (1.11.0): fetch the page BEFORE `before` (upward scroll after a jump).
+    // Mutually exclusive with `cursor` at call sites (forward vs backward paging).
+    if (before) params = params.set('before', before);
     if (parentId) params = params.set('parentId', parentId);
     // Omitted → the server uses the caller's stored LibrarySort/direction preference.
     if (sort) params = params.set('sort', sort);
     if (direction) params = params.set('direction', direction);
     // Read-state filter (1.10.0). Omitted or 'all' → no filter (server default).
     if (readState && readState !== 'all') params = params.set('readState', readState);
+    // Hide-empty-folders filter (1.11.0). Omitted/false → folders with no archive
+    // descendants are kept (server default). Composes with the read-state filter.
+    if (hideEmpty) params = params.set('hideEmpty', 'true');
     return this.get<PageResponse<CatalogNodeDto>>(
       `/libraries/${libraryId}/browse`,
       params,

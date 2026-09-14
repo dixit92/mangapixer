@@ -1537,99 +1537,128 @@ public sealed class CatalogBrowseTests : IDisposable
         finally { await db.DisposeAsync(); }
     }
 
-    // --- Read-state filter (1.10.0: Reading / Read / Unread over archives) ---
+    // --- Read-state filter (1.10.0 archives; 1.11.0 folders by descendant rollup) ---
+
+    private sealed record ReadStateFixture(
+        long ParentId,
+        string ReadArchiveId, string ReadingArchiveId, string UnreadPlainId, string UnreadCompletedId,
+        string SubEmptyId, string SubReadId, string SubReadingId, string SubUnreadId);
 
     /// <summary>
-    /// Seeds one parent folder holding four archives in one of each read state, plus
-    /// a sibling subfolder, so filter tests can assert both which archives survive and
-    /// that folders are always kept (navigable at any folder level). States:
-    /// Read = read-mark; Reading = in-progress progress, no mark; Unread(plain) = no
-    /// signal; Unread(completed) = a Completed progress row with no mark (the archive
-    /// card shows no badge, so it counts as Unread — same rule as the folder rollup).
+    /// Seeds one parent folder "Series" holding four archives (one of each read state)
+    /// plus four subfolders, one per folder rollup class, so the filter tests can assert
+    /// BOTH which archives survive AND that folders are filtered by their descendant read
+    /// rollup (1.11.0). Archive states: Read = read-mark; Reading = in-progress progress,
+    /// no mark; Unread(plain) = no signal; Unread(completed) = a Completed progress row
+    /// with no mark (the card shows no badge, so it counts as Unread). Subfolders:
+    /// SubEmpty (no archives = null rollup), SubRead (one read archive = Read), SubReading
+    /// (one in-progress archive = Reading), SubUnread (one plain archive = Unread).
     /// </summary>
-    private async Task<(long parentId, string readId, string readingId, string unreadPlainId, string unreadCompletedId, string subFolderId)>
-        SeedReadStateFixtureAsync(MangaPlexDbContext db, long userId, long libraryId)
+    private async Task<ReadStateFixture> SeedReadStateFixtureAsync(
+        MangaPlexDbContext db, long userId, long libraryId)
     {
         var parent = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", "0Series");
-        var sub = await AddNodeAsync(db, libraryId, parent.Id, CatalogNodeKind.Folder, "Sub", "0Sub");
         var readArch = await AddNodeAsync(db, libraryId, parent.Id, CatalogNodeKind.Archive, "Ch Read", "1a Read");
         var readingArch = await AddNodeAsync(db, libraryId, parent.Id, CatalogNodeKind.Archive, "Ch Reading", "1b Reading");
         var unreadPlain = await AddNodeAsync(db, libraryId, parent.Id, CatalogNodeKind.Archive, "Ch Unread", "1c Unread");
         var unreadCompleted = await AddNodeAsync(db, libraryId, parent.Id, CatalogNodeKind.Archive, "Ch Completed", "1d Completed");
 
+        var subEmpty = await AddNodeAsync(db, libraryId, parent.Id, CatalogNodeKind.Folder, "Sub Empty", "0a Empty");
+        var subRead = await AddNodeAsync(db, libraryId, parent.Id, CatalogNodeKind.Folder, "Sub Read", "0b Read");
+        var subReading = await AddNodeAsync(db, libraryId, parent.Id, CatalogNodeKind.Folder, "Sub Reading", "0c Reading");
+        var subUnread = await AddNodeAsync(db, libraryId, parent.Id, CatalogNodeKind.Folder, "Sub Unread", "0d Unread");
+        var subReadCh = await AddNodeAsync(db, libraryId, subRead.Id, CatalogNodeKind.Archive, "SR Ch", "1SR");
+        var subReadingCh = await AddNodeAsync(db, libraryId, subReading.Id, CatalogNodeKind.Archive, "SG Ch", "1SG");
+        await AddNodeAsync(db, libraryId, subUnread.Id, CatalogNodeKind.Archive, "SU Ch", "1SU");
+
         await AddReadMarkAsync(db, userId, readArch.Id);
         await AddProgressAsync(db, userId, readingArch.Id, DateTimeOffset.UtcNow, state: (int)ReadingState.InProgress);
         await AddProgressAsync(db, userId, unreadCompleted.Id, DateTimeOffset.UtcNow, state: (int)ReadingState.Completed);
+        await AddReadMarkAsync(db, userId, subReadCh.Id);
+        await AddProgressAsync(db, userId, subReadingCh.Id, DateTimeOffset.UtcNow, state: (int)ReadingState.InProgress);
 
-        return (parent.Id, readArch.PublicId, readingArch.PublicId, unreadPlain.PublicId, unreadCompleted.PublicId, sub.PublicId);
+        return new ReadStateFixture(
+            parent.Id, readArch.PublicId, readingArch.PublicId, unreadPlain.PublicId, unreadCompleted.PublicId,
+            subEmpty.PublicId, subRead.PublicId, subReading.PublicId, subUnread.PublicId);
     }
 
     [Fact]
-    public async Task Browse_ReadStateFilter_Read_KeepsOnlyReadArchivesPlusFolders()
+    public async Task Browse_ReadStateFilter_Read_KeepsReadArchivesAndFullyReadFolders()
     {
         var (db, userId, libraryId) = await SetupAsync();
         try
         {
             var f = await SeedReadStateFixtureAsync(db, userId, libraryId);
             var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
-            var result = await service.BrowseAsync(userId, libraryId, parentId: f.parentId, cursor: null,
+            var result = await service.BrowseAsync(userId, libraryId, parentId: f.ParentId, cursor: null,
                 readState: BrowseReadStateFilter.Read);
 
             var ids = result.Items.Select(n => n.Id).ToHashSet();
-            Assert.Contains(f.readId, ids);
-            Assert.Contains(f.subFolderId, ids); // folders always kept (navigable)
-            Assert.DoesNotContain(f.readingId, ids);
-            Assert.DoesNotContain(f.unreadPlainId, ids);
-            Assert.DoesNotContain(f.unreadCompletedId, ids);
-            // TotalCount reflects the filter (folder + 1 read archive), proving it is
-            // applied to the base query before counting.
+            Assert.Contains(f.ReadArchiveId, ids);
+            Assert.Contains(f.SubReadId, ids); // folder whose descendants are all read
+            // Folders are NOW filtered by rollup: the Reading/Unread/empty subfolders are hidden.
+            Assert.DoesNotContain(f.SubReadingId, ids);
+            Assert.DoesNotContain(f.SubUnreadId, ids);
+            Assert.DoesNotContain(f.SubEmptyId, ids);
+            Assert.DoesNotContain(f.ReadingArchiveId, ids);
+            Assert.DoesNotContain(f.UnreadPlainId, ids);
+            Assert.DoesNotContain(f.UnreadCompletedId, ids);
+            // TotalCount reflects the filter (1 read archive + 1 all-read folder), proving
+            // it is applied to the base query before counting.
             Assert.Equal(2, result.TotalCount);
         }
         finally { await db.DisposeAsync(); }
     }
 
     [Fact]
-    public async Task Browse_ReadStateFilter_Reading_KeepsOnlyInProgressArchivesPlusFolders()
+    public async Task Browse_ReadStateFilter_Reading_KeepsInProgressArchivesAndReadingFolders()
     {
         var (db, userId, libraryId) = await SetupAsync();
         try
         {
             var f = await SeedReadStateFixtureAsync(db, userId, libraryId);
             var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
-            var result = await service.BrowseAsync(userId, libraryId, parentId: f.parentId, cursor: null,
+            var result = await service.BrowseAsync(userId, libraryId, parentId: f.ParentId, cursor: null,
                 readState: BrowseReadStateFilter.Reading);
 
             var ids = result.Items.Select(n => n.Id).ToHashSet();
-            Assert.Contains(f.readingId, ids);
-            Assert.Contains(f.subFolderId, ids);
-            Assert.DoesNotContain(f.readId, ids);
-            Assert.DoesNotContain(f.unreadPlainId, ids);
-            Assert.DoesNotContain(f.unreadCompletedId, ids);
+            Assert.Contains(f.ReadingArchiveId, ids);
+            Assert.Contains(f.SubReadingId, ids);
+            Assert.DoesNotContain(f.SubReadId, ids);
+            Assert.DoesNotContain(f.SubUnreadId, ids);
+            Assert.DoesNotContain(f.SubEmptyId, ids);
+            Assert.DoesNotContain(f.ReadArchiveId, ids);
+            Assert.DoesNotContain(f.UnreadPlainId, ids);
+            Assert.DoesNotContain(f.UnreadCompletedId, ids);
             Assert.Equal(2, result.TotalCount);
         }
         finally { await db.DisposeAsync(); }
     }
 
     [Fact]
-    public async Task Browse_ReadStateFilter_Unread_KeepsPlainAndCompletedButNotReadOrReading()
+    public async Task Browse_ReadStateFilter_Unread_KeepsUnreadArchivesUnreadFoldersAndEmptyFolders()
     {
         var (db, userId, libraryId) = await SetupAsync();
         try
         {
             var f = await SeedReadStateFixtureAsync(db, userId, libraryId);
             var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
-            var result = await service.BrowseAsync(userId, libraryId, parentId: f.parentId, cursor: null,
+            var result = await service.BrowseAsync(userId, libraryId, parentId: f.ParentId, cursor: null,
                 readState: BrowseReadStateFilter.Unread);
 
             var ids = result.Items.Select(n => n.Id).ToHashSet();
-            // Unread = no mark and not in-progress: the plain unread AND the completed
-            // (no mark) archive both qualify, matching the archive-card / rollup rule.
-            Assert.Contains(f.unreadPlainId, ids);
-            Assert.Contains(f.unreadCompletedId, ids);
-            Assert.Contains(f.subFolderId, ids);
-            Assert.DoesNotContain(f.readId, ids);
-            Assert.DoesNotContain(f.readingId, ids);
-            Assert.Equal(3, result.TotalCount);
+            // Unread archives: the plain unread AND the completed (no mark) archive.
+            Assert.Contains(f.UnreadPlainId, ids);
+            Assert.Contains(f.UnreadCompletedId, ids);
+            // Unread folders: the all-unread subfolder AND the empty subfolder (no activity
+            // = not "read"; hideEmpty is the separate axis that drops empties).
+            Assert.Contains(f.SubUnreadId, ids);
+            Assert.Contains(f.SubEmptyId, ids);
+            Assert.DoesNotContain(f.ReadArchiveId, ids);
+            Assert.DoesNotContain(f.ReadingArchiveId, ids);
+            Assert.DoesNotContain(f.SubReadId, ids);
+            Assert.DoesNotContain(f.SubReadingId, ids);
+            Assert.Equal(4, result.TotalCount);
         }
         finally { await db.DisposeAsync(); }
     }
@@ -1642,12 +1671,37 @@ public sealed class CatalogBrowseTests : IDisposable
         {
             var f = await SeedReadStateFixtureAsync(db, userId, libraryId);
             var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
-            var result = await service.BrowseAsync(userId, libraryId, parentId: f.parentId, cursor: null,
+            var result = await service.BrowseAsync(userId, libraryId, parentId: f.ParentId, cursor: null,
                 readState: BrowseReadStateFilter.All);
 
-            // 4 archives + 1 subfolder, unfiltered.
-            Assert.Equal(5, result.TotalCount);
-            Assert.Equal(5, result.Items.Count);
+            // 4 archives + 4 subfolders, unfiltered.
+            Assert.Equal(8, result.TotalCount);
+            Assert.Equal(8, result.Items.Count);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_ReadStateFilter_AllFoldersLevel_MeaningfullyHidesFolders()
+    {
+        // The owner's "filters do not work" report: at a library root that is ALL series
+        // folders, the read-state filter used to keep every folder (a no-op). It must now
+        // hide folders whose descendant rollup does not match.
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var readSeries = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Read Series", "0a");
+            var unreadSeries = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Unread Series", "0b");
+            var readCh = await AddNodeAsync(db, libraryId, readSeries.Id, CatalogNodeKind.Archive, "R Ch", "1r");
+            await AddNodeAsync(db, libraryId, unreadSeries.Id, CatalogNodeKind.Archive, "U Ch", "1u");
+            await AddReadMarkAsync(db, userId, readCh.Id);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var read = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
+                readState: BrowseReadStateFilter.Read);
+
+            Assert.Equal(1, read.TotalCount);
+            Assert.Equal(readSeries.PublicId, read.Items.Single().Id);
         }
         finally { await db.DisposeAsync(); }
     }
@@ -1659,7 +1713,7 @@ public sealed class CatalogBrowseTests : IDisposable
         try
         {
             var f = await SeedReadStateFixtureAsync(db, userId, libraryId);
-            // A second user with no read activity: every archive is Unread for them.
+            // A second user with no read activity: every archive/folder is Unread for them.
             var other = new UserEntity
             {
                 PublicId = OpaqueId.Encode(Random.Shared.NextInt64(10, long.MaxValue)),
@@ -1675,11 +1729,11 @@ public sealed class CatalogBrowseTests : IDisposable
             await db.SaveChangesAsync();
 
             var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
-            var read = await service.BrowseAsync(other.Id, libraryId, parentId: f.parentId, cursor: null,
+            var read = await service.BrowseAsync(other.Id, libraryId, parentId: f.ParentId, cursor: null,
                 readState: BrowseReadStateFilter.Read);
-            // No read-marks for `other`, so only the always-kept folder survives a Read filter.
-            Assert.Equal(1, read.TotalCount);
-            Assert.Equal(f.subFolderId, read.Items.Single().Id);
+            // No read activity for `other`: no archive is read and no folder rolls up to Read.
+            Assert.Equal(0, read.TotalCount);
+            Assert.Empty(read.Items);
         }
         finally { await db.DisposeAsync(); }
     }
@@ -1716,6 +1770,198 @@ public sealed class CatalogBrowseTests : IDisposable
             Assert.Equal(3, names.Count);
             Assert.Equal(3, names.Distinct().Count());
             Assert.All(names, n => Assert.StartsWith("Unread", n));
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    // --- Hide-empty filter (1.11.0) and composition with read state ---
+
+    [Fact]
+    public async Task Browse_HideEmpty_DropsFoldersWithNoDescendantArchives()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var f = await SeedReadStateFixtureAsync(db, userId, libraryId);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: f.ParentId, cursor: null,
+                hideEmpty: true);
+
+            var ids = result.Items.Select(n => n.Id).ToHashSet();
+            Assert.DoesNotContain(f.SubEmptyId, ids); // the only empty subtree is dropped
+            // Every archive and every non-empty folder is kept: 4 archives + 3 folders.
+            Assert.Contains(f.SubReadId, ids);
+            Assert.Contains(f.SubReadingId, ids);
+            Assert.Contains(f.SubUnreadId, ids);
+            Assert.Contains(f.ReadArchiveId, ids);
+            Assert.Equal(7, result.TotalCount);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_HideEmpty_NestedEmptySubtree_IsAlsoEmpty()
+    {
+        // A folder whose only descendants are further empty folders has no archive in its
+        // subtree, so it is "empty" and must be dropped by hideEmpty.
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var outer = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Outer", "0outer");
+            await AddNodeAsync(db, libraryId, outer.Id, CatalogNodeKind.Folder, "Inner", "0inner");
+            var withArch = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "WithArch", "0with");
+            var deep = await AddNodeAsync(db, libraryId, withArch.Id, CatalogNodeKind.Folder, "Deep", "0deep");
+            await AddNodeAsync(db, libraryId, deep.Id, CatalogNodeKind.Archive, "Deep Ch", "1deep");
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null, hideEmpty: true);
+
+            var ids = result.Items.Select(n => n.Id).ToHashSet();
+            Assert.DoesNotContain(outer.PublicId, ids);      // only empty descendants
+            Assert.Contains(withArch.PublicId, ids);         // archive nested two levels down
+            Assert.Equal(1, result.TotalCount);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_HideEmpty_ComposesWithReadStateUnread()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var f = await SeedReadStateFixtureAsync(db, userId, libraryId);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: f.ParentId, cursor: null,
+                readState: BrowseReadStateFilter.Unread, hideEmpty: true);
+
+            var ids = result.Items.Select(n => n.Id).ToHashSet();
+            // Unread keeps {unreadPlain, unreadCompleted, SubUnread, SubEmpty}; hideEmpty
+            // then removes SubEmpty, leaving 3.
+            Assert.Contains(f.UnreadPlainId, ids);
+            Assert.Contains(f.UnreadCompletedId, ids);
+            Assert.Contains(f.SubUnreadId, ids);
+            Assert.DoesNotContain(f.SubEmptyId, ids);
+            Assert.Equal(3, result.TotalCount);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_HideEmpty_ComposesWithReadStateRead()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var f = await SeedReadStateFixtureAsync(db, userId, libraryId);
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: f.ParentId, cursor: null,
+                readState: BrowseReadStateFilter.Read, hideEmpty: true);
+
+            // Read already excludes the empty folder (null rollup), so hideEmpty is a no-op
+            // here: still {readArchive, SubRead}.
+            Assert.Equal(2, result.TotalCount);
+            var ids = result.Items.Select(n => n.Id).ToHashSet();
+            Assert.Contains(f.ReadArchiveId, ids);
+            Assert.Contains(f.SubReadId, ids);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    // --- Backward / upward keyset paging (1.11.0, name sort) ---
+
+    [Fact]
+    public async Task Browse_Backward_ReturnsPageBeforeCursorInAscendingOrder()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            // Six archives a..f in ascending sort-key order.
+            foreach (var c in "abcdef")
+                await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, $"Ch {c}", $"1{c}");
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            // The page before "1c" (pageSize 2) is [a, b], in ascending display order.
+            var page = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
+                pageSize: 2, before: "1c");
+
+            Assert.Equal(new[] { "Ch a", "Ch b" }, page.Items.Select(n => n.DisplayName).ToArray());
+            Assert.False(page.HasPrevious); // nothing before "a"
+            Assert.Null(page.PrevCursor);
+            Assert.Equal(6, page.TotalCount); // TotalCount is the whole filtered listing
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_Backward_ReportsHasPreviousAndChainsUpward()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            foreach (var c in "abcdef")
+                await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, $"Ch {c}", $"1{c}");
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            // The page before "1e" is [c, d]; a further page ([a, b]) exists above it.
+            var first = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
+                pageSize: 2, before: "1e");
+            Assert.Equal(new[] { "Ch c", "Ch d" }, first.Items.Select(n => n.DisplayName).ToArray());
+            Assert.True(first.HasPrevious);
+            Assert.Equal("1c", first.PrevCursor);
+
+            // Chain upward using the reported PrevCursor: the next page is [a, b].
+            var second = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
+                pageSize: 2, before: first.PrevCursor);
+            Assert.Equal(new[] { "Ch a", "Ch b" }, second.Items.Select(n => n.DisplayName).ToArray());
+            Assert.False(second.HasPrevious);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_Forward_FromMidCursor_ReportsBackwardCursor()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            foreach (var c in "abcdef")
+                await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, $"Ch {c}", $"1{c}");
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            // From the true start there is nothing before the window.
+            var start = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null, pageSize: 2);
+            Assert.False(start.HasPrevious);
+            Assert.Null(start.PrevCursor);
+            Assert.Equal("1b", start.NextCursor);
+
+            // A forward page landed at a mid-list cursor (a jump-rail landing) reports a
+            // backward cursor so the client can scroll up.
+            var mid = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: "1b", pageSize: 2);
+            Assert.Equal(new[] { "Ch c", "Ch d" }, mid.Items.Select(n => n.DisplayName).ToArray());
+            Assert.True(mid.HasPrevious);
+            Assert.Equal("1c", mid.PrevCursor);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_Backward_IgnoredForNonNameSorts()
+    {
+        // Backward paging is name-sort only; a `before` under another sort is ignored and
+        // the normal forward page is returned (no crash, no backward semantics).
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            foreach (var c in "abc")
+                await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, $"Ch {c}", $"1{c}");
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var page = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
+                sort: "recentlyAdded", before: "1c");
+
+            Assert.Equal(3, page.Items.Count);
+            Assert.False(page.HasPrevious);
         }
         finally { await db.DisposeAsync(); }
     }

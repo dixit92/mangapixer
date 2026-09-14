@@ -18,6 +18,19 @@ export interface PageResponse<T> {
   nextCursor: string | null;
   hasMore: boolean;
   /**
+   * Backward (upward) keyset cursor (1.11.0): pass as the browse `before` param to
+   * fetch the page immediately BEFORE this window's first item. Null when this window
+   * starts at the listing's true first item, or for sorts without backward paging (only
+   * the name sort supports it). Optional on the client so older fixtures keep compiling.
+   */
+  prevCursor?: string | null;
+  /**
+   * Whether a page exists BEFORE this window's first item (1.11.0). Pairs with
+   * `prevCursor`; true means the client may scroll up and prepend the previous page.
+   * Optional/defaulted false so older fixtures keep compiling.
+   */
+  hasPrevious?: boolean;
+  /**
    * The folder's next-to-read descendant archive (1.7.0), surfaced as a pinned
    * "Continue" row above the sorted list. Browse only; null when the browsed
    * folder has no unread descendant archive. Optional on the client so existing

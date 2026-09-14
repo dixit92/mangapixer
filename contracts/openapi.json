@@ -1083,6 +1083,21 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "hideEmpty",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
