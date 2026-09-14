@@ -40,6 +40,7 @@ import {
   PageResponse,
   ProgressUpdateResult,
   ReadingProgressDto,
+  RecentChaptersDto,
   RegisterLibraryRequest,
   ResetPasswordResponse,
   ScanRunDto,
@@ -160,6 +161,17 @@ export class ApiService {
     let params = new HttpParams().set('q', query);
     if (libraryId) params = params.set('libraryId', libraryId);
     return this.get<SearchResultsDto>('/search', params);
+  }
+
+  /**
+   * Home "New chapters" (1.11.0 Lane C): the most-recently-added archives
+   * grouped by visible library, newest first, capped per library. Respects
+   * Incognito/Private visibility server-side (the X-Incognito header is set
+   * by the incognito interceptor like every other discovery call).
+   */
+  getRecentChapters(perLibrary = 12): Observable<RecentChaptersDto> {
+    const params = new HttpParams().set('perLibrary', perLibrary.toString());
+    return this.get<RecentChaptersDto>('/home/recent-chapters', params);
   }
 
   // --- Reading ---

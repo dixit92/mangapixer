@@ -523,3 +523,44 @@ export interface RotatingBackupStatusDto {
 export interface SystemInfoDto {
   version: string;
 }
+
+// --- Home "New chapters" (1.11.0 Lane C) ---
+
+/**
+ * Home "New chapters" response: the most-recently-added archives for each
+ * library the caller can see, grouped by library, newest first, capped per
+ * library. Respects Incognito/Private visibility like the other discovery
+ * surfaces - a Private library's items never leak.
+ */
+export interface RecentChaptersDto {
+  libraries: RecentChaptersLibraryGroup[];
+}
+
+/**
+ * One library's "New chapters" group: its most-recently-added archives,
+ * newest first, capped to the requested per-library limit. Empty items when
+ * the library has no (visible, non-tombstoned) archives.
+ */
+export interface RecentChaptersLibraryGroup {
+  libraryId: string;
+  libraryName: string;
+  items: RecentChapterEntry[];
+}
+
+/**
+ * A single recently-added archive (chapter). Carries its immediate parent
+ * folder so the frontend can label/group by series where natural.
+ */
+export interface RecentChapterEntry {
+  itemId: string;
+  displayName: string;
+  libraryId: string;
+  /** Opaque public id of the immediate parent folder, or '' at library root. */
+  parentId: string;
+  /** Display name of the immediate parent folder (the "series"), or null at root. */
+  seriesName: string | null;
+  /** When the archive was added (scan-observed creation time). Newest first. */
+  addedAt: string;
+  /** Page count when known, else null. */
+  pageCount: number | null;
+}

@@ -8,22 +8,24 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { ApiService } from '../../core/api/api.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
-import { LibraryDto, ContinueReadingEntry } from '../../core/api/api-types';
+import { LibraryDto, ContinueReadingEntry, RecentChaptersDto, RecentChaptersLibraryGroup } from '../../core/api/api-types';
 import { readerModeGlyph } from '../../shared/reader-mode-glyph';
 
 /**
  * Home page. As of 1.5.0 the library **sidebar was promoted to the app shell**
  * (`LibrarySidebarComponent`, rendered by `layout.component`), so home no longer
  * owns a sidebar and no longer filters its continue-reading by a locally selected
- * library. Home now simplifies to two things:
+ * library. Home now shows three sections:
  *   1. the consolidated **Continue reading** row across all (non-Private, while
- *      incognito) libraries, and
- *   2. the **library grid**, each card showing a reading-direction indicator
+ *      incognito) libraries,
+ *   2. the **New chapters** row (1.11.0 Lane C) - the most-recently-added
+ *      archives grouped by library, newest first, capped per library, and
+ *   3. the **library grid**, each card showing a reading-direction indicator
  *      (Task C) derived from `LibraryDto.defaultReaderMode`.
  *
  * Switching libraries is a shell-sidebar navigation now (routes to
  * `/libraries/:id/browse`), not an in-home selection. Hiding of Private libraries
- * remains server-enforced via the `X-Incognito` header.
+ * remains server-enforced via the `X-Incognito` header for every discovery call.
  */
 @Component({
   selector: 'app-home',
@@ -62,6 +64,33 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
               </div>
             }
           </div>
+        </section>
+      }
+
+      @if (recentGroups().length > 0) {
+        <section class="strip-section">
+          <h3>New chapters</h3>
+          @for (group of recentGroups(); track group.libraryId) {
+            @if (group.items.length > 0) {
+              <div class="recent-lib">
+                <h4 [routerLink]="['/libraries', group.libraryId, 'browse']">{{ group.libraryName }}</h4>
+                <div class="strip">
+                  @for (item of group.items; track item.itemId) {
+                    <a class="cont-card" [routerLink]="['/reader', item.itemId]">
+                      <div class="cover">
+                        <img appCover [src]="coverUrl(item.itemId)" alt="" loading="lazy">
+                        <mat-icon class="cover-fallback">menu_book</mat-icon>
+                      </div>
+                      <div class="cont-title" [title]="item.displayName">{{ item.displayName }}</div>
+                      @if (item.seriesName) {
+                        <div class="cont-page" [title]="item.seriesName">{{ item.seriesName }}</div>
+                      }
+                    </a>
+                  }
+                </div>
+              </div>
+            }
+          }
         </section>
       }
 
@@ -129,6 +158,14 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .cont-page { font-size: 12px; color: #999; }
+    /* New chapters (1.11.0 Lane C): one sub-row per library, headed by the
+       library name (clickable into browse), then its newest archives. */
+    .recent-lib { margin-bottom: 16px; }
+    .recent-lib h4 {
+      margin: 4px 0 8px; font-size: 14px; font-weight: 500; color: #cfcfd4;
+      cursor: pointer; text-decoration: none; display: inline-block;
+    }
+    .recent-lib h4:hover { color: #fff; }
     .library-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;
     }
@@ -150,6 +187,8 @@ export class HomeComponent implements OnInit {
   readonly loading = signal(true);
   readonly libraries = signal<LibraryDto[]>([]);
   readonly continueReading = signal<ContinueReadingEntry[]>([]);
+  /** New chapters (1.11.0 Lane C): per-library groups of recently-added archives. */
+  readonly recentGroups = signal<RecentChaptersLibraryGroup[]>([]);
 
   ngOnInit(): void {
     this.api.getLibraries().subscribe({
@@ -159,6 +198,13 @@ export class HomeComponent implements OnInit {
     this.api.getContinueReading(12).subscribe({
       next: (items) => this.continueReading.set(items),
       error: () => this.continueReading.set([]),
+    });
+    this.api.getRecentChapters(12).subscribe({
+      // Only libraries with at least one recent archive are shown; the section
+      // hides entirely (empty-state) when no visible library has any archives.
+      next: (dto: RecentChaptersDto) => this.recentGroups.set(
+        dto.libraries.filter((g) => g.items.length > 0)),
+      error: () => this.recentGroups.set([]),
     });
   }
 
