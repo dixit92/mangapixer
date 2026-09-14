@@ -247,6 +247,11 @@ export class LibrarySidebarComponent {
   }
 
   private loadCollapsed(): boolean {
-    try { return localStorage.getItem(LibrarySidebarComponent.CollapsedKey) === '1'; } catch { return false; }
+    // Default to COLLAPSED (1.10.3, owner preference): a fresh device / no stored choice
+    // starts with the shell sidebar closed; an explicit stored '0'/'1' is respected.
+    try {
+      const v = localStorage.getItem(LibrarySidebarComponent.CollapsedKey);
+      return v === null ? true : v === '1';
+    } catch { return true; }
   }
 }

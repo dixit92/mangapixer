@@ -177,7 +177,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
           @if (view() === 'webtoon') {
             <!-- Requirement 6: webtoon width slider replaces the inoperative fit menu. -->
             <mat-icon class="slider-icon" aria-hidden="true">width_normal</mat-icon>
-            <mat-slider class="width-slider" min="30" max="100" step="5"
+            <mat-slider class="width-slider" min="15" max="100" step="5"
                         matTooltip="Page width" aria-label="Webtoon page width">
               <input matSliderThumb [value]="webtoonWidthPct()"
                      (valueChange)="setWebtoonWidth($event)" aria-label="Webtoon page width">
@@ -481,7 +481,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     }
     /* Webtoon: full-width column, natural vertical scroll. */
     .reader-viewport.webtoon { flex-direction: column; align-items: center; }
-    /* Width is driven by the webtoon width slider (requirement 6), 30–100% of viewport. */
+    /* Width is driven by the webtoon width slider (requirement 6), 15–100% of viewport. */
     /* height:auto + the per-page aspect-ratio (set inline from the manifest) reserves
        each page's box before it lazy-loads; the faint background makes the reserved
        placeholder visible while the image streams in. */
@@ -1845,7 +1845,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   private static readonly WebtoonWidthKey = 'mangaplex-webtoon-width';
 
   setWebtoonWidth(pct: number): void {
-    const clamped = Math.min(100, Math.max(30, Math.round(pct)));
+    const clamped = Math.min(100, Math.max(15, Math.round(pct)));
     this.webtoonWidthPct.set(clamped);
     try { localStorage.setItem(ReaderComponent.WebtoonWidthKey, String(clamped)); } catch { /* private mode */ }
   }
@@ -1854,7 +1854,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
     try {
       const raw = localStorage.getItem(ReaderComponent.WebtoonWidthKey);
       const n = raw ? parseInt(raw, 10) : NaN;
-      if (!Number.isNaN(n)) return Math.min(100, Math.max(30, n));
+      if (!Number.isNaN(n)) return Math.min(100, Math.max(15, n));
     } catch { /* private mode / unavailable */ }
     return 70; // sensible default
   }
