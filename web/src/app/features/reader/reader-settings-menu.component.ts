@@ -1,4 +1,4 @@
-import { Component, Signal, inject, output } from '@angular/core';
+import { Component, Signal, inject, input, output } from '@angular/core';
 import { MatBottomSheetRef, MAT_BOTTOM_SHEET_DATA } from '@angular/material/bottom-sheet';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -7,6 +7,7 @@ import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { ReaderPreferencesService, PageAnimation } from '../../core/reading/reader-preferences.service';
+import { WebtoonNavPreferencesService, WebtoonTapStep } from './webtoon-nav.service';
 
 // --- Reader option vocabulary -------------------------------------------------
 // The value types the reader's settings surfaces (desktop menus + the phone
@@ -36,6 +37,20 @@ export const PAGE_ANIMATION_OPTIONS: readonly ReaderOption<PageAnimation>[] = [
   { value: 'slide', label: 'Slide', icon: 'view_carousel' },
   { value: 'reveal', label: 'Reveal', icon: 'gradient' },
   { value: 'none', label: 'None', icon: 'block' },
+];
+
+/**
+ * Webtoon tap-to-scroll choices (1.11.0): one radio group covering both the
+ * on/off switch and the step, so the setting stays a single row. Off keeps the
+ * pre-1.11.0 free-scroll-only reader (a tap anywhere toggles the chrome). The
+ * step chips carry no glyph - a percentage needs none, and three identical
+ * icons in a row would only add noise.
+ */
+export const WEBTOON_TAP_STEP_OPTIONS: readonly ReaderOption<WebtoonTapStep>[] = [
+  { value: 0, label: 'Off', icon: 'block' },
+  { value: 80, label: '80%', icon: '' },
+  { value: 90, label: '90%', icon: '' },
+  { value: 100, label: '100%', icon: '' },
 ];
 
 export const FIT_OPTIONS: readonly ReaderOption<FitMode>[] = [
@@ -77,28 +92,52 @@ export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
  * reader can pin its auto-hiding chrome visible while the menu is open (same
  * treatment as the mode/fit menus). Desktop / tablet only: on a phone the same
  * choices live in the `ReaderOptionsSheetComponent` below.
+ *
+ * 1.11.0: the same toolbar slot is contextual. In the webtoon (vertical) view a
+ * page transition is meaningless (page changes are scroll-driven), so the button
+ * offers the webtoon "Tap to scroll" step instead (Off / 80% / 90% / 100%) -
+ * one settings button per view, never two.
  */
 @Component({
   selector: 'app-reader-settings-menu',
   standalone: true,
   imports: [MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule],
   template: `
-    <button mat-icon-button [matMenuTriggerFor]="animMenu"
-            matTooltip="Page transition" aria-label="Page transition"
-            (menuOpened)="opened.emit()" (menuClosed)="closed.emit()">
-      <mat-icon>animation</mat-icon>
-    </button>
-    <mat-menu #animMenu="matMenu" class="reader-options-menu">
-      @for (opt of options; track opt.value) {
-        <button mat-menu-item role="menuitemradio"
-                [class.selected-option]="prefs.pageAnimation() === opt.value"
-                [attr.aria-checked]="prefs.pageAnimation() === opt.value"
-                (click)="choose(opt.value)" [attr.aria-label]="'Page transition: ' + opt.label">
-          <mat-icon>{{ opt.icon }}</mat-icon>
-          {{ opt.label }}
-        </button>
-      }
-    </mat-menu>
+    @if (view() === 'webtoon') {
+      <button mat-icon-button [matMenuTriggerFor]="tapMenu"
+              matTooltip="Tap to scroll" aria-label="Tap to scroll"
+              (menuOpened)="opened.emit()" (menuClosed)="closed.emit()">
+        <mat-icon>touch_app</mat-icon>
+      </button>
+      <mat-menu #tapMenu="matMenu" class="reader-options-menu">
+        @for (opt of tapStepOptions; track opt.value) {
+          <button mat-menu-item role="menuitemradio"
+                  [class.selected-option]="webtoonNav.tapStep() === opt.value"
+                  [attr.aria-checked]="webtoonNav.tapStep() === opt.value"
+                  (click)="chooseTapStep(opt.value)" [attr.aria-label]="'Tap to scroll: ' + opt.label">
+            @if (opt.icon) { <mat-icon>{{ opt.icon }}</mat-icon> }
+            {{ opt.label }}
+          </button>
+        }
+      </mat-menu>
+    } @else {
+      <button mat-icon-button [matMenuTriggerFor]="animMenu"
+              matTooltip="Page transition" aria-label="Page transition"
+              (menuOpened)="opened.emit()" (menuClosed)="closed.emit()">
+        <mat-icon>animation</mat-icon>
+      </button>
+      <mat-menu #animMenu="matMenu" class="reader-options-menu">
+        @for (opt of options; track opt.value) {
+          <button mat-menu-item role="menuitemradio"
+                  [class.selected-option]="prefs.pageAnimation() === opt.value"
+                  [attr.aria-checked]="prefs.pageAnimation() === opt.value"
+                  (click)="choose(opt.value)" [attr.aria-label]="'Page transition: ' + opt.label">
+            <mat-icon>{{ opt.icon }}</mat-icon>
+            {{ opt.label }}
+          </button>
+        }
+      </mat-menu>
+    }
   `,
   styles: [`
     /* Selected-state highlight (1.10.0): the panel renders in a CDK overlay, so
@@ -111,7 +150,12 @@ export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
 })
 export class ReaderSettingsMenuComponent {
   readonly prefs = inject(ReaderPreferencesService);
+  readonly webtoonNav = inject(WebtoonNavPreferencesService);
   readonly options = PAGE_ANIMATION_OPTIONS;
+  readonly tapStepOptions = WEBTOON_TAP_STEP_OPTIONS;
+
+  /** The reader's current view: webtoon swaps the transition menu for tap-to-scroll. */
+  readonly view = input<ReaderView>('paged');
 
   /** Emitted when the transition menu opens / closes, so the reader can pin chrome. */
   readonly opened = output<void>();
@@ -119,6 +163,10 @@ export class ReaderSettingsMenuComponent {
 
   choose(mode: PageAnimation): void {
     this.prefs.setPageAnimation(mode);
+  }
+
+  chooseTapStep(step: WebtoonTapStep): void {
+    this.webtoonNav.setTapStep(step);
   }
 }
 
@@ -135,6 +183,8 @@ export interface ReaderOptionsHost {
   readonly view: Signal<ReaderView>;
   readonly viewPref: Signal<ViewPref | null>;
   readonly coverIsStandalone: Signal<boolean>;
+  /** Narrow portrait screen: a chosen double page renders as single pages (1.11.0). */
+  readonly narrowPortrait: Signal<boolean>;
   readonly fitMode: Signal<FitMode>;
   readonly direction: Signal<ReadingDirection>;
   readonly webtoonWidthPct: Signal<number>;
@@ -207,6 +257,12 @@ export interface ReaderOptionsHost {
             </button>
           }
         </div>
+        @if (host.view() === 'spread' && host.narrowPortrait()) {
+          <!-- 1.11.0 adaptive double page: the pick is kept (chip stays checked) but
+               this screen shows single pages; say so here rather than with a snackbar
+               that would land under the sheet. -->
+          <p class="note">Shows one page at a time on this narrow screen; double page returns in landscape.</p>
+        }
       </section>
 
       @if (host.view() === 'webtoon') {
@@ -218,6 +274,19 @@ export interface ReaderOptionsHost {
             <input matSliderThumb [value]="host.webtoonWidthPct()"
                    (valueChange)="host.setWebtoonWidth($event)" aria-labelledby="reader-options-width">
           </mat-slider>
+        </section>
+        <section class="group">
+          <h3 class="group-label" id="reader-options-tap">Tap to scroll</h3>
+          <div class="chips" role="radiogroup" aria-labelledby="reader-options-tap">
+            @for (opt of tapStepOptions; track opt.value) {
+              <button type="button" class="chip" role="radio"
+                      [class.selected]="webtoonNav.tapStep() === opt.value"
+                      [attr.aria-checked]="webtoonNav.tapStep() === opt.value"
+                      (click)="webtoonNav.setTapStep(opt.value)">
+                @if (opt.icon) { <mat-icon aria-hidden="true">{{ opt.icon }}</mat-icon> }{{ opt.label }}
+              </button>
+            }
+          </div>
         </section>
       } @else {
         <section class="group">
@@ -309,6 +378,7 @@ export interface ReaderOptionsHost {
     }
     .group-label .value { font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0; font-weight: 500; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .note { margin: 0; font-size: 12px; line-height: 16px; color: var(--mat-sys-on-surface-variant, #8a8a99); }
     /* Chips: 44px touch targets, the option's own glyph, and the accent highlight
        (not a tick) for the selected one. */
     .chip {
@@ -335,12 +405,14 @@ export interface ReaderOptionsHost {
 export class ReaderOptionsSheetComponent {
   readonly host = inject<ReaderOptionsHost>(MAT_BOTTOM_SHEET_DATA);
   readonly prefs = inject(ReaderPreferencesService);
+  readonly webtoonNav = inject(WebtoonNavPreferencesService);
   private readonly ref = inject<MatBottomSheetRef<ReaderOptionsSheetComponent>>(MatBottomSheetRef);
 
   readonly layoutOptions = LAYOUT_OPTIONS;
   readonly fitOptions = FIT_OPTIONS;
   readonly directionOptions = DIRECTION_OPTIONS;
   readonly transitionOptions = PAGE_ANIMATION_OPTIONS;
+  readonly tapStepOptions = WEBTOON_TAP_STEP_OPTIONS;
 
   /**
    * The layout chip to highlight: the EFFECTIVE layout on screen. Coincides with

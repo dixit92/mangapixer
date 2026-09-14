@@ -9,6 +9,7 @@ import {
   ReaderView, ViewPref, FitMode, ReadingDirection,
 } from './reader-settings-menu.component';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
+import { WebtoonNavPreferencesService } from './webtoon-nav.service';
 
 describe('ReaderSettingsMenuComponent', () => {
   function create() {
@@ -72,6 +73,33 @@ describe('ReaderSettingsMenuComponent', () => {
     expect(byLabel('Slide').getAttribute('aria-checked')).toBe('false');
     for (const i of items) expect(i.querySelector('mat-icon')?.textContent?.trim()).not.toBe('check');
   });
+
+  /**
+   * 1.11.0: in the webtoon view the same toolbar slot offers the tap-to-scroll
+   * step instead of a page transition (which is meaningless while scrolling).
+   * One trigger per view, never two; the active step carries the same highlight.
+   */
+  it('webtoon view: the slot becomes Tap to scroll (Off / 80 / 90 / 100), highlighted like the transition menu', () => {
+    const { fixture, c } = create();
+    fixture.componentRef.setInput('view', 'webtoon');
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('button[aria-label="Page transition"]')).toBeNull();
+    const trigger = host.querySelector('button[aria-label="Tap to scroll"]') as HTMLElement;
+    expect(trigger).toBeTruthy();
+    trigger.click();
+    fixture.detectChanges();
+    const panel = Array.from(document.querySelectorAll<HTMLElement>('.reader-options-menu')).at(-1)!;
+    const items = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'));
+    expect(items.map((i) => i.getAttribute('aria-label')))
+      .toEqual(['Tap to scroll: Off', 'Tap to scroll: 80%', 'Tap to scroll: 90%', 'Tap to scroll: 100%']);
+    expect(items.map((i) => i.getAttribute('aria-checked'))).toEqual(['false', 'false', 'true', 'false']); // default 90
+    expect(items[2].classList.contains('selected-option')).toBe(true);
+    c.chooseTapStep(100);
+    fixture.detectChanges();
+    expect(TestBed.inject(WebtoonNavPreferencesService).tapStep()).toBe(100);
+    expect(items[3].getAttribute('aria-checked')).toBe('true');
+  });
 });
 
 /**
@@ -84,14 +112,15 @@ describe('ReaderSettingsMenuComponent', () => {
 describe('ReaderOptionsSheetComponent', () => {
   function makeHost(overrides: Partial<{
     view: ReaderView; viewPref: ViewPref | null; cover: boolean; fit: FitMode; dir: ReadingDirection;
-    prev: boolean; next: boolean;
+    prev: boolean; next: boolean; narrow: boolean;
   }> = {}) {
     const o = { view: 'paged' as ReaderView, viewPref: null as ViewPref | null, cover: true, fit: 'screen' as FitMode,
-      dir: 'ltr' as ReadingDirection, prev: false, next: true, ...overrides };
+      dir: 'ltr' as ReadingDirection, prev: false, next: true, narrow: false, ...overrides };
     const host: ReaderOptionsHost = {
       view: signal(o.view),
       viewPref: signal(o.viewPref),
       coverIsStandalone: signal(o.cover),
+      narrowPortrait: signal(o.narrow),
       fitMode: signal(o.fit),
       direction: signal(o.dir),
       webtoonWidthPct: signal(70),
@@ -201,6 +230,25 @@ describe('ReaderOptionsSheetComponent', () => {
     expect(el.querySelector('[aria-labelledby="reader-options-transition"]')).toBeNull();
     expect(el.querySelector('mat-slider.width-slider input')).toBeTruthy();
     expect(el.querySelector('#reader-options-width')?.textContent).toContain('70%');
+  });
+
+  it('webtoon: offers the Tap to scroll step (Off / 80 / 90 / 100, default 90) as a fifth radio group (1.11.0)', () => {
+    const { chips, checked, chip } = create(makeHost({ view: 'webtoon' }));
+    expect(chips('reader-options-tap').map((c) => (c.textContent ?? '').trim().replace(/^block/, '').trim()))
+      .toEqual(['Off', '80%', '90%', '100%']);
+    expect(checked('reader-options-tap')[0].textContent).toContain('90%');
+    chip('reader-options-tap', 'Off').click();
+    expect(TestBed.inject(WebtoonNavPreferencesService).tapStep()).toBe(0);
+    expect(localStorage.getItem(WebtoonNavPreferencesService.TapStepKey)).toBe('0');
+  });
+
+  it('double page on a narrow portrait screen keeps the chip checked and explains the single-page render inline (1.11.0)', () => {
+    const { el, checked } = create(makeHost({ view: 'spread', viewPref: 'spread', cover: true, narrow: true }));
+    expect(checked('reader-options-layout')[0].textContent).toContain('Double, cover alone');
+    expect(el.querySelector('.note')?.textContent).toContain('one page at a time');
+    // No note when the screen is not narrow-portrait, or the layout is not double page.
+    expect(create(makeHost({ view: 'spread', viewPref: 'spread', narrow: false })).el.querySelector('.note')).toBeNull();
+    expect(create(makeHost({ view: 'paged', narrow: true })).el.querySelector('.note')).toBeNull();
   });
 
   it('chapter buttons reflect neighbour availability and close the sheet BEFORE navigating', () => {

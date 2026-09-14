@@ -6,14 +6,16 @@ import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { BreakpointObserver } from '@angular/cdk/layout';
+import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 import { MatBottomSheet, MatBottomSheetRef } from '@angular/material/bottom-sheet';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { of, Subject } from 'rxjs';
 
 import { ReaderComponent } from './reader.component';
 import { ReaderOptionsSheetComponent } from './reader-settings-menu.component';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
+import { WebtoonNavPreferencesService } from './webtoon-nav.service';
 import { ManifestPageEntry, CatalogNodeDto } from '../../core/api/api-types';
 
 function makePages(n: number): ManifestPageEntry[] {
@@ -854,12 +856,15 @@ describe('ReaderComponent swipe gestures (requirement 1)', () => {
       expect(c.currentPage()).toBe(1);
     });
 
-    it('does not swipe-navigate in webtoon (native vertical scroll is preserved)', () => {
+    it('never turns a PAGE in webtoon; with tap-to-scroll off it claims nothing at all (1.11.0)', () => {
       const c = paged();
       c.view.set('webtoon');
+      TestBed.inject(WebtoonNavPreferencesService).setTapStep(0);
+      const step = vi.spyOn(c, 'scrollWebtoonBy');
       c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
       c.onReaderPointerUp(pointer({ pointerId: 1, clientX: 60, clientY: 305, timeStamp: 100 }));
       expect(c.currentPage()).toBe(1);
+      expect(step).not.toHaveBeenCalled();
     });
 
     it('suppresses the ghost edge/center tap that follows a completed swipe', () => {
@@ -1464,6 +1469,15 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
     ]);
   });
 
+  it('DESKTOP webtoon: the settings slot offers Tap to scroll instead of Page transition (1.11.0)', () => {
+    const { c, fixture, labels } = render(false);
+    c.view.set('webtoon');
+    fixture.detectChanges();
+    expect(labels()).toContain('Tap to scroll');
+    expect(labels()).not.toContain('Page transition');
+    expect(labels().filter((l) => l === 'Tap to scroll' || l === 'Page transition').length).toBe(1); // one slot
+  });
+
   it('PHONE webtoon: the bar width slider moves into the sheet too', () => {
     const { c, el, fixture } = render(true);
     c.view.set('webtoon');
@@ -1556,5 +1570,381 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
     expect(itemByLabel(panel, 'Fit screen').classList.contains('selected-option')).toBe(false);
     expect(itemByLabel(panel, 'Fit screen').getAttribute('aria-checked')).toBe('false');
     expect(panel.querySelectorAll('mat-icon').length).toBe(4); // every option keeps a glyph
+  });
+});
+
+/**
+ * 1.11.0 Lane B - webtoon tap-to-scroll (requirement 11). Free scroll stays the
+ * default; on top of it a tap resolves by vertical thirds (top = back a screen,
+ * bottom = forward, centre = toggle chrome) and a horizontal swipe steps a screen.
+ * The step is a per-device preference (`WebtoonNavPreferencesService`); 0 = off
+ * restores the pre-1.11.0 "tap anywhere toggles chrome" reader. Driven through
+ * the public handlers with a fake scroller (deterministic geometry).
+ */
+describe('ReaderComponent webtoon tap-to-scroll (1.11.0)', () => {
+  function create() {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    localStorage.clear();
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.itemId.set('item-1');
+    c.pages.set(makePages(10));
+    c.view.set('webtoon');
+    c.phase.set('ready');
+    return c;
+  }
+
+  /** A fake scroller: 600px tall viewport over a 5000px strip, positioned at y=100 on screen. */
+  function useFakeScroller(c: ReaderComponent, scrollTop = 1000) {
+    const calls: ScrollToOptions[] = [];
+    const el = {
+      scrollTop, clientHeight: 600, scrollHeight: 5000,
+      getBoundingClientRect: () => ({ top: 100, height: 600 }) as DOMRect,
+      scrollTo: (opts: ScrollToOptions) => calls.push(opts),
+      querySelectorAll: () => [],
+    } as unknown as HTMLElement;
+    (c as unknown as { scroller: () => { nativeElement: HTMLElement } }).scroller = () => ({ nativeElement: el });
+    return { el, calls };
+  }
+
+  function tap(clientY: number, target: Partial<HTMLElement> = {}): MouseEvent {
+    return { clientY, target: { closest: () => null, ...target } } as unknown as MouseEvent;
+  }
+
+  it('defaults to a 90% step (on) per device, persisted in localStorage', () => {
+    create();
+    const nav = TestBed.inject(WebtoonNavPreferencesService);
+    expect(nav.tapStep()).toBe(90);
+    expect(nav.tapZonesEnabled()).toBe(true);
+    nav.setTapStep(80);
+    expect(localStorage.getItem(WebtoonNavPreferencesService.TapStepKey)).toBe('80');
+    nav.setTapStep(0);
+    expect(nav.tapZonesEnabled()).toBe(false);
+  });
+
+  it('bottom third scrolls forward ~one screen (90% overlap step), top third scrolls back', () => {
+    const c = create();
+    const { calls } = useFakeScroller(c, 1000);
+    c.onWebtoonTap(tap(100 + 550)); // bottom third of a 600px viewport starting at y=100
+    expect(calls.at(-1)).toEqual({ top: 1540, behavior: 'smooth' }); // 1000 + 0.9 * 600
+    c.onWebtoonTap(tap(100 + 50)); // top third
+    expect(calls.at(-1)).toEqual({ top: 460, behavior: 'smooth' });  // 1000 - 540
+  });
+
+  it('centre third toggles the chrome (fullscreen) instead of scrolling', () => {
+    const c = create();
+    const { calls } = useFakeScroller(c);
+    c.isFullscreen.set(true);
+    c.chromeVisible.set(true);
+    c.onWebtoonTap(tap(100 + 300));
+    expect(calls.length).toBe(0);
+    expect(c.chromeVisible()).toBe(false);
+  });
+
+  it('honours the chosen step and clamps at both ends of the strip', () => {
+    const c = create();
+    TestBed.inject(WebtoonNavPreferencesService).setTapStep(100);
+    const { el, calls } = useFakeScroller(c, 4200); // 200px from the bottom (max 4400)
+    c.onWebtoonTap(tap(100 + 590));
+    expect(calls.at(-1)).toEqual({ top: 4400, behavior: 'smooth' }); // clamped, not 4800
+    (el as unknown as { scrollTop: number }).scrollTop = 4400;
+    c.onWebtoonTap(tap(100 + 590));
+    expect(calls.length).toBe(1); // already at the bottom: nothing to do, and NO chapter advance
+  });
+
+  it('off: a tap anywhere toggles the chrome (the pre-1.11.0 reader) and the scroller stays fully native', () => {
+    const c = create();
+    TestBed.inject(WebtoonNavPreferencesService).setTapStep(0);
+    const { calls } = useFakeScroller(c);
+    c.isFullscreen.set(true);
+    c.chromeVisible.set(true);
+    c.onWebtoonTap(tap(100 + 590)); // bottom third would scroll if zones were on
+    expect(calls.length).toBe(0);
+    expect(c.chromeVisible()).toBe(false);
+    expect(c.webtoonTouchAction()).toBeNull();
+  });
+
+  it('touch-action claims horizontal drags only while on and not pinch-zoomed', () => {
+    const c = create();
+    expect(c.webtoonTouchAction()).toBe('pan-y pinch-zoom');
+    c.zoomed.set(true);
+    expect(c.webtoonTouchAction()).toBeNull();
+  });
+
+  it('a tap on the end-of-chapter footer buttons is left to the button', () => {
+    const c = create();
+    const { calls } = useFakeScroller(c);
+    const button = document.createElement('button');
+    c.onWebtoonTap(tap(100 + 590, { closest: (sel: string) => (sel === 'button' ? button : null) } as Partial<HTMLElement>));
+    expect(calls.length).toBe(0);
+  });
+
+  it('a horizontal swipe steps a screen (left = forward, right = back) and swallows its ghost click', () => {
+    const c = create();
+    const { calls } = useFakeScroller(c, 1000);
+    c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
+    c.onReaderPointerMove(pointer({ pointerId: 1, clientX: 140, clientY: 302, timeStamp: 60 }));
+    expect(c.swipeDx()).toBe(0); // the strip never follows the finger sideways
+    c.onReaderPointerUp(pointer({ pointerId: 1, clientX: 90, clientY: 305, timeStamp: 100 }));
+    expect(calls.at(-1)).toEqual({ top: 1540, behavior: 'smooth' });
+    c.onWebtoonTap(tap(100 + 590)); // the click the browser synthesizes on release
+    expect(calls.length).toBe(1);
+
+    c.onReaderPointerDown(pointer({ pointerId: 2, clientX: 90, clientY: 300, timeStamp: 1000 }));
+    c.onReaderPointerUp(pointer({ pointerId: 2, clientX: 200, clientY: 300, timeStamp: 1100 }));
+    expect(calls.at(-1)).toEqual({ top: 460, behavior: 'smooth' });
+  });
+
+  it('a vertical drag in webtoon is never ours (native scroll), and currentPage is untouched by gestures', () => {
+    const c = create();
+    const { calls } = useFakeScroller(c);
+    c.currentPage.set(3);
+    c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
+    c.onReaderPointerMove(pointer({ pointerId: 1, clientX: 202, clientY: 340, timeStamp: 30 })); // locks 'y'
+    c.onReaderPointerUp(pointer({ pointerId: 1, clientX: 60, clientY: 345, timeStamp: 100 }));
+    expect(calls.length).toBe(0);
+    expect(c.currentPage()).toBe(3);
+  });
+
+  it('scrolls instantly under prefers-reduced-motion', () => {
+    const c = create();
+    const { calls } = useFakeScroller(c, 1000);
+    const original = window.matchMedia;
+    window.matchMedia = (() => ({ matches: true })) as unknown as typeof window.matchMedia;
+    try {
+      c.scrollWebtoonBy(1);
+    } finally {
+      window.matchMedia = original;
+    }
+    expect(calls.at(-1)).toEqual({ top: 1540, behavior: 'auto' });
+  });
+});
+
+/**
+ * 1.11.0 Lane B - adaptive double page (requirement 12). A synthetic two-up
+ * spread on a narrow PORTRAIT screen (CDK HandsetPortrait) makes each page tiny,
+ * so the reader renders single pages there while the CHOSEN mode stays "Double
+ * page" (menus keep highlighting it, the preference persists) and the pairing
+ * comes back the moment the device is rotated / widened. Only the app's own
+ * pairing is gated: a wide source page (a stitched spread) renders exactly as it
+ * always did, alone and full width. Breakpoints are stubbed per query.
+ */
+describe('ReaderComponent adaptive double page on narrow portrait (1.11.0)', () => {
+  function create(narrowPortrait: boolean) {
+    const matches = (q: string | readonly string[]) => q === Breakpoints.HandsetPortrait && narrowPortrait;
+    const breakpoints = {
+      observe: (q: string | readonly string[]) => of({ matches: matches(q), breakpoints: {} }),
+      isMatched: (q: string | readonly string[]) => matches(q),
+    };
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [...baseProviders(), { provide: BreakpointObserver, useValue: breakpoints }],
+    });
+    localStorage.clear();
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.itemId.set('item-1');
+    c.pages.set(makePages(6)); // standalone cover: [0],[1,2],[3,4],[5]
+    c.coverIsStandalone.set(true);
+    c.view.set('spread');
+    c.phase.set('ready');
+    return c;
+  }
+  const effectiveIndex = (c: ReaderComponent) =>
+    (c as unknown as { effectivePageIndex: () => number }).effectivePageIndex();
+
+  it('renders single pages, steps one page at a time and persists a single-page index, while view() stays spread', () => {
+    const c = create(true);
+    expect(c.narrowPortrait()).toBe(true);
+    expect(c.view()).toBe('spread');          // the choice (menus highlight it)
+    expect(c.effectiveView()).toBe('paged');  // what is on screen
+    c.currentPage.set(1);
+    expect(c.currentSpreadEntries().map((e) => e.entryKey)).toEqual(['p1']);
+    c.nextPage();
+    expect(c.currentPage()).toBe(2);          // not 3 (the next pair)
+    expect(effectiveIndex(c)).toBe(2);        // progress is the page shown, not a pair's last index
+    c.currentPage.set(5);
+    expect((c as unknown as { isAtEnd: () => boolean }).isAtEnd()).toBe(true);
+  });
+
+  it('keeps the two-up pairing on a wide / landscape screen', () => {
+    const c = create(false);
+    expect(c.effectiveView()).toBe('spread');
+    c.currentPage.set(1);
+    expect(c.currentSpreadEntries().map((e) => e.entryKey)).toEqual(['p1', 'p2']);
+    c.nextPage();
+    expect(c.currentPage()).toBe(3);
+    expect(effectiveIndex(c)).toBe(4);
+  });
+
+  it('is live: the pairing comes straight back when the screen stops being narrow portrait', () => {
+    const narrow = new Subject<{ matches: boolean; breakpoints: Record<string, boolean> }>();
+    const breakpoints = {
+      observe: (q: string | readonly string[]) =>
+        q === Breakpoints.HandsetPortrait ? narrow : of({ matches: false, breakpoints: {} }),
+      isMatched: (q: string | readonly string[]) => q === Breakpoints.HandsetPortrait,
+    };
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [...baseProviders(), { provide: BreakpointObserver, useValue: breakpoints }],
+    });
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.pages.set(makePages(6));
+    c.view.set('spread');
+    c.currentPage.set(1);
+    expect(c.currentSpreadEntries().length).toBe(1);
+    narrow.next({ matches: false, breakpoints: {} }); // rotated to landscape
+    expect(c.narrowPortrait()).toBe(false);
+    expect(c.currentSpreadEntries().length).toBe(2);
+  });
+
+  it('never touches the pairing model itself, nor single-page / webtoon views', () => {
+    const c = create(true);
+    expect(c.spreads()).toEqual([[0], [1, 2], [3, 4], [5]]); // spreads() is the model; only rendering is gated
+    c.view.set('paged');
+    expect(c.effectiveView()).toBe('paged');
+    c.view.set('webtoon');
+    expect(c.effectiveView()).toBe('webtoon');
+  });
+
+  it('leaves a natural wide page (stitched spread) exactly as before: alone, in either orientation', () => {
+    for (const narrow of [true, false]) {
+      const c = create(narrow);
+      const pages = makePages(4);
+      pages[2] = { ...pages[2], width: 2000, height: 1200 }; // a landscape source page
+      c.pages.set(pages);
+      c.coverIsStandalone.set(false);
+      expect(c.spreads()).toEqual([[0, 1], [2], [3]]);
+      c.currentPage.set(2);
+      expect(c.currentSpreadEntries().map((e) => e.entryKey)).toEqual(['p2']);
+      TestBed.resetTestingModule();
+    }
+  });
+
+  it('chooseSpread on a narrow portrait screen keeps the choice (persisted) and says why the page did not change', () => {
+    const c = create(true);
+    // The reader's own instance: MatSnackBarModule provides MatSnackBar in the
+    // standalone component's environment injector, not the TestBed root.
+    const snack = vi.spyOn((c as unknown as { snackBar: MatSnackBar }).snackBar, 'open')
+      .mockImplementation(() => ({}) as never);
+    c.view.set('paged');
+    c.chooseSpread(true);
+    expect(c.view()).toBe('spread');
+    expect(c.viewPref()).toBe('spread');
+    expect(localStorage.getItem('mangaplex-reader-view')).toBe('spread');
+    expect(snack).toHaveBeenCalledTimes(1);
+    expect(String(snack.mock.calls[0][0])).toContain('landscape');
+    // The phone sheet carries the note inline, so no toast is stacked under it.
+    c.optionsOpen.set(true);
+    c.chooseSpread(false);
+    expect(snack).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not toast on a wide screen', () => {
+    const c = create(false);
+    // The reader's own instance: MatSnackBarModule provides MatSnackBar in the
+    // standalone component's environment injector, not the TestBed root.
+    const snack = vi.spyOn((c as unknown as { snackBar: MatSnackBar }).snackBar, 'open')
+      .mockImplementation(() => ({}) as never);
+    c.chooseSpread(true);
+    expect(snack).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 1.11.0 Lane B - page-turn ghost (requirement 13). The page(s) just left stay
+ * rendered underneath the incoming row for the length of the Slide / Reveal
+ * transition, so the wipe / push runs over the OLD page instead of the dark
+ * background, then they are dropped. Never held where no transition plays.
+ */
+describe('ReaderComponent page-turn ghost (1.11.0)', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+
+  function create(animation: 'slide' | 'reveal' | 'none') {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    localStorage.clear();
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    TestBed.inject(ReaderPreferencesService).setPageAnimation(animation);
+    c.itemId.set('item-1');
+    c.pages.set(makePages(6));
+    c.view.set('paged');
+    c.phase.set('ready');
+    c.currentPage.set(2);
+    return c;
+  }
+  const go = (c: ReaderComponent, n: number) => (c as unknown as { goToPage: (n: number) => void }).goToPage(n);
+
+  it('Slide: holds the outgoing page for the 220ms transition, then drops it', () => {
+    const c = create('slide');
+    go(c, 3);
+    expect(c.currentPage()).toBe(3);
+    expect(c.outgoing().map((e) => e.entryKey)).toEqual(['p2']);
+    vi.advanceTimersByTime(219);
+    expect(c.outgoing().length).toBe(1);
+    vi.advanceTimersByTime(1);
+    expect(c.outgoing()).toEqual([]);
+  });
+
+  it('Reveal: holds for the 300ms wipe (the durations mirror the CSS)', () => {
+    const c = create('reveal');
+    go(c, 1);
+    expect(c.outgoing().map((e) => e.entryKey)).toEqual(['p2']);
+    vi.advanceTimersByTime(299);
+    expect(c.outgoing().length).toBe(1);
+    vi.advanceTimersByTime(1);
+    expect(c.outgoing()).toEqual([]);
+  });
+
+  it('a second turn inside the window replaces the ghost and restarts the clock', () => {
+    const c = create('slide');
+    go(c, 3);
+    vi.advanceTimersByTime(150);
+    go(c, 4);
+    expect(c.outgoing().map((e) => e.entryKey)).toEqual(['p3']);
+    vi.advanceTimersByTime(150); // 300ms after the first turn: the second is still playing
+    expect(c.outgoing().length).toBe(1);
+    vi.advanceTimersByTime(70);
+    expect(c.outgoing()).toEqual([]);
+  });
+
+  it('Double page: the whole outgoing pair is held', () => {
+    const c = create('slide');
+    c.view.set('spread');
+    c.coverIsStandalone.set(true); // [0],[1,2],[3,4],[5]
+    c.currentPage.set(1);
+    c.nextPage();
+    expect(c.currentPage()).toBe(3);
+    expect(c.outgoing().map((e) => e.entryKey)).toEqual(['p1', 'p2']);
+  });
+
+  it('is never held for None, where the animation is gated off, or under reduced motion', () => {
+    const none = create('none');
+    go(none, 3);
+    expect(none.outgoing()).toEqual([]);
+    TestBed.resetTestingModule();
+
+    const zoomed = create('slide');
+    zoomed.zoomed.set(true); // pageAnimActive false: no transition, so no ghost either
+    go(zoomed, 3);
+    expect(zoomed.outgoing()).toEqual([]);
+    TestBed.resetTestingModule();
+
+    const reduced = create('reveal');
+    const original = window.matchMedia;
+    window.matchMedia = (() => ({ matches: true })) as unknown as typeof window.matchMedia;
+    try {
+      go(reduced, 3);
+    } finally {
+      window.matchMedia = original;
+    }
+    expect(reduced.outgoing()).toEqual([]);
+  });
+
+  it('ngOnDestroy clears a pending ghost timer', () => {
+    const c = create('reveal');
+    go(c, 3);
+    const before = vi.getTimerCount();
+    expect(before).toBeGreaterThan(0);
+    c.ngOnDestroy();
+    expect(vi.getTimerCount()).toBeLessThan(before);
   });
 });
