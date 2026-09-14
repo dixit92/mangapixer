@@ -118,9 +118,20 @@
          is hidden unless the sort is Name, and selecting a recency sort snaps the stored direction
          to desc. No API surface change (the direction param is simply ignored for recency) and no
          schema change -> PATCH per SemVer 2.0.0. -->
+    <!-- 1.11.0 - additive MINOR over 1.10.4 (2026-09-14). UI/UX cycle, 3 parallel lanes: (A) browse
+         read-state filter now applies to series FOLDERS by recursive descendant rollup (reusing
+         ResolveFolderReadRollupsAsync + FolderReadRollupRules.Classify, composed with keyset paging),
+         a new additive `hideEmpty` browse param that hides folders with no archive descendants
+         (composes with the read-state filter), and upward/backward infinite-scroll after a jump (new
+         additive `before` browse param + PageResponse PrevCursor/HasPrevious, name-sort only); (B)
+         reader webtoon tap-zones + swipe (configurable step, free-scroll default preserved), adaptive
+         double-page (single in narrow portrait, wide spreads untouched), and a Reveal page-turn wipe
+         over a page ghost; (C) a home "New chapters" row grouped by library (new RecentChapters
+         endpoint). Additive API only (new browse query params, new PageResponse fields, one new
+         endpoint), no schema change -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.11.x. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>10</MangaPlexVersionMinor>
-    <MangaPlexVersionPatch>4</MangaPlexVersionPatch>
+    <MangaPlexVersionMinor>11</MangaPlexVersionMinor>
+    <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
