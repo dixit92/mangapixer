@@ -173,7 +173,7 @@ import { readerModeGlyph } from './reader-mode-glyph';
        here, rather than falling back to the old cramped rail. page-mode is
        untouched by this query and keeps its normal full-width vertical list at
        every viewport width - that page IS the phone experience. */
-    @media (max-width: 700px) {
+    @media (max-width: 599.98px) {
       .sidebar:not(.page-mode) {
         display: none;
       }

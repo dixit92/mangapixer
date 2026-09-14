@@ -182,15 +182,15 @@ export class LayoutComponent {
   );
 
   /**
-   * True on phone-width viewports (1.10.0, F3). Uses the same `700px` threshold
-   * as `library-sidebar.component`'s own phone media query, so "phone" means the
-   * same thing here as it does there. iPad's smallest portrait width (768px) is
-   * comfortably above this, so tablet/desktop are unaffected - only phone gets
-   * the separate-page treatment. `BreakpointObserver.observe` emits
+   * True on phone-width viewports. 1.10.2: harmonized to `599.98px` (Material XSmall)
+   * - the single phone cutoff shared across browse, reader, and this shell/sidebar, so
+   * "phone" means the same width everywhere. iPad's smallest portrait width (768px) is
+   * comfortably above this, so tablet/desktop are unaffected - only phone gets the
+   * separate-page treatment. `BreakpointObserver.observe` emits
    * synchronously on subscribe, so `toSignal` picks up the correct value before
    * first render (the `initialValue` is just a type-level fallback).
    */
-  private static readonly PhoneQuery = '(max-width: 700px)';
+  private static readonly PhoneQuery = '(max-width: 599.98px)';
   readonly isPhone = toSignal(
     this.breakpointObserver.observe(LayoutComponent.PhoneQuery).pipe(map((state) => state.matches)),
     { initialValue: false },
