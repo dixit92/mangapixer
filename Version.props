@@ -110,9 +110,17 @@
          setWebtoonWidth/loadWebtoonWidth clamps). (2) the app-shell library sidebar now defaults to
          COLLAPSED when no preference is stored (owner preference); an explicit stored choice is
          still respected and page-mode is unaffected. -->
+    <!-- 1.10.4 - PATCH over 1.10.3 (2026-09-14). Recency sorts are now inherently newest-first
+         and the ascending/descending toggle is removed for them - it was a misnomer: an ascending
+         "Recently added" put the OLDEST item at the top, contradicting the label. Server:
+         CatalogBrowseService forces Descending for recentlyAdded/recentlyRead, IGNORING the
+         direction param (Name still honors the toggle, default ascending). Web: the Order submenu
+         is hidden unless the sort is Name, and selecting a recency sort snaps the stored direction
+         to desc. No API surface change (the direction param is simply ignored for recency) and no
+         schema change -> PATCH per SemVer 2.0.0. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
     <MangaPlexVersionMinor>10</MangaPlexVersionMinor>
-    <MangaPlexVersionPatch>3</MangaPlexVersionPatch>
+    <MangaPlexVersionPatch>4</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
