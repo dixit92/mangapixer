@@ -597,8 +597,101 @@ public sealed class CatalogHttpTests : IClassFixture<MangaPlexWebApplicationFact
         Assert.Equal(3, (await BrowseFilteredAsync("&parentId=rsSeries", "all")).Count);
         Assert.Equal(3, (await BrowseFilteredAsync("&parentId=rsSeries", "bogus")).Count);
 
-        // At the library root the filter keeps the Series folder (folders are always
-        // navigable regardless of the filter) — proving it works "at any folder level".
-        Assert.Equal(new[] { "rsSeries" }, (await BrowseFilteredAsync(string.Empty, "read")).ToArray());
+        // At the library root the Series folder is now filtered by its descendant rollup
+        // (1.11.0). Ch1 read + Ch2 in-progress + Ch3 unread => Series rolls up to Reading,
+        // so it survives the Reading filter and is hidden by Read/Unread (proving folder
+        // filtering works "at any folder level" — the owner's "filters do not work" fix).
+        Assert.Empty(await BrowseFilteredAsync(string.Empty, "read"));
+        Assert.Equal(new[] { "rsSeries" }, (await BrowseFilteredAsync(string.Empty, "reading")).ToArray());
+        Assert.Empty(await BrowseFilteredAsync(string.Empty, "unread"));
+    }
+
+    /// <summary>
+    /// 1.11.0 hide-empty filter and backward (upward) keyset paging through the public
+    /// surface. hideEmpty drops folders whose subtree has no archive; a `before` cursor
+    /// returns the page above a window and reports PrevCursor/HasPrevious for upward
+    /// infinite-scroll after a jump.
+    /// </summary>
+    [Fact]
+    public async Task Browse_HideEmptyAndBackwardPaging_ThroughApi()
+    {
+        var client = await GetAuthenticatedClientAsync();
+
+        string libPublicId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var library = new LibraryEntity
+            {
+                PublicId = "hideemptylib",
+                DisplayName = "Hide Empty Library",
+                RootPath = "/tmp/hideempty",
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.Libraries.Add(library);
+            await db.SaveChangesAsync();
+            libPublicId = library.PublicId;
+
+            // An empty folder + a folder containing an archive + six root-level archives a..f.
+            var empty = new CatalogNodeEntity
+            {
+                PublicId = "heEmpty", LibraryId = library.Id, Kind = 0, DisplayName = "Empty",
+                RelativePath = "Empty", PathKey = "empty", SortKey = "00Empty", Availability = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            var full = new CatalogNodeEntity
+            {
+                PublicId = "heFull", LibraryId = library.Id, Kind = 0, DisplayName = "Full",
+                RelativePath = "Full", PathKey = "full", SortKey = "01Full", Availability = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.CatalogNodes.AddRange(empty, full);
+            await db.SaveChangesAsync();
+            db.CatalogNodes.Add(new CatalogNodeEntity
+            {
+                PublicId = "heFullCh", LibraryId = library.Id, ParentId = full.Id, Kind = 1,
+                DisplayName = "F Ch", RelativePath = "Full/F Ch", PathKey = "full/f ch",
+                SortKey = "1full", Availability = 0, CreatedAt = DateTimeOffset.UtcNow,
+            });
+            foreach (var c in "abcdef")
+                db.CatalogNodes.Add(new CatalogNodeEntity
+                {
+                    PublicId = $"he{c}", LibraryId = library.Id, Kind = 1, DisplayName = $"Ch {c}",
+                    RelativePath = $"Ch {c}", PathKey = $"ch {c}", SortKey = $"1{c}", Availability = 0,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                });
+            await db.SaveChangesAsync();
+        }
+
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        jsonOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+
+        // Pin direction=asc so backward paging is deterministic regardless of any stored
+        // per-user sort-direction preference in the shared test host.
+        async Task<PageResponse<CatalogNodeDto>> BrowseAsync(string query)
+        {
+            var response = await client.GetAsync($"/api/v1/libraries/{libPublicId}/browse?sort=name&direction=asc&{query}");
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<PageResponse<CatalogNodeDto>>(jsonOptions))!;
+        }
+
+        // hideEmpty drops the empty folder but keeps the archive-bearing one.
+        var hidden = await BrowseAsync("hideEmpty=true");
+        var hiddenIds = hidden.Items.Select(n => n.Id).ToHashSet();
+        Assert.DoesNotContain("heEmpty", hiddenIds);
+        Assert.Contains("heFull", hiddenIds);
+
+        // Backward paging: the page before "1c" (pageSize 2) is [Ch a, Ch b], ascending.
+        // The two folders (00Empty, 01Full) sort before the archives, so a further page
+        // above still exists; PrevCursor points at the first returned item ("1a").
+        var back = await BrowseAsync("pageSize=2&before=1c");
+        Assert.Equal(new[] { "Ch a", "Ch b" }, back.Items.Select(n => n.DisplayName).ToArray());
+        Assert.True(back.HasPrevious);
+        Assert.Equal("1a", back.PrevCursor);
+
+        // A forward page landed mid-list reports a backward cursor for scrolling up.
+        var mid = await BrowseAsync("pageSize=2&cursor=1b");
+        Assert.True(mid.HasPrevious);
+        Assert.Equal("1c", mid.PrevCursor);
     }
 }
