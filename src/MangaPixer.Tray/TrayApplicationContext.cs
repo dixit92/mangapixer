@@ -45,7 +45,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         _settingsStore = new TraySettingsStore(TraySettingsStore.DefaultDirectory);
         _settings = _settingsStore.Load();
-        _runKeyService = new RunKeyService("MangaPlex");
+        _runKeyService = new RunKeyService("MangaPixer");
         _portResolver = new ServerPortResolver();
 
         var serverExecutablePath = ServerExecutableLocator.Resolve(
@@ -56,7 +56,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _serverManager.StateChanged += (_, state) => _uiContext.Post(_ => UpdateStatusText(state), null);
 
         _statusItem = new ToolStripMenuItem("Status: Stopped") { Enabled = false };
-        var openItem = new ToolStripMenuItem("Open MangaPlex", null, (_, _) => OpenInBrowser());
+        var openItem = new ToolStripMenuItem("Open MangaPixer", null, (_, _) => OpenInBrowser());
         var startItem = new ToolStripMenuItem("Start Server", null, async (_, _) => await StartServerAsync());
         var stopItem = new ToolStripMenuItem("Stop Server", null, async (_, _) => await _serverManager.StopAsync(GracefulStopTimeout));
         var restartItem = new ToolStripMenuItem("Restart Server", null, async (_, _) => await RestartServerAsync());
@@ -66,7 +66,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _lanItem = new ToolStripMenuItem("Allow LAN Access") { CheckOnClick = true, Checked = _settings.AllowLanAccess };
         _lanItem.Click += OnLanToggleClicked;
 
-        _startupItem = new ToolStripMenuItem("Start MangaPlex When I Sign In") { CheckOnClick = true, Checked = _runKeyService.IsEnabled() };
+        _startupItem = new ToolStripMenuItem("Start MangaPixer When I Sign In") { CheckOnClick = true, Checked = _runKeyService.IsEnabled() };
         _startupItem.Click += OnStartupToggleClicked;
 
         var exitItem = new ToolStripMenuItem("Exit", null, async (_, _) => await ExitAsync());
@@ -94,7 +94,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             // via <ApplicationIcon> in the csproj) rather than the generic
             // SystemIcons.Application placeholder.
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application,
-            Text = "MangaPlex",
+            Text = "MangaPixer",
             ContextMenuStrip = menu,
             Visible = true,
         };
@@ -105,8 +105,8 @@ public sealed class TrayApplicationContext : ApplicationContext
         // one-time balloon on first run points the user at it.
         if (!_settings.HasShownTrayIntroBalloon)
         {
-            _notifyIcon.BalloonTipTitle = "MangaPlex";
-            _notifyIcon.BalloonTipText = "MangaPlex is running in the system tray — click to open.";
+            _notifyIcon.BalloonTipTitle = "MangaPixer";
+            _notifyIcon.BalloonTipText = "MangaPixer is running in the system tray — click to open.";
             _notifyIcon.ShowBalloonTip(10000);
             _settings.HasShownTrayIntroBalloon = true;
             _settingsStore.Save(_settings);
@@ -128,8 +128,8 @@ public sealed class TrayApplicationContext : ApplicationContext
         if (resolvedPort is null)
         {
             MessageBox.Show(
-                $"Could not find a free port to start MangaPlex on near {_settings.Port}.",
-                "MangaPlex",
+                $"Could not find a free port to start MangaPixer on near {_settings.Port}.",
+                "MangaPixer",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
             UpdateStatusText(ServerState.Faulted);
@@ -144,8 +144,8 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         if (explicitPort is not null && resolvedPort != explicitPort)
         {
-            _notifyIcon.BalloonTipTitle = "MangaPlex";
-            _notifyIcon.BalloonTipText = $"Port {explicitPort} was busy — MangaPlex is on {resolvedPort}.";
+            _notifyIcon.BalloonTipTitle = "MangaPixer";
+            _notifyIcon.BalloonTipText = $"Port {explicitPort} was busy — MangaPixer is on {resolvedPort}.";
             _notifyIcon.ShowBalloonTip(10000);
         }
 
@@ -171,7 +171,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         if (_lanItem.Checked)
         {
             var confirmed = MessageBox.Show(
-                "Allowing LAN access exposes MangaPlex to other devices on your local network "
+                "Allowing LAN access exposes MangaPixer to other devices on your local network "
                     + "(e.g. other computers or phones on your Wi-Fi). Only enable this on networks "
                     + "you trust, such as your home network.\n\nThis takes effect the next time the "
                     + "server restarts.",
@@ -206,7 +206,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _pendingExplicitPort = dialog.SelectedPort;
 
         var restartNow = MessageBox.Show(
-            $"MangaPlex will use port {dialog.SelectedPort} the next time the server restarts.\n\n"
+            $"MangaPixer will use port {dialog.SelectedPort} the next time the server restarts.\n\n"
                 + "Restart the server now?",
             "Set Port",
             MessageBoxButtons.YesNo,

@@ -30,7 +30,7 @@ public sealed class ServerOutputLog : IDisposable
 
     public static string DefaultFilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "MangaPlex", "logs", "server-output.log");
+        "MangaPixer", "logs", "server-output.log");
 
     public void WriteLine(string line)
     {

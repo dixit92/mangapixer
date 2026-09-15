@@ -34,7 +34,7 @@ public sealed class SetPortDialog : Form
 
         var promptLabel = new Label
         {
-            Text = "MangaPlex will use this port the next time the server restarts:",
+            Text = "MangaPixer will use this port the next time the server restarts:",
             AutoSize = false,
             Location = new Point(12, 12),
             Size = new Size(336, 32),

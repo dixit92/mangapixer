@@ -10,14 +10,14 @@ using Xunit;
 /// </summary>
 public sealed class RunKeyServiceTests : IDisposable
 {
-    private readonly string _subKeyPath = $@"Software\MangaPlexTrayTests\{Guid.NewGuid():N}";
+    private readonly string _subKeyPath = $@"Software\MangaPixerTrayTests\{Guid.NewGuid():N}";
 
     public void Dispose() => Registry.CurrentUser.DeleteSubKeyTree(_subKeyPath, throwOnMissingSubKey: false);
 
     [Fact]
     public void IsEnabled_WhenKeyNeverCreated_ReturnsFalse()
     {
-        var service = new RunKeyService("MangaPlex", _subKeyPath);
+        var service = new RunKeyService("MangaPixer", _subKeyPath);
 
         Assert.False(service.IsEnabled());
     }
@@ -25,20 +25,20 @@ public sealed class RunKeyServiceTests : IDisposable
     [Fact]
     public void Enable_ThenIsEnabled_ReturnsTrue_AndStoresQuotedPath()
     {
-        var service = new RunKeyService("MangaPlex", _subKeyPath);
+        var service = new RunKeyService("MangaPixer", _subKeyPath);
 
-        service.Enable(@"C:\Program Files\MangaPlex\MangaPixer.Tray.exe");
+        service.Enable(@"C:\Program Files\MangaPixer\MangaPixer.Tray.exe");
 
         Assert.True(service.IsEnabled());
         using var key = Registry.CurrentUser.OpenSubKey(_subKeyPath);
-        Assert.Equal("\"C:\\Program Files\\MangaPlex\\MangaPixer.Tray.exe\"", key!.GetValue("MangaPlex"));
+        Assert.Equal("\"C:\\Program Files\\MangaPixer\\MangaPixer.Tray.exe\"", key!.GetValue("MangaPixer"));
     }
 
     [Fact]
     public void Disable_AfterEnable_RemovesValue()
     {
-        var service = new RunKeyService("MangaPlex", _subKeyPath);
-        service.Enable(@"C:\MangaPlex\MangaPixer.Tray.exe");
+        var service = new RunKeyService("MangaPixer", _subKeyPath);
+        service.Enable(@"C:\MangaPixer\MangaPixer.Tray.exe");
 
         service.Disable();
 
@@ -48,7 +48,7 @@ public sealed class RunKeyServiceTests : IDisposable
     [Fact]
     public void Disable_WhenNeverEnabled_DoesNotThrow()
     {
-        var service = new RunKeyService("MangaPlex", _subKeyPath);
+        var service = new RunKeyService("MangaPixer", _subKeyPath);
 
         service.Disable();
     }

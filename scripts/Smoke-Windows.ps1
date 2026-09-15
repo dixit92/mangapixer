@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Smoke-Windows.ps1
+    MangaPixer Smoke-Windows.ps1
     Full verification of a Publish-Windows.ps1 output: server starts from a
     clean, empty data root; /health responds 200; the web UI index loads over
     HTTP; first-run setup is reachable (no default credentials); worker
@@ -39,7 +39,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 # Single source of truth for the product name used in display strings below.
-$ProductName = "MangaPlex"
+$ProductName = "MangaPixer"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if (-not [System.IO.Path]::IsPathRooted($PublishDir)) {
@@ -83,7 +83,7 @@ Free the port or pass a different -Port before re-running this smoke test.
 }
 Write-Host "PASS: port $Port is bindable" -ForegroundColor Green
 
-$tempData = Join-Path ([System.IO.Path]::GetTempPath()) "mangaplex-smoke-$(Get-Random)"
+$tempData = Join-Path ([System.IO.Path]::GetTempPath()) "mangapixer-smoke-$(Get-Random)"
 New-Item -ItemType Directory -Path $tempData | Out-Null
 $stdoutLog = Join-Path $tempData "stdout.log"
 $stderrLog = Join-Path $tempData "stderr.log"
@@ -92,12 +92,12 @@ $process = $null
 try {
     Write-Host "Starting server from $serverExe with clean data root $tempData..." -ForegroundColor Cyan
 
-    # Isolate the smoke test from the real %LOCALAPPDATA%\MangaPlex data root
+    # Isolate the smoke test from the real %LOCALAPPDATA%\MangaPixer data root
     # and from any ambient ASPNETCORE_URLS in this shell, so the bundled
     # appsettings.Production.json's loopback bind is what's actually tested.
     Remove-Item Env:ASPNETCORE_URLS -ErrorAction SilentlyContinue
     $env:ASPNETCORE_ENVIRONMENT = "Production"
-    $env:MangaPlex__Storage__DataRoot = $tempData
+    $env:MangaPixer__Storage__DataRoot = $tempData
 
     # Deliberately NOT -NoNewWindow: a shared-console child process can only be
     # force-terminated (Windows refuses a graceful WM_CLOSE/taskkill against
@@ -178,7 +178,7 @@ finally {
     if ($process -and -not $process.HasExited) {
         try { $process.Kill() } catch { }
     }
-    Remove-Item Env:MangaPlex__Storage__DataRoot -ErrorAction SilentlyContinue
+    Remove-Item Env:MangaPixer__Storage__DataRoot -ErrorAction SilentlyContinue
     Remove-Item Env:ASPNETCORE_ENVIRONMENT -ErrorAction SilentlyContinue
     if (Test-Path $tempData) {
         Remove-Item $tempData -Recurse -Force -ErrorAction SilentlyContinue
@@ -197,7 +197,7 @@ finally {
 #
 # TraySettingsStore.DefaultDirectory (tray-settings.json, including the
 # resolved port and the one-time first-run-balloon flag) is hardcoded to the
-# real %LOCALAPPDATA%\MangaPlex and has no env-var override, unlike the
+# real %LOCALAPPDATA%\MangaPixer and has no env-var override, unlike the
 # server's data root - so it is captured and restored around this check
 # instead, rather than left to silently consume the owner's real first-run
 # balloon tip or leak a resolved-port value into their real settings file.
@@ -218,16 +218,16 @@ else {
 
     # Same fixed-path problem as tray-settings.json: ServerOutputLog.DefaultFilePath
     # persists the spawned server's stdout/stderr under the real
-    # %LOCALAPPDATA%\MangaPlex\logs too, with no env-var override.
+    # %LOCALAPPDATA%\MangaPixer\logs too, with no env-var override.
     $serverOutputLog = Join-Path $traySettingsDir "logs\server-output.log"
     $preExistingServerOutputLog = if (Test-Path $serverOutputLog) { Get-Content $serverOutputLog -Raw } else { $null }
 
-    $trayTempData = Join-Path ([System.IO.Path]::GetTempPath()) "mangaplex-smoke-tray-$(Get-Random)"
+    $trayTempData = Join-Path ([System.IO.Path]::GetTempPath()) "mangapixer-smoke-tray-$(Get-Random)"
     New-Item -ItemType Directory -Path $trayTempData | Out-Null
 
     $trayProcess = $null
     try {
-        $env:MangaPlex__Storage__DataRoot = $trayTempData
+        $env:MangaPixer__Storage__DataRoot = $trayTempData
 
         $trayProcess = Start-Process -FilePath $trayExe -PassThru
 
@@ -301,7 +301,7 @@ else {
             ForEach-Object {
                 try { $_.Kill() } catch { }
             }
-        Remove-Item Env:MangaPlex__Storage__DataRoot -ErrorAction SilentlyContinue
+        Remove-Item Env:MangaPixer__Storage__DataRoot -ErrorAction SilentlyContinue
         if (Test-Path $trayTempData) {
             Remove-Item $trayTempData -Recurse -Force -ErrorAction SilentlyContinue
         }

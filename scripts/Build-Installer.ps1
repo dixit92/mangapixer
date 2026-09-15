@@ -1,7 +1,7 @@
 #Requires -Version 7.0
 <#
     Build-Installer.ps1
-    Builds the MangaPlex per-user MSI installer (installer/MangaPixer.Installer,
+    Builds the MangaPixer per-user MSI installer (installer/MangaPixer.Installer,
     WiX v6) from a staged Windows distribution folder.
 
     ProductVersion is stamped from Version.props (via Get-MangaPixerVersion.ps1),
@@ -40,7 +40,7 @@ else {
     (& "$PSScriptRoot/Get-MangaPixerVersion.ps1").Trim()
 }
 
-Write-Host "Building MangaPlex installer $version from $payloadDirFull" -ForegroundColor Cyan
+Write-Host "Building MangaPixer installer $version from $payloadDirFull" -ForegroundColor Cyan
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     throw "dotnet is required on PATH to build the installer."
@@ -71,7 +71,7 @@ $builtMsi = Join-Path $repoRoot "installer/MangaPixer.Installer/bin/Release/Mang
 if (-not (Test-Path $builtMsi)) { throw "Expected build output not found: $builtMsi" }
 
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
-$outputMsi = Join-Path $OutputDir "MangaPlex-$version.msi"
+$outputMsi = Join-Path $OutputDir "MangaPixer-$version.msi"
 Copy-Item $builtMsi $outputMsi -Force
 
 Write-Host "Built: $outputMsi" -ForegroundColor Green

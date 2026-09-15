@@ -33,7 +33,7 @@ public sealed class ServerProcessManager : IAsyncDisposable
 
     public int Port => _endpointOptions.Port;
 
-    /// <summary>Loopback URL for "Open MangaPlex" and manual browsing.</summary>
+    /// <summary>Loopback URL for "Open MangaPixer" and manual browsing.</summary>
     public string BuildOpenUrl() => _endpointOptions.BuildLocalBaseUri().ToString();
 
     /// <param name="serverArguments">

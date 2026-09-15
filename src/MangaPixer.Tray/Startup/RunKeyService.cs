@@ -15,7 +15,7 @@ public sealed class RunKeyService
     private readonly string _valueName;
     private readonly string _subKeyPath;
 
-    /// <param name="valueName">Run-key value name, e.g. "MangaPlex".</param>
+    /// <param name="valueName">Run-key value name, e.g. "MangaPixer".</param>
     /// <param name="subKeyPath">
     /// Override for tests only — production always uses the real
     /// CurrentVersion\Run key.

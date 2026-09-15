@@ -9,7 +9,7 @@ public sealed class ServerExecutableLocatorTests : IDisposable
 
     public ServerExecutableLocatorTests()
     {
-        _trayDirectory = Path.Combine(Path.GetTempPath(), $"mangaplex-locator-{Guid.NewGuid():N}");
+        _trayDirectory = Path.Combine(Path.GetTempPath(), $"mangapixer-locator-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_trayDirectory);
     }
 

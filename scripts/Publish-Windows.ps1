@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Publish-Windows.ps1
+    MangaPixer Publish-Windows.ps1
     Produces a complete, runnable Windows distribution staging folder at
     artifacts/windows-dist/:
 
@@ -54,7 +54,7 @@ Set-Location $repoRoot
 # Single source of truth for the product name embedded in project/exe names
 # below. A future product rename only needs to change this constant (plus
 # the physical project/folder renames it mirrors).
-$ProductName = "MangaPlex"
+$ProductName = "MangaPixer"
 
 function Write-Stage {
     param([string]$Name)

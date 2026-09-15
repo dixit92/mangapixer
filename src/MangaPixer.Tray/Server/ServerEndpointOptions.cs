@@ -25,7 +25,7 @@ public sealed class ServerEndpointOptions
     /// <summary>
     /// Always loopback, even when <see cref="AllowLanAccess"/> is on — a
     /// server bound to <c>0.0.0.0</c> still accepts connections on
-    /// 127.0.0.1, and the tray's own health poll / "Open MangaPlex" always
+    /// 127.0.0.1, and the tray's own health poll / "Open MangaPixer" always
     /// run on the same machine.
     /// </summary>
     public Uri BuildLocalBaseUri() => new($"http://127.0.0.1:{Port}");

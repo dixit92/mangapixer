@@ -9,7 +9,7 @@ public sealed class TraySettingsStoreTests : IDisposable
 
     public TraySettingsStoreTests()
     {
-        _directory = Path.Combine(Path.GetTempPath(), "MangaPlexTrayTests_" + Guid.NewGuid().ToString("N"));
+        _directory = Path.Combine(Path.GetTempPath(), "MangaPixerTrayTests_" + Guid.NewGuid().ToString("N"));
     }
 
     public void Dispose()

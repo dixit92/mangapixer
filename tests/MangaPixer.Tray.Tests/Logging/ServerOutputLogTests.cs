@@ -5,7 +5,7 @@ using Xunit;
 
 public sealed class ServerOutputLogTests : IDisposable
 {
-    private readonly string _directory = Path.Combine(Path.GetTempPath(), "MangaPlexTrayTests_" + Guid.NewGuid().ToString("N"));
+    private readonly string _directory = Path.Combine(Path.GetTempPath(), "MangaPixerTrayTests_" + Guid.NewGuid().ToString("N"));
 
     public void Dispose()
     {

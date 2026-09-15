@@ -29,7 +29,7 @@ public sealed class ServerProcessManagerTests
     // timeout+Kill() fallback, not the CTRL_BREAK delivery mechanism itself
     // (covered by the lane's manual E2E pass against the real server exe),
     // so they inject a no-op requester. Likewise, the default outputSink
-    // writes to the real %LOCALAPPDATA%\MangaPlex\logs\ — tests inject a
+    // writes to the real %LOCALAPPDATA%\MangaPixer\logs\ — tests inject a
     // no-op (or, where the point IS the drain behavior, a capturing one)
     // instead, so no test run leaves that file behind.
     private static ServerProcessManager CreateManager(string? arguments = null, ServerOutputSink? outputSink = null) =>

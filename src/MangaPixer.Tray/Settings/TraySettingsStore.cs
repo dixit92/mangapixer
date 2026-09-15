@@ -19,7 +19,7 @@ public sealed class TraySettingsStore
 
     public static string DefaultDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "MangaPlex");
+        "MangaPixer");
 
     /// <summary>
     /// Returns defaults when the file is missing, unparsable, or unreadable

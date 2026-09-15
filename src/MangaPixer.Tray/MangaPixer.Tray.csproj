@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- MangaPixer.Tray: Windows tray launcher that owns the server lifecycle for
      non-always-on users (no Windows Service this cycle). References no other
-     MangaPlex project; it locates and supervises MangaPixer.Server.exe as an
+     MangaPixer project; it locates and supervises MangaPixer.Server.exe as an
      external child process from the distribution folder layout, not via a
      ProjectReference. -->
 <Project Sdk="Microsoft.NET.Sdk">

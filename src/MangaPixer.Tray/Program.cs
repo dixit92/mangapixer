@@ -25,8 +25,8 @@ internal static class Program
         if (!singleInstanceGuard.IsFirstInstance)
         {
             MessageBox.Show(
-                "MangaPlex is already running in the system tray.",
-                "MangaPlex",
+                "MangaPixer is already running in the system tray.",
+                "MangaPixer",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
             return;
