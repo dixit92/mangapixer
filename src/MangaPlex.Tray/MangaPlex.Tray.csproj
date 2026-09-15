@@ -10,6 +10,11 @@
     <RootNamespace>com.lifepixer.mangaplex.Tray</RootNamespace>
     <OutputType>WinExe</OutputType>
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- Product icon (generated from web/src/favicon.ico's largest frame,
+         see the win-fixes lane vault note) — embedded as the exe's own Win32
+         resource, and re-loaded at runtime via Icon.ExtractAssociatedIcon
+         for the NotifyIcon instead of SystemIcons.Application. -->
+    <ApplicationIcon>MangaPlex.ico</ApplicationIcon>
     <!-- Lets the project build/restore under the Linux dotnet/sdk:10.0 container
          (no Windows workload installed there) so CI and the container-based
          fallback build described in AGENTS.md keep working. -->
