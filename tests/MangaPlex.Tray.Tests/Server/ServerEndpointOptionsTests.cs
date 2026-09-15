@@ -6,6 +6,14 @@ using Xunit;
 public sealed class ServerEndpointOptionsTests
 {
     [Fact]
+    public void Port_DefaultsToServerEndpointOptionsDefaultPort()
+    {
+        var options = new ServerEndpointOptions();
+
+        Assert.Equal(ServerEndpointOptions.DefaultPort, options.Port);
+    }
+
+    [Fact]
     public void BuildAspNetCoreUrls_DefaultsToLoopback()
     {
         var options = new ServerEndpointOptions { Port = 6280 };

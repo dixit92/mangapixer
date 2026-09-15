@@ -5,7 +5,13 @@ namespace com.lifepixer.mangaplex.Tray.Server;
 /// </summary>
 public sealed class ServerEndpointOptions
 {
-    public int Port { get; init; } = 6280;
+    // Not a fixed contract — Windows' TCP port exclusion ranges
+    // (Hyper-V/WSL/Docker NAT reservations) vary per machine and per reboot,
+    // so this is only the first candidate ServerPortResolver tries; the
+    // resolved port is what actually gets persisted and used.
+    public const int DefaultPort = 27272;
+
+    public int Port { get; init; } = DefaultPort;
 
     public bool AllowLanAccess { get; init; }
 

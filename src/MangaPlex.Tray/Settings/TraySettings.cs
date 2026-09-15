@@ -1,3 +1,5 @@
+using com.lifepixer.mangaplex.Tray.Server;
+
 namespace com.lifepixer.mangaplex.Tray.Settings;
 
 /// <summary>
@@ -22,4 +24,13 @@ public sealed class TraySettings
     /// live — see the cycle-context note in the lane prompt.
     /// </summary>
     public bool AllowLanAccess { get; set; }
+
+    /// <summary>
+    /// The port actually resolved by <see cref="ServerPortResolver"/> at
+    /// last start — persisted so a port picked because the default was
+    /// unavailable (Windows' TCP exclusion ranges vary per machine/reboot)
+    /// stays stable across tray restarts instead of being re-scanned (and
+    /// potentially re-picked differently) every time.
+    /// </summary>
+    public int Port { get; set; } = ServerEndpointOptions.DefaultPort;
 }

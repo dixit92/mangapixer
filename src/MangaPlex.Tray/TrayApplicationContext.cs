@@ -24,6 +24,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly TraySettingsStore _settingsStore;
     private readonly RunKeyService _runKeyService;
     private readonly ServerProcessManager _serverManager;
+    private readonly ServerPortResolver _portResolver;
     private readonly SynchronizationContext _uiContext;
     private TraySettings _settings;
 
@@ -34,13 +35,14 @@ public sealed class TrayApplicationContext : ApplicationContext
         _settingsStore = new TraySettingsStore(TraySettingsStore.DefaultDirectory);
         _settings = _settingsStore.Load();
         _runKeyService = new RunKeyService("MangaPlex");
+        _portResolver = new ServerPortResolver();
 
         var serverExecutablePath = Path.Combine(
             Path.GetDirectoryName(Application.ExecutablePath) ?? AppContext.BaseDirectory,
             "MangaPlex.Server.exe");
         _serverManager = new ServerProcessManager(
             serverExecutablePath,
-            new ServerEndpointOptions { AllowLanAccess = _settings.AllowLanAccess });
+            new ServerEndpointOptions { Port = _settings.Port, AllowLanAccess = _settings.AllowLanAccess });
         _serverManager.StateChanged += (_, state) => _uiContext.Post(_ => UpdateStatusText(state), null);
 
         _statusItem = new ToolStripMenuItem("Status: Stopped") { Enabled = false };
@@ -91,7 +93,25 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private async Task StartServerAsync()
     {
-        _serverManager.UpdateEndpointOptions(new ServerEndpointOptions { AllowLanAccess = _settings.AllowLanAccess });
+        var resolvedPort = _portResolver.ResolveAvailablePort(_settings.Port);
+        if (resolvedPort is null)
+        {
+            MessageBox.Show(
+                $"Could not find a free port to start MangaPlex on near {_settings.Port}.",
+                "MangaPlex",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+            UpdateStatusText(ServerState.Faulted);
+            return;
+        }
+
+        if (resolvedPort != _settings.Port)
+        {
+            _settings.Port = resolvedPort.Value;
+            _settingsStore.Save(_settings);
+        }
+
+        _serverManager.UpdateEndpointOptions(new ServerEndpointOptions { Port = _settings.Port, AllowLanAccess = _settings.AllowLanAccess });
         await _serverManager.StartAsync();
         await _serverManager.WaitForHealthyAsync(StartupHealthTimeout);
     }
