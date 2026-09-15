@@ -15,10 +15,10 @@ RUN npm run build
 # --- Stage 2: Build .NET server and worker ---
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dotnet-build
 WORKDIR /build
-COPY global.json Directory.Build.props Directory.Packages.props Version.props MangaPlex.slnx ./
+COPY global.json Directory.Build.props Directory.Packages.props Version.props MangaPixer.slnx ./
 COPY src/ ./src/
 COPY tests/ ./tests/
-RUN dotnet restore MangaPlex.slnx --locked-mode 2>/dev/null || dotnet restore MangaPlex.slnx
+RUN dotnet restore MangaPixer.slnx --locked-mode 2>/dev/null || dotnet restore MangaPixer.slnx
 
 # Magick.NET's Notice.txt carries the license texts for ImageMagick and the
 # native libraries bundled in Magick.Native. dotnet publish does not copy it,
@@ -40,8 +40,8 @@ ARG GIT_COMMIT_SHORT=""
 ARG GIT_IS_DIRTY="false"
 ENV GitCommitShort=${GIT_COMMIT_SHORT}
 ENV GitIsDirty=${GIT_IS_DIRTY}
-RUN dotnet publish src/MangaPlex.Server/MangaPlex.Server.csproj -c Release -o /build/publish/server --no-restore
-RUN dotnet publish src/MangaPlex.MediaWorker/MangaPlex.MediaWorker.csproj -c Release -o /build/publish/worker --no-restore
+RUN dotnet publish src/MangaPixer.Server/MangaPixer.Server.csproj -c Release -o /build/publish/server --no-restore
+RUN dotnet publish src/MangaPixer.MediaWorker/MangaPixer.MediaWorker.csproj -c Release -o /build/publish/worker --no-restore
 
 # --- Stage 3: Runtime image ---
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
@@ -64,13 +64,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy server and worker
 COPY --from=dotnet-build /build/publish/server ./server/
 COPY --from=dotnet-build /build/publish/worker ./worker/
-COPY --from=web-build /build/web/dist/mangaplex-web/browser ./wwwroot/
+COPY --from=web-build /build/web/dist/mangapixer-web/browser ./wwwroot/
 
 # License notices shipped with the binaries (see THIRD-PARTY-NOTICES.md):
 # MangaPlex's own LICENSE, the third-party inventory, the Angular build's
 # bundled-package licenses, and Magick.NET's native-library notice.
 COPY LICENSE THIRD-PARTY-NOTICES.md ./licenses/
-COPY --from=web-build /build/web/dist/mangaplex-web/3rdpartylicenses.txt ./licenses/
+COPY --from=web-build /build/web/dist/mangapixer-web/3rdpartylicenses.txt ./licenses/
 COPY --from=dotnet-build /build/licenses/Magick.NET-Notice.txt ./licenses/
 COPY deploy/entrypoint.sh ./entrypoint.sh
 RUN chmod +x entrypoint.sh
@@ -92,9 +92,9 @@ ENV MangaPlex__Storage__DataRoot=/data
 ENV MangaPlex__Storage__CacheRoot=/cache
 ENV MangaPlex__Storage__ScratchRoot=/scratch
 # Worker discovery: container layout is /app/server + /app/worker.
-# The server's ResolveWorkerLaunch checks ../worker/MangaPlex.MediaWorker.dll
+# The server's ResolveWorkerLaunch checks ../worker/MangaPixer.MediaWorker.dll
 # automatically, so this env var is belt-and-braces.
-ENV Media__WorkerExecutablePath=/app/worker/MangaPlex.MediaWorker.dll
+ENV Media__WorkerExecutablePath=/app/worker/MangaPixer.MediaWorker.dll
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

@@ -58,10 +58,10 @@ PowerShell; in `cmd.exe` use `%cd%`.
 ```bash
 # .NET build and test (Linux x64 container)
 docker run --rm -v "$PWD:/workspace" -w /workspace mcr.microsoft.com/dotnet/sdk:10.0 \
-    dotnet build MangaPlex.slnx -c Release
+    dotnet build MangaPixer.slnx -c Release
 
 docker run --rm -v "$PWD:/workspace" -w /workspace mcr.microsoft.com/dotnet/sdk:10.0 \
-    dotnet test MangaPlex.slnx --no-build -c Release
+    dotnet test MangaPixer.slnx --no-build -c Release
 
 # Angular build (requires npm ci first)
 docker run --rm -v "$PWD/web:/workspace/web" -w /workspace/web node:24-bookworm-slim \
@@ -77,10 +77,10 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 ### Direct .NET commands (when SDK is available)
 
 ```text
-dotnet restore MangaPlex.slnx --locked-mode
-dotnet build MangaPlex.slnx --no-restore -c Release
-dotnet test MangaPlex.slnx --no-build -c Release
-dotnet format MangaPlex.slnx --verify-no-changes
+dotnet restore MangaPixer.slnx --locked-mode
+dotnet build MangaPixer.slnx --no-restore -c Release
+dotnet test MangaPixer.slnx --no-build -c Release
+dotnet format MangaPixer.slnx --verify-no-changes
 ```
 
 ### Angular commands (when Node is available)
@@ -169,8 +169,8 @@ versions only) - the merge happens as part of the cut, after the version bump + 
 ```bash
 docker run --rm -v "$PWD:/workspace" -w /workspace mcr.microsoft.com/dotnet/sdk:10.0 \
     bash -c "apt-get update -qq && apt-get install -y -qq p7zip-full && \
-    dotnet build MangaPlex.slnx -c Release && \
-    dotnet test MangaPlex.slnx --no-build -c Release"
+    dotnet build MangaPixer.slnx -c Release && \
+    dotnet test MangaPixer.slnx --no-build -c Release"
 ```
 
 ## Deployment configurations

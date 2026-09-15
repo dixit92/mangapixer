@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MangaPlex solution (slnx format, .NET 10) -->
+<Solution>
+  <Project Name="MangaPixer.Core" Path="src/MangaPixer.Core/MangaPixer.Core.csproj" Type="ClassLibrary" />
+  <Project Name="MangaPixer.Server" Path="src/MangaPixer.Server/MangaPixer.Server.csproj" Type="Web" />
+  <Project Name="MangaPixer.MediaWorker" Path="src/MangaPixer.MediaWorker/MangaPixer.MediaWorker.csproj" Type="Console" />
+  <Project Name="MangaPixer.Tray" Path="src/MangaPixer.Tray/MangaPixer.Tray.csproj" Type="WinExe" />
+  <Project Name="MangaPixer.Core.Tests" Path="tests/MangaPixer.Core.Tests/MangaPixer.Core.Tests.csproj" Type="Test" />
+  <Project Name="MangaPixer.Server.Tests" Path="tests/MangaPixer.Server.Tests/MangaPixer.Server.Tests.csproj" Type="Test" />
+  <Project Name="MangaPixer.MediaWorker.Tests" Path="tests/MangaPixer.MediaWorker.Tests/MangaPixer.MediaWorker.Tests.csproj" Type="Test" />
+  <Project Name="MangaPixer.Tray.Tests" Path="tests/MangaPixer.Tray.Tests/MangaPixer.Tray.Tests.csproj" Type="Test" />
+  <Project Name="MangaPixer.TestSupport" Path="tests/MangaPixer.TestSupport/MangaPixer.TestSupport.csproj" Type="ClassLibrary" />
+</Solution>

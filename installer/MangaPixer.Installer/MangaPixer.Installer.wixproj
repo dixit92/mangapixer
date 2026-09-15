@@ -1,0 +1,63 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+  <!--
+    Standalone WiX v6 project for the MangaPlex per-user MSI installer.
+    Intentionally NOT added to MangaPixer.slnx: the solution is built and tested
+    on Linux (CI and the sdk container) as well as Windows, while an MSI can
+    only be built on Windows and needs the payload staged by
+    scripts/Publish-Windows.ps1 first. Built only via scripts/Build-Installer.ps1,
+    which passes PayloadDir/ProductVersion as preprocessor variables (see
+    Build-Installer.ps1 for the dotnet build invocation).
+  -->
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <OutputName>MangaPlex</OutputName>
+    <DefineSolutionProperties>false</DefineSolutionProperties>
+    <SuppressPdbOutput>true</SuppressPdbOutput>
+    <!-- This project builds standalone (see wixproj comment above) and is not
+         part of MangaPixer.slnx, so it opts out of the repo-wide Central
+         Package Management in Directory.Packages.props rather than adding
+         WiX extension entries to that shared, multi-lane file. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- ICE38/ICE64/ICE91 assume a per-machine (ALLUSERS) install and always
+         fire for a legitimate per-user (Scope="perUser", HKCU-only) MSI whose
+         harvested-file components necessarily use a File KeyPath rather than
+         a registry KeyPath. Suppressing these three is the standard, widely
+         documented convention for per-user WiX packages - every other ICE
+         still runs.
+         ICE60 fires on the real self-contained payload: versioned native
+         .NET runtime DLLs carry no language resource, which is expected for
+         a glob-harvested self-contained distribution and irrelevant to a
+         per-user xcopy-style install (no companion-file/font semantics in
+         play). Only surfaced once the real Publish-Windows.ps1 payload
+         replaced the placeholder one.
+         ICE61 is the intentional flip side of MajorUpgrade
+         AllowSameVersionUpgrades="yes" (it warns that the upgrade range
+         includes the product's own version - exactly the behavior we want,
+         so a rebuilt same-version MSI replaces the installed copy);
+         suppressing it is the standard pairing with that setting. -->
+    <SuppressIces>ICE38;ICE60;ICE61;ICE64;ICE91</SuppressIces>
+  </PropertyGroup>
+
+  <!-- Build-time inputs, passed by scripts/Build-Installer.ps1 as plain
+       single-value MSBuild properties (-p:PayloadDir=... -p:ProductVersion=...)
+       and composed into DefineConstants here, so the caller never has to fight
+       MSBuild's ";"-as-property-separator escaping in a -p:DefineConstants
+       value. Defaults let `dotnet build` work standalone against the
+       placeholder dev payload without any -p: arguments. -->
+  <PropertyGroup>
+    <PayloadDir Condition="'$(PayloadDir)'==''">$(MSBuildThisFileDirectory)..\..\artifacts\windows-dist</PayloadDir>
+    <ProductVersion Condition="'$(ProductVersion)'==''">0.0.0</ProductVersion>
+    <DefineConstants>PayloadDir=$(PayloadDir);ProductVersion=$(ProductVersion)</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="6.0.2" />
+    <!-- WixShellExec custom action (launch-after-install exit-dialog checkbox). -->
+    <PackageReference Include="WixToolset.Util.wixext" Version="6.0.2" />
+  </ItemGroup>
+
+  <!-- Package.wxs is picked up automatically by the SDK's default "**/*.wxs"
+       glob (EnableDefaultItems) - do not also list it explicitly here, or it
+       gets compiled twice in the same pass and every harvested file trips
+       WIX8602 "already been harvested" against its own first pass. -->
+</Project>

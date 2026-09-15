@@ -42,8 +42,8 @@ if [ "$(id -u)" = "0" ]; then
         useradd --uid "$PUID" --gid "$PGID" --shell /bin/bash --no-create-home mangaplex 2>/dev/null || true
     fi
     # Drop to non-root user using gosu
-    exec gosu "$PUID:$PGID" dotnet server/MangaPlex.Server.dll
+    exec gosu "$PUID:$PGID" dotnet server/MangaPixer.Server.dll
 else
     # Already running as non-root (PUID/PGID ignored in this path)
-    exec dotnet server/MangaPlex.Server.dll
+    exec dotnet server/MangaPixer.Server.dll
 fi

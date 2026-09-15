@@ -58,7 +58,7 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          $version = (& ./scripts/Get-MangaPlexVersion.ps1).Trim()
+          $version = (& ./scripts/Get-MangaPixerVersion.ps1).Trim()
           if ($env:TAG -ne "v$version") {
             throw "Tag '$env:TAG' does not match Version.props (expected 'v$version')."
           }

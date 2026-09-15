@@ -46,6 +46,6 @@ dotnet_diagnostic.CA1051.severity = none
 
 # EF Core generated migrations use block-scoped namespaces and BOM encoding.
 # Exclude them from format enforcement rather than rewriting generated code.
-[src/MangaPlex.Server/Persistence/Migrations/*.cs]
+[src/MangaPixer.Server/Persistence/Migrations/*.cs]
 csharp_style_namespace_declarations = block_scoped:none
 charset = utf-8-bom

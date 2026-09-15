@@ -39,7 +39,7 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw "docker is required on PATH to package a release."
 }
 
-$version = (& "$PSScriptRoot/Get-MangaPlexVersion.ps1").Trim()
+$version = (& "$PSScriptRoot/Get-MangaPixerVersion.ps1").Trim()
 $imageTag = "mangaplex:$version"
 Write-Host "Release version: $version  ->  $imageTag" -ForegroundColor Cyan
 

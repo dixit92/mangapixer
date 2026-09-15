@@ -70,7 +70,7 @@ if ($isWindows) {
     $dotnetAvailable = [bool](Get-Command dotnet -ErrorAction SilentlyContinue)
     if ($dotnetAvailable) {
         Invoke-Stage "dotnet publish win-x64" {
-            dotnet publish src/MangaPlex.Server/MangaPlex.Server.csproj -c Release -r win-x64 --self-contained true -o artifacts/win-x64 2>&1 | Out-Host
+            dotnet publish src/MangaPixer.Server/MangaPixer.Server.csproj -c Release -r win-x64 --self-contained true -o artifacts/win-x64 2>&1 | Out-Host
             if ($LASTEXITCODE -ne 0) { throw "win-x64 publish failed" }
         }
     }

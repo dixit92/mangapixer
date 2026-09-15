@@ -1,5 +1,5 @@
 /**
- * API DTO types matching the .NET contracts in MangaPlex.Core/Api/ApiDtos.cs.
+ * API DTO types matching the .NET contracts in MangaPixer.Core/Api/ApiDtos.cs.
  * These are schema-derived HttpClient types, not auto-generated.
  * No source paths or private fields are present in these types.
  */

@@ -11,7 +11,7 @@ in `/app/licenses/`: this file, `LICENSE`, the Angular build's
 app), and Magick.NET's `Notice.txt` as `Magick.NET-Notice.txt` (ImageMagick and
 the native libraries bundled in it). The Windows distribution
 (`scripts/Publish-Windows.ps1`, and the MSI built from it) carries this file and
-`LICENSE` in its install folder, next to `MangaPlex.Tray.exe`.
+`LICENSE` in its install folder, next to `MangaPixer.Tray.exe`.
 
 Entry format: `name` - version - license (SPDX where one exists) - upstream URL.
 
@@ -20,8 +20,8 @@ from tool output (not written by hand):
 
 | Ecosystem | Source | Count |
 |---|---|---|
-| NuGet, all | `dotnet list MangaPlex.slnx package --include-transitive --format json` | 104 package versions (103 IDs; `System.Security.Cryptography.Pkcs` resolves at two versions) |
-| NuGet, shipped | `"type": "package"` entries in the `*.deps.json` of a Release `dotnet publish` of `MangaPlex.Server` + `MangaPlex.MediaWorker` (what `deploy/Dockerfile` copies) | 79 |
+| NuGet, all | `dotnet list MangaPixer.slnx package --include-transitive --format json` | 104 package versions (103 IDs; `System.Security.Cryptography.Pkcs` resolves at two versions) |
+| NuGet, shipped | `"type": "package"` entries in the `*.deps.json` of a Release `dotnet publish` of `MangaPixer.Server` + `MangaPixer.MediaWorker` (what `deploy/Dockerfile` copies) | 79 |
 | NuGet, build/test only | all minus shipped | 25 |
 | npm, runtime | `npm --prefix web ls --omit=dev --all` (`--prod` is a deprecated alias) | 19 |
 | npm, all | `npm --prefix web ls --all` | 880 unique name@version (959 installed paths) |
@@ -159,7 +159,7 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 ### 1b. Shipped only through `Microsoft.EntityFrameworkCore.Design` (28)
 
 Design-time EF Core tooling and its dependency tree (see Review item 3). This set
-is computed from the dependency graph in the published `MangaPlex.Server.deps.json`.
+is computed from the dependency graph in the published `MangaPixer.Server.deps.json`.
 
 - `Humanizer.Core` - 2.14.1 - MIT - https://github.com/Humanizr/Humanizer
 - `Microsoft.Build.Framework` - 17.14.28 - MIT - https://github.com/dotnet/msbuild
@@ -280,7 +280,7 @@ third-party notice described in 1c.
 
 These are resolved for the test projects, or as analyzers and build tooling. None
 of them is in the publish output. Some `Microsoft.Extensions.*` and
-`Microsoft.AspNetCore.*` IDs appear here because `MangaPlex.Server.Tests`
+`Microsoft.AspNetCore.*` IDs appear here because `MangaPixer.Server.Tests`
 resolves them as packages. At runtime, the server uses the copies in the ASP.NET Core
 shared framework.
 
@@ -1263,10 +1263,10 @@ Not yet covered - see the TODO above.
 ## 7. Regenerating this inventory
 
 ```text
-dotnet restore MangaPlex.slnx --locked-mode
-dotnet list MangaPlex.slnx package --include-transitive --format json
-dotnet publish src/MangaPlex.Server/MangaPlex.Server.csproj -c Release -o <tmp>/server
-dotnet publish src/MangaPlex.MediaWorker/MangaPlex.MediaWorker.csproj -c Release -o <tmp>/worker
+dotnet restore MangaPixer.slnx --locked-mode
+dotnet list MangaPixer.slnx package --include-transitive --format json
+dotnet publish src/MangaPixer.Server/MangaPixer.Server.csproj -c Release -o <tmp>/server
+dotnet publish src/MangaPixer.MediaWorker/MangaPixer.MediaWorker.csproj -c Release -o <tmp>/worker
 #   shipped set = "type": "package" entries in <tmp>/*/*.deps.json
 npm --prefix web ci
 npm --prefix web ls --omit=dev --all --json

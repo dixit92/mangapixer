@@ -10,7 +10,7 @@
 
     Usage:
       pwsh ./scripts/Invoke-EfTool.ps1 migrations list
-      pwsh ./scripts/Invoke-EfTool.ps1 migrations add AddMyMigration --project src/MangaPlex.Server
+      pwsh ./scripts/Invoke-EfTool.ps1 migrations add AddMyMigration --project src/MangaPixer.Server
       pwsh ./scripts/Invoke-EfTool.ps1 migrations script   # etc.
 
     Everything after the first argument is passed verbatim to dotnet-ef.

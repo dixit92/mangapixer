@@ -55,22 +55,22 @@
   </PropertyGroup>
 
   <!-- Project-specific namespace overrides -->
-  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('MangaPlex.Server'))">
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('MangaPixer.Server'))">
     <RootNamespace>com.lifepixer.mangaplex.Server</RootNamespace>
   </PropertyGroup>
-  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('MangaPlex.Core'))">
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('MangaPixer.Core'))">
     <RootNamespace>com.lifepixer.mangaplex.Core</RootNamespace>
   </PropertyGroup>
-  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('MangaPlex.MediaWorker'))">
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('MangaPixer.MediaWorker'))">
     <RootNamespace>com.lifepixer.mangaplex.MediaWorker</RootNamespace>
   </PropertyGroup>
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
-    <RootNamespace>com.lifepixer.mangaplex.Tests.$(MSBuildProjectName.Replace('MangaPlex.', '').Replace('.Tests', ''))</RootNamespace>
+    <RootNamespace>com.lifepixer.mangaplex.Tests.$(MSBuildProjectName.Replace('MangaPixer.', '').Replace('.Tests', ''))</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'MangaPlex.TestSupport'">
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'MangaPixer.TestSupport'">
     <RootNamespace>com.lifepixer.mangaplex.TestSupport</RootNamespace>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>

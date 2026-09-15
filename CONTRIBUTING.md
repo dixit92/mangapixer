@@ -36,11 +36,11 @@ or any other build system.
 
 | Path | Contents |
 |---|---|
-| `src/MangaPlex.Core` | Shared contracts: opaque IDs, sort keys, the worker protocol |
-| `src/MangaPlex.Server` | ASP.NET Core server: HTTP API (`/api/v1`), auth, catalog, persistence (SQLite + EF Core migrations) |
-| `src/MangaPlex.MediaWorker` | Out-of-process archive/image worker, talks to the server over JSON-lines on stdin/stdout |
+| `src/MangaPixer.Core` | Shared contracts: opaque IDs, sort keys, the worker protocol |
+| `src/MangaPixer.Server` | ASP.NET Core server: HTTP API (`/api/v1`), auth, catalog, persistence (SQLite + EF Core migrations) |
+| `src/MangaPixer.MediaWorker` | Out-of-process archive/image worker, talks to the server over JSON-lines on stdin/stdout |
 | `web/` | Angular web reader (Vitest unit tests, Playwright end-to-end tests) |
-| `tests/` | xUnit test projects plus `MangaPlex.TestSupport` (synthetic fixtures) |
+| `tests/` | xUnit test projects plus `MangaPixer.TestSupport` (synthetic fixtures) |
 | `contracts/openapi.json` | The committed OpenAPI contract; changes to it are deliberate |
 | `deploy/` | Dockerfile and Compose files |
 | `scripts/` | Verification, smoke, and packaging scripts |
@@ -62,7 +62,7 @@ them from the repository root.
 | Safety review | `pwsh ./scripts/Review-Safety.ps1` | Read-only review of your diff for safety issues | Before a pull request that touches file access, auth, or logging |
 
 The scripts never modify code to make a check pass. Fix the reported issue instead.
-If `dotnet format` complains, run `dotnet format MangaPlex.slnx` and commit the result.
+If `dotnet format` complains, run `dotnet format MangaPixer.slnx` and commit the result.
 
 The privacy preflight accepts a normal clone with its `origin` remote. It fails
 only if a remote URL embeds a credential, such as `https://user:token@host/...`
@@ -89,8 +89,8 @@ run in the official images. From the repository root:
 # .NET build and tests (add p7zip-full so the 7z fixture tests run)
 docker run --rm -v "${PWD}:/workspace" -w /workspace mcr.microsoft.com/dotnet/sdk:10.0 \
     bash -c "apt-get update -qq && apt-get install -y -qq p7zip-full && \
-             dotnet build MangaPlex.slnx -c Release && \
-             dotnet test MangaPlex.slnx --no-build -c Release"
+             dotnet build MangaPixer.slnx -c Release && \
+             dotnet test MangaPixer.slnx --no-build -c Release"
 
 # Web app: install, lint, build, unit tests
 docker run --rm -v "${PWD}/web:/workspace/web" -w /workspace/web node:24-bookworm-slim \

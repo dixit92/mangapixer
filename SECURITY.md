@@ -60,8 +60,8 @@ stay anonymous. Please keep the details private until then.
 
 ## Scope
 
-In scope is the code in this repository: the server (`src/MangaPlex.Server`), the
-media worker (`src/MangaPlex.MediaWorker`), the web reader (`web/`), and the
+In scope is the code in this repository: the server (`src/MangaPixer.Server`), the
+media worker (`src/MangaPixer.MediaWorker`), the web reader (`web/`), and the
 container image and Compose files built from `deploy/`.
 
 These are the security properties MangaPlex is designed to hold. A way to break

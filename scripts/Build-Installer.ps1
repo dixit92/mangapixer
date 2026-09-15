@@ -1,10 +1,10 @@
 #Requires -Version 7.0
 <#
     Build-Installer.ps1
-    Builds the MangaPlex per-user MSI installer (installer/MangaPlex.Installer,
+    Builds the MangaPlex per-user MSI installer (installer/MangaPixer.Installer,
     WiX v6) from a staged Windows distribution folder.
 
-    ProductVersion is stamped from Version.props (via Get-MangaPlexVersion.ps1),
+    ProductVersion is stamped from Version.props (via Get-MangaPixerVersion.ps1),
     the single source of truth - never hardcoded here. Pass -VersionOverride only
     to smoke-test the MajorUpgrade path with a bumped test-only version; it must
     never be used to publish a real installer.
@@ -37,7 +37,7 @@ $version = if ($VersionOverride) {
     $VersionOverride
 }
 else {
-    (& "$PSScriptRoot/Get-MangaPlexVersion.ps1").Trim()
+    (& "$PSScriptRoot/Get-MangaPixerVersion.ps1").Trim()
 }
 
 Write-Host "Building MangaPlex installer $version from $payloadDirFull" -ForegroundColor Cyan
@@ -53,21 +53,21 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
 dotnet tool restore 2>&1 | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "dotnet tool restore failed" }
 
-$wixproj = Join-Path $repoRoot "installer/MangaPlex.Installer/MangaPlex.Installer.wixproj"
+$wixproj = Join-Path $repoRoot "installer/MangaPixer.Installer/MangaPixer.Installer.wixproj"
 
 # Force a full rebuild every time: MSBuild's incremental up-to-date check for
 # the wixproj's CoreCompile target only looks at file timestamps, not at
 # -p:ProductVersion, so two back-to-back builds that differ only by that
 # property (as when smoke-testing a MajorUpgrade with -VersionOverride) could
 # otherwise silently skip recompiling and reuse the previous version's output.
-$objDir = Join-Path $repoRoot "installer/MangaPlex.Installer/obj"
-$binDir = Join-Path $repoRoot "installer/MangaPlex.Installer/bin"
+$objDir = Join-Path $repoRoot "installer/MangaPixer.Installer/obj"
+$binDir = Join-Path $repoRoot "installer/MangaPixer.Installer/bin"
 Remove-Item $objDir, $binDir -Recurse -Force -ErrorAction SilentlyContinue
 
 dotnet build $wixproj -c Release -p:PayloadDir="$payloadDirFull" -p:ProductVersion="$version" 2>&1 | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "MSI build failed" }
 
-$builtMsi = Join-Path $repoRoot "installer/MangaPlex.Installer/bin/Release/MangaPlex.msi"
+$builtMsi = Join-Path $repoRoot "installer/MangaPixer.Installer/bin/Release/MangaPixer.msi"
 if (-not (Test-Path $builtMsi)) { throw "Expected build output not found: $builtMsi" }
 
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null

@@ -270,7 +270,7 @@ keys a self-hoster may want (full reference: [Configuration](docs/configuration.
 | `MangaPlex__Security__RateLimit__MaxAttemptsPerIp` | `10` | Failed logins allowed per IP per window |
 | `MangaPlex__Security__RateLimit__MaxAttemptsPerUser` | `5` | Failed logins allowed per username per window |
 | `MangaPlex__Security__RateLimit__Window` | `00:05:00` | Rate-limit window |
-| `Media__WorkerExecutablePath` | auto-discovered | Path to `MangaPlex.MediaWorker.dll`; the image sets `/app/worker/MangaPlex.MediaWorker.dll` |
+| `Media__WorkerExecutablePath` | auto-discovered | Path to `MangaPixer.MediaWorker.dll`; the image sets `/app/worker/MangaPixer.MediaWorker.dll` |
 | `ASPNETCORE_URLS` | `http://+:8080` in the image | Listen address |
 | `PUID` / `PGID` | `1000` / `1000` | Container runtime user and group (entrypoint) |
 | `MANGAPLEX_VERSION` | see the Compose files | Image tag used by the Compose files |
@@ -307,9 +307,9 @@ npm, and **PowerShell 7** for the scripts. Docker is needed for the container an
 smoke flows.
 
 ```text
-dotnet restore MangaPlex.slnx --locked-mode
-dotnet build MangaPlex.slnx --no-restore -c Release
-dotnet test MangaPlex.slnx --no-build -c Release
+dotnet restore MangaPixer.slnx --locked-mode
+dotnet build MangaPixer.slnx --no-restore -c Release
+dotnet test MangaPixer.slnx --no-build -c Release
 
 npm --prefix web ci
 npm --prefix web run build
@@ -327,7 +327,7 @@ No local SDKs? Build inside the official containers instead:
 
 ```bash
 docker run --rm -v "$PWD:/workspace" -w /workspace mcr.microsoft.com/dotnet/sdk:10.0 \
-    dotnet build MangaPlex.slnx -c Release
+    dotnet build MangaPixer.slnx -c Release
 docker run --rm -v "$PWD/web:/workspace/web" -w /workspace/web node:24-bookworm-slim \
     sh -c "npm ci && npm run build"
 ```
@@ -363,9 +363,9 @@ passes in a normal clone. It fails only if a git remote URL embeds a credential
 
 | Path | Contents |
 |---|---|
-| `src/MangaPlex.Server` | ASP.NET Core API, auth, scanning, catalog, SQLite (EF Core) persistence |
-| `src/MangaPlex.MediaWorker` | Supervised archive/image worker process (no database, no network listener) |
-| `src/MangaPlex.Core` | Shared contracts, IDs, natural ordering, worker protocol |
+| `src/MangaPixer.Server` | ASP.NET Core API, auth, scanning, catalog, SQLite (EF Core) persistence |
+| `src/MangaPixer.MediaWorker` | Supervised archive/image worker process (no database, no network listener) |
+| `src/MangaPixer.Core` | Shared contracts, IDs, natural ordering, worker protocol |
 | `web/` | Angular + Angular Material web reader |
 | `tests/` | xUnit suites (Core, MediaWorker, Server) and synthetic test-fixture generation |
 | `assets/` | Logo artwork |

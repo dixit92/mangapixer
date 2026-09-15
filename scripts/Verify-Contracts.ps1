@@ -56,12 +56,12 @@ Invoke-Stage "Version consistency" {
 
 # Stage 2: .NET build and contract tests
 Invoke-Stage "dotnet build" {
-    dotnet build MangaPlex.slnx -c Release 2>&1 | Out-Host
+    dotnet build MangaPixer.slnx -c Release 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
 }
 
 Invoke-Stage "dotnet test (contracts)" {
-    dotnet test MangaPlex.slnx --no-build -c Release --filter "FullyQualifiedName~Contracts|FullyQualifiedName~Ordering|FullyQualifiedName~Protocol" --verbosity normal 2>&1 | Out-Host
+    dotnet test MangaPixer.slnx --no-build -c Release --filter "FullyQualifiedName~Contracts|FullyQualifiedName~Ordering|FullyQualifiedName~Protocol" --verbosity normal 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Contract tests failed" }
 }
 

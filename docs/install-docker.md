@@ -76,7 +76,7 @@ version you are building. The version is in `Version.props`, and this script
 prints it:
 
 ```sh
-pwsh ./scripts/Get-MangaPlexVersion.ps1
+pwsh ./scripts/Get-MangaPixerVersion.ps1
 ```
 
 Then set it in your shell. Set it again in every new shell before you run
@@ -168,7 +168,7 @@ different host port, change only the left-hand number (for example
 ## Upgrading
 
 1. Update your clone (`git pull`, or `git checkout` the new release tag).
-2. Set `MANGAPLEX_VERSION` to the new version (`pwsh ./scripts/Get-MangaPlexVersion.ps1`).
+2. Set `MANGAPLEX_VERSION` to the new version (`pwsh ./scripts/Get-MangaPixerVersion.ps1`).
 3. Rebuild and restart:
 
    ```sh

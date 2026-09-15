@@ -5,7 +5,7 @@
     artifacts/windows-dist/:
 
       artifacts/windows-dist/
-        server/                 self-contained win-x64 MangaPlex.Server.exe
+        server/                 self-contained win-x64 MangaPixer.Server.exe
           wwwroot/              built Angular web assets (same bundle the
                                  Docker image serves, per deploy/Dockerfile)
           appsettings.Production.json
@@ -15,9 +15,9 @@
                                  loads this automatically; Docker/Linux never
                                  ships this file, so container behavior is
                                  byte-identical to before.
-        worker/                 self-contained win-x64 MangaPlex.MediaWorker.exe
-        MangaPlex.Tray.exe      the tray launcher project, if present
-                                 (src/MangaPlex.Tray)
+        worker/                 self-contained win-x64 MangaPixer.MediaWorker.exe
+        MangaPixer.Tray.exe      the tray launcher project, if present
+                                 (src/MangaPixer.Tray)
         LICENSE, THIRD-PARTY-NOTICES.md
                                  license notices; the MSI harvests this whole
                                  folder, so they are installed too
@@ -72,7 +72,7 @@ if (Test-Path $distRoot) {
 New-Item -ItemType Directory -Path $distRoot | Out-Null
 
 # --- Web assets (matches deploy/Dockerfile stage "web-build") ---
-$webDist = Join-Path $repoRoot "web/dist/mangaplex-web/browser"
+$webDist = Join-Path $repoRoot "web/dist/mangapixer-web/browser"
 if (-not $SkipWebBuild) {
     Write-Stage "Build web assets (npm --prefix web ci && npm --prefix web run build)"
     npm --prefix web ci
@@ -120,8 +120,8 @@ $overlayPath = Join-Path $serverDir "appsettings.Production.json"
 $overlay | ConvertTo-Json -Depth 5 | Set-Content -Path $overlayPath -Encoding utf8
 
 # --- Tray launcher (the tray launcher project, if present) ---
-# Guarded so the publish stays green whether or not src/MangaPlex.Tray
-# exists. Never edits the tray project or MangaPlex.slnx.
+# Guarded so the publish stays green whether or not src/MangaPixer.Tray
+# exists. Never edits the tray project or MangaPixer.slnx.
 $trayProject = Join-Path $repoRoot "src/$ProductName.Tray/$ProductName.Tray.csproj"
 if (Test-Path $trayProject) {
     Write-Stage "Publish $ProductName.Tray (single-file self-contained win-x64)"
