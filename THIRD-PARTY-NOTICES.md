@@ -86,12 +86,11 @@ or where MangaPlex does not yet carry the notice that a license asks for.
    a published image, but GPL terms on source availability apply to whoever
    distributes the image. `scripts/Package-Release.ps1` already produces an SPDX
    SBOM that lists every OS package.
-9. **License metadata elsewhere in the repo contradicts MIT.** `deploy/compose.yaml`
-   and `deploy/compose.unraid.yaml` set the label
-   `org.opencontainers.image.licenses: "proprietary"`. `Directory.Build.props` leaves
-   `<Authors/>`, `<Company/>` and `<Copyright/>` empty, so assemblies carry no
-   copyright metadata.
-   <!-- TODO(owner): align these with MIT (files outside the README lane). -->
+9. **License metadata elsewhere in the repo (resolved).** `deploy/compose.yaml` and
+   `deploy/compose.unraid.yaml` label the image
+   `org.opencontainers.image.licenses: "MIT"`, and `Directory.Build.props` sets
+   `<Authors>` and `<Copyright>` to match `LICENSE`, so the assemblies carry that
+   copyright metadata. `<Company/>` stays empty.
 10. **Inventory note:** `npm ls --all` exits with `ELSPROBLEMS` because two dev-tree
     packages are "invalid", meaning the installed version is outside a dependent's range:
     `chokidar@5.0.0` and `@noble/hashes@1.4.0`. This affects version ranges only,
