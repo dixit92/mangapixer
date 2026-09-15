@@ -5,7 +5,7 @@
 <!-- TODO(owner): tagline / badges (version, license, build) / logo (assets/Square.svg, assets/Circle.svg) -->
 
 MangaPlex serves your existing manga and comic folders to any browser. You point
-it at the directories where your `.cbz`, `.cbr` and `.cb7` files already live, and
+it at the directories where your `.cbz` and `.cbr` files already live, and
 it builds a catalog, generates thumbnails, and gives every user on your server
 their own reading progress, read marks and "continue reading" shelf. It is an
 independent project inspired by [YACReader](https://www.yacreader.com/) - not a
@@ -83,7 +83,8 @@ desktop, tablet and phone.
 **Multi-user, privacy and access**
 
 - No default credentials. A fresh instance shows a first-run setup screen, and
-  the first admin account is created there.
+  the first admin account is created there (see
+  [First-run setup](docs/users-and-access.md#first-run-setup)).
 - Admin and reader roles, with per-user library access grants.
 - Onboard users with a password, or with a single-use activation link that
   expires after 48 hours so the user sets their own password.
@@ -105,7 +106,8 @@ desktop, tablet and phone.
   regenerated per library.
 - Automatic rotating database backups (daily, 7 kept by default) and on-demand
   backups. A validated backup can be uploaded for restore; it is applied
-  atomically on the next restart, with rollback if that fails.
+  atomically on the next restart, with rollback if that fails (see
+  [Backup and restore](docs/backup-and-restore.md)).
 - Runtime log-level control (global and per subsystem) and a diagnostics export.
 - YACReader progress import: if a library folder contains a YACReader library
   database, an admin can preview its read progress and import it into their own
@@ -119,7 +121,7 @@ desktop, tablet and phone.
 
 | | Formats |
 |---|---|
-| Archives | ZIP (`.cbz`, `.zip`), RAR 4 and RAR 5 (`.cbr`, `.rar`), 7-Zip (`.cb7`, `.7z`) |
+| Archives | ZIP (`.cbz`, `.zip`), RAR 4 and RAR 5 (`.cbr`, `.rar`) |
 | Page images | JPEG, PNG, WebP, AVIF, GIF, BMP, TIFF |
 
 Scans pick up archives by extension, and each archive's actual type is then
@@ -127,12 +129,14 @@ detected from its file signature. Archives are read in place through the managed
 SharpCompress library, with no external `7z` or `unrar` binary. Pages are decoded
 and resized by ImageMagick (via Magick.NET) in a separate, supervised worker
 process, so a malformed file cannot take the server down. Animated GIF, WebP and
-APNG pages are passed through unchanged.
+APNG pages are passed through unchanged. Details:
+[Supported archive formats](docs/library-layout.md#supported-archive-formats).
 
 Current limitations:
 
-- **Solid RAR and 7z archives can't be opened in the reader yet.** The server
-  refuses page requests for them. Note that 7-Zip creates solid archives by default.
+- **Solid RAR archives and 7-Zip archives can't be opened in the reader yet.**
+  Scans list them, but the server refuses page requests for them (it treats
+  every 7-Zip archive as solid). Repack them as `.cbz` to read them.
 - PDF, EPUB, CBT and folders of loose images are not supported.
 
 <!-- TODO(owner): adjust the limitations list if solid-archive reading lands before publication. -->
@@ -142,6 +146,7 @@ Current limitations:
 Requirements: Docker with Compose v2, and a copy of this repository. The Compose
 file builds the image from source; no prebuilt registry image is published yet.
 <!-- TODO(owner): registry image + pull-based instructions once one exists. -->
+Full guide: [Install with Docker](docs/install-docker.md).
 
 1. **Clone the repository.**
 
@@ -164,8 +169,8 @@ file builds the image from source; no prebuilt registry image is published yet.
          - /path/to/your/comics:/media/comics:ro
    ```
 
-   The file contains your real paths, so don't commit it. It is not listed in
-   `.gitignore`.
+   The file contains your real paths; `.gitignore` excludes it, so it stays out
+   of commits.
 
 3. **Pin the image tag and start.** Create `deploy/.env` (git-ignored) with the
    version you are building. It is read from `Version.props`; `1.12.0` at the
@@ -187,8 +192,9 @@ file builds the image from source; no prebuilt registry image is published yet.
 What the canonical `deploy/compose.yaml` gives you:
 
 - The port is published on **loopback only** (`127.0.0.1:8080`). For access from
-  other devices, put a reverse proxy in front, or change the port mapping
-  deliberately. <!-- TODO(owner): reverse-proxy / TLS example (Caddy, nginx, Traefik) and a note on sub-path hosting if supported. -->
+  other devices, put a reverse proxy in front (see
+  [Reverse proxy and HTTPS](docs/reverse-proxy-and-https.md)), or change the port
+  mapping deliberately.
 - Three named volumes: `mangaplex-data` at `/data` (database, keys, logs,
   backups, thumbnails - **back this one up**), `mangaplex-cache` at `/cache`
   (evictable page cache) and `mangaplex-scratch` at `/scratch` (temporary
@@ -205,7 +211,8 @@ is taken before a migration is applied.
 `deploy/compose.unraid.yaml` is a self-contained alternative to the canonical
 Compose file. It uses a single appdata bind (`/mnt/user/appdata/MangaPlex` at
 `/config`, holding `data/`, `cache/` and `scratch/`) and the
-linuxserver.io-style `PUID`/`PGID` variables.
+linuxserver.io-style `PUID`/`PGID` variables. Full guide:
+[Install on Unraid](docs/install-unraid.md).
 
 1. Build a versioned image on a machine with the repository:
    `pwsh ./scripts/Package-Release.ps1`. This writes
@@ -233,11 +240,17 @@ loopback-only canonical file, and keeps the read-only root filesystem and
 Native Windows installation (tray app and installer) is planned for the next
 release. Until then, use Docker Desktop with the Compose instructions above.
 
+## Documentation
+
+The [documentation index](docs/README.md) covers installation (Docker, Unraid),
+configuration, library layout, the reader, users and access, backups, reverse
+proxies and HTTPS, troubleshooting, and an FAQ.
+
 ## Configuration
 
 Settings use standard ASP.NET Core configuration: `appsettings.json` or
 environment variables. In environment variables, `:` becomes `__`. These are the
-keys a self-hoster may want:
+keys a self-hoster may want (full reference: [Configuration](docs/configuration.md)):
 
 | Environment variable | Default | Purpose |
 |---|---|---|
@@ -342,9 +355,9 @@ All checks are script-driven (`pwsh`), and CI is meant to call the same scripts:
 The Angular unit and end-to-end tests are run directly:
 `npm --prefix web run test:ci` (Vitest) and `npm --prefix web run e2e` (Playwright).
 
-> **Known issue:** `Verify-Quick.ps1`, `Verify.ps1` and `Verify-Packaging.ps1`
-> refuse to run when the repository has a git remote configured, which is always
-> true for a clone. <!-- TODO(owner): drop or relax the "no git remote" preflight in scripts/ before publishing (outside the README lane). -->
+The preflight in `Verify-Quick.ps1`, `Verify.ps1` and `Verify-Packaging.ps1`
+passes in a normal clone. It fails only if a git remote URL embeds a credential
+(for example `https://user:token@host/...`).
 
 ### Repository layout
 

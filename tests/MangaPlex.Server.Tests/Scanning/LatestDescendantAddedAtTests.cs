@@ -204,13 +204,29 @@ public sealed class LatestDescendantAddedAtTests : IDisposable
 
         CatalogNodeEntity Folder(string pub, string name, long? parent) => new()
         {
-            PublicId = pub, LibraryId = library.Id, ParentId = parent, Kind = (int)CatalogNodeKind.Folder,
-            DisplayName = name, RelativePath = name, PathKey = pub, SortKey = "0" + name, Availability = 0, CreatedAt = t1,
+            PublicId = pub,
+            LibraryId = library.Id,
+            ParentId = parent,
+            Kind = (int)CatalogNodeKind.Folder,
+            DisplayName = name,
+            RelativePath = name,
+            PathKey = pub,
+            SortKey = "0" + name,
+            Availability = 0,
+            CreatedAt = t1,
         };
         CatalogNodeEntity Archive(string pub, string name, long? parent, DateTimeOffset at, int avail = 0) => new()
         {
-            PublicId = pub, LibraryId = library.Id, ParentId = parent, Kind = (int)CatalogNodeKind.Archive,
-            DisplayName = name, RelativePath = name, PathKey = pub, SortKey = "1" + name, Availability = avail, CreatedAt = at,
+            PublicId = pub,
+            LibraryId = library.Id,
+            ParentId = parent,
+            Kind = (int)CatalogNodeKind.Archive,
+            DisplayName = name,
+            RelativePath = name,
+            PathKey = pub,
+            SortKey = "1" + name,
+            Availability = avail,
+            CreatedAt = at,
         };
 
         var seriesA = Folder("fa", "Series A", null);

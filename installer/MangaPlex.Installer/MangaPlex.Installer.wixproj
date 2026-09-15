@@ -1,10 +1,12 @@
 <Project Sdk="WixToolset.Sdk/6.0.2">
   <!--
     Standalone WiX v6 project for the MangaPlex per-user MSI installer.
-    Intentionally NOT added to MangaPlex.slnx (Lane B owns that file) - built
-    only via scripts/Build-Installer.ps1, which passes PayloadDir/ProductVersion
-    as preprocessor variables (see Build-Installer.ps1 for the dotnet build
-    invocation).
+    Intentionally NOT added to MangaPlex.slnx: the solution is built and tested
+    on Linux (CI and the sdk container) as well as Windows, while an MSI can
+    only be built on Windows and needs the payload staged by
+    scripts/Publish-Windows.ps1 first. Built only via scripts/Build-Installer.ps1,
+    which passes PayloadDir/ProductVersion as preprocessor variables (see
+    Build-Installer.ps1 for the dotnet build invocation).
   -->
   <PropertyGroup>
     <OutputType>Package</OutputType>

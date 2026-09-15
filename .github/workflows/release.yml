@@ -6,11 +6,11 @@
 #                               scripts/Smoke-Container.ps1 gates publishing;
 #                               the image goes to GHCR and a GitHub Release is
 #                               created with the CHANGELOG.md section as its body.
-#   windows-installer (windows) GUARDED: builds and attaches the MSI only when
+#   windows-installer (windows) GUARDED: builds and attaches the MSI when
 #                               scripts/Publish-Windows.ps1 and
 #                               scripts/Build-Installer.ps1 exist in the tagged
-#                               tree. Until the Windows packaging work lands it
-#                               logs a notice and succeeds without doing anything.
+#                               tree. For an older tag without them it logs a
+#                               notice and succeeds without doing anything.
 #
 # The workflow calls the repository's scripts; it never re-implements them.
 
@@ -149,12 +149,11 @@ jobs:
             "${flags[@]}" \
             "artifacts/release/${VERSION}"/*
 
-  # PENDING the Windows packaging work. scripts/Publish-Windows.ps1 and
-  # scripts/Build-Installer.ps1 (WiX MSI) do not exist in this tree yet, so
-  # every step after the guard is skipped and the job succeeds.
-  # TODO(owner): once those scripts land, confirm their parameters and output
-  # location (assumed: no required parameters, *.msi somewhere under artifacts/)
-  # and adjust the three guarded steps below.
+  # Both scripts run with their defaults: Publish-Windows.ps1 builds the web
+  # assets (npm, hence Node) and stages the self-contained distribution in
+  # artifacts/windows-dist; Build-Installer.ps1 restores the pinned WiX tool
+  # itself, stamps the version from Version.props, and writes
+  # artifacts/installer/<product>-<version>.msi from that folder.
   windows-installer:
     name: Windows installer (guarded)
     needs: package
@@ -184,6 +183,14 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Set up Node 24
+        if: steps.guard.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
       - name: Publish the Windows build
         if: steps.guard.outputs.present == 'true'
         shell: pwsh
@@ -201,8 +208,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          $msi = @(Get-ChildItem -Path artifacts -Recurse -Filter *.msi -File)
-          if ($msi.Count -eq 0) { throw "Build-Installer.ps1 produced no .msi under artifacts/." }
+          $msi = @(Get-ChildItem -Path artifacts/installer -Filter *.msi -File)
+          if ($msi.Count -eq 0) { throw "Build-Installer.ps1 produced no .msi in artifacts/installer/." }
           foreach ($file in $msi) {
             $hash = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
             $sidecar = "$($file.FullName).sha256"

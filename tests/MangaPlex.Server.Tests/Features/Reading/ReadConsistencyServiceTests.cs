@@ -47,34 +47,59 @@ public sealed class ReadConsistencyServiceTests : IDisposable
 
         var user = new UserEntity
         {
-            PublicId = OpaqueId.Encode(2), UserName = "admin", NormalizedUserName = "ADMIN",
-            IsActive = true, IsAdmin = true, PasswordHash = "h", SecurityStamp = "s", CreatedAt = DateTimeOffset.UtcNow,
+            PublicId = OpaqueId.Encode(2),
+            UserName = "admin",
+            NormalizedUserName = "ADMIN",
+            IsActive = true,
+            IsAdmin = true,
+            PasswordHash = "h",
+            SecurityStamp = "s",
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         db.Users.Add(user);
         await db.SaveChangesAsync();
 
         var folder = new CatalogNodeEntity
         {
-            PublicId = OpaqueId.Encode(50), LibraryId = library.Id, ParentId = null,
-            Kind = (int)CatalogNodeKind.Folder, DisplayName = "F", RelativePath = "F", PathKey = "F",
-            SortKey = "0F", Availability = (int)CatalogNodeAvailability.Available, CreatedAt = DateTimeOffset.UtcNow,
+            PublicId = OpaqueId.Encode(50),
+            LibraryId = library.Id,
+            ParentId = null,
+            Kind = (int)CatalogNodeKind.Folder,
+            DisplayName = "F",
+            RelativePath = "F",
+            PathKey = "F",
+            SortKey = "0F",
+            Availability = (int)CatalogNodeAvailability.Available,
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         db.CatalogNodes.Add(folder);
         await db.SaveChangesAsync();
 
         var node = new CatalogNodeEntity
         {
-            PublicId = OpaqueId.Encode(100), LibraryId = library.Id, ParentId = folder.Id,
-            Kind = (int)CatalogNodeKind.Archive, DisplayName = "A.cbz", RelativePath = "F/A.cbz", PathKey = "F/A.cbz",
-            SortKey = "1A", Availability = (int)CatalogNodeAvailability.Available, CreatedAt = DateTimeOffset.UtcNow,
+            PublicId = OpaqueId.Encode(100),
+            LibraryId = library.Id,
+            ParentId = folder.Id,
+            Kind = (int)CatalogNodeKind.Archive,
+            DisplayName = "A.cbz",
+            RelativePath = "F/A.cbz",
+            PathKey = "F/A.cbz",
+            SortKey = "1A",
+            Availability = (int)CatalogNodeAvailability.Available,
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         db.CatalogNodes.Add(node);
         await db.SaveChangesAsync();
 
         db.ArchiveItems.Add(new ArchiveItemEntity
         {
-            NodeId = node.Id, ArchiveFormat = 0, ByteLength = 1024, ModificationTicks = 0,
-            ContentVersion = 1, AnalysisState = 0, PageCount = pageCount,
+            NodeId = node.Id,
+            ArchiveFormat = 0,
+            ByteLength = 1024,
+            ModificationTicks = 0,
+            ContentVersion = 1,
+            AnalysisState = 0,
+            PageCount = pageCount,
         });
         await db.SaveChangesAsync();
 

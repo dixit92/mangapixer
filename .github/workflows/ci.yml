@@ -45,12 +45,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # TODO(owner): Verify.ps1's privacy preflight still requires that NO git
-      # remote is configured, and actions/checkout always adds "origin". Remove
-      # this step once the preflight is relaxed for the public repository.
-      - name: Drop the origin remote (privacy preflight expects none)
-        run: git remote remove origin
-
       - name: Set up .NET (global.json)
         uses: actions/setup-dotnet@v4
         with:

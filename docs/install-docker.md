@@ -65,17 +65,13 @@ Mount every share somewhere under `/media`. That is the folder the library
 [`MangaPlex__Storage__MediaRoot`](configuration.md#storage)).
 
 Compose only reads the override file when you pass it with `-f`, as in the
-commands below. To stop Git from ever picking the file up, add it to your
-clone's local exclude list:
-
-```sh
-echo "deploy/compose.override.yaml" >> .git/info/exclude
-```
+commands below. The repository's `.gitignore` already excludes
+`deploy/compose.override.yaml`, so Git never picks it up.
 
 ## Step 3: choose the image tag
 
-The Compose file tags the image `mangaplex:${MANGAPLEX_VERSION}`. Its built-in
-fallback tag is an old development number, so always set the variable to the
+The Compose file tags the image `mangaplex:${MANGAPLEX_VERSION}`. When the
+variable is unset it falls back to `latest`, so always set the variable to the
 version you are building. The version is in `Version.props`, and this script
 prints it:
 

@@ -13,8 +13,8 @@
     <!-- Standard project metadata -->
     <Product>MangaPlex</Product>
     <Company />
-    <Authors />
-    <Copyright />
+    <Authors>Smit Dixit</Authors>
+    <Copyright>Copyright (c) 2026 Smit Dixit</Copyright>
     <Description>Folder-native comic/manga server and Angular reader.</Description>
 
     <!-- Version propagation from Version.props -->

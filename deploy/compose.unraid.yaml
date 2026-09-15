@@ -25,7 +25,7 @@ services:
     # Pre-built image path (recommended): build on your dev machine with
     # Package-Release.ps1, transfer the tar to Unraid, docker load it, then
     # `up -d` here. No repo needed on Unraid.
-    image: mangaplex:${MANGAPLEX_VERSION:-1.0.0}
+    image: mangaplex:${MANGAPLEX_VERSION:-latest}
     # To build on Unraid instead, comment out `image:` above and uncomment:
     # build:
     #   context: ..
@@ -57,10 +57,10 @@ services:
       # Multiple shares are fine; add one line each.
       # - /mnt/user/Reading:/media/reading:ro
       #
-      # Then set Media__RootPath (or per-library rootPath) to the mounted
-      # path, e.g.:
-      # environment:
-      #   Media__RootPath: "/media/reading"
+      #
+      # Each library's folder is picked in the admin UI. The folder picker
+      # starts at /media; to start it elsewhere, set (under environment:)
+      #   MangaPlex__Storage__MediaRoot: "/media/reading"
     restart: unless-stopped
     logging:
       driver: local
@@ -75,5 +75,5 @@ services:
     labels:
       org.opencontainers.image.title: "MangaPlex"
       org.opencontainers.image.description: "Folder-native comic/manga server and Angular web reader"
-      org.opencontainers.image.version: "${MANGAPLEX_VERSION:-1.0.0}"
-      org.opencontainers.image.licenses: "proprietary"
+      org.opencontainers.image.version: "${MANGAPLEX_VERSION:-latest}"
+      org.opencontainers.image.licenses: "MIT"
