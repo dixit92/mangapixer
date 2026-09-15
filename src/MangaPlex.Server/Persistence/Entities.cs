@@ -442,6 +442,14 @@ public sealed class ReaderPreferencesEntity
     /// </summary>
     public int LibraryPageSize { get; set; }
 
+    /// <summary>
+    /// Per-user "recently added" window, in days, for the home "New chapters" row
+    /// (1.12.0 refinement): 0 = unset -> <c>RecentChaptersService</c> falls back to
+    /// its 30-day default. Clamped to 1..365 when read by the service; stored
+    /// verbatim here like the other presentation columns.
+    /// </summary>
+    public int HomeRecentWindowDays { get; set; }
+
     public UserEntity? User { get; set; }
 }
 

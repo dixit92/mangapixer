@@ -249,6 +249,63 @@ public sealed class RecentChaptersServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task PerUserWindow_NarrowsToStoredDays()
+    {
+        // A 10-day-old archive is inside the 30-day default but outside a 7-day per-user window.
+        var (db, userId, libAId, _) = await SetupAsync();
+        try
+        {
+            var series = await AddFolderAsync(db, libAId, "seriesA", "Series A");
+            await AddArchiveAsync(db, libAId, "recentArch", "Recent.cbz", Now.AddDays(-2), parentId: series.Id);
+            await AddArchiveAsync(db, libAId, "tenDayArch", "TenDay.cbz", Now.AddDays(-10), parentId: series.Id);
+
+            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
+
+            // Default (unset) window: 30 days — both archives count.
+            var defaultResult = await service.GetRecentChaptersAsync(userId);
+            var defaultStack = Assert.Single(defaultResult.Libraries.First(g => g.LibraryId == "recLibA").Stacks);
+            Assert.Equal(2, defaultStack.NewCount);
+
+            // Per-user 7-day window — only the 2-day-old archive counts.
+            db.ReaderPreferences.Add(new ReaderPreferencesEntity { UserId = userId, HomeRecentWindowDays = 7 });
+            await db.SaveChangesAsync();
+
+            var narrowResult = await service.GetRecentChaptersAsync(userId);
+            var narrowStack = Assert.Single(narrowResult.Libraries.First(g => g.LibraryId == "recLibA").Stacks);
+            Assert.Equal(1, narrowStack.NewCount);
+            Assert.Equal("recentArch", narrowStack.LatestItemId);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Theory]
+    [InlineData(0, 30)]     // unset -> default
+    [InlineData(-5, 1)]     // a stray negative (should not occur via the UI) clamps to the floor
+    [InlineData(1, 1)]      // already at the range floor
+    [InlineData(500, 365)]  // above range clamps to the ceiling
+    public async Task PerUserWindow_IsClampedToSaneRange(int stored, int expectedEffectiveDays)
+    {
+        var (db, userId, libAId, _) = await SetupAsync();
+        try
+        {
+            // One archive just inside the expected effective window, one just outside it.
+            await AddArchiveAsync(db, libAId, "inside", "Inside.cbz", Now.AddDays(-(expectedEffectiveDays - 0.5)));
+            await AddArchiveAsync(db, libAId, "outside", "Outside.cbz", Now.AddDays(-(expectedEffectiveDays + 0.5)));
+
+            db.ReaderPreferences.Add(new ReaderPreferencesEntity { UserId = userId, HomeRecentWindowDays = stored });
+            await db.SaveChangesAsync();
+
+            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
+            var result = await service.GetRecentChaptersAsync(userId);
+
+            var alpha = result.Libraries.First(g => g.LibraryId == "recLibA");
+            var stack = Assert.Single(alpha.Stacks);
+            Assert.Equal("inside", stack.LatestItemId);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
     public async Task Incognito_ExcludesPrivateLibrary()
     {
         var (db, userId, libAId, libBId) = await SetupAsync();

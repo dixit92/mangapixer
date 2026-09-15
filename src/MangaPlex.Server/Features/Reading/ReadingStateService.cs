@@ -848,6 +848,7 @@ public sealed class ReadingStateService
             Direction = prefs.LibraryDirection,
             CardSize = prefs.LibraryCardSize,
             LibraryPageSize = prefs.LibraryPageSize,
+            HomeRecentWindowDays = prefs.HomeRecentWindowDays,
         };
     }
 
@@ -875,6 +876,7 @@ public sealed class ReadingStateService
         prefs.LibraryDirection = preferences.Direction;
         prefs.LibraryCardSize = preferences.CardSize;
         prefs.LibraryPageSize = preferences.LibraryPageSize;
+        prefs.HomeRecentWindowDays = preferences.HomeRecentWindowDays;
 
         await _db.SaveChangesAsync(ct);
     }

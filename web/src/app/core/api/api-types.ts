@@ -268,6 +268,12 @@ export interface LibraryViewPreferencesDto {
    * from the legacy viewMode + density, so pre-1.6.0 stored prefs keep their size.
    */
   cardSize?: string;
+  /**
+   * Optional (1.12.0 refinement): the per-user "recently added" window, in days,
+   * for the home "New chapters" row. 0/omitted → the server default (30). The
+   * server clamps stored values to 1-365.
+   */
+  homeRecentWindowDays?: number;
 }
 
 // --- YACReader progress import (1.2.0, admin-only) ---
