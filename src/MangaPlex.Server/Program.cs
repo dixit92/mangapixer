@@ -55,6 +55,15 @@ public sealed partial class Program
         var databasePath = Path.Combine(dataRoot, "mangaplex.db");
         var workerExe = storageOverride?.WorkerExecutablePath
             ?? builder.Configuration["Media:WorkerExecutablePath"];
+        // A relative WorkerExecutablePath (e.g. the Windows distribution's
+        // "..\worker\MangaPlex.MediaWorker.exe") is resolved against the
+        // server's own assembly directory, not the process's current working
+        // directory — the CWD a launcher (double-click, Start-Process, a
+        // future tray app) uses is not guaranteed to match the exe's folder.
+        // The container's env var is already an absolute path, so this is a
+        // no-op there.
+        if (!string.IsNullOrWhiteSpace(workerExe) && !Path.IsPathRooted(workerExe))
+            workerExe = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, workerExe));
 
         // Re-inject the fully-resolved absolute roots (and worker path) back
         // into configuration so any OTHER code that re-reads these same keys
@@ -412,7 +421,19 @@ public sealed partial class Program
     {
         var value = configuration[key];
         if (string.IsNullOrWhiteSpace(value))
+        {
+            // Windows-native distribution default: a per-user, always-writable
+            // profile directory rather than the install folder (which may sit
+            // under a read-only Program Files). Containers/Linux always set
+            // MangaPlex__Storage__*Root explicitly (see deploy/Dockerfile), so
+            // this branch never fires there and that default is unchanged.
+            if (OperatingSystem.IsWindows())
+            {
+                var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                return Path.Combine(localAppData, "MangaPlex", defaultName);
+            }
             return Path.Combine(AppContext.BaseDirectory, defaultName);
+        }
         return Path.GetFullPath(value);
     }
 
