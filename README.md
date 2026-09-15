@@ -164,8 +164,8 @@ file builds the image from source; no prebuilt registry image is published yet.
          - /path/to/your/comics:/media/comics:ro
    ```
 
-   The file contains your real paths, so don't commit it. It is not listed in
-   `.gitignore`.
+   The file contains your real paths; `.gitignore` excludes it, so it stays out
+   of commits.
 
 3. **Pin the image tag and start.** Create `deploy/.env` (git-ignored) with the
    version you are building. It is read from `Version.props`; `1.12.0` at the

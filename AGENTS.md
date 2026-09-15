@@ -186,7 +186,7 @@ Conventions for the Unraid config:
 
 - `PUID`/`PGID` env vars (default `1000/1000`) follow the linuxserver.io/Unraid convention. Set them to the host user that owns the appdata share so files on the host are owned by you, not by an arbitrary in-image UID. The entrypoint creates the runtime user/group at startup when the IDs differ from the image's built-in 1000.
 - Media mounts are commented examples. Uncomment and edit to point at `/mnt/user/<share>` paths. To keep real paths out of git, copy the file to `compose.unraid.override.yaml` (gitignored) and put your mounts there.
-- `read_only: true`, `no-new-privileges`, bounded logging, and loopback-only port publication are preserved from the canonical config.
+- `read_only: true`, `no-new-privileges`, and bounded logging are preserved from the canonical config. Unlike the canonical config, the port is published on all interfaces (`6266:8080`), not loopback only: LAN access is the point of an Unraid deployment. Put a reverse proxy in front for anything beyond a trusted LAN.
 - Source media is mounted `:ro` to enforce the read-only source invariant.
 
 The `entrypoint.sh` is shared by both configs. It chowns whichever state directories exist (`/data`, `/cache`, `/scratch`, and/or `/config` and its subfolders) to `PUID:PGID`, then drops privileges via `gosu`. Default behavior when `PUID`/`PGID` are unset is unchanged from the original 1000:1000 image user, so the canonical volume-based config and smoke tests are unaffected.

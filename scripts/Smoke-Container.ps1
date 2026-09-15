@@ -104,7 +104,6 @@ Invoke-Stage "Run container" {
     docker run -d --name $ContainerName `
         -p "${HostPort}:8080" `
         -v "${tempLib}:/media:ro" `
-        -e Media__RootPath=/media `
         -e Logging__LogLevel__Default=Information `
         $ImageName 2>&1 | Out-Host
 

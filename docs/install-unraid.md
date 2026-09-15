@@ -47,7 +47,7 @@ docker load -i mangaplex-1.12.0-image.tar
 `build:` block beneath it.
 
 Whichever option you use, set `MANGAPLEX_VERSION` to the version you loaded
-or built. The file's fallback tag is `1.0.0`.
+or built. If it is unset, the file falls back to `mangaplex:latest`.
 
 ```sh
 export MANGAPLEX_VERSION=1.12.0
@@ -91,10 +91,9 @@ services:
 - Compose merges the override only when you pass it with `-f` (next step).
   Compose does not pick this file name up on its own.
 
-The comment in `compose.unraid.yaml` that suggests setting `Media__RootPath`
-is out of date: the server does not read that variable. You do not need it.
-You pick each library's folder in the web UI, and the picker's starting folder
-is controlled by [`MangaPlex__Storage__MediaRoot`](configuration.md#storage)
+You do not need a media-root variable for the mounts to work. You pick each
+library's folder in the web UI, and the picker's starting folder is controlled
+by [`MangaPlex__Storage__MediaRoot`](configuration.md#storage)
 (default `/media`).
 
 ## Step 4: start the container
@@ -106,7 +105,8 @@ docker compose -f compose.unraid.yaml -f compose.unraid.override.yaml up -d
 ```
 
 (From a repository clone, use `deploy/compose.unraid.yaml` and
-`deploy/compose.unraid.override.yaml`.)
+`deploy/compose.unraid.override.yaml`; the repository's `.gitignore` excludes
+the override file.)
 
 Check it:
 
