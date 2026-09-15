@@ -1,6 +1,6 @@
-using com.lifepixer.mangaplex.Tray.Server;
+using com.lifepixer.mangapixer.Tray.Server;
 
-namespace com.lifepixer.mangaplex.Tray.Settings;
+namespace com.lifepixer.mangapixer.Tray.Settings;
 
 /// <summary>
 /// Persisted tray preferences. Deliberately tiny: "start at sign-in" is not

@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.TestSupport.Fixtures;
+namespace com.lifepixer.mangapixer.TestSupport.Fixtures;
 
 /// <summary>
 /// Provides pre-built RAR fixture bytes for compatibility testing.

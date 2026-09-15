@@ -1,11 +1,11 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
-using com.lifepixer.mangaplex.TestSupport.Fixtures;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.TestSupport.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -18,13 +18,13 @@ using Xunit;
 [Collection("HttpSerial")]
 public sealed class ManifestHttpTests : IDisposable
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
     private readonly string _libRoot;
 
     public ManifestHttpTests()
     {
-        _factory = new MangaPlexWebApplicationFactory();
-        _libRoot = Path.Combine(Path.GetTempPath(), "mangaplex-manifest-" + Guid.NewGuid().ToString("N")[..8]);
+        _factory = new MangaPixerWebApplicationFactory();
+        _libRoot = Path.Combine(Path.GetTempPath(), "mangapixer-manifest-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_libRoot);
     }
 
@@ -99,7 +99,7 @@ public sealed class ManifestHttpTests : IDisposable
         // Directly mark as failed
         using (var scope = _factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var node = await db.CatalogNodes.FirstAsync(n => n.PublicId == itemId);
             var archiveItem = await db.ArchiveItems.FirstOrDefaultAsync(a => a.NodeId == node.Id);
             if (archiveItem is null)
@@ -185,7 +185,7 @@ public sealed class ManifestHttpTests : IDisposable
         string folderId;
         using (var scope = _factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var folder = await db.CatalogNodes.FirstAsync(n => n.Kind == 0 && n.PublicId != null);
             folderId = folder.PublicId!;
         }
@@ -223,7 +223,7 @@ public sealed class ManifestHttpTests : IDisposable
         string itemId;
         using (var scope = _factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var scanRuns = await db.ScanRuns.ToListAsync();
             var nodes = await db.CatalogNodes.Where(n => n.Kind == 1 && n.PublicId != null).ToListAsync();
             Assert.NotEmpty(nodes);
@@ -236,7 +236,7 @@ public sealed class ManifestHttpTests : IDisposable
     private async Task PersistAnalysisResultAsync(string itemPublicId, int pageCount)
     {
         using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
 
         var node = await db.CatalogNodes.FirstAsync(n => n.PublicId == itemPublicId);
 
@@ -277,7 +277,7 @@ public sealed class ManifestHttpTests : IDisposable
                 ItemId = node.Id,
                 ContentVersion = archiveItem.ContentVersion,
                 Ordinal = i,
-                EntryKey = com.lifepixer.mangaplex.Core.Catalog.OpaqueId.Encode(Random.Shared.NextInt64(1, long.MaxValue)),
+                EntryKey = com.lifepixer.mangapixer.Core.Catalog.OpaqueId.Encode(Random.Shared.NextInt64(1, long.MaxValue)),
                 SourceEntryLocator = $"page{i + 1:D3}.png",
                 MediaType = "image/png",
                 Width = 1,

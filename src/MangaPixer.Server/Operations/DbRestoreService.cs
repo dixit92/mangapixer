@@ -1,9 +1,9 @@
-namespace com.lifepixer.mangaplex.Server.Operations;
+namespace com.lifepixer.mangapixer.Server.Operations;
 
-using com.lifepixer.mangaplex.Server.Logging;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
-using com.lifepixer.mangaplex.Server.Storage;
+using com.lifepixer.mangapixer.Server.Logging;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -18,19 +18,19 @@ public sealed class DbRestoreOptions
     /// <summary>
     /// Hard ceiling on an uploaded restore payload, enforced while the
     /// stream is written to the controlled staging location. Defaults to
-    /// 512 MiB; override via <c>MangaPlex:Backups:MaxRestoreUploadBytes</c>.
+    /// 512 MiB; override via <c>MangaPixer:Backups:MaxRestoreUploadBytes</c>.
     /// </summary>
     public long MaxUploadBytes { get; set; } = 512 * 1024 * 1024;
 }
 
 /// <summary>
-/// Imports and restores a MangaPlex SQLite database backup (1.7.0).
+/// Imports and restores a MangaPixer SQLite database backup (1.7.0).
 ///
 /// Security model (non-negotiable):
 /// 1. Admin-only — the endpoint is guarded by <c>[Authorize(Policy = "Admin")]</c>.
 /// 2. Validate before trusting — an uploaded stream is accepted ONLY if it is a
-///    genuine MangaPlex SQLite backup: SQLite magic header, enforced size cap,
-///    <c>PRAGMA integrity_check = ok</c>, and the expected MangaPlex schema
+///    genuine MangaPixer SQLite backup: SQLite magic header, enforced size cap,
+///    <c>PRAGMA integrity_check = ok</c>, and the expected MangaPixer schema
 ///    (core tables + a recognised <c>user_version</c> marker). A caller-supplied
 ///    filesystem path is NEVER accepted; the payload is written to a controlled
 ///    staging location under the app's own data root.
@@ -54,10 +54,10 @@ public sealed class DbRestoreService
         System.Text.Encoding.ASCII.GetBytes("SQLite format 3\0");
 
     private const string PendingDirName = "restore-pending";
-    private const string StagedFileName = "mangaplex.db.staged";
+    private const string StagedFileName = "mangapixer.db.staged";
     private const string MarkerFileName = "restore.json";
 
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly BackupService _backup;
     private readonly DbRestoreOptions _options;
     private readonly string _dataRoot;
@@ -65,7 +65,7 @@ public sealed class DbRestoreService
     private readonly ILogger<DbRestoreService>? _logger;
 
     public DbRestoreService(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         BackupService backup,
         DbRestoreOptions options,
         AppRootOptions appRoot,
@@ -177,7 +177,7 @@ public sealed class DbRestoreService
 
     /// <summary>
     /// Validates a staged/candidate backup file: SQLite magic header, a
-    /// passing <c>PRAGMA integrity_check</c>, the expected MangaPlex core
+    /// passing <c>PRAGMA integrity_check</c>, the expected MangaPixer core
     /// tables, and a recognised schema version marker (not newer than this
     /// server supports). Opens the file READ-ONLY so a crafted payload cannot
     /// mutate anything.
@@ -222,11 +222,11 @@ public sealed class DbRestoreService
             if (integrity is not "ok")
                 return BackupValidation.Invalid("Backup failed integrity check (database may be corrupt).");
 
-            // Core MangaPlex tables
+            // Core MangaPixer tables
             foreach (var table in new[] { "users", "libraries", "catalog_nodes" })
             {
                 if (!await TableExistsAsync(conn, table, ct))
-                    return BackupValidation.Invalid($"Backup is missing expected MangaPlex table '{table}'.");
+                    return BackupValidation.Invalid($"Backup is missing expected MangaPixer table '{table}'.");
             }
 
             // Schema version marker — reject a newer-than-supported schema.
@@ -300,7 +300,7 @@ public sealed class DbRestoreService
         // copy (the VACUUM INTO pre-restore snapshot is the durable rollback
         // point in the backups folder).
         var ts = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-        var replacedPath = Path.Combine(dataRoot, "mangaplex.db.replaced-" + ts);
+        var replacedPath = Path.Combine(dataRoot, "mangapixer.db.replaced-" + ts);
         var walPath = dbPath + "-wal";
         var shmPath = dbPath + "-shm";
 
@@ -328,7 +328,7 @@ public sealed class DbRestoreService
                 marker.RequestedBy,
                 marker.RequestedAtUtc,
                 marker.PreRestoreBackupFileName,
-                "mangaplex.db.replaced-" + ts);
+                "mangapixer.db.replaced-" + ts);
         }
         catch (Exception ex)
         {

@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Server.Features.Auth;
+namespace com.lifepixer.mangapixer.Server.Features.Auth;
 
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 
@@ -12,10 +12,10 @@ using System.Security.Cryptography;
 /// </summary>
 public sealed class SessionService
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly SessionOptions _options;
 
-    public SessionService(MangaPlexDbContext db, SessionOptions? options = null)
+    public SessionService(MangaPixerDbContext db, SessionOptions? options = null)
     {
         _db = db;
         _options = options ?? new SessionOptions();
@@ -118,7 +118,7 @@ public sealed class SessionService
 public sealed class SessionOptions
 {
     public TimeSpan SessionLifetime { get; set; } = TimeSpan.FromDays(7);
-    public string CookieName { get; set; } = ".MangaPlex.Auth";
-    public string CsrfCookieName { get; set; } = ".MangaPlex.Csrf";
-    public string CsrfHeaderName { get; set; } = "X-MangaPlex-Csrf";
+    public string CookieName { get; set; } = ".MangaPixer.Auth";
+    public string CsrfCookieName { get; set; } = ".MangaPixer.Csrf";
+    public string CsrfHeaderName { get; set; } = "X-MangaPixer-Csrf";
 }

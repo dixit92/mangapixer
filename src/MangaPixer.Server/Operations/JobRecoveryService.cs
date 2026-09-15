@@ -1,10 +1,10 @@
-namespace com.lifepixer.mangaplex.Server.Operations;
+namespace com.lifepixer.mangapixer.Server.Operations;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -20,12 +20,12 @@ using Microsoft.EntityFrameworkCore;
 /// </summary>
 public sealed class JobRecoveryService
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly ScratchWorkspaceManager? _scratchManager;
     private readonly ILogger<JobRecoveryService>? _logger;
 
     public JobRecoveryService(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         ScratchWorkspaceManager? scratchManager = null,
         ILogger<JobRecoveryService>? logger = null)
     {

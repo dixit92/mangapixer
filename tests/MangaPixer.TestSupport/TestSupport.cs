@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.TestSupport;
+namespace com.lifepixer.mangapixer.TestSupport;
 
 /// <summary>
-/// Shared test support utilities for MangaPlex tests.
+/// Shared test support utilities for MangaPixer tests.
 /// </summary>
 public static class TestSupport
 {
@@ -9,7 +9,7 @@ public static class TestSupport
     /// Creates a unique temporary directory path for test isolation.
     /// Actual directory creation is deferred to the caller.
     /// </summary>
-    public static string GetTempTestRoot(string prefix = "mangaplex-test")
+    public static string GetTempTestRoot(string prefix = "mangapixer-test")
     {
         return Path.Combine(Path.GetTempPath(), $"{prefix}-{Guid.NewGuid():N}");
     }
@@ -17,7 +17,7 @@ public static class TestSupport
     /// <summary>
     /// Creates a unique temporary directory and returns its path.
     /// </summary>
-    public static string CreateTempTestRoot(string prefix = "mangaplex-test")
+    public static string CreateTempTestRoot(string prefix = "mangapixer-test")
     {
         var path = GetTempTestRoot(prefix);
         Directory.CreateDirectory(path);

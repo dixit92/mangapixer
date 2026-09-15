@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Server.Operations;
+namespace com.lifepixer.mangapixer.Server.Operations;
 
-using com.lifepixer.mangaplex.Server.Logging;
-using com.lifepixer.mangaplex.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Logging;
+using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 
@@ -17,10 +17,10 @@ using System.Diagnostics;
 /// </summary>
 public sealed class DiagnosticsService
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly ILogger<DiagnosticsService>? _logger;
 
-    public DiagnosticsService(MangaPlexDbContext db, ILogger<DiagnosticsService>? logger = null)
+    public DiagnosticsService(MangaPixerDbContext db, ILogger<DiagnosticsService>? logger = null)
     {
         _db = db;
         _logger = logger;

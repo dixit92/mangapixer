@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Media;
+namespace com.lifepixer.mangapixer.Tests.Server.Media;
 
-using com.lifepixer.mangaplex.Server.Media;
+using com.lifepixer.mangapixer.Server.Media;
 using Xunit;
 
 /// <summary>
@@ -28,7 +28,7 @@ public sealed class WorkerPoolOptionsTests
     public void Defaults_ScratchBudgetIs1GiB()
     {
         // Lowered from 2 GiB — only solid RAR/7z sequential extraction uses scratch;
-        // overridable via MangaPlex:Storage:ScratchBudgetBytes.
+        // overridable via MangaPixer:Storage:ScratchBudgetBytes.
         var options = new WorkerPoolOptions();
         Assert.Equal(1L * 1024 * 1024 * 1024, options.ScratchBudgetBytes);
     }
@@ -37,7 +37,7 @@ public sealed class WorkerPoolOptionsTests
     public void Defaults_CacheBudgetIs1GiB()
     {
         // Lowered from 10 GiB — the cache holds individual page images under LRU
-        // eviction; overridable via MangaPlex:Storage:CacheBudgetBytes.
+        // eviction; overridable via MangaPixer:Storage:CacheBudgetBytes.
         var options = new WorkerPoolOptions();
         Assert.Equal(1L * 1024 * 1024 * 1024, options.CacheBudgetBytes);
     }

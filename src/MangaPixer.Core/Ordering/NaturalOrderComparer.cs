@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Core.Ordering;
+namespace com.lifepixer.mangapixer.Core.Ordering;
 
 /// <summary>
 /// Natural-order comparison for folder names, archive filenames, and archive entry paths.

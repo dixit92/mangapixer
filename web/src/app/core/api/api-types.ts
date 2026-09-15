@@ -278,7 +278,7 @@ export interface LibraryViewPreferencesDto {
 
 // --- YACReader progress import (1.2.0, admin-only) ---
 
-/** Whether a YACReader library was detected inside a MangaPlex library's root. */
+/** Whether a YACReader library was detected inside a MangaPixer library's root. */
 export interface YacReaderDetectDto {
   detected: boolean;
   dbVersion: string | null;

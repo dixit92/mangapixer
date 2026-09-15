@@ -1,9 +1,9 @@
-namespace com.lifepixer.mangaplex.Server.Hosting;
+namespace com.lifepixer.mangapixer.Server.Hosting;
 
-using com.lifepixer.mangaplex.Core.Media;
-using com.lifepixer.mangaplex.Server.Logging;
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Persistence;
+using com.lifepixer.mangapixer.Core.Media;
+using com.lifepixer.mangapixer.Server.Logging;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -54,7 +54,7 @@ public sealed class PendingAnalysisResumeHostedService : IHostedService
         try
         {
             using var scope = _services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var scheduler = scope.ServiceProvider.GetRequiredService<JobScheduler>();
 
             var libraryIds = await db.Libraries

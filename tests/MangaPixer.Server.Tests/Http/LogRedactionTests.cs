@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
-using com.lifepixer.mangaplex.Server.Hosting;
+using com.lifepixer.mangapixer.Server.Hosting;
 using Xunit;
 
 /// <summary>

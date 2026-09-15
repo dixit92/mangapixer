@@ -1,11 +1,11 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,18 +15,18 @@ using Xunit;
 /// HTTP integration tests for the YACReader progress import endpoints
 /// (admin-only). Exercises the full wiring — DI, routing, auth, CSRF, and
 /// serialization — through WebApplicationFactory, with a synthetic YACReader
-/// library.ydb fixture and a directly-seeded MangaPlex catalog.
+/// library.ydb fixture and a directly-seeded MangaPixer catalog.
 /// </summary>
 [Collection("HttpSerial")]
 public sealed class YacReaderImportHttpTests : IDisposable
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
     private readonly string _libRoot;
 
     public YacReaderImportHttpTests()
     {
-        _factory = new MangaPlexWebApplicationFactory();
-        _libRoot = Path.Combine(Path.GetTempPath(), "mangaplex-yac-http-" + Guid.NewGuid().ToString("N")[..8]);
+        _factory = new MangaPixerWebApplicationFactory();
+        _libRoot = Path.Combine(Path.GetTempPath(), "mangapixer-yac-http-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_libRoot);
     }
 
@@ -77,7 +77,7 @@ public sealed class YacReaderImportHttpTests : IDisposable
     private async Task<(string libraryPublicId, string userPublicId, long node1Id)> SeedAsync()
     {
         using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
 
         var library = new LibraryEntity
         {
@@ -146,7 +146,7 @@ public sealed class YacReaderImportHttpTests : IDisposable
 
         var csrfResponse = await readerClient.GetAsync("/api/v1/auth/csrf");
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
-        readerClient.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        readerClient.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
 
         // Change password to clear ForcePasswordChange.
         await readerClient.PostAsJsonAsync("/api/v1/auth/change-password", new ChangePasswordRequest
@@ -158,7 +158,7 @@ public sealed class YacReaderImportHttpTests : IDisposable
         await readerClient.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest { Username = "reader1", Password = "ReaderNewPass123!" });
         var freshCsrf = await readerClient.GetAsync("/api/v1/auth/csrf");
         var freshToken = await freshCsrf.Content.ReadFromJsonAsync<CsrfTokenDto>();
-        readerClient.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", freshToken!.Token);
+        readerClient.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", freshToken!.Token);
 
         var response = await readerClient.PostAsJsonAsync("/api/v1/admin/import/yacreader/preview", new YacReaderImportRequest
         {

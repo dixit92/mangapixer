@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
+namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
 {
     /// <inheritdoc />
     public partial class AddLibraryPageSize : Migration

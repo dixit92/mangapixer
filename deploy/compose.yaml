@@ -1,6 +1,6 @@
 # MangaPlex production Compose file (template)
 # Real library mounts and app-data paths are supplied through ignored local overrides.
-# Set MANGAPLEX_VERSION to pin the image tag; it falls back to 'latest' when unset.
+# Set MANGAPIXER_VERSION to pin the image tag; it falls back to 'latest' when unset.
 # Loopback-only publication by default; reverse proxies handle external access.
 
 services:
@@ -8,16 +8,16 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    image: mangaplex:${MANGAPLEX_VERSION:-latest}
+    image: mangaplex:${MANGAPIXER_VERSION:-latest}
     ports:
       - "127.0.0.1:8080:8080"
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       DOTNET_RUNNING_IN_CONTAINER: "true"
       DOTNET_CLI_TELEMETRY_OPTOUT: "true"
-      MangaPlex__Storage__DataRoot: "/data"
-      MangaPlex__Storage__CacheRoot: "/cache"
-      MangaPlex__Storage__ScratchRoot: "/scratch"
+      MangaPixer__Storage__DataRoot: "/data"
+      MangaPixer__Storage__CacheRoot: "/cache"
+      MangaPixer__Storage__ScratchRoot: "/scratch"
     volumes:
       - mangaplex-data:/data
       - mangaplex-cache:/cache
@@ -38,7 +38,7 @@ services:
     labels:
       org.opencontainers.image.title: "MangaPlex"
       org.opencontainers.image.description: "Folder-native comic/manga server and Angular web reader"
-      org.opencontainers.image.version: "${MANGAPLEX_VERSION:-latest}"
+      org.opencontainers.image.version: "${MANGAPIXER_VERSION:-latest}"
       org.opencontainers.image.licenses: "MIT"
 
 volumes:

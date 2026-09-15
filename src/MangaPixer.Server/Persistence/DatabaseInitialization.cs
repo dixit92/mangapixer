@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Server.Persistence;
+namespace com.lifepixer.mangapixer.Server.Persistence;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -40,8 +40,8 @@ public static class DatabaseInitialization
     /// <summary>
     /// Configures EF Core DbContext options for SQLite with proper connection settings.
     /// </summary>
-    public static DbContextOptionsBuilder<MangaPlexDbContext> ConfigureSqlite(
-        this DbContextOptionsBuilder<MangaPlexDbContext> builder,
+    public static DbContextOptionsBuilder<MangaPixerDbContext> ConfigureSqlite(
+        this DbContextOptionsBuilder<MangaPixerDbContext> builder,
         string databasePath)
     {
         var connectionString = BuildConnectionString(databasePath);
@@ -57,7 +57,7 @@ public static class DatabaseInitialization
     /// Runs post-migration pragmas and FTS5 index creation.
     /// Called after migrations are applied.
     /// </summary>
-    public static async Task ConfigureDatabaseAsync(MangaPlexDbContext db, CancellationToken ct = default)
+    public static async Task ConfigureDatabaseAsync(MangaPixerDbContext db, CancellationToken ct = default)
     {
         // Enable foreign keys on every connection
         await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON;", ct);
@@ -139,7 +139,7 @@ public static class DatabaseInitialization
     /// Returns the schema version from the database, or null if not initialized.
     /// Used by the startup coordinator to reject newer incompatible schemas.
     /// </summary>
-    public static async Task<int?> GetSchemaVersionAsync(MangaPlexDbContext db, CancellationToken ct = default)
+    public static async Task<int?> GetSchemaVersionAsync(MangaPixerDbContext db, CancellationToken ct = default)
     {
         try
         {
@@ -159,7 +159,7 @@ public static class DatabaseInitialization
     /// <summary>
     /// Sets the schema version. Called after successful migration.
     /// </summary>
-    public static async Task SetSchemaVersionAsync(MangaPlexDbContext db, int version, CancellationToken ct = default)
+    public static async Task SetSchemaVersionAsync(MangaPixerDbContext db, int version, CancellationToken ct = default)
     {
         // PRAGMA doesn't support parameterized values; version is an internally-generated constant
         var sql = "PRAGMA user_version = " + version.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";";
@@ -201,7 +201,7 @@ public static class DatabaseInitialization
     /// Fresh installs skip 1 and 2 and migrate from empty.
     /// </summary>
     public static async Task MigrateToLatestAsync(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         string dataRoot,
         Func<string, Task<bool>> backupAsync,
         ILogger? logger = null,
@@ -248,7 +248,7 @@ public static class DatabaseInitialization
     /// single connection open.
     /// </summary>
     private static async Task<(bool HasAppSchema, bool HasHistory, int UserVersion)> ReadSchemaStateAsync(
-        MangaPlexDbContext db, CancellationToken ct)
+        MangaPixerDbContext db, CancellationToken ct)
     {
         var connection = db.Database.GetDbConnection();
         var wasOpen = connection.State == ConnectionState.Open;
@@ -291,7 +291,7 @@ public static class DatabaseInitialization
     /// exist (created by EnsureCreated). Idempotent via INSERT OR IGNORE.
     /// </summary>
     private static async Task SeedMigrationsHistoryBaselineAsync(
-        MangaPlexDbContext db, string migrationId, CancellationToken ct)
+        MangaPixerDbContext db, string migrationId, CancellationToken ct)
     {
         await db.Database.ExecuteSqlRawAsync("""
             CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (

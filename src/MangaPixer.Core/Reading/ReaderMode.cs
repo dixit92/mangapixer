@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Core.Reading;
+namespace com.lifepixer.mangapixer.Core.Reading;
 
 /// <summary>
 /// Reader display mode.

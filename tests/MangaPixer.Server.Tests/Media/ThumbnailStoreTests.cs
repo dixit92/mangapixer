@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Media;
+namespace com.lifepixer.mangapixer.Tests.Server.Media;
 
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.TestSupport;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.TestSupport;
 using Xunit;
 
 /// <summary>
@@ -16,7 +16,7 @@ public sealed class ThumbnailStoreTests : IDisposable
 
     public ThumbnailStoreTests()
     {
-        _tempDir = TestSupport.CreateTempTestRoot("mangaplex-thumb-store");
+        _tempDir = TestSupport.CreateTempTestRoot("mangapixer-thumb-store");
     }
 
     public void Dispose()

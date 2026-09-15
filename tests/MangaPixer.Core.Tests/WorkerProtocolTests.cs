@@ -1,8 +1,8 @@
-namespace com.lifepixer.mangaplex.Tests.Core;
+namespace com.lifepixer.mangapixer.Tests.Core;
 
 using System.Text.Json;
-using com.lifepixer.mangaplex.Core.Media;
-using com.lifepixer.mangaplex.Core.WorkerProtocol;
+using com.lifepixer.mangapixer.Core.Media;
+using com.lifepixer.mangapixer.Core.WorkerProtocol;
 using Xunit;
 
 /// <summary>

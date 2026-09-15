@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Core.Api;
+namespace com.lifepixer.mangapixer.Core.Api;
 
 /// <summary>
 /// Per-library jump index for multilingual collation-aware jump navigation.

@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Server.Persistence;
+namespace com.lifepixer.mangapixer.Server.Persistence;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -57,9 +57,9 @@ public sealed class WriteCoordinator : IDisposable
     /// Do not perform any I/O other than database writes inside the operation.
     /// </summary>
     public async Task<T> ExecuteWriteAsync<T>(
-        Func<MangaPlexDbContext, CancellationToken, Task<T>> operation,
+        Func<MangaPixerDbContext, CancellationToken, Task<T>> operation,
         WritePriority priority,
-        MangaPlexDbContextFactory dbContextFactory,
+        MangaPixerDbContextFactory dbContextFactory,
         CancellationToken ct = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -152,8 +152,8 @@ public sealed class WriteCoordinator : IDisposable
     {
         public required WritePriority Priority { get; init; }
         public required long Sequence { get; init; }
-        public required Func<MangaPlexDbContext, CancellationToken, Task> Operation { get; init; }
-        public required MangaPlexDbContextFactory DbContextFactory { get; init; }
+        public required Func<MangaPixerDbContext, CancellationToken, Task> Operation { get; init; }
+        public required MangaPixerDbContextFactory DbContextFactory { get; init; }
         public required CancellationToken CancellationToken { get; init; }
         public Exception? Exception { get; set; }
     }
@@ -163,17 +163,17 @@ public sealed class WriteCoordinator : IDisposable
 /// Factory for creating short-lived DbContext instances.
 /// Each write operation gets its own DbContext — never shared across threads.
 /// </summary>
-public sealed class MangaPlexDbContextFactory
+public sealed class MangaPixerDbContextFactory
 {
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
-    public MangaPlexDbContextFactory(DbContextOptions<MangaPlexDbContext> options)
+    public MangaPixerDbContextFactory(DbContextOptions<MangaPixerDbContext> options)
     {
         _options = options;
     }
 
-    public MangaPlexDbContext CreateDbContext()
+    public MangaPixerDbContext CreateDbContext()
     {
-        return new MangaPlexDbContext(_options);
+        return new MangaPixerDbContext(_options);
     }
 }

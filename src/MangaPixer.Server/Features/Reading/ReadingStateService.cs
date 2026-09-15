@@ -1,11 +1,11 @@
-namespace com.lifepixer.mangaplex.Server.Features.Reading;
+namespace com.lifepixer.mangapixer.Server.Features.Reading;
 
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -26,11 +26,11 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 public sealed class ReadingStateService
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly LibraryAuthorizationService _auth;
     private readonly ILogger<ReadingStateService>? _logger;
 
-    public ReadingStateService(MangaPlexDbContext db, LibraryAuthorizationService auth, ILogger<ReadingStateService>? logger = null)
+    public ReadingStateService(MangaPixerDbContext db, LibraryAuthorizationService auth, ILogger<ReadingStateService>? logger = null)
     {
         _db = db;
         _auth = auth;
@@ -622,7 +622,7 @@ public sealed class ReadingStateService
         var visibleLibs = await _auth.GetVisibleLibraryIdsAsync(userId, incognito, ct);
 
         // DateTimeOffset is stored as a comparable long via
-        // DateTimeOffsetToBinaryConverter (see MangaPlexDbContext.ConfigureConventions),
+        // DateTimeOffsetToBinaryConverter (see MangaPixerDbContext.ConfigureConventions),
         // so ORDER BY is now translated server-side. The previous client-side
         // sort workaround (audit defect D26) has been removed.
         // Exclude items the user dismissed from the strip, and items they have

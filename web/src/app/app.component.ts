@@ -19,7 +19,7 @@ import { ApiService } from './core/api/api.service';
     <router-outlet></router-outlet>
     @if (version()) {
       <footer class="app-footer" aria-label="Application version">
-        MangaPlex {{ version() }}
+        MangaPixer {{ version() }}
       </footer>
     }
   `,

@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Tests.MediaWorker;
+namespace com.lifepixer.mangapixer.Tests.MediaWorker;
 
 using Xunit;
 
@@ -9,8 +9,8 @@ using Xunit;
 public sealed class WorkerStartupTests
 {
     [Fact]
-    public void ProductIdentity_NameIsMangaPlex()
+    public void ProductIdentity_NameIsMangaPixer()
     {
-        Assert.Equal("MangaPlex", Core.ProductIdentity.Name);
+        Assert.Equal("MangaPixer", Core.ProductIdentity.Name);
     }
 }

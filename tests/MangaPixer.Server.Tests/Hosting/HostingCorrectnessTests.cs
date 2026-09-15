@@ -1,11 +1,11 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Hosting;
+namespace com.lifepixer.mangapixer.Tests.Server.Hosting;
 
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Hosting;
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Operations;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Hosting;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Operations;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -79,18 +79,18 @@ public sealed class HostingCorrectnessTests
     [Fact]
     public async Task SessionCleanup_RemovesExpiredSession_WithDateTimeOffsetConverter()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-c00-session-" + Guid.NewGuid().ToString("N")[..8]);
+        var tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-c00-session-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(tempDir);
         var dbPath = Path.Combine(tempDir, "test.db");
 
         try
         {
             var connectionString = DatabaseInitialization.BuildConnectionString(dbPath);
-            var options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+            var options = new DbContextOptionsBuilder<MangaPixerDbContext>()
                 .UseSqlite(connectionString)
                 .Options;
 
-            await using var db = new MangaPlexDbContext(options);
+            await using var db = new MangaPixerDbContext(options);
             await db.Database.EnsureCreatedAsync();
             await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -155,18 +155,18 @@ public sealed class HostingCorrectnessTests
     [Fact]
     public async Task ValidateSchema_ReturnsValid_OnFreshDatabase_Version2()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-c00-schema-" + Guid.NewGuid().ToString("N")[..8]);
+        var tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-c00-schema-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(tempDir);
         var dbPath = Path.Combine(tempDir, "test.db");
 
         try
         {
             var connectionString = DatabaseInitialization.BuildConnectionString(dbPath);
-            var options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+            var options = new DbContextOptionsBuilder<MangaPixerDbContext>()
                 .UseSqlite(connectionString)
                 .Options;
 
-            await using var db = new MangaPlexDbContext(options);
+            await using var db = new MangaPixerDbContext(options);
             await db.Database.EnsureCreatedAsync();
             await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -187,18 +187,18 @@ public sealed class HostingCorrectnessTests
     [Fact]
     public async Task ValidateSchema_RejectsVersion1_Database()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-c00-v1-" + Guid.NewGuid().ToString("N")[..8]);
+        var tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-c00-v1-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(tempDir);
         var dbPath = Path.Combine(tempDir, "test.db");
 
         try
         {
             var connectionString = DatabaseInitialization.BuildConnectionString(dbPath);
-            var options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+            var options = new DbContextOptionsBuilder<MangaPixerDbContext>()
                 .UseSqlite(connectionString)
                 .Options;
 
-            await using var db = new MangaPlexDbContext(options);
+            await using var db = new MangaPixerDbContext(options);
             await db.Database.EnsureCreatedAsync();
             await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -221,7 +221,7 @@ public sealed class HostingCorrectnessTests
     [Fact]
     public async Task EvictOverBudget_DoesNotLogAtWarningLevel()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-c00-evict-" + Guid.NewGuid().ToString("N")[..8]);
+        var tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-c00-evict-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(tempDir);
 
         try
@@ -259,7 +259,7 @@ public sealed class HostingCorrectnessTests
     [Fact]
     public async Task EvictOverBudget_NoOpWhenUnderBudget()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-c00-noop-" + Guid.NewGuid().ToString("N")[..8]);
+        var tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-c00-noop-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(tempDir);
 
         try
@@ -342,7 +342,7 @@ public sealed class HostingCorrectnessTests
 /// UseSerilog() replaces the standard MEL logging factory, so ILoggerProvider
 /// collectors are bypassed — we must intercept at the Serilog sink level.
 /// </summary>
-public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepixer.mangaplex.Server.Program>
+public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepixer.mangapixer.Server.Program>
 {
     private readonly CollectingSink _sink;
     private readonly string _tempRoot;
@@ -351,7 +351,7 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
     public C00WebApplicationFactory(CollectingSink sink)
     {
         _sink = sink;
-        _tempRoot = Path.Combine(Path.GetTempPath(), "mangaplex-c00-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempRoot = Path.Combine(Path.GetTempPath(), "mangapixer-c00-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(Path.Combine(_tempRoot, "data"));
         Directory.CreateDirectory(Path.Combine(_tempRoot, "cache"));
         Directory.CreateDirectory(Path.Combine(_tempRoot, "scratch"));
@@ -359,7 +359,7 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
         // Non-global storage-injection seam: push this factory's storage
         // roots as the ambient TestHostStorageOverride for the duration of
         // the synchronous host boot below — see the remarks on
-        // MangaPlexWebApplicationFactory and TestHostStorageOverride for why
+        // MangaPixerWebApplicationFactory and TestHostStorageOverride for why
         // this (and not ConfigureAppConfiguration or an env var) is what
         // actually reaches Program.Main in time, race-free under parallel
         // factory boots.
@@ -387,14 +387,14 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
         {
             // Remove the worker pool hosted service so tests don't spawn workers.
             var workerHosted = services.FirstOrDefault(
-                d => d.ImplementationType == typeof(com.lifepixer.mangaplex.Server.Hosting.MediaWorkerHostedService));
+                d => d.ImplementationType == typeof(com.lifepixer.mangapixer.Server.Hosting.MediaWorkerHostedService));
             if (workerHosted is not null)
                 services.Remove(workerHosted);
 
             // Remove the thumbnail backfill hosted service — it depends on a
             // running worker pool and would log warnings in the test environment.
             var thumbBackfill = services.FirstOrDefault(
-                d => d.ImplementationType == typeof(com.lifepixer.mangaplex.Server.Hosting.ThumbnailBackfillHostedService));
+                d => d.ImplementationType == typeof(com.lifepixer.mangapixer.Server.Hosting.ThumbnailBackfillHostedService));
             if (thumbBackfill is not null)
                 services.Remove(thumbBackfill);
 

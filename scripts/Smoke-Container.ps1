@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Smoke-Container.ps1
+    MangaPixer Smoke-Container.ps1
     Builds the Docker image, runs it with a synthetic library mounted
     read-only and fresh state volumes, and exercises the HTTP flow: health,
     first-run setup (no default credentials), csrf, password change and
@@ -19,8 +19,8 @@
 param(
     # Throwaway tag by design — this is a test harness. Immutable, version-stamped
     # release tagging lives in Package-Release.ps1 (audit finding F1).
-    [string]$ImageName = "mangaplex-smoke",
-    [string]$ContainerName = "mangaplex-smoke-run",
+    [string]$ImageName = "mangapixer-smoke",
+    [string]$ContainerName = "mangapixer-smoke-run",
     [int]$HostPort = 18080
 )
 
@@ -58,7 +58,7 @@ Invoke-Stage "Docker build" {
 }
 
 # Stage 2: Create a synthetic library with spaces in the path
-$tempLib = Join-Path ([System.IO.Path]::GetTempPath()) "mangaplex smoke lib"
+$tempLib = Join-Path ([System.IO.Path]::GetTempPath()) "mangapixer smoke lib"
 Invoke-Stage "Create synthetic library" {
     New-Item -ItemType Directory -Force -Path $tempLib | Out-Null
     # Create a simple CBZ with 3 PNG pages
@@ -181,7 +181,7 @@ Invoke-Stage "HTTP smoke flow" {
     $newPassword = "SmokeTest123!"
     $changeBody = @{ currentPassword = $setupPassword; newPassword = $newPassword } | ConvertTo-Json
     Invoke-WebRequest -Uri "$baseUrl/api/v1/auth/change-password" -Method POST -Body $changeBody `
-        -ContentType "application/json" -Headers @{ "X-MangaPlex-Csrf" = $csrfToken } `
+        -ContentType "application/json" -Headers @{ "X-MangaPixer-Csrf" = $csrfToken } `
         -WebSession $session -TimeoutSec 5 | Out-Null
     Write-Host "Password changed"
     $loginBody = @{ username = $adminName; password = $newPassword } | ConvertTo-Json
@@ -193,7 +193,7 @@ Invoke-Stage "HTTP smoke flow" {
     # Add library
     $libBody = @{ displayName = "Smoke Library"; rootPath = "/media" } | ConvertTo-Json
     $libJson = Invoke-RestMethod -Uri "$baseUrl/api/v1/admin/libraries" -Method POST -Body $libBody `
-        -ContentType "application/json" -Headers @{ "X-MangaPlex-Csrf" = $csrfToken } `
+        -ContentType "application/json" -Headers @{ "X-MangaPixer-Csrf" = $csrfToken } `
         -WebSession $session -TimeoutSec 5
     $libraryId = $libJson.id
     if (-not $libraryId) { throw "Library registration returned no id" }
@@ -201,7 +201,7 @@ Invoke-Stage "HTTP smoke flow" {
 
     # Trigger scan
     Invoke-WebRequest -Uri "$baseUrl/api/v1/admin/libraries/$libraryId/scan" -Method POST `
-        -Headers @{ "X-MangaPlex-Csrf" = $csrfToken } `
+        -Headers @{ "X-MangaPixer-Csrf" = $csrfToken } `
         -WebSession $session -TimeoutSec 5 | Out-Null
     Write-Host "Scan triggered"
 

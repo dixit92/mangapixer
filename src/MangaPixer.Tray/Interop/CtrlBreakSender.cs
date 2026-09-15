@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 
-namespace com.lifepixer.mangaplex.Tray.Interop;
+namespace com.lifepixer.mangapixer.Tray.Interop;
 
 /// <summary>
 /// Sends CTRL_BREAK to another process's (hidden) console — the signal the

@@ -1,11 +1,11 @@
 // Test parallelization for the MangaPixer.Server.Tests assembly.
 //
 // Most test classes here boot an ASP.NET host via WebApplicationFactory
-// (MangaPlexWebApplicationFactory / C00WebApplicationFactory /
+// (MangaPixerWebApplicationFactory / C00WebApplicationFactory /
 // LogLevelWebApplicationFactory). Each factory instance injects its own
 // storage roots (DataRoot/CacheRoot/ScratchRoot) via TestHostStorageOverride,
 // a test-only ambient (AsyncLocal<T>-based) override consulted at the top of
-// Program.Main — see the remarks on MangaPlexWebApplicationFactory
+// Program.Main — see the remarks on MangaPixerWebApplicationFactory
 // (tests/MangaPixer.Server.Tests/Http/MangaPixerWebApplicationFactory.cs) for
 // the full seam and why a plain IWebHostBuilder.ConfigureAppConfiguration
 // override does not work for this minimal-hosting entry point. Because each

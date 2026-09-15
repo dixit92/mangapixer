@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Storage;
+namespace com.lifepixer.mangapixer.Tests.Server.Storage;
 
-using com.lifepixer.mangaplex.Server.Storage;
+using com.lifepixer.mangapixer.Server.Storage;
 using Xunit;
 
 /// <summary>
@@ -13,7 +13,7 @@ public sealed class FilesystemBrowseServiceTests : IDisposable
 
     public FilesystemBrowseServiceTests()
     {
-        _root = Path.Combine(Path.GetTempPath(), "mangaplex-browse-" + Guid.NewGuid().ToString("N")[..8]);
+        _root = Path.Combine(Path.GetTempPath(), "mangapixer-browse-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(Path.Combine(_root, "Series A", "Volume 1"));
         Directory.CreateDirectory(Path.Combine(_root, "Series B"));
     }

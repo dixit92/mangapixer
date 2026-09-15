@@ -7,7 +7,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <RootNamespace>com.lifepixer.mangaplex.Tray</RootNamespace>
+    <RootNamespace>com.lifepixer.mangapixer.Tray</RootNamespace>
     <OutputType>WinExe</OutputType>
     <UseWindowsForms>true</UseWindowsForms>
     <!-- Product icon (generated from web/src/favicon.ico's largest frame,

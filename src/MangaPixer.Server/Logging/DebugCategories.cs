@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Server.Logging;
+namespace com.lifepixer.mangapixer.Server.Logging;
 
 /// <summary>
 /// The fixed catalog of per-subsystem debug categories. Each entry maps a
@@ -23,17 +23,17 @@ public static class DebugCategories
     [
         // Scan-phase timings, per-node move detection, reconciliation, tombstoning.
         // High volume during a large-library scan (per-node LogDebug).
-        ("Scanning", "com.lifepixer.mangaplex.Server.Scanning"),
+        ("Scanning", "com.lifepixer.mangapixer.Server.Scanning"),
 
         // Worker pool dispatch, scheduler enqueue/complete, supervisor, cache,
         // thumbnails, page delivery, scratch, analysis persistence. High volume
         // during scan-triggered analysis and active reading (per-job / per-item /
         // per-request LogDebug).
-        ("Media", "com.lifepixer.mangaplex.Server.Media"),
+        ("Media", "com.lifepixer.mangapixer.Server.Media"),
 
         // Page controller: per-request cache hit/miss and thumbnail serve/miss.
         // Moderate volume during active reading.
-        ("Reading", "com.lifepixer.mangaplex.Server.Features.Reading"),
+        ("Reading", "com.lifepixer.mangapixer.Server.Features.Reading"),
     ];
 
     /// <summary>

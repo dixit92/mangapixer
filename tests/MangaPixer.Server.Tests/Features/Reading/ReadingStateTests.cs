@@ -1,12 +1,12 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Features.Reading;
+namespace com.lifepixer.mangapixer.Tests.Server.Features.Reading;
 
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Features.Reading;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Features.Reading;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -19,15 +19,15 @@ public sealed class ReadingStateTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly string _dbPath;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
     public ReadingStateTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-reading-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-reading-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
         _dbPath = Path.Combine(_tempDir, "reading.db");
         var connectionString = DatabaseInitialization.BuildConnectionString(_dbPath);
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .UseSqlite(connectionString)
             .Options;
     }
@@ -37,9 +37,9 @@ public sealed class ReadingStateTests : IDisposable
         try { Directory.Delete(_tempDir, true); } catch { }
     }
 
-    private async Task<(MangaPlexDbContext db, long userId, long libraryId, long nodeId, long itemId)> SetupAsync()
+    private async Task<(MangaPixerDbContext db, long userId, long libraryId, long nodeId, long itemId)> SetupAsync()
     {
-        var db = new MangaPlexDbContext(_options);
+        var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -104,9 +104,9 @@ public sealed class ReadingStateTests : IDisposable
     /// <c>folder F → archive A1</c> and <c>folder F → subfolder SF → archive A2</c>.
     /// Returns the folder F's id and both archive ids.
     /// </summary>
-    private async Task<(MangaPlexDbContext db, long userId, long folderId, List<long> archiveIds)> SetupFolderTreeAsync()
+    private async Task<(MangaPixerDbContext db, long userId, long folderId, List<long> archiveIds)> SetupFolderTreeAsync()
     {
-        var db = new MangaPlexDbContext(_options);
+        var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -909,7 +909,7 @@ public sealed class ReadingStateTests : IDisposable
         const int writers = 8;
         var tasks = Enumerable.Range(0, writers).Select(async i =>
         {
-            var db = new MangaPlexDbContext(_options);
+            var db = new MangaPixerDbContext(_options);
             try
             {
                 var service = new ReadingStateService(db, new LibraryAuthorizationService(db));
@@ -925,7 +925,7 @@ public sealed class ReadingStateTests : IDisposable
         Assert.All(results, r => Assert.Equal(UpdateStatus.Success, r.Status));
 
         // Exactly one progress row exists for (user, item) - no duplicate slipped through.
-        await using var verify = new MangaPlexDbContext(_options);
+        await using var verify = new MangaPixerDbContext(_options);
         var count = await verify.ReadingProgress.CountAsync(p => p.UserId == userId && p.ItemId == itemId);
         Assert.Equal(1, count);
     }

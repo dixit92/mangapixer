@@ -1,10 +1,10 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Storage;
+namespace com.lifepixer.mangapixer.Tests.Server.Storage;
 
 using Microsoft.Data.Sqlite;
 using Xunit;
 
 /// <summary>
-/// Verifies the SQLite runtime version and features required by MangaPlex.
+/// Verifies the SQLite runtime version and features required by MangaPixer.
 /// The server uses Microsoft.Data.Sqlite + EF Core Sqlite, which bundles SQLitePCLRaw.
 /// Verifies: version, WAL mode, FTS5, and trigram tokenizer availability.
 /// </summary>
@@ -74,18 +74,18 @@ public sealed class SqliteRuntimeTests
         using var cmd = connection.CreateCommand();
         cmd.CommandText = """
             CREATE VIRTUAL TABLE test_trigram USING fts5(title, tokenize='trigram');
-            INSERT INTO test_trigram(title) VALUES ('mangaplex chapter one');
-            SELECT title FROM test_trigram WHERE test_trigram MATCH 'plex';
+            INSERT INTO test_trigram(title) VALUES ('mangapixer chapter one');
+            SELECT title FROM test_trigram WHERE test_trigram MATCH 'pixe';
             """;
 
         var result = cmd.ExecuteScalar();
-        Assert.Equal("mangaplex chapter one", result);
+        Assert.Equal("mangapixer chapter one", result);
     }
 
     [Fact]
     public void Sqlite_UserAuthentication_NotRequired()
     {
-        // MangaPlex uses ASP.NET Core Identity for authentication, not SQLite's
+        // MangaPixer uses ASP.NET Core Identity for authentication, not SQLite's
         // built-in user authentication. Verify that we can open a plain database
         // without any auth configuration.
         using var connection = new SqliteConnection("DataSource=:memory:");

@@ -1,16 +1,16 @@
-namespace com.lifepixer.mangaplex.Server.Features.Admin;
+namespace com.lifepixer.mangapixer.Server.Features.Admin;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
-using com.lifepixer.mangaplex.Server.Scanning;
-using com.lifepixer.mangaplex.Server.Storage;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Scanning;
+using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -38,7 +38,7 @@ public sealed class AdminController : ControllerBase
     private readonly LastAdminProtectionService _lastAdminProtection;
     private readonly LibraryAuthorizationService _libraryAuth;
     private readonly SessionService _sessionService;
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly ILogger<AdminController> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IServiceScopeFactory _scopeFactory;
@@ -54,7 +54,7 @@ public sealed class AdminController : ControllerBase
         LastAdminProtectionService lastAdminProtection,
         LibraryAuthorizationService libraryAuth,
         SessionService sessionService,
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         ILogger<AdminController> logger,
         ILoggerFactory loggerFactory,
         IServiceScopeFactory scopeFactory)
@@ -312,7 +312,7 @@ public sealed class AdminController : ControllerBase
         _ = Task.Run(async () =>
         {
             using var scope = _scopeFactory.CreateScope();
-            var scopedDb = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var scopedDb = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var scopedMaintenance = scope.ServiceProvider.GetRequiredService<LibraryMaintenanceService>();
             var scopedLeaseService = scope.ServiceProvider.GetRequiredService<ScanLeaseService>();
             var scopedJobScheduler = scope.ServiceProvider.GetRequiredService<JobScheduler>();
@@ -419,7 +419,7 @@ public sealed class AdminController : ControllerBase
     /// to avoid flooding the worker pool.
     /// </summary>
     private async Task EnqueueAnalysisForPendingItemsAsync(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         JobScheduler scheduler,
         long libraryId,
         CancellationToken ct)

@@ -1,12 +1,12 @@
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Features.Home;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Features.Home;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
-namespace com.lifepixer.mangaplex.Tests.Server.Features.Home;
+namespace com.lifepixer.mangapixer.Tests.Server.Features.Home;
 
 /// <summary>
 /// Service-with-DB tests for the RecentChaptersService stacking rewrite (1.12.0). Uses real
@@ -19,15 +19,15 @@ public sealed class RecentChaptersServiceTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly string _dbPath;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
     public RecentChaptersServiceTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-recent-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-recent-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
         _dbPath = Path.Combine(_tempDir, "recent.db");
         var connectionString = DatabaseInitialization.BuildConnectionString(_dbPath);
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .UseSqlite(connectionString)
             .Options;
     }
@@ -40,9 +40,9 @@ public sealed class RecentChaptersServiceTests : IDisposable
     // Recent seeds are anchored to "now" so they fall inside the service recency window.
     private static readonly DateTimeOffset Now = DateTimeOffset.UtcNow;
 
-    private async Task<(MangaPlexDbContext db, long userId, long libAId, long libBId)> SetupAsync()
+    private async Task<(MangaPixerDbContext db, long userId, long libAId, long libBId)> SetupAsync()
     {
-        var db = new MangaPlexDbContext(_options);
+        var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -69,7 +69,7 @@ public sealed class RecentChaptersServiceTests : IDisposable
     }
 
     private static async Task<CatalogNodeEntity> AddArchiveAsync(
-        MangaPlexDbContext db, long libraryId, string publicId, string displayName,
+        MangaPixerDbContext db, long libraryId, string publicId, string displayName,
         DateTimeOffset createdAt, long? parentId = null,
         int availability = (int)CatalogNodeAvailability.Available)
     {
@@ -92,7 +92,7 @@ public sealed class RecentChaptersServiceTests : IDisposable
     }
 
     private static async Task<CatalogNodeEntity> AddFolderAsync(
-        MangaPlexDbContext db, long libraryId, string publicId, string displayName, long? parentId = null)
+        MangaPixerDbContext db, long libraryId, string publicId, string displayName, long? parentId = null)
     {
         var node = new CatalogNodeEntity
         {

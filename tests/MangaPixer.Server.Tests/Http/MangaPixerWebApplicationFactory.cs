@@ -1,10 +1,10 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Server;
-using com.lifepixer.mangaplex.Server.Hosting;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Server;
+using com.lifepixer.mangapixer.Server.Hosting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -13,7 +13,7 @@ using Microsoft.Extensions.Hosting;
 using Xunit;
 
 /// <summary>
-/// WebApplicationFactory for MangaPlex HTTP integration tests.
+/// WebApplicationFactory for MangaPixer HTTP integration tests.
 /// Uses a temp DataRoot/CacheRoot/ScratchRoot so each test run is isolated.
 /// The media worker hosted service is replaced with a no-op so tests don't
 /// spawn real worker processes.
@@ -35,9 +35,9 @@ using Xunit;
 /// process-wide boot gate (<c>TestHostBootGate</c>, no longer used here) and
 /// disabling assembly-level test parallelization (see TestParallelization.cs).
 /// </remarks>
-public sealed class MangaPlexWebApplicationFactory : WebApplicationFactory<Program>
+public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Program>
 {
-    private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "mangaplex-http-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "mangapixer-http-" + Guid.NewGuid().ToString("N")[..8]);
     private readonly IReadOnlyDictionary<string, string?>? _extraConfiguration;
 
     public string DataRoot => Path.Combine(_tempRoot, "data");
@@ -53,7 +53,7 @@ public sealed class MangaPlexWebApplicationFactory : WebApplicationFactory<Progr
     /// classes) and as an <c>IClassFixture</c> (e.g. SearchHttpTests,
     /// CatalogHttpTests) without breaking either usage.
     /// </summary>
-    public MangaPlexWebApplicationFactory() : this(null)
+    public MangaPixerWebApplicationFactory() : this(null)
     {
     }
 
@@ -66,10 +66,10 @@ public sealed class MangaPlexWebApplicationFactory : WebApplicationFactory<Progr
     /// <c>Environment.SetEnvironmentVariable</c> and the cross-test
     /// contamination that comes with process-global state.
     /// </summary>
-    public static MangaPlexWebApplicationFactory WithExtraConfiguration(
+    public static MangaPixerWebApplicationFactory WithExtraConfiguration(
         IReadOnlyDictionary<string, string?> extraConfiguration) => new(extraConfiguration);
 
-    private MangaPlexWebApplicationFactory(IReadOnlyDictionary<string, string?>? extraConfiguration)
+    private MangaPixerWebApplicationFactory(IReadOnlyDictionary<string, string?>? extraConfiguration)
     {
         _extraConfiguration = extraConfiguration;
 
@@ -129,7 +129,7 @@ public sealed class MangaPlexWebApplicationFactory : WebApplicationFactory<Progr
     /// The CSRF token is fetched AFTER sign-in because antiforgery tokens are
     /// tied to the user identity.
     /// </summary>
-    public async Task<HttpClient> LoginAsAdminAsync(string password = "MangaPlex-Change-Me-Now!")
+    public async Task<HttpClient> LoginAsAdminAsync(string password = "MangaPixer-Change-Me-Now!")
     {
         var client = CreateClient();
 
@@ -160,7 +160,7 @@ public sealed class MangaPlexWebApplicationFactory : WebApplicationFactory<Progr
         csrfResponse.EnsureSuccessStatusCode();
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
         Assert.NotNull(csrf);
-        client.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        client.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
 
         return client;
     }
@@ -176,7 +176,7 @@ public sealed class MangaPlexWebApplicationFactory : WebApplicationFactory<Progr
     /// second call because the password was already changed on the first).
     /// </summary>
     public async Task<HttpClient> LoginAsAdminWithChangedPasswordAsync(
-        string currentPassword = "MangaPlex-Change-Me-Now!",
+        string currentPassword = "MangaPixer-Change-Me-Now!",
         string newPassword = "TestPassword123!")
     {
         // Return cached client if already authenticated
@@ -207,7 +207,7 @@ public sealed class MangaPlexWebApplicationFactory : WebApplicationFactory<Progr
         csrfResponse.EnsureSuccessStatusCode();
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
         Assert.NotNull(csrf);
-        freshClient.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        freshClient.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
 
         _cachedAdminClient = freshClient;
         return freshClient;

@@ -1,11 +1,11 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -15,12 +15,12 @@ using Xunit;
 /// catalog_search, literal query safety, and pagination.
 /// </summary>
 [Collection("HttpSerial")]
-public sealed class SearchHttpTests : IClassFixture<MangaPlexWebApplicationFactory>
+public sealed class SearchHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
     private HttpClient? _authenticatedClient;
 
-    public SearchHttpTests(MangaPlexWebApplicationFactory factory)
+    public SearchHttpTests(MangaPixerWebApplicationFactory factory)
     {
         _factory = factory;
     }
@@ -36,7 +36,7 @@ public sealed class SearchHttpTests : IClassFixture<MangaPlexWebApplicationFacto
     private async Task<long> SeedLibraryWithNodesAsync()
     {
         using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
 
         // Idempotent: check if the library already exists (shared factory)
         var existing = await db.Libraries.FirstOrDefaultAsync(l => l.PublicId == "searchlib1");
@@ -231,15 +231,15 @@ public sealed class SearchTriggerTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly string _dbPath;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
     public SearchTriggerTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-c02-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-c02-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
         _dbPath = Path.Combine(_tempDir, "test.db");
         var connectionString = DatabaseInitialization.BuildConnectionString(_dbPath);
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .UseSqlite(connectionString)
             .Options;
     }
@@ -249,9 +249,9 @@ public sealed class SearchTriggerTests : IDisposable
         try { Directory.Delete(_tempDir, true); } catch { }
     }
 
-    private async Task<MangaPlexDbContext> SetupAsync()
+    private async Task<MangaPixerDbContext> SetupAsync()
     {
-        var db = new MangaPlexDbContext(_options);
+        var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -267,7 +267,7 @@ public sealed class SearchTriggerTests : IDisposable
         return db;
     }
 
-    private async Task<int> CountFtsRowsAsync(MangaPlexDbContext db, long nodeId)
+    private async Task<int> CountFtsRowsAsync(MangaPixerDbContext db, long nodeId)
     {
         using var connection = db.Database.GetDbConnection();
         await connection.OpenAsync();
@@ -277,7 +277,7 @@ public sealed class SearchTriggerTests : IDisposable
         return Convert.ToInt32(await command.ExecuteScalarAsync());
     }
 
-    private async Task<int> CountFtsMatchesAsync(MangaPlexDbContext db, string ftsQuery)
+    private async Task<int> CountFtsMatchesAsync(MangaPixerDbContext db, string ftsQuery)
     {
         using var connection = db.Database.GetDbConnection();
         await connection.OpenAsync();

@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Tests.Core.Ordering;
+namespace com.lifepixer.mangapixer.Tests.Core.Ordering;
 
-using com.lifepixer.mangaplex.Core.Ordering;
+using com.lifepixer.mangapixer.Core.Ordering;
 using Xunit;
 
 /// <summary>

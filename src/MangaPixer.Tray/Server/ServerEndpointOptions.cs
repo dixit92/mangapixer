@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Tray.Server;
+namespace com.lifepixer.mangapixer.Tray.Server;
 
 /// <summary>
 /// The bind address/port the tray launches <c>MangaPixer.Server.exe</c> with.

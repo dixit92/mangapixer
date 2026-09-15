@@ -1,8 +1,8 @@
-namespace com.lifepixer.mangaplex.Server.Features.Reading;
+namespace com.lifepixer.mangapixer.Server.Features.Reading;
 
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -18,9 +18,9 @@ using Microsoft.EntityFrameworkCore;
 /// </summary>
 public sealed class ReaderModeResolver
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
 
-    public ReaderModeResolver(MangaPlexDbContext db) => _db = db;
+    public ReaderModeResolver(MangaPixerDbContext db) => _db = db;
 
     public async Task<ReaderMode> ResolveAsync(long userId, CatalogNodeEntity itemNode, CancellationToken ct = default)
     {

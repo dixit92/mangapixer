@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Server.Operations;
+namespace com.lifepixer.mangapixer.Server.Operations;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
 using Serilog.Core;
 using Serilog.Events;

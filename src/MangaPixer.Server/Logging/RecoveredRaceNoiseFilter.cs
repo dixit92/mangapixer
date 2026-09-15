@@ -1,7 +1,7 @@
 using Serilog.Core;
 using Serilog.Events;
 
-namespace com.lifepixer.mangaplex.Server.Logging;
+namespace com.lifepixer.mangapixer.Server.Logging;
 
 /// <summary>
 /// Drops the EF Core error log lines for the recovered <c>reading_progress</c>

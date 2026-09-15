@@ -1,12 +1,12 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -16,12 +16,12 @@ using Xunit;
 /// and the library list with real counts.
 /// </summary>
 [Collection("HttpSerial")]
-public sealed class CatalogHttpTests : IClassFixture<MangaPlexWebApplicationFactory>
+public sealed class CatalogHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
     private HttpClient? _authenticatedClient;
 
-    public CatalogHttpTests(MangaPlexWebApplicationFactory factory)
+    public CatalogHttpTests(MangaPixerWebApplicationFactory factory)
     {
         _factory = factory;
     }
@@ -40,7 +40,7 @@ public sealed class CatalogHttpTests : IClassFixture<MangaPlexWebApplicationFact
         // Seed a library with catalog nodes directly in the DB
         using (var scope = _factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var library = new LibraryEntity
             {
                 PublicId = "testlib1",
@@ -125,7 +125,7 @@ public sealed class CatalogHttpTests : IClassFixture<MangaPlexWebApplicationFact
         string libPublicId;
         using (var scope = _factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var library = new LibraryEntity
             {
                 PublicId = "directiontestlib",
@@ -242,7 +242,7 @@ public sealed class CatalogHttpTests : IClassFixture<MangaPlexWebApplicationFact
         string libPublicId;
         using (var scope = _factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var library = new LibraryEntity
             {
                 PublicId = "rolluplib",
@@ -378,7 +378,7 @@ public sealed class CatalogHttpTests : IClassFixture<MangaPlexWebApplicationFact
         string libPublicId;
         using (var scope = _factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var library = new LibraryEntity
             {
                 PublicId = "nextunreadlib",
@@ -498,7 +498,7 @@ public sealed class CatalogHttpTests : IClassFixture<MangaPlexWebApplicationFact
         string libPublicId;
         using (var scope = _factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var adminId = (await db.Users.FirstAsync(u => u.NormalizedUserName == "ADMIN")).Id;
 
             var library = new LibraryEntity
@@ -620,7 +620,7 @@ public sealed class CatalogHttpTests : IClassFixture<MangaPlexWebApplicationFact
         string libPublicId;
         using (var scope = _factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var library = new LibraryEntity
             {
                 PublicId = "hideemptylib",

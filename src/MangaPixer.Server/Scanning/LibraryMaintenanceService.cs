@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Server.Scanning;
+namespace com.lifepixer.mangapixer.Server.Scanning;
 
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -11,9 +11,9 @@ using Microsoft.EntityFrameworkCore;
 /// </summary>
 public sealed class LibraryMaintenanceService
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
 
-    public LibraryMaintenanceService(MangaPlexDbContext db)
+    public LibraryMaintenanceService(MangaPixerDbContext db)
     {
         _db = db;
     }

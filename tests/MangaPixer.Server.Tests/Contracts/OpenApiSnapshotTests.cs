@@ -1,16 +1,16 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Contracts;
+namespace com.lifepixer.mangapixer.Tests.Server.Contracts;
 
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using com.lifepixer.mangaplex.Tests.Server.Http;
+using com.lifepixer.mangapixer.Tests.Server.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 /// <summary>
 /// OpenAPI snapshot test (audit defect D35).
 /// Fetches /openapi/v1.json through WebApplicationFactory and compares
-/// against contracts/openapi.json. When MANGAPLEX_UPDATE_SNAPSHOT=1,
+/// against contracts/openapi.json. When MANGAPIXER_UPDATE_SNAPSHOT=1,
 /// writes the live document to the snapshot instead of comparing.
 /// </summary>
 /// <remarks>
@@ -32,7 +32,7 @@ public sealed class OpenApiSnapshotTests
     [Fact]
     public async Task OpenApi_Endpoint_ReturnsDocument()
     {
-        var factory = new MangaPlexWebApplicationFactory();
+        var factory = new MangaPixerWebApplicationFactory();
         using var client = factory.CreateClient();
 
         // The OpenAPI endpoint is unauthenticated (no private data)
@@ -52,20 +52,20 @@ public sealed class OpenApiSnapshotTests
     [Fact]
     public async Task OpenApi_Snapshot_MatchesLiveDocument()
     {
-        var factory = new MangaPlexWebApplicationFactory();
+        var factory = new MangaPixerWebApplicationFactory();
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/openapi/v1.json");
         response.EnsureSuccessStatusCode();
         var liveJson = await response.Content.ReadAsStringAsync();
 
-        var updateSnapshot = Environment.GetEnvironmentVariable("MANGAPLEX_UPDATE_SNAPSHOT") == "1";
+        var updateSnapshot = Environment.GetEnvironmentVariable("MANGAPIXER_UPDATE_SNAPSHOT") == "1";
 
         if (updateSnapshot)
         {
             var formatted = FormatJson(liveJson);
             await File.WriteAllTextAsync(SnapshotPath, formatted);
-            Assert.Fail($"Snapshot updated at {SnapshotPath}. Re-run without MANGAPLEX_UPDATE_SNAPSHOT to verify.");
+            Assert.Fail($"Snapshot updated at {SnapshotPath}. Re-run without MANGAPIXER_UPDATE_SNAPSHOT to verify.");
         }
 
         // Compare against the committed snapshot

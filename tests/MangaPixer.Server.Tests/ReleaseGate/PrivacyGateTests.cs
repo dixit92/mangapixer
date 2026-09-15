@@ -1,12 +1,12 @@
-namespace com.lifepixer.mangaplex.Tests.Server.ReleaseGate;
+namespace com.lifepixer.mangapixer.Tests.Server.ReleaseGate;
 
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Features.Catalog;
-using com.lifepixer.mangaplex.Server.Features.Reading;
-using com.lifepixer.mangaplex.Server.Operations;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Features.Catalog;
+using com.lifepixer.mangapixer.Server.Features.Reading;
+using com.lifepixer.mangapixer.Server.Operations;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -21,15 +21,15 @@ public sealed class PrivacyGateTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly string _dbPath;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
     public PrivacyGateTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-privacy-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-privacy-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
         _dbPath = Path.Combine(_tempDir, "test.db");
         var connectionString = DatabaseInitialization.BuildConnectionString(_dbPath);
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .UseSqlite(connectionString)
             .Options;
     }
@@ -39,9 +39,9 @@ public sealed class PrivacyGateTests : IDisposable
         try { Directory.Delete(_tempDir, true); } catch { }
     }
 
-    private async Task<(MangaPlexDbContext db, long userId, long libraryId, long nodeId, string nodePublicId)> SetupAsync()
+    private async Task<(MangaPixerDbContext db, long userId, long libraryId, long nodeId, string nodePublicId)> SetupAsync()
     {
-        var db = new MangaPlexDbContext(_options);
+        var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -192,7 +192,7 @@ public sealed class PrivacyGateTests : IDisposable
         var (db, userId, _, nodeId, _) = await SetupAsync();
         try
         {
-            var auth = new com.lifepixer.mangaplex.Server.Features.Auth.LibraryAuthorizationService(db);
+            var auth = new com.lifepixer.mangapixer.Server.Features.Auth.LibraryAuthorizationService(db);
             var service = new ReadingStateService(db, auth);
             await service.UpdateProgressAsync(userId, nodeId, 0, 1, mutationId: "mut-1");
             var progress = await service.GetProgressAsync(userId, nodeId);
@@ -209,7 +209,7 @@ public sealed class PrivacyGateTests : IDisposable
         var (db, userId, _, nodeId, _) = await SetupAsync();
         try
         {
-            var auth = new com.lifepixer.mangaplex.Server.Features.Auth.LibraryAuthorizationService(db);
+            var auth = new com.lifepixer.mangapixer.Server.Features.Auth.LibraryAuthorizationService(db);
             var service = new ReadingStateService(db, auth);
             await service.UpdateProgressAsync(userId, nodeId, 5, 1, mutationId: "mut-1");
             var entries = await service.GetContinueReadingAsync(userId);

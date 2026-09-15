@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Tests.Tray.Startup;
+namespace com.lifepixer.mangapixer.Tests.Tray.Startup;
 
-using com.lifepixer.mangaplex.Tray.Startup;
+using com.lifepixer.mangapixer.Tray.Startup;
 using Xunit;
 
 public sealed class SingleInstanceGuardTests

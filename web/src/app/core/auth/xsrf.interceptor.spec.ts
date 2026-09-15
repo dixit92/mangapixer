@@ -8,7 +8,7 @@ import {
 import { xsrfInterceptor } from './xsrf.interceptor';
 import { CsrfTokenService } from './csrf-token.service';
 
-const HEADER = 'X-MangaPlex-Csrf';
+const HEADER = 'X-MangaPixer-Csrf';
 
 describe('xsrfInterceptor', () => {
   let http: HttpClient;

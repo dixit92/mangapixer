@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Tests.Core.Catalog;
+namespace com.lifepixer.mangapixer.Tests.Core.Catalog;
 
-using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Catalog;
 using Xunit;
 
 /// <summary>

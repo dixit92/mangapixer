@@ -1,12 +1,12 @@
-namespace com.lifepixer.mangaplex.Server.Media;
+namespace com.lifepixer.mangapixer.Server.Media;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
 using System.Diagnostics;
-using com.lifepixer.mangaplex.Core.Media;
-using com.lifepixer.mangaplex.Core.WorkerProtocol;
-using com.lifepixer.mangaplex.MediaWorker.Protocol;
-using com.lifepixer.mangaplex.Server.Persistence;
+using com.lifepixer.mangapixer.Core.Media;
+using com.lifepixer.mangapixer.Core.WorkerProtocol;
+using com.lifepixer.mangapixer.MediaWorker.Protocol;
+using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -890,7 +890,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         try
         {
             using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             await _persister.PersistAsync(db, nodeId, result, contentSignature);
         }
         catch (Exception ex)

@@ -1,12 +1,12 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Features.Import;
+namespace com.lifepixer.mangapixer.Tests.Server.Features.Import;
 
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Server.Features.Import.YacReader;
-using com.lifepixer.mangaplex.Server.Logging;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
-using com.lifepixer.mangaplex.Server.Storage;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Features.Import.YacReader;
+using com.lifepixer.mangapixer.Server.Logging;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -14,7 +14,7 @@ using Xunit;
 
 /// <summary>
 /// Service-level integration tests for <see cref="YacReaderImportService"/>.
-/// Builds a synthetic YACReader library.ydb fixture and a MangaPlex catalog,
+/// Builds a synthetic YACReader library.ydb fixture and a MangaPixer catalog,
 /// then verifies preview (dry-run) and apply (write) behavior, the conflict
 /// policy, path mapping, and the read-only/snapshot source invariant.
 /// </summary>
@@ -23,17 +23,17 @@ public sealed class YacReaderImportServiceTests : IDisposable
     private readonly string _tempDir;
     private readonly string _dbPath;
     private readonly string _scratchRoot;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
     public YacReaderImportServiceTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-yac-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-yac-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
-        _dbPath = Path.Combine(_tempDir, "mangaplex.db");
+        _dbPath = Path.Combine(_tempDir, "mangapixer.db");
         _scratchRoot = Path.Combine(_tempDir, "scratch");
         Directory.CreateDirectory(_scratchRoot);
         var connectionString = DatabaseInitialization.BuildConnectionString(_dbPath);
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .UseSqlite(connectionString)
             .Options;
     }
@@ -43,9 +43,9 @@ public sealed class YacReaderImportServiceTests : IDisposable
         try { Directory.Delete(_tempDir, true); } catch { }
     }
 
-    private async Task<(MangaPlexDbContext db, LibraryEntity library, UserEntity user, CatalogNodeEntity node1, CatalogNodeEntity node2)> SetupAsync()
+    private async Task<(MangaPixerDbContext db, LibraryEntity library, UserEntity user, CatalogNodeEntity node1, CatalogNodeEntity node2)> SetupAsync()
     {
-        var db = new MangaPlexDbContext(_options);
+        var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -169,7 +169,7 @@ public sealed class YacReaderImportServiceTests : IDisposable
         return libDir;
     }
 
-    private YacReaderImportService CreateService(MangaPlexDbContext db)
+    private YacReaderImportService CreateService(MangaPixerDbContext db)
         => new(db, new YacReaderLibraryReader(), new AppRootOptions { ScratchRoot = _scratchRoot },
             NullLogger<YacReaderImportService>.Instance);
 
@@ -301,7 +301,7 @@ public sealed class YacReaderImportServiceTests : IDisposable
         var setup = await SetupAsync();
         var (db, library, user, node1, node2) = setup;
 
-        // Pre-existing MangaPlex progress for node1 (a conflict).
+        // Pre-existing MangaPixer progress for node1 (a conflict).
         db.ReadingProgress.Add(new ReadingProgressEntity
         {
             UserId = user.Id,
@@ -534,7 +534,7 @@ public sealed class YacReaderImportServiceTests : IDisposable
         // but BEFORE the bulk save. The seam fires at exactly that point.
         service.BeforeBulkSaveAsync = async ct =>
         {
-            await using var concurrent = new MangaPlexDbContext(_options);
+            await using var concurrent = new MangaPixerDbContext(_options);
             concurrent.ReadingProgress.Add(new ReadingProgressEntity
             {
                 UserId = user.Id,
@@ -593,7 +593,7 @@ public sealed class YacReaderImportServiceTests : IDisposable
 
         service.BeforeBulkSaveAsync = async ct =>
         {
-            await using var concurrent = new MangaPlexDbContext(_options);
+            await using var concurrent = new MangaPixerDbContext(_options);
             concurrent.ReadingProgress.Add(new ReadingProgressEntity
             {
                 UserId = user.Id,

@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
@@ -14,11 +14,11 @@ using Xunit;
 [Collection("HttpSerial")]
 public sealed class SystemInfoHttpTests : IDisposable
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
 
     public SystemInfoHttpTests()
     {
-        _factory = new MangaPlexWebApplicationFactory();
+        _factory = new MangaPixerWebApplicationFactory();
     }
 
     public void Dispose() => _factory.Dispose();

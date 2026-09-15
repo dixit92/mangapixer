@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Media;
+namespace com.lifepixer.mangapixer.Tests.Server.Media;
 
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.TestSupport;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.TestSupport;
 using Xunit;
 
 /// <summary>
@@ -14,7 +14,7 @@ public sealed class ScratchWorkspaceTests : IDisposable
 
     public ScratchWorkspaceTests()
     {
-        _tempDir = TestSupport.CreateTempTestRoot("mangaplex-scratch");
+        _tempDir = TestSupport.CreateTempTestRoot("mangapixer-scratch");
     }
 
     public void Dispose()
@@ -31,7 +31,7 @@ public sealed class ScratchWorkspaceTests : IDisposable
         manager.Initialize();
 
         Assert.True(Directory.Exists(scratchRoot));
-        Assert.True(File.Exists(Path.Combine(scratchRoot, ".mangaplex-root")));
+        Assert.True(File.Exists(Path.Combine(scratchRoot, ".mangapixer-root")));
     }
 
     [Fact]

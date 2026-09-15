@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Media;
+namespace com.lifepixer.mangapixer.Tests.Server.Media;
 
-using com.lifepixer.mangaplex.Server.Media;
+using com.lifepixer.mangapixer.Server.Media;
 using Xunit;
 
 /// <summary>

@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace com.lifepixer.mangaplex.Tray.Server;
+namespace com.lifepixer.mangapixer.Tray.Server;
 
 /// <summary>
 /// Probes a port by binding a loopback <see cref="TcpListener"/> and

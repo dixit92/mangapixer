@@ -1,12 +1,12 @@
-namespace com.lifepixer.mangaplex.Server.Hosting;
+namespace com.lifepixer.mangapixer.Server.Hosting;
 
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Operations;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Features.Import.YacReader;
-using com.lifepixer.mangaplex.Server.Features.Reading;
-using com.lifepixer.mangaplex.Server.Scanning;
-using com.lifepixer.mangaplex.Server.Storage;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Operations;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Features.Import.YacReader;
+using com.lifepixer.mangapixer.Server.Features.Reading;
+using com.lifepixer.mangapixer.Server.Scanning;
+using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.IO;
@@ -20,9 +20,9 @@ public static class HostingServicesExtensions
     /// <summary>
     /// Registers hosted services (worker pool, startup recovery, maintenance)
     /// and the catalog/storage/operations services they require that are not
-    /// already registered by <c>AddMangaPlexAuth</c> or <c>AddMangaPlexMedia</c>.
+    /// already registered by <c>AddMangaPixerAuth</c> or <c>AddMangaPixerMedia</c>.
     /// </summary>
-    public static IServiceCollection AddMangaPlexHosting(this IServiceCollection services)
+    public static IServiceCollection AddMangaPixerHosting(this IServiceCollection services)
     {
         // Storage / scanning services that were implemented but never registered.
         services.AddScoped<LibraryRegistrationService>();
@@ -35,9 +35,9 @@ public static class HostingServicesExtensions
             var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
             return new AppRootOptions
             {
-                DataRoot = config["MangaPlex:Storage:DataRoot"],
-                CacheRoot = config["MangaPlex:Storage:CacheRoot"],
-                ScratchRoot = config["MangaPlex:Storage:ScratchRoot"],
+                DataRoot = config["MangaPixer:Storage:DataRoot"],
+                CacheRoot = config["MangaPixer:Storage:CacheRoot"],
+                ScratchRoot = config["MangaPixer:Storage:ScratchRoot"],
             };
         });
         services.AddScoped<IdentityRelinkService>();
@@ -52,7 +52,7 @@ public static class HostingServicesExtensions
         services.AddSingleton<MediaBrowseOptions>(sp =>
         {
             var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
-            var configured = config["MangaPlex:Storage:MediaRoot"];
+            var configured = config["MangaPixer:Storage:MediaRoot"];
             return new MediaBrowseOptions
             {
                 Root = string.IsNullOrWhiteSpace(configured) ? "/media" : configured,
@@ -61,7 +61,7 @@ public static class HostingServicesExtensions
         services.AddScoped<FilesystemBrowseService>();
 
         // Page delivery depends on DbContext + CacheService + JobScheduler,
-        // all of which are registered by AddMangaPlexAuth/AddMangaPlexMedia.
+        // all of which are registered by AddMangaPixerAuth/AddMangaPixerMedia.
         services.AddScoped<PageDeliveryService>();
 
         // WriteCoordinator for serialized DB writes.
@@ -75,12 +75,12 @@ public static class HostingServicesExtensions
 
         // Rotating DB backups — scheduled online snapshots (VACUUM INTO) with
         // retention-based pruning. Interval/retention are admin-configurable
-        // via MangaPlex:Backups:*; backups land in <dataRoot>/backups, the
+        // via MangaPixer:Backups:*; backups land in <dataRoot>/backups, the
         // same folder as pre-migration backups (which are never pruned).
         services.AddSingleton(sp =>
         {
             var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
-            var dataRoot = config["MangaPlex:Storage:DataRoot"];
+            var dataRoot = config["MangaPixer:Storage:DataRoot"];
             var backupsDir = Path.Combine(
                 string.IsNullOrWhiteSpace(dataRoot)
                     ? Path.Combine(AppContext.BaseDirectory, "data")
@@ -88,12 +88,12 @@ public static class HostingServicesExtensions
                 "backups");
 
             var options = new RotatingBackupOptions { BackupDirectory = backupsDir };
-            if (double.TryParse(config["MangaPlex:Backups:IntervalHours"],
+            if (double.TryParse(config["MangaPixer:Backups:IntervalHours"],
                     System.Globalization.CultureInfo.InvariantCulture, out var hours) && hours > 0)
                 options.Interval = TimeSpan.FromHours(hours);
-            if (int.TryParse(config["MangaPlex:Backups:RetentionCount"], out var retention) && retention > 0)
+            if (int.TryParse(config["MangaPixer:Backups:RetentionCount"], out var retention) && retention > 0)
                 options.RetentionCount = retention;
-            if (bool.TryParse(config["MangaPlex:Backups:Enabled"], out var enabled))
+            if (bool.TryParse(config["MangaPixer:Backups:Enabled"], out var enabled))
                 options.Enabled = enabled;
             return options;
         });
@@ -103,12 +103,12 @@ public static class HostingServicesExtensions
         // DB backup import/restore (1.7.0). Admin-only upload + validate +
         // stage; the atomic swap is applied on the next restart (see
         // Program.cs). Size cap is admin-configurable via
-        // MangaPlex:Backups:MaxRestoreUploadBytes (default 512 MiB).
+        // MangaPixer:Backups:MaxRestoreUploadBytes (default 512 MiB).
         services.AddSingleton(sp =>
         {
             var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
             var options = new DbRestoreOptions();
-            if (long.TryParse(config["MangaPlex:Backups:MaxRestoreUploadBytes"],
+            if (long.TryParse(config["MangaPixer:Backups:MaxRestoreUploadBytes"],
                     System.Globalization.CultureInfo.InvariantCulture, out var cap) && cap > 0)
                 options.MaxUploadBytes = cap;
             return options;

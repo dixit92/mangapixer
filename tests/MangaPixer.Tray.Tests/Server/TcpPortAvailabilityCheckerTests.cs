@@ -1,8 +1,8 @@
-namespace com.lifepixer.mangaplex.Tests.Tray.Server;
+namespace com.lifepixer.mangapixer.Tests.Tray.Server;
 
 using System.Net;
 using System.Net.Sockets;
-using com.lifepixer.mangaplex.Tray.Server;
+using com.lifepixer.mangapixer.Tray.Server;
 using Xunit;
 
 /// <summary>Process-level: exercises real loopback socket binding.</summary>

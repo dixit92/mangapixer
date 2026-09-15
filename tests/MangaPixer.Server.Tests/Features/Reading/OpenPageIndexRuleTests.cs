@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Features.Reading;
+namespace com.lifepixer.mangapixer.Tests.Server.Features.Reading;
 
-using com.lifepixer.mangaplex.Server.Features.Reading;
+using com.lifepixer.mangapixer.Server.Features.Reading;
 using Xunit;
 
 /// <summary>

@@ -1,8 +1,8 @@
-namespace com.lifepixer.mangaplex.Server.Features.Reading;
+namespace com.lifepixer.mangapixer.Server.Features.Reading;
 
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -25,10 +25,10 @@ using Microsoft.EntityFrameworkCore;
 /// </summary>
 public sealed class IdentityRelinkService
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly LibraryAuthorizationService _auth;
 
-    public IdentityRelinkService(MangaPlexDbContext db, LibraryAuthorizationService auth)
+    public IdentityRelinkService(MangaPixerDbContext db, LibraryAuthorizationService auth)
     {
         _db = db;
         _auth = auth;

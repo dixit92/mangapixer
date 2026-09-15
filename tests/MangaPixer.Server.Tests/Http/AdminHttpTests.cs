@@ -1,8 +1,8 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
-using com.lifepixer.mangaplex.Core.Api;
+using com.lifepixer.mangapixer.Core.Api;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -13,15 +13,15 @@ using Xunit;
 [Collection("HttpSerial")]
 public sealed class AdminHttpTests : IDisposable
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
     private readonly string _libRoot;
 
     public AdminHttpTests()
     {
-        _factory = new MangaPlexWebApplicationFactory();
+        _factory = new MangaPixerWebApplicationFactory();
         // Library root must be OUTSIDE the data root to avoid the
         // app-root separation check in LibraryRegistrationService.
-        _libRoot = Path.Combine(Path.GetTempPath(), "mangaplex-lib-" + Guid.NewGuid().ToString("N")[..8]);
+        _libRoot = Path.Combine(Path.GetTempPath(), "mangapixer-lib-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_libRoot);
     }
 
@@ -47,7 +47,7 @@ public sealed class AdminHttpTests : IDisposable
 
         var csrfResponse = await client.GetAsync("/api/v1/auth/csrf");
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
-        client.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        client.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
 
         var changeResponse = await client.PostAsJsonAsync("/api/v1/auth/change-password", new ChangePasswordRequest
         {
@@ -66,7 +66,7 @@ public sealed class AdminHttpTests : IDisposable
 
         var freshCsrf = await freshClient.GetAsync("/api/v1/auth/csrf");
         var freshToken = await freshCsrf.Content.ReadFromJsonAsync<CsrfTokenDto>();
-        freshClient.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", freshToken!.Token);
+        freshClient.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", freshToken!.Token);
 
         return freshClient;
     }
@@ -97,7 +97,7 @@ public sealed class AdminHttpTests : IDisposable
         // Get CSRF
         var csrfResponse = await readerClient.GetAsync("/api/v1/auth/csrf");
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
-        readerClient.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        readerClient.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
 
         // Change password to clear ForcePasswordChange
         var changeResponse = await readerClient.PostAsJsonAsync("/api/v1/auth/change-password", new ChangePasswordRequest
@@ -269,9 +269,9 @@ public sealed class AdminHttpTests : IDisposable
         // Seed a running scan (Status == 1) so the delete guard refuses.
         using (var scope = _factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<com.lifepixer.mangaplex.Server.Persistence.MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<com.lifepixer.mangapixer.Server.Persistence.MangaPixerDbContext>();
             var library = db.Libraries.First(l => l.PublicId == created!.Id);
-            db.ScanRuns.Add(new com.lifepixer.mangaplex.Server.Persistence.Entities.ScanRunEntity
+            db.ScanRuns.Add(new com.lifepixer.mangapixer.Server.Persistence.Entities.ScanRunEntity
             {
                 LibraryId = library.Id,
                 ScanRevision = 1,
@@ -548,7 +548,7 @@ public sealed class AdminHttpTests : IDisposable
     {
         var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
 
-        var fakeId = com.lifepixer.mangaplex.Core.Catalog.OpaqueId.Encode(99999);
+        var fakeId = com.lifepixer.mangapixer.Core.Catalog.OpaqueId.Encode(99999);
         var response = await client.PostAsync($"/api/v1/admin/libraries/{fakeId}/scan", null);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -560,8 +560,8 @@ public sealed class AdminHttpTests : IDisposable
 
         // Two distinct, non-nested roots (duplicate/nested roots are rejected by
         // LibraryRegistrationService).
-        var rootA = Path.Combine(Path.GetTempPath(), "mangaplex-scanallA-" + Guid.NewGuid().ToString("N")[..8]);
-        var rootB = Path.Combine(Path.GetTempPath(), "mangaplex-scanallB-" + Guid.NewGuid().ToString("N")[..8]);
+        var rootA = Path.Combine(Path.GetTempPath(), "mangapixer-scanallA-" + Guid.NewGuid().ToString("N")[..8]);
+        var rootB = Path.Combine(Path.GetTempPath(), "mangapixer-scanallB-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(rootA);
         Directory.CreateDirectory(rootB);
         Directory.CreateDirectory(Path.Combine(rootA, "SeriesA"));
@@ -601,8 +601,8 @@ public sealed class AdminHttpTests : IDisposable
     {
         var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
 
-        var rootA = Path.Combine(Path.GetTempPath(), "mangaplex-scanallSkipA-" + Guid.NewGuid().ToString("N")[..8]);
-        var rootB = Path.Combine(Path.GetTempPath(), "mangaplex-scanallSkipB-" + Guid.NewGuid().ToString("N")[..8]);
+        var rootA = Path.Combine(Path.GetTempPath(), "mangapixer-scanallSkipA-" + Guid.NewGuid().ToString("N")[..8]);
+        var rootB = Path.Combine(Path.GetTempPath(), "mangapixer-scanallSkipB-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(rootA);
         Directory.CreateDirectory(rootB);
         try
@@ -623,9 +623,9 @@ public sealed class AdminHttpTests : IDisposable
             // background scan that could finish before scan-all checks the lease).
             using (var scope = _factory.Services.CreateScope())
             {
-                var db = scope.ServiceProvider.GetRequiredService<com.lifepixer.mangaplex.Server.Persistence.MangaPlexDbContext>();
+                var db = scope.ServiceProvider.GetRequiredService<com.lifepixer.mangapixer.Server.Persistence.MangaPixerDbContext>();
                 var library = db.Libraries.First(l => l.PublicId == libA!.Id);
-                db.ScanRuns.Add(new com.lifepixer.mangaplex.Server.Persistence.Entities.ScanRunEntity
+                db.ScanRuns.Add(new com.lifepixer.mangapixer.Server.Persistence.Entities.ScanRunEntity
                 {
                     LibraryId = library.Id,
                     ScanRevision = 1,
@@ -842,7 +842,7 @@ public sealed class AdminHttpTests : IDisposable
     [Fact]
     public async Task FirstRunSetup_StillWorks_WithActivationFeature()
     {
-        using var factory = new MangaPlexWebApplicationFactory();
+        using var factory = new MangaPixerWebApplicationFactory();
         var client = factory.CreateClient();
 
         var setupStatus = await client.GetFromJsonAsync<SetupStatusDto>("/api/v1/auth/setup-status");

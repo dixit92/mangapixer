@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Tray.Server;
+namespace com.lifepixer.mangapixer.Tray.Server;
 
 /// <summary>
 /// Picks the port the tray actually launches the server on. Windows'

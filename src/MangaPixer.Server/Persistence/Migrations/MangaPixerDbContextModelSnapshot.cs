@@ -2,21 +2,21 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using com.lifepixer.mangaplex.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence;
 
 #nullable disable
 
-namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
+namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
 {
-    [DbContext(typeof(MangaPlexDbContext))]
-    partial class MangaPlexDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(MangaPixerDbContext))]
+    partial class MangaPixerDbContextModelSnapshot : ModelSnapshot
     {
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.0");
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ArchiveItemEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchiveItemEntity", b =>
                 {
                     b.Property<long>("NodeId")
                         .HasColumnType("INTEGER");
@@ -77,7 +77,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("archive_items", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.AuditEventEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.AuditEventEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -121,7 +121,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("audit_events", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.BookmarkEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.BookmarkEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -161,7 +161,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("bookmarks", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.CacheEntryEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.CacheEntryEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -206,7 +206,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("cache_entries", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.CatalogNodeEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -274,7 +274,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("catalog_nodes", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.FolderReaderDefaultEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.FolderReaderDefaultEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -294,7 +294,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("folder_reader_defaults", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.HomeExcludedLibraryEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.HomeExcludedLibraryEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -319,7 +319,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("home_excluded_libraries", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ItemReaderOverridesEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ItemReaderOverridesEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -357,7 +357,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("item_reader_overrides", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.JobEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.JobEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -415,7 +415,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("jobs", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.LibraryEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.LibraryEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -471,7 +471,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("libraries", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.LibraryGrantEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.LibraryGrantEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -496,7 +496,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("library_grants", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.PageEntryEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.PageEntryEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -553,7 +553,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("page_entries", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.PrivateLibraryEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.PrivateLibraryEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -578,7 +578,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("private_libraries", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ReadMarkEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ReadMarkEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -608,7 +608,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("read_marks", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ReaderPreferencesEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ReaderPreferencesEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -666,7 +666,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("reader_preferences", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ReadingProgressEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ReadingProgressEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -721,7 +721,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("reading_progress", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ScanObservationEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ScanObservationEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -781,7 +781,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("scan_observations", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ScanRunEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ScanRunEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -832,7 +832,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("scan_runs", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.SessionEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.SessionEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -872,7 +872,7 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("sessions", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -950,20 +950,20 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ArchiveItemEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchiveItemEntity", b =>
                 {
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.CatalogNodeEntity", "Node")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Node")
                         .WithOne("ArchiveItem")
-                        .HasForeignKey("com.lifepixer.mangaplex.Server.Persistence.Entities.ArchiveItemEntity", "NodeId")
+                        .HasForeignKey("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchiveItemEntity", "NodeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Node");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.BookmarkEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.BookmarkEntity", b =>
                 {
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", "User")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -972,15 +972,15 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.CatalogNodeEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", b =>
                 {
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.LibraryEntity", "Library")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.LibraryEntity", "Library")
                         .WithMany("Nodes")
                         .HasForeignKey("LibraryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.CatalogNodeEntity", "Parent")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Parent")
                         .WithMany()
                         .HasForeignKey("ParentId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -990,9 +990,9 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Navigation("Parent");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.FolderReaderDefaultEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.FolderReaderDefaultEntity", b =>
                 {
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.CatalogNodeEntity", "Node")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Node")
                         .WithMany()
                         .HasForeignKey("NodeId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1001,9 +1001,9 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Navigation("Node");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.HomeExcludedLibraryEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.HomeExcludedLibraryEntity", b =>
                 {
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", "User")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
                         .WithMany("HomeExcludedLibraries")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1012,9 +1012,9 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ItemReaderOverridesEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ItemReaderOverridesEntity", b =>
                 {
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", "User")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1023,15 +1023,15 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.LibraryGrantEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.LibraryGrantEntity", b =>
                 {
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.LibraryEntity", "Library")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.LibraryEntity", "Library")
                         .WithMany("Grants")
                         .HasForeignKey("LibraryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", "User")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
                         .WithMany("LibraryGrants")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1042,9 +1042,9 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.PageEntryEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.PageEntryEntity", b =>
                 {
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.ArchiveItemEntity", "Item")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchiveItemEntity", "Item")
                         .WithMany("Pages")
                         .HasForeignKey("ItemId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1053,9 +1053,9 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Navigation("Item");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.PrivateLibraryEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.PrivateLibraryEntity", b =>
                 {
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", "User")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
                         .WithMany("PrivateLibraries")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1064,9 +1064,9 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ReadMarkEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ReadMarkEntity", b =>
                 {
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", "User")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1075,20 +1075,20 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ReaderPreferencesEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ReaderPreferencesEntity", b =>
                 {
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", "User")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
                         .WithOne("Preferences")
-                        .HasForeignKey("com.lifepixer.mangaplex.Server.Persistence.Entities.ReaderPreferencesEntity", "UserId")
+                        .HasForeignKey("com.lifepixer.mangapixer.Server.Persistence.Entities.ReaderPreferencesEntity", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ReadingProgressEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ReadingProgressEntity", b =>
                 {
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", "User")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
                         .WithMany("ReadingProgress")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1097,9 +1097,9 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.SessionEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.SessionEntity", b =>
                 {
-                    b.HasOne("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", "User")
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1108,24 +1108,24 @@ namespace com.lifepixer.mangaplex.Server.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.ArchiveItemEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchiveItemEntity", b =>
                 {
                     b.Navigation("Pages");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.CatalogNodeEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", b =>
                 {
                     b.Navigation("ArchiveItem");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.LibraryEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.LibraryEntity", b =>
                 {
                     b.Navigation("Grants");
 
                     b.Navigation("Nodes");
                 });
 
-            modelBuilder.Entity("com.lifepixer.mangaplex.Server.Persistence.Entities.UserEntity", b =>
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", b =>
                 {
                     b.Navigation("HomeExcludedLibraries");
 

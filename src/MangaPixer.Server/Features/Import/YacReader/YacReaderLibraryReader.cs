@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Server.Features.Import.YacReader;
+namespace com.lifepixer.mangapixer.Server.Features.Import.YacReader;
 
 using Microsoft.Data.Sqlite;
 
@@ -13,7 +13,7 @@ using Microsoft.Data.Sqlite;
 /// The schema mirrored here is the verified YACReader <c>library.ydb</c>
 /// schema (see project feature backlog). Only the columns needed for progress
 /// import are projected; metadata such as covers, ratings, and tags are
-/// intentionally ignored (MangaPlex regenerates covers and does not import
+/// intentionally ignored (MangaPixer regenerates covers and does not import
 /// YACReader metadata in release one).
 /// </summary>
 public sealed class YacReaderLibraryReader

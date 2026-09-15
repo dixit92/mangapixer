@@ -1,14 +1,14 @@
-namespace com.lifepixer.mangaplex.Server.Operations;
+namespace com.lifepixer.mangapixer.Server.Operations;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
-using com.lifepixer.mangaplex.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence;
 using System.IO;
 
 /// <summary>
 /// Configuration for the scheduled rotating database backups.
 /// Interval and retention are admin-configurable via configuration
-/// (MangaPlex:Backups:IntervalHours / RetentionCount / Enabled); defaults are
+/// (MangaPixer:Backups:IntervalHours / RetentionCount / Enabled); defaults are
 /// daily with the last 7 snapshots retained.
 /// </summary>
 public sealed class RotatingBackupOptions
@@ -73,14 +73,14 @@ public sealed class RotatingBackupService
 {
     public const string FileNamePrefix = "rotating-";
 
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly BackupService _backup;
     private readonly RotatingBackupOptions _options;
     private readonly RotatingBackupState _state;
     private readonly ILogger<RotatingBackupService>? _logger;
 
     public RotatingBackupService(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         BackupService backup,
         RotatingBackupOptions options,
         RotatingBackupState state,

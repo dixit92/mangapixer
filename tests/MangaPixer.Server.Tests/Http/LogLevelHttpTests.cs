@@ -1,12 +1,12 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Server.Hosting;
-using com.lifepixer.mangaplex.Server.Operations;
-using com.lifepixer.mangaplex.Tests.Server.Hosting;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Server.Hosting;
+using com.lifepixer.mangapixer.Server.Operations;
+using com.lifepixer.mangapixer.Tests.Server.Hosting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -116,7 +116,7 @@ public sealed class LogLevelHttpTests : IDisposable
 
         var csrfResponse = await readerClient.GetAsync("/api/v1/auth/csrf");
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
-        readerClient.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        readerClient.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
 
         await readerClient.PostAsJsonAsync("/api/v1/auth/change-password", new ChangePasswordRequest
         {
@@ -133,7 +133,7 @@ public sealed class LogLevelHttpTests : IDisposable
         });
         csrfResponse = await readerClient.GetAsync("/api/v1/auth/csrf");
         csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
-        readerClient.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        readerClient.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
 
         var response = await readerClient.PutAsJsonAsync("/api/v1/operations/logging",
             new { level = "Debug" });
@@ -370,11 +370,11 @@ public sealed class LogLevelHttpTests : IDisposable
         _factory.Sink.Clear();
 
         // Emit a Debug event with SourceContext in the Scanning namespace
-        var scanningLogger = Log.Logger.ForContext("SourceContext", "com.lifepixer.mangaplex.Server.Scanning.LibraryScanCoordinator");
+        var scanningLogger = Log.Logger.ForContext("SourceContext", "com.lifepixer.mangapixer.Server.Scanning.LibraryScanCoordinator");
         scanningLogger.Debug("Scanning debug test message");
 
         // Emit a Debug event with SourceContext in the Media namespace
-        var mediaLogger = Log.Logger.ForContext("SourceContext", "com.lifepixer.mangaplex.Server.Media.MediaWorkerPool");
+        var mediaLogger = Log.Logger.ForContext("SourceContext", "com.lifepixer.mangapixer.Server.Media.MediaWorkerPool");
         mediaLogger.Debug("Media debug test message");
 
         // Only the Scanning Debug event should be captured
@@ -408,9 +408,9 @@ public sealed class LogLevelHttpTests : IDisposable
 /// <summary>
 /// Standalone WebApplicationFactory that wraps Log.Logger with a CollectingSink
 /// and provides admin login helpers. Follows the C00WebApplicationFactory pattern
-/// since MangaPlexWebApplicationFactory is sealed.
+/// since MangaPixerWebApplicationFactory is sealed.
 /// </summary>
-public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.lifepixer.mangaplex.Server.Program>
+public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.lifepixer.mangapixer.Server.Program>
 {
     private readonly CollectingSink _sink = new();
     private readonly string _tempRoot;
@@ -423,20 +423,20 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
 
     public LogLevelWebApplicationFactory()
     {
-        _tempRoot = Path.Combine(Path.GetTempPath(), "mangaplex-loglevel-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempRoot = Path.Combine(Path.GetTempPath(), "mangapixer-loglevel-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(Path.Combine(_tempRoot, "data"));
         Directory.CreateDirectory(Path.Combine(_tempRoot, "cache"));
         Directory.CreateDirectory(Path.Combine(_tempRoot, "scratch"));
 
         // Create per-category switches matching the production catalog so
         // LogLevelSettingsService can mutate them. All default to Information.
-        foreach (var (name, _) in com.lifepixer.mangaplex.Server.Logging.DebugCategories.All)
+        foreach (var (name, _) in com.lifepixer.mangapixer.Server.Logging.DebugCategories.All)
             _categorySwitches[name] = new LoggingLevelSwitch(LogEventLevel.Information);
 
         // Non-global storage-injection seam: push this factory's storage
         // roots as the ambient TestHostStorageOverride for the duration of
         // the synchronous host boot below — see the remarks on
-        // MangaPlexWebApplicationFactory and TestHostStorageOverride for why
+        // MangaPixerWebApplicationFactory and TestHostStorageOverride for why
         // this (and not ConfigureAppConfiguration or an env var) is what
         // actually reaches Program.Main in time, race-free under parallel
         // factory boots.
@@ -487,7 +487,7 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
             _originalLogger = Log.Logger;
             var testLoggerConfig = new LoggerConfiguration()
                 .MinimumLevel.ControlledBy(_levelSwitch);
-            foreach (var (name, prefix) in com.lifepixer.mangaplex.Server.Logging.DebugCategories.All)
+            foreach (var (name, prefix) in com.lifepixer.mangapixer.Server.Logging.DebugCategories.All)
                 testLoggerConfig.MinimumLevel.Override(prefix, _categorySwitches[name]);
             Log.Logger = testLoggerConfig
                 .WriteTo.Sink(_sink)
@@ -496,7 +496,7 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
         });
     }
 
-    public async Task<HttpClient> LoginAsAdminAsync(string password = "MangaPlex-Change-Me-Now!")
+    public async Task<HttpClient> LoginAsAdminAsync(string password = "MangaPixer-Change-Me-Now!")
     {
         var client = CreateClient();
 
@@ -524,13 +524,13 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
         csrfResponse.EnsureSuccessStatusCode();
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
         Assert.NotNull(csrf);
-        client.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        client.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
 
         return client;
     }
 
     public async Task<HttpClient> LoginAsAdminWithChangedPasswordAsync(
-        string currentPassword = "MangaPlex-Change-Me-Now!",
+        string currentPassword = "MangaPixer-Change-Me-Now!",
         string newPassword = "TestPassword123!")
     {
         if (_cachedAdminClient is not null)
@@ -557,7 +557,7 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
         csrfResponse.EnsureSuccessStatusCode();
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
         Assert.NotNull(csrf);
-        freshClient.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        freshClient.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
 
         _cachedAdminClient = freshClient;
         return freshClient;

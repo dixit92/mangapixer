@@ -1,11 +1,11 @@
-namespace com.lifepixer.mangaplex.Server.Media;
+namespace com.lifepixer.mangapixer.Server.Media;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.WorkerProtocol;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.WorkerProtocol;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -35,13 +35,13 @@ public sealed class AnalysisResultPersister
     /// <param name="nodeId">Archive item / catalog node id.</param>
     /// <param name="result">Worker job result.</param>
     /// <param name="contentSignature">
-    /// Optional <see cref="com.lifepixer.mangaplex.Core.Media.ContentSignature"/> of the
+    /// Optional <see cref="com.lifepixer.mangapixer.Core.Media.ContentSignature"/> of the
     /// analysed bytes (1.5.0). Stored on success so a later scan can recognise the
     /// file if it moves; ignored for failed results (the previous value, if any,
     /// is left untouched).
     /// </param>
     /// <param name="ct">Cancellation.</param>
-    public async Task PersistAsync(MangaPlexDbContext db, long nodeId, JobResult result, string? contentSignature = null, CancellationToken ct = default)
+    public async Task PersistAsync(MangaPixerDbContext db, long nodeId, JobResult result, string? contentSignature = null, CancellationToken ct = default)
     {
         var archiveItem = await db.ArchiveItems
             .Include(a => a.Pages)

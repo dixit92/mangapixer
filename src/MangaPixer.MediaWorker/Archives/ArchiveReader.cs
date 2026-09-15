@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.MediaWorker.Archives;
+namespace com.lifepixer.mangapixer.MediaWorker.Archives;
 
-using com.lifepixer.mangaplex.Core.Media;
+using com.lifepixer.mangapixer.Core.Media;
 using SharpCompress.Archives;
 using System.Security.Cryptography;
 

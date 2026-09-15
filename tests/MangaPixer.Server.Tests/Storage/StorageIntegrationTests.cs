@@ -1,9 +1,9 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Storage;
+namespace com.lifepixer.mangapixer.Tests.Server.Storage;
 
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
-using com.lifepixer.mangaplex.Server.Storage;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -15,15 +15,15 @@ public sealed class StorageIntegrationTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly string _dbPath;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
     public StorageIntegrationTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-storage-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-storage-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
         _dbPath = Path.Combine(_tempDir, "test.db");
         var connectionString = DatabaseInitialization.BuildConnectionString(_dbPath);
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .UseSqlite(connectionString)
             .Options;
     }
@@ -142,7 +142,7 @@ public sealed class StorageIntegrationTests : IDisposable
         var libRoot = Path.Combine(_tempDir, "library");
         Directory.CreateDirectory(libRoot);
 
-        using var db = new MangaPlexDbContext(_options);
+        using var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -160,7 +160,7 @@ public sealed class StorageIntegrationTests : IDisposable
         var libRoot = Path.Combine(_tempDir, "library");
         Directory.CreateDirectory(libRoot);
 
-        using var db = new MangaPlexDbContext(_options);
+        using var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -182,7 +182,7 @@ public sealed class StorageIntegrationTests : IDisposable
         Directory.CreateDirectory(libRoot);
         Directory.CreateDirectory(nestedRoot);
 
-        using var db = new MangaPlexDbContext(_options);
+        using var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -202,7 +202,7 @@ public sealed class StorageIntegrationTests : IDisposable
         var dataRoot = Path.Combine(_tempDir, "data");
         Directory.CreateDirectory(dataRoot);
 
-        using var db = new MangaPlexDbContext(_options);
+        using var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -217,7 +217,7 @@ public sealed class StorageIntegrationTests : IDisposable
     [Fact]
     public async Task LibraryRegistration_NonExistentRoot_Rejected()
     {
-        using var db = new MangaPlexDbContext(_options);
+        using var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -355,7 +355,7 @@ public sealed class StorageIntegrationTests : IDisposable
         var libRoot = Path.Combine(_tempDir, "library");
         Directory.CreateDirectory(libRoot);
 
-        using var db = new MangaPlexDbContext(_options);
+        using var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -383,7 +383,7 @@ public sealed class StorageIntegrationTests : IDisposable
         var sourceArchive = Path.Combine(libRoot, "vol1.cbz");
         File.WriteAllText(sourceArchive, "source-bytes");
 
-        using var db = new MangaPlexDbContext(_options);
+        using var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -549,7 +549,7 @@ public sealed class StorageIntegrationTests : IDisposable
         await db.DisposeAsync();
 
         // Delete the library with a fresh context + the durable thumbnail store.
-        using var db2 = new MangaPlexDbContext(_options);
+        using var db2 = new MangaPixerDbContext(_options);
         var serviceWithStore = new LibraryRegistrationService(
             db2,
             new AppRootOptions { DataRoot = Path.Combine(_tempDir, "data") },
@@ -592,7 +592,7 @@ public sealed class StorageIntegrationTests : IDisposable
 
     private static string WriteTempImage()
     {
-        var path = Path.Combine(Path.GetTempPath(), "mangaplex-thumb-" + Guid.NewGuid().ToString("N")[..8] + ".bin");
+        var path = Path.Combine(Path.GetTempPath(), "mangapixer-thumb-" + Guid.NewGuid().ToString("N")[..8] + ".bin");
         File.WriteAllBytes(path, new byte[] { 1, 2, 3, 4 });
         return path;
     }

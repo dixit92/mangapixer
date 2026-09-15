@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Server.Features.Home;
+namespace com.lifepixer.mangapixer.Server.Features.Home;
 
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Server.Features.Auth;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Server.Features.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

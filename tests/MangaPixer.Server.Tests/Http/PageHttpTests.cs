@@ -1,13 +1,13 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
-using com.lifepixer.mangaplex.TestSupport.Fixtures;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.TestSupport.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -19,13 +19,13 @@ using Xunit;
 [Collection("HttpSerial")]
 public sealed class PageHttpTests : IDisposable
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
     private readonly string _libRoot;
 
     public PageHttpTests()
     {
-        _factory = new MangaPlexWebApplicationFactory();
-        _libRoot = Path.Combine(Path.GetTempPath(), "mangaplex-page-" + Guid.NewGuid().ToString("N")[..8]);
+        _factory = new MangaPixerWebApplicationFactory();
+        _libRoot = Path.Combine(Path.GetTempPath(), "mangapixer-page-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_libRoot);
     }
 
@@ -41,7 +41,7 @@ public sealed class PageHttpTests : IDisposable
         var (client, itemId) = await SetupLibraryAndScanAsync();
 
         // Use a deterministic entry key that won't exist for unanalyzed items
-        var entryKey = new com.lifepixer.mangaplex.Core.Catalog.PageEntryKey(0).ToOpaque();
+        var entryKey = new com.lifepixer.mangapixer.Core.Catalog.PageEntryKey(0).ToOpaque();
         var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -71,7 +71,7 @@ public sealed class PageHttpTests : IDisposable
         await PersistAnalysisResultAsync(itemId, pageCount: 2);
 
         // Use a non-existent entry key
-        var fakeKey = new com.lifepixer.mangaplex.Core.Catalog.PageEntryKey(99).ToOpaque();
+        var fakeKey = new com.lifepixer.mangapixer.Core.Catalog.PageEntryKey(99).ToOpaque();
         var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{fakeKey}");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -111,7 +111,7 @@ public sealed class PageHttpTests : IDisposable
     {
         var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
 
-        var entryKey = new com.lifepixer.mangaplex.Core.Catalog.PageEntryKey(0).ToOpaque();
+        var entryKey = new com.lifepixer.mangapixer.Core.Catalog.PageEntryKey(0).ToOpaque();
         var response = await client.GetAsync($"/api/v1/items/invalidid/pages/{entryKey}");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -154,7 +154,7 @@ public sealed class PageHttpTests : IDisposable
         string itemId;
         using (var scope = _factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var nodes = await db.CatalogNodes.Where(n => n.Kind == 1 && n.PublicId != null).ToListAsync();
             Assert.NotEmpty(nodes);
             itemId = nodes[0].PublicId!;
@@ -172,7 +172,7 @@ public sealed class PageHttpTests : IDisposable
     private async Task SeedCacheAsync(string itemPublicId, int ordinal, string variant)
     {
         using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
         var cache = scope.ServiceProvider.GetRequiredService<CacheService>();
         cache.Initialize();
 
@@ -194,7 +194,7 @@ public sealed class PageHttpTests : IDisposable
     private async Task SeedDurableThumbnailAsync(string itemPublicId)
     {
         using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
         var store = scope.ServiceProvider.GetRequiredService<ThumbnailStore>();
         store.Initialize();
 
@@ -215,7 +215,7 @@ public sealed class PageHttpTests : IDisposable
     private async Task<string> PersistAnalysisResultAsync(string itemPublicId, int pageCount)
     {
         using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
 
         var node = await db.CatalogNodes.FirstAsync(n => n.PublicId == itemPublicId);
 
@@ -256,7 +256,7 @@ public sealed class PageHttpTests : IDisposable
                 ItemId = node.Id,
                 ContentVersion = archiveItem.ContentVersion,
                 Ordinal = i,
-                EntryKey = new com.lifepixer.mangaplex.Core.Catalog.PageEntryKey(i).ToOpaque(),
+                EntryKey = new com.lifepixer.mangapixer.Core.Catalog.PageEntryKey(i).ToOpaque(),
                 SourceEntryLocator = entryNames[i],
                 MediaType = "image/png",
                 Width = 1,
@@ -269,6 +269,6 @@ public sealed class PageHttpTests : IDisposable
         await db.SaveChangesAsync();
 
         // Return the first page's entry key for use in URLs
-        return new com.lifepixer.mangaplex.Core.Catalog.PageEntryKey(0).ToOpaque();
+        return new com.lifepixer.mangapixer.Core.Catalog.PageEntryKey(0).ToOpaque();
     }
 }

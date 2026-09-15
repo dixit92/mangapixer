@@ -35,7 +35,7 @@ describe('AppComponent footer version', () => {
 
     const footer = fixture.nativeElement.querySelector('.app-footer') as HTMLElement;
     expect(footer).toBeTruthy();
-    expect(footer.textContent).toContain('MangaPlex');
+    expect(footer.textContent).toContain('MangaPixer');
     expect(footer.textContent).toContain('1.3.0');
   });
 

@@ -30,7 +30,7 @@ import { ApiError } from '../../core/api/api-types';
     <div class="setup-container">
       <mat-card>
         <mat-card-header>
-          <mat-card-title>Welcome to MangaPlex</mat-card-title>
+          <mat-card-title>Welcome to MangaPixer</mat-card-title>
           <mat-card-subtitle>Create your administrator account</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>

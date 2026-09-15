@@ -1,9 +1,9 @@
-namespace com.lifepixer.mangaplex.Tests.MediaWorker.Archives;
+namespace com.lifepixer.mangapixer.Tests.MediaWorker.Archives;
 
-using com.lifepixer.mangaplex.Core.Media;
-using com.lifepixer.mangaplex.MediaWorker.Archives;
-using com.lifepixer.mangaplex.TestSupport;
-using com.lifepixer.mangaplex.TestSupport.Fixtures;
+using com.lifepixer.mangapixer.Core.Media;
+using com.lifepixer.mangapixer.MediaWorker.Archives;
+using com.lifepixer.mangapixer.TestSupport;
+using com.lifepixer.mangapixer.TestSupport.Fixtures;
 using Xunit;
 
 /// <summary>

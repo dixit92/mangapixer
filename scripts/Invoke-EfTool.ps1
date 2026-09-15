@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Invoke-EfTool.ps1
+    MangaPixer Invoke-EfTool.ps1
     Wrapper around dotnet-ef running in the .NET SDK container.
 
     EF Core tooling requires the .NET SDK plus dotnet-ef; the host may have

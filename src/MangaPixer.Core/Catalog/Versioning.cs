@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Core.Catalog;
+namespace com.lifepixer.mangapixer.Core.Catalog;
 
 /// <summary>
 /// Source version and content version rules for catalog items.

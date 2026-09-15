@@ -1,8 +1,8 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Media;
+namespace com.lifepixer.mangapixer.Tests.Server.Media;
 
 using System.Reflection;
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.TestSupport.Fixtures;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.TestSupport.Fixtures;
 
 /// <summary>
 /// Fixture for worker-process integration tests.
@@ -19,7 +19,7 @@ public sealed class WorkerProcessFixture : IDisposable
 
     public WorkerProcessFixture()
     {
-        TempRoot = Path.Combine(Path.GetTempPath(), "mangaplex-c04-" + Guid.NewGuid().ToString("N")[..8]);
+        TempRoot = Path.Combine(Path.GetTempPath(), "mangapixer-c04-" + Guid.NewGuid().ToString("N")[..8]);
         ScratchRoot = Path.Combine(TempRoot, "scratch");
         FixtureDir = Path.Combine(TempRoot, "fixtures");
         Directory.CreateDirectory(ScratchRoot);

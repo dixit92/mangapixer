@@ -1,9 +1,9 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Media;
+namespace com.lifepixer.mangapixer.Tests.Server.Media;
 
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
-using com.lifepixer.mangaplex.TestSupport;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -21,7 +21,7 @@ public sealed class ThumbnailGenerationServiceTests : IDisposable
 
     public ThumbnailGenerationServiceTests()
     {
-        _tempDir = TestSupport.CreateTempTestRoot("mangaplex-thumb-gen");
+        _tempDir = TestSupport.CreateTempTestRoot("mangapixer-thumb-gen");
     }
 
     public void Dispose()
@@ -29,17 +29,17 @@ public sealed class ThumbnailGenerationServiceTests : IDisposable
         TestSupport.CleanupDirectory(_tempDir);
     }
 
-    private static MangaPlexDbContext NewContext(string dbPath)
+    private static MangaPixerDbContext NewContext(string dbPath)
     {
-        var options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        var options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .ConfigureSqlite(dbPath)
             .Options;
-        var db = new MangaPlexDbContext(options);
+        var db = new MangaPixerDbContext(options);
         db.Database.Migrate();
         return db;
     }
 
-    private static async Task<(long LibraryId, long NodeId)> SeedReadyItemAsync(MangaPlexDbContext db)
+    private static async Task<(long LibraryId, long NodeId)> SeedReadyItemAsync(MangaPixerDbContext db)
     {
         var library = new LibraryEntity
         {

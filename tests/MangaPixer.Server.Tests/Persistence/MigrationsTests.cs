@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Server.Tests.Persistence;
+namespace com.lifepixer.mangapixer.Server.Tests.Persistence;
 
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -19,7 +19,7 @@ public sealed class MigrationsTests : IDisposable
 
     public MigrationsTests()
     {
-        _dir = Path.Combine(Path.GetTempPath(), "mangaplex-mig-" + Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(Path.GetTempPath(), "mangapixer-mig-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
     }
 
@@ -28,12 +28,12 @@ public sealed class MigrationsTests : IDisposable
         try { Directory.Delete(_dir, recursive: true); } catch { /* best effort */ }
     }
 
-    private static MangaPlexDbContext NewContext(string dbPath)
+    private static MangaPixerDbContext NewContext(string dbPath)
     {
-        var options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        var options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .ConfigureSqlite(dbPath)
             .Options;
-        return new MangaPlexDbContext(options);
+        return new MangaPixerDbContext(options);
     }
 
     private static Task<bool> NoBackupExpected(string _)

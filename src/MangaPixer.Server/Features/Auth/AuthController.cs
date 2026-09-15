@@ -1,11 +1,11 @@
-namespace com.lifepixer.mangaplex.Server.Features.Auth;
+namespace com.lifepixer.mangapixer.Server.Features.Auth;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Server.Features.Admin;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Server.Features.Admin;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication;
@@ -29,7 +29,7 @@ public sealed class AuthController : ControllerBase
     private readonly LastAdminProtectionService _lastAdminProtection;
     private readonly FirstRunSetupService _setup;
     private readonly IAntiforgery _antiforgery;
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
@@ -40,7 +40,7 @@ public sealed class AuthController : ControllerBase
         LastAdminProtectionService lastAdminProtection,
         FirstRunSetupService setup,
         IAntiforgery antiforgery,
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         ILogger<AuthController> logger)
     {
         _signInManager = signInManager;
@@ -185,11 +185,11 @@ public sealed class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Logout(CancellationToken ct)
     {
-        var ticketId = Request.Cookies[".MangaPlex.Auth"];
+        var ticketId = Request.Cookies[".MangaPixer.Auth"];
         if (!string.IsNullOrEmpty(ticketId))
         {
             await _sessionService.RevokeSessionAsync(ticketId, ct);
-            Response.Cookies.Delete(".MangaPlex.Auth");
+            Response.Cookies.Delete(".MangaPixer.Auth");
         }
         return NoContent();
     }
@@ -284,7 +284,7 @@ public sealed class AuthController : ControllerBase
             {
                 IsPersistent = true,
                 ExpiresUtc = session.ExpiresAt,
-                Items = { { ".MangaPlex.ticket", session.TicketId } },
+                Items = { { ".MangaPixer.ticket", session.TicketId } },
             });
     }
 

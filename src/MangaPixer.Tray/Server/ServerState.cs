@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Tray.Server;
+namespace com.lifepixer.mangapixer.Tray.Server;
 
 public enum ServerState
 {

@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Verify.ps1 (Full)
+    MangaPixer Verify.ps1 (Full)
     Full release-mode verification before declaring a work package complete.
     Runs clean locked restores, format/lint, all unit and component tests,
     file-backed SQLite integration, worker/archive/image fixtures, coverage,

@@ -27,7 +27,7 @@ import { readerModeGlyph } from './reader-mode-glyph';
  *    `readerModeGlyph` helper.
  *
  * Desktop collapse persists to localStorage under a **shell-scoped** key (the old
- * home-scoped `mangaplex-home-nav-collapsed` key belonged to the home page).
+ * home-scoped `mangapixer-home-nav-collapsed` key belonged to the home page).
  *
  * **Page mode (1.10.0, F3):** on phone breakpoints, `layout.component` no longer
  * mounts this component inside the shell at all - it mounts a dedicated route
@@ -196,10 +196,10 @@ export class LibrarySidebarComponent {
 
   /**
    * Desktop/tablet sidebar collapse. Shell-scoped localStorage key (distinct
-   * from the old home-only `mangaplex-home-nav-collapsed`). Never applied in
+   * from the old home-only `mangapixer-home-nav-collapsed`). Never applied in
    * page mode (1.10.0, F3) - see the template's `[class.collapsed]` binding.
    */
-  private static readonly CollapsedKey = 'mangaplex-nav-collapsed';
+  private static readonly CollapsedKey = 'mangapixer-nav-collapsed';
   readonly collapsed = signal<boolean>(this.loadCollapsed());
 
   /** Current top-level path, tracked reactively off navigation (seeded for first paint). */

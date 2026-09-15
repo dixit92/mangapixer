@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Core.Catalog;
+namespace com.lifepixer.mangapixer.Core.Catalog;
 
 /// <summary>
 /// Kind of a catalog node in the folder-native library tree.

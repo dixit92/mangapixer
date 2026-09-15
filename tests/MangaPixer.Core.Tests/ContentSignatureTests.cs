@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Tests.Core;
+namespace com.lifepixer.mangapixer.Tests.Core;
 
-using com.lifepixer.mangaplex.Core.Media;
+using com.lifepixer.mangapixer.Core.Media;
 using Xunit;
 
 /// <summary>
@@ -93,7 +93,7 @@ public sealed class ContentSignatureTests
     [Fact]
     public void TryComputeFile_matches_stream_and_is_null_for_missing_file()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "mangaplex-sig-" + Guid.NewGuid().ToString("N")[..8]);
+        var dir = Path.Combine(Path.GetTempPath(), "mangapixer-sig-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(dir);
         try
         {

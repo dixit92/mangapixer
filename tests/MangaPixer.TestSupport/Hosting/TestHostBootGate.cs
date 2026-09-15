@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.TestSupport.Hosting;
+namespace com.lifepixer.mangapixer.TestSupport.Hosting;
 
 /// <summary>
 /// Process-wide gate that serializes <c>WebApplicationFactory</c> host boots
@@ -6,7 +6,7 @@ namespace com.lifepixer.mangaplex.TestSupport.Hosting;
 /// </summary>
 /// <remarks>
 /// <para>
-/// MangaPlex's <c>Program.Main</c> resolves the storage roots
+/// MangaPixer's <c>Program.Main</c> resolves the storage roots
 /// (<c>DataRoot</c>/<c>CacheRoot</c>/<c>ScratchRoot</c>) from
 /// <c>builder.Configuration</c> at the very top of <c>Main</c>, before any
 /// <c>ConfigureWebHost</c>/<c>ConfigureAppConfiguration</c> override is

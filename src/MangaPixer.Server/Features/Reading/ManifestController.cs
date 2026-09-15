@@ -1,14 +1,14 @@
-namespace com.lifepixer.mangaplex.Server.Features.Reading;
+namespace com.lifepixer.mangapixer.Server.Features.Reading;
 
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Media;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Core.WorkerProtocol;
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Media;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Core.WorkerProtocol;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -25,14 +25,14 @@ using Microsoft.Extensions.DependencyInjection;
 [Authorize]
 public sealed class ManifestController : ControllerBase
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly MediaWorkerPool _workerPool;
     private readonly JobScheduler _jobScheduler;
     private readonly LibraryAuthorizationService _libraryAuth;
     private readonly ILogger<ManifestController> _logger;
 
     public ManifestController(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         MediaWorkerPool workerPool,
         JobScheduler jobScheduler,
         LibraryAuthorizationService libraryAuth,

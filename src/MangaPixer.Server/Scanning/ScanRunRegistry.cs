@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Server.Scanning;
+namespace com.lifepixer.mangapixer.Server.Scanning;
 
 using System.Collections.Concurrent;
 

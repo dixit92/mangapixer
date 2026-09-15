@@ -88,9 +88,9 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=true
 # layer, so the /data, /cache, /scratch volume mounts are unused and all state
 # (database, keys, cache) is lost whenever the container is recreated.
 # .NET maps hierarchical config keys via '__' in env vars.
-ENV MangaPlex__Storage__DataRoot=/data
-ENV MangaPlex__Storage__CacheRoot=/cache
-ENV MangaPlex__Storage__ScratchRoot=/scratch
+ENV MangaPixer__Storage__DataRoot=/data
+ENV MangaPixer__Storage__CacheRoot=/cache
+ENV MangaPixer__Storage__ScratchRoot=/scratch
 # Worker discovery: container layout is /app/server + /app/worker.
 # The server's ResolveWorkerLaunch checks ../worker/MangaPixer.MediaWorker.dll
 # automatically, so this env var is belt-and-braces.

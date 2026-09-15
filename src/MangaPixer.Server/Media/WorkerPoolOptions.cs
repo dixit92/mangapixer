@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Server.Media;
+namespace com.lifepixer.mangapixer.Server.Media;
 
 /// <summary>
 /// Configuration options for the media worker pool.
@@ -61,7 +61,7 @@ public sealed class WorkerPoolOptions
 
     /// <summary>
     /// Total scratch budget in bytes. Default: 1 GiB. Override via
-    /// MangaPlex:Storage:ScratchBudgetBytes. Only solid RAR/7z extraction uses
+    /// MangaPixer:Storage:ScratchBudgetBytes. Only solid RAR/7z extraction uses
     /// meaningful scratch (sequential decompression); ZIP page extraction is
     /// random-access and uses almost none.
     /// </summary>
@@ -74,7 +74,7 @@ public sealed class WorkerPoolOptions
 
     /// <summary>
     /// Total derived-cache budget in bytes. Default: 1 GiB. Override via
-    /// MangaPlex:Storage:CacheBudgetBytes. The cache holds individual page images
+    /// MangaPixer:Storage:CacheBudgetBytes. The cache holds individual page images
     /// (per page, per variant) under LRU eviction — never whole archives — so this
     /// bounds disk regardless of library size. At ~300 KB/page, 1 GiB is ~3,000
     /// cached pages. A byte budget is used (not a page count) because page sizes
@@ -88,7 +88,7 @@ public sealed class WorkerPoolOptions
 /// generates durable thumbnails for ready archive items that lack a current
 /// thumbnail, in bounded batches, yielding when the worker pool is saturated or
 /// analysis work is pending so it does not starve interactive reader reads.
-/// Override via <c>MangaPlex:Media:ThumbnailBackfill:*</c>.
+/// Override via <c>MangaPixer:Media:ThumbnailBackfill:*</c>.
 /// </summary>
 public sealed class ThumbnailBackfillOptions
 {

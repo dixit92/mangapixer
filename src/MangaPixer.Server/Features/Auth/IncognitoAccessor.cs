@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Server.Features.Auth;
+namespace com.lifepixer.mangapixer.Server.Features.Auth;
 
 using Microsoft.AspNetCore.Http;
 

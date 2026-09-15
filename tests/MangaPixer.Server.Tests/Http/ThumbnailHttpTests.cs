@@ -1,12 +1,12 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
-using com.lifepixer.mangaplex.TestSupport.Fixtures;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.TestSupport.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -23,13 +23,13 @@ using Xunit;
 [Collection("HttpSerial")]
 public sealed class ThumbnailHttpTests : IDisposable
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
     private readonly string _libRoot;
 
     public ThumbnailHttpTests()
     {
-        _factory = new MangaPlexWebApplicationFactory();
-        _libRoot = Path.Combine(Path.GetTempPath(), "mangaplex-thumb-http-" + Guid.NewGuid().ToString("N")[..8]);
+        _factory = new MangaPixerWebApplicationFactory();
+        _libRoot = Path.Combine(Path.GetTempPath(), "mangapixer-thumb-http-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_libRoot);
     }
 
@@ -132,7 +132,7 @@ public sealed class ThumbnailHttpTests : IDisposable
         // Mark the thumbnail as current in the DB
         using (var scope = _factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var node = await db.CatalogNodes.FirstAsync(n => n.PublicId == itemId);
             var item = await db.ArchiveItems.FirstAsync(a => a.NodeId == node.Id);
             item.ThumbnailState = 1;
@@ -186,7 +186,7 @@ public sealed class ThumbnailHttpTests : IDisposable
         string itemId;
         using (var scope = _factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var nodes = await db.CatalogNodes.Where(n => n.Kind == 1 && n.PublicId != null).ToListAsync();
             Assert.NotEmpty(nodes);
             itemId = nodes[0].PublicId!;
@@ -198,7 +198,7 @@ public sealed class ThumbnailHttpTests : IDisposable
     private async Task PersistAnalysisResultAsync(string itemPublicId, int pageCount)
     {
         using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
 
         var node = await db.CatalogNodes.FirstAsync(n => n.PublicId == itemPublicId);
 
@@ -237,7 +237,7 @@ public sealed class ThumbnailHttpTests : IDisposable
                 ItemId = node.Id,
                 ContentVersion = archiveItem.ContentVersion,
                 Ordinal = i,
-                EntryKey = new com.lifepixer.mangaplex.Core.Catalog.PageEntryKey(i).ToOpaque(),
+                EntryKey = new com.lifepixer.mangapixer.Core.Catalog.PageEntryKey(i).ToOpaque(),
                 SourceEntryLocator = entryNames[i],
                 MediaType = "image/png",
                 Width = 1,
@@ -257,7 +257,7 @@ public sealed class ThumbnailHttpTests : IDisposable
     private async Task SeedDurableThumbnailAsync(string itemPublicId)
     {
         using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
         var store = scope.ServiceProvider.GetRequiredService<ThumbnailStore>();
         store.Initialize();
 

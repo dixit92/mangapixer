@@ -1,8 +1,8 @@
-namespace com.lifepixer.mangaplex.Server.Hosting;
+namespace com.lifepixer.mangapixer.Server.Hosting;
 
-using com.lifepixer.mangaplex.Server.Logging;
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Logging;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -67,7 +67,7 @@ public sealed class ThumbnailBackfillHostedService : IHostedService
         try
         {
             using var scope = _services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var thumbnailService = scope.ServiceProvider.GetRequiredService<ThumbnailGenerationService>();
 
             var libraries = await db.Libraries

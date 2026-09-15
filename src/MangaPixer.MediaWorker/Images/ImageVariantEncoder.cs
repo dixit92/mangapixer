@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.MediaWorker.Images;
+namespace com.lifepixer.mangapixer.MediaWorker.Images;
 
 using ImageMagick;
 

@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Core.Api;
+namespace com.lifepixer.mangapixer.Core.Api;
 
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Reading;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Reading;
 
 /// <summary>
 /// Pagination cursor for keyset pagination. Encoded as an opaque string.
@@ -663,22 +663,22 @@ public sealed record UserGrantsDto
 // --- YACReader progress import (admin-only) ---
 //
 // A read-only importer that maps reading progress from a YACReader
-// .yacreaderlibrary/library.ydb SQLite database into MangaPlex reading
+// .yacreaderlibrary/library.ydb SQLite database into MangaPixer reading
 // progress + sticky read-marks for a chosen target user. Covers and
-// thumbnails are not imported (MangaPlex regenerates them). Source media is
+// thumbnails are not imported (MangaPixer regenerates them). Source media is
 // never mutated: the ydb is opened read-only, or copied to an app-owned
-// scratch snapshot first (default). Existing MangaPlex state is never
+// scratch snapshot first (default). Existing MangaPixer state is never
 // overwritten unless the admin explicitly opts in via Overwrite.
 
 /// <summary>
 /// Request for a YACReader progress import (preview or apply). The admin
-/// selects a MangaPlex library to map into, the path to the YACReader
+/// selects a MangaPixer library to map into, the path to the YACReader
 /// library database (the .yacreaderlibrary directory or the library.ydb
-/// file), and the target MangaPlex user to receive the imported progress.
+/// file), and the target MangaPixer user to receive the imported progress.
 /// </summary>
 public sealed record YacReaderImportRequest
 {
-    /// <summary>Opaque public id of the MangaPlex library to map into.</summary>
+    /// <summary>Opaque public id of the MangaPixer library to map into.</summary>
     public required string LibraryId { get; init; }
 
     /// <summary>
@@ -690,11 +690,11 @@ public sealed record YacReaderImportRequest
     /// </summary>
     public string? YacDbPath { get; init; }
 
-    /// <summary>Opaque public id of the MangaPlex user to import progress for.</summary>
+    /// <summary>Opaque public id of the MangaPixer user to import progress for.</summary>
     public required string TargetUserId { get; init; }
 
     /// <summary>
-    /// When false (default), items that already have MangaPlex progress are
+    /// When false (default), items that already have MangaPixer progress are
     /// skipped (never overwrite existing state without explicit opt-in).
     /// When true, existing progress and read-marks are replaced.
     /// </summary>
@@ -710,7 +710,7 @@ public sealed record YacReaderImportRequest
 }
 
 /// <summary>
-/// Result of detecting a YACReader library inside a MangaPlex library's root.
+/// Result of detecting a YACReader library inside a MangaPixer library's root.
 /// The source path is resolved server-side and never returned.
 /// </summary>
 public sealed record YacReaderDetectDto
@@ -724,15 +724,15 @@ public sealed record YacReaderDetectDto
 
 /// <summary>
 /// One mapped item in a YACReader import preview. Source paths are never
-/// exposed; only the mapped MangaPlex item id/display name and the imported
+/// exposed; only the mapped MangaPixer item id/display name and the imported
 /// reading state are surfaced.
 /// </summary>
 public sealed record YacReaderImportItemDto
 {
-    /// <summary>Opaque public id of the mapped MangaPlex archive item, or null if unmapped.</summary>
+    /// <summary>Opaque public id of the mapped MangaPixer archive item, or null if unmapped.</summary>
     public string? ItemId { get; init; }
 
-    /// <summary>Display name of the mapped MangaPlex item, or null if unmapped.</summary>
+    /// <summary>Display name of the mapped MangaPixer item, or null if unmapped.</summary>
     public string? DisplayName { get; init; }
 
     /// <summary>Whether YACReader marked the comic as read (finished).</summary>
@@ -744,10 +744,10 @@ public sealed record YacReaderImportItemDto
     /// <summary>YACReader's 1-based current page (0 if unknown).</summary>
     public required int CurrentPage { get; init; }
 
-    /// <summary>Resolved MangaPlex reading state: "unread", "inProgress", or "completed".</summary>
+    /// <summary>Resolved MangaPixer reading state: "unread", "inProgress", or "completed".</summary>
     public required string State { get; init; }
 
-    /// <summary>True if MangaPlex already has progress for this item (a conflict).</summary>
+    /// <summary>True if MangaPixer already has progress for this item (a conflict).</summary>
     public required bool Conflict { get; init; }
 }
 
@@ -766,7 +766,7 @@ public sealed record YacReaderImportPreviewDto
     public required int Mapped { get; init; }
     public required int Unmapped { get; init; }
 
-    /// <summary>Mapped items that already have MangaPlex progress (conflicts).</summary>
+    /// <summary>Mapped items that already have MangaPixer progress (conflicts).</summary>
     public required int Conflicts { get; init; }
 
     /// <summary>Items that would be imported (mapped and not skipped by conflict policy).</summary>
@@ -791,7 +791,7 @@ public sealed record YacReaderImportResultDto
     /// <summary>Progress rows written or updated.</summary>
     public required int Imported { get; init; }
 
-    /// <summary>Mapped items skipped because MangaPlex already had progress (overwrite=false).</summary>
+    /// <summary>Mapped items skipped because MangaPixer already had progress (overwrite=false).</summary>
     public required int Skipped { get; init; }
 
     /// <summary>Sticky read-marks set (for comics YACReader marked read).</summary>

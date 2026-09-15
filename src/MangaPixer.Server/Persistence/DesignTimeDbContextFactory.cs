@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Server.Persistence;
+namespace com.lifepixer.mangapixer.Server.Persistence;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -10,13 +10,13 @@ using Microsoft.EntityFrameworkCore.Design;
 /// irrelevant when scaffolding a migration — no database is opened — so a
 /// placeholder path is used purely to satisfy the SQLite provider.
 /// </summary>
-public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<MangaPlexDbContext>
+public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<MangaPixerDbContext>
 {
-    public MangaPlexDbContext CreateDbContext(string[] args)
+    public MangaPixerDbContext CreateDbContext(string[] args)
     {
-        var options = new DbContextOptionsBuilder<MangaPlexDbContext>()
-            .ConfigureSqlite("mangaplex-design-time.db")
+        var options = new DbContextOptionsBuilder<MangaPixerDbContext>()
+            .ConfigureSqlite("mangapixer-design-time.db")
             .Options;
-        return new MangaPlexDbContext(options);
+        return new MangaPixerDbContext(options);
     }
 }

@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Server.Logging;
+namespace com.lifepixer.mangapixer.Server.Logging;
 
 /// <summary>
-/// Structured event IDs for MangaPlex log events (audit gap 8.3.7).
+/// Structured event IDs for MangaPixer log events (audit gap 8.3.7).
 ///
 /// IDs are grouped into per-category numeric ranges so events can be
 /// filtered, grepped, and grouped by kind; <see cref="CategoryRanges"/> is the

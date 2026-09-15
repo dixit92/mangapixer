@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using Xunit;
 
@@ -15,7 +15,7 @@ using Xunit;
 /// roots are now injected per-instance via <c>TestHostStorageOverride</c>,
 /// an <see cref="System.Threading.AsyncLocal{T}"/>-based ambient override
 /// consulted at the top of <c>Program.Main</c> (see the remarks on
-/// <c>MangaPlexWebApplicationFactory</c> for why a plain
+/// <c>MangaPixerWebApplicationFactory</c> for why a plain
 /// <c>ConfigureAppConfiguration</c> override — tried first — does not
 /// work for this minimal-hosting entry point). Two factories booting
 /// concurrently can therefore never collide on the same DB file, which is

@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Server.Persistence.Entities;
+namespace com.lifepixer.mangapixer.Server.Persistence.Entities;
 
-using com.lifepixer.mangaplex.Core.Media;
+using com.lifepixer.mangapixer.Core.Media;
 
 /// <summary>
 /// Library entity. Maps to a real root directory on the filesystem.
@@ -240,7 +240,7 @@ public sealed class ArchiveItemEntity
 
     /// <summary>
     /// Cheap content signature (1.5.0) — see
-    /// <see cref="com.lifepixer.mangaplex.Core.Media.ContentSignature"/>. Populated
+    /// <see cref="com.lifepixer.mangapixer.Core.Media.ContentSignature"/>. Populated
     /// when an analysis result is persisted; cleared when a scan detects an
     /// in-place content change (the new content has not been hashed yet). Used by
     /// the scanner to recognise a moved/renamed archive and keep its node id

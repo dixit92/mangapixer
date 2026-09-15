@@ -1,8 +1,8 @@
-namespace com.lifepixer.mangaplex.Tests.MediaWorker.Images;
+namespace com.lifepixer.mangapixer.Tests.MediaWorker.Images;
 
-using com.lifepixer.mangaplex.Core.Media;
-using com.lifepixer.mangaplex.MediaWorker.Images;
-using com.lifepixer.mangaplex.TestSupport.Fixtures;
+using com.lifepixer.mangapixer.Core.Media;
+using com.lifepixer.mangapixer.MediaWorker.Images;
+using com.lifepixer.mangapixer.TestSupport.Fixtures;
 using Xunit;
 
 /// <summary>

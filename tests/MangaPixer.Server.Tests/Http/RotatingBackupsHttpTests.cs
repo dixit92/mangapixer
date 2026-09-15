@@ -1,10 +1,10 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Server.Features.Auth;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Server.Features.Auth;
 using Xunit;
 
 /// <summary>
@@ -18,11 +18,11 @@ using Xunit;
 [Collection("HttpSerial")]
 public sealed class RotatingBackupsHttpTests : IDisposable
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
 
     public RotatingBackupsHttpTests()
     {
-        _factory = new MangaPlexWebApplicationFactory();
+        _factory = new MangaPixerWebApplicationFactory();
     }
 
     public void Dispose() => _factory.Dispose();
@@ -117,7 +117,7 @@ public sealed class RotatingBackupsHttpTests : IDisposable
         var csrfResponse = await client.GetAsync("/api/v1/auth/csrf");
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
         Assert.NotNull(csrf);
-        client.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        client.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
 
         await client.PostAsJsonAsync("/api/v1/auth/change-password", new ChangePasswordRequest
         {
@@ -134,7 +134,7 @@ public sealed class RotatingBackupsHttpTests : IDisposable
         csrfResponse = await freshClient.GetAsync("/api/v1/auth/csrf");
         csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
         Assert.NotNull(csrf);
-        freshClient.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        freshClient.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
 
         return freshClient;
     }

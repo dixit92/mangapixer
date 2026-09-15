@@ -1,33 +1,33 @@
-namespace com.lifepixer.mangaplex.Server.Features.Import.YacReader;
+namespace com.lifepixer.mangapixer.Server.Features.Import.YacReader;
 
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Server.Logging;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
-using com.lifepixer.mangaplex.Server.Storage;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Logging;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
-/// Maps YACReader reading progress into MangaPlex for a chosen target user.
+/// Maps YACReader reading progress into MangaPixer for a chosen target user.
 ///
 /// Design constraints (project plan §14.3 / feature backlog §2):
 /// - Read-only against the source library: the ydb is opened read-only, or
 ///   (default) copied to an app-owned scratch snapshot first so the source
 ///   directory is never written to (no journal/wal/shm sidecars).
 /// - Library-to-library mapping: each YACReader library corresponds to one
-///   MangaPlex library sharing the same root directory; comics are matched to
-///   MangaPlex archive catalog nodes by relative path.
+///   MangaPixer library sharing the same root directory; comics are matched to
+///   MangaPixer archive catalog nodes by relative path.
 /// - Dry-run first: <see cref="PreviewAsync"/> writes nothing.
-/// - Never overwrite existing MangaPlex state without explicit opt-in
+/// - Never overwrite existing MangaPixer state without explicit opt-in
 ///   (<see cref="YacReaderImportRequest.Overwrite"/>).
 /// - Privacy: source paths are never persisted or echoed; logs carry only
 ///   IDs, counts, and sanitized error codes.
 /// </summary>
 public sealed class YacReaderImportService
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly YacReaderLibraryReader _reader;
     private readonly AppRootOptions _appRoot;
     private readonly ILogger<YacReaderImportService> _logger;
@@ -48,7 +48,7 @@ public sealed class YacReaderImportService
     internal Func<CancellationToken, Task>? BeforeBulkSaveAsync { get; set; }
 
     public YacReaderImportService(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         YacReaderLibraryReader reader,
         AppRootOptions appRoot,
         ILogger<YacReaderImportService> logger)
@@ -61,7 +61,7 @@ public sealed class YacReaderImportService
 
     /// <summary>
     /// Produces a dry-run preview. Resolves the library and target user,
-    /// reads the ydb (snapshot or read-only), maps comics to MangaPlex nodes,
+    /// reads the ydb (snapshot or read-only), maps comics to MangaPixer nodes,
     /// and reports counts + a bounded sample. Writes nothing.
     /// </summary>
     public async Task<YacReaderImportResult<YacReaderImportPreviewDto>> PreviewAsync(
@@ -345,7 +345,7 @@ public sealed class YacReaderImportService
 
     /// <summary>
     /// Detects whether a YACReader library (<c>.yacreaderlibrary/library.ydb</c>) is
-    /// present inside a MangaPlex library's root, without reading any progress. The
+    /// present inside a MangaPixer library's root, without reading any progress. The
     /// source path is resolved server-side from the library's private root and is
     /// never returned; only presence and the db schema version (when readable) are.
     /// </summary>
@@ -389,7 +389,7 @@ public sealed class YacReaderImportService
     private async Task<SnapshotResult> PrepareSnapshotAsync(
         YacReaderImportRequest request, LibraryEntity library, CancellationToken ct)
     {
-        // The admin normally imports a YACReader library detected inside the MangaPlex
+        // The admin normally imports a YACReader library detected inside the MangaPixer
         // library's own root (.yacreaderlibrary/library.ydb). Only fall back to an
         // explicit request path when one is supplied (kept for flexibility/tests); the
         // library RootPath stays server-side so the source path never reaches the client.

@@ -1,11 +1,11 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Server.Features.Auth;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Server.Features.Auth;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -21,11 +21,11 @@ using Xunit;
 [Collection("HttpSerial")]
 public sealed class DbRestoreHttpTests : IDisposable
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
 
     public DbRestoreHttpTests()
     {
-        _factory = new MangaPlexWebApplicationFactory();
+        _factory = new MangaPixerWebApplicationFactory();
     }
 
     public void Dispose() => _factory.Dispose();
@@ -45,7 +45,7 @@ public sealed class DbRestoreHttpTests : IDisposable
     }
 
     private static async Task<MultipartFormDataContent> BuildUploadContentAsync(
-        MangaPlexWebApplicationFactory factory, string fileName)
+        MangaPixerWebApplicationFactory factory, string fileName)
     {
         var backupPath = Path.Combine(factory.DataRoot, "backups", fileName);
         var bytes = await File.ReadAllBytesAsync(backupPath);
@@ -69,7 +69,7 @@ public sealed class DbRestoreHttpTests : IDisposable
         var dto = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.False(string.IsNullOrWhiteSpace(dto.GetProperty("preRestoreBackupFileName").GetString()));
         // Staged file + marker exist under the controlled data root.
-        Assert.True(File.Exists(Path.Combine(_factory.DataRoot, "restore-pending", "mangaplex.db.staged")));
+        Assert.True(File.Exists(Path.Combine(_factory.DataRoot, "restore-pending", "mangapixer.db.staged")));
         Assert.True(File.Exists(Path.Combine(_factory.DataRoot, "restore-pending", "restore.json")));
     }
 
@@ -124,14 +124,14 @@ public sealed class DbRestoreHttpTests : IDisposable
     public async Task Restore_EmptySqliteNoSchema_Returns400()
     {
         var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
-        // A bare SQLite file (magic OK, no MangaPlex tables) — schema missing.
+        // A bare SQLite file (magic OK, no MangaPixer tables) — schema missing.
         var emptyPath = Path.Combine(_factory.DataRoot, "empty.db");
         await using (var conn = new Microsoft.Data.Sqlite.SqliteConnection(
-            com.lifepixer.mangaplex.Server.Persistence.DatabaseInitialization.BuildConnectionString(emptyPath)))
+            com.lifepixer.mangapixer.Server.Persistence.DatabaseInitialization.BuildConnectionString(emptyPath)))
         {
             await conn.OpenAsync();
             // Create one unrelated table so the file is a real, valid SQLite DB
-            // but lacks the MangaPlex schema.
+            // but lacks the MangaPixer schema.
             await using var cmd = conn.CreateCommand();
             cmd.CommandText = "CREATE TABLE unrelated(x INTEGER);";
             await cmd.ExecuteNonQueryAsync();
@@ -172,7 +172,7 @@ public sealed class DbRestoreHttpTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var err = await response.Content.ReadFromJsonAsync<ApiError>();
         Assert.Equal("invalid_backup", err!.Error);
-        Assert.False(File.Exists(Path.Combine(_factory.DataRoot, "restore-pending", "mangaplex.db.staged")));
+        Assert.False(File.Exists(Path.Combine(_factory.DataRoot, "restore-pending", "mangapixer.db.staged")));
         // Original DB still works — the server is still serving (health check).
         var health = await client.GetAsync("/health");
         Assert.Equal(HttpStatusCode.OK, health.StatusCode);
@@ -193,7 +193,7 @@ public sealed class DbRestoreHttpTests : IDisposable
         var csrfResponse = await client.GetAsync("/api/v1/auth/csrf");
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
         Assert.NotNull(csrf);
-        client.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        client.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
 
         await client.PostAsJsonAsync("/api/v1/auth/change-password", new ChangePasswordRequest
         {
@@ -210,7 +210,7 @@ public sealed class DbRestoreHttpTests : IDisposable
         csrfResponse = await freshClient.GetAsync("/api/v1/auth/csrf");
         csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
         Assert.NotNull(csrf);
-        freshClient.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        freshClient.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
 
         return freshClient;
     }

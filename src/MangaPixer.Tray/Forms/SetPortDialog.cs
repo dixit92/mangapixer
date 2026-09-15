@@ -1,6 +1,6 @@
-using com.lifepixer.mangaplex.Tray.Server;
+using com.lifepixer.mangapixer.Tray.Server;
 
-namespace com.lifepixer.mangaplex.Tray.Forms;
+namespace com.lifepixer.mangapixer.Tray.Forms;
 
 /// <summary>
 /// "Set Port..." dialog: a textbox pre-filled with the current port plus an

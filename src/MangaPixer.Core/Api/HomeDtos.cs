@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Core.Api;
+namespace com.lifepixer.mangapixer.Core.Api;
 
 /// <summary>
 /// Home "New chapters" response (1.12.0). Recently-added archives STACKED by their

@@ -1,10 +1,10 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Scanning;
+namespace com.lifepixer.mangapixer.Tests.Server.Scanning;
 
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
-using com.lifepixer.mangaplex.Server.Scanning;
-using com.lifepixer.mangaplex.Server.Storage;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Scanning;
+using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -20,16 +20,16 @@ public sealed class LatestDescendantAddedAtTests : IDisposable
     private readonly string _tempDir;
     private readonly string _libRoot;
     private readonly string _dbPath;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
     public LatestDescendantAddedAtTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-recency-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-recency-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
         _libRoot = Path.Combine(_tempDir, "library");
         Directory.CreateDirectory(_libRoot);
         _dbPath = Path.Combine(_tempDir, "test.db");
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .UseSqlite(DatabaseInitialization.BuildConnectionString(_dbPath))
             .Options;
     }
@@ -39,9 +39,9 @@ public sealed class LatestDescendantAddedAtTests : IDisposable
         try { Directory.Delete(_tempDir, true); } catch { }
     }
 
-    private async Task<(MangaPlexDbContext db, LibraryEntity library)> SetupAsync()
+    private async Task<(MangaPixerDbContext db, LibraryEntity library)> SetupAsync()
     {
-        var db = new MangaPlexDbContext(_options);
+        var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
         var library = new LibraryEntity { PublicId = "lib1", DisplayName = "Test Library", RootPath = _libRoot, CreatedAt = DateTimeOffset.UtcNow };
@@ -50,7 +50,7 @@ public sealed class LatestDescendantAddedAtTests : IDisposable
         return (db, library);
     }
 
-    private async Task ScanAsync(MangaPlexDbContext db, long libraryId, long revision)
+    private async Task ScanAsync(MangaPixerDbContext db, long libraryId, long revision)
     {
         var coordinator = new LibraryScanCoordinator(
             db, new ReadOnlyLibraryFileSystem(_libRoot),
@@ -67,7 +67,7 @@ public sealed class LatestDescendantAddedAtTests : IDisposable
     /// LatestDescendantAddedAt equals the MAX CreatedAt over its non-tombstoned descendant
     /// archives (recursive), or null when it has none.
     /// </summary>
-    private static async Task AssertInvariantAsync(MangaPlexDbContext db, long libraryId)
+    private static async Task AssertInvariantAsync(MangaPixerDbContext db, long libraryId)
     {
         var nodes = await db.CatalogNodes
             .Where(n => n.LibraryId == libraryId)

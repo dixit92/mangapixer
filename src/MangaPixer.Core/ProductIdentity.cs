@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Core;
+namespace com.lifepixer.mangapixer.Core;
 
 /// <summary>
 /// Product identity constants shared across server, worker, and client.
@@ -6,12 +6,12 @@ namespace com.lifepixer.mangaplex.Core;
 /// </summary>
 public static class ProductIdentity
 {
-    public const string Name = "MangaPlex";
+    public const string Name = "MangaPixer";
 
     /// <summary>
-    /// Root namespace/package prefix for all MangaPlex assemblies.
+    /// Root namespace/package prefix for all MangaPixer assemblies.
     /// </summary>
-    public const string RootNamespace = "com.lifepixer.mangaplex";
+    public const string RootNamespace = "com.lifepixer.mangapixer";
 
     /// <summary>
     /// HTTP API version prefix.

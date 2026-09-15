@@ -1,10 +1,10 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Features.Reading;
+namespace com.lifepixer.mangapixer.Tests.Server.Features.Reading;
 
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Features.Reading;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Features.Reading;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -21,14 +21,14 @@ using Xunit;
 public sealed class IdentityRelinkTests : IDisposable
 {
     private readonly string _tempDir;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
     public IdentityRelinkTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-relink-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-relink-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
         var cs = DatabaseInitialization.BuildConnectionString(Path.Combine(_tempDir, "relink.db"));
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>().UseSqlite(cs).Options;
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>().UseSqlite(cs).Options;
     }
 
     public void Dispose()
@@ -36,9 +36,9 @@ public sealed class IdentityRelinkTests : IDisposable
         try { Directory.Delete(_tempDir, true); } catch { }
     }
 
-    private async Task<(MangaPlexDbContext db, long userId, long libraryId)> BaseAsync()
+    private async Task<(MangaPixerDbContext db, long userId, long libraryId)> BaseAsync()
     {
-        var db = new MangaPlexDbContext(_options);
+        var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -70,7 +70,7 @@ public sealed class IdentityRelinkTests : IDisposable
     }
 
     private static async Task<long> AddArchiveAsync(
-        MangaPlexDbContext db, long libraryId, long publicId, string name,
+        MangaPixerDbContext db, long libraryId, long publicId, string name,
         string? strongHash, int availability, int contentVersion = 1)
     {
         var node = new CatalogNodeEntity
@@ -105,7 +105,7 @@ public sealed class IdentityRelinkTests : IDisposable
         return node.Id;
     }
 
-    private static async Task AddProgressAsync(MangaPlexDbContext db, long userId, long itemId, int ordinal)
+    private static async Task AddProgressAsync(MangaPixerDbContext db, long userId, long itemId, int ordinal)
     {
         db.ReadingProgress.Add(new ReadingProgressEntity
         {
@@ -122,7 +122,7 @@ public sealed class IdentityRelinkTests : IDisposable
         await db.SaveChangesAsync();
     }
 
-    private static IdentityRelinkService Service(MangaPlexDbContext db) =>
+    private static IdentityRelinkService Service(MangaPixerDbContext db) =>
         new(db, new LibraryAuthorizationService(db));
 
     [Fact]
@@ -243,14 +243,14 @@ public sealed class IdentityRelinkTests : IDisposable
         await seedDb.DisposeAsync();
 
         // Concurrent writer creates the target row first (simulating the race).
-        await using (var racer = new MangaPlexDbContext(_options))
+        await using (var racer = new MangaPixerDbContext(_options))
         {
             await AddProgressAsync(racer, userId, targetId, ordinal: 1);
         }
 
         // The relink now sees no target row at load time, inserts, and collides.
         // Recovery must reload the concurrent row and overwrite it with old's state.
-        await using var db = new MangaPlexDbContext(_options);
+        await using var db = new MangaPixerDbContext(_options);
         var result = await Service(db).ManualRelinkAsync(userId, oldId, targetId, overwrite: true);
 
         Assert.Equal(RelinkStatus.Success, result.Status);

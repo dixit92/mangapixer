@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Server.Features.Catalog;
+namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -16,9 +16,9 @@ using Microsoft.EntityFrameworkCore;
 /// </summary>
 public sealed class CatalogIdResolver
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
 
-    public CatalogIdResolver(MangaPlexDbContext db)
+    public CatalogIdResolver(MangaPixerDbContext db)
     {
         _db = db;
     }

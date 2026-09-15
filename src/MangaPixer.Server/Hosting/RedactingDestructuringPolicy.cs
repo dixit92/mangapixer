@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Server.Hosting;
+namespace com.lifepixer.mangapixer.Server.Hosting;
 
 using Serilog.Core;
 using Serilog.Events;

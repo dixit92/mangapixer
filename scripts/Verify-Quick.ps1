@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Verify-Quick.ps1
+    MangaPixer Verify-Quick.ps1
     Quick verification for the normal implementation loop.
     Runs privacy preflight, formatting/lint checks, affected .NET unit tests, and Angular unit tests.
     Target: under 10 minutes after warm restore.

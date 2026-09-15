@@ -1,15 +1,15 @@
-namespace com.lifepixer.mangaplex.Server;
+namespace com.lifepixer.mangapixer.Server;
 
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Server.Logging;
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Features.Catalog;
-using com.lifepixer.mangaplex.Server.Features.Home;
-using com.lifepixer.mangaplex.Server.Features.Reading;
-using com.lifepixer.mangaplex.Server.Hosting;
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Operations;
-using com.lifepixer.mangaplex.Server.Persistence;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Server.Logging;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Features.Catalog;
+using com.lifepixer.mangapixer.Server.Features.Home;
+using com.lifepixer.mangapixer.Server.Features.Reading;
+using com.lifepixer.mangapixer.Server.Hosting;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Operations;
+using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -30,7 +30,7 @@ public sealed partial class Program
     /// Protection application name). A future product rename only needs to
     /// change this constant.
     /// </summary>
-    private const string ProductName = "MangaPlex";
+    private const string ProductName = "MangaPixer";
 
     public static void Main(string[] args)
     {
@@ -59,11 +59,11 @@ public sealed partial class Program
         // production, so this is a no-op outside tests.
         var storageOverride = TestHostStorageOverride.Current;
         var dataRoot = storageOverride?.DataRoot
-            ?? ResolveRoot(builder.Configuration, "MangaPlex:Storage:DataRoot", "data");
+            ?? ResolveRoot(builder.Configuration, "MangaPixer:Storage:DataRoot", "data");
         var scratchRoot = storageOverride?.ScratchRoot
-            ?? ResolveRoot(builder.Configuration, "MangaPlex:Storage:ScratchRoot", "scratch");
+            ?? ResolveRoot(builder.Configuration, "MangaPixer:Storage:ScratchRoot", "scratch");
         var cacheRoot = storageOverride?.CacheRoot
-            ?? ResolveRoot(builder.Configuration, "MangaPlex:Storage:CacheRoot", "cache");
+            ?? ResolveRoot(builder.Configuration, "MangaPixer:Storage:CacheRoot", "cache");
         Directory.CreateDirectory(dataRoot);
         Directory.CreateDirectory(scratchRoot);
         Directory.CreateDirectory(cacheRoot);
@@ -73,7 +73,7 @@ public sealed partial class Program
         var keysRoot = Path.Combine(dataRoot, "keys");
         Directory.CreateDirectory(keysRoot);
 
-        var databasePath = Path.Combine(dataRoot, "mangaplex.db");
+        var databasePath = Path.Combine(dataRoot, "mangapixer.db");
         var workerExe = storageOverride?.WorkerExecutablePath
             ?? builder.Configuration["Media:WorkerExecutablePath"];
         // A relative WorkerExecutablePath (e.g. the Windows distribution's
@@ -89,7 +89,7 @@ public sealed partial class Program
         // Re-inject the fully-resolved absolute roots (and worker path) back
         // into configuration so any OTHER code that re-reads these same keys
         // via a DI-resolved IConfiguration later (e.g. AppRootOptions and the
-        // rotating-backups directory in HostingServicesExtensions.AddMangaPlexHosting)
+        // rotating-backups directory in HostingServicesExtensions.AddMangaPixerHosting)
         // sees exactly what Program.Main itself resolved above — including a
         // test-only TestHostStorageOverride — rather than independently
         // re-deriving a possibly-different (or unresolved/relative) value
@@ -98,9 +98,9 @@ public sealed partial class Program
         // silently fell back to its own default.
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["MangaPlex:Storage:DataRoot"] = dataRoot,
-            ["MangaPlex:Storage:CacheRoot"] = cacheRoot,
-            ["MangaPlex:Storage:ScratchRoot"] = scratchRoot,
+            ["MangaPixer:Storage:DataRoot"] = dataRoot,
+            ["MangaPixer:Storage:CacheRoot"] = cacheRoot,
+            ["MangaPixer:Storage:ScratchRoot"] = scratchRoot,
             ["Media:WorkerExecutablePath"] = workerExe,
         });
 
@@ -118,7 +118,7 @@ public sealed partial class Program
         // explicitly overridden. LogLevelSettingsService keeps inherit-mode
         // category switches in sync with the global switch on SetLevel.
         var categorySwitches = new Dictionary<string, LoggingLevelSwitch>();
-        foreach (var (name, prefix) in com.lifepixer.mangaplex.Server.Logging.DebugCategories.All)
+        foreach (var (name, prefix) in com.lifepixer.mangapixer.Server.Logging.DebugCategories.All)
             categorySwitches[name] = new LoggingLevelSwitch(LogEventLevel.Information);
 
         var logConfig = new LoggerConfiguration()
@@ -126,7 +126,7 @@ public sealed partial class Program
             .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
             .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning);
 
-        foreach (var (name, prefix) in com.lifepixer.mangaplex.Server.Logging.DebugCategories.All)
+        foreach (var (name, prefix) in com.lifepixer.mangapixer.Server.Logging.DebugCategories.All)
             logConfig.MinimumLevel.Override(prefix, categorySwitches[name]);
 
         // Drop the EF Core CommandError log line for the recovered reading_progress
@@ -142,14 +142,14 @@ public sealed partial class Program
         logConfig.Filter.With(new RecoveredRaceNoiseFilter());
 
         logConfig
-            .Enrich.WithProperty("Application", "MangaPlex")
+            .Enrich.WithProperty("Application", "MangaPixer")
             .Enrich.With<RedactingDestructuringPolicy>();
 
         logConfig.WriteTo.Console(
             outputTemplate: "{Timestamp:O} [{Level:u}] {SourceContext} ({EventId}) {Message:lj}{NewLine}{Exception}");
 
         logConfig.WriteTo.File(
-            Path.Combine(logsRoot, "mangaplex-.log"),
+            Path.Combine(logsRoot, "mangapixer-.log"),
             rollingInterval: RollingInterval.Day,
             retainedFileCountLimit: 7,
             fileSizeLimitBytes: 20 * 1024 * 1024,
@@ -164,19 +164,19 @@ public sealed partial class Program
 
             // Health checks
             builder.Services.AddHealthChecks()
-                .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("MangaPlex server is running"));
+                .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("MangaPixer server is running"));
 
             // Auth + database (registers DbContext, Identity, cookie auth, auth services)
-            builder.Services.AddMangaPlexAuth(databasePath, storageOverride?.RateLimitDisabled);
+            builder.Services.AddMangaPixerAuth(databasePath, storageOverride?.RateLimitDisabled);
 
             // Media worker pool, scheduler, cache, scratch
             // Storage budgets are admin-configurable (bytes). Defaults live in
             // WorkerPoolOptions (1 GiB cache / 1 GiB scratch); override via
-            // MangaPlex:Storage:CacheBudgetBytes / ScratchBudgetBytes.
-            var cacheBudget = ReadByteBudget(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPlex:Storage:CacheBudgetBytes"));
-            var scratchBudget = ReadByteBudget(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPlex:Storage:ScratchBudgetBytes"));
-            var maxConcurrentJobs = ReadPositiveInt(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPlex:Media:MaxConcurrentJobs"));
-            builder.Services.AddMangaPlexMedia(options =>
+            // MangaPixer:Storage:CacheBudgetBytes / ScratchBudgetBytes.
+            var cacheBudget = ReadByteBudget(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPixer:Storage:CacheBudgetBytes"));
+            var scratchBudget = ReadByteBudget(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPixer:Storage:ScratchBudgetBytes"));
+            var maxConcurrentJobs = ReadPositiveInt(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPixer:Media:MaxConcurrentJobs"));
+            builder.Services.AddMangaPixerMedia(options =>
             {
                 options.ScratchRoot = scratchRoot;
                 options.CacheRoot = cacheRoot;
@@ -197,7 +197,7 @@ public sealed partial class Program
                 string.IsNullOrWhiteSpace(workerExe) ? "auto-discovery" : "configured");
 
             // Hosted lifecycle services + storage/scanning/page-delivery registrations
-            builder.Services.AddMangaPlexHosting();
+            builder.Services.AddMangaPixerHosting();
 
             // Catalog and reading services
             builder.Services.AddScoped<CatalogBrowseService>();
@@ -245,7 +245,7 @@ public sealed partial class Program
                     "with owner-only permissions (Linux has no DPAPI; entrypoint.sh chmod 700)");
             }
 
-            // Anti-forgery — double-submit token via X-MangaPlex-Csrf header.
+            // Anti-forgery — double-submit token via X-MangaPixer-Csrf header.
             // The cookie is issued by GET /auth/csrf; unsafe methods must echo
             // the header. Login is exempt (the token is obtained from /csrf
             // immediately before). GET /auth/csrf is exempt (it issues the token).
@@ -255,8 +255,8 @@ public sealed partial class Program
             // cookie. This prevents XSS from stealing the cookie value.
             builder.Services.AddAntiforgery(options =>
             {
-                options.HeaderName = "X-MangaPlex-Csrf";
-                options.Cookie.Name = ".MangaPlex.Csrf";
+                options.HeaderName = "X-MangaPixer-Csrf";
+                options.Cookie.Name = ".MangaPixer.Csrf";
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Strict;
                 options.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.SameAsRequest;
@@ -323,21 +323,21 @@ public sealed partial class Program
             // a marker written. The atomic swap happens here, at startup, with
             // no connections open — so the live DB is never overwritten while
             // in use. On failure the system rolls back to the original DB.
-            com.lifepixer.mangaplex.Server.Operations.RestoreApplyOutcome restoreOutcome =
-                com.lifepixer.mangaplex.Server.Operations.RestoreApplyOutcome.None;
+            com.lifepixer.mangapixer.Server.Operations.RestoreApplyOutcome restoreOutcome =
+                com.lifepixer.mangapixer.Server.Operations.RestoreApplyOutcome.None;
             using (var migrateScope = app.Services.CreateScope())
             {
-                restoreOutcome = com.lifepixer.mangaplex.Server.Operations.DbRestoreService
+                restoreOutcome = com.lifepixer.mangapixer.Server.Operations.DbRestoreService
                     .ApplyPendingRestoreAsync(dataRoot, databasePath,
                         migrateScope.ServiceProvider.GetRequiredService<ILoggerFactory>()
-                            .CreateLogger("MangaPlex.DbRestore"))
+                            .CreateLogger("MangaPixer.DbRestore"))
                     .GetAwaiter().GetResult();
 
-                var db = migrateScope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+                var db = migrateScope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
                 var backup = migrateScope.ServiceProvider.GetRequiredService<BackupService>();
                 var dbLogger = migrateScope.ServiceProvider
                     .GetRequiredService<ILoggerFactory>()
-                    .CreateLogger("MangaPlex.DatabaseInitialization");
+                    .CreateLogger("MangaPixer.DatabaseInitialization");
                 DatabaseInitialization.MigrateToLatestAsync(
                     db, dataRoot,
                     async path => (await backup.BackupAsync(path)).Succeeded,
@@ -350,14 +350,14 @@ public sealed partial class Program
             {
                 try
                 {
-                    var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+                    var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
                     DatabaseInitialization.ConfigureDatabaseAsync(db).GetAwaiter().GetResult();
 
                     // Audit a completed DB restore (1.7.0). The swap happened
                     // before migrate; the audit row lands in the restored DB.
                     if (restoreOutcome.Applied)
                     {
-                        var dbRestore = scope.ServiceProvider.GetRequiredService<com.lifepixer.mangaplex.Server.Operations.DbRestoreService>();
+                        var dbRestore = scope.ServiceProvider.GetRequiredService<com.lifepixer.mangapixer.Server.Operations.DbRestoreService>();
                         dbRestore.AuditRestoreAsync(
                             "db_restore", "applied",
                             restoreOutcome.ActorUserName,
@@ -429,7 +429,7 @@ public sealed partial class Program
         }
         catch (Exception ex)
         {
-            Log.Logger.ForContext("EventId", LogEvents.Database.FatalShutdown).Fatal(ex, "MangaPlex server terminated unexpectedly");
+            Log.Logger.ForContext("EventId", LogEvents.Database.FatalShutdown).Fatal(ex, "MangaPixer server terminated unexpectedly");
             throw;
         }
         finally
@@ -446,7 +446,7 @@ public sealed partial class Program
             // Windows-native distribution default: a per-user, always-writable
             // profile directory rather than the install folder (which may sit
             // under a read-only Program Files). Containers/Linux always set
-            // MangaPlex__Storage__*Root explicitly (see deploy/Dockerfile), so
+            // MangaPixer__Storage__*Root explicitly (see deploy/Dockerfile), so
             // this branch never fires there and that default is unchanged.
             if (OperatingSystem.IsWindows())
             {

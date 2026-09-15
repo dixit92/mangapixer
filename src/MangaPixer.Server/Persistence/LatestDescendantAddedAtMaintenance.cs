@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Server.Persistence;
+namespace com.lifepixer.mangapixer.Server.Persistence;
 
 using System.Data;
 using Microsoft.EntityFrameworkCore;
@@ -26,7 +26,7 @@ public static class LatestDescendantAddedAtMaintenance
     /// Recomputes <c>LatestDescendantAddedAt</c> for every folder in the database. Equivalent
     /// to the AddLatestDescendantAddedAt migration backfill; exposed for reuse and testing.
     /// </summary>
-    public static Task RecomputeAllFoldersAsync(MangaPlexDbContext db, CancellationToken ct = default)
+    public static Task RecomputeAllFoldersAsync(MangaPixerDbContext db, CancellationToken ct = default)
         => ExecuteAsync(
             db,
             seed: "SELECT Id, Id FROM catalog_nodes WHERE Kind = 0",
@@ -39,7 +39,7 @@ public static class LatestDescendantAddedAtMaintenance
     /// to a NULL aggregate and are skipped by the folder filter on the update).
     /// </summary>
     public static Task RecomputeFoldersAsync(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         IReadOnlyCollection<long> folderIds,
         CancellationToken ct = default)
     {
@@ -55,7 +55,7 @@ public static class LatestDescendantAddedAtMaintenance
     }
 
     private static async Task ExecuteAsync(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         string seed,
         string updateWhere,
         CancellationToken ct)

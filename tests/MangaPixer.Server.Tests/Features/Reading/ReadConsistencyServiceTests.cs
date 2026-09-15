@@ -1,12 +1,12 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Features.Reading;
+namespace com.lifepixer.mangapixer.Tests.Server.Features.Reading;
 
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Features.Reading;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Features.Reading;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -20,14 +20,14 @@ using Xunit;
 public sealed class ReadConsistencyServiceTests : IDisposable
 {
     private readonly string _tempDir;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
     public ReadConsistencyServiceTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-readcons-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-readcons-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
         var cs = DatabaseInitialization.BuildConnectionString(Path.Combine(_tempDir, "rc.db"));
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>().UseSqlite(cs).Options;
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>().UseSqlite(cs).Options;
     }
 
     public void Dispose()
@@ -35,9 +35,9 @@ public sealed class ReadConsistencyServiceTests : IDisposable
         try { Directory.Delete(_tempDir, true); } catch { }
     }
 
-    private async Task<(MangaPlexDbContext db, long userId, long folderId, long itemId)> SetupAsync(int pageCount = 10)
+    private async Task<(MangaPixerDbContext db, long userId, long folderId, long itemId)> SetupAsync(int pageCount = 10)
     {
-        var db = new MangaPlexDbContext(_options);
+        var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 

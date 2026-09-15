@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Server.Hosting;
+namespace com.lifepixer.mangapixer.Server.Hosting;
 
 /// <summary>
 /// Test-only ambient override for the storage roots (DataRoot/CacheRoot/
@@ -103,7 +103,7 @@ public static class TestHostStorageOverride
 /// optional — when null, <c>Program.Main</c> falls back to its normal
 /// <c>IConfiguration</c> resolution for that value. <see cref="ExtraConfiguration"/>
 /// covers any other pre-<c>Build()</c> configuration read in <c>Program.Main</c>
-/// (e.g. <c>MangaPlex:Media:MaxConcurrentJobs</c>) that a test needs to pin —
+/// (e.g. <c>MangaPixer:Media:MaxConcurrentJobs</c>) that a test needs to pin —
 /// keyed exactly like the corresponding <c>IConfiguration</c> key.
 /// </summary>
 public sealed record StorageRootOverride(

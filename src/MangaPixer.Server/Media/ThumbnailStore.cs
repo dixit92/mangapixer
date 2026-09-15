@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Server.Media;
+namespace com.lifepixer.mangapixer.Server.Media;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
 /// <summary>
 /// Durable, persistent thumbnail store under <c>DataRoot/thumbnails/</c>.
@@ -49,7 +49,7 @@ public sealed class ThumbnailStore
     /// </summary>
     public string GetThumbnailPath(long itemId, long contentVersion)
     {
-        var idBase36 = com.lifepixer.mangaplex.Core.Catalog.OpaqueId.Encode(itemId);
+        var idBase36 = com.lifepixer.mangapixer.Core.Catalog.OpaqueId.Encode(itemId);
         var prefix = idBase36.Length >= 2 ? idBase36[..2] : "00";
         var fileName = $"{idBase36}-{contentVersion}.webp";
         return Path.Combine(_thumbnailsRoot, prefix, fileName);

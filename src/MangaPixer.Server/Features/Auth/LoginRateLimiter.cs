@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Server.Features.Auth;
+namespace com.lifepixer.mangapixer.Server.Features.Auth;
 
 using System.Collections.Concurrent;
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
 /// <summary>
 /// Simple in-memory rate limiter for login attempts.

@@ -1,11 +1,11 @@
-namespace com.lifepixer.mangaplex.Server.Media;
+namespace com.lifepixer.mangapixer.Server.Media;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
 using System.Diagnostics;
 using System.Text.Json;
-using com.lifepixer.mangaplex.Core.WorkerProtocol;
-using com.lifepixer.mangaplex.MediaWorker.Protocol;
+using com.lifepixer.mangapixer.Core.WorkerProtocol;
+using com.lifepixer.mangapixer.MediaWorker.Protocol;
 
 /// <summary>
 /// Supervises a single media worker process. Handles:

@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Server.Features.Auth;
+namespace com.lifepixer.mangapixer.Server.Features.Auth;
 
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -10,9 +10,9 @@ using Microsoft.EntityFrameworkCore;
 /// </summary>
 public sealed class LibraryAuthorizationService
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
 
-    public LibraryAuthorizationService(MangaPlexDbContext db)
+    public LibraryAuthorizationService(MangaPixerDbContext db)
     {
         _db = db;
     }
@@ -169,11 +169,11 @@ public sealed class AdminRoleRequirement : Microsoft.AspNetCore.Authorization.IA
 /// <summary>
 /// Authorization handler for library access and admin role.
 /// </summary>
-public sealed class MangaPlexAuthorizationHandler : Microsoft.AspNetCore.Authorization.AuthorizationHandler<LibraryAccessRequirement>
+public sealed class MangaPixerAuthorizationHandler : Microsoft.AspNetCore.Authorization.AuthorizationHandler<LibraryAccessRequirement>
 {
     private readonly LibraryAuthorizationService _authService;
 
-    public MangaPlexAuthorizationHandler(LibraryAuthorizationService authService)
+    public MangaPixerAuthorizationHandler(LibraryAuthorizationService authService)
     {
         _authService = authService;
     }

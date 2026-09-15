@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Tray.Logging;
+namespace com.lifepixer.mangapixer.Tray.Logging;
 
 /// <summary>
 /// Persists lines drained from the server child process's redirected

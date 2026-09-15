@@ -1,8 +1,8 @@
-namespace com.lifepixer.mangaplex.Server.Features.Import;
+namespace com.lifepixer.mangapixer.Server.Features.Import;
 
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Server.Logging;
-using com.lifepixer.mangaplex.Server.Features.Import.YacReader;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Server.Logging;
+using com.lifepixer.mangapixer.Server.Features.Import.YacReader;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -31,7 +31,7 @@ public sealed class YacReaderImportController : ControllerBase
     }
 
     /// <summary>
-    /// Detects whether a YACReader library is present inside a MangaPlex library's
+    /// Detects whether a YACReader library is present inside a MangaPixer library's
     /// root, so the admin UI can offer the import only when one exists. Read-only;
     /// the source path is resolved server-side and never returned.
     /// </summary>
@@ -70,7 +70,7 @@ public sealed class YacReaderImportController : ControllerBase
 
     /// <summary>
     /// Applies a YACReader progress import, writing reading progress and
-    /// sticky read-marks for the target user. Existing MangaPlex progress is
+    /// sticky read-marks for the target user. Existing MangaPixer progress is
     /// skipped unless <see cref="YacReaderImportRequest.Overwrite"/> is set.
     /// </summary>
     [HttpPost("yacreader/apply")]

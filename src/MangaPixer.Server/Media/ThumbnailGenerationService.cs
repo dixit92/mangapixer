@@ -1,8 +1,8 @@
-namespace com.lifepixer.mangaplex.Server.Media;
+namespace com.lifepixer.mangapixer.Server.Media;
 
-using com.lifepixer.mangaplex.Server.Logging;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Logging;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -61,7 +61,7 @@ public sealed class ThumbnailGenerationService
     public async Task<bool> GenerateForItemAsync(long nodeId, CancellationToken ct = default)
     {
         using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
 
         var archiveItem = await db.ArchiveItems.FirstOrDefaultAsync(a => a.NodeId == nodeId, ct);
         if (archiveItem is null)
@@ -164,7 +164,7 @@ public sealed class ThumbnailGenerationService
         try
         {
             using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var item = await db.ArchiveItems.FirstOrDefaultAsync(a => a.NodeId == nodeId, ct);
             if (item is null)
                 return;
@@ -184,7 +184,7 @@ public sealed class ThumbnailGenerationService
     /// ThumbnailContentVersion != ContentVersion). Used by the backfill paths.
     /// </summary>
     public static async Task<List<long>> GetItemsNeedingThumbnailsAsync(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         long libraryId,
         int limit,
         CancellationToken ct = default)
@@ -206,7 +206,7 @@ public sealed class ThumbnailGenerationService
     /// Regenerate endpoint to report a queued count for the uncapped backfill.
     /// </summary>
     public static async Task<int> CountItemsNeedingThumbnailsAsync(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         long libraryId,
         CancellationToken ct = default)
     {
@@ -235,7 +235,7 @@ public sealed class ThumbnailGenerationService
     public async Task<int> RunContinuousBackfillAsync(long libraryId, CancellationToken ct = default)
     {
         using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
 
         return await RunContinuousBackfillCoreAsync(
             libraryId,

@@ -1,12 +1,12 @@
-namespace com.lifepixer.mangaplex.Server.Features.Catalog;
+namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
 using System.Globalization;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -23,10 +23,10 @@ using Microsoft.EntityFrameworkCore;
 /// </summary>
 public sealed class CatalogBrowseService
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly LibraryAuthorizationService _auth;
 
-    public CatalogBrowseService(MangaPlexDbContext db, LibraryAuthorizationService auth)
+    public CatalogBrowseService(MangaPixerDbContext db, LibraryAuthorizationService auth)
     {
         _db = db;
         _auth = auth;

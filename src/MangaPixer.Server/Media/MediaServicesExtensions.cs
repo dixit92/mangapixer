@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Server.Media;
+namespace com.lifepixer.mangapixer.Server.Media;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -12,7 +12,7 @@ public static class MediaServicesExtensions
     /// Registers the media worker pool, job scheduler, scratch workspace manager,
     /// cache service, and page delivery service.
     /// </summary>
-    public static IServiceCollection AddMangaPlexMedia(this IServiceCollection services, Action<WorkerPoolOptions> configure)
+    public static IServiceCollection AddMangaPixerMedia(this IServiceCollection services, Action<WorkerPoolOptions> configure)
     {
         var options = new WorkerPoolOptions();
         configure(options);
@@ -20,7 +20,7 @@ public static class MediaServicesExtensions
         services.AddSingleton(options);
 
         // Continuous thumbnail backfill options (post-1.2.0). Bound from
-        // MangaPlex:Media:ThumbnailBackfill:*; a default instance is used when
+        // MangaPixer:Media:ThumbnailBackfill:*; a default instance is used when
         // the section is absent so the backfill works without explicit config.
         services.AddSingleton(sp =>
         {
@@ -28,7 +28,7 @@ public static class MediaServicesExtensions
             var opts = new ThumbnailBackfillOptions();
             if (config is null)
                 return opts;
-            var section = config.GetSection("MangaPlex:Media:ThumbnailBackfill");
+            var section = config.GetSection("MangaPixer:Media:ThumbnailBackfill");
             if (int.TryParse(section["BatchSize"], out var batchSize) && batchSize > 0)
                 opts.BatchSize = batchSize;
             if (int.TryParse(section["BackoffMs"], out var backoffMs) && backoffMs > 0)

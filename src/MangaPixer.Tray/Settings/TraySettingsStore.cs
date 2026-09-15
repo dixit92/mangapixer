@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace com.lifepixer.mangaplex.Tray.Settings;
+namespace com.lifepixer.mangapixer.Tray.Settings;
 
 /// <summary>
 /// Loads/saves <see cref="TraySettings"/> as JSON under a directory the

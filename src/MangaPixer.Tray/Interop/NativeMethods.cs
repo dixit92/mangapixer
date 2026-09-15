@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace com.lifepixer.mangaplex.Tray.Interop;
+namespace com.lifepixer.mangapixer.Tray.Interop;
 
 internal static class NativeMethods
 {

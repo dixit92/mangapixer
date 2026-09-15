@@ -1,9 +1,9 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Operations;
+namespace com.lifepixer.mangapixer.Tests.Server.Operations;
 
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Server.Operations;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Operations;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -15,17 +15,17 @@ public sealed class RotatingBackupServiceTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly string _backupsDir;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
     public RotatingBackupServiceTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-rotbackup-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-rotbackup-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
         _backupsDir = Path.Combine(_tempDir, "backups");
         Directory.CreateDirectory(_backupsDir);
         var dbPath = Path.Combine(_tempDir, "test.db");
         var connectionString = DatabaseInitialization.BuildConnectionString(dbPath);
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .UseSqlite(connectionString)
             .Options;
     }
@@ -35,10 +35,10 @@ public sealed class RotatingBackupServiceTests : IDisposable
         try { Directory.Delete(_tempDir, true); } catch { }
     }
 
-    private async Task<(MangaPlexDbContext db, RotatingBackupService service)> SetupAsync(
+    private async Task<(MangaPixerDbContext db, RotatingBackupService service)> SetupAsync(
         int retentionCount = 3)
     {
-        var db = new MangaPlexDbContext(_options);
+        var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 

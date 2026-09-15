@@ -1,20 +1,20 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using Xunit;
 
 /// <summary>
-/// Smoke test: health endpoints respond. Uses MangaPlexWebApplicationFactory
+/// Smoke test: health endpoints respond. Uses MangaPixerWebApplicationFactory
 /// for consistent configuration with other HTTP tests.
 /// </summary>
 [Collection("HttpSerial")]
 public sealed class HealthEndpointTests : IDisposable
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
 
     public HealthEndpointTests()
     {
-        _factory = new MangaPlexWebApplicationFactory();
+        _factory = new MangaPixerWebApplicationFactory();
     }
 
     public void Dispose() => _factory.Dispose();

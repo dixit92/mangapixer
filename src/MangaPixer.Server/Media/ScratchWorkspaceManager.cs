@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Server.Media;
+namespace com.lifepixer.mangapixer.Server.Media;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
 using System.IO;
 using System.Security.Cryptography;
@@ -28,14 +28,14 @@ public sealed class ScratchWorkspaceManager
     /// it as application-owned. Used during crash recovery to distinguish
     /// app workspaces from unrelated directories.
     /// </summary>
-    public const string OwnershipMarkerFileName = ".mangaplex-scratch";
+    public const string OwnershipMarkerFileName = ".mangapixer-scratch";
 
     public ScratchWorkspaceManager(string scratchRoot, long scratchBudgetBytes = 2L * 1024 * 1024 * 1024, ILogger<ScratchWorkspaceManager>? logger = null)
     {
         _scratchRoot = Path.GetFullPath(scratchRoot)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         _scratchBudgetBytes = scratchBudgetBytes;
-        _ownershipMarker = Path.Combine(_scratchRoot, ".mangaplex-root");
+        _ownershipMarker = Path.Combine(_scratchRoot, ".mangapixer-root");
         _logger = logger;
     }
 
@@ -49,7 +49,7 @@ public sealed class ScratchWorkspaceManager
         if (!File.Exists(_ownershipMarker))
         {
             File.WriteAllText(_ownershipMarker,
-                $"MangaPlex scratch root\nCreated: {DateTimeOffset.UtcNow:O}\n");
+                $"MangaPixer scratch root\nCreated: {DateTimeOffset.UtcNow:O}\n");
         }
     }
 
@@ -68,7 +68,7 @@ public sealed class ScratchWorkspaceManager
         // Write ownership marker
         var markerPath = Path.Combine(workspacePath, OwnershipMarkerFileName);
         File.WriteAllText(markerPath,
-            $"MangaPlex scratch workspace\nId: {id}\nCreated: {DateTimeOffset.UtcNow:O}\n");
+            $"MangaPixer scratch workspace\nId: {id}\nCreated: {DateTimeOffset.UtcNow:O}\n");
 
         // Per-allocation receipt is Trace-level: it fires once per job and the
         // byte count of a fresh workspace is not actionable.

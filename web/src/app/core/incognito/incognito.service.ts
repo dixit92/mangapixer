@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 
-const STORAGE_KEY = 'mangaplex.incognito';
+const STORAGE_KEY = 'mangapixer.incognito';
 
 /**
  * Holds the client-side "Incognito" mode state for the current browser session.

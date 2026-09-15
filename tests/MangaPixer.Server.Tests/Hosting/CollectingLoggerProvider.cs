@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Hosting;
+namespace com.lifepixer.mangapixer.Tests.Server.Hosting;
 
 using Microsoft.Extensions.Logging;
 using Serilog.Core;

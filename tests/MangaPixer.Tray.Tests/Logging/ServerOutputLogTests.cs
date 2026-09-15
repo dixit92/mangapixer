@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Tests.Tray.Logging;
+namespace com.lifepixer.mangapixer.Tests.Tray.Logging;
 
-using com.lifepixer.mangaplex.Tray.Logging;
+using com.lifepixer.mangapixer.Tray.Logging;
 using Xunit;
 
 public sealed class ServerOutputLogTests : IDisposable

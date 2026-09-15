@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Server.Features.SystemInfo;
+namespace com.lifepixer.mangapixer.Server.Features.SystemInfo;
 
 using System.Reflection;
-using com.lifepixer.mangaplex.Core.Api;
+using com.lifepixer.mangapixer.Core.Api;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -46,7 +46,7 @@ public sealed class SystemController : ControllerBase
 
     /// <summary>
     /// Derives the server's platform so the admin UI can speak its path idiom
-    /// (added in 1.13.0). Windows/Linux only for now — MangaPlex ships
+    /// (added in 1.13.0). Windows/Linux only for now — MangaPixer ships
     /// on those two; other OSes report null and the client falls back to the
     /// current (container-oriented) wording.
     /// </summary>

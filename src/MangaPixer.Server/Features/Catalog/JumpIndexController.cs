@@ -1,11 +1,11 @@
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-namespace com.lifepixer.mangaplex.Server.Features.Catalog;
+namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
 /// <summary>
 /// Jump-index API endpoint for multilingual collation-aware jump navigation.

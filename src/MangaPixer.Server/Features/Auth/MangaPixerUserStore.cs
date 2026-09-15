@@ -1,18 +1,18 @@
-namespace com.lifepixer.mangaplex.Server.Features.Auth;
+namespace com.lifepixer.mangapixer.Server.Features.Auth;
 
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 /// <summary>
-/// Custom ASP.NET Core Identity user store backed by <see cref="MangaPlexDbContext"/>.
+/// Custom ASP.NET Core Identity user store backed by <see cref="MangaPixerDbContext"/>.
 /// Implements the core interfaces needed for cookie auth: IUserStore, IUserPasswordStore,
 /// IUserSecurityStampStore, IUserLockoutStore, IUserClaimStore, IUserRoleStore.
 /// </summary>
-public sealed class MangaPlexUserStore :
+public sealed class MangaPixerUserStore :
     IUserStore<UserEntity>,
     IUserPasswordStore<UserEntity>,
     IUserSecurityStampStore<UserEntity>,
@@ -21,10 +21,10 @@ public sealed class MangaPlexUserStore :
     IUserRoleStore<UserEntity>,
     IDisposable
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private bool _disposed;
 
-    public MangaPlexUserStore(MangaPlexDbContext db, IdentityErrorDescriber? errorDescriber = null)
+    public MangaPixerUserStore(MangaPixerDbContext db, IdentityErrorDescriber? errorDescriber = null)
     {
         _db = db;
         ErrorDescriber = errorDescriber ?? new IdentityErrorDescriber();
@@ -197,7 +197,7 @@ public sealed class MangaPlexUserStore :
         return Task.CompletedTask;
     }
 
-    // IUserClaimStore — MangaPlex uses simple claims (admin role, user ID)
+    // IUserClaimStore — MangaPixer uses simple claims (admin role, user ID)
     public async Task<IList<Claim>> GetClaimsAsync(UserEntity user, CancellationToken ct)
     {
         ThrowIfDisposed();

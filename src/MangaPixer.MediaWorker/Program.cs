@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.MediaWorker;
+namespace com.lifepixer.mangapixer.MediaWorker;
 
 using System.Threading;
 

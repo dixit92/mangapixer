@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Core.Reading;
+namespace com.lifepixer.mangapixer.Core.Reading;
 
 /// <summary>
 /// Derived, display-only read state of a folder, rolled up over every readable

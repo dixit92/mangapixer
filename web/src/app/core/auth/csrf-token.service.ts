@@ -10,7 +10,7 @@ import { ApiService } from '../api/api.service';
  * The server issues the token as the JSON body of `GET /api/v1/auth/csrf`
  * (`IAntiforgery.GetAndStoreTokens`) and also sets an httpOnly antiforgery
  * cookie that the browser returns automatically. The double-submit pair is
- * completed by echoing this request token in the `X-MangaPlex-Csrf` header on
+ * completed by echoing this request token in the `X-MangaPixer-Csrf` header on
  * mutating requests — see {@link xsrfInterceptor}.
  *
  * The token is bound to the current identity, so it must be refreshed after any

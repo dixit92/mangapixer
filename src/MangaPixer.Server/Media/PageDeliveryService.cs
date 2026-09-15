@@ -1,11 +1,11 @@
-namespace com.lifepixer.mangaplex.Server.Media;
+namespace com.lifepixer.mangapixer.Server.Media;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
-using com.lifepixer.mangaplex.Core.Media;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Media;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -21,14 +21,14 @@ using Microsoft.EntityFrameworkCore;
 /// </summary>
 public sealed class PageDeliveryService
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly CacheService _cache;
     private readonly JobScheduler _scheduler;
     private readonly WorkerPoolOptions _options;
     private readonly ILogger<PageDeliveryService>? _logger;
 
     public PageDeliveryService(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         CacheService cache,
         JobScheduler scheduler,
         WorkerPoolOptions options,

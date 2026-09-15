@@ -1,10 +1,10 @@
-namespace com.lifepixer.mangaplex.Tests.Core.Contracts;
+namespace com.lifepixer.mangapixer.Tests.Core.Contracts;
 
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Media;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Core.WorkerProtocol;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Media;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Core.WorkerProtocol;
 using System.Text.Json;
 using Xunit;
 

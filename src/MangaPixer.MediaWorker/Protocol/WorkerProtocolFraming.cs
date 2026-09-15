@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.MediaWorker.Protocol;
+namespace com.lifepixer.mangapixer.MediaWorker.Protocol;
 
 using System.Text.Json;
-using com.lifepixer.mangaplex.Core.WorkerProtocol;
+using com.lifepixer.mangapixer.Core.WorkerProtocol;
 
 /// <summary>
 /// JSON-lines framing for worker IPC. Each message is a single JSON object

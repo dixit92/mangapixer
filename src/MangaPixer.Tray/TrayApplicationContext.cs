@@ -1,10 +1,10 @@
 using System.Diagnostics;
-using com.lifepixer.mangaplex.Tray.Forms;
-using com.lifepixer.mangaplex.Tray.Server;
-using com.lifepixer.mangaplex.Tray.Settings;
-using com.lifepixer.mangaplex.Tray.Startup;
+using com.lifepixer.mangapixer.Tray.Forms;
+using com.lifepixer.mangapixer.Tray.Server;
+using com.lifepixer.mangapixer.Tray.Settings;
+using com.lifepixer.mangapixer.Tray.Startup;
 
-namespace com.lifepixer.mangaplex.Tray;
+namespace com.lifepixer.mangapixer.Tray;
 
 /// <summary>
 /// The WinForms shell: a <see cref="NotifyIcon"/> plus its context menu. Owns

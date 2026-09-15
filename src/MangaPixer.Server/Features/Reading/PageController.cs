@@ -1,13 +1,13 @@
-namespace com.lifepixer.mangaplex.Server.Features.Reading;
+namespace com.lifepixer.mangapixer.Server.Features.Reading;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Server.Features.Catalog;
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Features.Catalog;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -30,7 +30,7 @@ using Microsoft.EntityFrameworkCore;
 [Authorize]
 public sealed class PageController : ControllerBase
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly CacheService _cache;
     private readonly CatalogIdResolver _idResolver;
     private readonly MediaWorkerPool _workerPool;
@@ -42,7 +42,7 @@ public sealed class PageController : ControllerBase
     private const int WebpQuality = 82;
 
     public PageController(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         CacheService cache,
         CatalogIdResolver idResolver,
         MediaWorkerPool workerPool,

@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Server.Features.Auth;
+namespace com.lifepixer.mangapixer.Server.Features.Auth;
 
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -19,13 +19,13 @@ public static class AuthServicesExtensions
     /// <param name="databasePath">Path to the SQLite database file.</param>
     /// <param name="rateLimitDisabledOverride">
     /// Test-only override for <see cref="LoginRateLimitOptions.Disabled"/>,
-    /// taking precedence over the bound <c>MangaPlex:Security:RateLimit:Disabled</c>
+    /// taking precedence over the bound <c>MangaPixer:Security:RateLimit:Disabled</c>
     /// configuration value when non-null. Used by the test host to disable rate
     /// limiting without touching process-wide configuration (see
     /// <c>TestHostStorageOverride</c>). Always null in production, where
     /// the configuration-bound value is used unchanged.
     /// </param>
-    public static IServiceCollection AddMangaPlexAuth(
+    public static IServiceCollection AddMangaPixerAuth(
         this IServiceCollection services,
         string databasePath,
         bool? rateLimitDisabledOverride = null)
@@ -35,11 +35,11 @@ public static class AuthServicesExtensions
 
         // Configure DbContext
         var connectionString = DatabaseInitialization.BuildConnectionString(databasePath);
-        services.AddDbContext<MangaPlexDbContext>(options =>
+        services.AddDbContext<MangaPixerDbContext>(options =>
         {
             options.UseSqlite(connectionString);
         });
-        services.AddScoped<MangaPlexDbContextFactory>();
+        services.AddScoped<MangaPixerDbContextFactory>();
 
         // Configure Identity with custom user store
         services.AddIdentityCore<UserEntity>(options =>
@@ -53,7 +53,7 @@ public static class AuthServicesExtensions
             options.User.RequireUniqueEmail = false;
             options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
         })
-        .AddUserStore<MangaPlexUserStore>()
+        .AddUserStore<MangaPixerUserStore>()
         .AddClaimsPrincipalFactory<Microsoft.AspNetCore.Identity.UserClaimsPrincipalFactory<UserEntity>>()
         .AddDefaultTokenProviders()
         .AddSignInManager();
@@ -65,7 +65,7 @@ public static class AuthServicesExtensions
         services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(options =>
             {
-                options.Cookie.Name = ".MangaPlex.Auth";
+                options.Cookie.Name = ".MangaPixer.Auth";
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.SameAsRequest;
                 options.Cookie.SameSite = SameSiteMode.Strict;
@@ -78,7 +78,7 @@ public static class AuthServicesExtensions
                     OnValidatePrincipal = async context =>
                     {
                         // Validate session ticket
-                        var ticketId = context.Properties.Items.TryGetValue(".MangaPlex.ticket", out var t) ? t : null;
+                        var ticketId = context.Properties.Items.TryGetValue(".MangaPixer.ticket", out var t) ? t : null;
                         if (string.IsNullOrEmpty(ticketId))
                         {
                             context.RejectPrincipal();
@@ -122,7 +122,7 @@ public static class AuthServicesExtensions
         {
             var config = sp.GetService<Microsoft.Extensions.Configuration.IConfiguration>();
             var options = new LoginRateLimitOptions();
-            config?.GetSection("MangaPlex:Security:RateLimit").Bind(options);
+            config?.GetSection("MangaPixer:Security:RateLimit").Bind(options);
             if (rateLimitDisabledOverride is not null)
                 options.Disabled = rateLimitDisabledOverride.Value;
             return options;
@@ -133,7 +133,7 @@ public static class AuthServicesExtensions
         services.AddScoped<FirstRunSetupService>();
 
         // Register authorization handlers
-        services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, MangaPlexAuthorizationHandler>();
+        services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, MangaPixerAuthorizationHandler>();
 
         return services;
     }

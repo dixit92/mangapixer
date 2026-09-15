@@ -1,11 +1,11 @@
-namespace com.lifepixer.mangaplex.Server.Persistence;
+namespace com.lifepixer.mangapixer.Server.Persistence;
 
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 /// <summary>
-/// EF Core DbContext for MangaPlex. Uses SQLite with WAL mode, foreign keys,
+/// EF Core DbContext for MangaPixer. Uses SQLite with WAL mode, foreign keys,
 /// and FTS5 trigram search index.
 ///
 /// Concurrency rules:
@@ -15,9 +15,9 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 /// - Project only needed columns.
 /// - No filesystem I/O inside write transactions.
 /// </summary>
-public sealed class MangaPlexDbContext : DbContext
+public sealed class MangaPixerDbContext : DbContext
 {
-    public MangaPlexDbContext(DbContextOptions<MangaPlexDbContext> options) : base(options)
+    public MangaPixerDbContext(DbContextOptions<MangaPixerDbContext> options) : base(options)
     {
     }
 
@@ -214,7 +214,7 @@ public sealed class MangaPlexDbContext : DbContext
             e.HasKey(x => x.NodeId);
             e.Property(x => x.AnalysisError).HasMaxLength(1024);
             e.Property(x => x.StrongHash).HasMaxLength(128);
-            e.Property(x => x.ContentSignature).HasMaxLength(com.lifepixer.mangaplex.Core.Media.ContentSignature.MaxLength);
+            e.Property(x => x.ContentSignature).HasMaxLength(com.lifepixer.mangapixer.Core.Media.ContentSignature.MaxLength);
 
             e.HasOne(x => x.Node)
                 .WithOne(n => n.ArchiveItem)

@@ -1,13 +1,13 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Media;
+namespace com.lifepixer.mangapixer.Tests.Server.Media;
 
 using System.Diagnostics;
 using System.Text.Json;
-using com.lifepixer.mangaplex.Core.WorkerProtocol;
-using com.lifepixer.mangaplex.MediaWorker.Protocol;
-using com.lifepixer.mangaplex.Core.Media;
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.WorkerProtocol;
+using com.lifepixer.mangapixer.MediaWorker.Protocol;
+using com.lifepixer.mangapixer.Core.Media;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -419,14 +419,14 @@ public sealed class WorkerProcessTests : IClassFixture<WorkerProcessFixture>, IA
     {
         var dbPath = Path.Combine(_fixture.TempRoot, "sig-" + Guid.NewGuid().ToString("N")[..6] + ".db");
         var services = new ServiceCollection();
-        services.AddDbContext<MangaPlexDbContext>(o => o.UseSqlite(DatabaseInitialization.BuildConnectionString(dbPath)));
+        services.AddDbContext<MangaPixerDbContext>(o => o.UseSqlite(DatabaseInitialization.BuildConnectionString(dbPath)));
         await using var provider = services.BuildServiceProvider();
 
         long nodeId;
         var zipPath = _fixture.CreateSimpleZip("signature.zip");
         using (var scope = provider.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             await db.Database.MigrateAsync();
             var library = new LibraryEntity { PublicId = "sigl", DisplayName = "Sig", RootPath = _fixture.FixtureDir, CreatedAt = DateTimeOffset.UtcNow };
             db.Libraries.Add(library);
@@ -472,7 +472,7 @@ public sealed class WorkerProcessTests : IClassFixture<WorkerProcessFixture>, IA
             {
                 await Task.Delay(100);
                 using var scope = provider.CreateScope();
-                item = await scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>()
+                item = await scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>()
                     .ArchiveItems.AsNoTracking().SingleAsync(a => a.NodeId == nodeId);
             }
 

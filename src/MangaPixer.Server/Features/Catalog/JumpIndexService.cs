@@ -1,12 +1,12 @@
 using System.Globalization;
 using System.Text;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace com.lifepixer.mangaplex.Server.Features.Catalog;
+namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
 /// <summary>
 /// Per-library jump index for multilingual collation-aware jump navigation.
@@ -26,9 +26,9 @@ namespace com.lifepixer.mangaplex.Server.Features.Catalog;
 /// </summary>
 public sealed class JumpIndexService
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
 
-    public JumpIndexService(MangaPlexDbContext db)
+    public JumpIndexService(MangaPixerDbContext db)
     {
         _db = db;
     }

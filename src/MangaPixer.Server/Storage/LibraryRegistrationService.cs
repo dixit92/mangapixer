@@ -1,10 +1,10 @@
-namespace com.lifepixer.mangaplex.Server.Storage;
+namespace com.lifepixer.mangapixer.Server.Storage;
 
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Server.Logging;
-using com.lifepixer.mangaplex.Server.Media;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Logging;
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -19,13 +19,13 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 public sealed class LibraryRegistrationService
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly AppRootOptions _appRootOptions;
     private readonly ThumbnailStore? _thumbnailStore;
     private readonly ILogger<LibraryRegistrationService>? _logger;
 
     public LibraryRegistrationService(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         AppRootOptions? appRootOptions = null,
         ThumbnailStore? thumbnailStore = null,
         ILogger<LibraryRegistrationService>? logger = null)
@@ -112,7 +112,7 @@ public sealed class LibraryRegistrationService
     }
 
     /// <summary>
-    /// Deletes a library and ALL of its MangaPlex metadata, leaving the source
+    /// Deletes a library and ALL of its MangaPixer metadata, leaving the source
     /// files on disk untouched (source-media read-only invariant). This is a
     /// metadata-only delete — the opposite of <see cref="RegisterAsync"/>, which
     /// only ever wrote metadata.

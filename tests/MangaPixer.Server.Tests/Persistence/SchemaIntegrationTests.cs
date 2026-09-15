@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Persistence;
+namespace com.lifepixer.mangapixer.Tests.Server.Persistence;
 
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -13,16 +13,16 @@ public sealed class SchemaIntegrationTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly string _dbPath;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
     public SchemaIntegrationTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-tests-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-tests-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
         _dbPath = Path.Combine(_tempDir, "test.db");
 
         var connectionString = DatabaseInitialization.BuildConnectionString(_dbPath);
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .UseSqlite(connectionString)
             .Options;
     }
@@ -35,7 +35,7 @@ public sealed class SchemaIntegrationTests : IDisposable
     [Fact]
     public async Task Database_CanBeCreated_AndMigrated()
     {
-        await using var db = new MangaPlexDbContext(_options);
+        await using var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -48,7 +48,7 @@ public sealed class SchemaIntegrationTests : IDisposable
     [Fact]
     public async Task ForeignKey_ParentCatalogNode_IsEnforced()
     {
-        await using var db = new MangaPlexDbContext(_options);
+        await using var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -84,7 +84,7 @@ public sealed class SchemaIntegrationTests : IDisposable
     [Fact]
     public async Task UniqueConstraint_LibraryPathKey_IsEnforced()
     {
-        await using var db = new MangaPlexDbContext(_options);
+        await using var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -131,7 +131,7 @@ public sealed class SchemaIntegrationTests : IDisposable
     [Fact]
     public async Task UniqueConstraint_ReadingProgress_PerUserItem_IsEnforced()
     {
-        await using var db = new MangaPlexDbContext(_options);
+        await using var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -180,7 +180,7 @@ public sealed class SchemaIntegrationTests : IDisposable
     [Fact]
     public async Task Fts5_SearchIndex_CanQuery()
     {
-        await using var db = new MangaPlexDbContext(_options);
+        await using var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -199,16 +199,16 @@ public sealed class SchemaIntegrationTests : IDisposable
     [Fact]
     public async Task Fts5_TrigramSubstring_CanQuery()
     {
-        await using var db = new MangaPlexDbContext(_options);
+        await using var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO catalog_search (display_name, relative_path, library_id, node_id) VALUES ('MangaPlex Chapter One', 'plex/ch1', 1, 1)");
+            $"INSERT INTO catalog_search (display_name, relative_path, library_id, node_id) VALUES ('MangaPixer Chapter One', 'pixe/ch1', 1, 1)");
 
-        // Trigram substring search for 'plex'
+        // Trigram substring search for 'pixe'
         var results = await db.Database.SqlQueryRaw<string>(
-            "SELECT display_name AS Value FROM catalog_search WHERE catalog_search MATCH 'plex'").ToListAsync();
+            "SELECT display_name AS Value FROM catalog_search WHERE catalog_search MATCH 'pixe'").ToListAsync();
 
         Assert.NotEmpty(results);
     }
@@ -216,7 +216,7 @@ public sealed class SchemaIntegrationTests : IDisposable
     [Fact]
     public async Task Transaction_Rollback_OnError()
     {
-        await using var db = new MangaPlexDbContext(_options);
+        await using var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -243,11 +243,11 @@ public sealed class SchemaIntegrationTests : IDisposable
     [Fact]
     public async Task WriteCoordinator_SerializesWrites()
     {
-        var factory = new MangaPlexDbContextFactory(_options);
+        var factory = new MangaPixerDbContextFactory(_options);
         using var coordinator = new WriteCoordinator();
 
         // Initialize database
-        await using (var db = new MangaPlexDbContext(_options))
+        await using (var db = new MangaPixerDbContext(_options))
         {
             await db.Database.EnsureCreatedAsync();
             await DatabaseInitialization.ConfigureDatabaseAsync(db);
@@ -279,7 +279,7 @@ public sealed class SchemaIntegrationTests : IDisposable
         Assert.Equal(5, ids.Distinct().Count());
 
         // Verify all libraries were persisted
-        await using var verifyDb = new MangaPlexDbContext(_options);
+        await using var verifyDb = new MangaPixerDbContext(_options);
         var count = await verifyDb.Libraries.CountAsync();
         Assert.Equal(5, count);
     }
@@ -287,10 +287,10 @@ public sealed class SchemaIntegrationTests : IDisposable
     [Fact]
     public async Task WriteCoordinator_PriorityOrdering_ProgressBeforeScan()
     {
-        var factory = new MangaPlexDbContextFactory(_options);
+        var factory = new MangaPixerDbContextFactory(_options);
         using var coordinator = new WriteCoordinator();
 
-        await using (var db = new MangaPlexDbContext(_options))
+        await using (var db = new MangaPixerDbContext(_options))
         {
             await db.Database.EnsureCreatedAsync();
             await DatabaseInitialization.ConfigureDatabaseAsync(db);

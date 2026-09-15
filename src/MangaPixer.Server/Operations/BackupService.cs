@@ -1,8 +1,8 @@
-namespace com.lifepixer.mangaplex.Server.Operations;
+namespace com.lifepixer.mangapixer.Server.Operations;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
-using com.lifepixer.mangaplex.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
@@ -22,10 +22,10 @@ using System.IO;
 /// </summary>
 public sealed class BackupService
 {
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly ILogger<BackupService>? _logger;
 
-    public BackupService(MangaPlexDbContext db, ILogger<BackupService>? logger = null)
+    public BackupService(MangaPixerDbContext db, ILogger<BackupService>? logger = null)
     {
         _db = db;
         _logger = logger;
@@ -94,11 +94,11 @@ public sealed class BackupService
             {
                 Pooling = false,
             }.ToString();
-            var options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+            var options = new DbContextOptionsBuilder<MangaPixerDbContext>()
                 .UseSqlite(connectionString)
                 .Options;
 
-            await using var verifyDb = new MangaPlexDbContext(options);
+            await using var verifyDb = new MangaPixerDbContext(options);
             // Check that key tables exist
             var tableCount = await verifyDb.Database
                 .SqlQueryRaw<int>("SELECT count(*) as Value FROM sqlite_master WHERE type='table'")

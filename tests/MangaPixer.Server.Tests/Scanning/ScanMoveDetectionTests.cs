@@ -1,10 +1,10 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Scanning;
+namespace com.lifepixer.mangapixer.Tests.Server.Scanning;
 
-using com.lifepixer.mangaplex.Core.Media;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
-using com.lifepixer.mangaplex.Server.Scanning;
-using com.lifepixer.mangaplex.Server.Storage;
+using com.lifepixer.mangapixer.Core.Media;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Scanning;
+using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -20,17 +20,17 @@ public sealed class ScanMoveDetectionTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly string _libRoot;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
     private long _libraryId;
     private long _userId;
 
     public ScanMoveDetectionTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-move-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-move-" + Guid.NewGuid().ToString("N")[..8]);
         _libRoot = Path.Combine(_tempDir, "library");
         Directory.CreateDirectory(_libRoot);
         var connectionString = DatabaseInitialization.BuildConnectionString(Path.Combine(_tempDir, "test.db"));
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .UseSqlite(connectionString)
             .Options;
     }
@@ -42,7 +42,7 @@ public sealed class ScanMoveDetectionTests : IDisposable
 
     // ---- helpers -----------------------------------------------------------
 
-    private MangaPlexDbContext NewContext() => new(_options);
+    private MangaPixerDbContext NewContext() => new(_options);
 
     private async Task SetupAsync()
     {

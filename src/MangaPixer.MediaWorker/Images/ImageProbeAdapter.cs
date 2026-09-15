@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.MediaWorker.Images;
+namespace com.lifepixer.mangapixer.MediaWorker.Images;
 
-using com.lifepixer.mangaplex.Core.Media;
+using com.lifepixer.mangapixer.Core.Media;
 using ImageMagick;
 
 /// <summary>

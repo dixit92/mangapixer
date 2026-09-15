@@ -1,8 +1,8 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
-using com.lifepixer.mangaplex.Core.Api;
+using com.lifepixer.mangapixer.Core.Api;
 using Xunit;
 
 /// <summary>
@@ -13,11 +13,11 @@ using Xunit;
 [Collection("HttpSerial")]
 public sealed class AuthHttpTests : IDisposable
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
 
     public AuthHttpTests()
     {
-        _factory = new MangaPlexWebApplicationFactory();
+        _factory = new MangaPixerWebApplicationFactory();
     }
 
     public void Dispose() => _factory.Dispose();
@@ -72,7 +72,7 @@ public sealed class AuthHttpTests : IDisposable
         var response = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest
         {
             Username = "admin",
-            Password = "MangaPlex-Change-Me-Now!",
+            Password = "MangaPixer-Change-Me-Now!",
         });
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -176,7 +176,7 @@ public sealed class AuthHttpTests : IDisposable
         var client = await _factory.LoginAsAdminAsync();
         var response = await client.PostAsJsonAsync("/api/v1/auth/change-password", new ChangePasswordRequest
         {
-            CurrentPassword = "MangaPlex-Change-Me-Now!",
+            CurrentPassword = "MangaPixer-Change-Me-Now!",
             NewPassword = "NewTestPassword123!",
         });
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
@@ -213,7 +213,7 @@ public sealed class AuthHttpTests : IDisposable
 
         // Change the password (auth endpoints remain reachable while gated).
         var csrf = await (await reader.GetAsync("/api/v1/auth/csrf")).Content.ReadFromJsonAsync<CsrfTokenDto>();
-        reader.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrf!.Token);
+        reader.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
         var change = await reader.PostAsJsonAsync("/api/v1/auth/change-password", new ChangePasswordRequest
         {
             CurrentPassword = "TempPass123!",

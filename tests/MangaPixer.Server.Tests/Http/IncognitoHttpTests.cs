@@ -1,13 +1,13 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -18,15 +18,15 @@ using Xunit;
 /// continue-reading, library list, and search, and non-owner isolation.
 /// </summary>
 [Collection("HttpSerial")]
-public sealed class IncognitoHttpTests : IClassFixture<MangaPlexWebApplicationFactory>
+public sealed class IncognitoHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
     private static readonly SemaphoreSlim _seedLock = new(1, 1);
     private static bool _seeded;
     private static string? _libAPubId;
     private static string? _libBPubId;
 
-    public IncognitoHttpTests(MangaPlexWebApplicationFactory factory)
+    public IncognitoHttpTests(MangaPixerWebApplicationFactory factory)
     {
         _factory = factory;
     }
@@ -67,7 +67,7 @@ public sealed class IncognitoHttpTests : IClassFixture<MangaPlexWebApplicationFa
 
         var csrf = await reader.GetAsync("/api/v1/auth/csrf");
         var csrfDto = await csrf.Content.ReadFromJsonAsync<CsrfTokenDto>();
-        reader.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", csrfDto!.Token);
+        reader.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrfDto!.Token);
 
         await reader.PostAsJsonAsync("/api/v1/auth/change-password", new ChangePasswordRequest
         {
@@ -83,7 +83,7 @@ public sealed class IncognitoHttpTests : IClassFixture<MangaPlexWebApplicationFa
         });
         var freshCsrf = await reader.GetAsync("/api/v1/auth/csrf");
         var freshDto = await freshCsrf.Content.ReadFromJsonAsync<CsrfTokenDto>();
-        reader.DefaultRequestHeaders.Add("X-MangaPlex-Csrf", freshDto!.Token);
+        reader.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", freshDto!.Token);
 
         return reader;
     }
@@ -103,7 +103,7 @@ public sealed class IncognitoHttpTests : IClassFixture<MangaPlexWebApplicationFa
                 return (_libAPubId, _libBPubId);
 
             // Create temp directories for library root paths
-            var tempRoot = Path.Combine(Path.GetTempPath(), "mangaplex-ig-" + Guid.NewGuid().ToString("N")[..8]);
+            var tempRoot = Path.Combine(Path.GetTempPath(), "mangapixer-ig-" + Guid.NewGuid().ToString("N")[..8]);
             var dirA = Path.Combine(tempRoot, "lib-a");
             var dirB = Path.Combine(tempRoot, "lib-b");
             Directory.CreateDirectory(dirA);
@@ -125,7 +125,7 @@ public sealed class IncognitoHttpTests : IClassFixture<MangaPlexWebApplicationFa
             // Seed archive nodes directly in the database
             using (var scope = _factory.Services.CreateScope())
             {
-                var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+                var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
                 var libA = await db.Libraries.FirstAsync(l => l.PublicId == libADto!.Id);
                 var libB = await db.Libraries.FirstAsync(l => l.PublicId == libBDto!.Id);
 
@@ -181,7 +181,7 @@ public sealed class IncognitoHttpTests : IClassFixture<MangaPlexWebApplicationFa
     private async Task SeedProgressAsync(string nodePublicId)
     {
         using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
 
         var node = await db.CatalogNodes.FirstOrDefaultAsync(n => n.PublicId == nodePublicId);
         if (node is null) return;
@@ -384,7 +384,7 @@ public sealed class IncognitoHttpTests : IClassFixture<MangaPlexWebApplicationFa
         // Grant reader access to both libraries
         using (var scope = _factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var reader = await db.Users.FirstOrDefaultAsync(u => u.NormalizedUserName == "IGREADER");
             if (reader is not null)
             {

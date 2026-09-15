@@ -1,9 +1,9 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Operations;
+namespace com.lifepixer.mangapixer.Tests.Server.Operations;
 
-using com.lifepixer.mangaplex.Server.Operations;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
-using com.lifepixer.mangaplex.Server.Storage;
+using com.lifepixer.mangapixer.Server.Operations;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -19,17 +19,17 @@ public sealed class DbRestoreServiceTests : IDisposable
     private readonly string _dbPath;
     private readonly string _dataRoot;
     private readonly string _backupsDir;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
     public DbRestoreServiceTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-restore-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-restore-" + Guid.NewGuid().ToString("N")[..8]);
         _dataRoot = Path.Combine(_tempDir, "data");
         _backupsDir = Path.Combine(_dataRoot, "backups");
         Directory.CreateDirectory(_dataRoot);
         Directory.CreateDirectory(_backupsDir);
-        _dbPath = Path.Combine(_dataRoot, "mangaplex.db");
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        _dbPath = Path.Combine(_dataRoot, "mangapixer.db");
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .UseSqlite(DatabaseInitialization.BuildConnectionString(_dbPath))
             .Options;
     }
@@ -41,22 +41,22 @@ public sealed class DbRestoreServiceTests : IDisposable
         try { Directory.Delete(_tempDir, true); } catch { }
     }
 
-    private async Task<(MangaPlexDbContext db, BackupService backup, DbRestoreService restore)> SetupAsync()
+    private async Task<(MangaPixerDbContext db, BackupService backup, DbRestoreService restore)> SetupAsync()
     {
-        var db = new MangaPlexDbContext(_options);
+        var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
         db.Libraries.Add(new LibraryEntity
         {
-            PublicId = com.lifepixer.mangaplex.Core.Catalog.OpaqueId.Encode(1),
+            PublicId = com.lifepixer.mangapixer.Core.Catalog.OpaqueId.Encode(1),
             DisplayName = "Test",
             RootPath = "/private/test",
             CreatedAt = DateTimeOffset.UtcNow,
         });
         db.Users.Add(new UserEntity
         {
-            PublicId = com.lifepixer.mangaplex.Core.Catalog.OpaqueId.Encode(2),
+            PublicId = com.lifepixer.mangapixer.Core.Catalog.OpaqueId.Encode(2),
             UserName = "admin",
             NormalizedUserName = "ADMIN",
             IsActive = true,
@@ -77,7 +77,7 @@ public sealed class DbRestoreServiceTests : IDisposable
         return (db, backup, restore);
     }
 
-    /// <summary>Creates a genuine MangaPlex SQLite backup via VACUUM INTO.</summary>
+    /// <summary>Creates a genuine MangaPixer SQLite backup via VACUUM INTO.</summary>
     private async Task<string> MakeValidBackupAsync(BackupService backup)
     {
         var path = Path.Combine(_tempDir, "valid-backup.db");
@@ -134,7 +134,7 @@ public sealed class DbRestoreServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Validate_ValidMangaPlexBackup_Passes()
+    public async Task Validate_ValidMangaPixerBackup_Passes()
     {
         var (db, backup, _) = await SetupAsync();
         try
@@ -151,7 +151,7 @@ public sealed class DbRestoreServiceTests : IDisposable
     [Fact]
     public async Task Validate_EmptySqlite_RejectsMissingSchema()
     {
-        // A bare SQLite file with an unrelated table (no MangaPlex schema).
+        // A bare SQLite file with an unrelated table (no MangaPixer schema).
         var empty = Path.Combine(_tempDir, "empty.db");
         await using (var conn = new Microsoft.Data.Sqlite.SqliteConnection(
             DatabaseInitialization.BuildConnectionString(empty)))
@@ -184,7 +184,7 @@ public sealed class DbRestoreServiceTests : IDisposable
             Assert.False(result.Succeeded);
             Assert.Equal("invalid_backup", result.Error);
             // Staged file must be cleaned up.
-            Assert.False(File.Exists(Path.Combine(_dataRoot, "restore-pending", "mangaplex.db.staged")));
+            Assert.False(File.Exists(Path.Combine(_dataRoot, "restore-pending", "mangapixer.db.staged")));
         }
         finally { await db.DisposeAsync(); }
     }
@@ -223,7 +223,7 @@ public sealed class DbRestoreServiceTests : IDisposable
             Assert.NotNull(result.PreRestoreBackupFileName);
             Assert.StartsWith("pre-restore-", result.PreRestoreBackupFileName);
             // Staged file + marker exist under the controlled data root.
-            Assert.True(File.Exists(Path.Combine(_dataRoot, "restore-pending", "mangaplex.db.staged")));
+            Assert.True(File.Exists(Path.Combine(_dataRoot, "restore-pending", "mangapixer.db.staged")));
             Assert.True(File.Exists(Path.Combine(_dataRoot, "restore-pending", "restore.json")));
             // Pre-restore snapshot exists in the backups folder.
             Assert.True(File.Exists(Path.Combine(_backupsDir, result.PreRestoreBackupFileName!)));
@@ -255,21 +255,21 @@ public sealed class DbRestoreServiceTests : IDisposable
             // Build the restored-source DB in a self-disposing block, then
             // checkpoint the WAL and clear the pool so the main file holds all
             // data (the staged copy does not include the -wal sidecar).
-            await using (var restoredDb = new MangaPlexDbContext(
-                new DbContextOptionsBuilder<MangaPlexDbContext>().UseSqlite(cs).Options))
+            await using (var restoredDb = new MangaPixerDbContext(
+                new DbContextOptionsBuilder<MangaPixerDbContext>().UseSqlite(cs).Options))
             {
                 await restoredDb.Database.EnsureCreatedAsync();
                 await DatabaseInitialization.ConfigureDatabaseAsync(restoredDb);
                 restoredDb.Libraries.Add(new LibraryEntity
                 {
-                    PublicId = com.lifepixer.mangaplex.Core.Catalog.OpaqueId.Encode(99),
+                    PublicId = com.lifepixer.mangapixer.Core.Catalog.OpaqueId.Encode(99),
                     DisplayName = "Restored",
                     RootPath = "/private/restored",
                     CreatedAt = DateTimeOffset.UtcNow,
                 });
                 restoredDb.Users.Add(new UserEntity
                 {
-                    PublicId = com.lifepixer.mangaplex.Core.Catalog.OpaqueId.Encode(2),
+                    PublicId = com.lifepixer.mangapixer.Core.Catalog.OpaqueId.Encode(2),
                     UserName = "admin",
                     NormalizedUserName = "ADMIN",
                     IsActive = true,
@@ -307,8 +307,8 @@ public sealed class DbRestoreServiceTests : IDisposable
             Assert.False(File.Exists(Path.Combine(_dataRoot, "restore-pending", "restore.json")));
             // The new live DB must be the restored one (library "Restored").
             Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-            await using var verify = new MangaPlexDbContext(
-                new DbContextOptionsBuilder<MangaPlexDbContext>()
+            await using var verify = new MangaPixerDbContext(
+                new DbContextOptionsBuilder<MangaPixerDbContext>()
                     .UseSqlite(DatabaseInitialization.BuildConnectionString(_dbPath)).Options);
             var lib = await verify.Libraries.FirstOrDefaultAsync();
             Assert.NotNull(lib);
@@ -333,7 +333,7 @@ public sealed class DbRestoreServiceTests : IDisposable
             await db.DisposeAsync(); // close live DB so swap path is reachable.
 
             // Corrupt the staged file AFTER staging so re-validation at apply fails.
-            var stagedPath = Path.Combine(_dataRoot, "restore-pending", "mangaplex.db.staged");
+            var stagedPath = Path.Combine(_dataRoot, "restore-pending", "mangapixer.db.staged");
             using (var fs = new FileStream(stagedPath, FileMode.Open, FileAccess.Write))
             {
                 fs.Seek(0, SeekOrigin.Begin);
@@ -349,8 +349,8 @@ public sealed class DbRestoreServiceTests : IDisposable
             Assert.False(File.Exists(Path.Combine(_dataRoot, "restore-pending", "restore.json")));
             // Original DB intact.
             Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-            await using var verify = new MangaPlexDbContext(
-                new DbContextOptionsBuilder<MangaPlexDbContext>()
+            await using var verify = new MangaPixerDbContext(
+                new DbContextOptionsBuilder<MangaPixerDbContext>()
                     .UseSqlite(DatabaseInitialization.BuildConnectionString(_dbPath)).Options);
             var lib = await verify.Libraries.FirstOrDefaultAsync();
             Assert.NotNull(lib);

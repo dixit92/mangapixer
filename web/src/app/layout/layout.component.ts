@@ -52,7 +52,7 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
       }
       <a routerLink="/" class="brand">
         <img src="assets/icons/icon.svg" alt="" class="brand-mark" />
-        <span class="brand-text">MangaPlex</span>
+        <span class="brand-text">MangaPixer</span>
       </a>
       <span class="spacer"></span>
 
@@ -76,7 +76,7 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
           </button>
           @if (auth.isAdmin()) {
             <button mat-menu-item routerLink="/admin">
-              <mat-icon>admin_panel_settings</mat-icon>MangaPlex Administration
+              <mat-icon>admin_panel_settings</mat-icon>MangaPixer Administration
             </button>
           }
           <button mat-menu-item (click)="logout()">

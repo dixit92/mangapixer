@@ -1,12 +1,12 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Features.Reading;
+namespace com.lifepixer.mangapixer.Tests.Server.Features.Reading;
 
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Features.Catalog;
-using com.lifepixer.mangaplex.Server.Features.Reading;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Features.Catalog;
+using com.lifepixer.mangapixer.Server.Features.Reading;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -21,15 +21,15 @@ public sealed class IncognitoPrivateLibraryTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly string _dbPath;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
     public IncognitoPrivateLibraryTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-incognito-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-incognito-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
         _dbPath = Path.Combine(_tempDir, "incognito.db");
         var connectionString = DatabaseInitialization.BuildConnectionString(_dbPath);
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .UseSqlite(connectionString)
             .Options;
     }
@@ -43,9 +43,9 @@ public sealed class IncognitoPrivateLibraryTests : IDisposable
     /// Seeds two libraries, an admin user, an archive node in each library,
     /// reading progress in each, and FTS5 entries for search.
     /// </summary>
-    private async Task<(MangaPlexDbContext db, long userId, long libAId, string libAPubId, long libBId, string libBPubId, long nodeAId, long nodeBId)> SetupAsync()
+    private async Task<(MangaPixerDbContext db, long userId, long libAId, string libAPubId, long libBId, string libBPubId, long nodeAId, long nodeBId)> SetupAsync()
     {
-        var db = new MangaPlexDbContext(_options);
+        var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -138,7 +138,7 @@ public sealed class IncognitoPrivateLibraryTests : IDisposable
         return (db, user.Id, libA.Id, libA.PublicId, libB.Id, libB.PublicId, nodeA.Id, nodeB.Id);
     }
 
-    private static async Task SeedProgressAsync(MangaPlexDbContext db, long userId, long nodeAId, long nodeBId)
+    private static async Task SeedProgressAsync(MangaPixerDbContext db, long userId, long nodeAId, long nodeBId)
     {
         db.ReadingProgress.AddRange(
             new ReadingProgressEntity

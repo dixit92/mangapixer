@@ -3,7 +3,7 @@
     Get-MangaPixerVersion.ps1
     Returns the composed product SemVer from Version.props, e.g. "0.1.0-dev.30".
 
-    Composes from the individual parts rather than reading <MangaPlexVersionFull>,
+    Composes from the individual parts rather than reading <MangaPixerVersionFull>,
     which is an MSBuild-computed element carrying a Condition attribute that a
     simple element regex cannot read reliably.
 
@@ -25,12 +25,12 @@ function Get-RequiredProp([string]$name) {
     throw "Could not find <$name> in $propsPath"
 }
 
-$major = Get-RequiredProp "MangaPlexVersionMajor"
-$minor = Get-RequiredProp "MangaPlexVersionMinor"
-$patch = Get-RequiredProp "MangaPlexVersionPatch"
+$major = Get-RequiredProp "MangaPixerVersionMajor"
+$minor = Get-RequiredProp "MangaPixerVersionMinor"
+$patch = Get-RequiredProp "MangaPixerVersionPatch"
 
 $prerelease = ""
-if ($props -match "<MangaPlexVersionPrerelease>([^<]*)</MangaPlexVersionPrerelease>") {
+if ($props -match "<MangaPixerVersionPrerelease>([^<]*)</MangaPixerVersionPrerelease>") {
     $prerelease = $Matches[1].Trim()
 }
 

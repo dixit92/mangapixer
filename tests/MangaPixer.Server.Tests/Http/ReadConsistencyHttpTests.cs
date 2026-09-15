@@ -1,11 +1,11 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -18,18 +18,18 @@ using Xunit;
 /// the <c>AlwaysOpenReadFromStart</c> preference round-trips.
 /// </summary>
 [Collection("HttpSerial")]
-public sealed class ReadConsistencyHttpTests : IClassFixture<MangaPlexWebApplicationFactory>
+public sealed class ReadConsistencyHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
 
-    public ReadConsistencyHttpTests(MangaPlexWebApplicationFactory factory) => _factory = factory;
+    public ReadConsistencyHttpTests(MangaPixerWebApplicationFactory factory) => _factory = factory;
 
     private Task<HttpClient> ClientAsync() => _factory.LoginAsAdminWithChangedPasswordAsync();
 
     private async Task<string> SeedItemAsync(string publicId, int pageCount = 10)
     {
         using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
 
         var existing = await db.CatalogNodes.FirstOrDefaultAsync(n => n.PublicId == publicId);
         if (existing is not null) return existing.PublicId;

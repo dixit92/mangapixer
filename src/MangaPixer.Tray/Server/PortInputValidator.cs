@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Tray.Server;
+namespace com.lifepixer.mangapixer.Tray.Server;
 
 /// <summary>
 /// Result of validating a user-entered port string: either a parsed,

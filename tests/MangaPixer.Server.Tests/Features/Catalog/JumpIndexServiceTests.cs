@@ -1,14 +1,14 @@
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Ordering;
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Features.Catalog;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Ordering;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Features.Catalog;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
-namespace com.lifepixer.mangaplex.Tests.Server.Features.Catalog;
+namespace com.lifepixer.mangapixer.Tests.Server.Features.Catalog;
 
 /// <summary>
 /// Service-with-DB tests for JumpIndexService.
@@ -19,15 +19,15 @@ public sealed class JumpIndexServiceTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly string _dbPath;
-    private readonly DbContextOptions<MangaPlexDbContext> _options;
+    private readonly DbContextOptions<MangaPixerDbContext> _options;
 
     public JumpIndexServiceTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "mangaplex-jump-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-jump-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
         _dbPath = Path.Combine(_tempDir, "jump.db");
         var connectionString = DatabaseInitialization.BuildConnectionString(_dbPath);
-        _options = new DbContextOptionsBuilder<MangaPlexDbContext>()
+        _options = new DbContextOptionsBuilder<MangaPixerDbContext>()
             .UseSqlite(connectionString)
             .Options;
     }
@@ -37,9 +37,9 @@ public sealed class JumpIndexServiceTests : IDisposable
         try { Directory.Delete(_tempDir, true); } catch { }
     }
 
-    private async Task<(MangaPlexDbContext db, long userId, long libraryId)> SetupAsync()
+    private async Task<(MangaPixerDbContext db, long userId, long libraryId)> SetupAsync()
     {
-        var db = new MangaPlexDbContext(_options);
+        var db = new MangaPixerDbContext(_options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -71,7 +71,7 @@ public sealed class JumpIndexServiceTests : IDisposable
     }
 
     private static async Task<CatalogNodeEntity> AddNodeAsync(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         long libraryId,
         CatalogNodeKind kind,
         string displayName,

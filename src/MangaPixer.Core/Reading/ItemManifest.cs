@@ -1,7 +1,7 @@
-namespace com.lifepixer.mangaplex.Core.Reading;
+namespace com.lifepixer.mangapixer.Core.Reading;
 
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Media;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Media;
 
 /// <summary>
 /// Manifest for a readable item. Describes the page structure without

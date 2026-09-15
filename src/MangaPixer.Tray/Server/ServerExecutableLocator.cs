@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Tray.Server;
+namespace com.lifepixer.mangapixer.Tray.Server;
 
 /// <summary>
 /// Locates <c>MangaPixer.Server.exe</c> relative to the tray executable's

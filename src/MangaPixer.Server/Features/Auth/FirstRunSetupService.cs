@@ -1,9 +1,9 @@
-namespace com.lifepixer.mangaplex.Server.Features.Auth;
+namespace com.lifepixer.mangapixer.Server.Features.Auth;
 
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -28,14 +28,14 @@ public sealed class FirstRunSetupService
     /// created with the user's own password and no forced change.
     /// </summary>
     public const string ForcePasswordChangeMessage =
-        "Your password was set during initial setup. You must change it before using MangaPlex.";
+        "Your password was set during initial setup. You must change it before using MangaPixer.";
 
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly UserManager<UserEntity> _userManager;
     private readonly ILogger<FirstRunSetupService>? _logger;
 
     public FirstRunSetupService(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         UserManager<UserEntity> userManager,
         ILogger<FirstRunSetupService>? logger = null)
     {

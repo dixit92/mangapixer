@@ -17,7 +17,7 @@ describe('IncognitoService', () => {
 
   it('persists the choice to sessionStorage and reads it back on a new instance', () => {
     svc.setIncognito(false);
-    expect(sessionStorage.getItem('mangaplex.incognito')).toBe('0');
+    expect(sessionStorage.getItem('mangapixer.incognito')).toBe('0');
     // A reload constructs a fresh service in the same session: it must stay OFF.
     expect(new IncognitoService().isIncognito()).toBe(false);
   });

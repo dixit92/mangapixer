@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Server.Operations;
+namespace com.lifepixer.mangapixer.Server.Operations;
 
-using com.lifepixer.mangaplex.Core.Api;
+using com.lifepixer.mangapixer.Core.Api;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Serilog.Events;
@@ -109,7 +109,7 @@ public sealed class OperationsController : ControllerBase
                 if (string.IsNullOrWhiteSpace(cat.Name))
                     return BadRequest(new ApiError { Error = "invalid_request", Message = "Category name is required." });
 
-                if (!com.lifepixer.mangaplex.Server.Logging.DebugCategories.IsValid(cat.Name!))
+                if (!com.lifepixer.mangapixer.Server.Logging.DebugCategories.IsValid(cat.Name!))
                     return BadRequest(new ApiError { Error = "invalid_category", Message = $"'{cat.Name}' is not a known debug category." });
 
                 // A null/empty level means "clear/inherit" — valid. A non-empty
@@ -217,7 +217,7 @@ public sealed class OperationsController : ControllerBase
     }
 
     /// <summary>
-    /// Imports a MangaPlex SQLite backup and stages it for restore. The
+    /// Imports a MangaPixer SQLite backup and stages it for restore. The
     /// uploaded file is validated (SQLite magic, size cap, integrity check,
     /// expected schema), a pre-restore snapshot of the current DB is taken, and
     /// the validated upload is staged under the app's private data root. The

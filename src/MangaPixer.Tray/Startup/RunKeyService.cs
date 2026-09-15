@@ -1,6 +1,6 @@
 using Microsoft.Win32;
 
-namespace com.lifepixer.mangaplex.Tray.Startup;
+namespace com.lifepixer.mangapixer.Tray.Startup;
 
 /// <summary>
 /// Reads/writes the HKCU Run-key entry that starts the tray at sign-in. The

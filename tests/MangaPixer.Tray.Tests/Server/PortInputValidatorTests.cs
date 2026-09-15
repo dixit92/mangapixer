@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Tests.Tray.Server;
+namespace com.lifepixer.mangapixer.Tests.Tray.Server;
 
-using com.lifepixer.mangaplex.Tray.Server;
+using com.lifepixer.mangapixer.Tray.Server;
 using Xunit;
 
 public sealed class PortInputValidatorTests

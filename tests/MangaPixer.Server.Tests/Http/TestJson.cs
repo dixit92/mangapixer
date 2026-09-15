@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Text.Json;
 using System.Text.Json.Serialization;

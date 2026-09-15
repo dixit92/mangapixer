@@ -1,13 +1,13 @@
-namespace com.lifepixer.mangaplex.Server.Scanning;
+namespace com.lifepixer.mangapixer.Server.Scanning;
 
 using System.Diagnostics;
-using com.lifepixer.mangaplex.Server.Logging;
+using com.lifepixer.mangapixer.Server.Logging;
 
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Media;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
-using com.lifepixer.mangaplex.Server.Storage;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Media;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -39,7 +39,7 @@ public sealed class LibraryScanCoordinator
     /// </summary>
     public const int ReconcileBatchSize = 500;
 
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly IReadOnlyLibraryFileSystem _fs;
     private readonly LibraryScanPolicy _policy;
     private readonly long _libraryId;
@@ -57,7 +57,7 @@ public sealed class LibraryScanCoordinator
     private readonly HashSet<long> _recencyParentSeeds = [];
 
     public LibraryScanCoordinator(
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         IReadOnlyLibraryFileSystem fs,
         LibraryScanPolicy policy,
         long libraryId,

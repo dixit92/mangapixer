@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Core.Catalog;
+namespace com.lifepixer.mangapixer.Core.Catalog;
 
 using System.Globalization;
 

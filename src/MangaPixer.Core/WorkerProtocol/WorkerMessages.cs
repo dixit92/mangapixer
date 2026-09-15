@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Core.WorkerProtocol;
+namespace com.lifepixer.mangapixer.Core.WorkerProtocol;
 
-using com.lifepixer.mangaplex.Core.Media;
+using com.lifepixer.mangapixer.Core.Media;
 using System.Text.Json;
 
 /// <summary>

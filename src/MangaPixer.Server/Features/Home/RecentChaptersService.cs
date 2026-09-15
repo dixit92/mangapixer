@@ -1,11 +1,11 @@
-namespace com.lifepixer.mangaplex.Server.Features.Home;
+namespace com.lifepixer.mangapixer.Server.Features.Home;
 
 using System.Data;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -63,10 +63,10 @@ public sealed class RecentChaptersService
     /// <summary>Default recency window, as a <see cref="TimeSpan"/> (kept for callers/tests that want it pre-1.12.0-refinement style).</summary>
     public static readonly TimeSpan RecentWindow = TimeSpan.FromDays(DefaultWindowDays);
 
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly LibraryAuthorizationService _auth;
 
-    public RecentChaptersService(MangaPlexDbContext db, LibraryAuthorizationService auth)
+    public RecentChaptersService(MangaPixerDbContext db, LibraryAuthorizationService auth)
     {
         _db = db;
         _auth = auth;

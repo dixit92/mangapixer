@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Server.Storage;
+namespace com.lifepixer.mangapixer.Server.Storage;
 
 using System.IO;
 

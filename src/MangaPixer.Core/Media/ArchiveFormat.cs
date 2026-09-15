@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Core.Media;
+namespace com.lifepixer.mangapixer.Core.Media;
 
 /// <summary>
 /// Detected archive format from file signature verification.

@@ -2027,7 +2027,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
 
   // --- Webtoon width: per-device preference in localStorage ---
 
-  private static readonly WebtoonWidthKey = 'mangaplex-webtoon-width';
+  private static readonly WebtoonWidthKey = 'mangapixer-webtoon-width';
 
   setWebtoonWidth(pct: number): void {
     const clamped = Math.min(100, Math.max(15, Math.round(pct)));
@@ -2046,8 +2046,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
 
   // --- Per-device default page mode (1.2.x): stored per device in localStorage ---
 
-  private static readonly ViewPrefKey = 'mangaplex-reader-view';
-  private static readonly CoverStandaloneKey = 'mangaplex-reader-cover-standalone';
+  private static readonly ViewPrefKey = 'mangapixer-reader-view';
+  private static readonly CoverStandaloneKey = 'mangapixer-reader-cover-standalone';
 
   private loadViewPref(): ViewPref | null {
     try {

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Version.props — single source of truth for MangaPlex product version.
+  Version.props — single source of truth for MangaPixer product version.
   Consumed by Directory.Build.props. Angular reads generated build info from the same source.
   SemVer 2.0.0: https://semver.org/
 -->
@@ -163,21 +163,21 @@
          SystemInfoDto.Platform; Windows path wording instead of container mount idioms). Server
          code changes are Windows-gated - container/Linux behavior byte-identical (verified).
          Additive API only, no schema change -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.13.x. -->
-    <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>13</MangaPlexVersionMinor>
-    <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
-    <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
+    <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
+    <MangaPixerVersionMinor>13</MangaPixerVersionMinor>
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
-    <MangaPlexVersion>$(MangaPlexVersionMajor).$(MangaPlexVersionMinor).$(MangaPlexVersionPatch)</MangaPlexVersion>
-    <MangaPlexVersionFull Condition="'$(MangaPlexVersionPrerelease)' != ''">$(MangaPlexVersion)-$(MangaPlexVersionPrerelease)</MangaPlexVersionFull>
-    <MangaPlexVersionFull Condition="'$(MangaPlexVersionPrerelease)' == ''">$(MangaPlexVersion)</MangaPlexVersionFull>
+    <MangaPixerVersion>$(MangaPixerVersionMajor).$(MangaPixerVersionMinor).$(MangaPixerVersionPatch)</MangaPixerVersion>
+    <MangaPixerVersionFull Condition="'$(MangaPixerVersionPrerelease)' != ''">$(MangaPixerVersion)-$(MangaPixerVersionPrerelease)</MangaPixerVersionFull>
+    <MangaPixerVersionFull Condition="'$(MangaPixerVersionPrerelease)' == ''">$(MangaPixerVersion)</MangaPixerVersionFull>
 
     <!-- Build counter for FileVersion (numeric only). Defaults to 0 for local builds. -->
-    <MangaPlexBuildCounter Condition="'$(MangaPlexBuildCounter)' == ''">0</MangaPlexBuildCounter>
+    <MangaPixerBuildCounter Condition="'$(MangaPixerBuildCounter)' == ''">0</MangaPixerBuildCounter>
 
     <!-- AssemblyVersion stays at MAJOR.MINOR.0.0 (1.1.0.0 now) through a minor
          line to avoid binding churn; patch/build vary in FileVersion only. -->
-    <MangaPlexAssemblyVersion>$(MangaPlexVersionMajor).$(MangaPlexVersionMinor).0.0</MangaPlexAssemblyVersion>
+    <MangaPixerAssemblyVersion>$(MangaPixerVersionMajor).$(MangaPixerVersionMinor).0.0</MangaPixerAssemblyVersion>
   </PropertyGroup>
 </Project>

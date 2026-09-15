@@ -1,8 +1,8 @@
 using System.Diagnostics;
-using com.lifepixer.mangaplex.Tray.Interop;
-using com.lifepixer.mangaplex.Tray.Logging;
+using com.lifepixer.mangapixer.Tray.Interop;
+using com.lifepixer.mangapixer.Tray.Logging;
 
-namespace com.lifepixer.mangaplex.Tray.Server;
+namespace com.lifepixer.mangapixer.Tray.Server;
 
 /// <summary>
 /// Launches, health-polls, and stops the <c>MangaPixer.Server.exe</c> child

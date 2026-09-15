@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Server.Storage;
+namespace com.lifepixer.mangapixer.Server.Storage;
 
-using com.lifepixer.mangaplex.Core.Api;
+using com.lifepixer.mangapixer.Core.Api;
 
 /// <summary>
 /// Read-only directory browser for the admin library-registration path picker.

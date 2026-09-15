@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Verify-Packaging.ps1
+    MangaPixer Verify-Packaging.ps1
     Build and smoke packaged Linux/Windows targets.
     Never publishes, tags, pushes, installs host tools, or alters media mounts.
     User invocation recommended because it is resource intensive.

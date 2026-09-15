@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Tests.Tray.Settings;
+namespace com.lifepixer.mangapixer.Tests.Tray.Settings;
 
-using com.lifepixer.mangaplex.Tray.Settings;
+using com.lifepixer.mangapixer.Tray.Settings;
 using Xunit;
 
 public sealed class TraySettingsStoreTests : IDisposable

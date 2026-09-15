@@ -1,12 +1,12 @@
-namespace com.lifepixer.mangaplex.Server.Features.Catalog;
+namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Catalog;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Server.Features.Auth;
-using com.lifepixer.mangaplex.Server.Features.Reading;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Features.Reading;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -25,7 +25,7 @@ public sealed class CatalogController : ControllerBase
     private readonly ReadingStateService _readingStateService;
     private readonly LibraryAuthorizationService _libraryAuth;
     private readonly IncognitoAccessor _incognito;
-    private readonly MangaPlexDbContext _db;
+    private readonly MangaPixerDbContext _db;
     private readonly ILogger<CatalogController> _logger;
 
     public CatalogController(
@@ -34,7 +34,7 @@ public sealed class CatalogController : ControllerBase
         ReadingStateService readingStateService,
         LibraryAuthorizationService libraryAuth,
         IncognitoAccessor incognito,
-        MangaPlexDbContext db,
+        MangaPixerDbContext db,
         ILogger<CatalogController> logger)
     {
         _browseService = browseService;

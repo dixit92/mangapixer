@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangaplex.Core.Media;
+namespace com.lifepixer.mangapixer.Core.Media;
 
 using System.Buffers.Binary;
 using System.IO;

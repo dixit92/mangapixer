@@ -1,13 +1,13 @@
-namespace com.lifepixer.mangaplex.MediaWorker;
+namespace com.lifepixer.mangapixer.MediaWorker;
 
 using System.Diagnostics;
 using System.Text.Json;
-using com.lifepixer.mangaplex.Core.Media;
-using com.lifepixer.mangaplex.Core.Ordering;
-using com.lifepixer.mangaplex.Core.WorkerProtocol;
-using com.lifepixer.mangaplex.MediaWorker.Archives;
-using com.lifepixer.mangaplex.MediaWorker.Images;
-using com.lifepixer.mangaplex.MediaWorker.Protocol;
+using com.lifepixer.mangapixer.Core.Media;
+using com.lifepixer.mangapixer.Core.Ordering;
+using com.lifepixer.mangapixer.Core.WorkerProtocol;
+using com.lifepixer.mangapixer.MediaWorker.Archives;
+using com.lifepixer.mangapixer.MediaWorker.Images;
+using com.lifepixer.mangapixer.MediaWorker.Protocol;
 
 /// <summary>
 /// Main worker loop. Reads JSON-lines protocol messages from stdin,

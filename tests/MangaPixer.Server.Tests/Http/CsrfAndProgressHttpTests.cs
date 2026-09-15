@@ -1,12 +1,12 @@
-namespace com.lifepixer.mangaplex.Tests.Server.Http;
+namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using com.lifepixer.mangaplex.Core.Api;
-using com.lifepixer.mangaplex.Core.Reading;
-using com.lifepixer.mangaplex.Server.Persistence;
-using com.lifepixer.mangaplex.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -15,12 +15,12 @@ using Xunit;
 /// HTTP tests for CSRF enforcement and reading-progress contract repair.
 /// </summary>
 [Collection("HttpSerial")]
-public sealed class CsrfAndProgressHttpTests : IClassFixture<MangaPlexWebApplicationFactory>
+public sealed class CsrfAndProgressHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
-    private readonly MangaPlexWebApplicationFactory _factory;
+    private readonly MangaPixerWebApplicationFactory _factory;
     private HttpClient? _authenticatedClient;
 
-    public CsrfAndProgressHttpTests(MangaPlexWebApplicationFactory factory)
+    public CsrfAndProgressHttpTests(MangaPixerWebApplicationFactory factory)
     {
         _factory = factory;
     }
@@ -50,7 +50,7 @@ public sealed class CsrfAndProgressHttpTests : IClassFixture<MangaPlexWebApplica
     private async Task<(long nodeId, string publicId)> SeedUniqueItemAsync(string publicId)
     {
         using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MangaPlexDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
 
         var existing = await db.CatalogNodes.FirstOrDefaultAsync(n => n.PublicId == publicId);
         if (existing is not null)
@@ -119,7 +119,7 @@ public sealed class CsrfAndProgressHttpTests : IClassFixture<MangaPlexWebApplica
     {
         var client = await GetAuthenticatedClientAsync();
         // Remove the CSRF header that LoginAsAdminWithChangedPasswordAsync added
-        client.DefaultRequestHeaders.Remove("X-MangaPlex-Csrf");
+        client.DefaultRequestHeaders.Remove("X-MangaPixer-Csrf");
 
         var response = await client.PutAsJsonAsync("/api/v1/reading/preferences", new UserPreferencesDto());
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -171,7 +171,7 @@ public sealed class CsrfAndProgressHttpTests : IClassFixture<MangaPlexWebApplica
                 MutationId = "c03-first-write",
             }),
         };
-        request.Headers.Add("X-MangaPlex-Csrf", csrf);
+        request.Headers.Add("X-MangaPixer-Csrf", csrf);
         request.Headers.TryAddWithoutValidation("If-None-Match", "*");
 
         var response = await client.SendAsync(request);
@@ -196,7 +196,7 @@ public sealed class CsrfAndProgressHttpTests : IClassFixture<MangaPlexWebApplica
                 MutationId = "c03-412-test-1",
             }),
         };
-        req1.Headers.Add("X-MangaPlex-Csrf", csrf);
+        req1.Headers.Add("X-MangaPixer-Csrf", csrf);
         req1.Headers.TryAddWithoutValidation("If-None-Match", "*");
         var resp1 = await client.SendAsync(req1);
         resp1.EnsureSuccessStatusCode();
@@ -211,7 +211,7 @@ public sealed class CsrfAndProgressHttpTests : IClassFixture<MangaPlexWebApplica
                 MutationId = "c03-412-test-2",
             }),
         };
-        req2.Headers.Add("X-MangaPlex-Csrf", csrf);
+        req2.Headers.Add("X-MangaPixer-Csrf", csrf);
         req2.Headers.TryAddWithoutValidation("If-Match", "\"999\""); // wrong revision
 
         var response = await client.SendAsync(req2);
@@ -238,7 +238,7 @@ public sealed class CsrfAndProgressHttpTests : IClassFixture<MangaPlexWebApplica
                 MutationId = mutationId,
             }),
         };
-        req1.Headers.Add("X-MangaPlex-Csrf", csrf);
+        req1.Headers.Add("X-MangaPixer-Csrf", csrf);
         req1.Headers.TryAddWithoutValidation("If-None-Match", "*");
         var resp1 = await client.SendAsync(req1);
         resp1.EnsureSuccessStatusCode();
@@ -256,7 +256,7 @@ public sealed class CsrfAndProgressHttpTests : IClassFixture<MangaPlexWebApplica
                 MutationId = mutationId,
             }),
         };
-        req2.Headers.Add("X-MangaPlex-Csrf", csrf);
+        req2.Headers.Add("X-MangaPixer-Csrf", csrf);
         var resp2 = await client.SendAsync(req2);
         resp2.EnsureSuccessStatusCode();
         var result2 = await resp2.Content.ReadFromJsonAsync<ProgressUpdateResponse>();

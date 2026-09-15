@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Core.Ordering;
+namespace com.lifepixer.mangapixer.Core.Ordering;
 
-using com.lifepixer.mangaplex.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Catalog;
 using System.Globalization;
 using System.Text;
 

@@ -1,6 +1,6 @@
-namespace com.lifepixer.mangaplex.Tests.Core.Reading;
+namespace com.lifepixer.mangapixer.Tests.Core.Reading;
 
-using com.lifepixer.mangaplex.Core.Reading;
+using com.lifepixer.mangapixer.Core.Reading;
 using Xunit;
 
 /// <summary>

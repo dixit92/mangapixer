@@ -1,7 +1,7 @@
-using com.lifepixer.mangaplex.Tray.Interop;
-using com.lifepixer.mangaplex.Tray.Startup;
+using com.lifepixer.mangapixer.Tray.Interop;
+using com.lifepixer.mangapixer.Tray.Startup;
 
-namespace com.lifepixer.mangaplex.Tray;
+namespace com.lifepixer.mangapixer.Tray;
 
 internal static class Program
 {
@@ -21,7 +21,7 @@ internal static class Program
             return;
         }
 
-        using var singleInstanceGuard = new SingleInstanceGuard("com.lifepixer.mangaplex.Tray.SingleInstance");
+        using var singleInstanceGuard = new SingleInstanceGuard("com.lifepixer.mangapixer.Tray.SingleInstance");
         if (!singleInstanceGuard.IsFirstInstance)
         {
             MessageBox.Show(
