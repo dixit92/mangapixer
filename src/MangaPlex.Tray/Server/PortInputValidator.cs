@@ -33,13 +33,22 @@ public sealed class PortInputValidator
         _checker = checker ?? new TcpPortAvailabilityChecker();
     }
 
-    public PortInputValidationResult Validate(string input)
+    /// <param name="currentPort">
+    /// The port the server is configured on right now, when known.
+    /// Re-entering it is accepted WITHOUT the availability check — the
+    /// running server legitimately holds that port, so the check would
+    /// otherwise report the user's own unchanged choice as busy.
+    /// </param>
+    public PortInputValidationResult Validate(string input, int? currentPort = null)
     {
         if (!int.TryParse(input.Trim(), out var port))
             return PortInputValidationResult.Failure("Enter a whole number for the port.");
 
         if (port < MinPort || port > MaxPort)
             return PortInputValidationResult.Failure($"Port must be between {MinPort} and {MaxPort}.");
+
+        if (port == currentPort)
+            return PortInputValidationResult.Success(port);
 
         if (!_checker.IsPortAvailable(port))
             return PortInputValidationResult.Failure(

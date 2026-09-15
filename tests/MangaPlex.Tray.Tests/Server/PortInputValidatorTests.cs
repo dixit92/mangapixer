@@ -77,6 +77,20 @@ public sealed class PortInputValidatorTests
     }
 
     [Fact]
+    public void Validate_WhenPortEqualsTheCurrentPort_SucceedsWithoutAvailabilityCheck()
+    {
+        // The running server legitimately holds the current port, so the
+        // availability check would report the user's own unchanged choice
+        // as busy - re-confirming it must be accepted, not rejected.
+        var validator = new PortInputValidator(new FakePortAvailabilityChecker());
+
+        var result = validator.Validate("27272", currentPort: 27272);
+
+        Assert.True(result.IsValid);
+        Assert.Equal(27272, result.Port);
+    }
+
+    [Fact]
     public void Validate_WhenPortIsInRangeButUnavailable_FailsWithAnInlineMessage()
     {
         var validator = new PortInputValidator(new FakePortAvailabilityChecker());

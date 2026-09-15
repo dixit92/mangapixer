@@ -14,12 +14,14 @@ public sealed class SetPortDialog : Form
     private readonly PortInputValidator _validator;
     private readonly TextBox _portTextBox;
     private readonly Label _errorLabel;
+    private readonly int _currentPort;
 
     public int SelectedPort { get; private set; }
 
     public SetPortDialog(int currentPort, PortInputValidator? validator = null)
     {
         _validator = validator ?? new PortInputValidator();
+        _currentPort = currentPort;
 
         Text = "Set Port";
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -78,7 +80,7 @@ public sealed class SetPortDialog : Form
 
     private void OnOkClicked(object? sender, EventArgs e)
     {
-        var result = _validator.Validate(_portTextBox.Text);
+        var result = _validator.Validate(_portTextBox.Text, _currentPort);
         if (!result.IsValid)
         {
             _errorLabel.Text = result.ErrorMessage;

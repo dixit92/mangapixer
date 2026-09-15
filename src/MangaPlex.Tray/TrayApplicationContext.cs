@@ -196,6 +196,11 @@ public sealed class TrayApplicationContext : ApplicationContext
         if (dialog.ShowDialog() != DialogResult.OK)
             return;
 
+        // OK with the unchanged port is a no-op — nothing to save, no
+        // restart worth offering.
+        if (dialog.SelectedPort == _settings.Port)
+            return;
+
         _settings.Port = dialog.SelectedPort;
         _settingsStore.Save(_settings);
         _pendingExplicitPort = dialog.SelectedPort;
