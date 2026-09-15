@@ -1,0 +1,15 @@
+# Issue chooser: only the bug and feature forms are offered; everything else is
+# routed to the links below.
+# TODO(owner): replace OWNER/REPO in the URLs below with the real GitHub path
+# once the repository exists (and again after the planned rename).
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/OWNER/REPO/tree/dev/docs
+    about: Installation, configuration, and usage guides.
+  - name: Questions and ideas (Discussions)
+    url: https://github.com/OWNER/REPO/discussions
+    about: Ask for help or talk through an idea before filing a request.
+  - name: Report a security vulnerability
+    url: https://github.com/OWNER/REPO/security/advisories/new
+    about: Report security problems privately. Please do not open a public issue.
