@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using com.lifepixer.mangaplex.Tray.Forms;
 using com.lifepixer.mangaplex.Tray.Server;
 using com.lifepixer.mangaplex.Tray.Settings;
 using com.lifepixer.mangaplex.Tray.Startup;
@@ -28,6 +29,16 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly SynchronizationContext _uiContext;
     private TraySettings _settings;
 
+    /// <summary>
+    /// Set right after "Set Port..." saves a user-chosen port, and consumed
+    /// (cleared either way) by the very next <see cref="StartServerAsync"/>.
+    /// Ordinary auto-resolve drift (the preferred port from a previous run
+    /// being busy on this boot) stays silent as before — only a restart that
+    /// follows an explicit choice surfaces a mismatch, since that is the one
+    /// case where silent drift would be surprising.
+    /// </summary>
+    private int? _pendingExplicitPort;
+
     public TrayApplicationContext()
     {
         _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
@@ -50,6 +61,8 @@ public sealed class TrayApplicationContext : ApplicationContext
         var stopItem = new ToolStripMenuItem("Stop Server", null, async (_, _) => await _serverManager.StopAsync(GracefulStopTimeout));
         var restartItem = new ToolStripMenuItem("Restart Server", null, async (_, _) => await RestartServerAsync());
 
+        var setPortItem = new ToolStripMenuItem("Set Port...", null, (_, _) => OnSetPortClicked());
+
         _lanItem = new ToolStripMenuItem("Allow LAN Access") { CheckOnClick = true, Checked = _settings.AllowLanAccess };
         _lanItem.Click += OnLanToggleClicked;
 
@@ -68,6 +81,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             stopItem,
             restartItem,
             new ToolStripSeparator(),
+            setPortItem,
             _lanItem,
             _startupItem,
             new ToolStripSeparator(),
@@ -107,6 +121,9 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private async Task StartServerAsync()
     {
+        var explicitPort = _pendingExplicitPort;
+        _pendingExplicitPort = null;
+
         var resolvedPort = _portResolver.ResolveAvailablePort(_settings.Port);
         if (resolvedPort is null)
         {
@@ -123,6 +140,13 @@ public sealed class TrayApplicationContext : ApplicationContext
         {
             _settings.Port = resolvedPort.Value;
             _settingsStore.Save(_settings);
+        }
+
+        if (explicitPort is not null && resolvedPort != explicitPort)
+        {
+            _notifyIcon.BalloonTipTitle = "MangaPlex";
+            _notifyIcon.BalloonTipText = $"Port {explicitPort} was busy — MangaPlex is on {resolvedPort}.";
+            _notifyIcon.ShowBalloonTip(10000);
         }
 
         _serverManager.UpdateEndpointOptions(new ServerEndpointOptions { Port = _settings.Port, AllowLanAccess = _settings.AllowLanAccess });
@@ -164,6 +188,27 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         _settings.AllowLanAccess = _lanItem.Checked;
         _settingsStore.Save(_settings);
+    }
+
+    private void OnSetPortClicked()
+    {
+        using var dialog = new SetPortDialog(_settings.Port);
+        if (dialog.ShowDialog() != DialogResult.OK)
+            return;
+
+        _settings.Port = dialog.SelectedPort;
+        _settingsStore.Save(_settings);
+        _pendingExplicitPort = dialog.SelectedPort;
+
+        var restartNow = MessageBox.Show(
+            $"MangaPlex will use port {dialog.SelectedPort} the next time the server restarts.\n\n"
+                + "Restart the server now?",
+            "Set Port",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question) == DialogResult.Yes;
+
+        if (restartNow)
+            _ = RestartServerAsync();
     }
 
     private void OnStartupToggleClicked(object? sender, EventArgs e)
