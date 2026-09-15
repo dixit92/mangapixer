@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to MangaPlex are documented in this file.
+All notable changes to MangaPixer are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -16,6 +16,17 @@ Dates are the release tag dates. Before 1.0.0 the project used an internal
   pull request, plus a release workflow that publishes the container image to the
   GitHub Container Registry with an SBOM and SHA-256 checksums.
 - Dependabot configuration and issue and pull request templates.
+
+### Changed
+
+- The product is renamed from its working title, MangaPlex, to MangaPixer. All
+  identifiers changed with it: .NET namespaces and assembly names, the Angular
+  package, the database file name, the configuration section and environment
+  variable prefix, the sign-in and CSRF cookie and header names, container image,
+  service and volume names, the Windows data folder, registry keys, tray and
+  installer identity (including a new MSI upgrade code). Existing installs from
+  the 1.13.x line need a fresh setup; there is no automatic migration. Earlier
+  entries below keep the working title as the historical record.
 
 ## [1.12.0] - 2026-09-14
 
