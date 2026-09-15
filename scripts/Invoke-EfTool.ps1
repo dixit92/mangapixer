@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Invoke-EfTool.ps1
+    MangaPixer Invoke-EfTool.ps1
     Wrapper around dotnet-ef running in the .NET SDK container.
 
     EF Core tooling requires the .NET SDK plus dotnet-ef; the host may have
@@ -10,7 +10,7 @@
 
     Usage:
       pwsh ./scripts/Invoke-EfTool.ps1 migrations list
-      pwsh ./scripts/Invoke-EfTool.ps1 migrations add AddMyMigration --project src/MangaPlex.Server
+      pwsh ./scripts/Invoke-EfTool.ps1 migrations add AddMyMigration --project src/MangaPixer.Server
       pwsh ./scripts/Invoke-EfTool.ps1 migrations script   # etc.
 
     Everything after the first argument is passed verbatim to dotnet-ef.

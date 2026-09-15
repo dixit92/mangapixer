@@ -6,7 +6,7 @@ on top of it. The differences:
 
 | | Canonical (`compose.yaml`) | Unraid (`compose.unraid.yaml`) |
 |---|---|---|
-| State | Three named Docker volumes | One host folder, `/mnt/user/appdata/MangaPlex`, mounted at `/config` |
+| State | Three named Docker volumes | One host folder, `/mnt/user/appdata/MangaPixer`, mounted at `/config` |
 | File ownership | UID/GID 1000 by default | `PUID`/`PGID` so files belong to your Unraid user |
 | Port | `127.0.0.1:8080` (loopback only) | `6266`, published on **all** interfaces, so the app is reachable from your LAN |
 | Image | Built from the repository | Uses a prebuilt image by default; building on Unraid is optional |
@@ -20,7 +20,7 @@ For now you run the Compose file directly, so the host needs `docker compose`
 
 ## Step 1: get an image onto Unraid
 
-The Compose file expects an image called `mangaplex:<version>`. MangaPlex
+The Compose file expects an image called `mangapixer:<version>`. MangaPixer
 does not publish images to a registry, so you either load one you built
 elsewhere or build it on the server.
 
@@ -28,8 +28,8 @@ elsewhere or build it on the server.
 On a machine with Docker and a clone of the repository:
 
 ```sh
-docker build -f deploy/Dockerfile -t mangaplex:1.12.0 .
-docker save mangaplex:1.12.0 -o mangaplex-1.12.0-image.tar
+docker build -f deploy/Dockerfile -t mangapixer:1.12.0 .
+docker save mangapixer:1.12.0 -o mangapixer-1.12.0-image.tar
 ```
 
 `pwsh ./scripts/Package-Release.ps1` does the same thing and also writes an
@@ -39,18 +39,18 @@ SBOM and SHA-256 checksums to `artifacts/release/<version>/`. It pulls the
 Copy the `.tar` file to Unraid and load it:
 
 ```sh
-docker load -i mangaplex-1.12.0-image.tar
+docker load -i mangapixer-1.12.0-image.tar
 ```
 
 **Option B: build on Unraid.** Clone the repository on the server. In
 `compose.unraid.yaml`, comment out the `image:` line and uncomment the
 `build:` block beneath it.
 
-Whichever option you use, set `MANGAPLEX_VERSION` to the version you loaded
-or built. If it is unset, the file falls back to `mangaplex:latest`.
+Whichever option you use, set `MANGAPIXER_VERSION` to the version you loaded
+or built. If it is unset, the file falls back to `mangapixer:latest`.
 
 ```sh
-export MANGAPLEX_VERSION=1.12.0
+export MANGAPIXER_VERSION=1.12.0
 ```
 
 ## Step 2: set PUID and PGID
@@ -75,7 +75,7 @@ to it, `compose.unraid.override.yaml`:
 
 ```yaml
 services:
-  mangaplex:
+  mangapixer:
     environment:
       PUID: "99"
       PGID: "100"
@@ -93,7 +93,7 @@ services:
 
 You do not need a media-root variable for the mounts to work. You pick each
 library's folder in the web UI, and the picker's starting folder is controlled
-by [`MangaPlex__Storage__MediaRoot`](configuration.md#storage)
+by [`MangaPixer__Storage__MediaRoot`](configuration.md#storage)
 (default `/media`).
 
 ## Step 4: start the container
@@ -121,7 +121,7 @@ container.
 ## Step 5: first-run setup and libraries
 
 Open `http://<unraid-ip>:6266`. There is no default account. Create the
-first admin on the **Welcome to MangaPlex** screen, then register and scan
+first admin on the **Welcome to MangaPixer** screen, then register and scan
 your libraries. Use root paths like `/media/reading`. The steps are the same
 as [steps 5 and 6 of the Docker guide](install-docker.md#step-5-create-the-admin-account).
 
@@ -133,9 +133,9 @@ binding the port to a specific address.
 ## What ends up in appdata
 
 ```text
-/mnt/user/appdata/MangaPlex/
+/mnt/user/appdata/MangaPixer/
 ├── data/
-│   ├── mangaplex.db          database (plus -wal / -shm files while running)
+│   ├── mangapixer.db          database (plus -wal / -shm files while running)
 │   ├── keys/                 sign-in cookie keys (owner-only permissions)
 │   ├── logs/                 daily log files, 7 kept
 │   ├── backups/              rotating-*, pre-migration-*, pre-restore-* snapshots
@@ -150,11 +150,11 @@ restore from even if your appdata backup ran while the container was up. See
 [Backup and restore](backup-and-restore.md).
 
 If you want the page cache off the array, mount another path and point
-`MangaPlex__Storage__CacheRoot` at it (see [Configuration](configuration.md#storage)).
+`MangaPixer__Storage__CacheRoot` at it (see [Configuration](configuration.md#storage)).
 
 ## Upgrading
 
-Load or build the new image, set `MANGAPLEX_VERSION` to the new version, and
+Load or build the new image, set `MANGAPIXER_VERSION` to the new version, and
 run the same `up -d` command. Compose recreates the container with the new
 image, and `/config` is kept. Database schema upgrades take a
 `pre-migration-*.db` snapshot first, as described in

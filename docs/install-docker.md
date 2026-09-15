@@ -8,7 +8,7 @@ Desktop. For Unraid, see [Install on Unraid](install-unraid.md) instead.
 
 - Docker Engine with the Compose plugin (`docker compose`). The override
   example below uses the `!override` tag, which needs Compose 2.24 or later.
-- A clone of this repository. MangaPlex does not publish a prebuilt image yet,
+- A clone of this repository. MangaPixer does not publish a prebuilt image yet,
   so you build the image from source. The build is fully containerized: you
   do not need .NET or Node.js on the host.
 - Your comics or manga in folders that the Docker host can read.
@@ -20,9 +20,9 @@ Desktop. For Unraid, see [Install on Unraid](install-unraid.md) instead.
 | Setting | Value | Why |
 |---|---|---|
 | Port | `127.0.0.1:8080:8080` | Published on loopback only. Only the Docker host itself can reach the app until you change this or put a [reverse proxy](reverse-proxy-and-https.md) in front. |
-| `/data` | named volume `mangaplex-data` | Database, sign-in keys, logs, backups and thumbnails. **This is the volume to back up.** |
-| `/cache` | named volume `mangaplex-cache` | Cached page images. Size-limited (1 GiB by default) and safe to delete. |
-| `/scratch` | named volume `mangaplex-scratch` | Temporary work folders used while opening archives. Safe to delete. |
+| `/data` | named volume `mangapixer-data` | Database, sign-in keys, logs, backups and thumbnails. **This is the volume to back up.** |
+| `/cache` | named volume `mangapixer-cache` | Cached page images. Size-limited (1 GiB by default) and safe to delete. |
+| `/scratch` | named volume `mangapixer-scratch` | Temporary work folders used while opening archives. Safe to delete. |
 | `read_only: true` + `tmpfs: /tmp` | | The container's own filesystem is read-only; only the three volumes and `/tmp` are writable. |
 | `no-new-privileges` | | The process cannot gain privileges after start-up. |
 | Logging | `local` driver, 20 MB × 5 files | Container output cannot fill your disk. |
@@ -34,13 +34,13 @@ folders, then drops to UID/GID `1000:1000`. You can change that with `PUID` and
 
 Compose names the volumes after the project, which defaults to the folder
 containing the Compose file. With the commands below the volumes are called
-`deploy_mangaplex-data`, `deploy_mangaplex-cache` and `deploy_mangaplex-scratch`.
+`deploy_mangapixer-data`, `deploy_mangapixer-cache` and `deploy_mangapixer-scratch`.
 
 ## Step 1: get the source
 
 ```sh
-git clone <repository-url> mangaplex
-cd mangaplex
+git clone <repository-url> mangapixer
+cd mangapixer
 ```
 
 To install a specific release, check out its tag (for example `git checkout v1.12.0`).
@@ -54,7 +54,7 @@ next to it, `deploy/compose.override.yaml`:
 
 ```yaml
 services:
-  mangaplex:
+  mangapixer:
     volumes:
       - /srv/comics:/media/comics:ro
       - /srv/manga:/media/manga:ro
@@ -62,7 +62,7 @@ services:
 
 Mount every share somewhere under `/media`. That is the folder the library
 **Browse…** picker starts in (you can change it with
-[`MangaPlex__Storage__MediaRoot`](configuration.md#storage)).
+[`MangaPixer__Storage__MediaRoot`](configuration.md#storage)).
 
 Compose only reads the override file when you pass it with `-f`, as in the
 commands below. The repository's `.gitignore` already excludes
@@ -70,24 +70,24 @@ commands below. The repository's `.gitignore` already excludes
 
 ## Step 3: choose the image tag
 
-The Compose file tags the image `mangaplex:${MANGAPLEX_VERSION}`. When the
+The Compose file tags the image `mangapixer:${MANGAPIXER_VERSION}`. When the
 variable is unset it falls back to `latest`, so always set the variable to the
 version you are building. The version is in `Version.props`, and this script
 prints it:
 
 ```sh
-pwsh ./scripts/Get-MangaPlexVersion.ps1
+pwsh ./scripts/Get-MangaPixerVersion.ps1
 ```
 
 Then set it in your shell. Set it again in every new shell before you run
 `docker compose`, or Compose looks for an image under the fallback tag.
 
 ```sh
-export MANGAPLEX_VERSION=1.12.0          # bash / zsh
+export MANGAPIXER_VERSION=1.12.0          # bash / zsh
 ```
 
 ```powershell
-$env:MANGAPLEX_VERSION = "1.12.0"         # PowerShell
+$env:MANGAPIXER_VERSION = "1.12.0"         # PowerShell
 ```
 
 ## Step 4: build and start
@@ -115,7 +115,7 @@ shows `(healthy)` once start-up finishes.
 
 There is **no default username or password.** A new server has no users at all.
 
-Open `http://127.0.0.1:8080` in a browser. The **Welcome to MangaPlex** setup
+Open `http://127.0.0.1:8080` in a browser. The **Welcome to MangaPixer** setup
 screen appears. Choose an **Admin username** and a **Password**, confirm it,
 and select **Create account**. You are signed in as the first admin.
 
@@ -130,7 +130,7 @@ it to create a second admin.
 
 ## Step 6: add a library
 
-1. Open the account menu and choose **MangaPlex Administration**.
+1. Open the account menu and choose **MangaPixer Administration**.
 2. In the **Libraries** card, under **Register New Library**, enter a
    **Display Name** and a **Root Path (server-side mount)**, for example
    `/media/comics`. **Browse…** lets you pick a folder under `/media` instead
@@ -156,7 +156,7 @@ The default port mapping only listens on `127.0.0.1`. You have two options:
 
   ```yaml
   services:
-    mangaplex:
+    mangapixer:
       ports: !override
         - "8080:8080"
   ```
@@ -168,7 +168,7 @@ different host port, change only the left-hand number (for example
 ## Upgrading
 
 1. Update your clone (`git pull`, or `git checkout` the new release tag).
-2. Set `MANGAPLEX_VERSION` to the new version (`pwsh ./scripts/Get-MangaPlexVersion.ps1`).
+2. Set `MANGAPIXER_VERSION` to the new version (`pwsh ./scripts/Get-MangaPixerVersion.ps1`).
 3. Rebuild and restart:
 
    ```sh
@@ -182,11 +182,11 @@ that snapshot fails, the server refuses to start rather than risk your data.
 Automatic backup rotation never deletes these snapshots.
 
 Each version is its own image tag, so the previous image stays on disk. Once
-the new version is running, you can remove old ones with `docker image rm mangaplex:<old-version>`.
+the new version is running, you can remove old ones with `docker image rm mangapixer:<old-version>`.
 
 ## Where backups land
 
-Everything is under `/data/backups` in the `mangaplex-data` volume:
+Everything is under `/data/backups` in the `mangapixer-data` volume:
 
 | File | Written when |
 |---|---|
@@ -197,7 +197,7 @@ Everything is under `/data/backups` in the `mangaplex-data` volume:
 Timestamps are UTC. To copy them to the host:
 
 ```sh
-docker compose -f deploy/compose.yaml cp mangaplex:/data/backups ./mangaplex-backups
+docker compose -f deploy/compose.yaml cp mangapixer:/data/backups ./mangapixer-backups
 ```
 
 A backup contains the database only. See [Backup and restore](backup-and-restore.md)

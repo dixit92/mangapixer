@@ -29,7 +29,7 @@ import { ApiError } from '../../core/api/api-types';
     <div class="login-container">
       <mat-card>
         <mat-card-header>
-          <mat-card-title>MangaPlex Login</mat-card-title>
+          <mat-card-title>MangaPixer Login</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <form [formGroup]="form" (ngSubmit)="submit()">

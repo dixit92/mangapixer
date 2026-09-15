@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest an idea or an improvement for MangaPlex.
+description: Suggest an idea or an improvement for MangaPixer.
 labels: ["enhancement"]
 body:
   - type: markdown
@@ -22,7 +22,7 @@ body:
     id: solution
     attributes:
       label: Proposed solution
-      description: How would you like MangaPlex to behave?
+      description: How would you like MangaPixer to behave?
     validations:
       required: true
 
@@ -57,7 +57,7 @@ body:
         - label: I searched the existing issues and discussions for a similar request.
           required: true
         - label: >-
-            I understand MangaPlex never modifies source media. Features that
+            I understand MangaPixer never modifies source media. Features that
             write into library folders, such as renaming files or embedding
             metadata, are out of scope.
           required: false

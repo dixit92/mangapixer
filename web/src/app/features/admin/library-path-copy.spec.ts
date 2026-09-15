@@ -12,7 +12,7 @@ describe('libraryPathCopy', () => {
     expect(copy.placeholder).toBe('D:\\Manga');
     expect(copy.noBrowseRootHint).not.toMatch(/mount/i);
     expect(copy.noBrowseRootHint).not.toContain('/media');
-    expect(copy.noBrowseRootHint).toContain('MangaPlex:Storage:MediaRoot');
+    expect(copy.noBrowseRootHint).toContain('MangaPixer:Storage:MediaRoot');
   });
 
   it('keeps the existing container wording for a Linux server', () => {

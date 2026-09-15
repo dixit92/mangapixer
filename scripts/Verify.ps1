@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Verify.ps1 (Full)
+    MangaPixer Verify.ps1 (Full)
     Full release-mode verification before declaring a work package complete.
     Runs clean locked restores, format/lint, all unit and component tests,
     file-backed SQLite integration, worker/archive/image fixtures, coverage,
@@ -64,29 +64,29 @@ Invoke-Stage "Privacy Preflight" {
 
 # Stage 2: Clean restore
 Invoke-Stage "dotnet restore (locked)" {
-    dotnet restore MangaPlex.slnx --locked-mode 2>&1 | Out-Host
+    dotnet restore MangaPixer.slnx --locked-mode 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Locked restore failed, falling back to normal restore..." -ForegroundColor Yellow
-        dotnet restore MangaPlex.slnx 2>&1 | Out-Host
+        dotnet restore MangaPixer.slnx 2>&1 | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed" }
     }
 }
 
 # Stage 3: Format check
 Invoke-Stage "dotnet format verify" {
-    dotnet format MangaPlex.slnx --verify-no-changes --no-restore 2>&1 | Out-Host
+    dotnet format MangaPixer.slnx --verify-no-changes --no-restore 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "dotnet format found changes needed" }
 }
 
 # Stage 4: Build
 Invoke-Stage "dotnet build ($Configuration)" {
-    dotnet build MangaPlex.slnx --no-restore -c $Configuration 2>&1 | Out-Host
+    dotnet build MangaPixer.slnx --no-restore -c $Configuration 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
 }
 
 # Stage 5: All tests
 Invoke-Stage "dotnet test (all)" {
-    dotnet test MangaPlex.slnx --no-build -c $Configuration --verbosity normal 2>&1 | Out-Host
+    dotnet test MangaPixer.slnx --no-build -c $Configuration --verbosity normal 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "dotnet test failed" }
 }
 

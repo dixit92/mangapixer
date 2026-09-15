@@ -5,17 +5,17 @@ storage paths, and the Docker image already sets those for you.
 
 ## How to set values
 
-Settings are hierarchical keys such as `MangaPlex:Storage:DataRoot`. Set them
+Settings are hierarchical keys such as `MangaPixer:Storage:DataRoot`. Set them
 as **environment variables**, replacing each `:` with a double underscore
 `__`:
 
 ```yaml
 # docker compose override
 services:
-  mangaplex:
+  mangapixer:
     environment:
-      MangaPlex__Backups__RetentionCount: "14"
-      MangaPlex__Media__MaxConcurrentJobs: "1"
+      MangaPixer__Backups__RetentionCount: "14"
+      MangaPixer__Media__MaxConcurrentJobs: "1"
 ```
 
 The server also reads `appsettings.json` next to the server binary. In the
@@ -57,12 +57,12 @@ The server speaks plain HTTP only. For HTTPS, see
 
 | Key (environment variable) | Default | Meaning |
 |---|---|---|
-| `MangaPlex:Storage:DataRoot` (`MangaPlex__Storage__DataRoot`) | `/data` in the image; otherwise a `data` folder next to the server binary | Database (`mangaplex.db`), sign-in keys (`keys/`), logs (`logs/`), backups (`backups/`) and thumbnails (`thumbnails/`). Keep this safe. |
-| `MangaPlex:Storage:CacheRoot` (`MangaPlex__Storage__CacheRoot`) | `/cache` in the image; otherwise `cache` next to the binary | Cached page images. Disposable. |
-| `MangaPlex:Storage:ScratchRoot` (`MangaPlex__Storage__ScratchRoot`) | `/scratch` in the image; otherwise `scratch` next to the binary | Temporary work folders for opening archives and for the YACReader import. Disposable. |
-| `MangaPlex:Storage:MediaRoot` (`MangaPlex__Storage__MediaRoot`) | `/media` | The only folder tree the admin **Browse…** picker can show when you register a library. It does not restrict what you can type into **Root Path** by hand. |
-| `MangaPlex:Storage:CacheBudgetBytes` (`MangaPlex__Storage__CacheBudgetBytes`) | `1073741824` (1 GiB) | Maximum size of the page cache, in bytes. The least recently used pages are evicted after a write pushes the cache over budget, and a full pass also runs once a day. |
-| `MangaPlex:Storage:ScratchBudgetBytes` (`MangaPlex__Storage__ScratchBudgetBytes`) | `1073741824` (1 GiB) | Size limit for temporary work folders, in bytes. Only solid RAR/7z archives need much scratch space. |
+| `MangaPixer:Storage:DataRoot` (`MangaPixer__Storage__DataRoot`) | `/data` in the image; otherwise a `data` folder next to the server binary | Database (`mangapixer.db`), sign-in keys (`keys/`), logs (`logs/`), backups (`backups/`) and thumbnails (`thumbnails/`). Keep this safe. |
+| `MangaPixer:Storage:CacheRoot` (`MangaPixer__Storage__CacheRoot`) | `/cache` in the image; otherwise `cache` next to the binary | Cached page images. Disposable. |
+| `MangaPixer:Storage:ScratchRoot` (`MangaPixer__Storage__ScratchRoot`) | `/scratch` in the image; otherwise `scratch` next to the binary | Temporary work folders for opening archives and for the YACReader import. Disposable. |
+| `MangaPixer:Storage:MediaRoot` (`MangaPixer__Storage__MediaRoot`) | `/media` | The only folder tree the admin **Browse…** picker can show when you register a library. It does not restrict what you can type into **Root Path** by hand. |
+| `MangaPixer:Storage:CacheBudgetBytes` (`MangaPixer__Storage__CacheBudgetBytes`) | `1073741824` (1 GiB) | Maximum size of the page cache, in bytes. The least recently used pages are evicted after a write pushes the cache over budget, and a full pass also runs once a day. |
+| `MangaPixer:Storage:ScratchBudgetBytes` (`MangaPixer__Storage__ScratchBudgetBytes`) | `1073741824` (1 GiB) | Size limit for temporary work folders, in bytes. Only solid RAR/7z archives need much scratch space. |
 
 Budgets are plain byte counts: `268435456` is 256 MiB, `4294967296` is 4 GiB.
 Relative paths are resolved against the server's working directory. You
@@ -75,19 +75,19 @@ The Unraid Compose file sets the three roots to `/config/data`,
 
 | Key (environment variable) | Default | Meaning |
 |---|---|---|
-| `MangaPlex:Media:MaxConcurrentJobs` (`MangaPlex__Media__MaxConcurrentJobs`) | `2` | How many archive jobs (analysis, page extraction, thumbnails) run at once. When it is more than 1 and someone is waiting for a page, one slot is held back for them. Use `1` on a low-memory NAS. |
-| `MangaPlex:Media:ThumbnailBackfill:BatchSize` (`MangaPlex__Media__ThumbnailBackfill__BatchSize`) | `200` | How many items the background thumbnail pass loads at a time. |
-| `MangaPlex:Media:ThumbnailBackfill:BackoffMs` (`MangaPlex__Media__ThumbnailBackfill__BackoffMs`) | `200` | How long, in milliseconds, the thumbnail pass waits between checks while the server is busy with readers or analysis. |
-| `Media:WorkerExecutablePath` (`Media__WorkerExecutablePath`) | Set in the image; otherwise found automatically | Location of the helper process that opens archives. Leave it as it is. Note there is no `MangaPlex` prefix on this key. |
+| `MangaPixer:Media:MaxConcurrentJobs` (`MangaPixer__Media__MaxConcurrentJobs`) | `2` | How many archive jobs (analysis, page extraction, thumbnails) run at once. When it is more than 1 and someone is waiting for a page, one slot is held back for them. Use `1` on a low-memory NAS. |
+| `MangaPixer:Media:ThumbnailBackfill:BatchSize` (`MangaPixer__Media__ThumbnailBackfill__BatchSize`) | `200` | How many items the background thumbnail pass loads at a time. |
+| `MangaPixer:Media:ThumbnailBackfill:BackoffMs` (`MangaPixer__Media__ThumbnailBackfill__BackoffMs`) | `200` | How long, in milliseconds, the thumbnail pass waits between checks while the server is busy with readers or analysis. |
+| `Media:WorkerExecutablePath` (`Media__WorkerExecutablePath`) | Set in the image; otherwise found automatically | Location of the helper process that opens archives. Leave it as it is. Note there is no `MangaPixer` prefix on this key. |
 
 ## Backups
 
 | Key (environment variable) | Default | Meaning |
 |---|---|---|
-| `MangaPlex:Backups:Enabled` (`MangaPlex__Backups__Enabled`) | `true` | Turns the scheduled database backups on or off. **Back up now** keeps working either way. |
-| `MangaPlex:Backups:IntervalHours` (`MangaPlex__Backups__IntervalHours`) | `24` | Hours between scheduled backups. Decimals are allowed (`0.5` = 30 minutes). The first backup runs 2 minutes after the server starts. |
-| `MangaPlex:Backups:RetentionCount` (`MangaPlex__Backups__RetentionCount`) | `7` | How many `rotating-*.db` snapshots to keep. Older ones are deleted. Pre-migration and pre-restore snapshots are never deleted. |
-| `MangaPlex:Backups:MaxRestoreUploadBytes` (`MangaPlex__Backups__MaxRestoreUploadBytes`) | `536870912` (512 MiB) | Largest backup file you can upload for a restore. The web server also caps uploads at 128 MiB, so in practice the limit is 128 MiB, or this value if it is lower. |
+| `MangaPixer:Backups:Enabled` (`MangaPixer__Backups__Enabled`) | `true` | Turns the scheduled database backups on or off. **Back up now** keeps working either way. |
+| `MangaPixer:Backups:IntervalHours` (`MangaPixer__Backups__IntervalHours`) | `24` | Hours between scheduled backups. Decimals are allowed (`0.5` = 30 minutes). The first backup runs 2 minutes after the server starts. |
+| `MangaPixer:Backups:RetentionCount` (`MangaPixer__Backups__RetentionCount`) | `7` | How many `rotating-*.db` snapshots to keep. Older ones are deleted. Pre-migration and pre-restore snapshots are never deleted. |
+| `MangaPixer:Backups:MaxRestoreUploadBytes` (`MangaPixer__Backups__MaxRestoreUploadBytes`) | `536870912` (512 MiB) | Largest backup file you can upload for a restore. The web server also caps uploads at 128 MiB, so in practice the limit is 128 MiB, or this value if it is lower. |
 
 Backups are written to `<DataRoot>/backups`. You cannot change that folder.
 See [Backup and restore](backup-and-restore.md).
@@ -96,10 +96,10 @@ See [Backup and restore](backup-and-restore.md).
 
 | Key (environment variable) | Default | Meaning |
 |---|---|---|
-| `MangaPlex:Security:RateLimit:MaxAttemptsPerIp` (`MangaPlex__Security__RateLimit__MaxAttemptsPerIp`) | `10` | Failed sign-ins allowed from one IP address per window. |
-| `MangaPlex:Security:RateLimit:MaxAttemptsPerUser` (`MangaPlex__Security__RateLimit__MaxAttemptsPerUser`) | `5` | Failed sign-ins allowed for one username per window. |
-| `MangaPlex:Security:RateLimit:Window` (`MangaPlex__Security__RateLimit__Window`) | `00:05:00` | Length of the counting window, as `hh:mm:ss`. |
-| `MangaPlex:Security:RateLimit:Disabled` (`MangaPlex__Security__RateLimit__Disabled`) | `false` | Turns the limiter off. Only for testing. |
+| `MangaPixer:Security:RateLimit:MaxAttemptsPerIp` (`MangaPixer__Security__RateLimit__MaxAttemptsPerIp`) | `10` | Failed sign-ins allowed from one IP address per window. |
+| `MangaPixer:Security:RateLimit:MaxAttemptsPerUser` (`MangaPixer__Security__RateLimit__MaxAttemptsPerUser`) | `5` | Failed sign-ins allowed for one username per window. |
+| `MangaPixer:Security:RateLimit:Window` (`MangaPixer__Security__RateLimit__Window`) | `00:05:00` | Length of the counting window, as `hh:mm:ss`. |
+| `MangaPixer:Security:RateLimit:Disabled` (`MangaPixer__Security__RateLimit__Disabled`) | `false` | Turns the limiter off. Only for testing. |
 
 The counters are held in memory and reset when the server restarts.
 Separately, an account locks for 15 minutes after 5 wrong passwords; that is
@@ -114,7 +114,7 @@ an admin and goes back to `Information` every time the server restarts. The
 `Logging:LogLevel` entries in `appsettings.json` do not change the server's
 log output.
 
-- **In the web UI:** **MangaPlex Administration** > **Diagnostics** > **Log Level**.
+- **In the web UI:** **MangaPixer Administration** > **Diagnostics** > **Log Level**.
   Choose `Verbose`, `Debug`, `Information`, `Warning`, `Error` or `Fatal`. The
   change applies immediately.
 - **With the API** (admin only): `GET /api/v1/operations/logging` returns the
@@ -135,7 +135,7 @@ Framework noise (`Microsoft.AspNetCore`, `Microsoft.EntityFrameworkCore`) stays
 at `Warning` regardless of the level you pick.
 
 Logs go to the container output and to files in `<DataRoot>/logs`
-(`mangaplex-<date>.log`, one file per day, a new file after 20 MB, 7 files
+(`mangapixer-<date>.log`, one file per day, a new file after 20 MB, 7 files
 kept). See [Troubleshooting](troubleshooting.md#logs) for what the logs
 contain and deliberately leave out.
 

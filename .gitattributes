@@ -1,4 +1,4 @@
-# MangaPlex .gitattributes
+# MangaPixer .gitattributes
 # Normalize line endings and handle binary files
 
 * text=auto eol=lf

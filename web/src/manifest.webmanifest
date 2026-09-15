@@ -1,6 +1,6 @@
 {
-  "name": "MangaPlex",
-  "short_name": "MangaPlex",
+  "name": "MangaPixer",
+  "short_name": "MangaPixer",
   "description": "Folder-native comic/manga server and reader",
   "start_url": "/",
   "scope": "/",

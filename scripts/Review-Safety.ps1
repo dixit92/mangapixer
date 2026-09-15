@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Review-Safety.ps1
+    MangaPixer Review-Safety.ps1
     Read-only review of a diff for safety issues:
     - Source writes (any media deletion/move API)
     - Path traversal vulnerabilities

@@ -1,7 +1,7 @@
 # Third-Party Notices
 
-MangaPlex is licensed under the MIT License - see [LICENSE](LICENSE). This file
-attributes the third-party software that MangaPlex **ships** (inside the
+MangaPixer is licensed under the MIT License - see [LICENSE](LICENSE). This file
+attributes the third-party software that MangaPixer **ships** (inside the
 container image / publish output) and the software it uses **only to build and
 test**. Each third-party component remains under its own license.
 
@@ -11,17 +11,17 @@ in `/app/licenses/`: this file, `LICENSE`, the Angular build's
 app), and Magick.NET's `Notice.txt` as `Magick.NET-Notice.txt` (ImageMagick and
 the native libraries bundled in it). The Windows distribution
 (`scripts/Publish-Windows.ps1`, and the MSI built from it) carries this file and
-`LICENSE` in its install folder, next to `MangaPlex.Tray.exe`.
+`LICENSE` in its install folder, next to `MangaPixer.Tray.exe`.
 
 Entry format: `name` - version - license (SPDX where one exists) - upstream URL.
 
-**Inventory basis** - MangaPlex 1.12.0, commit `8c08627`, generated 2026-09-14
+**Inventory basis** - MangaPixer 1.12.0, commit `8c08627`, generated 2026-09-14
 from tool output (not written by hand):
 
 | Ecosystem | Source | Count |
 |---|---|---|
-| NuGet, all | `dotnet list MangaPlex.slnx package --include-transitive --format json` | 104 package versions (103 IDs; `System.Security.Cryptography.Pkcs` resolves at two versions) |
-| NuGet, shipped | `"type": "package"` entries in the `*.deps.json` of a Release `dotnet publish` of `MangaPlex.Server` + `MangaPlex.MediaWorker` (what `deploy/Dockerfile` copies) | 79 |
+| NuGet, all | `dotnet list MangaPixer.slnx package --include-transitive --format json` | 104 package versions (103 IDs; `System.Security.Cryptography.Pkcs` resolves at two versions) |
+| NuGet, shipped | `"type": "package"` entries in the `*.deps.json` of a Release `dotnet publish` of `MangaPixer.Server` + `MangaPixer.MediaWorker` (what `deploy/Dockerfile` copies) | 79 |
 | NuGet, build/test only | all minus shipped | 25 |
 | npm, runtime | `npm --prefix web ls --omit=dev --all` (`--prod` is a deprecated alias) | 19 |
 | npm, all | `npm --prefix web ls --all` | 880 unique name@version (959 installed paths) |
@@ -30,14 +30,14 @@ from tool output (not written by hand):
 License values come from each package's own metadata: the `<license>` element
 of the `.nuspec` in the NuGet cache, and the `license` field of
 `web/node_modules/<pkg>/package.json`. Container facts were read from the
-`mangaplex:1.12.0` image with `dpkg-query`.
+1.12.0 release image with `dpkg-query`.
 
 ## Review before publishing
 
 <!-- TODO(owner): resolve or accept each item below before the repository or an image goes public. -->
 
 These are the items that are copyleft, non-standard, missing an SPDX expression,
-or where MangaPlex does not yet carry the notice that a license asks for.
+or where MangaPixer does not yet carry the notice that a license asks for.
 
 1. **Weak-copyleft code inside Magick.NET's native library (shipped).**
    `Magick.NET-Q8-AnyCPU` 14.17.1 ships a single native binary per platform
@@ -47,7 +47,7 @@ or where MangaPlex does not yet carry the notice that a license asks for.
    Redistributing the image or installer means redistributing these. LGPL terms
    cover license text, notices, and the recipient's ability to replace or relink
    the library. Get a legal read on whether the upstream Magick.NET distribution
-   already satisfies that, or whether MangaPlex has to ship extra material.
+   already satisfies that, or whether MangaPixer has to ship extra material.
 2. **Which license texts ship with the binaries.** MIT, BSD, Apache-2.0, OFL-1.1
    and LGPL all ask for the notice or license to go with binary copies.
    `deploy/Dockerfile` copies this file, `LICENSE`, the Angular build's
@@ -159,7 +159,7 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 ### 1b. Shipped only through `Microsoft.EntityFrameworkCore.Design` (28)
 
 Design-time EF Core tooling and its dependency tree (see Review item 3). This set
-is computed from the dependency graph in the published `MangaPlex.Server.deps.json`.
+is computed from the dependency graph in the published `MangaPixer.Server.deps.json`.
 
 - `Humanizer.Core` - 2.14.1 - MIT - https://github.com/Humanizr/Humanizer
 - `Microsoft.Build.Framework` - 17.14.28 - MIT - https://github.com/dotnet/msbuild
@@ -280,7 +280,7 @@ third-party notice described in 1c.
 
 These are resolved for the test projects, or as analyzers and build tooling. None
 of them is in the publish output. Some `Microsoft.Extensions.*` and
-`Microsoft.AspNetCore.*` IDs appear here because `MangaPlex.Server.Tests`
+`Microsoft.AspNetCore.*` IDs appear here because `MangaPixer.Server.Tests`
 resolves them as packages. At runtime, the server uses the copies in the ASP.NET Core
 shared framework.
 
@@ -351,7 +351,7 @@ Copyright notices for these packages (from their LICENSE files):
 - **Roboto** (via `@fontsource/roboto` 5.3.0): Copyright 2011 The Roboto Project Authors
   (https://github.com/googlefonts/roboto-classic). Licensed under the SIL Open Font
   License, Version 1.1 (`OFL-1.1`, https://openfontlicense.org). Weights 400, 500 and 700
-  are bundled as `.woff`/`.woff2` files. The font is served by the MangaPlex
+  are bundled as `.woff`/`.woff2` files. The font is served by the MangaPixer
   server itself, never from a remote font CDN.
 - **Material Icons** (via `material-icons` 1.13.14): the Material Design icons are
   created by Google and distributed under the Apache License 2.0 (`Apache-2.0`,
@@ -1233,7 +1233,7 @@ operating systems, including the Linux image build stage.
 
 | Image | Role | Distributed? | Notes |
 |---|---|---|---|
-| `mcr.microsoft.com/dotnet/aspnet:10.0` | runtime base of the MangaPlex image | **yes** (it is the image's base layers) | Ubuntu 24.04.5 LTS ("noble") as of the 1.12.0 build; .NET runtime and ASP.NET Core 10.0.12 (MIT, https://github.com/dotnet/dotnet-docker/blob/main/LICENSE). Microsoft's container legal notice: https://aka.ms/mcr/osslegalnotice. Linux image contents: https://github.com/dotnet/dotnet-docker/blob/main/documentation/image-artifact-details.md |
+| `mcr.microsoft.com/dotnet/aspnet:10.0` | runtime base of the MangaPixer image | **yes** (it is the image's base layers) | Ubuntu 24.04.5 LTS ("noble") as of the 1.12.0 build; .NET runtime and ASP.NET Core 10.0.12 (MIT, https://github.com/dotnet/dotnet-docker/blob/main/LICENSE). Microsoft's container legal notice: https://aka.ms/mcr/osslegalnotice. Linux image contents: https://github.com/dotnet/dotnet-docker/blob/main/documentation/image-artifact-details.md |
 | `mcr.microsoft.com/dotnet/sdk:10.0` | .NET build stage | no | Ubuntu 24.04.5 LTS; same licensing references as above |
 | `node:24-bookworm-slim` | Angular build stage | no | Debian 12 ("bookworm"); Node.js v24 (MIT, https://github.com/nodejs/node/blob/main/LICENSE) |
 
@@ -1241,7 +1241,7 @@ The `aspnet:10.0` tag resolved to Ubuntu 24.04 for the 1.12.0 build, as the
 Dockerfile's header comment says.
 
 Packages `deploy/Dockerfile` adds to the runtime image with `apt-get`, with
-versions and licenses read from `mangaplex:1.12.0` (`dpkg-query`,
+versions and licenses read from the 1.12.0 release image (`dpkg-query`,
 `/usr/share/doc/<pkg>/copyright`):
 
 - `gosu` - 1.17-1ubuntu0.24.04.3 - Apache-2.0 - https://github.com/tianon/gosu (drops root privileges in `entrypoint.sh`)
@@ -1263,10 +1263,10 @@ Not yet covered - see the TODO above.
 ## 7. Regenerating this inventory
 
 ```text
-dotnet restore MangaPlex.slnx --locked-mode
-dotnet list MangaPlex.slnx package --include-transitive --format json
-dotnet publish src/MangaPlex.Server/MangaPlex.Server.csproj -c Release -o <tmp>/server
-dotnet publish src/MangaPlex.MediaWorker/MangaPlex.MediaWorker.csproj -c Release -o <tmp>/worker
+dotnet restore MangaPixer.slnx --locked-mode
+dotnet list MangaPixer.slnx package --include-transitive --format json
+dotnet publish src/MangaPixer.Server/MangaPixer.Server.csproj -c Release -o <tmp>/server
+dotnet publish src/MangaPixer.MediaWorker/MangaPixer.MediaWorker.csproj -c Release -o <tmp>/worker
 #   shipped set = "type": "package" entries in <tmp>/*/*.deps.json
 npm --prefix web ci
 npm --prefix web ls --omit=dev --all --json

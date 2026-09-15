@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Directory.Packages.props — Central Package Management (CPM) for MangaPlex.
+  Directory.Packages.props — Central Package Management (CPM) for MangaPixer.
   All NuGet package versions are pinned here. Individual .csproj files reference
   packages without versions. Update versions only here with advisory review.
 

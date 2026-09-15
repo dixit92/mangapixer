@@ -107,7 +107,7 @@ picks its mode from the nearest setting it finds:
 
 Admins set these (readers cannot):
 
-- **Per library:** **MangaPlex Administration** > **Libraries**, the
+- **Per library:** **MangaPixer Administration** > **Libraries**, the
   **Direction** menu on each row: **Inherit**, **Left-to-right**,
   **Right-to-left** or **Vertical**.
 - **Per folder:** in the library view, choose **Select**, pick one or more

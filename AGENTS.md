@@ -1,17 +1,17 @@
-# MangaPlex — Project Conventions
+# MangaPixer — Project Conventions
 
 Instructions for anyone changing this repository, human or AI agent. Human
 contributors should also read [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Product
 
-MangaPlex is a folder-native comic/manga server and Angular web reader.
+MangaPixer is a folder-native comic/manga server and Angular web reader.
 It is an independent alternative inspired by YACReader, not a fork.
 
 ## Root namespace
 
-All .NET namespaces use the exact root prefix `com.lifepixer.mangaplex`.
-The Angular package name is `com.lifepixer.mangaplex.web`.
+All .NET namespaces use the exact root prefix `com.lifepixer.mangapixer`.
+The Angular package name is `com.lifepixer.mangapixer.web`.
 
 ## Invariants
 
@@ -58,10 +58,10 @@ PowerShell; in `cmd.exe` use `%cd%`.
 ```bash
 # .NET build and test (Linux x64 container)
 docker run --rm -v "$PWD:/workspace" -w /workspace mcr.microsoft.com/dotnet/sdk:10.0 \
-    dotnet build MangaPlex.slnx -c Release
+    dotnet build MangaPixer.slnx -c Release
 
 docker run --rm -v "$PWD:/workspace" -w /workspace mcr.microsoft.com/dotnet/sdk:10.0 \
-    dotnet test MangaPlex.slnx --no-build -c Release
+    dotnet test MangaPixer.slnx --no-build -c Release
 
 # Angular build (requires npm ci first)
 docker run --rm -v "$PWD/web:/workspace/web" -w /workspace/web node:24-bookworm-slim \
@@ -77,10 +77,10 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 ### Direct .NET commands (when SDK is available)
 
 ```text
-dotnet restore MangaPlex.slnx --locked-mode
-dotnet build MangaPlex.slnx --no-restore -c Release
-dotnet test MangaPlex.slnx --no-build -c Release
-dotnet format MangaPlex.slnx --verify-no-changes
+dotnet restore MangaPixer.slnx --locked-mode
+dotnet build MangaPixer.slnx --no-restore -c Release
+dotnet test MangaPixer.slnx --no-build -c Release
+dotnet format MangaPixer.slnx --verify-no-changes
 ```
 
 ### Angular commands (when Node is available)
@@ -103,18 +103,18 @@ the real media path per machine — never commit it.
 
 ```bash
 # Build (multi-stage: Angular + server + worker)
-docker build -f deploy/Dockerfile -t mangaplex:live-review .
+docker build -f deploy/Dockerfile -t mangapixer:live-review .
 
 # Run on a free loopback port with throwaway storage; first-run setup
 # screen creates the admin (no default credentials).
-docker run -d --name mangaplex-live-review -p 127.0.0.1:8097:8080 \
+docker run -d --name mangapixer-live-review -p 127.0.0.1:8097:8080 \
     -v "<temp>/data:/data" -v "<temp>/cache:/cache" -v "<temp>/scratch:/scratch" \
     -v "<local-test-media>:/media:ro" \
-    mangaplex:live-review
+    mangapixer:live-review
 ```
 
 Health: `curl http://127.0.0.1:8097/health`. Tear down with
-`docker rm -f mangaplex-live-review`, `docker rmi mangaplex:live-review`, and
+`docker rm -f mangapixer-live-review`, `docker rmi mangapixer:live-review`, and
 delete the temp storage dirs. If 8097 is taken, pick any free loopback port.
 
 ## Versioning
@@ -169,8 +169,8 @@ versions only) - the merge happens as part of the cut, after the version bump + 
 ```bash
 docker run --rm -v "$PWD:/workspace" -w /workspace mcr.microsoft.com/dotnet/sdk:10.0 \
     bash -c "apt-get update -qq && apt-get install -y -qq p7zip-full && \
-    dotnet build MangaPlex.slnx -c Release && \
-    dotnet test MangaPlex.slnx --no-build -c Release"
+    dotnet build MangaPixer.slnx -c Release && \
+    dotnet test MangaPixer.slnx --no-build -c Release"
 ```
 
 ## Deployment configurations
@@ -180,7 +180,7 @@ Two Compose files coexist under `deploy/`. They are alternatives, not layers.
 | File | Layout | Use |
 |---|---|---|
 | `deploy/compose.yaml` | Three named Docker volumes (`/data`, `/cache`, `/scratch`) | Canonical, portable default. Used by CI, `Verify-Packaging.ps1`, `Verify.ps1`, and the e2e/smoke flow. |
-| `deploy/compose.unraid.yaml` | Single `/config` bind to `/mnt/user/appdata/MangaPlex`, with `data`/`cache`/`scratch` as subfolders | Unraid-targeted. Appdata lives on the array (parity-protected, backed up with the rest of `/mnt/user/appdata`). |
+| `deploy/compose.unraid.yaml` | Single `/config` bind to `/mnt/user/appdata/MangaPixer`, with `data`/`cache`/`scratch` as subfolders | Unraid-targeted. Appdata lives on the array (parity-protected, backed up with the rest of `/mnt/user/appdata`). |
 
 Conventions for the Unraid config:
 

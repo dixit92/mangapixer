@@ -1,6 +1,6 @@
 # Security Policy
 
-MangaPlex is a self-hosted server that people point at their own media libraries
+MangaPixer is a self-hosted server that people point at their own media libraries
 and often expose on a home network. Security reports are welcome and are handled
 privately until a fix is available.
 
@@ -37,7 +37,7 @@ If you cannot use GitHub, e-mail the maintainers instead:
 
 A useful report includes:
 
-- the affected MangaPlex version (`GET /api/v1/system/info`, or the app footer);
+- the affected MangaPixer version (`GET /api/v1/system/info`, or the app footer);
 - how the server is deployed (Docker/Compose, Unraid, Windows, reverse proxy in front or not);
 - the steps or a proof of concept needed to reproduce the issue;
 - the impact as you understand it (what an attacker can read, change, or reach).
@@ -53,18 +53,18 @@ library paths, titles, credentials, or other personal data in the report.
 | Initial assessment (confirmed, needs more info, or out of scope) | within 14 days |
 | Fix released for a confirmed issue | as fast as severity warrants, normally within 90 days |
 
-MangaPlex is maintained by volunteers, so these are good-faith targets rather than
+MangaPixer is maintained by volunteers, so these are good-faith targets rather than
 guarantees. You will be kept informed as the report moves forward. Once a fix is
 released, the advisory is published and you are credited, unless you prefer to
 stay anonymous. Please keep the details private until then.
 
 ## Scope
 
-In scope is the code in this repository: the server (`src/MangaPlex.Server`), the
-media worker (`src/MangaPlex.MediaWorker`), the web reader (`web/`), and the
+In scope is the code in this repository: the server (`src/MangaPixer.Server`), the
+media worker (`src/MangaPixer.MediaWorker`), the web reader (`web/`), and the
 container image and Compose files built from `deploy/`.
 
-These are the security properties MangaPlex is designed to hold. A way to break
+These are the security properties MangaPixer is designed to hold. A way to break
 any of them is a vulnerability:
 
 - **Authentication.** There are no default credentials. A fresh instance has zero
@@ -101,14 +101,14 @@ any of them is a vulnerability:
 - Findings that require an attacker who already has administrator access, or shell
   access to the host.
 - Vulnerabilities in third-party dependencies with no demonstrated impact on
-  MangaPlex. Please report those upstream. Dependency updates arrive through
+  MangaPixer. Please report those upstream. Dependency updates arrive through
   Dependabot.
 - Denial of service through sheer request volume, social engineering, and physical
   attacks.
 
 ## Hardening tips for operators
 
-- Put MangaPlex behind a reverse proxy that terminates HTTPS. The Compose files
+- Put MangaPixer behind a reverse proxy that terminates HTTPS. The Compose files
   publish the port on loopback (`127.0.0.1`) only, by design.
 - Keep the media mounts read-only (`:ro`), as the shipped Compose files do.
 - Upgrade to new releases promptly. Only the latest minor line receives fixes.

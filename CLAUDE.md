@@ -1,4 +1,4 @@
-# MangaPlex — Claude Code project instructions
+# MangaPixer — Claude Code project instructions
 
 Project instructions for all contributors and agents live in
 [AGENTS.md](AGENTS.md); this file only imports them for Claude Code.

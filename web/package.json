@@ -1,7 +1,7 @@
 {
-  "name": "com.lifepixer.mangaplex.web",
+  "name": "com.lifepixer.mangapixer.web",
   "version": "1.13.0",
-  "description": "MangaPlex Angular web reader",
+  "description": "MangaPixer Angular web reader",
   "private": true,
   "scripts": {
     "ng": "ng",

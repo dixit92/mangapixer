@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Verify-Contracts.ps1
+    MangaPixer Verify-Contracts.ps1
     For API/DTO/migration/protocol/version changes: run drift and compatibility checks.
     Verifies OpenAPI regenerate/compare, generated Angular types, worker protocol tests,
     SemVer/build-identity checks, and migration model snapshot check.
@@ -40,8 +40,8 @@ function Invoke-Stage {
 # Stage 1: Version consistency check
 Invoke-Stage "Version consistency" {
     $versionProps = Get-Content (Join-Path $repoRoot "Version.props") -Raw
-    if ($versionProps -notmatch '<MangaPlexVersionFull>([^<]+)</MangaPlexVersionFull>') {
-        throw "Could not find MangaPlexVersionFull in Version.props"
+    if ($versionProps -notmatch '<MangaPixerVersionFull>([^<]+)</MangaPixerVersionFull>') {
+        throw "Could not find MangaPixerVersionFull in Version.props"
     }
     $expectedVersion = $Matches[1]
     Write-Host "Product version: $expectedVersion"
@@ -56,12 +56,12 @@ Invoke-Stage "Version consistency" {
 
 # Stage 2: .NET build and contract tests
 Invoke-Stage "dotnet build" {
-    dotnet build MangaPlex.slnx -c Release 2>&1 | Out-Host
+    dotnet build MangaPixer.slnx -c Release 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
 }
 
 Invoke-Stage "dotnet test (contracts)" {
-    dotnet test MangaPlex.slnx --no-build -c Release --filter "FullyQualifiedName~Contracts|FullyQualifiedName~Ordering|FullyQualifiedName~Protocol" --verbosity normal 2>&1 | Out-Host
+    dotnet test MangaPixer.slnx --no-build -c Release --filter "FullyQualifiedName~Contracts|FullyQualifiedName~Ordering|FullyQualifiedName~Protocol" --verbosity normal 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Contract tests failed" }
 }
 

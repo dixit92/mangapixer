@@ -1,5 +1,5 @@
 /**
- * API DTO types matching the .NET contracts in MangaPlex.Core/Api/ApiDtos.cs.
+ * API DTO types matching the .NET contracts in MangaPixer.Core/Api/ApiDtos.cs.
  * These are schema-derived HttpClient types, not auto-generated.
  * No source paths or private fields are present in these types.
  */
@@ -278,7 +278,7 @@ export interface LibraryViewPreferencesDto {
 
 // --- YACReader progress import (1.2.0, admin-only) ---
 
-/** Whether a YACReader library was detected inside a MangaPlex library's root. */
+/** Whether a YACReader library was detected inside a MangaPixer library's root. */
 export interface YacReaderDetectDto {
   detected: boolean;
   dbVersion: string | null;

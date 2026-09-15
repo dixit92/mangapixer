@@ -31,7 +31,7 @@ env:
   # Image and product name. This is the single place to change on a rename.
   # It must match the local image tag and artifact file names that
   # scripts/Package-Release.ps1 produces ("<name>:<version>").
-  IMAGE_NAME: mangaplex
+  IMAGE_NAME: mangapixer
   DOTNET_NOLOGO: "true"
   DOTNET_CLI_TELEMETRY_OPTOUT: "true"
 
@@ -58,7 +58,7 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          $version = (& ./scripts/Get-MangaPlexVersion.ps1).Trim()
+          $version = (& ./scripts/Get-MangaPixerVersion.ps1).Trim()
           if ($env:TAG -ne "v$version") {
             throw "Tag '$env:TAG' does not match Version.props (expected 'v$version')."
           }

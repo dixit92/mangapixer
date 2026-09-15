@@ -4,7 +4,7 @@ export type ThemePreference = 'dark' | 'light' | 'system';
 
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
-  private static readonly STORAGE_KEY = 'mangaplex-theme';
+  private static readonly STORAGE_KEY = 'mangapixer-theme';
   private current: ThemePreference = 'dark';
 
   constructor() {

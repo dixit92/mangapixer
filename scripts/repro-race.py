@@ -15,10 +15,10 @@ level before the catch runs - the recovered-race "noise". We confirm:
   - the container log contains the SQLite-19 reading_progress line (the noise),
   - and (post-fix) that noise line is absent while writes still succeed.
 
-Uses curl via subprocess because libcurl reliably stores the HttpOnly .MangaPlex.Auth
+Uses curl via subprocess because libcurl reliably stores the HttpOnly .MangaPixer.Auth
 cookie, where Python's urllib cookiejar dropped it.
 
-Run after `docker run -d --name mangaplex-race-repro -p 127.0.0.1:8097:8080 ...`
+Run after `docker run -d --name mangapixer-race-repro -p 127.0.0.1:8097:8080 ...`
 with a small multi-chapter CBZ library mounted read-only under /media, then pass
 its in-container path with `--lib-root` (any folder holding a couple of archives
 works). Pass `--expect-noise` to assert the noise is ABSENT (post-fix image);
@@ -33,7 +33,7 @@ import tempfile
 import threading
 
 BASE = "http://127.0.0.1:8097"
-CONTAINER = "mangaplex-race-repro"
+CONTAINER = "mangapixer-race-repro"
 LIBRARY_NAME = "Race Repro"
 # Windows absolute path so Python and the native Windows curl resolve the jar
 # identically (a bare "/tmp/..." resolved differently between the two).
@@ -82,7 +82,7 @@ def main():
     # 2. CSRF token.
     st, body = curl("GET", "/api/v1/auth/csrf")
     csrf = json.loads(body)["token"]
-    auth = {"X-MangaPlex-Csrf": csrf}
+    auth = {"X-MangaPixer-Csrf": csrf}
 
     # 3. Register a small library (a couple of CBZ files under LIB_ROOT), or reuse it.
     st, body = curl("POST", "/api/v1/admin/libraries",

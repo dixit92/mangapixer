@@ -1,4 +1,4 @@
-# MangaPlex .gitignore
+# MangaPixer .gitignore
 # Private local Devin settings and overrides
 .devin/config.local.json
 .devin/config.local.*

@@ -3,7 +3,7 @@
 ## First-run setup
 
 A new server has no accounts and **no default password**. The first time
-you open it, the **Welcome to MangaPlex** screen asks you to create the
+you open it, the **Welcome to MangaPixer** screen asks you to create the
 administrator account. See
 [Install with Docker](install-docker.md#step-5-create-the-admin-account).
 
@@ -25,16 +25,16 @@ There are two roles, shown as **Admin** and **Reader** in the user list.
 |---|---|---|
 | Read libraries | Only the libraries an admin has granted | Every library |
 | Own settings, password, reading progress | Yes | Yes |
-| **MangaPlex Administration** (libraries, scans, users, backups, log level, YACReader import) | No | Yes |
+| **MangaPixer Administration** (libraries, scans, users, backups, log level, YACReader import) | No | Yes |
 | Set reading direction for libraries and folders | No | Yes |
 
-Admins open the admin page from the account menu (**MangaPlex
+Admins open the admin page from the account menu (**MangaPixer
 Administration**). The server always keeps at least one active admin: it
 refuses to disable or demote the last one.
 
 ## Creating users
 
-In **MangaPlex Administration** > **Users** > **Create New User**:
+In **MangaPixer Administration** > **Users** > **Create New User**:
 
 1. Enter a **Username**.
 2. Choose how the person gets their password:
@@ -135,11 +135,11 @@ See [Reader](reader.md) for what each reader setting does.
   sign you out. **Logout** in the account menu does.
 - Password changes, password resets and disabling an account end all of that
   user's sessions.
-- **Cookies:** the sign-in cookie (`.MangaPlex.Auth`) and the request-protection
-  cookie (`.MangaPlex.Csrf`) are `HttpOnly` and `SameSite=Strict`. Scripts on a
+- **Cookies:** the sign-in cookie (`.MangaPixer.Auth`) and the request-protection
+  cookie (`.MangaPixer.Csrf`) are `HttpOnly` and `SameSite=Strict`. Scripts on a
   page cannot read them, and other sites cannot use them.
 - **Request protection:** every change (anything except a plain read) must
-  carry a token from `GET /api/v1/auth/csrf` in the `X-MangaPlex-Csrf` header.
+  carry a token from `GET /api/v1/auth/csrf` in the `X-MangaPixer-Csrf` header.
   The web app handles this for you. Scripts must do it themselves.
 - **Brute-force protection:** after 5 failed sign-ins for one username, or 10
   from one IP address, within 5 minutes, further attempts are refused for a

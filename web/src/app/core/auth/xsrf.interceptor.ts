@@ -5,7 +5,7 @@ import { CsrfTokenService } from './csrf-token.service';
 
 /**
  * Attaches the antiforgery request token to mutating requests as the
- * `X-MangaPlex-Csrf` header — the header name the server validates via its
+ * `X-MangaPixer-Csrf` header — the header name the server validates via its
  * global `AutoValidateAntiforgeryTokenAttribute` (see Program.cs).
  *
  * The token comes from {@link CsrfTokenService} (in memory), NOT from a cookie:
@@ -31,7 +31,7 @@ export const xsrfInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(
     req.clone({
-      setHeaders: { 'X-MangaPlex-Csrf': token },
+      setHeaders: { 'X-MangaPixer-Csrf': token },
     }),
   );
 };

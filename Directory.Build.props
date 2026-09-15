@@ -1,33 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Directory.Build.props — shared MSBuild properties for all MangaPlex projects.
+  Directory.Build.props — shared MSBuild properties for all MangaPixer projects.
   Imported automatically by every .csproj in the repository tree.
 -->
 <Project>
   <Import Project="$(MSBuildThisFileDirectory)Version.props" />
 
   <PropertyGroup>
-    <!-- Root namespace: com.lifepixer.mangaplex (exact match required across all projects) -->
-    <RootNamespace>com.lifepixer.mangaplex</RootNamespace>
+    <!-- Root namespace: com.lifepixer.mangapixer (exact match required across all projects) -->
+    <RootNamespace>com.lifepixer.mangapixer</RootNamespace>
 
     <!-- Standard project metadata -->
-    <Product>MangaPlex</Product>
+    <Product>MangaPixer</Product>
     <Company />
     <Authors>Smit Dixit</Authors>
     <Copyright>Copyright (c) 2026 Smit Dixit</Copyright>
     <Description>Folder-native comic/manga server and Angular reader.</Description>
 
     <!-- Version propagation from Version.props -->
-    <Version>$(MangaPlexVersionFull)</Version>
-    <PackageVersion>$(MangaPlexVersionFull)</PackageVersion>
-    <AssemblyVersion>$(MangaPlexAssemblyVersion)</AssemblyVersion>
-    <FileVersion>$(MangaPlexVersionMajor).$(MangaPlexVersionMinor).$(MangaPlexVersionPatch).$(MangaPlexBuildCounter)</FileVersion>
+    <Version>$(MangaPixerVersionFull)</Version>
+    <PackageVersion>$(MangaPixerVersionFull)</PackageVersion>
+    <AssemblyVersion>$(MangaPixerAssemblyVersion)</AssemblyVersion>
+    <FileVersion>$(MangaPixerVersionMajor).$(MangaPixerVersionMinor).$(MangaPixerVersionPatch).$(MangaPixerBuildCounter)</FileVersion>
 
     <!-- InformationalVersion includes full SemVer plus commit SHA and dirty marker.
          Populated by the build script when GitCommitShort is available. -->
-    <InformationalVersion Condition="'$(GitCommitShort)' != '' And '$(GitIsDirty)' == 'true'">$(MangaPlexVersionFull)+sha.$(GitCommitShort).dirty</InformationalVersion>
-    <InformationalVersion Condition="'$(GitCommitShort)' != '' And '$(GitIsDirty)' != 'true'">$(MangaPlexVersionFull)+sha.$(GitCommitShort)</InformationalVersion>
-    <InformationalVersion Condition="'$(GitCommitShort)' == ''">$(MangaPlexVersionFull)+dirty</InformationalVersion>
+    <InformationalVersion Condition="'$(GitCommitShort)' != '' And '$(GitIsDirty)' == 'true'">$(MangaPixerVersionFull)+sha.$(GitCommitShort).dirty</InformationalVersion>
+    <InformationalVersion Condition="'$(GitCommitShort)' != '' And '$(GitIsDirty)' != 'true'">$(MangaPixerVersionFull)+sha.$(GitCommitShort)</InformationalVersion>
+    <InformationalVersion Condition="'$(GitCommitShort)' == ''">$(MangaPixerVersionFull)+dirty</InformationalVersion>
 
     <!-- Deterministic builds — no host paths, usernames, or hostnames in output -->
     <Deterministic>true</Deterministic>
@@ -55,23 +55,23 @@
   </PropertyGroup>
 
   <!-- Project-specific namespace overrides -->
-  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('MangaPlex.Server'))">
-    <RootNamespace>com.lifepixer.mangaplex.Server</RootNamespace>
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('MangaPixer.Server'))">
+    <RootNamespace>com.lifepixer.mangapixer.Server</RootNamespace>
   </PropertyGroup>
-  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('MangaPlex.Core'))">
-    <RootNamespace>com.lifepixer.mangaplex.Core</RootNamespace>
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('MangaPixer.Core'))">
+    <RootNamespace>com.lifepixer.mangapixer.Core</RootNamespace>
   </PropertyGroup>
-  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('MangaPlex.MediaWorker'))">
-    <RootNamespace>com.lifepixer.mangaplex.MediaWorker</RootNamespace>
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('MangaPixer.MediaWorker'))">
+    <RootNamespace>com.lifepixer.mangapixer.MediaWorker</RootNamespace>
   </PropertyGroup>
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
-    <RootNamespace>com.lifepixer.mangaplex.Tests.$(MSBuildProjectName.Replace('MangaPlex.', '').Replace('.Tests', ''))</RootNamespace>
+    <RootNamespace>com.lifepixer.mangapixer.Tests.$(MSBuildProjectName.Replace('MangaPixer.', '').Replace('.Tests', ''))</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'MangaPlex.TestSupport'">
-    <RootNamespace>com.lifepixer.mangaplex.TestSupport</RootNamespace>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'MangaPixer.TestSupport'">
+    <RootNamespace>com.lifepixer.mangapixer.TestSupport</RootNamespace>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>

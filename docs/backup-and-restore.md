@@ -7,14 +7,14 @@ anything up.
 
 - **When:** 2 minutes after every start, then every 24 hours.
 - **Where:** `<data root>/backups`. That is `/data/backups` with the Docker
-  setup and `/mnt/user/appdata/MangaPlex/data/backups` on Unraid.
+  setup and `/mnt/user/appdata/MangaPixer/data/backups` on Unraid.
 - **Name:** `rotating-<UTC date>-<UTC time>.db`, for example `rotating-20260915-024123.db`.
 - **Retention:** the newest 7 are kept, and older `rotating-*` files are deleted.
 - **Safe while running:** each snapshot is a consistent, self-contained copy
   of the database. It is safe to take while people are reading, and safe to
   copy off the machine at any time.
 
-In **MangaPlex Administration** > **Diagnostics** > **Database Backups** you
+In **MangaPixer Administration** > **Diagnostics** > **Database Backups** you
 see the schedule ("Every 24 h · keeping last 7"), when the last backup
 succeeded and how many are on disk. **Back up now** takes one immediately; it
 is a normal rotating backup and counts toward the 7.
@@ -56,13 +56,13 @@ It does **not** contain:
 
 For a complete copy of a server, back up the whole data root (`/data`, or
 `/config/data` on Unraid). Its `backups` folder always holds a recent
-consistent database snapshot, even if the live `mangaplex.db` was copied while
+consistent database snapshot, even if the live `mangapixer.db` was copied while
 the server was writing to it.
 
 To copy the backups out of a Docker volume:
 
 ```sh
-docker compose -f deploy/compose.yaml cp mangaplex:/data/backups ./mangaplex-backups
+docker compose -f deploy/compose.yaml cp mangapixer:/data/backups ./mangapixer-backups
 ```
 
 ## Restoring a backup
@@ -77,7 +77,7 @@ call, or by swapping the file by hand while the server is stopped.
 
    ```sh
    curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/api/v1/operations/restore" \
-     -H "X-MangaPlex-Csrf: $CSRF" \
+     -H "X-MangaPixer-Csrf: $CSRF" \
      -F "file=@rotating-20260915-024123.db"
    ```
 
@@ -85,8 +85,8 @@ call, or by swapping the file by hand while the server is stopped.
 
    - be a SQLite database,
    - pass an integrity check,
-   - contain MangaPlex's tables,
-   - not come from a newer version of MangaPlex.
+   - contain MangaPixer's tables,
+   - not come from a newer version of MangaPixer.
 
    It then snapshots the current database as `pre-restore-<timestamp>.db`
    and answers:
@@ -102,7 +102,7 @@ call, or by swapping the file by hand while the server is stopped.
    container on Unraid). During start-up, before it opens the database, the
    server:
    - checks the staged file again,
-   - moves the current database aside as `mangaplex.db.replaced-<timestamp>`,
+   - moves the current database aside as `mangapixer.db.replaced-<timestamp>`,
    - puts the backup in its place.
 
    If anything fails, it puts the original back and logs
@@ -115,9 +115,9 @@ Uploads are limited to 128 MiB. For a larger database, use option 2.
 This is the same swap the server performs at start-up:
 
 1. Stop the container.
-2. In the data root, move `mangaplex.db` somewhere safe and delete
-   `mangaplex.db-wal` and `mangaplex.db-shm` if they exist.
-3. Copy your backup file into the data root as `mangaplex.db`. On Linux, make
+2. In the data root, move `mangapixer.db` somewhere safe and delete
+   `mangapixer.db-wal` and `mangapixer.db-shm` if they exist.
+3. Copy your backup file into the data root as `mangapixer.db`. On Linux, make
    sure the server's user can write it; the container fixes ownership of the
    data folder on start.
 4. Start the container.
@@ -132,19 +132,19 @@ This is the same swap the server performs at start-up:
 - If the backup came from an older version, the server upgrades its schema on
   start-up, taking a `pre-migration-*.db` snapshot first.
 - To undo the restore, restore the `pre-restore-*.db` file the same way.
-- The `mangaplex.db.replaced-*` files in the data root are not cleaned up
+- The `mangapixer.db.replaced-*` files in the data root are not cleaned up
   automatically. Delete them once you are happy with the result.
 
 ## Calling the admin API from a script
 
 Every admin action in the web app is also an API call under `/api/v1`. Any
 request that changes something needs two things: a signed-in session cookie
-and a CSRF token in the `X-MangaPlex-Csrf` header. This bash script sets up
+and a CSRF token in the `X-MangaPixer-Csrf` header. This bash script sets up
 both with `curl`:
 
 ```sh
 BASE=http://127.0.0.1:8080
-JAR=mangaplex-cookies.txt
+JAR=mangapixer-cookies.txt
 
 # 1. Sign in as an admin (stores the session cookie in $JAR)
 curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/api/v1/auth/login" \
@@ -157,7 +157,7 @@ CSRF=$(curl -s -c "$JAR" -b "$JAR" "$BASE/api/v1/auth/csrf" | sed 's/.*"token":"
 # 3. Call admin endpoints; send the token with every change
 curl -s -c "$JAR" -b "$JAR" "$BASE/api/v1/operations/backups"
 curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/api/v1/operations/backups/rotating" \
-  -H "X-MangaPlex-Csrf: $CSRF"
+  -H "X-MangaPixer-Csrf: $CSRF"
 ```
 
 Delete the cookie file when you are done. It holds a valid session for 7 days.
@@ -166,7 +166,7 @@ The full API description is served at `/openapi/v1.json`.
 ## Importing reading progress from YACReader
 
 If a library folder was previously managed by YACReaderLibrary, you can copy
-your reading progress from its database into MangaPlex.
+your reading progress from its database into MangaPixer.
 
 **What you need:**
 
@@ -174,22 +174,22 @@ your reading progress from its database into MangaPlex.
   `library.ydb` or as `.yacreaderlibrary/library.ydb` (the folder
   YACReaderLibrary creates). The server opens it read-only and works on a
   temporary copy.
-- The library registered and **scanned** in MangaPlex, so the archives exist
+- The library registered and **scanned** in MangaPixer, so the archives exist
   to match against.
 
 **Steps:**
 
-1. In **MangaPlex Administration** > **Libraries**, libraries with a YACReader
+1. In **MangaPixer Administration** > **Libraries**, libraries with a YACReader
    database show an extra **Import YACReader reading progress** button (two
    arrows). Select it.
 2. The panel shows a preview, for example "12 comics · 10 matched · 2
    unmatched · 0 already have progress". Nothing has been written yet.
-3. Optionally tick **Overwrite items that already have MangaPlex progress**.
+3. Optionally tick **Overwrite items that already have MangaPixer progress**.
 4. Select **Import N item(s)**.
 
 **What is imported:**
 
-| In YACReader | In MangaPlex |
+| In YACReader | In MangaPixer |
 |---|---|
 | Read | Read (a permanent read mark), position on the last page YACReader recorded |
 | Opened but not finished | In progress, on the same page |
@@ -201,7 +201,7 @@ your reading progress from its database into MangaPlex.
 
   ```sh
   curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/api/v1/admin/import/yacreader/apply" \
-    -H "X-MangaPlex-Csrf: $CSRF" -H 'Content-Type: application/json' \
+    -H "X-MangaPixer-Csrf: $CSRF" -H 'Content-Type: application/json' \
     -d '{"libraryId":"<library-id>","targetUserId":"<user-id>"}'
   ```
 
@@ -209,10 +209,10 @@ your reading progress from its database into MangaPlex.
   what would happen without writing anything. Library IDs come from
   `GET /api/v1/libraries`.
 - Archives are matched by their path relative to the library folder,
-  ignoring case. Files YACReader knew about that MangaPlex cannot find are
+  ignoring case. Files YACReader knew about that MangaPixer cannot find are
   listed as unmatched and skipped.
 - Only reading progress is imported. Covers, bookmarks, ratings, tags and
   other metadata are not.
-- Without **Overwrite**, items that already have progress in MangaPlex are
+- Without **Overwrite**, items that already have progress in MangaPixer are
   left alone. With it, their position is replaced, but existing read marks are
   never removed.

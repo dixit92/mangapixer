@@ -1,6 +1,6 @@
 # Documentation
 
-These guides are for people who run MangaPlex on their own hardware. They
+These guides are for people who run MangaPixer on their own hardware. They
 describe the current release; the version you are running is shown in the
 app footer and returned by `GET /api/v1/system/info`.
 
@@ -20,7 +20,7 @@ app footer and returned by `GET /api/v1/system/info`.
 | [Library layout](library-layout.md) | How your folders and archives appear in the app, supported formats, sorting, rescans and moves, and the read-only guarantee. |
 | [Users and access](users-and-access.md) | First-run setup, admins and readers, activation links, library access, Private libraries, Incognito, sessions. |
 | [Backup and restore](backup-and-restore.md) | Automatic database backups, restoring a backup, what a backup contains, importing YACReader progress. |
-| [Reverse proxy and HTTPS](reverse-proxy-and-https.md) | Putting MangaPlex behind Caddy or nginx for TLS, and what the server does and does not know about proxies. |
+| [Reverse proxy and HTTPS](reverse-proxy-and-https.md) | Putting MangaPixer behind Caddy or nginx for TLS, and what the server does and does not know about proxies. |
 
 ## Use
 

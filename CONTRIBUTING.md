@@ -1,6 +1,6 @@
-# Contributing to MangaPlex
+# Contributing to MangaPixer
 
-Thanks for your interest in MangaPlex, a folder-native comic/manga server with an
+Thanks for your interest in MangaPixer, a folder-native comic/manga server with an
 Angular web reader. This guide explains how to set up a development environment,
 how changes are verified, and the rules every contribution has to follow.
 
@@ -36,11 +36,11 @@ or any other build system.
 
 | Path | Contents |
 |---|---|
-| `src/MangaPlex.Core` | Shared contracts: opaque IDs, sort keys, the worker protocol |
-| `src/MangaPlex.Server` | ASP.NET Core server: HTTP API (`/api/v1`), auth, catalog, persistence (SQLite + EF Core migrations) |
-| `src/MangaPlex.MediaWorker` | Out-of-process archive/image worker, talks to the server over JSON-lines on stdin/stdout |
+| `src/MangaPixer.Core` | Shared contracts: opaque IDs, sort keys, the worker protocol |
+| `src/MangaPixer.Server` | ASP.NET Core server: HTTP API (`/api/v1`), auth, catalog, persistence (SQLite + EF Core migrations) |
+| `src/MangaPixer.MediaWorker` | Out-of-process archive/image worker, talks to the server over JSON-lines on stdin/stdout |
 | `web/` | Angular web reader (Vitest unit tests, Playwright end-to-end tests) |
-| `tests/` | xUnit test projects plus `MangaPlex.TestSupport` (synthetic fixtures) |
+| `tests/` | xUnit test projects plus `MangaPixer.TestSupport` (synthetic fixtures) |
 | `contracts/openapi.json` | The committed OpenAPI contract; changes to it are deliberate |
 | `deploy/` | Dockerfile and Compose files |
 | `scripts/` | Verification, smoke, and packaging scripts |
@@ -62,7 +62,7 @@ them from the repository root.
 | Safety review | `pwsh ./scripts/Review-Safety.ps1` | Read-only review of your diff for safety issues | Before a pull request that touches file access, auth, or logging |
 
 The scripts never modify code to make a check pass. Fix the reported issue instead.
-If `dotnet format` complains, run `dotnet format MangaPlex.slnx` and commit the result.
+If `dotnet format` complains, run `dotnet format MangaPixer.slnx` and commit the result.
 
 The privacy preflight accepts a normal clone with its `origin` remote. It fails
 only if a remote URL embeds a credential, such as `https://user:token@host/...`
@@ -89,8 +89,8 @@ run in the official images. From the repository root:
 # .NET build and tests (add p7zip-full so the 7z fixture tests run)
 docker run --rm -v "${PWD}:/workspace" -w /workspace mcr.microsoft.com/dotnet/sdk:10.0 \
     bash -c "apt-get update -qq && apt-get install -y -qq p7zip-full && \
-             dotnet build MangaPlex.slnx -c Release && \
-             dotnet test MangaPlex.slnx --no-build -c Release"
+             dotnet build MangaPixer.slnx -c Release && \
+             dotnet test MangaPixer.slnx --no-build -c Release"
 
 # Web app: install, lint, build, unit tests
 docker run --rm -v "${PWD}/web:/workspace/web" -w /workspace/web node:24-bookworm-slim \
@@ -111,20 +111,20 @@ To try your change in a browser, build the image and run it on a loopback port w
 throwaway storage. Mount test media **read-only**:
 
 ```bash
-docker build -f deploy/Dockerfile -t mangaplex:local .
-docker run -d --name mangaplex-local -p 127.0.0.1:8091:8080 \
+docker build -f deploy/Dockerfile -t mangapixer:local .
+docker run -d --name mangapixer-local -p 127.0.0.1:8091:8080 \
     -v "<temp>/data:/data" -v "<temp>/cache:/cache" -v "<temp>/scratch:/scratch" \
     -v "<your-test-media>:/media:ro" \
-    mangaplex:local
+    mangapixer:local
 ```
 
 A fresh instance has no users. The first-run setup screen creates the first
-administrator. Clean up with `docker rm -f mangaplex-local` and delete the temp
+administrator. Clean up with `docker rm -f mangapixer-local` and delete the temp
 directories when you are done.
 
 ## Rules every contribution must follow
 
-These rules are what make MangaPlex safe to point at a real library. A pull request
+These rules are what make MangaPixer safe to point at a real library. A pull request
 that breaks one of them will not be merged, even if every test passes.
 
 1. **Source media is read-only.** The server and worker must never modify, move,
@@ -163,7 +163,7 @@ that breaks one of them will not be merged, even if every test passes.
 
 ### Code conventions
 
-- .NET namespaces start with `com.lifepixer.mangaplex`. Formatting follows
+- .NET namespaces start with `com.lifepixer.mangapixer`. Formatting follows
   [`.editorconfig`](.editorconfig) and is enforced by `dotnet format`. Warnings are
   treated as errors.
 - The web app is linted with `npm --prefix web run lint` (ESLint + angular-eslint).
@@ -213,16 +213,16 @@ review, not explained away.
 
 Use the [bug report form](../../issues/new?template=bug_report.yml) and include:
 
-- the MangaPlex version (shown in the app footer, or reported by `GET /api/v1/system/info`);
+- the MangaPixer version (shown in the app footer, or reported by `GET /api/v1/system/info`);
 - how you run it (Docker/Compose, Unraid, or Windows) and your browser/device;
 - steps to reproduce, what you expected, and what happened;
 - relevant log lines.
 
-MangaPlex logs are designed not to contain paths or titles. Still, **read your logs
+MangaPixer logs are designed not to contain paths or titles. Still, **read your logs
 before pasting them** and remove anything personal, such as library paths, file names,
 user names, IP addresses, or tokens.
 
 ## License
 
-MangaPlex is released under the [MIT License](LICENSE). By submitting a contribution you
+MangaPixer is released under the [MIT License](LICENSE). By submitting a contribution you
 agree that it is licensed under the same terms.

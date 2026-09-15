@@ -1,10 +1,10 @@
-# MangaPlex
+# MangaPixer
 
 **A self-hosted, folder-native manga and comic library server with a web reader.**
 
 <!-- TODO(owner): tagline / badges (version, license, build) / logo (assets/Square.svg, assets/Circle.svg) -->
 
-MangaPlex serves your existing manga and comic folders to any browser. You point
+MangaPixer serves your existing manga and comic folders to any browser. You point
 it at the directories where your `.cbz` and `.cbr` files already live, and
 it builds a catalog, generates thumbnails, and gives every user on your server
 their own reading progress, read marks and "continue reading" shelf. It is an
@@ -17,9 +17,9 @@ desktop, tablet and phone.
 - **Your folders are the library.** Nothing is imported, copied or reorganised.
   The folder tree you already have *is* the browse tree: series folders, volume
   sub-folders, loose archives.
-- **Source media is never modified.** MangaPlex never writes, renames, moves,
+- **Source media is never modified.** MangaPixer never writes, renames, moves,
   deletes, tags or extracts into your library folders. The container mounts them
-  read-only (`:ro`). Everything MangaPlex creates (database, thumbnails, page
+  read-only (`:ro`). Everything MangaPixer creates (database, thumbnails, page
   cache, scratch space) lives in its own data directories.
 - **Moves don't lose your place.** When a rescan finds that an archive was moved
   or renamed (one missing file and one new file with the same size and content
@@ -97,7 +97,7 @@ desktop, tablet and phone.
 **Administration and operations**
 
 - Add, rename and remove libraries from the web UI, using a folder picker
-  confined to the media root. Removing a library deletes only MangaPlex's own
+  confined to the media root. Removing a library deletes only MangaPixer's own
   metadata and thumbnails; your files are untouched.
 - Scans run per library or across all libraries, and can be cancelled. Scans are
   manual: there is no scheduled rescan or filesystem watching yet.
@@ -114,7 +114,7 @@ desktop, tablet and phone.
   account. The YACReader data is only read.
 - Health endpoints (`/health`, `/health/ready`) and an OpenAPI document at
   `/openapi/v1.json` (the checked-in contract is `contracts/openapi.json`).
-- Web app manifest and icons, so MangaPlex can be added to a phone or tablet
+- Web app manifest and icons, so MangaPixer can be added to a phone or tablet
   home screen.
 
 ## Supported formats
@@ -163,7 +163,7 @@ Full guide: [Install with Docker](docs/install-docker.md).
 
    ```yaml
    services:
-     mangaplex:
+     mangapixer:
        volumes:
          - /path/to/your/manga:/media/manga:ro
          - /path/to/your/comics:/media/comics:ro
@@ -177,7 +177,7 @@ Full guide: [Install with Docker](docs/install-docker.md).
    time of writing. Then build and start:
 
    ```bash
-   echo "MANGAPLEX_VERSION=1.12.0" > .env
+   echo "MANGAPIXER_VERSION=1.12.0" > .env
    docker compose up -d --build
    ```
 
@@ -195,28 +195,28 @@ What the canonical `deploy/compose.yaml` gives you:
   other devices, put a reverse proxy in front (see
   [Reverse proxy and HTTPS](docs/reverse-proxy-and-https.md)), or change the port
   mapping deliberately.
-- Three named volumes: `mangaplex-data` at `/data` (database, keys, logs,
-  backups, thumbnails - **back this one up**), `mangaplex-cache` at `/cache`
-  (evictable page cache) and `mangaplex-scratch` at `/scratch` (temporary
+- Three named volumes: `mangapixer-data` at `/data` (database, keys, logs,
+  backups, thumbnails - **back this one up**), `mangapixer-cache` at `/cache`
+  (evictable page cache) and `mangapixer-scratch` at `/scratch` (temporary
   per-job workspace for the media worker).
 - A read-only root filesystem, `no-new-privileges`, bounded logging (5 x 20 MB),
   and a health check. The server runs as a non-root user (UID/GID 1000 by default).
 
-Update by pulling the new source, bumping `MANGAPLEX_VERSION`, and re-running
+Update by pulling the new source, bumping `MANGAPIXER_VERSION`, and re-running
 `docker compose up -d --build`. Database migrations run at startup, and a backup
 is taken before a migration is applied.
 
 ### Unraid
 
 `deploy/compose.unraid.yaml` is a self-contained alternative to the canonical
-Compose file. It uses a single appdata bind (`/mnt/user/appdata/MangaPlex` at
+Compose file. It uses a single appdata bind (`/mnt/user/appdata/MangaPixer` at
 `/config`, holding `data/`, `cache/` and `scratch/`) and the
 linuxserver.io-style `PUID`/`PGID` variables. Full guide:
 [Install on Unraid](docs/install-unraid.md).
 
 1. Build a versioned image on a machine with the repository:
    `pwsh ./scripts/Package-Release.ps1`. This writes
-   `artifacts/release/<version>/mangaplex-<version>-image.tar` plus an SBOM and
+   `artifacts/release/<version>/mangapixer-<version>-image.tar` plus an SBOM and
    checksums. Copy the tar to the server and `docker load -i` it. Alternatively,
    switch the file from `image:` to its commented `build:` block and build on
    Unraid.
@@ -224,12 +224,12 @@ linuxserver.io-style `PUID`/`PGID` variables. Full guide:
    (`/mnt/user/<share>:/media/<name>:ro`), and set `PUID`/`PGID` to the user that
    owns your appdata share.
 3. Start it with the matching version:
-   `MANGAPLEX_VERSION=1.12.0 docker compose -f deploy/compose.unraid.yaml up -d`
+   `MANGAPIXER_VERSION=1.12.0 docker compose -f deploy/compose.unraid.yaml up -d`
 
 This file publishes host port **6266 on all interfaces**, unlike the
 loopback-only canonical file, and keeps the read-only root filesystem and
 `no-new-privileges`. The folder picker only browses under `/media` by default; see
-`MangaPlex__Storage__MediaRoot` below.
+`MangaPixer__Storage__MediaRoot` below.
 
 <!-- TODO(owner): Unraid Community Applications template once a registry image exists. -->
 
@@ -254,26 +254,26 @@ keys a self-hoster may want (full reference: [Configuration](docs/configuration.
 
 | Environment variable | Default | Purpose |
 |---|---|---|
-| `MangaPlex__Storage__DataRoot` | `./data` next to the app; `/data` in the image | Database (`mangaplex.db`), Data Protection keys, logs, backups, thumbnails |
-| `MangaPlex__Storage__CacheRoot` | `./cache`; `/cache` in the image | Evictable derived page cache |
-| `MangaPlex__Storage__ScratchRoot` | `./scratch`; `/scratch` in the image | Temporary per-job workspace for the media worker |
-| `MangaPlex__Storage__MediaRoot` | `/media` | Root the admin folder picker may browse when adding libraries |
-| `MangaPlex__Storage__CacheBudgetBytes` | `1073741824` (1 GiB) | Page-cache size limit (LRU eviction) |
-| `MangaPlex__Storage__ScratchBudgetBytes` | `1073741824` (1 GiB) | Scratch size limit |
-| `MangaPlex__Media__MaxConcurrentJobs` | `2` | Concurrent media-worker jobs; `1` suits low-memory NAS boxes |
-| `MangaPlex__Media__ThumbnailBackfill__BatchSize` | `200` | Items per background thumbnail batch |
-| `MangaPlex__Media__ThumbnailBackfill__BackoffMs` | `200` | Backfill back-off while readers are busy |
-| `MangaPlex__Backups__Enabled` | `true` | Rotating database backups on/off |
-| `MangaPlex__Backups__IntervalHours` | `24` | Hours between rotating backups |
-| `MangaPlex__Backups__RetentionCount` | `7` | Rotating backups to keep (pre-migration backups are never pruned) |
-| `MangaPlex__Backups__MaxRestoreUploadBytes` | `536870912` (512 MiB) | Size cap for an uploaded restore file |
-| `MangaPlex__Security__RateLimit__MaxAttemptsPerIp` | `10` | Failed logins allowed per IP per window |
-| `MangaPlex__Security__RateLimit__MaxAttemptsPerUser` | `5` | Failed logins allowed per username per window |
-| `MangaPlex__Security__RateLimit__Window` | `00:05:00` | Rate-limit window |
-| `Media__WorkerExecutablePath` | auto-discovered | Path to `MangaPlex.MediaWorker.dll`; the image sets `/app/worker/MangaPlex.MediaWorker.dll` |
+| `MangaPixer__Storage__DataRoot` | `./data` next to the app; `/data` in the image | Database (`mangapixer.db`), Data Protection keys, logs, backups, thumbnails |
+| `MangaPixer__Storage__CacheRoot` | `./cache`; `/cache` in the image | Evictable derived page cache |
+| `MangaPixer__Storage__ScratchRoot` | `./scratch`; `/scratch` in the image | Temporary per-job workspace for the media worker |
+| `MangaPixer__Storage__MediaRoot` | `/media` | Root the admin folder picker may browse when adding libraries |
+| `MangaPixer__Storage__CacheBudgetBytes` | `1073741824` (1 GiB) | Page-cache size limit (LRU eviction) |
+| `MangaPixer__Storage__ScratchBudgetBytes` | `1073741824` (1 GiB) | Scratch size limit |
+| `MangaPixer__Media__MaxConcurrentJobs` | `2` | Concurrent media-worker jobs; `1` suits low-memory NAS boxes |
+| `MangaPixer__Media__ThumbnailBackfill__BatchSize` | `200` | Items per background thumbnail batch |
+| `MangaPixer__Media__ThumbnailBackfill__BackoffMs` | `200` | Backfill back-off while readers are busy |
+| `MangaPixer__Backups__Enabled` | `true` | Rotating database backups on/off |
+| `MangaPixer__Backups__IntervalHours` | `24` | Hours between rotating backups |
+| `MangaPixer__Backups__RetentionCount` | `7` | Rotating backups to keep (pre-migration backups are never pruned) |
+| `MangaPixer__Backups__MaxRestoreUploadBytes` | `536870912` (512 MiB) | Size cap for an uploaded restore file |
+| `MangaPixer__Security__RateLimit__MaxAttemptsPerIp` | `10` | Failed logins allowed per IP per window |
+| `MangaPixer__Security__RateLimit__MaxAttemptsPerUser` | `5` | Failed logins allowed per username per window |
+| `MangaPixer__Security__RateLimit__Window` | `00:05:00` | Rate-limit window |
+| `Media__WorkerExecutablePath` | auto-discovered | Path to `MangaPixer.MediaWorker.dll`; the image sets `/app/worker/MangaPixer.MediaWorker.dll` |
 | `ASPNETCORE_URLS` | `http://+:8080` in the image | Listen address |
 | `PUID` / `PGID` | `1000` / `1000` | Container runtime user and group (entrypoint) |
-| `MANGAPLEX_VERSION` | see the Compose files | Image tag used by the Compose files |
+| `MANGAPIXER_VERSION` | see the Compose files | Image tag used by the Compose files |
 
 Log verbosity is changed at runtime in the **Diagnostics** card on the
 Administration page. It resets to `Information` on restart. Logs are written to the console and to
@@ -281,7 +281,7 @@ Administration page. It resets to `Information` on restart. Logs are written to 
 
 ## Privacy and security
 
-- **No telemetry, analytics, or phone-home.** MangaPlex makes no third-party
+- **No telemetry, analytics, or phone-home.** MangaPixer makes no third-party
   lookups. Fonts (Roboto) and icons (Material Icons) are bundled and served by
   your own server, never from a CDN.
 - **Logs never contain paths or titles.** They carry IDs, counts, timings and
@@ -307,9 +307,9 @@ npm, and **PowerShell 7** for the scripts. Docker is needed for the container an
 smoke flows.
 
 ```text
-dotnet restore MangaPlex.slnx --locked-mode
-dotnet build MangaPlex.slnx --no-restore -c Release
-dotnet test MangaPlex.slnx --no-build -c Release
+dotnet restore MangaPixer.slnx --locked-mode
+dotnet build MangaPixer.slnx --no-restore -c Release
+dotnet test MangaPixer.slnx --no-build -c Release
 
 npm --prefix web ci
 npm --prefix web run build
@@ -320,14 +320,14 @@ The production container is a multi-stage build (Angular SPA, then server and
 worker, then the runtime image):
 
 ```bash
-docker build -f deploy/Dockerfile -t mangaplex:dev .
+docker build -f deploy/Dockerfile -t mangapixer:dev .
 ```
 
 No local SDKs? Build inside the official containers instead:
 
 ```bash
 docker run --rm -v "$PWD:/workspace" -w /workspace mcr.microsoft.com/dotnet/sdk:10.0 \
-    dotnet build MangaPlex.slnx -c Release
+    dotnet build MangaPixer.slnx -c Release
 docker run --rm -v "$PWD/web:/workspace/web" -w /workspace/web node:24-bookworm-slim \
     sh -c "npm ci && npm run build"
 ```
@@ -363,9 +363,9 @@ passes in a normal clone. It fails only if a git remote URL embeds a credential
 
 | Path | Contents |
 |---|---|
-| `src/MangaPlex.Server` | ASP.NET Core API, auth, scanning, catalog, SQLite (EF Core) persistence |
-| `src/MangaPlex.MediaWorker` | Supervised archive/image worker process (no database, no network listener) |
-| `src/MangaPlex.Core` | Shared contracts, IDs, natural ordering, worker protocol |
+| `src/MangaPixer.Server` | ASP.NET Core API, auth, scanning, catalog, SQLite (EF Core) persistence |
+| `src/MangaPixer.MediaWorker` | Supervised archive/image worker process (no database, no network listener) |
+| `src/MangaPixer.Core` | Shared contracts, IDs, natural ordering, worker protocol |
 | `web/` | Angular + Angular Material web reader |
 | `tests/` | xUnit suites (Core, MediaWorker, Server) and synthetic test-fixture generation |
 | `assets/` | Logo artwork |
@@ -375,7 +375,7 @@ passes in a normal clone. It fails only if a git remote URL embeds a credential
 
 ## Project status
 
-MangaPlex is at **1.12.0**. It follows SemVer, and the version lives in
+MangaPixer is at **1.12.0**. It follows SemVer, and the version lives in
 `Version.props`. It is developed and used daily on a real home-server library.
 <!-- TODO(owner): roadmap pointer (issues / milestones / project board), support expectations, and what "stable" means for you. -->
 
@@ -392,6 +392,6 @@ through its public surface.
 
 ## License
 
-MangaPlex is released under the [MIT License](LICENSE). Copyright (c) 2026 Smit
+MangaPixer is released under the [MIT License](LICENSE). Copyright (c) 2026 Smit
 Dixit. Third-party components and their licenses are listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

@@ -26,7 +26,7 @@ export type WebtoonTapZone = 'back' | 'toggle' | 'forward';
  */
 @Injectable({ providedIn: 'root' })
 export class WebtoonNavPreferencesService {
-  static readonly TapStepKey = 'mangaplex-webtoon-tap-step';
+  static readonly TapStepKey = 'mangapixer-webtoon-tap-step';
   static readonly DefaultTapStep: WebtoonTapStep = 90;
 
   /** Current tap/swipe step (0 = off); reactive so the reader re-evaluates live. */

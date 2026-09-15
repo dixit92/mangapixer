@@ -569,13 +569,13 @@ describe('ReaderComponent per-device page mode', () => {
     c.chooseView('webtoon');
     expect(c.viewPref()).toBeNull();
     expect(c.view()).toBe('webtoon');
-    expect(localStorage.getItem('mangaplex-reader-view')).toBeNull();
+    expect(localStorage.getItem('mangapixer-reader-view')).toBeNull();
   });
 
   it('a paged-layout preference set on a paged item does not survive a stale localStorage "webtoon" value', () => {
     // Pre-Option-A localStorage could hold 'webtoon' (from the old sticky bug).
     // loadViewPref must not resurrect it as a device pref.
-    localStorage.setItem('mangaplex-reader-view', 'webtoon');
+    localStorage.setItem('mangapixer-reader-view', 'webtoon');
     const c = create();
     expect(c.viewPref()).toBeNull();
   });
@@ -618,16 +618,16 @@ describe('ReaderComponent per-device page mode', () => {
     c.chooseSpread(false);
     expect(c.viewPref()).toBe('spread');
     expect(c.coverIsStandalone()).toBe(false);
-    expect(localStorage.getItem('mangaplex-reader-cover-standalone')).toBe('0');
+    expect(localStorage.getItem('mangapixer-reader-cover-standalone')).toBe('0');
 
     c.chooseSpread(true);
     expect(c.coverIsStandalone()).toBe(true);
-    expect(localStorage.getItem('mangaplex-reader-cover-standalone')).toBe('1');
+    expect(localStorage.getItem('mangapixer-reader-cover-standalone')).toBe('1');
   });
 
   it('loads a stored preference on construction (view + cover offset)', () => {
-    localStorage.setItem('mangaplex-reader-view', 'spread');
-    localStorage.setItem('mangaplex-reader-cover-standalone', '0');
+    localStorage.setItem('mangapixer-reader-view', 'spread');
+    localStorage.setItem('mangapixer-reader-cover-standalone', '0');
     const c = create();
     expect(c.viewPref()).toBe('spread');
     expect(c.coverIsStandalone()).toBe(false);
@@ -1895,7 +1895,7 @@ describe('ReaderComponent adaptive double page on narrow portrait (1.11.0)', () 
     c.chooseSpread(true);
     expect(c.view()).toBe('spread');
     expect(c.viewPref()).toBe('spread');
-    expect(localStorage.getItem('mangaplex-reader-view')).toBe('spread');
+    expect(localStorage.getItem('mangapixer-reader-view')).toBe('spread');
     expect(snack).toHaveBeenCalledTimes(1);
     expect(String(snack.mock.calls[0][0])).toContain('landscape');
     // The phone sheet carries the note inline, so no toast is stacked under it.
