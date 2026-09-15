@@ -118,7 +118,9 @@ public sealed class ServerProcessManager : IAsyncDisposable
                 return Task.CompletedTask;
 
             if (!File.Exists(_serverExecutablePath))
-                throw new FileNotFoundException("MangaPlex.Server.exe was not found next to the tray executable.", _serverExecutablePath);
+                throw new FileNotFoundException(
+                    "MangaPlex.Server.exe was not found at the expected distribution path (server\\ under the tray's folder, or next to the tray executable).",
+                    _serverExecutablePath);
 
             var startInfo = new ProcessStartInfo(_serverExecutablePath)
             {

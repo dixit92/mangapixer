@@ -37,9 +37,8 @@ public sealed class TrayApplicationContext : ApplicationContext
         _runKeyService = new RunKeyService("MangaPlex");
         _portResolver = new ServerPortResolver();
 
-        var serverExecutablePath = Path.Combine(
-            Path.GetDirectoryName(Application.ExecutablePath) ?? AppContext.BaseDirectory,
-            "MangaPlex.Server.exe");
+        var serverExecutablePath = ServerExecutableLocator.Resolve(
+            Path.GetDirectoryName(Application.ExecutablePath) ?? AppContext.BaseDirectory);
         _serverManager = new ServerProcessManager(
             serverExecutablePath,
             new ServerEndpointOptions { Port = _settings.Port, AllowLanAccess = _settings.AllowLanAccess });
