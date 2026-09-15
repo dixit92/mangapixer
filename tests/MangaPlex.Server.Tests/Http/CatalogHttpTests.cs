@@ -12,8 +12,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 /// <summary>
-/// C01 HTTP tests: browse with public IDs, breadcrumbs, neighbors,
-/// library list with real counts (D5/D29/D30).
+/// HTTP tests for catalog browsing: public IDs, breadcrumbs, neighbor navigation,
+/// and the library list with real counts.
 /// </summary>
 [Collection("HttpSerial")]
 public sealed class CatalogHttpTests : IClassFixture<MangaPlexWebApplicationFactory>
@@ -635,29 +635,54 @@ public sealed class CatalogHttpTests : IClassFixture<MangaPlexWebApplicationFact
             // An empty folder + a folder containing an archive + six root-level archives a..f.
             var empty = new CatalogNodeEntity
             {
-                PublicId = "heEmpty", LibraryId = library.Id, Kind = 0, DisplayName = "Empty",
-                RelativePath = "Empty", PathKey = "empty", SortKey = "00Empty", Availability = 0,
+                PublicId = "heEmpty",
+                LibraryId = library.Id,
+                Kind = 0,
+                DisplayName = "Empty",
+                RelativePath = "Empty",
+                PathKey = "empty",
+                SortKey = "00Empty",
+                Availability = 0,
                 CreatedAt = DateTimeOffset.UtcNow,
             };
             var full = new CatalogNodeEntity
             {
-                PublicId = "heFull", LibraryId = library.Id, Kind = 0, DisplayName = "Full",
-                RelativePath = "Full", PathKey = "full", SortKey = "01Full", Availability = 0,
+                PublicId = "heFull",
+                LibraryId = library.Id,
+                Kind = 0,
+                DisplayName = "Full",
+                RelativePath = "Full",
+                PathKey = "full",
+                SortKey = "01Full",
+                Availability = 0,
                 CreatedAt = DateTimeOffset.UtcNow,
             };
             db.CatalogNodes.AddRange(empty, full);
             await db.SaveChangesAsync();
             db.CatalogNodes.Add(new CatalogNodeEntity
             {
-                PublicId = "heFullCh", LibraryId = library.Id, ParentId = full.Id, Kind = 1,
-                DisplayName = "F Ch", RelativePath = "Full/F Ch", PathKey = "full/f ch",
-                SortKey = "1full", Availability = 0, CreatedAt = DateTimeOffset.UtcNow,
+                PublicId = "heFullCh",
+                LibraryId = library.Id,
+                ParentId = full.Id,
+                Kind = 1,
+                DisplayName = "F Ch",
+                RelativePath = "Full/F Ch",
+                PathKey = "full/f ch",
+                SortKey = "1full",
+                Availability = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
             });
             foreach (var c in "abcdef")
                 db.CatalogNodes.Add(new CatalogNodeEntity
                 {
-                    PublicId = $"he{c}", LibraryId = library.Id, Kind = 1, DisplayName = $"Ch {c}",
-                    RelativePath = $"Ch {c}", PathKey = $"ch {c}", SortKey = $"1{c}", Availability = 0,
+                    PublicId = $"he{c}",
+                    LibraryId = library.Id,
+                    Kind = 1,
+                    DisplayName = $"Ch {c}",
+                    RelativePath = $"Ch {c}",
+                    PathKey = $"ch {c}",
+                    SortKey = $"1{c}",
+                    Availability = 0,
                     CreatedAt = DateTimeOffset.UtcNow,
                 });
             await db.SaveChangesAsync();

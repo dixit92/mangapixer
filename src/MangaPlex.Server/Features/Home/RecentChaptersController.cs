@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 /// <summary>
-/// Home "New chapters" endpoint (1.11.0 Lane C). Surfaces the most-recently-
+/// Home "New chapters" endpoint. Surfaces the most-recently-
 /// added archives grouped by visible library, newest first, capped per
 /// library. Requires authentication; visibility (Incognito/Private) is
 /// enforced inside <see cref="RecentChaptersService"/> via the shared

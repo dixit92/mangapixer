@@ -296,6 +296,10 @@ public sealed class DbRestoreServiceTests : IDisposable
             var stage = await restore.StageRestoreAsync(stream, "admin");
             Assert.True(stage.Succeeded, $"{stage.Error}: {stage.Message}");
             await db.DisposeAsync(); // close the live DB so the swap can move it.
+            // Disposing returns the connection to the pool, which keeps the live
+            // DB file open; on Windows that blocks the move. Production applies
+            // the restore at startup, before any connection exists.
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
 
             var outcome = await DbRestoreService.ApplyPendingRestoreAsync(_dataRoot, _dbPath);
 

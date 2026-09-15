@@ -50,7 +50,7 @@ public sealed partial class Program
             : WebApplication.CreateBuilder(args);
 
         // Resolve storage roots from builder.Configuration, with a test-only
-        // ambient override checked first (1.9.0 Lane C — test-host-isolation).
+        // ambient override checked first (used by the test host to isolate storage per-run).
         // See the remarks on TestHostStorageOverride for why the override
         // exists: WebApplicationFactory's ConfigureAppConfiguration does not
         // reach these reads in time for this minimal-hosting entry point, and
@@ -106,11 +106,11 @@ public sealed partial class Program
 
         // Serilog bootstrap — plain text console for both container and dev.
         // The default level is controlled by a LoggingLevelSwitch so an admin
-        // can raise/lower verbosity at runtime without a restart (section 9).
+        // can raise/lower verbosity at runtime without a restart.
         // The switch resets to Information on restart (ephemeral by design).
         var levelSwitch = new LoggingLevelSwitch(LogEventLevel.Information);
 
-        // Per-category debug switches (section 9, 1.6.0 Lane E). Each category
+        // Per-category debug switches. Each category
         // gets its own LoggingLevelSwitch wired via MinimumLevel.Override so an
         // admin can enable Debug for ONE subsystem without the whole firehose.
         // All switches default to Information (matching the global default) so
@@ -186,7 +186,7 @@ public sealed partial class Program
                 if (maxConcurrentJobs is > 0) options.MaxConcurrentJobs = maxConcurrentJobs.Value;
             });
 
-            // Startup configuration logging (gap 8.3.6). Logs existence and
+            // Startup configuration logging. Logs existence and
             // budgets only — never absolute paths, per the privacy invariant.
             Log.Logger.ForContext("EventId", LogEvents.Database.StartupStorageRoots).Information("Storage roots initialized: data={DataExists}, cache={CacheExists}, scratch={ScratchExists}",
                 Directory.Exists(dataRoot), Directory.Exists(cacheRoot), Directory.Exists(scratchRoot));
@@ -204,18 +204,18 @@ public sealed partial class Program
             builder.Services.AddScoped<ReadingStateService>();
             builder.Services.AddScoped<CatalogIdResolver>();
             builder.Services.AddScoped<ReaderModeResolver>();
-            // Jump-index (1.4.0 Lane E) — separate from CatalogBrowseService.
+            // Jump-index endpoint, kept separate from CatalogBrowseService.
             builder.Services.AddScoped<JumpIndexService>();
 
-            // Home "New chapters" (1.11.0 Lane C) — separate service so the
-            // parallel browse lane owns CatalogBrowseService without contention.
+            // Home "New chapters" — separate service, kept out of
+            // CatalogBrowseService, which owns the main catalog-browsing surface.
             builder.Services.AddScoped<RecentChaptersService>();
 
             // Operations services
             builder.Services.AddScoped<BackupService>();
             builder.Services.AddScoped<DiagnosticsService>();
 
-            // Log-level control (section 9) — singleton so the switch survives
+            // Log-level control — singleton so the switch survives
             // across requests and mutates the live Serilog pipeline.
             builder.Services.AddSingleton(levelSwitch);
             builder.Services.AddSingleton<IReadOnlyDictionary<string, LoggingLevelSwitch>>(categorySwitches);
@@ -289,7 +289,7 @@ public sealed partial class Program
 
             var app = builder.Build();
 
-            // Unhandled-error middleware (gap 8.3.9): app-level capture of 500s.
+            // Unhandled-error middleware: app-level capture of 500s.
             // The exception goes to the log (file sink gets the trace); the client
             // gets a sanitized response with no internals.
             app.UseExceptionHandler(errorApp =>

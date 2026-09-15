@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Review-instance reproduction for the reading_progress UNIQUE-constraint race.
 
+Historical diagnostic script, kept as a record of how an already-fixed race was
+triaged; it is not a maintained tool. The race is recovered in
+ReadingStateService, and the leftover EF Core error log line is dropped by
+RecoveredRaceNoiseFilter. The admin password below is a deliberate, fixed
+throwaway for a local, disposable review instance, not a real credential.
+
 Drives N concurrent first-write progress PUTs against the same (user, item) on a
 fresh review instance built from the current tree. The guarded UpdateProgressAsync
 path recovers the race (no 500), but EF Core still logs the failed INSERT at Error
@@ -12,10 +18,13 @@ level before the catch runs - the recovered-race "noise". We confirm:
 Uses curl via subprocess because libcurl reliably stores the HttpOnly .MangaPlex.Auth
 cookie, where Python's urllib cookiejar dropped it.
 
-Run after `docker run -d --name mangaplex-race-repro -p 127.0.0.1:8097:8080 ...`.
-Pass `--expect-noise` to assert the noise is ABSENT (post-fix image); default
-asserts the noise is PRESENT (pre-fix triage).
+Run after `docker run -d --name mangaplex-race-repro -p 127.0.0.1:8097:8080 ...`
+with a small multi-chapter CBZ library mounted read-only under /media, then pass
+its in-container path with `--lib-root` (any folder holding a couple of archives
+works). Pass `--expect-noise` to assert the noise is ABSENT (post-fix image);
+default asserts the noise is PRESENT (pre-fix triage).
 """
+import argparse
 import json
 import os
 import subprocess
@@ -25,11 +34,19 @@ import threading
 
 BASE = "http://127.0.0.1:8097"
 CONTAINER = "mangaplex-race-repro"
-LIB_ROOT = "/media/Manga/Alya Sometimes Hides Her Feelings in Russian"
+LIBRARY_NAME = "Race Repro"
 # Windows absolute path so Python and the native Windows curl resolve the jar
 # identically (a bare "/tmp/..." resolved differently between the two).
 CJ = os.path.join(tempfile.gettempdir(), "race-repro-cookies.txt")
-EXPECT_NOISE_ABSENT = "--expect-noise" in sys.argv
+
+parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+parser.add_argument("--lib-root", default="/media/Manga/<series>",
+                    help="library folder inside the container (default: %(default)s, a placeholder)")
+parser.add_argument("--expect-noise", action="store_true",
+                    help="assert the EF Core noise line is ABSENT (post-fix image)")
+ARGS = parser.parse_args()
+LIB_ROOT = ARGS.lib_root
+EXPECT_NOISE_ABSENT = ARGS.expect_noise
 
 
 def curl(method, path, body=None, headers=None):
@@ -67,22 +84,22 @@ def main():
     csrf = json.loads(body)["token"]
     auth = {"X-MangaPlex-Csrf": csrf}
 
-    # 3. Register a small library (2 cbz under the Alya series), or reuse it.
+    # 3. Register a small library (a couple of CBZ files under LIB_ROOT), or reuse it.
     st, body = curl("POST", "/api/v1/admin/libraries",
-                    {"displayName": "Alya", "rootPath": LIB_ROOT}, auth)
+                    {"displayName": LIBRARY_NAME, "rootPath": LIB_ROOT}, auth)
     if st == 200:
         lib_id = json.loads(body)["id"]
         print(f"library registered: {lib_id}")
     else:
-        # Duplicate or other non-200: find the existing Alya library by name.
+        # Duplicate or other non-200: find the existing repro library by name.
         st, body = curl("GET", "/api/v1/libraries")
         if st != 200:
             sys.exit(f"register failed ({st}) and libraries list failed: {body[:200]}")
         libs = json.loads(body)
         libs = libs if isinstance(libs, list) else libs.get("libraries", [])
-        lib = next((l for l in libs if "Alya" in l.get("displayName", l.get("name", ""))), None)
+        lib = next((l for l in libs if LIBRARY_NAME in l.get("displayName", l.get("name", ""))), None)
         if lib is None:
-            sys.exit(f"register failed ({st}) and no existing Alya library: {body[:200]}")
+            sys.exit(f"register failed ({st}) and no existing {LIBRARY_NAME} library: {body[:200]}")
         lib_id = lib["id"]
         print(f"library reused: {lib_id}")
 

@@ -11,7 +11,7 @@ using Xunit;
 /// <summary>
 /// Tests that all DTOs serialize and deserialize consistently via System.Text.Json,
 /// and that no DTO contains source paths or other private information.
-/// These tests enforce the P02 contract freeze.
+/// These tests enforce the frozen public API contract.
 /// </summary>
 public sealed class ContractSerializationTests
 {

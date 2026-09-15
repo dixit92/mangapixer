@@ -6,7 +6,7 @@ using System.Text.Json;
 using Xunit;
 
 /// <summary>
-/// HTTP test for GET /api/v1/system/info (post-1.3.0 lane D).
+/// HTTP test for GET /api/v1/system/info.
 /// Verifies the endpoint is accessible unauthenticated (the app footer needs it
 /// before login) and returns a non-empty product version from the assembly
 /// InformationalVersion attribute (sourced from Version.props at build time).
@@ -44,7 +44,7 @@ public sealed class SystemInfoHttpTests : IDisposable
     [Fact]
     public async Task GetSystemInfo_ReturnsPlatform_MatchingTheRunningOs()
     {
-        // Platform field (lane WinDeploy H, 1.13.0): "windows" or "linux",
+        // Platform field (added in 1.13.0): "windows" or "linux",
         // whichever this test process is actually running on.
         var client = _factory.CreateClient();
 

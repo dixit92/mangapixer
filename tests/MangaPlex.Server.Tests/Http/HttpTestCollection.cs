@@ -9,7 +9,7 @@ using Xunit;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>What changed in 1.9.0 (Lane C — test-host-isolation).</b> The
+/// <b>Why storage isolation is no longer the reason for this collection.</b> The
 /// original motivation for this collection — factories racing on a shared,
 /// process-global storage environment variable — no longer applies: storage
 /// roots are now injected per-instance via <c>TestHostStorageOverride</c>,

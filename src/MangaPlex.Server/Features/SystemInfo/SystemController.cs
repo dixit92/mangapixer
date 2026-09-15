@@ -6,8 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 /// <summary>
-/// Read-only system information endpoint (post-1.3.0 lane D; platform field
-/// added lane WinDeploy H, 1.13.0).
+/// Read-only system information endpoint (reports the server platform since 1.13.0).
 /// GET /api/v1/system/info — returns the product version from the assembly
 /// <see cref="AssemblyInformationalVersionAttribute"/> (sourced from Version.props
 /// at build time) and the server's OS platform. Contains no private data; served
@@ -47,7 +46,7 @@ public sealed class SystemController : ControllerBase
 
     /// <summary>
     /// Derives the server's platform so the admin UI can speak its path idiom
-    /// (lane WinDeploy H, 1.13.0). Windows/Linux only for now — MangaPlex ships
+    /// (added in 1.13.0). Windows/Linux only for now — MangaPlex ships
     /// on those two; other OSes report null and the client falls back to the
     /// current (container-oriented) wording.
     /// </summary>

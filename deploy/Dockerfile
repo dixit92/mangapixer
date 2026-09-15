@@ -1,6 +1,7 @@
 # MangaPlex production Dockerfile
 # Multi-stage build: Angular SPA + .NET server + MediaWorker
-# Uses official Debian-based .NET images (no Alpine/musl in release one).
+# Uses the official Microsoft .NET images (Ubuntu-based for .NET 10; no
+# Alpine/musl in release one).
 # Produces a non-root, read-only-media container with bounded logging.
 
 # --- Stage 1: Build Angular SPA ---
@@ -18,6 +19,16 @@ COPY global.json Directory.Build.props Directory.Packages.props Version.props Ma
 COPY src/ ./src/
 COPY tests/ ./tests/
 RUN dotnet restore MangaPlex.slnx --locked-mode 2>/dev/null || dotnet restore MangaPlex.slnx
+
+# Magick.NET's Notice.txt carries the license texts for ImageMagick and the
+# native libraries bundled in Magick.Native. dotnet publish does not copy it,
+# so take it from the restored package (version-independent lookup) and fail
+# the build if it is missing rather than ship an image without it.
+RUN notice="$(find "${NUGET_PACKAGES:-$HOME/.nuget/packages}/magick.net-q8-anycpu" \
+        -mindepth 2 -maxdepth 2 -iname notice.txt | sort -V | tail -n 1)" && \
+    test -n "$notice" && \
+    mkdir -p /build/licenses && \
+    cp "$notice" /build/licenses/Magick.NET-Notice.txt
 
 # Git build metadata for InformationalVersion (consumed by Directory.Build.props).
 # Passed by the deploy script via --build-arg; empty by default so a plain
@@ -38,11 +49,11 @@ WORKDIR /app
 
 # Install native dependencies:
 # - libgdiplus: native backing for Magick.NET image probing/transcoding.
-#   Kept until C04 process tests confirm the worker runs without it; remove
-#   only after that evidence exists (audit defect D37).
+#   Kept until process-level tests confirm the worker runs without it; remove
+#   only after that evidence exists.
 # - ca-certificates for HTTPS, gosu for privilege dropping in entrypoint.
 # p7zip-full was removed: SharpCompress is managed and the worker never shells
-# out to 7z (audit defect D37).
+# out to 7z.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgdiplus \
     ca-certificates \
@@ -54,6 +65,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=dotnet-build /build/publish/server ./server/
 COPY --from=dotnet-build /build/publish/worker ./worker/
 COPY --from=web-build /build/web/dist/mangaplex-web/browser ./wwwroot/
+
+# License notices shipped with the binaries (see THIRD-PARTY-NOTICES.md):
+# MangaPlex's own LICENSE, the third-party inventory, the Angular build's
+# bundled-package licenses, and Magick.NET's native-library notice.
+COPY LICENSE THIRD-PARTY-NOTICES.md ./licenses/
+COPY --from=web-build /build/web/dist/mangaplex-web/3rdpartylicenses.txt ./licenses/
+COPY --from=dotnet-build /build/licenses/Magick.NET-Notice.txt ./licenses/
 COPY deploy/entrypoint.sh ./entrypoint.sh
 RUN chmod +x entrypoint.sh
 

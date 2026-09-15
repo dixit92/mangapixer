@@ -183,8 +183,8 @@ public sealed class WorkerLoop
         // (central-directory / insertion) order, which frequently puts the cover
         // last — so pages MUST be sorted by entry path before ordinals are
         // assigned, using the same NaturalOrderComparer the scanner uses for
-        // folders/files (P02 ordering contract). Sorting by full path keeps
-        // chaptered archives (sub-folders) in the right sequence.
+        // folders/files, so page order matches library-scan order. Sorting by
+        // full path keeps chaptered archives (sub-folders) in the right sequence.
         var imageEntries = enumeration.Entries
             .Where(e => e.IsImageCandidate && !ImageExtensions.ShouldIgnore(e.EntryPath))
             .OrderBy(e => e.EntryPath, NaturalOrderComparer.Instance)
@@ -296,8 +296,8 @@ public sealed class WorkerLoop
     }
 
     /// <summary>
-    /// Extracts one page image from the archive and encodes the requested variant
-    /// (C13). The worker is the only process that opens archives / decodes images.
+    /// Extracts one page image from the archive and encodes the requested variant.
+    /// The worker is the only process that opens archives / decodes images.
     /// Solid archives are deferred with a graceful, non-recoverable error.
     /// </summary>
     private async Task HandleExtractAsync(string correlationId, ExtractRequest request)

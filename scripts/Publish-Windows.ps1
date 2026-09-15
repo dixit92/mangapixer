@@ -16,7 +16,11 @@
                                  ships this file, so container behavior is
                                  byte-identical to before.
         worker/                 self-contained win-x64 MangaPlex.MediaWorker.exe
-        MangaPlex.Tray.exe      only if src/MangaPlex.Tray exists (Lane B)
+        MangaPlex.Tray.exe      the tray launcher project, if present
+                                 (src/MangaPlex.Tray)
+        LICENSE, THIRD-PARTY-NOTICES.md
+                                 license notices; the MSI harvests this whole
+                                 folder, so they are installed too
 
     Never touches deploy/**, Version.props, package.json, or the tray project.
     Default bind: http://127.0.0.1:27272 (see -BindUrl).
@@ -27,7 +31,7 @@
 param(
     [string]$OutputDir = "artifacts/windows-dist",
 
-    # Loopback-only default bind per the cycle's Windows-distribution decision.
+    # Loopback-only default bind for the Windows distribution.
     # This overlay default applies to DIRECT exe launches. The tray launcher
     # overrides it by passing --Urls on the server's command line (NOT via
     # ASPNETCORE_URLS alone: ASPNETCORE_-prefixed env vars are host-level
@@ -115,9 +119,9 @@ $overlay = [ordered]@{
 $overlayPath = Join-Path $serverDir "appsettings.Production.json"
 $overlay | ConvertTo-Json -Depth 5 | Set-Content -Path $overlayPath -Encoding utf8
 
-# --- Tray launcher (Lane B, built in parallel) ---
-# Guarded so this lane's build stays green whether or not the tray project
-# exists yet. Never edits the tray project or MangaPlex.slnx.
+# --- Tray launcher (the tray launcher project, if present) ---
+# Guarded so the publish stays green whether or not src/MangaPlex.Tray
+# exists. Never edits the tray project or MangaPlex.slnx.
 $trayProject = Join-Path $repoRoot "src/$ProductName.Tray/$ProductName.Tray.csproj"
 if (Test-Path $trayProject) {
     Write-Stage "Publish $ProductName.Tray (single-file self-contained win-x64)"
@@ -134,7 +138,14 @@ if (Test-Path $trayProject) {
     Remove-Item $trayStaging -Recurse -Force
 }
 else {
-    Write-Host "SKIPPED: src/$ProductName.Tray not found (Lane B not landed yet)" -ForegroundColor Yellow
+    Write-Host "SKIPPED: src/$ProductName.Tray not found (tray launcher project not present)" -ForegroundColor Yellow
+}
+
+# --- License notices, next to the tray exe (the installer payload is this
+# whole folder, so they ship in the MSI as well) ---
+Write-Stage "Copy license notices"
+foreach ($notice in @("LICENSE", "THIRD-PARTY-NOTICES.md")) {
+    Copy-Item (Join-Path $repoRoot $notice) (Join-Path $distRoot $notice) -Force
 }
 
 Write-Stage "Publish-Windows summary"

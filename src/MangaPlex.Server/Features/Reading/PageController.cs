@@ -37,7 +37,7 @@ public sealed class PageController : ControllerBase
     private readonly ThumbnailStore _thumbnailStore;
     private readonly ILogger<PageController> _logger;
 
-    // WebP transcode defaults (C13). Overridable later via preferences/config.
+    // WebP transcode defaults for on-demand page delivery; not yet user-configurable.
     private const int ThumbnailMaxDimension = 320;
     private const int WebpQuality = 82;
 
@@ -105,7 +105,7 @@ public sealed class PageController : ControllerBase
             return NotFound(new ApiError { Error = "page_not_found", Message = "Page entry key not found." });
 
         // Map the requested variant to a worker variant. Pages and covers are
-        // served as WebP (C13); the thumbnail endpoint gets a downscaled WebP.
+        // served as WebP; the thumbnail endpoint gets a downscaled WebP.
         var workerVariant = variant == "thumbnail" ? "thumbnail" : "webp";
 
         // Try cache first — serve the stored media type (handles animated passthrough).

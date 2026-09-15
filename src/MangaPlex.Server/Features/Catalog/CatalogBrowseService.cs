@@ -648,7 +648,7 @@ public sealed class CatalogBrowseService
     /// so a series folder floats up by its most-recently-read chapter (recursive — series
     /// nest into volumes/seasons). Folders and archives interleave by recency, unlike
     /// name/recentlyAdded (folders-first), because "recently read" is inherently a recency
-    /// question (owner decision, 2026-09-10). The recursive descendant aggregate cannot be
+    /// question. The recursive descendant aggregate cannot be
     /// expressed in LINQ, so recency is computed with a recursive CTE and the ordering +
     /// paging happen in memory over the level's direct children (bounded). Cursor is an
     /// offset: "r:{offset}", which stays valid across a direction change in the same

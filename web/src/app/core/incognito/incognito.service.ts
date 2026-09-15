@@ -5,7 +5,7 @@ const STORAGE_KEY = 'mangaplex.incognito';
 /**
  * Holds the client-side "Incognito" mode state for the current browser session.
  *
- * Design (owner decisions, 2026-09-10):
+ * Design:
  * - Incognito **defaults ON for a new session** (a freshly opened tab/window):
  *   sessions start private until the user unhides for the session.
  * - The choice is persisted in **sessionStorage**, so it survives a page reload

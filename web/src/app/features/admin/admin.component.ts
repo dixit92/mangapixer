@@ -560,7 +560,7 @@ export class AdminComponent implements OnInit, OnDestroy {
   readonly newLibName = signal('');
   readonly newLibPath = signal('');
 
-  // Platform-aware register-form copy (lane WinDeploy H, 1.13.0): null until
+  // Platform-aware register-form copy (added in 1.13.0): null until
   // GET /system/info returns (or on an older server that lacks the field),
   // which falls back to the historical container wording — never blocks the
   // form on this best-effort load.

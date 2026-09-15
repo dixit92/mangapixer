@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 /// <summary>
-/// C03 HTTP tests: CSRF enforcement (D2) and progress contract repair (D14/D32).
+/// HTTP tests for CSRF enforcement and reading-progress contract repair.
 /// </summary>
 [Collection("HttpSerial")]
 public sealed class CsrfAndProgressHttpTests : IClassFixture<MangaPlexWebApplicationFactory>

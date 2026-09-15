@@ -20,8 +20,9 @@ public static class AuthServicesExtensions
     /// <param name="rateLimitDisabledOverride">
     /// Test-only override for <see cref="LoginRateLimitOptions.Disabled"/>,
     /// taking precedence over the bound <c>MangaPlex:Security:RateLimit:Disabled</c>
-    /// configuration value when non-null (1.9.0 Lane C — test-host-isolation;
-    /// see <c>TestHostStorageOverride</c>). Always null in production, where
+    /// configuration value when non-null. Used by the test host to disable rate
+    /// limiting without touching process-wide configuration (see
+    /// <c>TestHostStorageOverride</c>). Always null in production, where
     /// the configuration-bound value is used unchanged.
     /// </param>
     public static IServiceCollection AddMangaPlexAuth(

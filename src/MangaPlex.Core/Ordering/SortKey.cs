@@ -16,8 +16,9 @@ using System.Text;
 /// - Folders sort before archives at the same level (prefix '0' vs '1').
 /// - The full key is a concatenation of segment keys joined by '\x1F' (unit separator).
 ///
-/// This is a P02 prototype format. The exact encoding may be revised before P03
-/// freezes the schema, but the comparison semantics are final.
+/// This encoding is persisted to SQLite and used for keyset pagination and
+/// indexing, so it is a stable on-disk format — changing it requires a data
+/// migration, not just a code change.
 /// </summary>
 public static class SortKey
 {

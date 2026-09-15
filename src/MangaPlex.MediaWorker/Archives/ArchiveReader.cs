@@ -7,8 +7,9 @@ using System.Security.Cryptography;
 /// <summary>
 /// Archive reader adapter using SharpCompress.
 /// Enumerates entries without extracting, detects format, and identifies issues.
-/// This is the P01 prototype — full production behavior (solid archive handling,
-/// resource limits, worker IPC) is built in P07.
+/// Solid-archive support and enforced resource limits (entry count, uncompressed
+/// bytes budget) are not yet implemented here; the worker's IPC contract with the
+/// server is implemented in WorkerLoop.
 /// </summary>
 public sealed class ArchiveReader : IDisposable
 {
@@ -45,7 +46,8 @@ public sealed class ArchiveReader : IDisposable
     /// <summary>
     /// Whether the archive is solid (entries share a compression stream, so reaching
     /// entry N requires decompressing 0..N). Used to defer per-page random-access
-    /// extraction for solid archives (C13 — solid reading is a later package).
+    /// extraction for solid archives — reading pages out of a solid archive is not
+    /// yet supported, so callers check this and fail gracefully instead.
     /// </summary>
     public bool IsSolid => _archive?.IsSolid ?? false;
 
@@ -114,8 +116,9 @@ public sealed class ArchiveReader : IDisposable
 
     /// <summary>
     /// Extracts a single entry to a stream. For ZIP/non-solid archives, this is
-    /// a random-access operation. For solid archives, this may require sequential
-    /// decompression (handled in P07 with deduplication).
+    /// a random-access operation. For solid archives, this would require sequential
+    /// decompression from the start of the stream, which is not yet implemented —
+    /// callers should check <see cref="IsSolid"/> first and avoid calling this.
     /// </summary>
     public async Task<Stream> ExtractEntryAsync(string entryKey, CancellationToken ct = default)
     {

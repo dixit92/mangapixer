@@ -21,8 +21,8 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
  * Library browse component. Shows the actual folder/archive tree with keyset
  * pagination, breadcrumbs, and item state indicators.
  *
- * Selection mode (1.2.0) is the single home for card actions (owner review
- * 2026-09-09): tapping cards selects them (mouse or touch — no hover-only
+ * Selection mode (1.2.0) is the single home for card actions:
+ * tapping cards selects them (mouse or touch — no hover-only
  * affordances), and a STICKY top bar carries every bulk action applied to the
  * selection — mark read / unread for everyone, plus set/clear reading direction
  * for admins (folders only). There is no competing per-card menu.
@@ -64,7 +64,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
   template: `
     <!-- Sticky top bar: breadcrumbs + Select normally; the merged action set while
          selecting. Sticky so the controls stay reachable when scrolling a long
-         folder (touch-friendly — requirement 3). -->
+         folder (touch-friendly). -->
     <div class="browse-bar" #browseBar [class.selecting]="selectMode()"
          (click)="onBarClick($event)">
       @if (!selectMode()) {
@@ -518,7 +518,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     .node-sub { font-size: 12px; color: #999; }
     .empty { color: #999; padding: 32px; text-align: center; }
     .scroll-sentinel { min-height: 40px; text-align: center; color: #999; font-size: 12px; }
-    /* A–Z/script jump rail (1.4.0 Lane E), root level only. Sticky under the
+    /* A–Z/script jump rail, root level only. Sticky under the
        top bar (1.8.0): top = measured bar height, z-index below the bar's 20;
        opaque so cards don't show through while stuck. */
     .jump-rail {
@@ -551,7 +551,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     ::ng-deep .jump-picker-menu .jump-chip.active { background: #7c4dff; color: #fff; }
 
     /* Touch / small screens: keep the action bar compact by dropping button labels
-       (icons remain, so the controls stay usable) — requirement 1 (dual input). */
+       (icons remain, so the controls stay usable). */
     @media (max-width: 599.98px) {
       .actions .lbl { display: none; }
       .actions mat-icon { margin-right: 0; }
@@ -618,11 +618,11 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   readonly nextUnread = signal<CatalogNodeDto | null>(null);
   readonly breadcrumbs = signal<{ id: string; displayName: string }[]>([]);
   /**
-   * Name of the folder currently being viewed (Task B, 1.5.0). Rendered as the
-   * last, non-clickable breadcrumb segment. The breadcrumbs endpoint only returns
-   * the current folder's *ancestors* (never the node itself), so this is sourced
-   * from the existing `GET /nodes/{id}` node lookup - a frontend-only addition,
-   * no contract change. Empty at the library root (there is no current folder).
+   * Name of the folder currently being viewed. Rendered as the last, non-clickable
+   * breadcrumb segment. The breadcrumbs endpoint only returns the current folder's
+   * *ancestors* (never the node itself), so this is sourced from the existing
+   * `GET /nodes/{id}` node lookup - a frontend-only addition, no contract change.
+   * Empty at the library root (there is no current folder).
    */
   readonly currentFolderName = signal('');
   readonly hasMore = signal(false);
@@ -709,7 +709,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private scrollSpyFrame: number | null = null;
   private readonly onScroll = (): void => this.scheduleScrollSpy();
 
-  // Jump-index rail (1.4.0 Lane E). Only loaded at the library root (no parentId);
+  // Jump-index rail. Only loaded at the library root (no parentId);
   // subfolders don't have a per-folder jump index. The rail is a name-sort
   // navigation aid, so it is hidden when the sort is not "name".
   readonly jumpBuckets = signal<JumpIndexBucketDto[]>([]);
@@ -800,7 +800,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   // anywhere without the param reverts the active sort to these, so opening a library
   // is always the stored sort (default Name ascending). Kept in sync only when the user
   // changes the sort explicitly via the menu. persistView() writes THESE, never the
-  // (possibly transient) active sort. (1.12.0 owner refinement.)
+  // (possibly transient) active sort. (1.12.0)
   private storedSort: LibrarySortOrder = 'name';
   private storedDirection: LibrarySortDirection = 'asc';
 
@@ -952,7 +952,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       this.resetList();
       this.loadLibraryName(libId);
       this.loadNodes();
-      // The jump rail is a library-root navigation aid (1.4.0 Lane E). It is
+      // The jump rail is a library-root navigation aid. It is
       // only meaningful for the name sort in ascending order — its bucket
       // cursors assume A→Z order — and only over the UNFILTERED listing (1.10.0).
       if (this.shouldShowJumpRail()) this.loadJumpIndex(libId);
@@ -967,7 +967,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Load the per-library A–Z/script jump index (1.4.0 Lane E). */
+  /** Load the per-library A–Z/script jump index. */
   private loadJumpIndex(libId: string): void {
     this.api.getJumpIndex(libId).subscribe({
       next: (res) => this.jumpBuckets.set(res.buckets),
@@ -1730,9 +1730,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
 
   /**
    * Resolve the current folder's display name for the trailing (non-clickable)
-   * breadcrumb segment (Task B). Uses the existing node-lookup endpoint; on error
-   * we clear the name so the breadcrumb simply omits the current segment rather
-   * than showing a stale one.
+   * breadcrumb segment. Uses the existing node-lookup endpoint; on error we clear
+   * the name so the breadcrumb simply omits the current segment rather than
+   * showing a stale one.
    */
   private loadCurrentFolder(nodeId: string): void {
     this.api.getNode(nodeId).subscribe({

@@ -202,11 +202,14 @@ public sealed class DbRestoreService
         }
 
         // Open read-only and run integrity_check + schema/version checks.
+        // Not pooled, so disposing the connection closes the file: on Windows
+        // a pooled handle would block the staged-file move that follows.
         var cs = new SqliteConnectionStringBuilder
         {
             DataSource = path,
             Mode = SqliteOpenMode.ReadOnly,
             Cache = SqliteCacheMode.Private,
+            Pooling = false,
         };
 
         try
@@ -467,24 +470,36 @@ public sealed record RestoreApplyOutcome
 
     public static RestoreApplyOutcome None => new()
     {
-        Applied = false, Failed = false, ActorUserName = null,
-        RequestedAtUtc = null, PreRestoreBackupFileName = null,
-        ReplacedFileName = null, Error = null,
+        Applied = false,
+        Failed = false,
+        ActorUserName = null,
+        RequestedAtUtc = null,
+        PreRestoreBackupFileName = null,
+        ReplacedFileName = null,
+        Error = null,
     };
 
     public static RestoreApplyOutcome Succeeded(
         string? actor, DateTimeOffset requestedAt, string? preRestore, string replaced) => new()
-    {
-        Applied = true, Failed = false, ActorUserName = actor,
-        RequestedAtUtc = requestedAt, PreRestoreBackupFileName = preRestore,
-        ReplacedFileName = replaced, Error = null,
-    };
+        {
+            Applied = true,
+            Failed = false,
+            ActorUserName = actor,
+            RequestedAtUtc = requestedAt,
+            PreRestoreBackupFileName = preRestore,
+            ReplacedFileName = replaced,
+            Error = null,
+        };
 
     public static RestoreApplyOutcome FailedApply(string error) => new()
     {
-        Applied = false, Failed = true, ActorUserName = null,
-        RequestedAtUtc = null, PreRestoreBackupFileName = null,
-        ReplacedFileName = null, Error = error,
+        Applied = false,
+        Failed = true,
+        ActorUserName = null,
+        RequestedAtUtc = null,
+        PreRestoreBackupFileName = null,
+        ReplacedFileName = null,
+        Error = error,
     };
 }
 

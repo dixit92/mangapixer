@@ -4,7 +4,7 @@ using com.lifepixer.mangaplex.Core.Ordering;
 using Xunit;
 
 /// <summary>
-/// Golden tests for natural-order comparison covering edge cases required by P02:
+/// Golden tests for natural-order comparison covering required edge cases:
 /// digit overflow, leading zeros, case sensitivity, CJK, Unicode, nested names.
 /// These tests are the authoritative specification for ordering behavior.
 /// </summary>

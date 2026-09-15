@@ -40,17 +40,28 @@ public sealed class ReadConsistencyHttpTests : IClassFixture<MangaPlexWebApplica
 
         var node = new CatalogNodeEntity
         {
-            PublicId = publicId, LibraryId = library.Id, Kind = 1, DisplayName = $"{publicId}.cbz",
-            RelativePath = $"{publicId}.cbz", PathKey = $"{publicId}.cbz", SortKey = $"1{publicId}",
-            Availability = 0, CreatedAt = DateTimeOffset.UtcNow,
+            PublicId = publicId,
+            LibraryId = library.Id,
+            Kind = 1,
+            DisplayName = $"{publicId}.cbz",
+            RelativePath = $"{publicId}.cbz",
+            PathKey = $"{publicId}.cbz",
+            SortKey = $"1{publicId}",
+            Availability = 0,
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         db.CatalogNodes.Add(node);
         await db.SaveChangesAsync();
 
         db.ArchiveItems.Add(new ArchiveItemEntity
         {
-            NodeId = node.Id, ArchiveFormat = 0, ByteLength = 100, ModificationTicks = 0,
-            ContentVersion = 1, AnalysisState = 0, PageCount = pageCount,
+            NodeId = node.Id,
+            ArchiveFormat = 0,
+            ByteLength = 100,
+            ModificationTicks = 0,
+            ContentVersion = 1,
+            AnalysisState = 0,
+            PageCount = pageCount,
         });
         await db.SaveChangesAsync();
         return node.PublicId;
@@ -69,7 +80,9 @@ public sealed class ReadConsistencyHttpTests : IClassFixture<MangaPlexWebApplica
         {
             Content = JsonContent.Create(new UpdateProgressRequest
             {
-                PageIndex = page, ExpectedContentVersion = 1, MutationId = mutationId,
+                PageIndex = page,
+                ExpectedContentVersion = 1,
+                MutationId = mutationId,
             }),
         };
         if (ifMatch is null) req.Headers.TryAddWithoutValidation("If-None-Match", "*");

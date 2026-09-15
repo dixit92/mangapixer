@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 /// <summary>
-/// C01 tests: catalog hierarchy (D1), public-ID resolution (D5/D29),
-/// scan truth (D8), entry keys (D4), and scan cancellation (D34).
+/// Tests for catalog hierarchy, public-ID resolution,
+/// scan truth, entry keys, and scan cancellation.
 /// </summary>
 public sealed class HierarchyAndIdResolutionTests : IDisposable
 {

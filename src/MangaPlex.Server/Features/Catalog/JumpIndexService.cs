@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace com.lifepixer.mangaplex.Server.Features.Catalog;
 
 /// <summary>
-/// Per-library jump index (1.4.0 multilingual collation jump-navigation, Lane E).
+/// Per-library jump index for multilingual collation-aware jump navigation.
 ///
 /// Builds a coarse A–Z/script rail from the existing persisted <c>SortKey</c>s of
 /// the top-level children of a library (the same set the browse endpoint serves
@@ -18,8 +18,8 @@ namespace com.lifepixer.mangaplex.Server.Features.Catalog;
 /// ICU by default). Buckets are returned in a fixed, UI-sensible rail order with
 /// a <c>FirstCursor</c> that is a valid keyset cursor for the name sort of browse.
 ///
-/// This service is deliberately separate from <c>CatalogBrowseService</c> (Lane B
-/// owns that hot file). It reuses the same persisted <c>SortKey</c> ordering and
+/// This service is kept separate from <c>CatalogBrowseService</c>, which owns the
+/// main catalog-browsing surface. It reuses the same persisted <c>SortKey</c> ordering and
 /// the same raw-<c>SortKey</c> cursor scheme the name sort already honours, so a
 /// bucket's <c>FirstCursor</c> can be passed straight to the browse endpoint with
 /// <c>sort=name</c> and land on the bucket's first node.

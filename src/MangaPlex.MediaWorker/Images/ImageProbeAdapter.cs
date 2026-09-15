@@ -21,7 +21,9 @@ public sealed record ImageProbeResult
 /// <summary>
 /// Image probing and validation adapter using Magick.NET Q8.
 /// Probes image format, dimensions, animation state, and alpha channel.
-/// P01 prototype — full transformations and policy enforcement are in P08.
+/// Transcoding to output variants lives in ImageVariantEncoder; enforcing
+/// acceptance rules (e.g. rejecting unsupported formats) beyond a basic
+/// probe is not yet implemented here.
 /// </summary>
 public sealed class ImageProbeAdapter : IDisposable
 {
@@ -61,8 +63,10 @@ public sealed class ImageProbeAdapter : IDisposable
             // so we check the format.
             var animationState = DetermineAnimationState(format);
 
-            // Check alpha — requires a full read for some formats
-            // For P01 probing, we check the format's capability
+            // Check alpha — requires a full read for some formats.
+            // A header-only probe can't confirm alpha is actually used, so we
+            // check the format's capability instead (see ReadWithFrames for a
+            // fully-decoded, exact check).
             var hasAlpha = format == MagickFormat.Png ||
                           format == MagickFormat.Gif ||
                           format == MagickFormat.WebP ||

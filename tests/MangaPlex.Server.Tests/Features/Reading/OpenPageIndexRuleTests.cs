@@ -4,7 +4,7 @@ using com.lifepixer.mangaplex.Server.Features.Reading;
 using Xunit;
 
 /// <summary>
-/// Unit tests for the 1.9.0 open-position rule (Lane A), exercising the pure
+/// Unit tests for the open-position rule, exercising the pure
 /// <see cref="ReadingStateService.ComputeOpenPageIndex"/> decision directly. The rule
 /// keys off POSITION (Ordinal vs PageCount), not the Completed enum, so it is robust to
 /// the re-read State-flip.

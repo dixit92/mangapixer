@@ -1,5 +1,6 @@
-// OpenAPI drift check: regenerate schema into temp output and compare with checked-in types.
-// P02 implements the full check. P00 provides the placeholder script.
+// OpenAPI drift check: intended to regenerate the schema into a temp output and compare it
+// against the checked-in TypeScript types. Currently only validates that the generated
+// contracts/openapi.json exists and is well-formed; the actual comparison isn't implemented yet.
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,4 +20,4 @@ if (!spec.openapi || !spec.info) {
 }
 
 console.log(`OpenAPI check: ${spec.openapi} version ${spec.info.version}`);
-console.log('P00 placeholder: full drift comparison implemented in P02.');
+console.log('Placeholder check only: full drift comparison against checked-in types is not yet implemented.');

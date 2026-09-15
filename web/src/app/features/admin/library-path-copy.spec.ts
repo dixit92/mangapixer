@@ -1,7 +1,7 @@
 import { libraryPathCopy } from './library-path-copy';
 
 /**
- * Lane WinDeploy H (1.13.0): the admin Libraries "register" field must speak
+ * Added in 1.13.0: the admin Libraries "register" field must speak
  * the server's platform idiom — no /media mount jargon on Windows, and no
  * regression to the existing Linux/container wording.
  */
