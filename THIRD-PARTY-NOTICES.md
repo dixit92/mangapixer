@@ -5,6 +5,14 @@ attributes the third-party software that MangaPlex **ships** (inside the
 container image / publish output) and the software it uses **only to build and
 test**. Each third-party component remains under its own license.
 
+Copies of these notices ship with the binaries. The container image carries them
+in `/app/licenses/`: this file, `LICENSE`, the Angular build's
+`3rdpartylicenses.txt` (license texts of the npm packages bundled into the web
+app), and Magick.NET's `Notice.txt` as `Magick.NET-Notice.txt` (ImageMagick and
+the native libraries bundled in it). The Windows distribution
+(`scripts/Publish-Windows.ps1`, and the MSI built from it) carries this file and
+`LICENSE` in its install folder, next to `MangaPlex.Tray.exe`.
+
 Entry format: `name` - version - license (SPDX where one exists) - upstream URL.
 
 **Inventory basis** - MangaPlex 1.12.0, commit `8c08627`, generated 2026-09-14
@@ -40,15 +48,16 @@ or where MangaPlex does not yet carry the notice that a license asks for.
    cover license text, notices, and the recipient's ability to replace or relink
    the library. Get a legal read on whether the upstream Magick.NET distribution
    already satisfies that, or whether MangaPlex has to ship extra material.
-2. **No license texts are shipped with the binaries today.** `dotnet publish`
-   copies DLLs but not the NuGet license files or Magick.NET's `Notice.txt`.
-   The Angular production build writes `3rdpartylicenses.txt` to
-   `web/dist/mangaplex-web/`, but `deploy/Dockerfile` only copies
-   `web/dist/mangaplex-web/browser/`, so the image carries none of those texts.
-   MIT, BSD, Apache-2.0, OFL-1.1 and LGPL all ask for the notice or license to go
-   with binary copies. One option is to copy this file, `3rdpartylicenses.txt`
-   and `Notice.txt` into the image.
-   <!-- TODO(owner): decide how notices ship in the image/installer (deploy/** is outside the README lane). -->
+2. **Which license texts ship with the binaries.** MIT, BSD, Apache-2.0, OFL-1.1
+   and LGPL all ask for the notice or license to go with binary copies.
+   `deploy/Dockerfile` copies this file, `LICENSE`, the Angular build's
+   `3rdpartylicenses.txt` and Magick.NET's `Notice.txt` into `/app/licenses/`
+   (the build fails if `Notice.txt` cannot be found in the restored package).
+   The Windows distribution ships this file and `LICENSE` only. Remaining gaps to
+   accept or close: `dotnet publish` still copies no per-package NuGet license
+   files (this file lists each package with its license and upstream URL
+   instead), and the Windows distribution does not yet carry
+   `3rdpartylicenses.txt` or Magick.NET's `Notice.txt`.
 3. **`Microsoft.EntityFrameworkCore.Design` ships in the image.** It is design-time
    tooling (its nuspec sets `developmentDependency`), yet the server publish output
    contains it and 27 packages that come in only through it
@@ -1229,9 +1238,8 @@ operating systems, including the Linux image build stage.
 | `mcr.microsoft.com/dotnet/sdk:10.0` | .NET build stage | no | Ubuntu 24.04.5 LTS; same licensing references as above |
 | `node:24-bookworm-slim` | Angular build stage | no | Debian 12 ("bookworm"); Node.js v24 (MIT, https://github.com/nodejs/node/blob/main/LICENSE) |
 
-The Dockerfile's comment calls the runtime image "Debian-based", but the
-`aspnet:10.0` tag resolved to Ubuntu 24.04 for the 1.12.0 build.
-<!-- TODO(owner): refresh the Dockerfile comment (outside the README lane). -->
+The `aspnet:10.0` tag resolved to Ubuntu 24.04 for the 1.12.0 build, as the
+Dockerfile's header comment says.
 
 Packages `deploy/Dockerfile` adds to the runtime image with `apt-get`, with
 versions and licenses read from `mangaplex:1.12.0` (`dpkg-query`,

@@ -18,6 +18,9 @@
         worker/                 self-contained win-x64 MangaPlex.MediaWorker.exe
         MangaPlex.Tray.exe      the tray launcher project, if present
                                  (src/MangaPlex.Tray)
+        LICENSE, THIRD-PARTY-NOTICES.md
+                                 license notices; the MSI harvests this whole
+                                 folder, so they are installed too
 
     Never touches deploy/**, Version.props, package.json, or the tray project.
     Default bind: http://127.0.0.1:27272 (see -BindUrl).
@@ -128,6 +131,13 @@ if (Test-Path $trayProject) {
 }
 else {
     Write-Host "SKIPPED: src/$ProductName.Tray not found (tray launcher project not present)" -ForegroundColor Yellow
+}
+
+# --- License notices, next to the tray exe (the installer payload is this
+# whole folder, so they ship in the MSI as well) ---
+Write-Stage "Copy license notices"
+foreach ($notice in @("LICENSE", "THIRD-PARTY-NOTICES.md")) {
+    Copy-Item (Join-Path $repoRoot $notice) (Join-Path $distRoot $notice) -Force
 }
 
 Write-Stage "Publish-Windows summary"
