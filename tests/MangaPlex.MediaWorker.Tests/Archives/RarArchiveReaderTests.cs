@@ -69,7 +69,7 @@ public sealed class RarArchiveReaderTests : IDisposable
     [Fact]
     public void RarFixtureProvider_RealRarFixturesAvailable_IsFalseByDefault()
     {
-        // P01: Real RAR fixtures are not embedded by default.
+        // Real RAR fixtures are not embedded by default.
         // A separate fixture-generation step is needed to enable full RAR read tests.
         Assert.False(RarFixtureProvider.RealRarFixturesAvailable);
     }

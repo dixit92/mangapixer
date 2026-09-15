@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- MangaPlex.MediaWorker: supervised archive/image worker. References Core.
-     P00: Stub only. SharpCompress and Magick.NET are added in P01 after version vetting.
+     Uses SharpCompress for archive reading and Magick.NET for image probing/encoding.
      No database access, no network listener. -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>

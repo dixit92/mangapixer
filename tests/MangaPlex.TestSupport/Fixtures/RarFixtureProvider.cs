@@ -25,7 +25,7 @@ public static class RarFixtureProvider
 
     /// <summary>
     /// Whether real RAR fixtures (not just signatures) are available.
-    /// P01 tests check this and skip RAR read tests if false.
+    /// Tests that need a full, readable RAR archive check this and skip if false.
     /// A separate fixture-generation step (using a licensed RAR tool or
     /// downloading verified SharpCompress test fixtures) sets this to true.
     /// </summary>
