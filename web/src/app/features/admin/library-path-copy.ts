@@ -1,8 +1,8 @@
 import { SystemPlatform } from '../../core/api/api-types';
 
 /**
- * Platform-aware copy for the "Register New Library" path field (lane
- * WinDeploy H, 1.13.0). The server has no mounts on Windows — the admin just
+ * Platform-aware copy for the "Register New Library" path field (added in
+ * 1.13.0). The server has no mounts on Windows — the admin just
  * types a drive path — so the field label, placeholder, and the "no browse
  * root" hint must speak the server's idiom instead of always assuming a
  * container. Falls back to the historical container wording for `'linux'`,

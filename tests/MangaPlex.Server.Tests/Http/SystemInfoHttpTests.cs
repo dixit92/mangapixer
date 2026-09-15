@@ -44,7 +44,7 @@ public sealed class SystemInfoHttpTests : IDisposable
     [Fact]
     public async Task GetSystemInfo_ReturnsPlatform_MatchingTheRunningOs()
     {
-        // Platform field (lane WinDeploy H, 1.13.0): "windows" or "linux",
+        // Platform field (added in 1.13.0): "windows" or "linux",
         // whichever this test process is actually running on.
         var client = _factory.CreateClient();
 

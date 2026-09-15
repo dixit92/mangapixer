@@ -46,7 +46,7 @@ public sealed class SystemController : ControllerBase
 
     /// <summary>
     /// Derives the server's platform so the admin UI can speak its path idiom
-    /// (lane WinDeploy H, 1.13.0). Windows/Linux only for now — MangaPlex ships
+    /// (added in 1.13.0). Windows/Linux only for now — MangaPlex ships
     /// on those two; other OSes report null and the client falls back to the
     /// current (container-oriented) wording.
     /// </summary>
