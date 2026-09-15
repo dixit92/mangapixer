@@ -3,6 +3,7 @@ namespace com.lifepixer.mangaplex.Server.Operations;
 using com.lifepixer.mangaplex.Server.Logging;
 
 using com.lifepixer.mangaplex.Server.Persistence;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
 
@@ -83,8 +84,16 @@ public sealed class BackupService
 
         try
         {
-            // Open the backup file and check it's a valid SQLite database
-            var connectionString = DatabaseInitialization.BuildConnectionString(backupPath);
+            // Open the backup file and check it's a valid SQLite database.
+            // Not pooled: a pooled connection keeps the backup file open after
+            // this check, and on Windows that open handle blocks the next
+            // open, move or delete of the file (restore validation, the
+            // staged-file swap, retention pruning).
+            var connectionString = new SqliteConnectionStringBuilder(
+                DatabaseInitialization.BuildConnectionString(backupPath))
+            {
+                Pooling = false,
+            }.ToString();
             var options = new DbContextOptionsBuilder<MangaPlexDbContext>()
                 .UseSqlite(connectionString)
                 .Options;

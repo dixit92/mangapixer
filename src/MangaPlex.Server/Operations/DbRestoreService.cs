@@ -202,11 +202,14 @@ public sealed class DbRestoreService
         }
 
         // Open read-only and run integrity_check + schema/version checks.
+        // Not pooled, so disposing the connection closes the file: on Windows
+        // a pooled handle would block the staged-file move that follows.
         var cs = new SqliteConnectionStringBuilder
         {
             DataSource = path,
             Mode = SqliteOpenMode.ReadOnly,
             Cache = SqliteCacheMode.Private,
+            Pooling = false,
         };
 
         try
