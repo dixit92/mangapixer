@@ -6,7 +6,7 @@ using Xunit;
 /// <summary>
 /// Verifies the SQLite runtime version and features required by MangaPlex.
 /// The server uses Microsoft.Data.Sqlite + EF Core Sqlite, which bundles SQLitePCLRaw.
-/// P01 verifies: version, WAL mode, FTS5, and trigram tokenizer availability.
+/// Verifies: version, WAL mode, FTS5, and trigram tokenizer availability.
 /// </summary>
 public sealed class SqliteRuntimeTests
 {

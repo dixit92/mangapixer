@@ -84,14 +84,14 @@ export interface BreadcrumbsDto {
   trail: BreadcrumbEntry[];
 }
 
-/** One bucket of the per-library jump index (1.4.0 Lane E). */
+/** One bucket of the per-library jump index. */
 export interface JumpIndexBucketDto {
   label: string;
   count: number;
   firstCursor: string | null;
 }
 
-/** Per-library A–Z/script rail (1.4.0 Lane E). */
+/** Per-library A–Z/script rail. */
 export interface JumpIndexDto {
   libraryId: string;
   buckets: JumpIndexBucketDto[];
@@ -166,9 +166,9 @@ export interface UserPreferencesDto {
 
 export interface ContinueReadingEntry {
   itemId: string;
-  /** Opaque public ID of the item's library (1.4.0 Lane B). Enables sidebar grouping. */
+  /** Opaque public ID of the item's library. Enables sidebar grouping. */
   libraryId: string;
-  /** Display name of the item's library (1.4.0 Lane B). */
+  /** Display name of the item's library. */
   libraryName: string;
   displayName: string;
   pageIndex: number;
@@ -536,7 +536,7 @@ export interface RotatingBackupStatusDto {
   retainedCount: number;
 }
 
-// --- System info (post-1.3.0 lane D) ---
+// --- System info ---
 
 /** Read-only product version info from GET /api/v1/system/info. */
 export interface SystemInfoDto {

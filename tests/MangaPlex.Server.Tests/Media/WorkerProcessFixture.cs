@@ -5,7 +5,7 @@ using com.lifepixer.mangaplex.Server.Media;
 using com.lifepixer.mangaplex.TestSupport.Fixtures;
 
 /// <summary>
-/// Fixture for worker-process integration tests (C04, D13).
+/// Fixture for worker-process integration tests.
 /// Provides a temp scratch root, resolved worker launch path, and
 /// helper methods to create synthetic archives.
 /// </summary>

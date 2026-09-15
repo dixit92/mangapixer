@@ -14,11 +14,11 @@ import { LibraryDto } from '../core/api/api-types';
 class BlankComponent {}
 
 /**
- * Tests for the app-shell LibrarySidebarComponent (1.5.0 Task A + C):
+ * Tests for the app-shell LibrarySidebarComponent:
  *  - active item is derived from the CURRENT ROUTE (URL parse), not a local
  *    selection signal - so it is correct on deep links and back-button nav;
  *  - a library stays active while you browse a subfolder inside it;
- *  - each library icon carries a reading-direction badge (Task C);
+ *  - each library icon carries a reading-direction badge;
  *  - desktop collapse persists to a shell-scoped localStorage key.
  */
 describe('LibrarySidebarComponent', () => {
@@ -103,7 +103,7 @@ describe('LibrarySidebarComponent', () => {
     expect(fixture.componentInstance.activeLibraryId()).toBeNull();
   });
 
-  it('renders a reading-direction badge only for libraries with an explicit mode (Task C)', async () => {
+  it('renders a reading-direction badge only for libraries with an explicit mode', async () => {
     const { fixture, router } = create();
     await navigate(router, '/', fixture);
 

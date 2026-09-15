@@ -38,11 +38,11 @@ WORKDIR /app
 
 # Install native dependencies:
 # - libgdiplus: native backing for Magick.NET image probing/transcoding.
-#   Kept until C04 process tests confirm the worker runs without it; remove
-#   only after that evidence exists (audit defect D37).
+#   Kept until process-level tests confirm the worker runs without it; remove
+#   only after that evidence exists.
 # - ca-certificates for HTTPS, gosu for privilege dropping in entrypoint.
 # p7zip-full was removed: SharpCompress is managed and the worker never shells
-# out to 7z (audit defect D37).
+# out to 7z.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgdiplus \
     ca-certificates \

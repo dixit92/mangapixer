@@ -137,8 +137,8 @@ public sealed class PageDeliveryService
         // 4. Cache miss — need to extract via worker
         _logger?.LogDebug(LogEvents.Worker.PageCacheMiss, "Page stream cache miss (item {ItemId}, entry {EntryKey}, variant {Variant}); extraction required",
             itemId, entryKey, variant);
-        // In a full implementation, this would dispatch to the MediaWorkerPool.
-        // For P08, we return a "preparing" state if the page isn't cached.
+        // This path does not yet dispatch to MediaWorkerPool for on-demand extraction;
+        // it returns a "preparing" state if the page isn't cached.
         return new PageStreamResult
         {
             ReadinessState = ItemReadinessState.Pending,

@@ -60,7 +60,7 @@ public static class ZipFixtureGenerator
     /// <summary>
     /// Creates an encrypted (password-protected) ZIP archive.
     /// Note: SharpCompress 0.50.x writer API does not support password-protected ZIP creation
-    /// directly. For P01, we skip encrypted ZIP creation and rely on detection tests.
+    /// directly, so this creates a plain ZIP and relies on detection tests instead.
     /// A separate fixture-generation step with a licensed ZIP tool can provide real encrypted fixtures.
     /// </summary>
     public static string CreateEncryptedZip(string outputDir, string name, string password = "test123")

@@ -75,7 +75,7 @@ public sealed class WorkerProtocolTests
             Deadline = DateTimeOffset.UtcNow,
         };
 
-        // Reconciled limits from P07
+        // Default resource limits for archive analysis
         Assert.Equal(50_000, request.MaxEntryCount);
         Assert.Equal(32L * 1024 * 1024 * 1024, request.MaxUncompressedBytes);
         Assert.Equal(50_000, request.MaxImageDimension);

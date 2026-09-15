@@ -8,11 +8,11 @@ using Microsoft.EntityFrameworkCore;
 namespace com.lifepixer.mangaplex.Server.Features.Catalog;
 
 /// <summary>
-/// Jump-index API endpoint (1.4.0 multilingual collation jump-navigation, Lane E).
+/// Jump-index API endpoint for multilingual collation-aware jump navigation.
 ///
 /// Exposes a per-library A–Z/script rail built from the existing SortKeys. The
-/// endpoint is deliberately separate from <c>CatalogController</c> (Lane B owns
-/// that hot file). It reuses <c>CatalogIdResolver</c> for public→internal ID
+/// endpoint is kept separate from <c>CatalogController</c>, which owns the main
+/// catalog-browsing surface. It reuses <c>CatalogIdResolver</c> for public→internal ID
 /// resolution and <c>JumpIndexService</c> for the bucket computation.
 /// </summary>
 [ApiController]

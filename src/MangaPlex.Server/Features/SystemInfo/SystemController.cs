@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 /// <summary>
-/// Read-only system information endpoint (post-1.3.0 lane D).
+/// Read-only system information endpoint.
 /// GET /api/v1/system/info — returns the product version from the assembly
 /// <see cref="AssemblyInformationalVersionAttribute"/> (sourced from Version.props
 /// at build time). Contains no private data; served unauthenticated so the app

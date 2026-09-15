@@ -6,7 +6,7 @@ using System.Text.Json;
 using Xunit;
 
 /// <summary>
-/// HTTP test for GET /api/v1/system/info (post-1.3.0 lane D).
+/// HTTP test for GET /api/v1/system/info.
 /// Verifies the endpoint is accessible unauthenticated (the app footer needs it
 /// before login) and returns a non-empty product version from the assembly
 /// InformationalVersion attribute (sourced from Version.props at build time).

@@ -14,7 +14,7 @@ public sealed record EncodedVariant
 }
 
 /// <summary>
-/// Encodes page-image variants with Magick.NET (C13). Image decoding lives here in
+/// Encodes page-image variants with Magick.NET. Image decoding lives here in
 /// the worker — never in the server — because decoding untrusted archive images is
 /// the fault-isolation risk the worker boundary exists to contain.
 ///

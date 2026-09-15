@@ -14,10 +14,10 @@ import { CatalogNodeDto, LibraryDto, LibraryViewPreferencesDto, PageResponse, Ju
 
 /**
  * Breadcrumb tests for LibraryBrowseComponent. Two behaviors:
- *  - (1.3.1 fix — Lane A) the library-name crumb must link to the browse root
+ *  - the library-name crumb must link to the browse root
  *    `/libraries/{id}/browse` — not the library landing page `/libraries/{id}` —
  *    and must be clickable at the root level too (no sub-folder breadcrumbs).
- *  - (1.5.0 Task B) the folder you are currently in is shown as the LAST segment
+ *  - the folder you are currently in is shown as the LAST segment
  *    as plain, non-clickable text; ancestors stay clickable. Its name comes from
  *    the existing `GET /nodes/{id}` lookup (frontend-only, no contract change).
  */
@@ -92,7 +92,7 @@ describe('LibraryBrowseComponent breadcrumbs', () => {
     }
   });
 
-  // Task B (1.5.0): current folder as the last, non-clickable segment.
+  // Current folder renders as the last, non-clickable breadcrumb segment.
   it('renders the current folder name as plain, non-clickable text', () => {
     const { fixture } = setup('lib1', 'node1', [{ id: 'anc1', displayName: 'Ancestor' }], 'My Folder');
     const el: HTMLElement = fixture.nativeElement;
@@ -123,7 +123,7 @@ describe('LibraryBrowseComponent breadcrumbs', () => {
 });
 
 /**
- * Unit tests for the A–Z/script jump rail in LibraryBrowseComponent (1.4.0 Lane E).
+ * Unit tests for the A–Z/script jump rail in LibraryBrowseComponent.
  *
  * These tests drive the component through its public signals and the
  * jumpToBucket method. The route is faked to the library root (no nodeId) so
@@ -1544,14 +1544,13 @@ describe('LibraryBrowseComponent view menu selected highlight (1.8.1)', () => {
 });
 
 /**
- * "Recently updated" browse sort (1.12.0, Lane C). The backend that actually orders
- * by last-updated content is delivered by another lane (api-types.ts / api.service.ts
- * are out of scope for this frontend-only lane and stay untouched) - so these tests
- * cover only what this component owns: the option is offered as a RECENCY sort
- * (descending-only, same as Recently added/read - the Order submenu stays hidden), the
- * choice is forwarded to `ApiService.browseLibrary` as a plain string, and it is
- * distinguished from "Recently added" by a short hint (added = new items appear;
- * updated = a folder just got new content).
+ * "Recently updated" browse sort. These tests cover what this component owns:
+ * the option is offered as a RECENCY sort (descending-only, same as Recently
+ * added/read - the Order submenu stays hidden), the choice is forwarded to
+ * `ApiService.browseLibrary` as a plain string, and it is distinguished from
+ * "Recently added" by a short hint (added = new items appear; updated = a
+ * folder just got new content). Ordering by last-updated content itself is
+ * done server-side.
  */
 describe('LibraryBrowseComponent "Recently updated" sort (1.12.0)', () => {
   function setup(prefs: Partial<LibraryViewPreferencesDto> = {}) {
@@ -1656,7 +1655,7 @@ describe('LibraryBrowseComponent "Recently updated" sort (1.12.0)', () => {
 });
 
 /**
- * Transient home-tap sort (1.12.0 owner refinement). A folder opened from the home
+ * Transient home-tap sort (1.12.0). A folder opened from the home
  * "New chapters" row arrives with a `?sort=recentlyUpdated` query param that the browse
  * view honours for THAT view only - it must NOT be written to the user's persisted
  * library preference, and opening a library without the param stays on the stored sort

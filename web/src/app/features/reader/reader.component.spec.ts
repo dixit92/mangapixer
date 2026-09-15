@@ -661,7 +661,7 @@ describe('ReaderComponent per-device page mode', () => {
 });
 
 /**
- * Webtoon scroll-driven prefetch (post-1.3.0 lane D). The paged/spread prefetch
+ * Webtoon scroll-driven prefetch. The paged/spread prefetch
  * is skipped in webtoon; instead onWebtoonScroll warms the next N pages ahead of
  * the scroll position. These tests drive prefetchWebtoonAhead directly (it's
  * private, accessed via bracket notation) and assert on the shared prefetchedUrls
@@ -851,7 +851,7 @@ function baseProviders() {
   ];
 }
 
-describe('ReaderComponent swipe gestures (requirement 1)', () => {
+describe('ReaderComponent swipe gestures', () => {
   function create() {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     return TestBed.createComponent(ReaderComponent).componentInstance;
@@ -1068,7 +1068,7 @@ describe('ReaderComponent swipe gestures (requirement 1)', () => {
   });
 });
 
-describe('ReaderComponent reader-bar chapter arrows (requirement 3)', () => {
+describe('ReaderComponent reader-bar chapter arrows', () => {
   function create() {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     return TestBed.createComponent(ReaderComponent).componentInstance;
@@ -1155,7 +1155,7 @@ describe('ReaderComponent reader-bar chapter arrows (requirement 3)', () => {
   });
 });
 
-describe('ReaderComponent page scrubber (requirement 2)', () => {
+describe('ReaderComponent page scrubber', () => {
   function create() {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
@@ -1640,7 +1640,7 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
 });
 
 /**
- * 1.11.0 Lane B - webtoon tap-to-scroll (requirement 11). Free scroll stays the
+ * Webtoon tap-to-scroll (1.11.0). Free scroll stays the
  * default; on top of it a tap resolves by vertical thirds (top = back a screen,
  * bottom = forward, centre = toggle chrome) and a horizontal swipe steps a screen.
  * The step is a per-device preference (`WebtoonNavPreferencesService`); 0 = off
@@ -1786,7 +1786,7 @@ describe('ReaderComponent webtoon tap-to-scroll (1.11.0)', () => {
 });
 
 /**
- * 1.11.0 Lane B - adaptive double page (requirement 12). A synthetic two-up
+ * Adaptive double page (1.11.0). A synthetic two-up
  * spread on a narrow PORTRAIT screen (CDK HandsetPortrait) makes each page tiny,
  * so the reader renders single pages there while the CHOSEN mode stays "Double
  * page" (menus keep highlighting it, the preference persists) and the pairing
@@ -1916,7 +1916,7 @@ describe('ReaderComponent adaptive double page on narrow portrait (1.11.0)', () 
 });
 
 /**
- * 1.11.0 Lane B - page-turn ghost (requirement 13). The page(s) just left stay
+ * Page-turn ghost (1.11.0). The page(s) just left stay
  * rendered underneath the incoming row for the length of the Slide / Reveal
  * transition, so the wipe / push runs over the OLD page instead of the dark
  * background, then they are dropped. Never held where no transition plays.

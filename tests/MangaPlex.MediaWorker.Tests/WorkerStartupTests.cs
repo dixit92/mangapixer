@@ -3,8 +3,8 @@ namespace com.lifepixer.mangaplex.Tests.MediaWorker;
 using Xunit;
 
 /// <summary>
-/// P00 smoke test: worker stub starts and emits a ready message.
-/// Full archive/image tests are added in P01.
+/// Smoke test: confirms the worker process identity is wired up correctly.
+/// Archive and image handling are covered by the Archives/ and Images/ test suites.
 /// </summary>
 public sealed class WorkerStartupTests
 {

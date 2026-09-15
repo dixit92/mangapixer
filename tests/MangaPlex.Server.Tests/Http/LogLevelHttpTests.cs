@@ -178,7 +178,7 @@ public sealed class LogLevelHttpTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    // --- Per-category debug control (1.6.0 Lane E) ---
+    // --- Per-category debug control ---
 
     [Fact]
     public async Task GetLoggingLevel_ReturnsCategories()
@@ -433,11 +433,11 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
         foreach (var (name, _) in com.lifepixer.mangaplex.Server.Logging.DebugCategories.All)
             _categorySwitches[name] = new LoggingLevelSwitch(LogEventLevel.Information);
 
-        // Non-global storage-injection seam (1.9.0 Lane C): push this
-        // factory's storage roots as the ambient TestHostStorageOverride for
-        // the duration of the synchronous host boot below — see the remarks
-        // on MangaPlexWebApplicationFactory and TestHostStorageOverride for
-        // why this (and not ConfigureAppConfiguration or an env var) is what
+        // Non-global storage-injection seam: push this factory's storage
+        // roots as the ambient TestHostStorageOverride for the duration of
+        // the synchronous host boot below — see the remarks on
+        // MangaPlexWebApplicationFactory and TestHostStorageOverride for why
+        // this (and not ConfigureAppConfiguration or an env var) is what
         // actually reaches Program.Main in time, race-free under parallel
         // factory boots.
         var storageOverride = new StorageRootOverride(

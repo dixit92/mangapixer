@@ -19,7 +19,7 @@ using Xunit;
 /// spawn real worker processes.
 /// </summary>
 /// <remarks>
-/// Storage isolation seam (1.9.0 Lane C — restores <c>Server.Tests</c>
+/// Storage isolation seam (restores <c>Server.Tests</c>
 /// parallelism): storage roots are injected per-instance via
 /// <see cref="TestHostStorageOverride"/>, a test-only ambient
 /// (<see cref="AsyncLocal{T}"/>-based) override consulted at the top of

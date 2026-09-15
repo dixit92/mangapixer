@@ -12,8 +12,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 /// <summary>
-/// C01 HTTP tests: browse with public IDs, breadcrumbs, neighbors,
-/// library list with real counts (D5/D29/D30).
+/// HTTP tests for catalog browsing: public IDs, breadcrumbs, neighbor navigation,
+/// and the library list with real counts.
 /// </summary>
 [Collection("HttpSerial")]
 public sealed class CatalogHttpTests : IClassFixture<MangaPlexWebApplicationFactory>
