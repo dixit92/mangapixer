@@ -5,6 +5,11 @@
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- The tray targets net10.0-windows; on non-Windows hosts the project still
+         compiles (EnableWindowsTargeting) but its testhost cannot start, which
+         makes `dotnet test` fail for the whole solution. Mark it as not a test
+         project there so Linux CI runs every runnable test and exits 0. -->
+    <IsTestProject Condition="!$([MSBuild]::IsOSPlatform('Windows'))">false</IsTestProject>
   </PropertyGroup>
 
   <ItemGroup>
