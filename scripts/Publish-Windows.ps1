@@ -32,9 +32,11 @@ param(
     [string]$OutputDir = "artifacts/windows-dist",
 
     # Loopback-only default bind for the Windows distribution.
-    # LAN access is an opt-in toggle owned by the tray launcher,
-    # which passes ASPNETCORE_URLS to the server child process — that
-    # explicit env var always wins over this appsettings default.
+    # This overlay default applies to DIRECT exe launches. The tray launcher
+    # overrides it by passing --Urls on the server's command line (NOT via
+    # ASPNETCORE_URLS alone: ASPNETCORE_-prefixed env vars are host-level
+    # configuration that appsettings files override, so an env-only override
+    # silently loses to this overlay - command-line config beats everything).
     # Port 6280 sits inside a Windows excluded port range on some hosts
     # (Hyper-V/WSL reservations; SocketException 10013) — 27272 is the
     # Windows-distribution default instead.
@@ -122,9 +124,15 @@ $overlay | ConvertTo-Json -Depth 5 | Set-Content -Path $overlayPath -Encoding ut
 # exists. Never edits the tray project or MangaPlex.slnx.
 $trayProject = Join-Path $repoRoot "src/$ProductName.Tray/$ProductName.Tray.csproj"
 if (Test-Path $trayProject) {
-    Write-Stage "Publish $ProductName.Tray (self-contained win-x64)"
+    Write-Stage "Publish $ProductName.Tray (single-file self-contained win-x64)"
     $trayStaging = Join-Path $distRoot "_tray-publish"
-    dotnet publish $trayProject -c Release -r win-x64 --self-contained true -o $trayStaging
+    # PublishSingleFile: self-contained WITHOUT single-file drops ~340 sibling
+    # runtime DLLs next to the exe, but only the exe itself gets copied to the
+    # staging root below - it then exits instantly (0x8000809A) with its
+    # siblings missing. Single-file embeds the runtime in the one exe (native
+    # dependencies self-extract to a per-app %TEMP% cache on first run, not
+    # back into the install folder), so the copied exe is truly standalone.
+    dotnet publish $trayProject -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o $trayStaging
     if ($LASTEXITCODE -ne 0) { throw "Tray publish failed" }
     Copy-Item (Join-Path $trayStaging "$ProductName.Tray.exe") (Join-Path $distRoot "$ProductName.Tray.exe") -Force
     Remove-Item $trayStaging -Recurse -Force

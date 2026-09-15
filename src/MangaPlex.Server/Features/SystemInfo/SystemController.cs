@@ -6,12 +6,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 /// <summary>
-/// Read-only system information endpoint.
+/// Read-only system information endpoint (reports the server platform since 1.13.0).
 /// GET /api/v1/system/info — returns the product version from the assembly
 /// <see cref="AssemblyInformationalVersionAttribute"/> (sourced from Version.props
-/// at build time). Contains no private data; served unauthenticated so the app
-/// footer can display it before login. This is distinct from /health (a static
-/// health-check string) and from the admin Diagnostics card.
+/// at build time) and the server's OS platform. Contains no private data; served
+/// unauthenticated so the app footer can display it before login. This is
+/// distinct from /health (a static health-check string) and from the admin
+/// Diagnostics card.
 /// </summary>
 [ApiController]
 [Route("api/v1/system")]
@@ -19,11 +20,12 @@ using Microsoft.AspNetCore.Mvc;
 public sealed class SystemController : ControllerBase
 {
     private static readonly string Version = ResolveVersion();
+    private static readonly string? Platform = ResolvePlatform();
 
     [HttpGet("info")]
     public IActionResult GetInfo()
     {
-        return Ok(new SystemInfoDto { Version = Version });
+        return Ok(new SystemInfoDto { Version = Version, Platform = Platform });
     }
 
     /// <summary>
@@ -40,5 +42,20 @@ public sealed class SystemController : ControllerBase
         if (!string.IsNullOrWhiteSpace(informational))
             return informational;
         return assembly.GetName().Version?.ToString() ?? "unknown";
+    }
+
+    /// <summary>
+    /// Derives the server's platform so the admin UI can speak its path idiom
+    /// (lane WinDeploy H, 1.13.0). Windows/Linux only for now — MangaPlex ships
+    /// on those two; other OSes report null and the client falls back to the
+    /// current (container-oriented) wording.
+    /// </summary>
+    private static string? ResolvePlatform()
+    {
+        if (OperatingSystem.IsWindows())
+            return "windows";
+        if (OperatingSystem.IsLinux())
+            return "linux";
+        return null;
     }
 }

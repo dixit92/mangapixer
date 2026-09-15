@@ -145,8 +145,26 @@
          AddHomeExcludedLibraries, AddHomeRecentWindowDays); additive API only (new browse sort
          value, reshaped home DTO, new home-libraries endpoint, new prefs field) -> MINOR per
          SemVer 2.0.0. Bugfixes ship as 1.12.x. -->
+    <!-- 1.13.0 - additive MINOR over 1.12.0 (Windows-deployment cycle, 2026-09-15). First
+         first-class NATIVE WINDOWS distribution alongside the existing containers, 3 lanes +
+         2 owner-review blocker lanes: (A) Publish-Windows.ps1 stages a complete self-contained
+         win-x64 distribution (server incl. built web assets + worker + bundled loopback-default
+         config; data roots default to %LOCALAPPDATA%\MangaPlex; server content root pinned to
+         the exe dir on Windows so config/wwwroot/worker resolve regardless of launcher CWD);
+         (B) MangaPlex.Tray launcher - owns the server child process (single-file exe, drained
+         stdout to a capped rolling log, CTRL_BREAK graceful stop), Open-in-browser, LAN-access
+         opt-in (bind passed as a command-line Urls argument: ASPNETCORE_URLS is host-level
+         config that the bundled appsettings would override), Set Port dialog with availability
+         validation, start-at-sign-in Run key, port auto-resolution around Windows excluded-port
+         ranges (default 27272); (C) WiX v6 per-user MSI - no-elevation install to
+         %LOCALAPPDATA%\Programs, install-dir picker, launch-after-install, product icons,
+         MajorUpgrade preserving the user's autostart choice, same-version upgrades-in-place,
+         uninstall preserves user data; (H) platform-aware admin library registration (additive
+         SystemInfoDto.Platform; Windows path wording instead of container mount idioms). Server
+         code changes are Windows-gated - container/Linux behavior byte-identical (verified).
+         Additive API only, no schema change -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.13.x. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>12</MangaPlexVersionMinor>
+    <MangaPlexVersionMinor>13</MangaPlexVersionMinor>
     <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 

@@ -33,4 +33,12 @@ public sealed class TraySettings
     /// potentially re-picked differently) every time.
     /// </summary>
     public int Port { get; set; } = ServerEndpointOptions.DefaultPort;
+
+    /// <summary>
+    /// True once the first-run tray discoverability balloon ("MangaPlex is
+    /// running in the system tray...") has been shown. Windows hides newly
+    /// added tray icons in the overflow area by default, so this is a
+    /// one-time nudge, not a repeated notification.
+    /// </summary>
+    public bool HasShownTrayIntroBalloon { get; set; }
 }

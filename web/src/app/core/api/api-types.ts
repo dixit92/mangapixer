@@ -538,9 +538,17 @@ export interface RotatingBackupStatusDto {
 
 // --- System info ---
 
+/**
+ * The server's OS platform, so the admin UI can speak its path idiom. Absent
+ * or null on an older server (or an unrecognized OS) — callers must fall back
+ * to the container-oriented wording in that case.
+ */
+export type SystemPlatform = 'windows' | 'linux';
+
 /** Read-only product version info from GET /api/v1/system/info. */
 export interface SystemInfoDto {
   version: string;
+  platform?: SystemPlatform | null;
 }
 
 // --- Home "New chapters" (1.12.0) ---
