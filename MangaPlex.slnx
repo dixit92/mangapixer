@@ -4,8 +4,10 @@
   <Project Name="MangaPlex.Core" Path="src/MangaPlex.Core/MangaPlex.Core.csproj" Type="ClassLibrary" />
   <Project Name="MangaPlex.Server" Path="src/MangaPlex.Server/MangaPlex.Server.csproj" Type="Web" />
   <Project Name="MangaPlex.MediaWorker" Path="src/MangaPlex.MediaWorker/MangaPlex.MediaWorker.csproj" Type="Console" />
+  <Project Name="MangaPlex.Tray" Path="src/MangaPlex.Tray/MangaPlex.Tray.csproj" Type="WinExe" />
   <Project Name="MangaPlex.Core.Tests" Path="tests/MangaPlex.Core.Tests/MangaPlex.Core.Tests.csproj" Type="Test" />
   <Project Name="MangaPlex.Server.Tests" Path="tests/MangaPlex.Server.Tests/MangaPlex.Server.Tests.csproj" Type="Test" />
   <Project Name="MangaPlex.MediaWorker.Tests" Path="tests/MangaPlex.MediaWorker.Tests/MangaPlex.MediaWorker.Tests.csproj" Type="Test" />
+  <Project Name="MangaPlex.Tray.Tests" Path="tests/MangaPlex.Tray.Tests/MangaPlex.Tray.Tests.csproj" Type="Test" />
   <Project Name="MangaPlex.TestSupport" Path="tests/MangaPlex.TestSupport/MangaPlex.TestSupport.csproj" Type="ClassLibrary" />
 </Solution>
