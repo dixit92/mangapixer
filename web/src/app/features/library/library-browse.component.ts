@@ -1280,9 +1280,13 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   setSort(s: LibrarySortOrder): void {
     if (this.storedSort === s && this.sort() === s) return;
     this.sort.set(s);
-    // Recency sorts are always descending (newest first); only Name uses the asc/desc toggle,
-    // so keep the user's Name direction but never leave a recency sort ascending. (1.10.4)
-    if (s !== 'name') this.sortDirection.set('desc');
+    // Selecting a sort resets to that sort's natural direction: Name -> ascending,
+    // recency -> descending (newest first). This means switching back to Name from a
+    // recency sort lands ASCENDING rather than inheriting the recency's desc (owner:
+    // opening a library should be Name ascending). An explicit asc/desc toggle
+    // afterward still persists via setSortDirection. (Supersedes the 1.10.4 "keep the
+    // Name direction across a recency detour" nuance.)
+    this.sortDirection.set(s === 'name' ? 'asc' : 'desc');
     // Picking a sort from the menu is an explicit, persisted choice - update the stored
     // sort (a transient home-tap sort never routes through here).
     this.storedSort = s;

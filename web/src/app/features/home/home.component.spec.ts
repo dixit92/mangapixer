@@ -203,9 +203,9 @@ describe('HomeComponent', () => {
 
     expect(cmp.visibleGroups().length).toBe(0);
     const section = fixture.nativeElement.querySelector('.recent-section') as HTMLElement;
-    // The heading + tools stay so the picker remains reachable; the body says so.
+    // The heading stays (so the section is discoverable) with an empty-state body; the
+    // picker that chooses libraries now lives under Settings > New Chapters.
     expect(section).not.toBeNull();
-    expect(section.querySelector('.lib-picker-toggle')).not.toBeNull();
     expect(section.querySelectorAll('.stack-card')).toHaveLength(0);
     expect(section.querySelector('.empty')!.textContent).toContain('Nothing new yet');
   });
@@ -268,81 +268,20 @@ describe('HomeComponent', () => {
     httpMock.expectOne({ method: 'PUT', url: '/api/v1/reading/library-preferences' }).flush(null);
   });
 
-  // --- B3: per-user library show/hide picker (server-persisted excluded set) ---
+  // --- Library visibility: home READS the per-user excluded set to filter which
+  //     libraries contribute cards. The picker that EDITS the set now lives under
+  //     Settings > New Chapters (owner refinement, 1.12.0). ---
 
   it('reads the excluded set from the server and drops those libraries from the row', () => {
     const fixture = createComponent({ excluded: ['L1'] });
     const cmp = fixture.componentInstance;
 
-    expect(cmp.isLibraryShown('L1')).toBe(false);
-    expect(cmp.isLibraryShown('L2')).toBe(true);
-    // Alpha's stacks are excluded client-side too (belt and braces over the server filter).
+    // L1 (Alpha) is excluded, so its stacks are filtered out of the row.
+    expect(cmp.excludedLibraryIds().has('L1')).toBe(true);
     expect(cmp.visibleGroups()).toEqual([]);
     const section = fixture.nativeElement.querySelector('.recent-section') as HTMLElement;
     expect(section.querySelector('.empty')!.textContent).toContain('libraries shown here');
-    // The trigger wears the accent while any library is hidden.
-    expect(section.querySelector('.lib-picker-toggle')!.classList.contains('filter-active')).toBe(true);
-  });
-
-  it('lists every visible library in the picker with its shown/hidden state', () => {
-    const fixture = createComponent({ excluded: ['L2'] });
-    (fixture.nativeElement.querySelector('.lib-picker-toggle') as HTMLElement).click();
-    fixture.detectChanges();
-
-    // The menu renders in the CDK overlay (outside the component's DOM).
-    const items = Array.from(document.querySelectorAll('.lib-pick')) as HTMLElement[];
-    expect(items.map((i) => i.textContent!.trim().replace(/^check_box(_outline_blank)?\s*/, ''))).toEqual(['Alpha', 'Beta']);
-    expect(items.map((i) => i.getAttribute('aria-checked'))).toEqual(['true', 'false']);
-  });
-
-  it('hiding a library writes the whole excluded set, drops its cards at once, and refetches on success', () => {
-    const fixture = createComponent({ excluded: ['L2'] });
-    const cmp = fixture.componentInstance;
-    expect(cmp.visibleGroups().map((g) => g.libraryId)).toEqual(['L1']);
-
-    const click = new Event('click', { cancelable: true, bubbles: true });
-    const stop = vi.spyOn(click, 'stopPropagation');
-    cmp.toggleLibrary(click, 'L1');
-    expect(stop).toHaveBeenCalled(); // keeps the menu open for multi-toggle
-
-    // Optimistic: Alpha's group is gone before the server answers.
-    expect(cmp.visibleGroups()).toEqual([]);
-    const put = httpMock.expectOne({ method: 'PUT', url: '/api/v1/reading/home-libraries' });
-    expect(put.request.body).toEqual({ excludedLibraryIds: ['L2', 'L1'] });
-    put.flush(null);
-
-    // The row is refetched so a just-shown library's stacks would appear.
-    httpMock.expectOne((r) => r.url === '/api/v1/home/recent-chapters').flush(stackedRecent);
-    expect(cmp.pickerSaving()).toBe(false);
-    expect(cmp.excludedLibraryIds().has('L1')).toBe(true);
-  });
-
-  it('showing a library removes it from the excluded set and refetches the row', () => {
-    const fixture = createComponent({ excluded: ['L1', 'L2'] });
-    const cmp = fixture.componentInstance;
-
-    cmp.toggleLibrary(new Event('click'), 'L1');
-    const put = httpMock.expectOne({ method: 'PUT', url: '/api/v1/reading/home-libraries' });
-    expect(put.request.body).toEqual({ excludedLibraryIds: ['L2'] });
-    put.flush(null);
-    httpMock.expectOne((r) => r.url === '/api/v1/home/recent-chapters').flush(stackedRecent);
-
-    expect(cmp.visibleGroups().map((g) => g.libraryId)).toEqual(['L1']);
-  });
-
-  it('reverts the toggle and shows the error when the server rejects the write', () => {
-    const fixture = createComponent({ excluded: [] });
-    const cmp = fixture.componentInstance;
-
-    cmp.toggleLibrary(new Event('click'), 'L1');
-    httpMock.expectOne({ method: 'PUT', url: '/api/v1/reading/home-libraries' })
-      .flush({ error: 'x', message: 'boom', detail: null, correlationId: null }, { status: 500, statusText: 'Server Error' });
-    fixture.detectChanges();
-
-    expect(cmp.excludedLibraryIds().size).toBe(0);
-    expect(cmp.visibleGroups().map((g) => g.libraryId)).toEqual(['L1']);
-    expect(cmp.pickerError()).toBe('boom');
-    expect((fixture.nativeElement.querySelector('.recent-section .error') as HTMLElement).textContent).toContain('boom');
-    httpMock.expectNone((r) => r.url === '/api/v1/home/recent-chapters');
+    // No picker UI on the home page any more - it moved to Settings > New Chapters.
+    expect(section.querySelector('.lib-picker-toggle')).toBeNull();
   });
 });

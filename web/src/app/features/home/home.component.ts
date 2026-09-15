@@ -5,8 +5,6 @@ import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatButtonModule } from '@angular/material/button';
 
 import { ApiService } from '../../core/api/api.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
@@ -67,12 +65,28 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
     MatIconModule,
     MatChipsModule,
     MatTooltipModule,
-    MatMenuModule,
-    MatButtonModule,
     CoverImageDirective,
   ],
   template: `
     <div class="home" [style.--card-size]="cardSize() + 'px'">
+      <!-- Home view toolbar (1.12.0): the card-size slider lives here because it sizes
+           BOTH cover strips (Continue reading + New chapters), not just one row - mirroring
+           the library browse view's top card-size control. Shown once there is any card
+           content to size. -->
+      @if (continueReading().length > 0 || visibleGroups().length > 0) {
+        <div class="home-toolbar">
+          <div class="size-control" matTooltip="Card size">
+            <mat-icon class="size-icon">zoom_out</mat-icon>
+            <input type="range" class="size-slider" aria-label="Card size"
+                   [min]="cardSizeMin" [max]="cardSizeMax" [step]="cardSizeStep"
+                   [value]="cardSize()"
+                   (input)="onCardSizeInput($event)"
+                   (change)="onCardSizeChange($event)">
+            <mat-icon class="size-icon">zoom_in</mat-icon>
+          </div>
+        </div>
+      }
+
       @if (continueReading().length > 0) {
         <section class="strip-section">
           <h3>Continue reading</h3>
@@ -106,47 +120,7 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
         <section class="strip-section recent-section">
           <div class="section-head">
             <h3>New chapters</h3>
-            <div class="section-tools">
-              <!-- Card size (shared with the library browse view). Dragging resizes the
-                   home cards live (input); releasing persists the preference (change). -->
-              <div class="size-control" matTooltip="Card size">
-                <mat-icon class="size-icon">zoom_out</mat-icon>
-                <input type="range" class="size-slider" aria-label="Card size"
-                       [min]="cardSizeMin" [max]="cardSizeMax" [step]="cardSizeStep"
-                       [value]="cardSize()"
-                       (input)="onCardSizeInput($event)"
-                       (change)="onCardSizeChange($event)">
-                <mat-icon class="size-icon">zoom_in</mat-icon>
-              </div>
-              <!-- Library picker: per-library show/hide for THIS row. The trigger wears
-                   the accent while any library is hidden so the narrowed row reads at a
-                   glance (same idiom as the browse filter button). -->
-              @if (libraries().length > 0) {
-                <button mat-icon-button class="lib-picker-toggle" [matMenuTriggerFor]="libMenu"
-                        [class.filter-active]="excludedLibraryIds().size > 0"
-                        matTooltip="Choose which libraries show new chapters"
-                        aria-label="Choose which libraries show new chapters">
-                  <mat-icon>tune</mat-icon>
-                </button>
-                <mat-menu #libMenu="matMenu" class="view-options-menu home-lib-menu">
-                  <span class="menu-caption">Show new chapters from</span>
-                  @for (lib of libraries(); track lib.id) {
-                    <button mat-menu-item role="menuitemcheckbox" class="lib-pick"
-                            [class.selected-option]="isLibraryShown(lib.id)"
-                            [attr.aria-checked]="isLibraryShown(lib.id)"
-                            (click)="toggleLibrary($event, lib.id)">
-                      <mat-icon>{{ isLibraryShown(lib.id) ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
-                      {{ lib.name }}
-                    </button>
-                  }
-                </mat-menu>
-              }
-            </div>
           </div>
-
-          @if (pickerError()) {
-            <p class="error">{{ pickerError() }}</p>
-          }
 
           @for (group of visibleGroups(); track group.libraryId) {
             <div class="recent-lib">
@@ -278,31 +252,24 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
     }
     .cont-page { font-size: 12px; color: #999; }
     .latest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    /* New chapters: a heading row with the card-size slider + library picker on the
-       right, then one sub-row per library, headed by the library name (clickable
-       into browse), then its stacks. */
-    .section-head {
-      display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px;
+    /* Home view toolbar: the card-size slider that sizes BOTH cover strips. Mirrors the
+       library browse view's top card-size control; wraps on narrow phones and the slider
+       stays wide enough to drag with a thumb. */
+    .home-toolbar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      margin: 0 0 12px; padding: 0 8px 0 0;
     }
-    .section-head h3 { flex: 1 1 auto; margin-bottom: 8px; }
-    .section-tools { display: flex; align-items: center; gap: 8px; }
     .size-control { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
     .size-control .size-icon { font-size: 18px; width: 18px; height: 18px; color: #8a8a99; }
     .size-slider {
-      width: 120px; max-width: 34vw; accent-color: #7c4dff; cursor: pointer;
+      width: 180px; max-width: 60vw; accent-color: #7c4dff; cursor: pointer;
       background: transparent;
     }
-    .lib-picker-toggle { color: #8a8a99; }
-    .lib-picker-toggle.filter-active { color: #b39dff; }
-    .menu-caption {
-      display: block; padding: 6px 16px 2px; font-size: 11px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.5px; color: #8a8a99;
-    }
-    /* The picker renders in a CDK overlay outside this component's DOM, so its
-       selected-state uses the same accent highlight idiom as the browse menus. */
-    ::ng-deep .home-lib-menu .selected-option { background: rgba(124, 77, 255, 0.16); }
-    ::ng-deep .home-lib-menu .selected-option,
-    ::ng-deep .home-lib-menu .selected-option .mat-icon { color: #b39dff; }
+    /* New chapters: a heading, then one sub-row per library headed by the library name
+       (clickable into browse), then its stacks. Which libraries appear here is a per-user
+       setting under Settings > New Chapters. */
+    .section-head { margin-bottom: 4px; }
+    .section-head h3 { margin-bottom: 8px; }
     .empty { margin: 4px 0 0; }
     .recent-lib { margin-bottom: 12px; }
     .recent-lib h4 {
@@ -352,13 +319,12 @@ export class HomeComponent implements OnInit {
   readonly recentGroups = signal<RecentChaptersLibraryGroup[]>([]);
 
   /**
-   * Home library visibility (1.12.0): the per-user, server-persisted EXCLUDED set.
-   * A library is shown when it is not in this set. Groups of a just-hidden library
-   * are dropped locally right away (`visibleGroups`); un-hiding refetches the row.
+   * Home library visibility (1.12.0): the per-user, server-persisted EXCLUDED set, read
+   * on load to filter which libraries contribute New-chapters cards. The picker that
+   * EDITS this set lives under Settings > New Chapters (owner refinement, 1.12.0); home
+   * only reads it here.
    */
   readonly excludedLibraryIds = signal<ReadonlySet<string>>(new Set());
-  readonly pickerSaving = signal(false);
-  readonly pickerError = signal<string | null>(null);
 
   /** Groups that have at least one stack and whose library is not hidden from home. */
   readonly visibleGroups = computed(() => {
@@ -504,33 +470,4 @@ export class HomeComponent implements OnInit {
     return { viewMode: 'card', density: 'comfortable', sort: 'name' };
   }
 
-  // --- Library picker (1.12.0, per-user server setting) ---
-
-  isLibraryShown(libraryId: string): boolean {
-    return !this.excludedLibraryIds().has(libraryId);
-  }
-
-  /**
-   * Show/hide one library on this row. Sends the whole updated excluded set
-   * (replacement semantics) and keeps the menu open so several libraries can be
-   * toggled in one go. Reverts on failure; refetches the row on success so a
-   * just-shown library's stacks appear (a just-hidden one drops out immediately).
-   */
-  toggleLibrary(event: Event, libraryId: string): void {
-    event.stopPropagation(); // keep the menu open (the panel closes on bubbled clicks)
-    const previous = this.excludedLibraryIds();
-    const next = new Set(previous);
-    if (next.has(libraryId)) next.delete(libraryId); else next.add(libraryId);
-    this.excludedLibraryIds.set(next);
-    this.pickerSaving.set(true);
-    this.pickerError.set(null);
-    this.api.putHomeLibraries([...next]).subscribe({
-      next: () => { this.pickerSaving.set(false); this.loadRecentChapters(); },
-      error: (err: { message?: string }) => {
-        this.excludedLibraryIds.set(previous);
-        this.pickerSaving.set(false);
-        this.pickerError.set(err?.message || 'Failed to update which libraries show new chapters');
-      },
-    });
-  }
 }

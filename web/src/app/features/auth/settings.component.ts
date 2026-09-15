@@ -142,6 +142,34 @@ import { ReadingPreferencesCardComponent } from './reading-preferences-card.comp
         } @else {
           <p class="muted">Loading…</p>
         }
+
+        <div class="home-libraries">
+          <h4>Show new chapters from</h4>
+          <p class="hint">
+            Choose which libraries contribute cards to the home "New chapters" row.
+            Unchecked libraries are hidden from that row; they still appear everywhere else.
+          </p>
+          @if (homeLibrariesError()) {
+            <div class="error">{{ homeLibrariesError() }}</div>
+          }
+          @if (librariesLoading()) {
+            <p class="muted">Loading libraries…</p>
+          } @else if (libraries().length === 0) {
+            <p class="muted">No libraries yet.</p>
+          } @else {
+            <div class="home-library-list">
+              @for (lib of libraries(); track lib.id) {
+                <mat-checkbox
+                  [checked]="isHomeLibraryShown(lib.id)"
+                  [disabled]="homeLibrariesSaving()"
+                  (change)="toggleHomeLibrary(lib.id, $event)"
+                >
+                  {{ lib.name }}
+                </mat-checkbox>
+              }
+            </div>
+          }
+        </div>
       </mat-card-content>
     </mat-card>
 
@@ -181,6 +209,9 @@ import { ReadingPreferencesCardComponent } from './reading-preferences-card.comp
     .private-libraries-card { margin-top: 24px; }
     .home-window-card { margin-top: 24px; }
     .home-window-card mat-form-field { width: 120px; }
+    .home-libraries { margin-top: 8px; }
+    .home-libraries h4 { margin: 8px 0; font-size: 14px; }
+    .home-library-list { display: flex; flex-direction: column; gap: 8px; }
     .performance-card { margin-top: 24px; }
     .performance-card mat-form-field { width: 160px; }
     form { display: flex; flex-direction: column; gap: 16px; }
@@ -238,6 +269,14 @@ export class SettingsComponent implements OnInit {
   readonly homeWindowSaving = signal(false);
   readonly homeWindowError = signal<string | null>(null);
 
+  // Home "New chapters" library visibility (1.12.0 refinement): the per-user, server-
+  // persisted EXCLUDED set (GET/PUT /reading/home-libraries). A library is SHOWN on the
+  // home New-chapters row when it is NOT in this set. This picker moved here from the home
+  // page (owner refinement) so all New-chapters configuration lives under Settings.
+  readonly homeExcludedLibraryIds = signal<ReadonlySet<string>>(new Set());
+  readonly homeLibrariesSaving = signal(false);
+  readonly homeLibrariesError = signal<string | null>(null);
+
   readonly form = this.fb.nonNullable.group({
     currentPassword: ['', Validators.required],
     newPassword: ['', [Validators.required, Validators.minLength(8)]],
@@ -252,6 +291,10 @@ export class SettingsComponent implements OnInit {
     this.api.getPrivateLibraries().subscribe({
       next: (dto) => this.privateLibraryIds.set(new Set(dto.libraryIds)),
       error: () => { /* leave the list empty; nothing marked Private is a safe default */ },
+    });
+    this.api.getHomeLibraries().subscribe({
+      next: (dto) => this.homeExcludedLibraryIds.set(new Set(dto.excludedLibraryIds)),
+      error: () => { /* leave empty: showing every library is the safe default */ },
     });
     this.api.getLibraryPreferences().subscribe({
       next: (p) => {
@@ -338,6 +381,31 @@ export class SettingsComponent implements OnInit {
         this.homeWindowDays.set(previous);
         this.homeWindowSaving.set(false);
         this.homeWindowError.set(err.message || 'Failed to save the new chapters window');
+      },
+    });
+  }
+
+  isHomeLibraryShown(libraryId: string): boolean {
+    return !this.homeExcludedLibraryIds().has(libraryId);
+  }
+
+  /**
+   * Show/hide one library on the home "New chapters" row. Checked = SHOWN (not excluded).
+   * Sends the whole updated EXCLUDED set (replacement semantics); reverts on failure.
+   */
+  toggleHomeLibrary(libraryId: string, change: MatCheckboxChange): void {
+    const previous = this.homeExcludedLibraryIds();
+    const next = new Set(previous);
+    if (change.checked) next.delete(libraryId); else next.add(libraryId);
+    this.homeExcludedLibraryIds.set(next);
+    this.homeLibrariesSaving.set(true);
+    this.homeLibrariesError.set(null);
+    this.api.putHomeLibraries([...next]).subscribe({
+      next: () => this.homeLibrariesSaving.set(false),
+      error: (err: ApiError) => {
+        this.homeExcludedLibraryIds.set(previous);
+        this.homeLibrariesSaving.set(false);
+        this.homeLibrariesError.set(err.message || 'Failed to update which libraries show new chapters');
       },
     });
   }
