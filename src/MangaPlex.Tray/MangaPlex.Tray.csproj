@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MangaPlex.Tray: Windows tray launcher that owns the server lifecycle for
+     non-always-on users (no Windows Service this cycle). References no other
+     MangaPlex project; it locates and supervises MangaPlex.Server.exe as an
+     external child process from the distribution folder layout, not via a
+     ProjectReference. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>com.lifepixer.mangaplex.Tray</RootNamespace>
+    <OutputType>WinExe</OutputType>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- Product icon (generated from web/src/favicon.ico's largest frame,
+         see the win-fixes lane vault note) — embedded as the exe's own Win32
+         resource, and re-loaded at runtime via Icon.ExtractAssociatedIcon
+         for the NotifyIcon instead of SystemIcons.Application. -->
+    <ApplicationIcon>MangaPlex.ico</ApplicationIcon>
+    <!-- Lets the project build/restore under the Linux dotnet/sdk:10.0 container
+         (no Windows workload installed there) so CI and the container-based
+         fallback build described in AGENTS.md keep working. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+    <ApplicationVisualStyles>true</ApplicationVisualStyles>
+    <ApplicationUseCompatibleTextRendering>false</ApplicationUseCompatibleTextRendering>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MangaPlex.Tray.Tests" />
+  </ItemGroup>
+</Project>

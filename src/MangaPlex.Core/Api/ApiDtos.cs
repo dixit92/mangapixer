@@ -813,4 +813,12 @@ public sealed record SystemInfoDto
     /// numeric <c>AssemblyVersion</c> (which stays at major.minor.0.0).
     /// </summary>
     public required string Version { get; init; }
+
+    /// <summary>
+    /// The server's operating system, so the admin UI can speak the server's
+    /// platform idiom (e.g. filesystem paths) instead of assuming a container
+    /// (lane WinDeploy H, 1.13.0). <c>"windows"</c> or <c>"linux"</c>; null on
+    /// any other OS. Not sensitive — no paths or hostnames.
+    /// </summary>
+    public string? Platform { get; init; }
 }

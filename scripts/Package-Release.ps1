@@ -88,6 +88,18 @@ if (Test-Path $winDir) {
     if ($LASTEXITCODE -ne 0) { throw "syft SBOM (win-x64) failed" }
 }
 
+# --- Windows MSI installer, if a Windows distribution was staged ---
+$windowsDistDir = Join-Path $repoRoot "artifacts/windows-dist"
+if (Test-Path $windowsDistDir) {
+    Write-Host "Building Windows MSI installer..." -ForegroundColor Cyan
+    $builtMsiPath = & "$PSScriptRoot/Build-Installer.ps1" -PayloadDir $windowsDistDir
+    Copy-Item $builtMsiPath $outDir -Force
+    Write-Host "Copied $(Split-Path -Leaf $builtMsiPath) into $outDir" -ForegroundColor Green
+}
+else {
+    Write-Host "No artifacts/windows-dist/ staging folder - skipping the Windows MSI installer step." -ForegroundColor Yellow
+}
+
 # --- SHA-256 checksums over every artifact ---
 $sumFile = Join-Path $outDir "SHA256SUMS.txt"
 $lines = Get-ChildItem $outDir -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" } | ForEach-Object {
