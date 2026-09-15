@@ -313,6 +313,14 @@ public sealed record ReadMarkDto
 /// clients that omit it — behave exactly as before. Stored verbatim, never clamped
 /// or interpreted server-side (browse still takes pageSize as an explicit query
 /// parameter).
+///
+/// HomeRecentWindowDays (1.12.0 refinement) is the per-user "recently added" window,
+/// in days, for the home "New chapters" row. 0 means unset — <c>RecentChaptersService</c>
+/// falls back to its 30-day default — and non-zero values are clamped to 1..365 by the
+/// service before use, so this DTO stores the raw value verbatim (like LibraryPageSize)
+/// and never interprets or clamps it itself. Reusing this preferences blob (rather than
+/// a new endpoint) keeps the Settings screen's single "load once, echo back on save"
+/// round-trip intact.
 /// </summary>
 public sealed record LibraryViewPreferencesDto
 {
@@ -322,6 +330,7 @@ public sealed record LibraryViewPreferencesDto
     public string Direction { get; init; } = "";
     public string CardSize { get; init; } = "";
     public int LibraryPageSize { get; init; }
+    public int HomeRecentWindowDays { get; init; }
 }
 
 /// <summary>

@@ -44,10 +44,11 @@ describe('SettingsComponent — Private libraries', () => {
       { id: 'L2', name: 'Beta', isScanning: false, itemCount: 5, lastScanCompleted: null, defaultReaderMode: null },
     ]);
     httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: ['L2'] });
-    // The Performance card (1.10.0) loads the user's library-view preferences on init.
+    // The Performance card (1.10.0) and New Chapters card (1.12.0 refinement) both load
+    // the user's library-view preferences on init.
     httpMock.expectOne('/api/v1/reading/library-preferences').flush({
       viewMode: 'card', density: 'comfortable', sort: 'name', direction: 'asc',
-      cardSize: '150', libraryPageSize: 100,
+      cardSize: '150', libraryPageSize: 100, homeRecentWindowDays: 30,
     });
     // The embedded reading-preferences card (1.9.0) loads the user's preferences on init.
     httpMock.expectOne('/api/v1/reading/preferences').flush({
@@ -135,7 +136,7 @@ describe('SettingsComponent — Performance (items per load)', () => {
     httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: [] });
     httpMock.expectOne('/api/v1/reading/library-preferences').flush({
       viewMode: 'list', density: 'compact', sort: 'recentlyAdded', direction: 'desc',
-      cardSize: '180', libraryPageSize: 100,
+      cardSize: '180', libraryPageSize: 100, homeRecentWindowDays: 30,
     });
     httpMock.expectOne('/api/v1/reading/preferences').flush({
       defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false,
@@ -186,6 +187,108 @@ describe('SettingsComponent — Performance (items per load)', () => {
   it('ignores a no-op selection of the current size', () => {
     const cmp = createComponent().componentInstance;
     cmp.setPageSize(selectChange(100)); // already 100
+    httpMock.expectNone('/api/v1/reading/library-preferences');
+  });
+});
+
+function inputChange(value: number): Event {
+  const input = document.createElement('input');
+  input.value = String(value);
+  return { target: input } as unknown as Event;
+}
+
+/**
+ * Covers the "New Chapters" settings card (1.12.0 refinement): the per-user home
+ * "recently added" window control, which replaces RecentChaptersService's previously
+ * hardcoded 30-day window. Loads and persists via the same library-view preferences
+ * blob as the Performance card (homeRecentWindowDays alongside libraryPageSize),
+ * echoing the whole blob back on save so nothing else round-trips lost.
+ */
+describe('SettingsComponent — New Chapters (home window)', () => {
+  let httpMock: HttpTestingController;
+
+  function createComponent(homeRecentWindowDays: number | undefined = 30) {
+    TestBed.configureTestingModule({
+      imports: [SettingsComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+      ],
+    });
+    const fixture = TestBed.createComponent(SettingsComponent);
+    httpMock = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+
+    httpMock.expectOne('/api/v1/libraries').flush([]);
+    httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: [] });
+    httpMock.expectOne('/api/v1/reading/library-preferences').flush({
+      viewMode: 'card', density: 'comfortable', sort: 'name', direction: '',
+      cardSize: '', libraryPageSize: 50, homeRecentWindowDays,
+    });
+    httpMock.expectOne('/api/v1/reading/preferences').flush({
+      defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false,
+      preferredBackground: null, alwaysOpenReadFromStart: false,
+    });
+    return fixture;
+  }
+
+  afterEach(() => httpMock.verify());
+
+  it('loads the stored homeRecentWindowDays into the control', () => {
+    const cmp = createComponent(14).componentInstance;
+    expect(cmp.homeWindowLoaded()).toBe(true);
+    expect(cmp.homeWindowDays()).toBe(14);
+  });
+
+  it('falls back to the 30-day default when unset (0)', () => {
+    const cmp = createComponent(0).componentInstance;
+    expect(cmp.homeWindowDays()).toBe(30);
+  });
+
+  it('persists a new value by echoing the whole preferences blob back', () => {
+    const cmp = createComponent(30).componentInstance;
+
+    cmp.setHomeWindowDays(inputChange(7));
+    expect(cmp.homeWindowDays()).toBe(7);
+
+    const req = httpMock.expectOne('/api/v1/reading/library-preferences');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual(expect.objectContaining({
+      viewMode: 'card', density: 'comfortable', sort: 'name', direction: '',
+      cardSize: '', libraryPageSize: 50, homeRecentWindowDays: 7,
+    }));
+    req.flush(null);
+  });
+
+  it('clamps an out-of-range value client-side before saving', () => {
+    const cmp = createComponent(30).componentInstance;
+
+    cmp.setHomeWindowDays(inputChange(9000));
+    expect(cmp.homeWindowDays()).toBe(365);
+
+    const req = httpMock.expectOne('/api/v1/reading/library-preferences');
+    expect(req.request.body.homeRecentWindowDays).toBe(365);
+    req.flush(null);
+  });
+
+  it('reverts the control and surfaces an error when the save fails', () => {
+    const cmp = createComponent(30).componentInstance;
+
+    cmp.setHomeWindowDays(inputChange(7));
+    const req = httpMock.expectOne('/api/v1/reading/library-preferences');
+    req.flush(
+      { error: 'server_error', message: 'nope', detail: null, correlationId: null },
+      { status: 500, statusText: 'Server Error' },
+    );
+
+    expect(cmp.homeWindowDays()).toBe(30); // reverted to the loaded value
+    expect(cmp.homeWindowError()).toBe('nope');
+  });
+
+  it('ignores a no-op edit that resolves to the current value', () => {
+    const cmp = createComponent(30).componentInstance;
+    cmp.setHomeWindowDays(inputChange(30)); // already 30
     httpMock.expectNone('/api/v1/reading/library-preferences');
   });
 });

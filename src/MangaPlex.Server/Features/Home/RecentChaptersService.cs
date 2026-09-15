@@ -5,6 +5,7 @@ using com.lifepixer.mangaplex.Core.Api;
 using com.lifepixer.mangaplex.Core.Catalog;
 using com.lifepixer.mangaplex.Server.Features.Auth;
 using com.lifepixer.mangaplex.Server.Persistence;
+using com.lifepixer.mangaplex.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -45,12 +46,22 @@ public sealed class RecentChaptersService
     public const int MaxPerLibrary = 50;
 
     /// <summary>
-    /// Recency window that defines "recently added" for the home surface (1.12.0). An archive
-    /// counts toward a stack — and a stack appears at all — only if it was added within this
-    /// window, so <c>NewCount</c> reflects genuinely new chapters rather than a whole back
-    /// catalogue. Chosen product parameter (owner-tunable); flagged for the integrator.
+    /// Default recency window (days) that defines "recently added" for the home surface, used
+    /// when the caller has no stored preference (<see cref="ReaderPreferencesEntity.HomeRecentWindowDays"/>
+    /// is 0/unset). An archive counts toward a stack — and a stack appears at all — only if it
+    /// was added within the window, so <c>NewCount</c> reflects genuinely new chapters rather
+    /// than a whole back catalogue.
     /// </summary>
-    public static readonly TimeSpan RecentWindow = TimeSpan.FromDays(30);
+    public const int DefaultWindowDays = 30;
+
+    /// <summary>Minimum per-user window (days) accepted from stored preferences.</summary>
+    public const int MinWindowDays = 1;
+
+    /// <summary>Maximum per-user window (days) accepted from stored preferences.</summary>
+    public const int MaxWindowDays = 365;
+
+    /// <summary>Default recency window, as a <see cref="TimeSpan"/> (kept for callers/tests that want it pre-1.12.0-refinement style).</summary>
+    public static readonly TimeSpan RecentWindow = TimeSpan.FromDays(DefaultWindowDays);
 
     private readonly MangaPlexDbContext _db;
     private readonly LibraryAuthorizationService _auth;
@@ -98,7 +109,8 @@ public sealed class RecentChaptersService
             .Select(l => new { l.Id, l.PublicId, l.DisplayName })
             .ToListAsync(ct);
 
-        var cutoff = DateTimeOffset.UtcNow - RecentWindow;
+        var windowDays = await ResolveWindowDaysAsync(userId, ct);
+        var cutoff = DateTimeOffset.UtcNow - TimeSpan.FromDays(windowDays);
 
         var groups = new List<RecentChaptersLibraryGroup>(libs.Count);
         foreach (var lib in libs)
@@ -113,6 +125,28 @@ public sealed class RecentChaptersService
         }
 
         return new RecentChaptersDto { Libraries = groups };
+    }
+
+    /// <summary>
+    /// Resolves the caller's "recently added" window in days (1.12.0 refinement): reads
+    /// <see cref="ReaderPreferencesEntity.HomeRecentWindowDays"/> for the user and
+    /// clamps it to <see cref="MinWindowDays"/>..<see cref="MaxWindowDays"/>; 0/unset (no stored
+    /// preferences row, or a row whose value is still 0) falls back to <see cref="DefaultWindowDays"/>.
+    /// Queried here rather than passed in by the controller — this service already owns every
+    /// other per-user home-surface lookup (visibility, home-excluded libraries), so keeping the
+    /// preference read alongside them keeps <see cref="RecentChaptersController"/> a thin
+    /// pass-through and avoids a second per-user round trip at the call site.
+    /// </summary>
+    private async Task<int> ResolveWindowDaysAsync(long userId, CancellationToken ct)
+    {
+        var stored = await _db.ReaderPreferences
+            .Where(p => p.UserId == userId)
+            .Select(p => (int?)p.HomeRecentWindowDays)
+            .FirstOrDefaultAsync(ct);
+
+        return stored is null or 0
+            ? DefaultWindowDays
+            : Math.Clamp(stored.Value, MinWindowDays, MaxWindowDays);
     }
 
     /// <summary>
