@@ -10,7 +10,7 @@ using System.Text.Json;
 public static class WorkerProtocolVersion
 {
     // v2: added on-demand page extraction (extract / extract_result / extract_error)
-    // with worker-side WebP transcode + thumbnail variants (C13).
+    // with worker-side WebP transcode + thumbnail variants.
     public const int Current = 2;
 }
 
@@ -186,7 +186,7 @@ public sealed record AnalyzedPageEntry
 }
 
 /// <summary>
-/// Server -> Worker: extract a single page image and encode a variant (C13).
+/// Server -> Worker: extract a single page image and encode a variant on demand.
 /// The worker opens the source archive read-only, extracts exactly the one entry,
 /// transcodes it, and writes the encoded bytes to <see cref="OutputPath"/>. The
 /// server never opens the archive itself — this keeps image decoding (the

@@ -1,7 +1,7 @@
 namespace com.lifepixer.mangaplex.Core.Api;
 
 /// <summary>
-/// Per-library jump index (1.4.0 multilingual collation jump-navigation, Lane E).
+/// Per-library jump index for multilingual collation-aware jump navigation.
 /// A coarse A–Z/script rail computed server-side from the existing persisted
 /// <c>SortKey</c>s. Each bucket carries a <c>FirstCursor</c> that is a valid
 /// keyset cursor for the name sort of the browse endpoint

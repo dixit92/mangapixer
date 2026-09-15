@@ -799,7 +799,7 @@ public sealed record YacReaderImportResultDto
 }
 
 /// <summary>
-/// Read-only product version information (post-1.3.0 lane D). The version comes
+/// Read-only product version information. The version comes
 /// from the assembly <see cref="System.Reflection.AssemblyInformationalVersionAttribute"/>,
 /// which is sourced from <c>Version.props</c> at build time (see
 /// <c>Directory.Build.props</c>). Contains no private data; served unauthenticated

@@ -7,7 +7,7 @@
   <Import Project="$(MSBuildThisFileDirectory)Version.props" />
 
   <PropertyGroup>
-    <!-- Root namespace: com.lifepixer.mangaplex (exact, per plan section 2.1) -->
+    <!-- Root namespace: com.lifepixer.mangaplex (exact match required across all projects) -->
     <RootNamespace>com.lifepixer.mangaplex</RootNamespace>
 
     <!-- Standard project metadata -->
@@ -43,7 +43,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningsNotAsErrors>$(WarningsNotAsErrors)</WarningsNotAsErrors>
 
-    <!-- Documentation generation enabled when API contracts are frozen in P02 -->
+    <!-- XML doc generation is off until the public API surface is finalized -->
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
 
     <!-- No auto-generated NuGet packages for local builds -->
