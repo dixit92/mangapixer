@@ -54,6 +54,23 @@ public sealed class TraySettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_WhenFileIsLockedByAnotherHandle_ReturnsDefaultsInsteadOfThrowing()
+    {
+        Directory.CreateDirectory(_directory);
+        var filePath = Path.Combine(_directory, "tray-settings.json");
+        File.WriteAllText(filePath, "{}");
+        var store = new TraySettingsStore(_directory);
+
+        // Simulates OneDrive/antivirus holding an exclusive lock at the
+        // moment the tray tries to read its own settings file.
+        using var exclusiveLock = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.None);
+
+        var settings = store.Load();
+
+        Assert.False(settings.AllowLanAccess);
+    }
+
+    [Fact]
     public void Constructor_CreatesDirectoryWhenMissing()
     {
         Assert.False(Directory.Exists(_directory));

@@ -22,8 +22,9 @@ public sealed class TraySettingsStore
         "MangaPlex");
 
     /// <summary>
-    /// Returns defaults when the file is missing or unreadable — a corrupt
-    /// settings file must never keep the tray from starting.
+    /// Returns defaults when the file is missing, unparsable, or unreadable
+    /// (e.g. locked by OneDrive/antivirus scanning) — a bad settings file
+    /// must never keep the tray from starting.
     /// </summary>
     public TraySettings Load()
     {
@@ -35,7 +36,7 @@ public sealed class TraySettingsStore
             var json = File.ReadAllText(_filePath);
             return JsonSerializer.Deserialize<TraySettings>(json) ?? new TraySettings();
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or IOException)
         {
             return new TraySettings();
         }

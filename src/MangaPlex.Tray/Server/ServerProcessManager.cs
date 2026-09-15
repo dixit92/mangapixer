@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using com.lifepixer.mangaplex.Tray.Interop;
+using com.lifepixer.mangaplex.Tray.Logging;
 
 namespace com.lifepixer.mangaplex.Tray.Server;
 
@@ -11,11 +12,16 @@ namespace com.lifepixer.mangaplex.Tray.Server;
 /// <summary>Requests graceful shutdown of the process with the given id.</summary>
 public delegate void GracefulShutdownRequester(int processId);
 
+/// <summary>Receives one drained line of the child process's stdout/stderr.</summary>
+public delegate void ServerOutputSink(string line);
+
 public sealed class ServerProcessManager : IAsyncDisposable
 {
     private readonly string _serverExecutablePath;
     private readonly IServerHealthChecker _healthChecker;
     private readonly GracefulShutdownRequester _gracefulShutdownRequester;
+    private readonly ServerOutputSink _outputSink;
+    private readonly ServerOutputLog? _ownedOutputLog;
     private readonly object _lock = new();
     private Process? _process;
     private ServerEndpointOptions _endpointOptions;
@@ -44,12 +50,19 @@ public sealed class ServerProcessManager : IAsyncDisposable
     /// Kill() fallback directly, without spawning (and waiting 2s on) a
     /// helper that has nothing meaningful to attach to.
     /// </param>
+    /// <param name="outputSink">
+    /// Receives each drained stdout/stderr line. Draining is not optional —
+    /// see the remarks on <see cref="StartAsync"/>. Defaults to persisting
+    /// via <see cref="ServerOutputLog"/>; tests inject a capturing delegate
+    /// instead of touching the real log file.
+    /// </param>
     public ServerProcessManager(
         string serverExecutablePath,
         ServerEndpointOptions endpointOptions,
         IServerHealthChecker? healthChecker = null,
         string? serverArguments = null,
-        GracefulShutdownRequester? gracefulShutdownRequester = null)
+        GracefulShutdownRequester? gracefulShutdownRequester = null,
+        ServerOutputSink? outputSink = null)
     {
         _serverExecutablePath = serverExecutablePath;
         _endpointOptions = endpointOptions;
@@ -57,6 +70,16 @@ public sealed class ServerProcessManager : IAsyncDisposable
         _serverArguments = serverArguments;
         _gracefulShutdownRequester = gracefulShutdownRequester
             ?? (processId => CtrlBreakSender.RequestViaHelperProcess(Environment.ProcessPath, processId));
+
+        if (outputSink is not null)
+        {
+            _outputSink = outputSink;
+        }
+        else
+        {
+            _ownedOutputLog = new ServerOutputLog(ServerOutputLog.DefaultFilePath);
+            _outputSink = _ownedOutputLog.WriteLine;
+        }
     }
 
     public bool IsRunning
@@ -79,6 +102,14 @@ public sealed class ServerProcessManager : IAsyncDisposable
             _endpointOptions = options;
     }
 
+    /// <summary>
+    /// Launches the server. Redirected stdout/stderr are drained via
+    /// <c>Begin{Output,Error}ReadLine</c> into <see cref="_outputSink"/> —
+    /// required, not cosmetic: Windows pipes have a small (~4KB) buffer, and
+    /// the server's Serilog console sink writes continuously, so an
+    /// undrained pipe eventually fills and the server's console writes block
+    /// forever, hanging the whole process.
+    /// </summary>
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
         lock (_lock)
@@ -102,7 +133,11 @@ public sealed class ServerProcessManager : IAsyncDisposable
 
             var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
             process.Exited += OnProcessExited;
+            process.OutputDataReceived += (_, e) => { if (e.Data is not null) _outputSink(e.Data); };
+            process.ErrorDataReceived += (_, e) => { if (e.Data is not null) _outputSink(e.Data); };
             process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
             _process = process;
             SetState(ServerState.Starting);
         }
@@ -204,5 +239,7 @@ public sealed class ServerProcessManager : IAsyncDisposable
             _process?.Dispose();
             _process = null;
         }
+
+        _ownedOutputLog?.Dispose();
     }
 }

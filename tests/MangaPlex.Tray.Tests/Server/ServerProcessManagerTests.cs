@@ -28,11 +28,15 @@ public sealed class ServerProcessManagerTests
     // to prove StartAsync/StopAsync/RestartAsync lifecycle and the
     // timeout+Kill() fallback, not the CTRL_BREAK delivery mechanism itself
     // (covered by the lane's manual E2E pass against the real server exe),
-    // so they inject a no-op requester.
-    private static ServerProcessManager CreateManager(string? arguments = null) =>
+    // so they inject a no-op requester. Likewise, the default outputSink
+    // writes to the real %LOCALAPPDATA%\MangaPlex\logs\ — tests inject a
+    // no-op (or, where the point IS the drain behavior, a capturing one)
+    // instead, so no test run leaves that file behind.
+    private static ServerProcessManager CreateManager(string? arguments = null, ServerOutputSink? outputSink = null) =>
         new(LongRunningExecutable, new ServerEndpointOptions { Port = 0 },
             serverArguments: arguments,
-            gracefulShutdownRequester: static _ => { });
+            gracefulShutdownRequester: static _ => { },
+            outputSink: outputSink ?? (static _ => { }));
 
     [Fact]
     public async Task StartAsync_LaunchesProcess_ThenIsRunningIsTrue()
@@ -49,7 +53,8 @@ public sealed class ServerProcessManagerTests
     {
         await using var manager = new ServerProcessManager(
             Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.exe"),
-            new ServerEndpointOptions());
+            new ServerEndpointOptions(),
+            outputSink: static _ => { });
 
         await Assert.ThrowsAsync<FileNotFoundException>(() => manager.StartAsync());
     }
@@ -100,5 +105,34 @@ public sealed class ServerProcessManagerTests
             await Task.Delay(100);
 
         Assert.False(manager.IsRunning);
+    }
+
+    /// <summary>
+    /// Regression test for a deadlock: StartAsync redirects stdout/stderr
+    /// but, without BeginOutputReadLine/BeginErrorReadLine draining them,
+    /// Windows' small (~4KB) pipe buffer fills and the child's console
+    /// writes block forever once it writes past that — exactly what
+    /// MangaPlex.Server's continuous Serilog console output would do. This
+    /// writes well past that buffer (&gt;64KB) through a stand-in child and
+    /// asserts it exits on its own within a short timeout, which is only
+    /// possible if the pipes are actually being drained.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_DrainsLargeOutput_WithoutDeadlocking()
+    {
+        var drainedBytes = 0;
+        await using var manager = CreateManager(
+            "-NoProfile -NonInteractive -Command \"1..2000 | ForEach-Object { Write-Output ('x' * 100) }\"",
+            outputSink: line => Interlocked.Add(ref drainedBytes, line.Length));
+
+        await manager.StartAsync();
+
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (manager.IsRunning && DateTime.UtcNow < deadline)
+            await Task.Delay(100);
+
+        Assert.False(manager.IsRunning, "the process should have exited on its own once its output finished; " +
+            "if it is still running, its stdout pipe likely filled and its console writes are blocked forever");
+        Assert.True(drainedBytes > 64 * 1024, $"expected more than 64KB drained, got {drainedBytes}");
     }
 }

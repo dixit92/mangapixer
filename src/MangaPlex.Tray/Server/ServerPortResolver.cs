@@ -16,12 +16,19 @@ public sealed class ServerPortResolver
         _checker = checker ?? new TcpPortAvailabilityChecker();
     }
 
+    // Windows' TCP exclusion reservations (Hyper-V/WSL/Docker NAT) are
+    // commonly ~100 ports wide, so a preferred port that lands mid-block
+    // would exhaust a narrower scan without ever reaching a free port
+    // outside it. TcpListener probes are near-instant, so scanning further
+    // costs essentially nothing.
+    public const int DefaultMaxCandidates = 120;
+
     /// <summary>
     /// Returns <paramref name="preferredPort"/> if it is free, otherwise the
     /// first free port in the following <paramref name="maxCandidates"/> - 1
     /// ports, or null if none of them are free either.
     /// </summary>
-    public int? ResolveAvailablePort(int preferredPort, int maxCandidates = 20)
+    public int? ResolveAvailablePort(int preferredPort, int maxCandidates = DefaultMaxCandidates)
     {
         for (var offset = 0; offset < maxCandidates; offset++)
         {
