@@ -5,7 +5,10 @@
     clean, empty data root; /health responds 200; the web UI index loads over
     HTTP; first-run setup is reachable (no default credentials); worker
     discovery/startup is proven; shutdown is clean; the temp data root is
-    removed.
+    removed. Then, if a tray exe was published, launches it from the staging
+    ROOT exactly as an end user receives it (single file, server\/worker\
+    one level down) and confirms it stays resident and the server it spawns
+    answers /health, hermetically and with the child processes swept up.
 
     Usage:
       pwsh ./scripts/Smoke-Windows.ps1
@@ -16,6 +19,10 @@ param(
     # Parameterized by publish dir so this can smoke-test any Publish-Windows.ps1
     # output (default matches Publish-Windows.ps1's OutputDir/server layout).
     [string]$PublishDir = "artifacts/windows-dist/server",
+
+    # The staging root itself (one level up from $PublishDir by default) -
+    # where the tray exe lands per Publish-Windows.ps1's layout contract.
+    [string]$StagingRoot = "artifacts/windows-dist",
 
     # Must match the Windows-distribution default bind port (see
     # Publish-Windows.ps1 -BindUrl / appsettings.Production.json overlay).
@@ -177,3 +184,120 @@ finally {
         Remove-Item $tempData -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
+
+# --- Tray launch check ---
+# The staged single-file tray exe, launched exactly the way an end user
+# receives it (staging root, server\/worker\ one level down - NOT the
+# $PublishDir\server layout the check above targets directly), must stay
+# resident and the server it spawns must answer /health. This is what would
+# have caught the "does nothing" defect (Publish-Windows.ps1 shipping the
+# tray exe without its self-contained siblings): a check that only ever runs
+# the server exe from a full publish folder never exercises the exe the
+# owner actually double-clicks.
+#
+# TraySettingsStore.DefaultDirectory (tray-settings.json, including the
+# resolved port and the one-time first-run-balloon flag) is hardcoded to the
+# real %LOCALAPPDATA%\MangaPlex and has no env-var override, unlike the
+# server's data root - so it is captured and restored around this check
+# instead, rather than left to silently consume the owner's real first-run
+# balloon tip or leak a resolved-port value into their real settings file.
+if (-not [System.IO.Path]::IsPathRooted($StagingRoot)) {
+    $StagingRoot = Join-Path $repoRoot $StagingRoot
+}
+$trayExe = Join-Path $StagingRoot "$ProductName.Tray.exe"
+
+if (-not (Test-Path $trayExe)) {
+    Write-Host "`nSKIPPED: $trayExe not found (tray not published) - tray launch check skipped" -ForegroundColor Yellow
+}
+else {
+    Write-Host "`n=== Launch staged $ProductName.Tray.exe from the staging root (hermetic) ===" -ForegroundColor Cyan
+
+    $traySettingsDir = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) $ProductName
+    $traySettingsFile = Join-Path $traySettingsDir "tray-settings.json"
+    $preExistingTraySettings = if (Test-Path $traySettingsFile) { Get-Content $traySettingsFile -Raw } else { $null }
+
+    # Same fixed-path problem as tray-settings.json: ServerOutputLog.DefaultFilePath
+    # persists the spawned server's stdout/stderr under the real
+    # %LOCALAPPDATA%\MangaPlex\logs too, with no env-var override.
+    $serverOutputLog = Join-Path $traySettingsDir "logs\server-output.log"
+    $preExistingServerOutputLog = if (Test-Path $serverOutputLog) { Get-Content $serverOutputLog -Raw } else { $null }
+
+    $trayTempData = Join-Path ([System.IO.Path]::GetTempPath()) "mangaplex-smoke-tray-$(Get-Random)"
+    New-Item -ItemType Directory -Path $trayTempData | Out-Null
+
+    $trayProcess = $null
+    try {
+        $env:MangaPlex__Storage__DataRoot = $trayTempData
+
+        $trayProcess = Start-Process -FilePath $trayExe -PassThru
+
+        Start-Sleep -Seconds 5
+        if ($trayProcess.HasExited) {
+            throw "$ProductName.Tray.exe exited within 5s of launch (exit code $($trayProcess.ExitCode)) - it should stay resident in the tray."
+        }
+        Write-Host "PASS: tray process still alive 5s after launch (PID $($trayProcess.Id))" -ForegroundColor Green
+
+        # The resolved port isn't known up front (ServerPortResolver may move
+        # off the 27272 default), and the settings-file write that records it
+        # races this loop asynchronously - so re-read the file and retry
+        # /health together each iteration instead of resolving the port once.
+        $trayHealthy = $false
+        $resolvedPort = $null
+        $deadline = (Get-Date).AddSeconds($StartupTimeoutSec)
+        while ((Get-Date) -lt $deadline) {
+            if ($trayProcess.HasExited) {
+                throw "$ProductName.Tray.exe exited while waiting for the server it spawned to become healthy (exit code $($trayProcess.ExitCode))."
+            }
+            if (Test-Path $traySettingsFile) {
+                try {
+                    $port = (Get-Content $traySettingsFile -Raw | ConvertFrom-Json).Port
+                    if ($port) {
+                        $resolvedPort = $port
+                        $response = Invoke-WebRequest -Uri "http://127.0.0.1:$port/health" -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop
+                        if ($response.StatusCode -eq 200) { $trayHealthy = $true; break }
+                    }
+                }
+                catch { }
+            }
+            Start-Sleep -Milliseconds 500
+        }
+        if (-not $trayHealthy) {
+            throw "The server spawned by $ProductName.Tray.exe did not answer /health within ${StartupTimeoutSec}s (resolved port: $resolvedPort)."
+        }
+        Write-Host "PASS: tray-spawned server answered /health on resolved port $resolvedPort" -ForegroundColor Green
+        Write-Host "PASS: tray launch check completed" -ForegroundColor Green
+    }
+    finally {
+        # Kill(true) walks the OS parent/child tree at the instant it's
+        # called, which covers the server it spawned and the worker the
+        # server in turn spawns; the by-name sweep beneath is defense in
+        # depth for a grandchild started a beat too late to be caught -
+        # killing the tray does NOT stop its children on its own.
+        if ($trayProcess -and -not $trayProcess.HasExited) {
+            try { $trayProcess.Kill($true) } catch { }
+        }
+        Get-Process -Name "$ProductName.Server", "$ProductName.MediaWorker" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Path -and $_.Path.StartsWith($StagingRoot, [StringComparison]::OrdinalIgnoreCase) } |
+            ForEach-Object {
+                try { $_.Kill() } catch { }
+            }
+        Remove-Item Env:MangaPlex__Storage__DataRoot -ErrorAction SilentlyContinue
+        if (Test-Path $trayTempData) {
+            Remove-Item $trayTempData -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        if ($null -ne $preExistingTraySettings) {
+            Set-Content -Path $traySettingsFile -Value $preExistingTraySettings -NoNewline
+        }
+        elseif (Test-Path $traySettingsFile) {
+            Remove-Item $traySettingsFile -Force -ErrorAction SilentlyContinue
+        }
+        if ($null -ne $preExistingServerOutputLog) {
+            Set-Content -Path $serverOutputLog -Value $preExistingServerOutputLog -NoNewline
+        }
+        elseif (Test-Path $serverOutputLog) {
+            Remove-Item $serverOutputLog -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+Write-Host "`nPASS: Windows distribution smoke test (including tray launch) completed" -ForegroundColor Green

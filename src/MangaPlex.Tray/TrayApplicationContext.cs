@@ -76,12 +76,27 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         _notifyIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            // Pulls the icon embedded in this exe's own Win32 resources (set
+            // via <ApplicationIcon> in the csproj) rather than the generic
+            // SystemIcons.Application placeholder.
+            Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application,
             Text = "MangaPlex",
             ContextMenuStrip = menu,
             Visible = true,
         };
         _notifyIcon.DoubleClick += (_, _) => OpenInBrowser();
+
+        // Windows hides newly added tray icons in the overflow area by
+        // default, so a fresh install can look like nothing happened. A
+        // one-time balloon on first run points the user at it.
+        if (!_settings.HasShownTrayIntroBalloon)
+        {
+            _notifyIcon.BalloonTipTitle = "MangaPlex";
+            _notifyIcon.BalloonTipText = "MangaPlex is running in the system tray — click to open.";
+            _notifyIcon.ShowBalloonTip(10000);
+            _settings.HasShownTrayIntroBalloon = true;
+            _settingsStore.Save(_settings);
+        }
 
         _healthTimer = new System.Windows.Forms.Timer { Interval = 5000 };
         _healthTimer.Tick += async (_, _) => await PollHealthAsync();

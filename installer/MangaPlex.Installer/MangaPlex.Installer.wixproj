@@ -45,6 +45,8 @@
 
   <ItemGroup>
     <PackageReference Include="WixToolset.UI.wixext" Version="6.0.2" />
+    <!-- WixShellExec custom action (launch-after-install exit-dialog checkbox). -->
+    <PackageReference Include="WixToolset.Util.wixext" Version="6.0.2" />
   </ItemGroup>
 
   <!-- Package.wxs is picked up automatically by the SDK's default "**/*.wxs"

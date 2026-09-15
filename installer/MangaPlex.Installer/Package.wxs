@@ -61,31 +61,54 @@
 
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="ProgramsFolder" Name="Programs">
-        <Directory Id="INSTALLFOLDER" Name="MangaPlex" />
+        <Directory Id="INSTALLFOLDER" Name="MangaPlex">
+          <Directory Id="ServerDir" Name="server" />
+          <Directory Id="WorkerDir" Name="worker" />
+        </Directory>
       </Directory>
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder" />
 
+    <Icon Id="ProductIcon" SourceFile="..\..\src\MangaPlex.Tray\MangaPlex.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ProductIcon" />
+
     <Feature Id="MainFeature" Title="MangaPlex" Level="1" AllowAbsent="no" AllowAdvertise="no">
-      <ComponentGroupRef Id="PayloadComponents" />
+      <ComponentGroupRef Id="ServerComponents" />
+      <ComponentGroupRef Id="WorkerComponents" />
+      <ComponentRef Id="TrayExeComponent" />
       <ComponentRef Id="StartMenuShortcut" />
       <ComponentRef Id="RunAtSignInRegistry" />
     </Feature>
 
     <!-- Harvested at build time from the staged Windows distribution folder
          (server + worker binaries, tray exe, bundled config). See
-         Build-Installer.ps1 for how PayloadDir is supplied. -->
-    <ComponentGroup Id="PayloadComponents" Directory="INSTALLFOLDER">
-      <Files Include="$(var.PayloadDir)\**\*.*" />
+         Build-Installer.ps1 for how PayloadDir is supplied. Split into two
+         scoped harvests (server\, worker\) plus one explicit <File> for the
+         tray exe, instead of one glob over the whole payload root, so the
+         tray exe gets a stable File Id ("TrayExe") - the harvested-file Ids
+         <Files> assigns are content-hashed, not stable/predictable, and
+         WixShellExec (see LaunchApplication below) needs a fixed Id to
+         target. Installed paths are unchanged: server\ and worker\ trees
+         land exactly where they did under the single glob, and the tray exe
+         still lands at the INSTALLFOLDER root. -->
+    <ComponentGroup Id="ServerComponents" Directory="ServerDir">
+      <Files Include="$(var.PayloadDir)\server\**\*.*" />
     </ComponentGroup>
+    <ComponentGroup Id="WorkerComponents" Directory="WorkerDir">
+      <Files Include="$(var.PayloadDir)\worker\**\*.*" />
+    </ComponentGroup>
+    <Component Id="TrayExeComponent" Directory="INSTALLFOLDER" Guid="1D94A0DF-E6F6-4B4D-A641-C074AD8A41DE">
+      <File Id="TrayExe" Source="$(var.PayloadDir)\MangaPlex.Tray.exe" KeyPath="yes" />
+    </Component>
 
     <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder" Guid="6E4B6C3C-6E9B-4C3E-9F5D-6B2E2C6C6A21">
       <Shortcut Id="MangaPlexStartMenuShortcut"
                 Name="MangaPlex"
                 Description="Open MangaPlex"
                 Target="[INSTALLFOLDER]MangaPlex.Tray.exe"
-                WorkingDirectory="INSTALLFOLDER" />
+                WorkingDirectory="INSTALLFOLDER"
+                Icon="ProductIcon" />
       <RegistryValue Root="HKCU" Key="Software\MangaPlex" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
     </Component>
 
@@ -98,17 +121,27 @@
                       KeyPath="yes" />
     </Component>
 
-    <!-- Launch-after-install checkbox: deferred, not implemented. Wiring it
-         needs the Util extension's WixShellExec custom action bound to a
-         stable File Id for MangaPlex.Tray.exe (the harvested-file Ids from
-         <Files> are content-hashed, not stable/predictable) plus a
-         CustomAction-computed WixShellExecTarget (a literal "[INSTALLFOLDER]..."
-         Property value is rejected by the compiler as an illegal property
-         reference). Carving the tray exe out of the glob harvest to give it a
-         fixed Id, just to support this one optional checkbox, is exactly the
-         "hack" this bullet says to skip rather than force - see the lane vault
-         note for the full rationale. -->
-    <ui:WixUI Id="WixUI_Minimal" />
+    <!-- Launch-after-install: the exit-dialog optional checkbox, wired via
+         the Util extension's WixShellExec custom action against the stable
+         "TrayExe" File Id above. A literal "[INSTALLFOLDER]..." Property
+         value is rejected by the compiler as an illegal property reference,
+         so WixShellExecTarget is set via a formatted-text CustomAction
+         (type 51) instead of a plain Property element - that CustomAction
+         only stores the raw "[#TrayExe]" text; WixShellExec itself resolves
+         it to the installed path at runtime. -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Start MangaPlex now" />
+
+    <CustomAction Id="SetLaunchApplicationTarget" Property="WixShellExecTarget" Value="[#TrayExe]" />
+    <CustomAction Id="LaunchApplication" BinaryRef="Wix4UtilCA_X86" DllEntry="WixShellExec" Impersonate="yes" Return="ignore" />
+
+    <UI>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="SetLaunchApplicationTarget" Order="1" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication" Order="2" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+    </UI>
+
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <ui:WixUI Id="WixUI_InstallDir" />
     <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
 
   </Package>
