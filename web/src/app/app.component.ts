@@ -5,7 +5,7 @@ import { ApiService } from './core/api/api.service';
 
 /**
  * App shell. Renders the routed outlet plus a small footer showing the product
- * version (post-1.3.0 lane D). The version comes from GET /api/v1/system/info
+ * version. The version comes from GET /api/v1/system/info
  * (unauthenticated, sourced from Version.props at build time). The footer is
  * minimal and unobtrusive; it degrades to nothing if the request fails, so it
  * never blocks the app. The reader's full-screen overlay (position:fixed
