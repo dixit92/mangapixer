@@ -1,14 +1,14 @@
-# MangaPlex production Compose file (template)
+# MangaPixer production Compose file (template)
 # Real library mounts and app-data paths are supplied through ignored local overrides.
 # Set MANGAPIXER_VERSION to pin the image tag; it falls back to 'latest' when unset.
 # Loopback-only publication by default; reverse proxies handle external access.
 
 services:
-  mangaplex:
+  mangapixer:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    image: mangaplex:${MANGAPIXER_VERSION:-latest}
+    image: mangapixer:${MANGAPIXER_VERSION:-latest}
     ports:
       - "127.0.0.1:8080:8080"
     environment:
@@ -19,9 +19,9 @@ services:
       MangaPixer__Storage__CacheRoot: "/cache"
       MangaPixer__Storage__ScratchRoot: "/scratch"
     volumes:
-      - mangaplex-data:/data
-      - mangaplex-cache:/cache
-      - mangaplex-scratch:/scratch
+      - mangapixer-data:/data
+      - mangapixer-cache:/cache
+      - mangapixer-scratch:/scratch
       # Media mounts are supplied through compose.override.yaml (ignored)
       # Source media is mounted read-only to enforce the read-only invariant
     restart: unless-stopped
@@ -36,12 +36,12 @@ services:
     tmpfs:
       - /tmp
     labels:
-      org.opencontainers.image.title: "MangaPlex"
+      org.opencontainers.image.title: "MangaPixer"
       org.opencontainers.image.description: "Folder-native comic/manga server and Angular web reader"
       org.opencontainers.image.version: "${MANGAPIXER_VERSION:-latest}"
       org.opencontainers.image.licenses: "MIT"
 
 volumes:
-  mangaplex-data:
-  mangaplex-cache:
-  mangaplex-scratch:
+  mangapixer-data:
+  mangapixer-cache:
+  mangapixer-scratch:

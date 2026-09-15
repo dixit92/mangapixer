@@ -1,5 +1,5 @@
 #!/bin/sh
-# MangaPlex container entrypoint
+# MangaPixer container entrypoint
 # Ensures volume/bind directories are writable by the runtime user, then drops
 # privileges and starts the .NET server.
 #
@@ -36,10 +36,10 @@ if [ "$(id -u)" = "0" ]; then
     # Ensure the runtime group and user exist with the requested IDs.
     # If PUID/PGID match the image's built-in 1000:1000, these are no-ops.
     if ! getent group "$PGID" > /dev/null 2>&1; then
-        groupadd --gid "$PGID" mangaplex 2>/dev/null || true
+        groupadd --gid "$PGID" mangapixer 2>/dev/null || true
     fi
     if ! id -u "$PUID" > /dev/null 2>&1; then
-        useradd --uid "$PUID" --gid "$PGID" --shell /bin/bash --no-create-home mangaplex 2>/dev/null || true
+        useradd --uid "$PUID" --gid "$PGID" --shell /bin/bash --no-create-home mangapixer 2>/dev/null || true
     fi
     # Drop to non-root user using gosu
     exec gosu "$PUID:$PGID" dotnet server/MangaPixer.Server.dll

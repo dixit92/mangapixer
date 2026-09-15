@@ -1,6 +1,6 @@
 # Library layout
 
-MangaPlex is folder-native. **Your folder tree is the library.** There is no
+MangaPixer is folder-native. **Your folder tree is the library.** There is no
 separate metadata database to curate, nothing is renamed or reorganized, and
 what you see in the app mirrors what is on disk.
 
@@ -81,7 +81,7 @@ Structure matters in two places:
 
 ## Sorting
 
-MangaPlex uses two different orders. Knowing which applies where saves surprises.
+MangaPixer uses two different orders. Knowing which applies where saves surprises.
 
 ### Pages: natural order
 
@@ -159,7 +159,7 @@ first one.
 
 **Scans only run when an admin starts one.** There is no schedule, no scan at
 start-up and no file watcher. Registering a library does not scan it either.
-In **MangaPlex Administration** > **Libraries**:
+In **MangaPixer Administration** > **Libraries**:
 
 - **Scan now** (the circular-arrow icon) on a library's row scans that library.
 - **Scan all libraries** scans every library. Libraries that are already
@@ -179,7 +179,7 @@ and covers fill in over the next moments.
   progress intact.
 - **Moved or renamed archives** keep their identity: reading progress, read
   marks, bookmarks and thumbnail follow the file to its new location.
-  MangaPlex recognizes a moved file by a content signature: its size plus a
+  MangaPixer recognizes a moved file by a content signature: its size plus a
   hash of its first and last 64 KiB. A move is recognized only when:
   - the archive had been analysed before it moved,
   - exactly one missing file matches exactly one new file, and
@@ -207,13 +207,13 @@ inside your library folders:
 
 - The server's file-system layer has no write operations, and it opens every
   source file read-only.
-- Everything MangaPlex generates goes to its own storage roots instead:
+- Everything MangaPixer generates goes to its own storage roots instead:
   - extracted page images go to the cache (`/cache`),
   - temporary unpacking goes to scratch (`/scratch`),
   - cover thumbnails go to `/data/thumbnails`.
 - The installation guides mount media with `:ro`, so the operating system
   enforces this as well.
-- **Remove library** in the admin page deletes only MangaPlex's records and
+- **Remove library** in the admin page deletes only MangaPixer's records and
   reading progress for that library. Your files are not touched.
 
 ## Thumbnails

@@ -1,4 +1,4 @@
-# MangaPlex API examples
+# MangaPixer API examples
 
 Synthetic example payloads for API documentation and testing.
 All examples use fake data — no real collection paths, titles, or user identifiers.

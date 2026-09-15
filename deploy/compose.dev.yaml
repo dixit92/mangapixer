@@ -1,4 +1,4 @@
-# MangaPlex development Compose file
+# MangaPixer development Compose file
 # Provides reproducible build/test environment without host .NET/Node SDKs.
 # Real library mounts are supplied through ignored local overrides, not shared examples.
 

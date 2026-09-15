@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in MangaPlex does not work as expected.
+description: Something in MangaPixer does not work as expected.
 labels: ["bug"]
 body:
   - type: markdown
@@ -17,7 +17,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: MangaPlex version
+      label: MangaPixer version
       description: Shown in the app footer, or returned by `GET /api/v1/system/info`.
       placeholder: "1.12.0"
     validations:
@@ -26,7 +26,7 @@ body:
   - type: dropdown
     id: deployment
     attributes:
-      label: How do you run MangaPlex?
+      label: How do you run MangaPixer?
       options:
         - Docker / Docker Compose
         - Unraid
@@ -75,7 +75,7 @@ body:
     attributes:
       label: Relevant log output
       description: |
-        Server log lines around the time of the problem. MangaPlex logs are
+        Server log lines around the time of the problem. MangaPixer logs are
         designed not to contain paths or titles, but read them before pasting.
         This field is rendered as a code block automatically.
       render: text

@@ -28,7 +28,7 @@ concurrency:
 
 env:
   # Product name used for artifact names. Single place to change on a rename.
-  PRODUCT_NAME: mangaplex
+  PRODUCT_NAME: mangapixer
   DOTNET_NOLOGO: "true"
   DOTNET_CLI_TELEMETRY_OPTOUT: "true"
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"

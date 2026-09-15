@@ -1,5 +1,5 @@
 <!--
-Thanks for contributing to MangaPlex. Pull requests target `dev`; `main` is
+Thanks for contributing to MangaPixer. Pull requests target `dev`; `main` is
 release-only. See CONTRIBUTING.md for the full rules.
 -->
 

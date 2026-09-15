@@ -39,7 +39,7 @@ icons are bundled, so it works on a network with no internet access.
 
 ### If I rename or move a series folder, do I lose my progress?
 
-Not for archives that were already analysed. On the next scan, MangaPlex
+Not for archives that were already analysed. On the next scan, MangaPixer
 recognizes moved archives by their content and keeps their progress. See
 [Library layout](library-layout.md#rescans-moves-and-deletions).
 
@@ -103,6 +103,6 @@ a script, see
 
 ### Is this YACReader?
 
-No. MangaPlex is an independent server inspired by YACReader, not a fork. It
+No. MangaPixer is an independent server inspired by YACReader, not a fork. It
 can import your YACReader reading progress; see
 [Backup and restore](backup-and-restore.md#importing-reading-progress-from-yacreader).

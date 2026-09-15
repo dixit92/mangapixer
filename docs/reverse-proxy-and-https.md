@@ -11,8 +11,8 @@ through a proxy running on the same host. (The Unraid file publishes port
 
 ## Requirements for the proxy
 
-- **Give MangaPlex its own hostname** (or its own port). Serving it under a
-  sub-path such as `https://example.lan/mangaplex/` is not supported: the app
+- **Give MangaPixer its own hostname** (or its own port). Serving it under a
+  sub-path such as `https://example.lan/mangapixer/` is not supported: the app
   expects to live at `/`.
 - **Pass the original `Host` header through.** The server uses it to build
   [activation links](#activation-links).
@@ -87,9 +87,9 @@ In practice:
   every user, so one person repeatedly mistyping a password can block sign-in
   for everyone for a few minutes. The per-username limit and account lockout
   still work normally. You can raise the per-IP limit with
-  [`MangaPlex__Security__RateLimit__MaxAttemptsPerIp`](configuration.md#sign-in-protection).
+  [`MangaPixer__Security__RateLimit__MaxAttemptsPerIp`](configuration.md#sign-in-protection).
 - **Cookies are not marked `Secure`.** They are still `HttpOnly` and
-  `SameSite=Strict`, and the browser only ever sends them to your MangaPlex
+  `SameSite=Strict`, and the browser only ever sends them to your MangaPixer
   hostname. To make sure they never travel over plain HTTP, redirect HTTP to
   HTTPS at the proxy (Caddy does this by default). You can also add HSTS at the
   proxy, for example `header Strict-Transport-Security "max-age=31536000"` in

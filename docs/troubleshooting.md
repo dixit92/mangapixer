@@ -24,18 +24,18 @@ also shows.
 If the container keeps restarting, its logs usually say why:
 
 ```sh
-docker compose -f deploy/compose.yaml logs --tail 100 mangaplex
+docker compose -f deploy/compose.yaml logs --tail 100 mangapixer
 ```
 
 ## Logs
 
 **Where:**
 
-- The container output: `docker compose ... logs mangaplex`, or the Docker
+- The container output: `docker compose ... logs mangapixer`, or the Docker
   tab on Unraid.
 - Files in `<data root>/logs` (`/data/logs`, or
-  `/mnt/user/appdata/MangaPlex/data/logs` on Unraid), named
-  `mangaplex-<yyyyMMdd>.log`. There is one file per day, a new file starts
+  `/mnt/user/appdata/MangaPixer/data/logs` on Unraid), named
+  `mangapixer-<yyyyMMdd>.log`. There is one file per day, a new file starts
   after 20 MB, and the newest 7 files are kept.
 
 **Format:** `timestamp [LEVEL] source (event id) message`. Timestamps are UTC.
@@ -56,7 +56,7 @@ To connect a log line to an item, use the item's ID. It is the last part of
 the reader's address (`/reader/<item-id>`), and it is also in the library
 view's links.
 
-**More detail.** In **MangaPlex Administration** > **Diagnostics**, set **Log
+**More detail.** In **MangaPixer Administration** > **Diagnostics**, set **Log
 Level** to `Debug`. The change is immediate and resets to `Information` when
 the server restarts. To turn up only one area (`Scanning`, `Media` or
 `Reading`), use the API described in
@@ -91,7 +91,7 @@ the server restarts. To turn up only one area (`Scanning`, `Media` or
 3. **Can the container see the file?** List the folder from inside the container:
 
    ```sh
-   docker compose -f deploy/compose.yaml exec mangaplex ls -la /media/comics
+   docker compose -f deploy/compose.yaml exec mangapixer ls -la /media/comics
    ```
 
    If it is missing or empty, check the volume line in your override file
@@ -137,7 +137,7 @@ scan. The server always serves pages to readers before it works on covers.
 Then:
 
 1. Select **Regenerate thumbnails** (the image icon) on the library's row in
-   **MangaPlex Administration** > **Libraries**. The message shows how many
+   **MangaPixer Administration** > **Libraries**. The message shows how many
    covers were queued, or "All thumbnails are already up to date."
 2. Restarting the server also runs a full pass that fills in every missing
    cover.
@@ -180,7 +180,7 @@ container side at 8080:
 
 ```yaml
 services:
-  mangaplex:
+  mangapixer:
     ports: !override
       - "127.0.0.1:8181:8080"
 ```

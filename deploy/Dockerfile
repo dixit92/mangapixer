@@ -1,4 +1,4 @@
-# MangaPlex production Dockerfile
+# MangaPixer production Dockerfile
 # Multi-stage build: Angular SPA + .NET server + MediaWorker
 # Uses the official Microsoft .NET images (Ubuntu-based for .NET 10; no
 # Alpine/musl in release one).
@@ -67,7 +67,7 @@ COPY --from=dotnet-build /build/publish/worker ./worker/
 COPY --from=web-build /build/web/dist/mangapixer-web/browser ./wwwroot/
 
 # License notices shipped with the binaries (see THIRD-PARTY-NOTICES.md):
-# MangaPlex's own LICENSE, the third-party inventory, the Angular build's
+# MangaPixer's own LICENSE, the third-party inventory, the Angular build's
 # bundled-package licenses, and Magick.NET's native-library notice.
 COPY LICENSE THIRD-PARTY-NOTICES.md ./licenses/
 COPY --from=web-build /build/web/dist/mangapixer-web/3rdpartylicenses.txt ./licenses/
@@ -76,8 +76,8 @@ COPY deploy/entrypoint.sh ./entrypoint.sh
 RUN chmod +x entrypoint.sh
 
 # Non-root runtime user (handle case where GID 1000 already exists in base image)
-RUN (getent group 1000 > /dev/null 2>&1 || groupadd --gid 1000 mangaplex) && \
-    (id -u 1000 > /dev/null 2>&1 || useradd --uid 1000 --gid 1000 --shell /bin/bash --create-home mangaplex)
+RUN (getent group 1000 > /dev/null 2>&1 || groupadd --gid 1000 mangapixer) && \
+    (id -u 1000 > /dev/null 2>&1 || useradd --uid 1000 --gid 1000 --shell /bin/bash --create-home mangapixer)
 RUN chown -R 1000:1000 /app
 
 ENV ASPNETCORE_URLS=http://+:8080

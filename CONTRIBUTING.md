@@ -1,6 +1,6 @@
-# Contributing to MangaPlex
+# Contributing to MangaPixer
 
-Thanks for your interest in MangaPlex, a folder-native comic/manga server with an
+Thanks for your interest in MangaPixer, a folder-native comic/manga server with an
 Angular web reader. This guide explains how to set up a development environment,
 how changes are verified, and the rules every contribution has to follow.
 
@@ -111,20 +111,20 @@ To try your change in a browser, build the image and run it on a loopback port w
 throwaway storage. Mount test media **read-only**:
 
 ```bash
-docker build -f deploy/Dockerfile -t mangaplex:local .
-docker run -d --name mangaplex-local -p 127.0.0.1:8091:8080 \
+docker build -f deploy/Dockerfile -t mangapixer:local .
+docker run -d --name mangapixer-local -p 127.0.0.1:8091:8080 \
     -v "<temp>/data:/data" -v "<temp>/cache:/cache" -v "<temp>/scratch:/scratch" \
     -v "<your-test-media>:/media:ro" \
-    mangaplex:local
+    mangapixer:local
 ```
 
 A fresh instance has no users. The first-run setup screen creates the first
-administrator. Clean up with `docker rm -f mangaplex-local` and delete the temp
+administrator. Clean up with `docker rm -f mangapixer-local` and delete the temp
 directories when you are done.
 
 ## Rules every contribution must follow
 
-These rules are what make MangaPlex safe to point at a real library. A pull request
+These rules are what make MangaPixer safe to point at a real library. A pull request
 that breaks one of them will not be merged, even if every test passes.
 
 1. **Source media is read-only.** The server and worker must never modify, move,
@@ -163,7 +163,7 @@ that breaks one of them will not be merged, even if every test passes.
 
 ### Code conventions
 
-- .NET namespaces start with `com.lifepixer.mangaplex`. Formatting follows
+- .NET namespaces start with `com.lifepixer.mangapixer`. Formatting follows
   [`.editorconfig`](.editorconfig) and is enforced by `dotnet format`. Warnings are
   treated as errors.
 - The web app is linted with `npm --prefix web run lint` (ESLint + angular-eslint).
@@ -213,16 +213,16 @@ review, not explained away.
 
 Use the [bug report form](../../issues/new?template=bug_report.yml) and include:
 
-- the MangaPlex version (shown in the app footer, or reported by `GET /api/v1/system/info`);
+- the MangaPixer version (shown in the app footer, or reported by `GET /api/v1/system/info`);
 - how you run it (Docker/Compose, Unraid, or Windows) and your browser/device;
 - steps to reproduce, what you expected, and what happened;
 - relevant log lines.
 
-MangaPlex logs are designed not to contain paths or titles. Still, **read your logs
+MangaPixer logs are designed not to contain paths or titles. Still, **read your logs
 before pasting them** and remove anything personal, such as library paths, file names,
 user names, IP addresses, or tokens.
 
 ## License
 
-MangaPlex is released under the [MIT License](LICENSE). By submitting a contribution you
+MangaPixer is released under the [MIT License](LICENSE). By submitting a contribution you
 agree that it is licensed under the same terms.

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- MangaPlex solution (slnx format, .NET 10) -->
+<!-- MangaPixer solution (slnx format, .NET 10) -->
 <Solution>
   <Project Name="MangaPixer.Core" Path="src/MangaPixer.Core/MangaPixer.Core.csproj" Type="ClassLibrary" />
   <Project Name="MangaPixer.Server" Path="src/MangaPixer.Server/MangaPixer.Server.csproj" Type="Web" />
