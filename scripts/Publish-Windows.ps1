@@ -28,9 +28,11 @@ param(
     [string]$OutputDir = "artifacts/windows-dist",
 
     # Loopback-only default bind per the cycle's Windows-distribution decision.
-    # LAN access is an opt-in toggle owned by the tray launcher (Lane B),
-    # which passes ASPNETCORE_URLS to the server child process — that
-    # explicit env var always wins over this appsettings default.
+    # This overlay default applies to DIRECT exe launches. The tray launcher
+    # overrides it by passing --Urls on the server's command line (NOT via
+    # ASPNETCORE_URLS alone: ASPNETCORE_-prefixed env vars are host-level
+    # configuration that appsettings files override, so an env-only override
+    # silently loses to this overlay - command-line config beats everything).
     # Port 6280 sits inside a Windows excluded port range on some hosts
     # (Hyper-V/WSL reservations; SocketException 10013) — 27272 is the
     # Windows-distribution default instead.

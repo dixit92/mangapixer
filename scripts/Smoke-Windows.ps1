@@ -265,6 +265,26 @@ else {
             throw "The server spawned by $ProductName.Tray.exe did not answer /health within ${StartupTimeoutSec}s (resolved port: $resolvedPort)."
         }
         Write-Host "PASS: tray-spawned server answered /health on resolved port $resolvedPort" -ForegroundColor Green
+
+        # Bind-address assertion - regression check for the config-precedence
+        # defect where the distribution overlay's loopback "Urls" silently
+        # overrode the tray's ASPNETCORE_URLS (ASPNETCORE_-prefixed env vars
+        # are host-level config that appsettings files beat; the tray now
+        # passes --Urls on the command line, which beats every config
+        # source). The listener address must match what tray-settings.json
+        # asked for, not merely answer /health (loopback answers under
+        # either bind, which is exactly how the defect slipped through).
+        $expectedBind = "127.0.0.1"
+        try {
+            if ((Get-Content $traySettingsFile -Raw | ConvertFrom-Json).AllowLanAccess) { $expectedBind = "0.0.0.0" }
+        }
+        catch { }
+        $listener = Get-NetTCPConnection -LocalPort $resolvedPort -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $listener) { throw "No LISTEN socket found on resolved port $resolvedPort" }
+        if ($listener.LocalAddress -ne $expectedBind) {
+            throw "Server bound to $($listener.LocalAddress):$resolvedPort but tray settings require ${expectedBind}:$resolvedPort - bind-precedence regression."
+        }
+        Write-Host "PASS: server bound to ${expectedBind}:$resolvedPort matching tray settings" -ForegroundColor Green
         Write-Host "PASS: tray launch check completed" -ForegroundColor Green
     }
     finally {

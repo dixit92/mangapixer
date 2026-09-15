@@ -38,6 +38,21 @@ public sealed class ServerProcessManagerTests
             gracefulShutdownRequester: static _ => { },
             outputSink: outputSink ?? (static _ => { }));
 
+    [Theory]
+    [InlineData(false, "--Urls=http://127.0.0.1:27272")]
+    [InlineData(true, "--Urls=http://0.0.0.0:27272")]
+    public void BuildLaunchArguments_PutsBindUrlOnCommandLine(bool allowLan, string expected)
+    {
+        // The URL must travel as a command-line argument, not only as
+        // ASPNETCORE_URLS: the distribution's appsettings.Production.json
+        // overlay overrides ASPNETCORE_-prefixed (host-level) env config, so
+        // an env-only launch silently stays loopback and the LAN toggle
+        // does nothing (real-install regression, 2026-09-15).
+        var options = new ServerEndpointOptions { Port = 27272, AllowLanAccess = allowLan };
+
+        Assert.Equal(expected, ServerProcessManager.BuildLaunchArguments(options));
+    }
+
     [Fact]
     public async Task StartAsync_LaunchesProcess_ThenIsRunningIsTrue()
     {

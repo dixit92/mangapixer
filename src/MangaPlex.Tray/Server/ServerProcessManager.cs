@@ -124,7 +124,16 @@ public sealed class ServerProcessManager : IAsyncDisposable
 
             var startInfo = new ProcessStartInfo(_serverExecutablePath)
             {
-                Arguments = _serverArguments ?? string.Empty,
+                // The bind address goes on the COMMAND LINE, not (only) in
+                // ASPNETCORE_URLS: the distribution ships an
+                // appsettings.Production.json with a loopback "Urls" default
+                // for direct-exe launches, and ASPNETCORE_-prefixed env vars
+                // are HOST-level configuration that appsettings files
+                // override - so the env var silently loses to the overlay
+                // (found when the LAN toggle had no effect on a real
+                // install). Command-line config is last in the chain and
+                // beats everything.
+                Arguments = _serverArguments ?? BuildLaunchArguments(_endpointOptions),
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
@@ -222,6 +231,14 @@ public sealed class ServerProcessManager : IAsyncDisposable
         await StopAsync(gracefulTimeout, cancellationToken);
         await StartAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Command-line arguments for a real server launch. Internal so tests
+    /// can pin the exact shape (see the Arguments comment in
+    /// <see cref="StartAsync"/> for why the URL must travel this way).
+    /// </summary>
+    internal static string BuildLaunchArguments(ServerEndpointOptions options)
+        => $"--Urls={options.BuildAspNetCoreUrls()}";
 
     private void OnProcessExited(object? sender, EventArgs e) => SetState(ServerState.Stopped);
 
