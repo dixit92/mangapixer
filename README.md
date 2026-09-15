@@ -173,11 +173,11 @@ Full guide: [Install with Docker](docs/install-docker.md).
    of commits.
 
 3. **Pin the image tag and start.** Create `deploy/.env` (git-ignored) with the
-   version you are building. It is read from `Version.props`; `1.12.0` at the
+   version you are building. It is read from `Version.props`; `1.13.0` at the
    time of writing. Then build and start:
 
    ```bash
-   echo "MANGAPIXER_VERSION=1.12.0" > .env
+   echo "MANGAPIXER_VERSION=1.13.0" > .env
    docker compose up -d --build
    ```
 
@@ -224,7 +224,7 @@ linuxserver.io-style `PUID`/`PGID` variables. Full guide:
    (`/mnt/user/<share>:/media/<name>:ro`), and set `PUID`/`PGID` to the user that
    owns your appdata share.
 3. Start it with the matching version:
-   `MANGAPIXER_VERSION=1.12.0 docker compose -f deploy/compose.unraid.yaml up -d`
+   `MANGAPIXER_VERSION=1.13.0 docker compose -f deploy/compose.unraid.yaml up -d`
 
 This file publishes host port **6266 on all interfaces**, unlike the
 loopback-only canonical file, and keeps the read-only root filesystem and
@@ -375,7 +375,7 @@ passes in a normal clone. It fails only if a git remote URL embeds a credential
 
 ## Project status
 
-MangaPixer is at **1.12.0**. It follows SemVer, and the version lives in
+MangaPixer is at **1.13.0**. It follows SemVer, and the version lives in
 `Version.props`. It is developed and used daily on a real home-server library.
 <!-- TODO(owner): roadmap pointer (issues / milestones / project board), support expectations, and what "stable" means for you. -->
 

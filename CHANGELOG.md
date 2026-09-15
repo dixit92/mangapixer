@@ -28,6 +28,29 @@ Dates are the release tag dates. Before 1.0.0 the project used an internal
   the 1.13.x line need a fresh setup; there is no automatic migration. Earlier
   entries below keep the working title as the historical record.
 
+## [1.13.0] - 2026-09-15
+
+### Added
+
+- Native Windows deployment: a self-contained win-x64 distribution (server with
+  the web app, worker, and a loopback-only default configuration), with data
+  stored under the user's local application data folder.
+- A Windows tray launcher that owns the server lifecycle: start, stop and
+  restart, health status, open in browser, an opt-in LAN access toggle, a Set
+  Port dialog with availability checks, start at sign-in, and automatic port
+  selection around Windows excluded port ranges (default 27272).
+- A per-user MSI installer (no elevation) with an install-folder picker,
+  launch after install, Start menu entry, upgrades that keep the autostart
+  choice, and an uninstall that preserves user data.
+- The system information endpoint reports the server platform, and the admin
+  Libraries screen uses Windows path wording when the server runs on Windows.
+
+### Fixed
+
+- Tray LAN access: the bind address is passed on the server command line so the
+  toggle takes effect over the bundled configuration.
+- Re-confirming an unchanged port in the tray no longer reports a busy port.
+
 ## [1.12.0] - 2026-09-14
 
 ### Added
