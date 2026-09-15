@@ -21,8 +21,14 @@
          harvested-file components necessarily use a File KeyPath rather than
          a registry KeyPath. Suppressing these three is the standard, widely
          documented convention for per-user WiX packages - every other ICE
-         still runs. -->
-    <SuppressIces>ICE38;ICE64;ICE91</SuppressIces>
+         still runs.
+         ICE60 fires on the real self-contained payload: versioned native
+         .NET runtime DLLs carry no language resource, which is expected for
+         a glob-harvested self-contained distribution and irrelevant to a
+         per-user xcopy-style install (no companion-file/font semantics in
+         play). Only surfaced once the real Publish-Windows.ps1 payload
+         replaced the placeholder one. -->
+    <SuppressIces>ICE38;ICE60;ICE64;ICE91</SuppressIces>
   </PropertyGroup>
 
   <!-- Build-time inputs, passed by scripts/Build-Installer.ps1 as plain
