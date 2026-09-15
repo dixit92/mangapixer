@@ -24,9 +24,11 @@ import {
   RegisterLibraryRequest,
   CreateUserRequest,
   RotatingBackupStatusDto,
+  SystemPlatform,
   YacReaderDetectDto,
   YacReaderImportPreviewDto,
 } from '../../core/api/api-types';
+import { libraryPathCopy } from './library-path-copy';
 
 /**
  * Admin component. Shows library and user administration.
@@ -224,8 +226,8 @@ import {
             <input matInput [(ngModel)]="newLibName" placeholder="My Manga Collection">
           </mat-form-field>
           <mat-form-field appearance="outline" floatLabel="always">
-            <mat-label>Root Path (server-side mount)</mat-label>
-            <input matInput [(ngModel)]="newLibPath" placeholder="/media/library1">
+            <mat-label>{{ pathCopy().label }}</mat-label>
+            <input matInput [(ngModel)]="newLibPath" [placeholder]="pathCopy().placeholder">
           </mat-form-field>
           <div class="register-actions">
             <button mat-stroked-button type="button" class="browse-btn" (click)="toggleBrowser()">
@@ -243,12 +245,7 @@ import {
             @if (browseLoading()) {
               <p>Loading…</p>
             } @else if (listing() && !listing()!.available) {
-              <p class="browser-hint">
-                No media browse root is configured or accessible on the server.
-                Mount your media read-only (e.g. at <code>/media</code>) or set
-                <code>MangaPlex:Storage:MediaRoot</code>, then reload — or type the
-                path above directly.
-              </p>
+              <p class="browser-hint">{{ pathCopy().noBrowseRootHint }}</p>
             } @else if (listing()) {
               <div class="browser-bar">
                 <button mat-icon-button type="button" (click)="browseUp()"
@@ -563,6 +560,13 @@ export class AdminComponent implements OnInit, OnDestroy {
   readonly newLibName = signal('');
   readonly newLibPath = signal('');
 
+  // Platform-aware register-form copy (lane WinDeploy H, 1.13.0): null until
+  // GET /system/info returns (or on an older server that lacks the field),
+  // which falls back to the historical container wording — never blocks the
+  // form on this best-effort load.
+  readonly platform = signal<SystemPlatform | null>(null);
+  readonly pathCopy = computed(() => libraryPathCopy(this.platform()));
+
   // Directory browser state for the library-registration path picker.
   readonly browserOpen = signal(false);
   readonly browseLoading = signal(false);
@@ -615,6 +619,15 @@ export class AdminComponent implements OnInit, OnDestroy {
     this.loadUsers();
     this.loadLogLevel();
     this.loadBackupStatus();
+    this.loadPlatform();
+  }
+
+  /** Best-effort; an older server without the field, or a failed request, just keeps the fallback copy. */
+  private loadPlatform(): void {
+    this.api.getSystemInfo().subscribe({
+      next: (info) => this.platform.set(info.platform ?? null),
+      error: () => { /* keep the fallback (container) wording */ },
+    });
   }
 
   ngOnDestroy(): void {
