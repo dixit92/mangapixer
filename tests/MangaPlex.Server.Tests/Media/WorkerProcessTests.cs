@@ -433,9 +433,15 @@ public sealed class WorkerProcessTests : IClassFixture<WorkerProcessFixture>, IA
             await db.SaveChangesAsync();
             var node = new CatalogNodeEntity
             {
-                PublicId = "sign", LibraryId = library.Id, Kind = 1, DisplayName = "signature.zip",
-                RelativePath = "signature.zip", PathKey = "signature.zip", SortKey = "1signature.zip",
-                LastSeenScanRevision = 1, CreatedAt = DateTimeOffset.UtcNow,
+                PublicId = "sign",
+                LibraryId = library.Id,
+                Kind = 1,
+                DisplayName = "signature.zip",
+                RelativePath = "signature.zip",
+                PathKey = "signature.zip",
+                SortKey = "1signature.zip",
+                LastSeenScanRevision = 1,
+                CreatedAt = DateTimeOffset.UtcNow,
                 ArchiveItem = new ArchiveItemEntity { ContentVersion = 1, AnalysisState = 1 },
             };
             db.CatalogNodes.Add(node);

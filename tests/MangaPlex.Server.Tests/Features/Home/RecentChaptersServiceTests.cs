@@ -53,9 +53,14 @@ public sealed class RecentChaptersServiceTests : IDisposable
 
         var user = new UserEntity
         {
-            PublicId = "recUser", UserName = "admin", NormalizedUserName = "ADMIN",
-            IsActive = true, IsAdmin = true, PasswordHash = "hash",
-            SecurityStamp = Guid.NewGuid().ToString("N"), CreatedAt = Now,
+            PublicId = "recUser",
+            UserName = "admin",
+            NormalizedUserName = "ADMIN",
+            IsActive = true,
+            IsAdmin = true,
+            PasswordHash = "hash",
+            SecurityStamp = Guid.NewGuid().ToString("N"),
+            CreatedAt = Now,
         };
         db.Users.Add(user);
         await db.SaveChangesAsync();
@@ -70,10 +75,16 @@ public sealed class RecentChaptersServiceTests : IDisposable
     {
         var node = new CatalogNodeEntity
         {
-            PublicId = publicId, LibraryId = libraryId, ParentId = parentId,
-            Kind = (int)CatalogNodeKind.Archive, DisplayName = displayName,
-            RelativePath = "/private/" + displayName, PathKey = "/private/" + displayName.ToLowerInvariant() + "-" + publicId,
-            SortKey = "1" + displayName, Availability = availability, CreatedAt = createdAt,
+            PublicId = publicId,
+            LibraryId = libraryId,
+            ParentId = parentId,
+            Kind = (int)CatalogNodeKind.Archive,
+            DisplayName = displayName,
+            RelativePath = "/private/" + displayName,
+            PathKey = "/private/" + displayName.ToLowerInvariant() + "-" + publicId,
+            SortKey = "1" + displayName,
+            Availability = availability,
+            CreatedAt = createdAt,
         };
         db.CatalogNodes.Add(node);
         await db.SaveChangesAsync();
@@ -85,10 +96,16 @@ public sealed class RecentChaptersServiceTests : IDisposable
     {
         var node = new CatalogNodeEntity
         {
-            PublicId = publicId, LibraryId = libraryId, ParentId = parentId,
-            Kind = (int)CatalogNodeKind.Folder, DisplayName = displayName,
-            RelativePath = "/private/" + displayName, PathKey = "/private/" + displayName.ToLowerInvariant() + "-" + publicId,
-            SortKey = "0" + displayName, Availability = (int)CatalogNodeAvailability.Available, CreatedAt = Now,
+            PublicId = publicId,
+            LibraryId = libraryId,
+            ParentId = parentId,
+            Kind = (int)CatalogNodeKind.Folder,
+            DisplayName = displayName,
+            RelativePath = "/private/" + displayName,
+            PathKey = "/private/" + displayName.ToLowerInvariant() + "-" + publicId,
+            SortKey = "0" + displayName,
+            Availability = (int)CatalogNodeAvailability.Available,
+            CreatedAt = Now,
         };
         db.CatalogNodes.Add(node);
         await db.SaveChangesAsync();

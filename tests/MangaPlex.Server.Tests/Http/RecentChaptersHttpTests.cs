@@ -51,8 +51,15 @@ public sealed class RecentChaptersHttpTests : IClassFixture<MangaPlexWebApplicat
 
         var series = new CatalogNodeEntity
         {
-            PublicId = "recseriesA", LibraryId = libA.Id, Kind = 0, DisplayName = "Series A",
-            RelativePath = "Series A", PathKey = "Series A", SortKey = "0Series A", Availability = 0, CreatedAt = now,
+            PublicId = "recseriesA",
+            LibraryId = libA.Id,
+            Kind = 0,
+            DisplayName = "Series A",
+            RelativePath = "Series A",
+            PathKey = "Series A",
+            SortKey = "0Series A",
+            Availability = 0,
+            CreatedAt = now,
         };
         db.CatalogNodes.Add(series);
         await db.SaveChangesAsync();
@@ -60,33 +67,66 @@ public sealed class RecentChaptersHttpTests : IClassFixture<MangaPlexWebApplicat
         db.CatalogNodes.AddRange(
             new CatalogNodeEntity
             {
-                PublicId = "recA_new", LibraryId = libA.Id, Kind = 1, ParentId = series.Id,
-                DisplayName = "Newest.cbz", RelativePath = "Series A/Newest.cbz", PathKey = "Series A/Newest.cbz",
-                SortKey = "1Newest", Availability = 0, CreatedAt = now.AddHours(-1),
+                PublicId = "recA_new",
+                LibraryId = libA.Id,
+                Kind = 1,
+                ParentId = series.Id,
+                DisplayName = "Newest.cbz",
+                RelativePath = "Series A/Newest.cbz",
+                PathKey = "Series A/Newest.cbz",
+                SortKey = "1Newest",
+                Availability = 0,
+                CreatedAt = now.AddHours(-1),
             },
             new CatalogNodeEntity
             {
-                PublicId = "recA_old", LibraryId = libA.Id, Kind = 1, ParentId = series.Id,
-                DisplayName = "Older.cbz", RelativePath = "Series A/Older.cbz", PathKey = "Series A/Older.cbz",
-                SortKey = "1Older", Availability = 0, CreatedAt = now.AddHours(-3),
+                PublicId = "recA_old",
+                LibraryId = libA.Id,
+                Kind = 1,
+                ParentId = series.Id,
+                DisplayName = "Older.cbz",
+                RelativePath = "Series A/Older.cbz",
+                PathKey = "Series A/Older.cbz",
+                SortKey = "1Older",
+                Availability = 0,
+                CreatedAt = now.AddHours(-3),
             },
             new CatalogNodeEntity
             {
-                PublicId = "recA_loose", LibraryId = libA.Id, Kind = 1,
-                DisplayName = "Loose.cbz", RelativePath = "Loose.cbz", PathKey = "Loose.cbz",
-                SortKey = "1Loose", Availability = 0, CreatedAt = now.AddHours(-2),
+                PublicId = "recA_loose",
+                LibraryId = libA.Id,
+                Kind = 1,
+                DisplayName = "Loose.cbz",
+                RelativePath = "Loose.cbz",
+                PathKey = "Loose.cbz",
+                SortKey = "1Loose",
+                Availability = 0,
+                CreatedAt = now.AddHours(-2),
             },
             new CatalogNodeEntity
             {
-                PublicId = "recA_tomb", LibraryId = libA.Id, Kind = 1, ParentId = series.Id,
-                DisplayName = "Tomb.cbz", RelativePath = "Series A/Tomb.cbz", PathKey = "Series A/Tomb.cbz",
-                SortKey = "1Tomb", Availability = 5, CreatedAt = now.AddMinutes(-30),
+                PublicId = "recA_tomb",
+                LibraryId = libA.Id,
+                Kind = 1,
+                ParentId = series.Id,
+                DisplayName = "Tomb.cbz",
+                RelativePath = "Series A/Tomb.cbz",
+                PathKey = "Series A/Tomb.cbz",
+                SortKey = "1Tomb",
+                Availability = 5,
+                CreatedAt = now.AddMinutes(-30),
             },
             new CatalogNodeEntity
             {
-                PublicId = "recB1", LibraryId = libB.Id, Kind = 1,
-                DisplayName = "BetaCh.cbz", RelativePath = "BetaCh.cbz", PathKey = "BetaCh.cbz",
-                SortKey = "1BetaCh", Availability = 0, CreatedAt = now.AddHours(-1),
+                PublicId = "recB1",
+                LibraryId = libB.Id,
+                Kind = 1,
+                DisplayName = "BetaCh.cbz",
+                RelativePath = "BetaCh.cbz",
+                PathKey = "BetaCh.cbz",
+                SortKey = "1BetaCh",
+                Availability = 0,
+                CreatedAt = now.AddHours(-1),
             });
         await db.SaveChangesAsync();
     }

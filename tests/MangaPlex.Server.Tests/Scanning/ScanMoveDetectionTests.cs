@@ -54,8 +54,12 @@ public sealed class ScanMoveDetectionTests : IDisposable
         db.Libraries.Add(library);
         var user = new UserEntity
         {
-            PublicId = "u1", UserName = "reader", NormalizedUserName = "READER",
-            PasswordHash = "x", SecurityStamp = "s", CreatedAt = DateTimeOffset.UtcNow,
+            PublicId = "u1",
+            UserName = "reader",
+            NormalizedUserName = "READER",
+            PasswordHash = "x",
+            SecurityStamp = "s",
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         db.Users.Add(user);
         await db.SaveChangesAsync();
@@ -103,15 +107,26 @@ public sealed class ScanMoveDetectionTests : IDisposable
         {
             db.PageEntries.Add(new PageEntryEntity
             {
-                ItemId = node.Id, ContentVersion = item.ContentVersion, Ordinal = i,
-                EntryKey = $"p{i}", SourceEntryLocator = $"page{i}.png", MediaType = "image/png",
+                ItemId = node.Id,
+                ContentVersion = item.ContentVersion,
+                Ordinal = i,
+                EntryKey = $"p{i}",
+                SourceEntryLocator = $"page{i}.png",
+                MediaType = "image/png",
             });
         }
         db.ReadMarks.Add(new ReadMarkEntity { UserId = _userId, ItemId = node.Id, MarkedAt = DateTimeOffset.UtcNow, Source = "manual" });
         db.ReadingProgress.Add(new ReadingProgressEntity
         {
-            UserId = _userId, ItemId = node.Id, ContentVersion = item.ContentVersion, EntryKey = "p1", Ordinal = 1,
-            State = 2, Revision = 1, LastMutationId = "m1", UpdatedAt = DateTimeOffset.UtcNow,
+            UserId = _userId,
+            ItemId = node.Id,
+            ContentVersion = item.ContentVersion,
+            EntryKey = "p1",
+            Ordinal = 1,
+            State = 2,
+            Revision = 1,
+            LastMutationId = "m1",
+            UpdatedAt = DateTimeOffset.UtcNow,
         });
         await db.SaveChangesAsync();
         return node.Id;

@@ -467,24 +467,36 @@ public sealed record RestoreApplyOutcome
 
     public static RestoreApplyOutcome None => new()
     {
-        Applied = false, Failed = false, ActorUserName = null,
-        RequestedAtUtc = null, PreRestoreBackupFileName = null,
-        ReplacedFileName = null, Error = null,
+        Applied = false,
+        Failed = false,
+        ActorUserName = null,
+        RequestedAtUtc = null,
+        PreRestoreBackupFileName = null,
+        ReplacedFileName = null,
+        Error = null,
     };
 
     public static RestoreApplyOutcome Succeeded(
         string? actor, DateTimeOffset requestedAt, string? preRestore, string replaced) => new()
-    {
-        Applied = true, Failed = false, ActorUserName = actor,
-        RequestedAtUtc = requestedAt, PreRestoreBackupFileName = preRestore,
-        ReplacedFileName = replaced, Error = null,
-    };
+        {
+            Applied = true,
+            Failed = false,
+            ActorUserName = actor,
+            RequestedAtUtc = requestedAt,
+            PreRestoreBackupFileName = preRestore,
+            ReplacedFileName = replaced,
+            Error = null,
+        };
 
     public static RestoreApplyOutcome FailedApply(string error) => new()
     {
-        Applied = false, Failed = true, ActorUserName = null,
-        RequestedAtUtc = null, PreRestoreBackupFileName = null,
-        ReplacedFileName = null, Error = error,
+        Applied = false,
+        Failed = true,
+        ActorUserName = null,
+        RequestedAtUtc = null,
+        PreRestoreBackupFileName = null,
+        ReplacedFileName = null,
+        Error = error,
     };
 }
 
