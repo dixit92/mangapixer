@@ -44,8 +44,8 @@ Invoke-Stage "Clean tree check" {
         Write-Host "Working tree is not clean:" -ForegroundColor Yellow
         Write-Host $status
     }
-    $remote = git remote -v 2>&1
-    if ($remote) { throw "Git remote is configured. Expected no remote." }
+    # A remote is expected; fail only if a remote URL embeds a credential.
+    & "$PSScriptRoot/Test-GitRemotes.ps1"
 }
 
 # Stage 2: Docker compose build

@@ -342,9 +342,9 @@ All checks are script-driven (`pwsh`), and CI is meant to call the same scripts:
 The Angular unit and end-to-end tests are run directly:
 `npm --prefix web run test:ci` (Vitest) and `npm --prefix web run e2e` (Playwright).
 
-> **Known issue:** `Verify-Quick.ps1`, `Verify.ps1` and `Verify-Packaging.ps1`
-> refuse to run when the repository has a git remote configured, which is always
-> true for a clone. <!-- TODO(owner): drop or relax the "no git remote" preflight in scripts/ before publishing (outside the README lane). -->
+The preflight in `Verify-Quick.ps1`, `Verify.ps1` and `Verify-Packaging.ps1`
+passes in a normal clone. It fails only if a git remote URL embeds a credential
+(for example `https://user:token@host/...`).
 
 ### Repository layout
 

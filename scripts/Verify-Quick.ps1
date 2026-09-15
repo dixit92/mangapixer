@@ -45,8 +45,8 @@ function Invoke-Stage {
 # Stage 1: Privacy preflight
 Invoke-Stage "Privacy Preflight" {
     $status = git status --short 2>&1
-    $remote = git remote -v 2>&1
-    if ($remote) { throw "Git remote is configured. Expected no remote." }
+    # A remote is expected; fail only if a remote URL embeds a credential.
+    & "$PSScriptRoot/Test-GitRemotes.ps1"
 
     # Check that .devin/config.local.json is ignored
     $ignored = git check-ignore .devin/config.local.json 2>&1

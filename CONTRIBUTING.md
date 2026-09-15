@@ -64,17 +64,10 @@ them from the repository root.
 The scripts never modify code to make a check pass. Fix the reported issue instead.
 If `dotnet format` complains, run `dotnet format MangaPlex.slnx` and commit the result.
 
-<!-- TODO(owner): the privacy preflight in Verify-Quick.ps1, Verify.ps1 and
-Verify-Packaging.ps1 still asserts that NO git remote is configured, which fails
-in every clone of the public repository. Relax that check (and the matching
-AGENTS.md invariant) before publishing, then delete this comment and the
-"Drop the origin remote" step in .github/workflows/ci.yml. -->
-
-If `Verify-Quick.ps1` or `Verify.ps1` stops at the privacy preflight with
-"Git remote is configured", that check still predates the public repository.
-Until it is relaxed, remove the remote for the run (`git remote remove origin`)
-and add it back afterwards (`git remote add origin <your-fork-url>`). CI does the
-same thing in its throwaway checkout.
+The privacy preflight accepts a normal clone with its `origin` remote. It fails
+only if a remote URL embeds a credential, such as `https://user:token@host/...`
+or a token-looking string; use a credential helper or SSH instead, and rotate any
+secret that ended up in a URL.
 
 The web app has two test suites the tiers above do not run. Run them yourself when
 you change anything under `web/`:
