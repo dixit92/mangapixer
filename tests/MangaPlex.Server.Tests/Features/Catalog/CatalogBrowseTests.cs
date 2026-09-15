@@ -1965,4 +1965,113 @@ public sealed class CatalogBrowseTests : IDisposable
         }
         finally { await db.DisposeAsync(); }
     }
+
+    // --- recentlyUpdated sort (1.12.0): folder ranks by LatestDescendantAddedAt,
+    // archive by CreatedAt, interleaved, descending-only, null folders last ---
+
+    /// <summary>
+    /// Seeds a top-level folder whose newest descendant archive was created at
+    /// <paramref name="newestArchiveAt"/> (a second, older archive is added too so the
+    /// folder is non-empty), returning the folder node.
+    /// </summary>
+    private static async Task<CatalogNodeEntity> AddFolderWithArchiveAsync(
+        MangaPlexDbContext db, long libraryId, string name, string sortKey, DateTimeOffset newestArchiveAt)
+    {
+        var folder = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, name, sortKey);
+        await AddNodeAsync(db, libraryId, folder.Id, CatalogNodeKind.Archive,
+            name + " Ch", "1" + name + "Ch", newestArchiveAt);
+        return folder;
+    }
+
+    [Fact]
+    public async Task Browse_RecentlyUpdated_InterleavesByEffectiveRecency_NullFoldersLast()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var t1 = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            var t2 = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero);
+            var t3 = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero);
+
+            await AddFolderWithArchiveAsync(db, libraryId, "FolderRecent", "0FR", t3);
+            await AddFolderWithArchiveAsync(db, libraryId, "FolderOld", "0FO", t1);
+            // A loose archive whose CreatedAt sits BETWEEN the two folders' effective times.
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "ArchiveMid", "1AM", t2);
+            // An empty folder: null primitive -> sorts last.
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "FolderEmpty", "0FE");
+
+            // Populate the maintained primitive (same computation as the migration backfill).
+            await LatestDescendantAddedAtMaintenance.RecomputeAllFoldersAsync(db);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
+                sort: "recentlyUpdated");
+
+            // Interleaved by effective recency (folder by descendant, archive by own), newest
+            // first, with the null-timestamp folder last. The archive falls BETWEEN the folders.
+            Assert.Equal(
+                new[] { "FolderRecent", "ArchiveMid", "FolderOld", "FolderEmpty" },
+                result.Items.Select(n => n.DisplayName).ToArray());
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_RecentlyUpdated_IgnoresDirection_AlwaysDescending()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var t1 = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            var t2 = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero);
+            await AddFolderWithArchiveAsync(db, libraryId, "Older", "0OL", t1);
+            await AddFolderWithArchiveAsync(db, libraryId, "Newer", "0NE", t2);
+            await LatestDescendantAddedAtMaintenance.RecomputeAllFoldersAsync(db);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            // Ascending is requested but recency sorts ignore direction (1.10.4 convention).
+            var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null,
+                sort: "recentlyUpdated", direction: SortDirection.Ascending);
+
+            Assert.Equal(new[] { "Newer", "Older" }, result.Items.Select(n => n.DisplayName).ToArray());
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Browse_RecentlyUpdated_PagesCorrectlyAcrossNullsBoundary()
+    {
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var t = new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero);
+            // Non-null: three folders + one loose archive with distinct effective times.
+            await AddFolderWithArchiveAsync(db, libraryId, "F1", "0F1", t.AddDays(5));
+            await AddFolderWithArchiveAsync(db, libraryId, "F2", "0F2", t.AddDays(4));
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Archive, "A1", "1A1", t.AddDays(3));
+            await AddFolderWithArchiveAsync(db, libraryId, "F3", "0F3", t.AddDays(2));
+            // Null-timestamp folders (no descendant archive), ordered among themselves by SortKey.
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Z1", "0Z1");
+            await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Z2", "0Z2");
+            await LatestDescendantAddedAtMaintenance.RecomputeAllFoldersAsync(db);
+
+            var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+            var names = new List<string>();
+            string? cursor = null;
+            bool hasMore;
+            do
+            {
+                var page = await service.BrowseAsync(userId, libraryId, parentId: null,
+                    cursor: cursor, pageSize: 2, sort: "recentlyUpdated");
+                names.AddRange(page.Items.Select(n => n.DisplayName));
+                cursor = page.NextCursor;
+                hasMore = page.HasMore;
+            } while (hasMore);
+
+            // All six, no duplicates, effective-recency order with null folders last (by SortKey).
+            Assert.Equal(new[] { "F1", "F2", "A1", "F3", "Z1", "Z2" }, names.ToArray());
+            Assert.Equal(6, names.Distinct().Count());
+        }
+        finally { await db.DisposeAsync(); }
+    }
 }

@@ -129,8 +129,24 @@
          over a page ghost; (C) a home "New chapters" row grouped by library (new RecentChapters
          endpoint). Additive API only (new browse query params, new PageResponse fields, one new
          endpoint), no schema change -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.11.x. -->
+    <!-- 1.12.0 - additive MINOR over 1.11.0 (post-1.11.0 cycle, 2026-09-14). Home-polish cycle
+         built on ONE maintained primitive - a per-folder LatestDescendantAddedAt timestamp
+         (scan-time bubble-up + migration + one-time backfill) - that powers both a new
+         "Recently updated" browse sort (a folder ranks by its newest descendant archive;
+         folders + archives interleaved, descending-only) and the home "New chapters" row, now
+         STACKED by top-level folder (one card per top-level unit, capped per folder, "latest +
+         N new"). Also: reader double-page shows BOTH page numbers (e.g. 12-13); search results
+         carry a folder-vs-archive badge; a home card-size slider (shared with the library card
+         size) in a top-of-home toolbar; and two per-user settings under Settings > New Chapters
+         - which libraries contribute cards, and the "recently added" window in days (replaces
+         the hardcoded 30-day window). A home folder-card tap opens that folder with a TRANSIENT
+         recentlyUpdated sort (query param, not persisted); selecting Name in the browse sort menu
+         defaults to ascending. Three additive migrations (AddLatestDescendantAddedAt,
+         AddHomeExcludedLibraries, AddHomeRecentWindowDays); additive API only (new browse sort
+         value, reshaped home DTO, new home-libraries endpoint, new prefs field) -> MINOR per
+         SemVer 2.0.0. Bugfixes ship as 1.12.x. -->
     <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>11</MangaPlexVersionMinor>
+    <MangaPlexVersionMinor>12</MangaPlexVersionMinor>
     <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
     <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
 

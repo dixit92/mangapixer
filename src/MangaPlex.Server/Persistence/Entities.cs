@@ -94,6 +94,23 @@ public sealed class PrivateLibraryEntity
 }
 
 /// <summary>
+/// Per-user Home library-visibility preference (1.12.0). Presence of a row means
+/// the user has chosen to HIDE this library from the home "New chapters" surface.
+/// Mirrors <see cref="PrivateLibraryEntity"/> (presence = the flag). Distinct from
+/// the Private designation: this only affects the home page, applies regardless of
+/// Incognito, and never blocks browse/search/direct access.
+/// </summary>
+public sealed class HomeExcludedLibraryEntity
+{
+    public long Id { get; set; }
+    public long UserId { get; set; }
+    public long LibraryId { get; set; }
+    public DateTimeOffset MarkedAt { get; set; }
+
+    public UserEntity? User { get; set; }
+}
+
+/// <summary>
 /// Catalog node: a folder or archive in the library tree.
 /// </summary>
 public sealed class CatalogNodeEntity
@@ -140,6 +157,23 @@ public sealed class CatalogNodeEntity
 
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
+
+    /// <summary>
+    /// Maintained "recency" primitive (1.12.0): for a FOLDER, the MAX
+    /// <see cref="CreatedAt"/> over its non-tombstoned descendant ARCHIVES at any
+    /// depth (recursive), or null when the folder has no such descendant archive.
+    /// For an ARCHIVE this is left null — consumers use the archive's own
+    /// <see cref="CreatedAt"/> instead.
+    ///
+    /// Populated once for existing rows by the AddLatestDescendantAddedAt migration
+    /// backfill, then kept in sync at scan-reconciliation time (bubble-up on archive
+    /// add / move, recompute of the affected path on tombstone). The invariant every
+    /// scan preserves: a folder's value equals the MAX CreatedAt of its non-tombstoned
+    /// descendant archives, or null. Backs the browse <c>recentlyUpdated</c> sort and
+    /// the home "New chapters" stacking, which rank a folder by this value and an
+    /// archive by its own CreatedAt, interleaved.
+    /// </summary>
+    public DateTimeOffset? LatestDescendantAddedAt { get; set; }
 
     public LibraryEntity? Library { get; set; }
     public CatalogNodeEntity? Parent { get; set; }
@@ -408,6 +442,14 @@ public sealed class ReaderPreferencesEntity
     /// </summary>
     public int LibraryPageSize { get; set; }
 
+    /// <summary>
+    /// Per-user "recently added" window, in days, for the home "New chapters" row
+    /// (1.12.0 refinement): 0 = unset -> <c>RecentChaptersService</c> falls back to
+    /// its 30-day default. Clamped to 1..365 when read by the service; stored
+    /// verbatim here like the other presentation columns.
+    /// </summary>
+    public int HomeRecentWindowDays { get; set; }
+
     public UserEntity? User { get; set; }
 }
 
@@ -648,6 +690,7 @@ public sealed class UserEntity
     public ICollection<LibraryGrantEntity> LibraryGrants { get; set; } = [];
     public ICollection<ReadingProgressEntity> ReadingProgress { get; set; } = [];
     public ICollection<PrivateLibraryEntity> PrivateLibraries { get; set; } = [];
+    public ICollection<HomeExcludedLibraryEntity> HomeExcludedLibraries { get; set; } = [];
     public ReaderPreferencesEntity? Preferences { get; set; }
 }
 

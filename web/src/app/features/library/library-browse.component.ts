@@ -130,14 +130,18 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
             <button mat-menu-item role="menuitemradio"
                     [class.selected-option]="sort() === opt.value"
                     [attr.aria-checked]="sort() === opt.value"
+                    [matTooltip]="opt.hint ?? ''" matTooltipPosition="right"
                     (click)="setSort(opt.value)">
               <mat-icon>{{ opt.icon }}</mat-icon>
               {{ opt.label }}
             </button>
           }
-          <!-- Order (asc/desc) applies ONLY to Name sort. The recency sorts are inherently
-               newest-first (the backend forces Descending), so offering asc/desc there is a
-               misnomer - "Recently added" ascending shows the OLDEST first - and is hidden. (1.10.4) -->
+          <!-- Order (asc/desc) applies ONLY to Name sort. The recency sorts - Recently added,
+               Recently read, and (1.12.0) Recently updated - are inherently newest-first (the
+               backend forces Descending), so offering asc/desc there is a misnomer -
+               "Recently added" ascending shows the OLDEST first - and is hidden. The gate is
+               "not Name" rather than an enumerated recency list, so it already covers every
+               recency sort, including this new one, without change. (1.10.4) -->
           @if (sort() === 'name') {
             <span class="menu-caption">Order</span>
             @for (opt of sortDirectionOptions; track opt.value) {
@@ -765,10 +769,18 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   // orders within kind. Omitted on the request → the server uses the stored pref;
   // we pass it explicitly so a change reorders immediately without a persist race.
   readonly sort = signal<LibrarySortOrder>('name');
-  readonly sortOptions: { value: LibrarySortOrder; label: string; icon: string }[] = [
+  /**
+   * `hint` is a short tooltip/subtitle shown on the menu item (1.12.0): it exists
+   * only to distinguish "Recently added" (new items appear in the library) from
+   * "Recently updated" (an existing folder just received new content) - two
+   * easily-confused recency sorts that otherwise read almost the same. Name and
+   * Recently read are unambiguous, so they carry no hint.
+   */
+  readonly sortOptions: { value: LibrarySortOrder; label: string; icon: string; hint?: string }[] = [
     { value: 'name', label: 'Name', icon: 'sort_by_alpha' },
-    { value: 'recentlyAdded', label: 'Recently added', icon: 'schedule' },
+    { value: 'recentlyAdded', label: 'Recently added', icon: 'schedule', hint: 'New items appear' },
     { value: 'recentlyRead', label: 'Recently read', icon: 'history' },
+    { value: 'recentlyUpdated', label: 'Recently updated', icon: 'update', hint: 'Folders with new content' },
   ];
 
   // Ascending/descending toggle for the active sort (1.5.0). Named "sortDirection"
@@ -781,6 +793,16 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     { value: 'asc', label: 'Ascending', icon: 'arrow_upward' },
     { value: 'desc', label: 'Descending', icon: 'arrow_downward' },
   ];
+
+  // The user's PERSISTED sort + direction (from library-preferences). A folder opened
+  // from the home "New chapters" row carries a transient `?sort=` query param that
+  // overrides the ACTIVE sort for that view only; it is never persisted. Navigating
+  // anywhere without the param reverts the active sort to these, so opening a library
+  // is always the stored sort (default Name ascending). Kept in sync only when the user
+  // changes the sort explicitly via the menu. persistView() writes THESE, never the
+  // (possibly transient) active sort. (1.12.0 owner refinement.)
+  private storedSort: LibrarySortOrder = 'name';
+  private storedDirection: LibrarySortDirection = 'asc';
 
   /** How many currently-selected nodes are folders (gates the Direction action). */
   readonly selectedFolderCount = computed(() => {
@@ -839,13 +861,17 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     this.api.getLibraryPreferences().subscribe({
       next: (p) => {
         this.applyStoredView(p);
-        if (p.sort === 'recentlyAdded' || p.sort === 'recentlyRead') this.sort.set(p.sort);
+        if (p.sort === 'recentlyAdded' || p.sort === 'recentlyRead' || p.sort === 'recentlyUpdated') this.sort.set(p.sort);
         // Direction is optional/tolerant like the other fields: an unset or
         // unrecognized value falls back to the sort-specific default (matches
         // CatalogController.ParseDirection) so pre-1.5.0 stored preferences
         // keep their existing ordering.
         this.sortDirection.set(
           p.direction === 'asc' || p.direction === 'desc' ? p.direction : this.defaultDirectionFor(this.sort()));
+        // Remember the persisted sort so a transient query-param sort (home folder tap)
+        // can be reverted to it on the next navigation without re-reading preferences.
+        this.storedSort = this.sort();
+        this.storedDirection = this.sortDirection();
         this.subscribeToRoute();
       },
       error: () => this.subscribeToRoute(), // keep defaults, still load
@@ -911,6 +937,18 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       const parentId = params.get('nodeId');
       this.libraryId.set(libId);
       this.parentId.set(parentId);
+      // Transient sort from the home "New chapters" folder tap: `?sort=` overrides the
+      // active sort for THIS view only (never persisted). Absent the param, revert to the
+      // stored sort (default Name ascending) so a normal library/folder open is alphabetical.
+      const qpMap = (this.route.snapshot as { queryParamMap?: { get(k: string): string | null } } | undefined)?.queryParamMap;
+      const qSort = qpMap ? qpMap.get('sort') : null;
+      if (qSort === 'name' || qSort === 'recentlyAdded' || qSort === 'recentlyRead' || qSort === 'recentlyUpdated') {
+        this.sort.set(qSort);
+        this.sortDirection.set(this.defaultDirectionFor(qSort));
+      } else {
+        this.sort.set(this.storedSort);
+        this.sortDirection.set(this.storedDirection);
+      }
       this.resetList();
       this.loadLibraryName(libId);
       this.loadNodes();
@@ -1240,11 +1278,19 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
 
   /** Change the browse sort: persist the preference and reorder from the top. */
   setSort(s: LibrarySortOrder): void {
-    if (this.sort() === s) return;
+    if (this.storedSort === s && this.sort() === s) return;
     this.sort.set(s);
-    // Recency sorts are always descending (newest first); only Name uses the asc/desc toggle,
-    // so keep the user's Name direction but never leave a recency sort ascending. (1.10.4)
-    if (s !== 'name') this.sortDirection.set('desc');
+    // Selecting a sort resets to that sort's natural direction: Name -> ascending,
+    // recency -> descending (newest first). This means switching back to Name from a
+    // recency sort lands ASCENDING rather than inheriting the recency's desc (owner:
+    // opening a library should be Name ascending). An explicit asc/desc toggle
+    // afterward still persists via setSortDirection. (Supersedes the 1.10.4 "keep the
+    // Name direction across a recency detour" nuance.)
+    this.sortDirection.set(s === 'name' ? 'asc' : 'desc');
+    // Picking a sort from the menu is an explicit, persisted choice - update the stored
+    // sort (a transient home-tap sort never routes through here).
+    this.storedSort = s;
+    this.storedDirection = this.sortDirection();
     this.persistView();
     this.resetList();
     this.loadNodes();
@@ -1258,6 +1304,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   setSortDirection(d: LibrarySortDirection): void {
     if (this.sortDirection() === d) return;
     this.sortDirection.set(d);
+    this.storedDirection = d;
     this.persistView();
     this.resetList();
     this.loadNodes();
@@ -1266,11 +1313,14 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   private persistView(): void {
+    // Persist the STORED sort/direction, never the active one: a transient home-tap
+    // sort (`?sort=`) must not be written to preferences by an unrelated persist
+    // (card size, view mode, page size all call through here).
     this.api.setLibraryPreferences({
       viewMode: this.viewMode(),
       density: this.density(),
-      sort: this.sort(),
-      direction: this.sortDirection(),
+      sort: this.storedSort,
+      direction: this.storedDirection,
       cardSize: String(this.cardSize()),
       libraryPageSize: this.pageSize(),
     }).subscribe({ error: () => { /* non-fatal: the choice still applies this session */ } });

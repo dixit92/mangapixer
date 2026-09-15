@@ -38,6 +38,7 @@ public sealed class MangaPlexDbContext : DbContext
     public DbSet<LibraryEntity> Libraries => Set<LibraryEntity>();
     public DbSet<LibraryGrantEntity> LibraryGrants => Set<LibraryGrantEntity>();
     public DbSet<PrivateLibraryEntity> PrivateLibraries => Set<PrivateLibraryEntity>();
+    public DbSet<HomeExcludedLibraryEntity> HomeExcludedLibraries => Set<HomeExcludedLibraryEntity>();
     public DbSet<CatalogNodeEntity> CatalogNodes => Set<CatalogNodeEntity>();
     public DbSet<ArchiveItemEntity> ArchiveItems => Set<ArchiveItemEntity>();
     public DbSet<PageEntryEntity> PageEntries => Set<PageEntryEntity>();
@@ -63,6 +64,7 @@ public sealed class MangaPlexDbContext : DbContext
         ConfigureSessions(modelBuilder);
         ConfigureLibraries(modelBuilder);
         ConfigurePrivateLibraries(modelBuilder);
+        ConfigureHomeExcludedLibraries(modelBuilder);
         ConfigureCatalogNodes(modelBuilder);
         ConfigureArchiveItems(modelBuilder);
         ConfigurePageEntries(modelBuilder);
@@ -147,6 +149,24 @@ public sealed class MangaPlexDbContext : DbContext
 
             e.HasOne(x => x.User)
                 .WithMany(u => u.PrivateLibraries)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    private static void ConfigureHomeExcludedLibraries(ModelBuilder mb)
+    {
+        mb.Entity<HomeExcludedLibraryEntity>(e =>
+        {
+            e.ToTable("home_excluded_libraries");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            // Presence of a row means "hidden from home" — one per (user, library).
+            e.HasIndex(x => new { x.UserId, x.LibraryId }).IsUnique();
+            e.HasIndex(x => x.UserId);
+
+            e.HasOne(x => x.User)
+                .WithMany(u => u.HomeExcludedLibraries)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });

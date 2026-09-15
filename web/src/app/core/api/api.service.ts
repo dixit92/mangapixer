@@ -35,6 +35,7 @@ import {
   LogCategoryOverride,
   LogLevelDto,
   PrivateLibrariesDto,
+  HomeLibraryVisibility,
   RotatingBackupStatusDto,
   LoginRequest,
   PageResponse,
@@ -234,6 +235,16 @@ export class ApiService {
   /** Replaces the current user's Private library set (1.4.0, replacement semantics). */
   setPrivateLibraries(libraryIds: string[]): Observable<void> {
     return this.put<void>('/reading/private-libraries', { libraryIds } as SetPrivateLibrariesRequest);
+  }
+
+  /** The current user's home-excluded libraries (1.12.0): hidden from the home "New chapters" surface. */
+  getHomeLibraries(): Observable<HomeLibraryVisibility> {
+    return this.get<HomeLibraryVisibility>('/reading/home-libraries');
+  }
+
+  /** Replaces the current user's home-excluded library set (1.12.0, replacement semantics). */
+  putHomeLibraries(excludedLibraryIds: string[]): Observable<void> {
+    return this.put<void>('/reading/home-libraries', { excludedLibraryIds } as HomeLibraryVisibility);
   }
 
   /** Per-user library browse presentation preferences (1.2.0). */

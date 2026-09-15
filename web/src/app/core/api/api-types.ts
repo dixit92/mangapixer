@@ -229,7 +229,7 @@ export type LibraryViewMode = 'card' | 'list';
  * only so the stored preference round-trips unchanged for other/older frontends.
  */
 export type LibraryGridDensity = 'comfortable' | 'compact';
-export type LibrarySortOrder = 'name' | 'recentlyAdded' | 'recentlyRead';
+export type LibrarySortOrder = 'name' | 'recentlyAdded' | 'recentlyRead' | 'recentlyUpdated';
 
 /**
  * Browse sort direction (1.5.0). Optional/tolerant like the other library-view
@@ -268,6 +268,12 @@ export interface LibraryViewPreferencesDto {
    * from the legacy viewMode + density, so pre-1.6.0 stored prefs keep their size.
    */
   cardSize?: string;
+  /**
+   * Optional (1.12.0 refinement): the per-user "recently added" window, in days,
+   * for the home "New chapters" row. 0/omitted → the server default (30). The
+   * server clamps stored values to 1-365.
+   */
+  homeRecentWindowDays?: number;
 }
 
 // --- YACReader progress import (1.2.0, admin-only) ---
@@ -537,43 +543,59 @@ export interface SystemInfoDto {
   version: string;
 }
 
-// --- Home "New chapters" (1.11.0 Lane C) ---
+// --- Home "New chapters" (1.12.0) ---
 
 /**
- * Home "New chapters" response: the most-recently-added archives for each
- * library the caller can see, grouped by library, newest first, capped per
- * library. Respects Incognito/Private visibility like the other discovery
- * surfaces - a Private library's items never leak.
+ * Home "New chapters" response: recently-added archives STACKED by their top-level
+ * unit for each library the caller can see, grouped by library, newest activity
+ * first, capped per library. Respects Incognito/Private visibility like the other
+ * discovery surfaces, and drops libraries the caller hid from home
+ * (see HomeLibraryVisibility).
  */
 export interface RecentChaptersDto {
   libraries: RecentChaptersLibraryGroup[];
 }
 
 /**
- * One library's "New chapters" group: its most-recently-added archives,
- * newest first, capped to the requested per-library limit. Empty items when
- * the library has no (visible, non-tombstoned) archives.
+ * One library's "New chapters" group: its recently-updated stacks, ordered by
+ * latestAddedAt descending, capped to the requested per-library limit. Empty
+ * stacks when the library has no recently-added archives.
  */
 export interface RecentChaptersLibraryGroup {
   libraryId: string;
   libraryName: string;
-  items: RecentChapterEntry[];
+  stacks: RecentChapterStack[];
 }
 
 /**
- * A single recently-added archive (chapter). Carries its immediate parent
- * folder so the frontend can label/group by series where natural.
+ * A single "New chapters" stack: a top-level unit (folder) with recently-added
+ * descendant archives, or a loose top-level archive as its own standalone stack.
+ * Convention-agnostic - not assumed to be a "series".
  */
-export interface RecentChapterEntry {
-  itemId: string;
+export interface RecentChapterStack {
+  /** Top-level folder public id, or the archive public id for a loose archive. */
+  id: string;
+  /** Top-level folder name, or the archive name for a loose archive. */
   displayName: string;
-  libraryId: string;
-  /** Opaque public id of the immediate parent folder, or '' at library root. */
-  parentId: string;
-  /** Display name of the immediate parent folder (the "series"), or null at root. */
-  seriesName: string | null;
-  /** When the archive was added (scan-observed creation time). Newest first. */
-  addedAt: string;
-  /** Page count when known, else null. */
-  pageCount: number | null;
+  /** True = folder card (tap -> folder browse sorted recentlyUpdated); false = standalone archive (tap -> reader). */
+  isFolder: boolean;
+  /** Folder cover (first descendant archive) or the archive's own cover; null when none. */
+  coverUrl: string | null;
+  /** Newest descendant archive public id (equals id when isFolder is false). */
+  latestItemId: string;
+  /** Newest descendant archive display name. */
+  latestItemName: string;
+  /** Stack ordering key: the newest descendant archive's CreatedAt. */
+  latestAddedAt: string;
+  /** Count of recently-added descendant archives in the stack (>= 1). */
+  newCount: number;
+}
+
+/**
+ * The current user's Home library-visibility preference (1.12.0). Libraries in
+ * this list are hidden from the home "New chapters" surface. Independent of the
+ * Private designation and of Incognito mode. Library IDs are opaque public IDs.
+ */
+export interface HomeLibraryVisibility {
+  excludedLibraryIds: string[];
 }

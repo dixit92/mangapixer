@@ -848,6 +848,7 @@ public sealed class ReadingStateService
             Direction = prefs.LibraryDirection,
             CardSize = prefs.LibraryCardSize,
             LibraryPageSize = prefs.LibraryPageSize,
+            HomeRecentWindowDays = prefs.HomeRecentWindowDays,
         };
     }
 
@@ -875,6 +876,7 @@ public sealed class ReadingStateService
         prefs.LibraryDirection = preferences.Direction;
         prefs.LibraryCardSize = preferences.CardSize;
         prefs.LibraryPageSize = preferences.LibraryPageSize;
+        prefs.HomeRecentWindowDays = preferences.HomeRecentWindowDays;
 
         await _db.SaveChangesAsync(ct);
     }
@@ -938,6 +940,77 @@ public sealed class ReadingStateService
             foreach (var id in toAdd)
             {
                 _db.PrivateLibraries.Add(new PrivateLibraryEntity
+                {
+                    UserId = userId,
+                    LibraryId = id,
+                    MarkedAt = now,
+                });
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+    }
+
+    // --- Home library-visibility preference (1.12.0) ---
+    //
+    // A per-(user, library) row whose presence means "hide this library from the home
+    // 'New chapters' surface". Independent of the Private designation and of Incognito.
+    // The set is replaced wholesale on each PUT; only libraries the user can access may
+    // be hidden (others are silently skipped).
+
+    /// <summary>
+    /// Gets the current user's home-excluded libraries as public IDs.
+    /// </summary>
+    public async Task<HomeLibraryVisibilityDto> GetHomeLibrariesAsync(
+        long userId,
+        CancellationToken ct = default)
+    {
+        var publicIds = await (
+            from h in _db.HomeExcludedLibraries
+            join l in _db.Libraries on h.LibraryId equals l.Id
+            where h.UserId == userId
+            select l.PublicId)
+            .ToListAsync(ct);
+
+        return new HomeLibraryVisibilityDto { ExcludedLibraryIds = publicIds };
+    }
+
+    /// <summary>
+    /// Replaces the current user's home-excluded library set. Libraries are identified by
+    /// public ID; ids the user cannot access (or unknown ids) are silently skipped. The
+    /// entire set is replaced on each call.
+    /// </summary>
+    public async Task SetHomeLibrariesAsync(
+        long userId,
+        IReadOnlyList<string> excludedPublicIds,
+        CancellationToken ct = default)
+    {
+        // Validate: only libraries in the user's accessible set may be hidden.
+        var accessible = (await _auth.GetAccessibleLibraryIdsAsync(userId, ct)).ToHashSet();
+        var libIds = await _db.Libraries
+            .Where(l => excludedPublicIds.Contains(l.PublicId))
+            .Select(l => l.Id)
+            .ToListAsync(ct);
+        var keep = libIds.Where(accessible.Contains).ToList();
+        var keepSet = keep.ToHashSet();
+
+        var existing = await _db.HomeExcludedLibraries
+            .Where(h => h.UserId == userId)
+            .ToListAsync(ct);
+
+        var toRemove = existing.Where(h => !keepSet.Contains(h.LibraryId)).ToList();
+        var existingIds = existing.Select(h => h.LibraryId).ToHashSet();
+        var toAdd = keep.Where(id => !existingIds.Contains(id)).ToList();
+
+        if (toRemove.Count > 0)
+            _db.HomeExcludedLibraries.RemoveRange(toRemove);
+
+        if (toAdd.Count > 0)
+        {
+            var now = DateTimeOffset.UtcNow;
+            foreach (var id in toAdd)
+            {
+                _db.HomeExcludedLibraries.Add(new HomeExcludedLibraryEntity
                 {
                     UserId = userId,
                     LibraryId = id,
