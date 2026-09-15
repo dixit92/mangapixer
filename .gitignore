@@ -101,3 +101,6 @@ scripts/Deploy-Unraid.ps1
 
 # Unraid host connection details (credentials, machine-specific, not tracked)
 .claude/unraid-docker.md
+
+# Per-worktree lane contract (multi-agent coordination scratch, not tracked)
+.lane-prompt.md
