@@ -1,0 +1,48 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+  <!--
+    Standalone WiX v6 project for the MangaPlex per-user MSI installer.
+    Intentionally NOT added to MangaPlex.slnx (Lane B owns that file) - built
+    only via scripts/Build-Installer.ps1, which passes PayloadDir/ProductVersion
+    as preprocessor variables (see Build-Installer.ps1 for the dotnet build
+    invocation).
+  -->
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <OutputName>MangaPlex</OutputName>
+    <DefineSolutionProperties>false</DefineSolutionProperties>
+    <SuppressPdbOutput>true</SuppressPdbOutput>
+    <!-- This project builds standalone (see wixproj comment above) and is not
+         part of MangaPlex.slnx, so it opts out of the repo-wide Central
+         Package Management in Directory.Packages.props rather than adding
+         WiX extension entries to that shared, multi-lane file. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- ICE38/ICE64/ICE91 assume a per-machine (ALLUSERS) install and always
+         fire for a legitimate per-user (Scope="perUser", HKCU-only) MSI whose
+         harvested-file components necessarily use a File KeyPath rather than
+         a registry KeyPath. Suppressing these three is the standard, widely
+         documented convention for per-user WiX packages - every other ICE
+         still runs. -->
+    <SuppressIces>ICE38;ICE64;ICE91</SuppressIces>
+  </PropertyGroup>
+
+  <!-- Build-time inputs, passed by scripts/Build-Installer.ps1 as plain
+       single-value MSBuild properties (-p:PayloadDir=... -p:ProductVersion=...)
+       and composed into DefineConstants here, so the caller never has to fight
+       MSBuild's ";"-as-property-separator escaping in a -p:DefineConstants
+       value. Defaults let `dotnet build` work standalone against the
+       placeholder dev payload without any -p: arguments. -->
+  <PropertyGroup>
+    <PayloadDir Condition="'$(PayloadDir)'==''">$(MSBuildThisFileDirectory)..\..\artifacts\windows-dist</PayloadDir>
+    <ProductVersion Condition="'$(ProductVersion)'==''">0.0.0</ProductVersion>
+    <DefineConstants>PayloadDir=$(PayloadDir);ProductVersion=$(ProductVersion)</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="6.0.2" />
+  </ItemGroup>
+
+  <!-- Package.wxs is picked up automatically by the SDK's default "**/*.wxs"
+       glob (EnableDefaultItems) - do not also list it explicitly here, or it
+       gets compiled twice in the same pass and every harvested file trips
+       WIX8602 "already been harvested" against its own first pass. -->
+</Project>
