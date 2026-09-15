@@ -311,7 +311,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     }
 
     /// <summary>
-    /// On-demand single-page extraction + variant encoding (C13). Borrows a worker
+    /// On-demand single-page extraction + variant encoding. Borrows a worker
     /// slot, sends an "extract" request, and awaits the encoded output written to
     /// <paramref name="outputPath"/>. The server never opens the archive itself.
     /// Returns an outcome the controller maps to an HTTP response; never throws for
@@ -943,7 +943,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 }
 
 /// <summary>
-/// Result of an on-demand page extraction (C13). On success the encoded image is
+/// Result of an on-demand page extraction. On success the encoded image is
 /// at <see cref="OutputPath"/>; on failure <see cref="ErrorType"/> maps to an HTTP
 /// response (e.g. "unsupported_solid", "page_not_found", "encrypted", "timeout").
 /// </summary>

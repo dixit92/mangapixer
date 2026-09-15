@@ -7,7 +7,7 @@ namespace com.lifepixer.mangaplex.Server.Hosting;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Why this exists (1.9.0 Lane C — test-host-isolation).</b>
+/// <b>Why this exists.</b>
 /// <c>Server.Tests</c> boots real ASP.NET hosts via
 /// <c>WebApplicationFactory&lt;Program&gt;</c> for HTTP integration tests.
 /// Before this change, each test factory injected its own DataRoot via a

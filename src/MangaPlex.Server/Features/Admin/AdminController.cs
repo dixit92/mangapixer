@@ -96,9 +96,9 @@ public sealed class AdminController : ControllerBase
             return BadRequest(new ApiError { Error = "invalid_request", Message = "DisplayName and RootPath are required." });
 
         // Registering a library writes to the catalog while a scan is also writing;
-        // SQLite is single-writer, so refuse cleanly rather than let the write contend
-        // (owner decision 2026-09-09 — registering is rare, so blocking it during a
-        // scan is acceptable). Reads are unaffected (WAL snapshots).
+        // SQLite is single-writer, so refuse cleanly rather than let the write contend.
+        // Registering a library is rare, so blocking it during a scan is an acceptable
+        // trade-off. Reads are unaffected (WAL snapshots).
         var scanActive = await _db.ScanRuns.AnyAsync(s => s.Status == 0 || s.Status == 1, ct);
         if (scanActive)
             return Conflict(new ApiError
