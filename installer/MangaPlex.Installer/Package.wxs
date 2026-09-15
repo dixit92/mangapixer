@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MangaPlex per-user MSI installer (WiX v6).
+
+  Install design:
+    - Per-user, no elevation: installs under %LOCALAPPDATA%\Programs\MangaPlex,
+      all registration under HKCU. Scope="perUser" on the Package element is
+      what drives this (ALLUSERS is never set).
+    - UpgradeCode below is fixed at authoring time and must NEVER change -
+      it is the identity MajorUpgrade uses to detect/replace prior versions.
+    - ProductVersion comes from the build (see Build-Installer.ps1), which
+      reads Version.props via Get-MangaPlexVersion.ps1 - never hardcoded here.
+    - ProductCode (the MSI's own internal product identity, distinct from
+      UpgradeCode) is left to WiX's default per-build generation - Package/@Id
+      in WiX v4+ is a stable human-readable package identifier, not a
+      ProductCode override slot (the old v3 Id="*"/raw-GUID form no longer
+      applies), so it is not set here at all.
+    - Uninstall removes only what this package installs (program files under
+      INSTALLFOLDER, the Start Menu shortcut, and the Run key). It never
+      references %LOCALAPPDATA%\MangaPlex (the app's user-data directory:
+      database, settings, covers), so that directory and its contents survive
+      uninstall untouched by construction.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Package Name="MangaPlex"
+            Manufacturer="MangaPlex"
+            Version="$(var.ProductVersion)"
+            UpgradeCode="0D3CF314-A128-49A3-8FC1-93A2863C44AD"
+            Scope="perUser"
+            Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of MangaPlex is already installed. Uninstall it first if you need to downgrade." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Start MangaPlex at sign-in: default ON. Same HKCU Run value name the
+         tray app itself manages (contract name: "MangaPlex") so either side
+         toggling it is consistent with the other. Settable from the command
+         line for unattended installs, e.g. msiexec /i MangaPlex.msi RUNATSIGNIN=0 -->
+    <Property Id="RUNATSIGNIN" Value="1" Secure="yes" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="MangaPlex" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="MainFeature" Title="MangaPlex" Level="1" AllowAbsent="no" AllowAdvertise="no">
+      <ComponentGroupRef Id="PayloadComponents" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="RunAtSignInRegistry" />
+    </Feature>
+
+    <!-- Harvested at build time from the staged Windows distribution folder
+         (server + worker binaries, tray exe, bundled config). See
+         Build-Installer.ps1 for how PayloadDir is supplied. -->
+    <ComponentGroup Id="PayloadComponents" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PayloadDir)\**\*.*" />
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder" Guid="6E4B6C3C-6E9B-4C3E-9F5D-6B2E2C6C6A21">
+      <Shortcut Id="MangaPlexStartMenuShortcut"
+                Name="MangaPlex"
+                Description="Open MangaPlex"
+                Target="[INSTALLFOLDER]MangaPlex.Tray.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RegistryValue Root="HKCU" Key="Software\MangaPlex" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <Component Id="RunAtSignInRegistry" Directory="INSTALLFOLDER" Guid="9B7B7B0E-6A3C-4C9E-8B7E-2C6C6A216E4B" Condition="RUNATSIGNIN = 1">
+      <RegistryValue Root="HKCU"
+                      Key="Software\Microsoft\Windows\CurrentVersion\Run"
+                      Name="MangaPlex"
+                      Type="string"
+                      Value="&quot;[INSTALLFOLDER]MangaPlex.Tray.exe&quot;"
+                      KeyPath="yes" />
+    </Component>
+
+    <!-- Launch-after-install checkbox: deferred, not implemented. Wiring it
+         needs the Util extension's WixShellExec custom action bound to a
+         stable File Id for MangaPlex.Tray.exe (the harvested-file Ids from
+         <Files> are content-hashed, not stable/predictable) plus a
+         CustomAction-computed WixShellExecTarget (a literal "[INSTALLFOLDER]..."
+         Property value is rejected by the compiler as an illegal property
+         reference). Carving the tray exe out of the glob harvest to give it a
+         fixed Id, just to support this one optional checkbox, is exactly the
+         "hack" this bullet says to skip rather than force - see the lane vault
+         note for the full rationale. -->
+    <ui:WixUI Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+
+  </Package>
+</Wix>
