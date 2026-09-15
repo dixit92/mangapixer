@@ -1,10 +1,11 @@
 #Requires -Version 7.0
 <#
     MangaPlex Smoke-Container.ps1
-    Builds the Docker image, runs it with a synthetic library, and exercises
-    the full HTTP flow: health, csrf, login, password change, add library,
-    scan, readiness, manifest, page by entry key, thumbnail, progress
-    PUT/GET with If-Match, restart persistence, and source-media immutability.
+    Builds the Docker image, runs it with a synthetic library mounted
+    read-only and fresh state volumes, and exercises the HTTP flow: health,
+    first-run setup (no default credentials), csrf, password change and
+    sign-in, add library, scan, browse, manifest, page by entry key, cover,
+    then source-media immutability and log hygiene.
 
     Never publishes, tags, pushes, or alters source media mounts.
 
@@ -67,15 +68,16 @@ Invoke-Stage "Create synthetic library" {
     if (Test-Path $zipPath) { Remove-Item $zipPath }
     $zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
     try {
-        # Minimal PNG: 1x1 pixel
+        # Minimal valid PNG: 1x1 red pixel (checksums verified, so the worker
+        # can actually decode and re-encode it)
         $pngBytes = [byte[]]@(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
             0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
             0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
             0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53,
             0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41,
-            0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
-            0x00, 0x00, 0x02, 0x00, 0x01, 0xE2, 0x21, 0xBC,
-            0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
+            0x54, 0x78, 0xDA, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
+            0x00, 0x03, 0x01, 0x01, 0x00, 0xF7, 0x03, 0x41,
+            0x43, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
             0x44, 0xAE, 0x42, 0x60, 0x82)
         foreach ($name in @("page001.png", "page002.png", "page003.png")) {
             $entry = $zip.CreateEntry($name)
@@ -92,18 +94,29 @@ Invoke-Stage "Create synthetic library" {
 
 # Stage 3: Run the container with :ro media mount
 $mediaMarker = Join-Path $tempLib ".smoke-marker"
+# Fresh named state volumes per run, mirroring deploy/compose.yaml. The server
+# runs as UID 1000 and cannot create /data, /cache or /scratch at the
+# filesystem root itself, and a fresh /data means zero users (first-run setup).
+$stateVolumes = [ordered]@{
+    "/data"    = "$ContainerName-data"
+    "/cache"   = "$ContainerName-cache"
+    "/scratch" = "$ContainerName-scratch"
+}
 Invoke-Stage "Run container" {
     New-Item -ItemType File -Path $mediaMarker -Force | Out-Null
     $mediaMarkerTime = (Get-Item $mediaMarker).LastWriteTime
     Write-Host "Media marker created at: $mediaMarkerTime"
 
-    # Remove any existing container
+    # Remove any existing container and state from an earlier run
     docker rm -f $ContainerName 2>$null | Out-Null
+    foreach ($volume in $stateVolumes.Values) { docker volume rm -f $volume 2>$null | Out-Null }
 
-    # Run with read-only media mount
+    # Run with read-only media mount and fresh state volumes
+    $volumeArgs = foreach ($mount in $stateVolumes.GetEnumerator()) { "-v"; "$($mount.Value):$($mount.Key)" }
     docker run -d --name $ContainerName `
         -p "${HostPort}:8080" `
         -v "${tempLib}:/media:ro" `
+        @volumeArgs `
         -e Logging__LogLevel__Default=Information `
         $ImageName 2>&1 | Out-Host
 
@@ -135,60 +148,80 @@ Invoke-Stage "HTTP smoke flow" {
     $health = Invoke-RestMethod -Uri "$baseUrl/health" -TimeoutSec 5
     Write-Host "Health: OK"
 
-    # CSRF token
-    $csrfResp = Invoke-WebRequest -Uri "$baseUrl/api/v1/auth/csrf" -Method GET -SessionVariable session -TimeoutSec 5
-    $csrfToken = ($csrfResp.Headers | ConvertTo-Json | ConvertFrom-Json)."X-MangaPlex-Csrf"
-    if (-not $csrfToken) {
-        # Try parsing from content
-        $csrfJson = $csrfResp.Content | ConvertFrom-Json
-        $csrfToken = $csrfJson.token
+    # No default credentials: a fresh data volume has zero users, so the
+    # instance must report first-run setup and reject a well-known login.
+    $setupStatus = Invoke-RestMethod -Uri "$baseUrl/api/v1/auth/setup-status" -TimeoutSec 5
+    if (-not $setupStatus.setupRequired) { throw "Fresh instance does not report setupRequired" }
+    $defaultLogin = Invoke-WebRequest -Uri "$baseUrl/api/v1/auth/login" -Method POST -SkipHttpErrorCheck `
+        -Body (@{ username = "admin"; password = "admin" } | ConvertTo-Json) -ContentType "application/json" -TimeoutSec 5
+    if ($defaultLogin.StatusCode -ne 401) { throw "Default admin/admin login returned $($defaultLogin.StatusCode), expected 401" }
+    Write-Host "No default credentials: setup required, admin/admin rejected"
+
+    # First-run setup creates the admin and signs it in; a second setup is refused
+    $adminName = "smoke-admin"
+    $setupPassword = "SmokeSetup123!"
+    $setupBody = @{ username = $adminName; password = $setupPassword } | ConvertTo-Json
+    Invoke-WebRequest -Uri "$baseUrl/api/v1/auth/setup" -Method POST -Body $setupBody `
+        -ContentType "application/json" -SessionVariable session -TimeoutSec 5 | Out-Null
+    $secondSetup = Invoke-WebRequest -Uri "$baseUrl/api/v1/auth/setup" -Method POST -Body $setupBody `
+        -ContentType "application/json" -SkipHttpErrorCheck -TimeoutSec 5
+    if ($secondSetup.StatusCode -ne 409) { throw "Second setup returned $($secondSetup.StatusCode), expected 409" }
+    Write-Host "Setup: admin created; second setup refused (409)"
+
+    # CSRF tokens are bound to the signed-in user, so fetch one after sign-in
+    function Get-CsrfToken($webSession) {
+        (Invoke-RestMethod -Uri "$baseUrl/api/v1/auth/csrf" -WebSession $webSession -TimeoutSec 5).token
     }
+    $csrfToken = Get-CsrfToken $session
+    if (-not $csrfToken) { throw "No CSRF token returned" }
     Write-Host "CSRF token acquired"
 
-    # Login as admin (default password)
-    $loginBody = @{ username = "admin"; password = "admin" } | ConvertTo-Json
-    $loginResp = Invoke-WebRequest -Uri "$baseUrl/api/v1/auth/login" -Method POST -Body $loginBody `
-        -ContentType "application/json" -Headers @{ "X-MangaPlex-Csrf" = $csrfToken } `
-        -WebSession $session -TimeoutSec 5
-    Write-Host "Login: OK"
-
-    # Change password
+    # Change password (this revokes every session, the current one included),
+    # then sign in again with the new password
     $newPassword = "SmokeTest123!"
-    $changeBody = @{ currentPassword = "admin"; newPassword = $newPassword } | ConvertTo-Json
+    $changeBody = @{ currentPassword = $setupPassword; newPassword = $newPassword } | ConvertTo-Json
     Invoke-WebRequest -Uri "$baseUrl/api/v1/auth/change-password" -Method POST -Body $changeBody `
         -ContentType "application/json" -Headers @{ "X-MangaPlex-Csrf" = $csrfToken } `
-        -WebSession $session -TimeoutSec 5
+        -WebSession $session -TimeoutSec 5 | Out-Null
     Write-Host "Password changed"
+    $loginBody = @{ username = $adminName; password = $newPassword } | ConvertTo-Json
+    Invoke-WebRequest -Uri "$baseUrl/api/v1/auth/login" -Method POST -Body $loginBody `
+        -ContentType "application/json" -SessionVariable session -TimeoutSec 5 | Out-Null
+    $csrfToken = Get-CsrfToken $session
+    Write-Host "Login with new password: OK"
 
     # Add library
-    $libBody = @{ name = "Smoke Library"; rootPath = "/media" } | ConvertTo-Json
-    $libResp = Invoke-WebRequest -Uri "$baseUrl/api/v1/admin/libraries" -Method POST -Body $libBody `
+    $libBody = @{ displayName = "Smoke Library"; rootPath = "/media" } | ConvertTo-Json
+    $libJson = Invoke-RestMethod -Uri "$baseUrl/api/v1/admin/libraries" -Method POST -Body $libBody `
         -ContentType "application/json" -Headers @{ "X-MangaPlex-Csrf" = $csrfToken } `
         -WebSession $session -TimeoutSec 5
-    $libJson = $libResp.Content | ConvertFrom-Json
     $libraryId = $libJson.id
+    if (-not $libraryId) { throw "Library registration returned no id" }
     Write-Host "Library added: $libraryId"
 
     # Trigger scan
     Invoke-WebRequest -Uri "$baseUrl/api/v1/admin/libraries/$libraryId/scan" -Method POST `
         -Headers @{ "X-MangaPlex-Csrf" = $csrfToken } `
-        -WebSession $session -TimeoutSec 5
+        -WebSession $session -TimeoutSec 5 | Out-Null
     Write-Host "Scan triggered"
 
-    # Poll scan status
+    # Poll the latest scan run until it finishes
     $maxScanWait = 30
     $scanWaited = 0
+    $scanState = $null
     while ($scanWaited -lt $maxScanWait) {
         Start-Sleep -Seconds 2
         $scanWaited += 2
-        $scanStatus = Invoke-RestMethod -Uri "$baseUrl/api/v1/admin/libraries/$libraryId/scans" `
-            -WebSession $session -TimeoutSec 5
-        Write-Host "Scan status: $($scanStatus.state) (${scanWaited}s)"
-        if ($scanStatus.state -eq "completed" -or $scanStatus.state -eq "Complete") { break }
+        $scans = @(Invoke-RestMethod -Uri "$baseUrl/api/v1/admin/libraries/$libraryId/scans" `
+            -WebSession $session -TimeoutSec 5)
+        $scanState = if ($scans.Count -gt 0) { $scans[0].status } else { "none" }
+        Write-Host "Scan status: $scanState (${scanWaited}s)"
+        if ($scanState -in @("completed", "failed", "cancelled", "interrupted")) { break }
     }
+    if ($scanState -ne "completed") { throw "Scan did not complete (last status: $scanState)" }
 
     # Browse to find the archive
-    $browse = Invoke-RestMethod -Uri "$baseUrl/api/v1/catalog/browse?libraryId=$libraryId" `
+    $browse = Invoke-RestMethod -Uri "$baseUrl/api/v1/libraries/$libraryId/browse" `
         -WebSession $session -TimeoutSec 5
     $archive = $browse.items | Where-Object { $_.kind -eq 1 -or $_.kind -eq "Archive" } | Select-Object -First 1
     if (-not $archive) { throw "No archive found in browse results" }
@@ -236,10 +269,16 @@ Invoke-Stage "HTTP smoke flow" {
     if (-not $cacheControl) { throw "Missing Cache-Control header" }
     Write-Host "Cache-Control: $cacheControl"
 
-    # Fetch cover
-    $coverResp = Invoke-WebRequest -Uri "$baseUrl/api/v1/items/$itemId/cover" `
-        -WebSession $session -TimeoutSec 10
-    Write-Host "Cover fetched: $($coverResp.Content.Length) bytes"
+    # Fetch cover (202 while the thumbnail is still being generated)
+    $coverResp = $null
+    for ($coverWaited = 0; $coverWaited -lt 30; $coverWaited += 2) {
+        $coverResp = Invoke-WebRequest -Uri "$baseUrl/api/v1/items/$itemId/cover" `
+            -WebSession $session -SkipHttpErrorCheck -TimeoutSec 10
+        if ($coverResp.StatusCode -ne 202) { break }
+        Start-Sleep -Seconds 2
+    }
+    if ($coverResp.StatusCode -ne 200) { throw "Cover returned $($coverResp.StatusCode), expected 200" }
+    Write-Host "Cover fetched: $($coverResp.RawContentLength) bytes"
 
     Write-Host "HTTP smoke flow complete"
 }
@@ -271,6 +310,7 @@ Invoke-Stage "Log hygiene" {
 # Stage 7: Cleanup
 Invoke-Stage "Cleanup" {
     docker rm -f $ContainerName 2>&1 | Out-Null
+    foreach ($volume in $stateVolumes.Values) { docker volume rm -f $volume 2>&1 | Out-Null }
     Remove-Item -Path $tempLib -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "Cleanup complete"
 }
