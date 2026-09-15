@@ -47,13 +47,11 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
  *     setting (`GET/PUT /reading/home-libraries`, an excluded set), so it follows
  *     the user across devices. Independent of the Private designation.
  *
- * Folder-tap sort: the browse view resolves its sort from the STORED per-user
- * preference (it loads `library-preferences` before its first browse request and
- * has no transient/query-param sort), so "open sorted recentlyUpdated" is
- * implemented by persisting `sort: 'recentlyUpdated'` (descending, per the 1.10.4
- * recency rule) and THEN navigating - the same effect as picking "Recently
- * updated" in the browse View menu. The PUT is skipped when it is already the
- * stored sort.
+ * Folder-tap sort: a folder card routes with a TRANSIENT `?sort=recentlyUpdated`
+ * query param that the browse view honours for that view ONLY (descending, per the
+ * 1.10.4 recency rule) - it does NOT persist to the user's library preference, so
+ * opening a library normally stays Name-ascending (owner refinement, 1.12.0). The
+ * plain href carries the same query param so open-in-new-tab is consistent.
  *
  * Switching libraries is a shell-sidebar navigation (routes to
  * `/libraries/:id/browse`), not an in-home selection. Hiding of Private libraries
@@ -157,8 +155,9 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
                 @for (stack of group.stacks; track stack.id) {
                   @if (stack.isFolder) {
                     <!-- Folder stack: a real link (middle-click / open-in-new-tab keep
-                         working) whose plain click persists the recentlyUpdated sort
-                         before routing so the freshest chapter leads. -->
+                         working) whose plain click routes with a transient
+                         recentlyUpdated sort so the freshest chapter leads, without
+                         changing the user's persisted library sort. -->
                     <a class="stack-card" [attr.href]="folderHref(group, stack)"
                        (click)="openFolder($event, group, stack)">
                       <ng-container *ngTemplateOutlet="stackBody; context: { $implicit: stack }" />
@@ -431,31 +430,22 @@ export class HomeComponent implements OnInit {
 
   /** Folder-stack link target: the top-level folder's browse view. */
   folderHref(group: RecentChaptersLibraryGroup, stack: RecentChapterStack): string {
-    return `/libraries/${group.libraryId}/browse/${stack.id}`;
+    return `/libraries/${group.libraryId}/browse/${stack.id}?sort=recentlyUpdated`;
   }
 
   /**
    * Open a folder stack with the freshest chapter leading. Modified/non-primary
-   * clicks are left to the browser (open in new tab keeps the plain href); a plain
-   * click persists the "Recently updated" browse sort (descending) and then routes,
-   * so the browse view - which resolves its sort from the stored preference - lists
-   * the folder newest-first. Navigation proceeds even if the persist fails.
+   * clicks are left to the browser (open in new tab keeps the plain href, which
+   * carries the same transient sort). A plain click routes with a TRANSIENT
+   * `?sort=recentlyUpdated` query param that the browse view honours for this view
+   * only - it does NOT change the user's persisted library sort, so opening a
+   * library normally stays Name-ascending. (1.12.0 owner refinement.)
    */
   openFolder(event: MouseEvent, group: RecentChaptersLibraryGroup, stack: RecentChapterStack): void {
     if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    const go = () => { void this.router.navigate(['/libraries', group.libraryId, 'browse', stack.id]); };
-    const prefs = this.libraryPrefs;
-    if (prefs && prefs.sort === 'recentlyUpdated' && prefs.direction === 'desc') { go(); return; }
-    const body: LibraryViewPreferencesDto = {
-      ...(prefs ?? this.defaultPrefs()),
-      sort: 'recentlyUpdated',
-      direction: 'desc',
-    };
-    this.api.setLibraryPreferences(body).subscribe({
-      next: () => { this.libraryPrefs = body; go(); },
-      error: () => go(),
-    });
+    void this.router.navigate(['/libraries', group.libraryId, 'browse', stack.id],
+      { queryParams: { sort: 'recentlyUpdated' } });
   }
 
   // --- Card size (1.12.0, shared with the library browse view) ---

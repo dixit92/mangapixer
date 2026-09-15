@@ -142,13 +142,14 @@ describe('HomeComponent', () => {
     expect(cards).toHaveLength(2);
 
     // Folder stack: unit name, newest chapter name, a +3 badge, stacked-paper edges,
-    // cover from the DTO, and a plain href to the folder's browse view.
+    // cover from the DTO, and an href to the folder's browse view carrying the
+    // transient recentlyUpdated sort (so open-in-new-tab lists newest-first too).
     expect(cards[0].querySelector('.cont-title')!.textContent).toContain('Series A');
     expect(cards[0].querySelector('.latest')!.textContent).toContain('Ch3.cbz');
     expect(cards[0].querySelector('.badge.new')!.textContent!.trim()).toBe('+3');
     expect(cards[0].querySelector('.stack.stacked')).not.toBeNull();
     expect(cards[0].querySelector('img')!.getAttribute('src')).toBe('/api/v1/items/c3/cover');
-    expect(cards[0].getAttribute('href')).toBe('/libraries/L1/browse/f1');
+    expect(cards[0].getAttribute('href')).toBe('/libraries/L1/browse/f1?sort=recentlyUpdated');
 
     // Loose archive: no badge, no stacked edges, folder-less fallback icon, and a
     // RouterLink straight into the reader on the archive itself.
@@ -160,7 +161,7 @@ describe('HomeComponent', () => {
     expect(cards[1].getAttribute('href')).toBe('/reader/a1');
   });
 
-  it('folder tap persists the recentlyUpdated sort (echoing the rest of the prefs) then routes to the folder', () => {
+  it('folder tap routes with a transient recentlyUpdated sort and does NOT persist a preference', () => {
     const fixture = createComponent();
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
 
@@ -169,43 +170,17 @@ describe('HomeComponent', () => {
     folderCard.dispatchEvent(click);
     expect(click.defaultPrevented).toBe(true);
 
-    // The stored blob is echoed with only sort/direction changed, so the browse
-    // view's other fields (view mode, card size, page size) are not clobbered.
-    const put = httpMock.expectOne({ method: 'PUT', url: '/api/v1/reading/library-preferences' });
-    expect(put.request.body).toEqual({
-      viewMode: 'list', density: 'comfortable', sort: 'recentlyUpdated', direction: 'desc',
-      cardSize: '180', libraryPageSize: 100,
-    });
-    expect(navigate).not.toHaveBeenCalled(); // waits for the persist so browse reads the new sort
-    put.flush(null);
-    expect(navigate).toHaveBeenCalledWith(['/libraries', 'L1', 'browse', 'f1']);
-  });
-
-  it('folder tap skips the persist when recentlyUpdated is already the stored sort', () => {
-    const fixture = createComponent({
-      prefs: { viewMode: 'card', density: 'comfortable', sort: 'recentlyUpdated', direction: 'desc', cardSize: '150' },
-    });
-    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
-
-    fixture.componentInstance.openFolder(
-      new MouseEvent('click', { button: 0, cancelable: true }),
-      stackedRecent.libraries[0], stackedRecent.libraries[0].stacks[0]);
-
+    // Transient: the folder opens sorted recentlyUpdated via a query param, WITHOUT
+    // writing the user's persisted library sort (owner refinement, 1.12.0).
     httpMock.expectNone({ method: 'PUT', url: '/api/v1/reading/library-preferences' });
-    expect(navigate).toHaveBeenCalledWith(['/libraries', 'L1', 'browse', 'f1']);
+    expect(navigate).toHaveBeenCalledWith(
+      ['/libraries', 'L1', 'browse', 'f1'], { queryParams: { sort: 'recentlyUpdated' } });
   });
 
-  it('folder tap still routes when the sort persist fails', () => {
+  it('folder stack href carries the transient recentlyUpdated sort (open-in-new-tab is consistent)', () => {
     const fixture = createComponent();
-    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
-
-    fixture.componentInstance.openFolder(
-      new MouseEvent('click', { button: 0, cancelable: true }),
-      stackedRecent.libraries[0], stackedRecent.libraries[0].stacks[0]);
-    httpMock.expectOne({ method: 'PUT', url: '/api/v1/reading/library-preferences' })
-      .flush({ error: 'x', message: 'boom', detail: null, correlationId: null }, { status: 500, statusText: 'Server Error' });
-
-    expect(navigate).toHaveBeenCalledWith(['/libraries', 'L1', 'browse', 'f1']);
+    const folderCard = fixture.nativeElement.querySelector('.stack-card') as HTMLAnchorElement;
+    expect(folderCard.getAttribute('href')).toBe('/libraries/L1/browse/f1?sort=recentlyUpdated');
   });
 
   it('leaves modified clicks on a folder stack to the browser (open in new tab)', () => {

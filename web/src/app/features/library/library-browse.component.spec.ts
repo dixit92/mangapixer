@@ -1654,3 +1654,64 @@ describe('LibraryBrowseComponent "Recently updated" sort (1.12.0)', () => {
     expect(comp.sortDirection()).toBe('desc');
   });
 });
+
+/**
+ * Transient home-tap sort (1.12.0 owner refinement). A folder opened from the home
+ * "New chapters" row arrives with a `?sort=recentlyUpdated` query param that the browse
+ * view honours for THAT view only - it must NOT be written to the user's persisted
+ * library preference, and opening a library without the param stays on the stored sort
+ * (default Name ascending).
+ */
+describe('LibraryBrowseComponent transient home-tap sort (1.12.0)', () => {
+  function setup(querySort: string | null) {
+    const emptyPage = { items: [], totalCount: 0, nextCursor: null, hasMore: false, prevCursor: null, hasPrevious: false, nextUnread: null };
+    const browseLibrary = vi.fn().mockReturnValue(of(emptyPage));
+    const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
+    const apiSpy = {
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name', direction: 'asc', cardSize: '150', libraryPageSize: 50 })),
+      setLibraryPreferences,
+      getLibraries: vi.fn().mockReturnValue(of([])),
+      browseLibrary,
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getNode: vi.fn().mockReturnValue(of({ id: 'f1', parentId: '', libraryId: 'lib1', kind: 'Folder', displayName: 'F', availability: 'Available' })),
+      getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
+    };
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: { isAdmin: () => false } },
+        { provide: ReadStateService, useValue: new ReadStateService() },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : 'f1') }),
+            snapshot: { queryParamMap: { get: (k: string) => (k === 'sort' ? querySort : null) } },
+          },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges();
+    return { comp: fixture.componentInstance, browseLibrary, setLibraryPreferences };
+  }
+
+  it('honours ?sort=recentlyUpdated for the view without persisting it', () => {
+    const { comp, browseLibrary, setLibraryPreferences } = setup('recentlyUpdated');
+    expect(comp.sort()).toBe('recentlyUpdated');
+    expect(browseLibrary.mock.calls[0][4]).toBe('recentlyUpdated'); // sort arg
+    expect(setLibraryPreferences).not.toHaveBeenCalled(); // transient: never persisted
+  });
+
+  it('falls back to the stored sort (Name ascending) when no query param is present', () => {
+    const { comp, browseLibrary, setLibraryPreferences } = setup(null);
+    expect(comp.sort()).toBe('name');
+    expect(comp.sortDirection()).toBe('asc');
+    expect(browseLibrary.mock.calls[0][4]).toBe('name');
+    expect(setLibraryPreferences).not.toHaveBeenCalled();
+  });
+});
