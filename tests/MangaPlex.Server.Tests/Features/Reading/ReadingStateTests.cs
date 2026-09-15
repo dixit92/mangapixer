@@ -411,7 +411,7 @@ public sealed class ReadingStateTests : IDisposable
             await service.UpdateProgressAsync(userId, itemId, 5, 1, mutationId: "m1");
             Assert.Single(await service.GetContinueReadingAsync(userId));
 
-            // Marking it read auto-hides it from the strip (owner decision 2026-09-09).
+            // Marking it read auto-hides it from the "continue reading" strip by design.
             await service.SetItemReadAsync(userId, itemId, read: true);
             Assert.Empty(await service.GetContinueReadingAsync(userId));
         }

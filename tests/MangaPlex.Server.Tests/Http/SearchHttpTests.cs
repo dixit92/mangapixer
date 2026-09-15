@@ -11,8 +11,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 /// <summary>
-/// C02 HTTP tests: search returns results after FTS5 triggers populate
-/// catalog_search (D6/D28), literal query safety, and pagination.
+/// HTTP tests for search: results return once FTS5 triggers populate
+/// catalog_search, literal query safety, and pagination.
 /// </summary>
 [Collection("HttpSerial")]
 public sealed class SearchHttpTests : IClassFixture<MangaPlexWebApplicationFactory>
@@ -225,7 +225,7 @@ public sealed class SearchHttpTests : IClassFixture<MangaPlexWebApplicationFacto
 }
 
 /// <summary>
-/// C02 DB tests: FTS5 triggers fire on insert, update, and delete.
+/// DB tests: FTS5 triggers fire on insert, update, and delete.
 /// </summary>
 public sealed class SearchTriggerTests : IDisposable
 {

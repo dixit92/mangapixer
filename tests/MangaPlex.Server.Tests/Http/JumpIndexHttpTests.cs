@@ -10,7 +10,7 @@ using Xunit;
 namespace com.lifepixer.mangaplex.Tests.Server.Http;
 
 /// <summary>
-/// HTTP tests for the jump-index endpoint (1.4.0 Lane E).
+/// HTTP tests for the jump-index endpoint.
 /// Verifies the endpoint is reachable, authenticated, returns the right shape,
 /// and that the bucket cursor actually lands on the bucket's first node via the
 /// browse endpoint.

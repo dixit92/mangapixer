@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 /// <summary>
-/// C04 worker-process integration tests (D13).
+/// Worker-process integration tests.
 /// These tests spawn real worker processes and verify the full IPC path.
 /// Category: Process — must run on Linux for reliable process management.
 /// </summary>
@@ -154,7 +154,7 @@ public sealed class WorkerProcessTests : IClassFixture<WorkerProcessFixture>, IA
         Assert.Equal(Enumerable.Range(0, 4), result.Pages.OrderBy(p => p.Ordinal).Select(p => p.Ordinal));
     }
 
-    // Test 2c: Extract a page as a WebP variant (C13). The worker decodes the
+    // Test 2c: Extract a page as a WebP variant. The worker decodes the
     // source image and re-encodes to WebP, writing to the server-provided path.
     [Fact]
     public async Task Extract_WebpVariant_ProducesWebpFile()

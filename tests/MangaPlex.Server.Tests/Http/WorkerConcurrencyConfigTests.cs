@@ -5,14 +5,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 /// <summary>
-/// Knob 3 (1.5.0): MangaPlex:Media:MaxConcurrentJobs is now bound from
-/// configuration in Program.cs (previously hardcoded to the
+/// MangaPlex:Media:MaxConcurrentJobs is bound from
+/// configuration in Program.cs (rather than hardcoded to the
 /// WorkerPoolOptions default of 2, with no override path). Boots the full
 /// host via WebApplicationFactory (no HTTP request needed) to verify the
 /// value that DI actually resolves.
 ///
 /// Uses the static <see cref="MangaPlexWebApplicationFactory.WithExtraConfiguration"/>
-/// factory (1.9.0 Lane C) instead of <c>Environment.SetEnvironmentVariable</c>
+/// factory instead of <c>Environment.SetEnvironmentVariable</c>
 /// — a process-global env var here would race with every other
 /// concurrently-booting factory once assembly parallelization is restored
 /// (see TestParallelization.cs). The extra-configuration constructor is

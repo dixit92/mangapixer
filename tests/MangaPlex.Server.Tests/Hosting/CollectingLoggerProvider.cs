@@ -6,7 +6,7 @@ using Serilog.Events;
 
 /// <summary>
 /// Serilog ILogEventSink that collects all log events for later assertion.
-/// Used by C00 hosting tests to capture startup and maintenance events that
+/// Used by hosting-correctness tests to capture startup and maintenance events that
 /// flow through the Serilog pipeline (UseSerilog replaces the standard MEL
 /// logging factory, so ILoggerProvider-based collectors are bypassed).
 /// </summary>

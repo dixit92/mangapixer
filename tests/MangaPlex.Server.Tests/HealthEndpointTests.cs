@@ -4,7 +4,7 @@ using System.Net;
 using Xunit;
 
 /// <summary>
-/// P00 smoke test: health endpoints respond. Now uses MangaPlexWebApplicationFactory
+/// Smoke test: health endpoints respond. Uses MangaPlexWebApplicationFactory
 /// for consistent configuration with other HTTP tests.
 /// </summary>
 [Collection("HttpSerial")]

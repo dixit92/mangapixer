@@ -11,7 +11,7 @@ using Xunit;
 namespace com.lifepixer.mangaplex.Tests.Server.Features.Catalog;
 
 /// <summary>
-/// Service-with-DB tests for JumpIndexService (1.4.0 Lane E).
+/// Service-with-DB tests for JumpIndexService.
 /// Uses real file-backed SQLite. Verifies bucketing across mixed-script
 /// fixtures and cursor correctness against the browse endpoint's name sort.
 /// </summary>

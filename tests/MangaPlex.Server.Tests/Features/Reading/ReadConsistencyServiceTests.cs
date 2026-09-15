@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 /// <summary>
-/// Service-with-DB tests for the 1.9.0 read-state-consistency lane (Lane A):
+/// Service-with-DB tests for read-state consistency:
 /// clear-mark = full reset (rule 1), manual mark-read = read-at-end (rule 3), the
 /// open-position rule end-to-end through <see cref="ReadingStateService.GetProgressAsync"/>
 /// (rule 2), re-read keeps the mark dominant (rule 4), and the shared reset primitive

@@ -17,12 +17,12 @@ using Serilog.Events;
 using Xunit;
 
 /// <summary>
-/// C00 host correctness tests: startup recovery, session cleanup with
+/// Host correctness tests: startup recovery, session cleanup with
 /// DateTimeOffset translation, cache eviction without spurious warnings,
 /// and schema validation against the bumped version.
 /// </summary>
 /// <remarks>
-/// In the "HttpSerial" collection (1.9.0 Lane C) alongside every other
+/// In the "HttpSerial" collection alongside every other
 /// WebApplicationFactory-booting Server.Tests class. This is unrelated to
 /// storage isolation (each host already gets its own DataRoot via
 /// TestHostStorageOverride) — it exists because EVERY host boot
@@ -337,7 +337,7 @@ public sealed class HostingCorrectnessTests
 }
 
 /// <summary>
-/// WebApplicationFactory for C00 tests that wraps the Serilog Log.Logger
+/// WebApplicationFactory for hosting-correctness tests that wraps the Serilog Log.Logger
 /// with a collecting sink to capture startup and maintenance log events.
 /// UseSerilog() replaces the standard MEL logging factory, so ILoggerProvider
 /// collectors are bypassed — we must intercept at the Serilog sink level.
@@ -356,11 +356,11 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
         Directory.CreateDirectory(Path.Combine(_tempRoot, "cache"));
         Directory.CreateDirectory(Path.Combine(_tempRoot, "scratch"));
 
-        // Non-global storage-injection seam (1.9.0 Lane C): push this
-        // factory's storage roots as the ambient TestHostStorageOverride for
-        // the duration of the synchronous host boot below — see the remarks
-        // on MangaPlexWebApplicationFactory and TestHostStorageOverride for
-        // why this (and not ConfigureAppConfiguration or an env var) is what
+        // Non-global storage-injection seam: push this factory's storage
+        // roots as the ambient TestHostStorageOverride for the duration of
+        // the synchronous host boot below — see the remarks on
+        // MangaPlexWebApplicationFactory and TestHostStorageOverride for why
+        // this (and not ConfigureAppConfiguration or an env var) is what
         // actually reaches Program.Main in time, race-free under parallel
         // factory boots.
         var storageOverride = new StorageRootOverride(

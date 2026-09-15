@@ -14,7 +14,7 @@ using Xunit;
 /// writes the live document to the snapshot instead of comparing.
 /// </summary>
 /// <remarks>
-/// In the "HttpSerial" collection (1.9.0 Lane C) alongside every other
+/// In the "HttpSerial" collection alongside every other
 /// WebApplicationFactory-booting Server.Tests class — not for storage
 /// isolation (each host already gets its own DataRoot), but because every
 /// host boot unconditionally reassigns the process-global Serilog
