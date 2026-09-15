@@ -19,6 +19,7 @@
         MangaPlex.Tray.exe      only if src/MangaPlex.Tray exists (Lane B)
 
     Never touches deploy/**, Version.props, package.json, or the tray project.
+    Default bind: http://127.0.0.1:27272 (see -BindUrl).
 
     Usage: pwsh ./scripts/Publish-Windows.ps1
 #>
@@ -30,7 +31,10 @@ param(
     # LAN access is an opt-in toggle owned by the tray launcher (Lane B),
     # which passes ASPNETCORE_URLS to the server child process — that
     # explicit env var always wins over this appsettings default.
-    [string]$BindUrl = "http://127.0.0.1:6280",
+    # Port 6280 sits inside a Windows excluded port range on some hosts
+    # (Hyper-V/WSL reservations; SocketException 10013) — 27272 is the
+    # Windows-distribution default instead.
+    [string]$BindUrl = "http://127.0.0.1:27272",
 
     [switch]$SkipWebBuild
 )
@@ -40,6 +44,11 @@ Set-StrictMode -Version Latest
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
+
+# Single source of truth for the product name embedded in project/exe names
+# below. A future product rename only needs to change this constant (plus
+# the physical project/folder renames it mirrors).
+$ProductName = "MangaPlex"
 
 function Write-Stage {
     param([string]$Name)
@@ -72,8 +81,8 @@ if (-not (Test-Path $webDist)) {
 # --- Server: self-contained win-x64, including web assets in wwwroot/ ---
 # Program.cs resolves wwwroot as <ContentRootPath>/wwwroot, i.e. next to the
 # published exe — the same layout the Docker image uses for /app/wwwroot.
-Write-Stage "Publish MangaPlex.Server (self-contained win-x64)"
-dotnet publish src/MangaPlex.Server/MangaPlex.Server.csproj -c Release -r win-x64 --self-contained true -o $serverDir
+Write-Stage "Publish $ProductName.Server (self-contained win-x64)"
+dotnet publish "src/$ProductName.Server/$ProductName.Server.csproj" -c Release -r win-x64 --self-contained true -o $serverDir
 if ($LASTEXITCODE -ne 0) { throw "Server publish failed" }
 
 Write-Stage "Copy web assets into server/wwwroot"
@@ -82,8 +91,8 @@ Copy-Item $webDist $wwwroot -Recurse -Force
 
 # --- Worker: self-contained win-x64, sibling of server/ (mirrors the
 # container's /app/server + /app/worker layout) ---
-Write-Stage "Publish MangaPlex.MediaWorker (self-contained win-x64)"
-dotnet publish src/MangaPlex.MediaWorker/MangaPlex.MediaWorker.csproj -c Release -r win-x64 --self-contained true -o $workerDir
+Write-Stage "Publish $ProductName.MediaWorker (self-contained win-x64)"
+dotnet publish "src/$ProductName.MediaWorker/$ProductName.MediaWorker.csproj" -c Release -r win-x64 --self-contained true -o $workerDir
 if ($LASTEXITCODE -ne 0) { throw "Worker publish failed" }
 
 # --- Windows-distribution config overlay ---
@@ -98,7 +107,7 @@ Write-Stage "Write Windows-distribution appsettings overlay"
 $overlay = [ordered]@{
     Urls  = $BindUrl
     Media = [ordered]@{
-        WorkerExecutablePath = "..\worker\MangaPlex.MediaWorker.exe"
+        WorkerExecutablePath = "..\worker\$ProductName.MediaWorker.exe"
     }
 }
 $overlayPath = Join-Path $serverDir "appsettings.Production.json"
@@ -107,17 +116,17 @@ $overlay | ConvertTo-Json -Depth 5 | Set-Content -Path $overlayPath -Encoding ut
 # --- Tray launcher (Lane B, built in parallel) ---
 # Guarded so this lane's build stays green whether or not the tray project
 # exists yet. Never edits the tray project or MangaPlex.slnx.
-$trayProject = Join-Path $repoRoot "src/MangaPlex.Tray/MangaPlex.Tray.csproj"
+$trayProject = Join-Path $repoRoot "src/$ProductName.Tray/$ProductName.Tray.csproj"
 if (Test-Path $trayProject) {
-    Write-Stage "Publish MangaPlex.Tray (self-contained win-x64)"
+    Write-Stage "Publish $ProductName.Tray (self-contained win-x64)"
     $trayStaging = Join-Path $distRoot "_tray-publish"
     dotnet publish $trayProject -c Release -r win-x64 --self-contained true -o $trayStaging
     if ($LASTEXITCODE -ne 0) { throw "Tray publish failed" }
-    Copy-Item (Join-Path $trayStaging "MangaPlex.Tray.exe") (Join-Path $distRoot "MangaPlex.Tray.exe") -Force
+    Copy-Item (Join-Path $trayStaging "$ProductName.Tray.exe") (Join-Path $distRoot "$ProductName.Tray.exe") -Force
     Remove-Item $trayStaging -Recurse -Force
 }
 else {
-    Write-Host "SKIPPED: src/MangaPlex.Tray not found (Lane B not landed yet)" -ForegroundColor Yellow
+    Write-Host "SKIPPED: src/$ProductName.Tray not found (Lane B not landed yet)" -ForegroundColor Yellow
 }
 
 Write-Stage "Publish-Windows summary"

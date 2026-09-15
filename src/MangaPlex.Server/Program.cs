@@ -24,9 +24,30 @@ using Serilog.Events;
 /// </summary>
 public sealed partial class Program
 {
+    /// <summary>
+    /// Single source of truth for the product name embedded in on-disk paths
+    /// and display strings (Windows LOCALAPPDATA data-root folder, Data
+    /// Protection application name). A future product rename only needs to
+    /// change this constant.
+    /// </summary>
+    private const string ProductName = "MangaPlex";
+
     public static void Main(string[] args)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        // WebApplication.CreateBuilder defaults ContentRootPath to the
+        // process's current working directory, which drives where
+        // appsettings.{Environment}.json and wwwroot/ are discovered. The
+        // container sets its WORKDIR to match (see deploy/Dockerfile), so
+        // this is a no-op there. On Windows, no launcher is guaranteed to set
+        // the working directory to the exe's own folder (a shortcut with no
+        // "Start in", or a future tray child-process spawn) — pinning the
+        // content root to the exe's own directory keeps the Windows
+        // distribution's bundled appsettings.Production.json and wwwroot/
+        // (both published alongside MangaPlex.Server.exe) discoverable
+        // regardless of the launcher's working directory.
+        var builder = OperatingSystem.IsWindows()
+            ? WebApplication.CreateBuilder(new WebApplicationOptions { Args = args, ContentRootPath = AppContext.BaseDirectory })
+            : WebApplication.CreateBuilder(args);
 
         // Resolve storage roots from builder.Configuration, with a test-only
         // ambient override checked first (1.9.0 Lane C — test-host-isolation).
@@ -210,7 +231,7 @@ public sealed partial class Program
             // (audit defect D16).
             var dataProtection = builder.Services.AddDataProtection()
                 .PersistKeysToFileSystem(new DirectoryInfo(keysRoot))
-                .SetApplicationName("MangaPlex");
+                .SetApplicationName(ProductName);
 
             if (OperatingSystem.IsWindows())
             {
@@ -430,7 +451,7 @@ public sealed partial class Program
             if (OperatingSystem.IsWindows())
             {
                 var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                return Path.Combine(localAppData, "MangaPlex", defaultName);
+                return Path.Combine(localAppData, ProductName, defaultName);
             }
             return Path.Combine(AppContext.BaseDirectory, defaultName);
         }
