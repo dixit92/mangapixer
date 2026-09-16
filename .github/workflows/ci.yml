@@ -92,7 +92,7 @@ jobs:
 
       - name: Upload verification log and test output
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.PRODUCT_NAME }}-verify-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
