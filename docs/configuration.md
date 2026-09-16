@@ -1,13 +1,10 @@
 # Configuration reference
 
-This page lists every setting you can change. Most people only need the
-storage paths, and the Docker image already sets those for you.
+This page lists every setting you can change. Most people only need the storage paths, and the Docker image already sets those for you.
 
 ## How to set values
 
-Settings are hierarchical keys such as `MangaPixer:Storage:DataRoot`. Set them
-as **environment variables**, replacing each `:` with a double underscore
-`__`:
+Settings are hierarchical keys such as `MangaPixer:Storage:DataRoot`. Set them as **environment variables**, replacing each `:` with a double underscore `__`:
 
 ```yaml
 # docker compose override
@@ -18,16 +15,11 @@ services:
       MangaPixer__Media__MaxConcurrentJobs: "1"
 ```
 
-The server also reads `appsettings.json` next to the server binary. In the
-container image that file is baked in and the filesystem is read-only, so use
-environment variables there.
+The server also reads `appsettings.json` next to the server binary. In the container image that file is baked in and the filesystem is read-only, so use environment variables there.
 
-Invalid or out-of-range values (for example a negative number) are ignored
-and the default is used.
+Invalid or out-of-range values (for example a negative number) are ignored and the default is used.
 
-Every setting on this page is read once at start-up. Restart the container
-after you change one. The sections below are grouped by the part of the server
-that uses them.
+Every setting on this page is read once at start-up. Restart the container after you change one. The sections below are grouped by the part of the server that uses them.
 
 ## Container user
 
@@ -38,8 +30,7 @@ These are read by the container's start-up script, not by the server.
 | `PUID` | `1000` | User ID the server runs as. The script gives this user ownership of `/data`, `/cache`, `/scratch` and `/config` (whichever exist) on every start. |
 | `PGID` | `1000` | Group ID the server runs as. |
 
-Set them to the owner of your host folders so the files on the host belong to
-you. See [Install on Unraid](install-unraid.md#step-2-set-puid-and-pgid).
+Set them to the owner of your host folders so the files on the host belong to you. See [Install on Unraid](install-unraid.md#step-2-set-puid-and-pgid).
 
 ## Network
 
@@ -47,11 +38,7 @@ you. See [Install on Unraid](install-unraid.md#step-2-set-puid-and-pgid).
 |---|---|---|
 | `ASPNETCORE_URLS` | `http://+:8080` (set in the image) | Address and port the server listens on inside the container. |
 
-Leave `ASPNETCORE_URLS` alone in Docker. The image's health check calls
-`http://localhost:8080/health`. To use a different port, change the host
-side of the port mapping instead (see [Install with Docker](install-docker.md#reaching-the-server-from-other-devices)).
-The server speaks plain HTTP only. For HTTPS, see
-[Reverse proxy and HTTPS](reverse-proxy-and-https.md).
+Leave `ASPNETCORE_URLS` alone in Docker. The image's health check calls `http://localhost:8080/health`. To use a different port, change the host side of the port mapping instead (see [Install with Docker](install-docker.md#reaching-the-server-from-other-devices)). The server speaks plain HTTP only. For HTTPS, see [Reverse proxy and HTTPS](reverse-proxy-and-https.md).
 
 ## Storage
 
@@ -64,12 +51,9 @@ The server speaks plain HTTP only. For HTTPS, see
 | `MangaPixer:Storage:CacheBudgetBytes` (`MangaPixer__Storage__CacheBudgetBytes`) | `1073741824` (1 GiB) | Maximum size of the page cache, in bytes. The least recently used pages are evicted after a write pushes the cache over budget, and a full pass also runs once a day. |
 | `MangaPixer:Storage:ScratchBudgetBytes` (`MangaPixer__Storage__ScratchBudgetBytes`) | `1073741824` (1 GiB) | Size limit for temporary work folders, in bytes. Only solid RAR/7z archives need much scratch space. |
 
-Budgets are plain byte counts: `268435456` is 256 MiB, `4294967296` is 4 GiB.
-Relative paths are resolved against the server's working directory. You
-cannot register a library whose folder is inside a storage root or contains one.
+Budgets are plain byte counts: `268435456` is 256 MiB, `4294967296` is 4 GiB. Relative paths are resolved against the server's working directory. You cannot register a library whose folder is inside a storage root or contains one.
 
-The Unraid Compose file sets the three roots to `/config/data`,
-`/config/cache` and `/config/scratch`.
+The Unraid Compose file sets the three roots to `/config/data`, `/config/cache` and `/config/scratch`.
 
 ## Media processing
 
@@ -89,8 +73,7 @@ The Unraid Compose file sets the three roots to `/config/data`,
 | `MangaPixer:Backups:RetentionCount` (`MangaPixer__Backups__RetentionCount`) | `7` | How many `rotating-*.db` snapshots to keep. Older ones are deleted. Pre-migration and pre-restore snapshots are never deleted. |
 | `MangaPixer:Backups:MaxRestoreUploadBytes` (`MangaPixer__Backups__MaxRestoreUploadBytes`) | `536870912` (512 MiB) | Largest backup file you can upload for a restore. The web server also caps uploads at 128 MiB, so in practice the limit is 128 MiB, or this value if it is lower. |
 
-Backups are written to `<DataRoot>/backups`. You cannot change that folder.
-See [Backup and restore](backup-and-restore.md).
+Backups are written to `<DataRoot>/backups`. You cannot change that folder. See [Backup and restore](backup-and-restore.md).
 
 ## Sign-in protection
 
@@ -101,45 +84,26 @@ See [Backup and restore](backup-and-restore.md).
 | `MangaPixer:Security:RateLimit:Window` (`MangaPixer__Security__RateLimit__Window`) | `00:05:00` | Length of the counting window, as `hh:mm:ss`. |
 | `MangaPixer:Security:RateLimit:Disabled` (`MangaPixer__Security__RateLimit__Disabled`) | `false` | Turns the limiter off. Only for testing. |
 
-The counters are held in memory and reset when the server restarts.
-Separately, an account locks for 15 minutes after 5 wrong passwords; that is
-not configurable. Behind a reverse proxy every client appears to come from the
-proxy's IP address, so the per-IP limit is shared by everyone (see
-[Reverse proxy and HTTPS](reverse-proxy-and-https.md#what-the-server-sees-behind-a-proxy)).
+The counters are held in memory and reset when the server restarts. Separately, an account locks for 15 minutes after 5 wrong passwords; that is not configurable. Behind a reverse proxy every client appears to come from the proxy's IP address, so the per-IP limit is shared by everyone (see [Reverse proxy and HTTPS](reverse-proxy-and-https.md#what-the-server-sees-behind-a-proxy)).
 
 ## Logging
 
-The log level is **not** set in configuration. It is controlled at runtime by
-an admin and goes back to `Information` every time the server restarts. The
-`Logging:LogLevel` entries in `appsettings.json` do not change the server's
-log output.
+The log level is **not** set in configuration. It is controlled at runtime by an admin and goes back to `Information` every time the server restarts. The `Logging:LogLevel` entries in `appsettings.json` do not change the server's log output.
 
-- **In the web UI:** **MangaPixer Administration** > **Diagnostics** > **Log Level**.
-  Choose `Verbose`, `Debug`, `Information`, `Warning`, `Error` or `Fatal`. The
-  change applies immediately.
-- **With the API** (admin only): `GET /api/v1/operations/logging` returns the
-  current level. `PUT /api/v1/operations/logging` changes it. The API can also
-  raise the level for a single area, `Scanning`, `Media` or `Reading`, without
-  flooding the log with everything else:
+- **In the web UI:** **MangaPixer Administration** > **Diagnostics** > **Log Level**. Choose `Verbose`, `Debug`, `Information`, `Warning`, `Error` or `Fatal`. The change applies immediately.
+- **With the API** (admin only): `GET /api/v1/operations/logging` returns the current level. `PUT /api/v1/operations/logging` changes it. The API can also raise the level for a single area, `Scanning`, `Media` or `Reading`, without flooding the log with everything else:
 
   ```json
   { "categories": [ { "name": "Scanning", "level": "Debug" } ] }
   ```
 
-  Send an empty `level` for a category to make it follow the global level
-  again. Calling the API needs a signed-in admin session and the CSRF header;
-  see [Backup and restore](backup-and-restore.md#calling-the-admin-api-from-a-script)
-  for a script that does both.
+  Send an empty `level` for a category to make it follow the global level again. Calling the API needs a signed-in admin session and the CSRF header; see [Backup and restore](backup-and-restore.md#calling-the-admin-api-from-a-script) for a script that does both.
 
-Framework noise (`Microsoft.AspNetCore`, `Microsoft.EntityFrameworkCore`) stays
-at `Warning` regardless of the level you pick.
+Framework noise (`Microsoft.AspNetCore`, `Microsoft.EntityFrameworkCore`) stays at `Warning` regardless of the level you pick.
 
-Logs go to the container output and to files in `<DataRoot>/logs`
-(`mangapixer-<date>.log`, one file per day, a new file after 20 MB, 7 files
-kept). See [Troubleshooting](troubleshooting.md#logs) for what the logs
-contain and deliberately leave out.
+Logs go to the container output and to files in `<DataRoot>/logs` (`mangapixer-<date>.log`, one file per day, a new file after 20 MB, 7 files kept). See [Troubleshooting](troubleshooting.md#logs) for what the logs contain and deliberately leave out.
 
-## Fixed behaviour
+## Fixed behavior
 
 These are built in and have no setting:
 
@@ -147,5 +111,4 @@ These are built in and have no setting:
 - Passwords need at least 8 characters, including a lowercase letter.
 - Expired sessions are cleaned up every hour. The cache-size pass runs daily.
 - Libraries are only scanned when an admin starts a scan.
-- Archive-processing time limits (for example 120 seconds to open an archive
-  on a drive that is spinning up).
+- Archive-processing time limits (for example 120 seconds to open an archive on a drive that is spinning up).

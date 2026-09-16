@@ -1,17 +1,14 @@
-# MangaPixer — Project Conventions
+# MangaPixer - Project Conventions
 
-Instructions for anyone changing this repository, human or AI agent. Human
-contributors should also read [CONTRIBUTING.md](CONTRIBUTING.md).
+Instructions for anyone changing this repository, human or AI agent. Human contributors should also read [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Product
 
-MangaPixer is a folder-native comic/manga server and Angular web reader.
-It is an independent alternative inspired by YACReader, not a fork.
+MangaPixer is a folder-native comic/manga server and Angular web reader. It is an independent alternative inspired by YACReader, not a fork.
 
 ## Root namespace
 
-All .NET namespaces use the exact root prefix `com.lifepixer.mangapixer`.
-The Angular package name is `com.lifepixer.mangapixer.web`.
+All .NET namespaces use the exact root prefix `com.lifepixer.mangapixer`. The Angular package name is `com.lifepixer.mangapixer.web`.
 
 ## Invariants
 
@@ -47,13 +44,11 @@ Windows distribution (Windows host only):
 | Smoke | `pwsh ./scripts/Smoke-Windows.ps1` | Start the published server from a clean data root and check health, web UI, first-run setup, worker startup and clean shutdown |
 | Installer | `pwsh ./scripts/Build-Installer.ps1` | Per-user MSI from `artifacts/windows-dist` into `artifacts/installer` |
 
-Scripts report failures with file/test references and never modify code to hide
-failures. There are no repo-specific agent skills; call the scripts directly.
+Scripts report failures with file/test references and never modify code to hide failures. There are no repo-specific agent skills; call the scripts directly.
 
 ### Container-based build (when host SDKs are unavailable)
 
-Run from the repository root. `$PWD` is the repository root in bash and in
-PowerShell; in `cmd.exe` use `%cd%`.
+Run from the repository root. `$PWD` is the repository root in bash and in PowerShell; in `cmd.exe` use `%cd%`.
 
 ```bash
 # .NET build and test (Linux x64 container)
@@ -96,10 +91,7 @@ npm --prefix web run api:check
 
 ### Live review instance (browser check)
 
-Build the current tree into an image and run it on a loopback port with
-throwaway storage, so a human can review the running app without touching any
-real deployment. Mount test media **read-only** (source-media invariant); supply
-the real media path per machine — never commit it.
+Build the current tree into an image and run it on a loopback port with throwaway storage, so a human can review the running app without touching any real deployment. Mount test media **read-only** (source-media invariant); supply the real media path per machine - never commit it.
 
 ```bash
 # Build (multi-stage: Angular + server + worker)
@@ -113,9 +105,7 @@ docker run -d --name mangapixer-live-review -p 127.0.0.1:8097:8080 \
     mangapixer:live-review
 ```
 
-Health: `curl http://127.0.0.1:8097/health`. Tear down with
-`docker rm -f mangapixer-live-review`, `docker rmi mangapixer:live-review`, and
-delete the temp storage dirs. If 8097 is taken, pick any free loopback port.
+Health: `curl http://127.0.0.1:8097/health`. Tear down with `docker rm -f mangapixer-live-review`, `docker rmi mangapixer:live-review`, and delete the temp storage dirs. If 8097 is taken, pick any free loopback port.
 
 ## Versioning
 
@@ -127,22 +117,16 @@ delete the temp storage dirs. If 8097 is taken, pick any free loopback port.
 
 ### Release ritual (maintainer-gated)
 
-Every release is cut on `dev` and then **`main` is fast-forwarded / merged to that
-release commit** so `main` always tracks the latest released version. This step is
-mandatory and easy to forget: if it is skipped, `main` falls behind the released
-versions while `dev` moves on.
+Every release is cut on `dev` and then **`main` is fast-forwarded / merged to that release commit** so `main` always tracks the latest released version. This step is mandatory and easy to forget: if it is skipped, `main` falls behind the released versions while `dev` moves on.
 
 Order, all maintainer-gated (agents do NOT do these autonomously):
 
 1. Bump `Version.props` (and match `web/package.json`) to `<version>`; commit on `dev`.
 2. Tag `v<version>` on that commit.
-3. **Merge `dev` into `main`** (`git checkout main && git merge --no-ff dev`), so `main`
-   contains the release commit and tag. `main` is the "last released" trunk; `dev` is the
-   version-agnostic integration trunk that runs ahead.
+3. **Merge `dev` into `main`** (`git checkout main && git merge --no-ff dev`), so `main` contains the release commit and tag. `main` is the "last released" trunk; `dev` is the version-agnostic integration trunk that runs ahead.
 4. Build/deploy the tagged image as needed.
 
-Never merge `dev` into `main` for an in-progress cycle (main must track released
-versions only) - the merge happens as part of the cut, after the version bump + tag.
+Never merge `dev` into `main` for an in-progress cycle (main must track released versions only) - the merge happens as part of the cut, after the version bump + tag.
 
 ## Shared contracts
 
@@ -191,20 +175,15 @@ Conventions for the Unraid config:
 
 The `entrypoint.sh` is shared by both configs. It chowns whichever state directories exist (`/data`, `/cache`, `/scratch`, and/or `/config` and its subfolders) to `PUID:PGID`, then drops privileges via `gosu`. Default behavior when `PUID`/`PGID` are unset is unchanged from the original 1000:1000 image user, so the canonical volume-based config and smoke tests are unaffected.
 
-A Unraid Community Applications template (XML) is a separate post-MVP packaging task — it references a published registry image, not a build context, and only makes sense once `Package-Release.ps1` is producing version-tagged images.
+A Unraid Community Applications template (XML) is a separate post-MVP packaging task - it references a published registry image, not a build context, and only makes sense once `Package-Release.ps1` is producing version-tagged images.
 
 ## Privacy
 
-- Logs contain IDs, counts, timings, and sanitized error codes — never absolute paths, titles, passwords, tokens, cookies, archive entry names, or page bytes.
+- Logs contain IDs, counts, timings, and sanitized error codes - never absolute paths, titles, passwords, tokens, cookies, archive entry names, or page bytes.
 - Browser bundles and source maps must not embed actual deployment roots.
 - No telemetry, analytics, remote fonts, or third-party library lookup calls.
 - `.dockerignore` independently excludes secrets, app state, and media from build contexts.
 
 ## Branching
 
-Branch off `dev`, not `main` or a release tag, so your branch already contains
-all merged work and merges cleanly; pull requests target `dev`. `dev` is a
-single long-lived, **version-agnostic** trunk: the release number lives only in
-`Version.props` and the tag, decided at cut time. Parallel work uses one git
-worktree per branch (`git worktree add ../<folder> -b feature/<topic> dev`), and
-every change is verified in its own clean worktree before hand-off.
+Branch off `dev`, not `main` or a release tag, so your branch already contains all merged work and merges cleanly; pull requests target `dev`. `dev` is a single long-lived, **version-agnostic** trunk: the release number lives only in `Version.props` and the tag, decided at cut time. Parallel work uses one git worktree per branch (`git worktree add ../<folder> -b feature/<topic> dev`), and every change is verified in its own clean worktree before hand-off.

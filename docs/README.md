@@ -1,8 +1,6 @@
 # Documentation
 
-These guides are for people who run MangaPixer on their own hardware. They
-describe the current release; the version you are running is shown in the
-app footer and returned by `GET /api/v1/system/info`.
+These guides are for people who run MangaPixer on their own hardware. They describe the current release; the version you are running is shown in the app footer and returned by `GET /api/v1/system/info`.
 
 ## Install
 

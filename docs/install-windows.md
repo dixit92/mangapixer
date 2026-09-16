@@ -1,8 +1,6 @@
 # Install on Windows
 
-A native Windows package (a tray app and an MSI installer) is in development
-and is not part of this release yet. Until it ships, run the server on
-Windows with Docker Desktop by following [Install with Docker](install-docker.md).
+MangaPixer ships a native Windows package since 1.13.0: a tray app that runs the server for you, installed by a per-user MSI (no administrator rights needed). This page is still being written; until it is complete, the short version is: run the installer, let it launch the tray app, and open the app in your browser from the tray icon. The first-run setup screen creates your admin account. You can also run the server on Windows with Docker Desktop by following [Install with Docker](install-docker.md).
 
 <!-- TODO(windows-cycle): replace this stub once the tray app and MSI installer ship. Planned sections: -->
 <!-- TODO(windows-cycle): system requirements (Windows version, architecture, whether a .NET runtime is bundled). -->

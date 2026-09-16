@@ -1,7 +1,6 @@
 # Reader
 
-Select any archive in a library to open it in the reader. This page covers
-the reader's layouts, controls and how it remembers where you are.
+Select any archive in a library to open it in the reader. This page covers the reader's layouts, controls and how it remembers where you are.
 
 <!-- TODO(owner): screenshot of the reader toolbar on desktop -->
 
@@ -11,8 +10,7 @@ On desktop and tablet, the toolbar at the top holds:
 
 - **Back to folder**.
 - The page counter (`12 / 40`, or `12-13 / 40` while a double page is showing).
-- **Previous chapter** / **Next chapter**. Their tooltips name the neighbouring
-  archive. They are disabled at either end of the folder.
+- **Previous chapter** / **Next chapter**. Their tooltips name the neighboring archive. They are disabled at either end of the folder.
 - **Reading mode**.
 - **Image fit**, or the **Page width** slider in vertical mode.
 - The reading-direction toggle.
@@ -20,26 +18,19 @@ On desktop and tablet, the toolbar at the top holds:
 - **Reading help** (`?`).
 - **Fullscreen**.
 
-In a normal window the controls stay visible. In fullscreen they hide after
-3 seconds without input. Tap the centre of the page, press `m`, or (with a
-mouse) move to the top of the screen to bring them back.
+In a normal window the controls stay visible. In fullscreen they hide after 3 seconds without input. Tap the center of the page, press `m`, or (with a mouse) move to the top of the screen to bring them back.
 
-The bottom bar has a **page slider**: tap to jump, or drag to scrub, with a
-bubble showing where you will land. When the controls are hidden, a thin
-progress line shows how far through the chapter you are.
+The bottom bar has a **page slider**: tap to jump, or drag to scrub, with a bubble showing where you will land. When the controls are hidden, a thin progress line shows how far through the chapter you are.
 
 ### On phones
 
-On screens narrower than 600 px, the toolbar keeps only **Next chapter**,
-**Fullscreen** and **Reader options** (⋮). **Reader options** opens a bottom
-sheet with every other setting:
+On screens narrower than 600 px, the toolbar keeps only **Next chapter**, **Fullscreen** and **Reader options** (⋮). **Reader options** opens a bottom sheet with every other setting:
 
 - **Layout**
 - **Image fit**
 - **Reading direction**
 - **Page transition**
-- In vertical mode, **Page width** and **Tap to scroll** replace the
-  paged-only groups.
+- In vertical mode, **Page width** and **Tap to scroll** replace the paged-only groups.
 - **Previous chapter**, **Next chapter** and **Reading help**.
 
 Changing a setting keeps the sheet open.
@@ -60,18 +51,10 @@ Choose a mode from **Reading mode** (on phones: **Layout**):
 
 Details:
 
-- **Wide pages are never paired.** A page at least 1.2 times wider than it is
-  tall (usually a scanned spread) is shown alone at full width in both double
-  modes, and pairing restarts after it.
-- **Narrow portrait screens show single pages.** If you pick a double mode on
-  a narrow portrait screen (under 600 px wide), pages still show one at a time.
-  Double page returns when you rotate to landscape or widen the window.
-- **Your layout choice is remembered by this browser** (Auto, Single, Double,
-  or Double with offset cover). It applies to every chapter you open on that
-  device, and is not saved to your account.
-- **Choosing Vertical from the menu lasts for the current chapter only.**
-  To make a series always open in vertical mode, an admin sets its reading
-  direction to **Vertical** (see [Reading direction](#reading-direction)).
+- **Wide pages are never paired.** A page at least 1.2 times wider than it is tall (usually a scanned spread) is shown alone at full width in both double modes, and pairing restarts after it.
+- **Narrow portrait screens show single pages.** If you pick a double mode on a narrow portrait screen (under 600 px wide), pages still show one at a time. Double page returns when you rotate to landscape or widen the window.
+- **Your layout choice is remembered by this browser** (Auto, Single, Double, or Double with offset cover). It applies to every chapter you open on that device, and is not saved to your account.
+- **Choosing Vertical from the menu lasts for the current chapter only.** To make a series always open in vertical mode, an admin sets its reading direction to **Vertical** (see [Reading direction](#reading-direction)).
 
 ## Image fit
 
@@ -84,22 +67,18 @@ Details:
 
 The fit resets to **Fit screen** each time you open the reader.
 
-In vertical mode, **Image fit** is replaced by a **Page width** slider from 15%
-to 100% of the screen width. The default is 70%, and your browser remembers
-the setting. Pages in the strip sit edge to edge, with no gap.
+In vertical mode, **Image fit** is replaced by a **Page width** slider from 15% to 100% of the screen width. The default is 70%, and your browser remembers the setting. Pages in the strip sit edge to edge, with no gap.
 
 ## Reading direction
 
-The reader supports left-to-right (comics), right-to-left (manga) and vertical
-(webtoon) content. In right-to-left mode:
+The reader supports left-to-right (comics), right-to-left (manga) and vertical (webtoon) content. In right-to-left mode:
 
 - The arrow keys swap: `←` moves forward.
 - The side tap zones swap.
 - Swipes are mirrored.
 - The page slider fills from the right.
 
-**Where the direction comes from.** When you open an archive, the server
-picks its mode from the nearest setting it finds:
+**Where the direction comes from.** When you open an archive, the server picks its mode from the nearest setting it finds:
 
 1. the folder's direction,
 2. then the library's direction,
@@ -107,31 +86,20 @@ picks its mode from the nearest setting it finds:
 
 Admins set these (readers cannot):
 
-- **Per library:** **MangaPixer Administration** > **Libraries**, the
-  **Direction** menu on each row: **Inherit**, **Left-to-right**,
-  **Right-to-left** or **Vertical**.
-- **Per folder:** in the library view, choose **Select**, pick one or more
-  folders, then **Direction**. The same options appear there, with
-  **Inherit (clear)** removing the folder's own setting. Admins see a small
-  `LTR` / `RTL` / `Vertical` chip on folders that have their own direction.
+- **Per library:** **MangaPixer Administration** > **Libraries**, the **Direction** menu on each row: **Inherit**, **Left-to-right**, **Right-to-left** or **Vertical**.
+- **Per folder:** in the library view, choose **Select**, pick one or more folders, then **Direction**. The same options appear there, with **Inherit (clear)** removing the folder's own setting. Admins see a small `LTR` / `RTL` / `Vertical` chip on folders that have their own direction.
 
-The toolbar toggle (tooltip **Right-to-left (manga)** / **Left-to-right**)
-flips the direction for the chapter you are reading. It is not saved. The
-library sidebar and home cards show a small icon with each library's
-direction.
+The toolbar toggle (tooltip **Right-to-left (manga)** / **Left-to-right**) flips the direction for the chapter you are reading. It is not saved. The library sidebar and home cards show a small icon with each library's direction.
 
 ## Page transition
 
-**Page transition** controls the animation when you turn a page in single or
-double mode:
+**Page transition** controls the animation when you turn a page in single or double mode:
 
 - **Slide** (default): the new page slides in.
 - **Reveal**: the new page is wiped in over the old one.
 - **None**: pages change instantly.
 
-The choice is remembered by this browser. Animations are skipped in vertical
-mode, while scrubbing the slider, and when the page is zoomed. They are also
-turned off entirely if your operating system asks for reduced motion.
+The choice is remembered by this browser. Animations are skipped in vertical mode, while scrubbing the slider, and when the page is zoomed. They are also turned off entirely if your operating system asks for reduced motion.
 
 ## Keyboard shortcuts
 
@@ -144,42 +112,32 @@ turned off entirely if your operating system asks for reduced motion.
 | `Esc` | Close help. Otherwise exit fullscreen, or go back to the folder if not in fullscreen. |
 | `?` | Show / hide the help overlay |
 
-- In vertical mode only `m`, `?` and `Esc` (to close help) apply. Scroll with
-  the mouse wheel, trackpad or the usual scroll keys.
+- In vertical mode only `m`, `?` and `Esc` (to close help) apply. Scroll with the mouse wheel, trackpad or the usual scroll keys.
 - Shortcuts are ignored while you type in a text field.
-- When the page slider has keyboard focus, the arrow keys step one page and
-  `Home` / `End` jump to the ends.
+- When the page slider has keyboard focus, the arrow keys step one page and `Home` / `End` jump to the ends.
 
 ## Touch and mouse
 
 **Single and double page:**
 
-- **Tap the left or right 30% of the screen** to turn the page. In
-  right-to-left mode the sides swap.
-- **Tap the centre** to show or hide the controls.
-- **Swipe left or right anywhere on the page** to turn the page. Start the
-  swipe inside the page: the very edge of the screen belongs to the browser's
-  back/forward gesture. Swipes are ignored while the page is zoomed.
+- **Tap the left or right 30% of the screen** to turn the page. In right-to-left mode the sides swap.
+- **Tap the center** to show or hide the controls.
+- **Swipe left or right anywhere on the page** to turn the page. Start the swipe inside the page: the very edge of the screen belongs to the browser's back/forward gesture. Swipes are ignored while the page is zoomed.
 
 **Vertical mode:**
 
 - **Scroll** freely. This is always available.
-- **Tap to scroll** adds tap zones. Options: **Off**, **80%**, **90%**
-  (default) or **100%** of a screen per step. The setting is remembered by
-  this browser.
+- **Tap to scroll** adds tap zones. Options: **Off**, **80%**, **90%** (default) or **100%** of a screen per step. The setting is remembered by this browser.
   - Tap the **bottom third** to move forward one step.
   - Tap the **top third** to move back one step.
   - Tap the **middle** to show or hide the controls.
   - A horizontal swipe does the same (swipe left to go forward).
 - With **Tap to scroll** off, a tap anywhere shows or hides the controls.
-- At the bottom of the strip, **Previous chapter** and **Next chapter**
-  buttons appear. Vertical mode never moves to another chapter on its own.
+- At the bottom of the strip, **Previous chapter** and **Next chapter** buttons appear. Vertical mode never moves to another chapter on its own.
 
 ## Help overlay
 
-Select **Reading help** (`?`) or press `?` to see the controls for the
-current mode, drawn over the page. The overlay opens automatically the first
-time you use the reader on each device. Tap anywhere to close it.
+Select **Reading help** (`?`) or press `?` to see the controls for the current mode, drawn over the page. The overlay opens automatically the first time you use the reader on each device. Tap anywhere to close it.
 
 <!-- TODO(owner): screenshot of the help overlay -->
 
@@ -188,16 +146,10 @@ time you use the reader on each device. Tap anywhere to close it.
 In single and double page mode:
 
 - Turning past the **last page** opens the next archive in the same folder.
-- Going back from the **first page** opens the previous archive, on its last
-  page.
-- A short message names the chapter you moved to. At either end of the
-  folder you see "You’ve reached the end — no next chapter in this folder."
-  or "You’re at the start — no previous chapter in this folder."
+- Going back from the **first page** opens the previous archive, on its last page.
+- A short message names the chapter you moved to. At either end of the folder you see "You’ve reached the end. No next chapter in this folder." or "You’re at the start. No previous chapter in this folder."
 
-"Next" follows the folder's Name order (see
-[Library layout](library-layout.md#folders-and-archives-character-order)).
-Chapter moves replace the browser history entry, so **Back** always returns
-to the folder.
+"Next" follows the folder's Name order (see [Library layout](library-layout.md#folders-and-archives-character-order)). Chapter moves replace the browser history entry, so **Back** always returns to the folder.
 
 ## Loading and prefetch
 
@@ -207,15 +159,11 @@ The reader loads ahead so page turns feel instant:
 - **Vertical:** the next 4 pages below your scroll position.
 - Prefetch stays within the current chapter.
 
-On the server, the page you are looking at always takes priority over
-prefetching, and prefetching takes priority over background work such as
-analysing new archives. Extracted pages are cached (see the cache budget in
-[Configuration](configuration.md#storage)), so rereading is fast.
+On the server, the page you are looking at always takes priority over prefetching, and prefetching takes priority over background work such as analyzing new archives. Extracted pages are cached (see the cache budget in [Configuration](configuration.md#storage)), so rereading is fast.
 
 ## Where you resume
 
-The server saves your position as you read, including when you let go of the
-page slider. When you open an archive again:
+The server saves your position as you read, including when you let go of the page slider. When you open an archive again:
 
 | Archive state | Opens on |
 |---|---|
@@ -224,36 +172,23 @@ page slider. When you open an archive again:
 | Finished (you reached the last page) | Page 1 |
 | Marked read, but you last stopped partway through | Where you left off, or page 1 if **Always open read archives from the start** is on |
 
-**Always open read archives from the start** is in **Settings** > **Reading**.
-It is off by default and saved to your account.
+**Always open read archives from the start** is in **Settings** > **Reading**. It is off by default and saved to your account.
 
 ## Read and unread
 
-**Reaching the last page marks an archive as read.** In vertical mode,
-scrolling to the very bottom counts. The read mark is sticky: going back to
-an earlier page later does not make the archive unread again. Arriving on a
-chapter's last page through **Previous chapter** does not mark it read.
+**Reaching the last page marks an archive as read.** In vertical mode, scrolling to the very bottom counts. The read mark is sticky: going back to an earlier page later does not make the archive unread again. Arriving on a chapter's last page through **Previous chapter** does not mark it read.
 
-There is no mark-read button inside the reader. To mark archives or whole
-folders yourself, use the library view:
+There is no mark-read button inside the reader. To mark archives or whole folders yourself, use the library view:
 
 1. Choose **Select**.
-2. Pick items. Shift-click selects a range, and on touch screens a long press
-   offers **Select to here**. The **Select** menu also offers **Select all**,
-   **Select all unread** and **Select all read**.
+2. Pick items. Shift-click selects a range, and on touch screens a long press offers **Select to here**. The **Select** menu also offers **Select all**, **Select all unread** and **Select all read**.
 3. Choose **Mark read** or **Mark unread**, then **Done**.
 
 - Selecting a folder applies to every archive below it, at any depth.
-- **Mark unread** fully resets an archive: it clears both the read mark and
-  your position, so it opens on page 1 next time.
-- Cards show **✓ Read** or **Reading** badges. Folders show **✓ Read** when
-  everything inside is read and **Reading** when it is partly read.
-- On the home page, the **×** on a **Continue reading** card (**Remove from
-  Continue reading**) hides it from that row without marking it read.
+- **Mark unread** fully resets an archive: it clears both the read mark and your position, so it opens on page 1 next time.
+- Cards show **✓ Read** or **Reading** badges. Folders show **✓ Read** when everything inside is read and **Reading** when it is partly read.
+- On the home page, the **×** on a **Continue reading** card (**Remove from Continue reading**) hides it from that row without marking it read.
 
 ## Incognito and your reading history
 
-Incognito hides the libraries you marked **Private** from Home, search and
-browsing. **It does not pause progress tracking.** Your position and read
-marks are still saved while Incognito is on, including in Private libraries.
-See [Users and access](users-and-access.md#private-libraries-and-incognito).
+Incognito hides the libraries you marked **Private** from Home, search and browsing. **It does not pause progress tracking.** Your position and read marks are still saved while Incognito is on, including in Private libraries. See [Users and access](users-and-access.md#private-libraries-and-incognito).

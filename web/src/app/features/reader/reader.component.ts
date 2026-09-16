@@ -1587,7 +1587,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   private goToNextChapter(): void {
     const next = this.nextNeighbor();
     if (!next) {
-      this.snackBar.open('You’ve reached the end — no next chapter in this folder.', 'Dismiss', { duration: 3000 });
+      this.snackBar.open('You’ve reached the end. No next chapter in this folder.', 'Dismiss', { duration: 3000 });
       return;
     }
     this.saveProgress();
@@ -1610,7 +1610,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   private goToPreviousChapter(): void {
     const prev = this.prevNeighbor();
     if (!prev) {
-      this.snackBar.open('You’re at the start — no previous chapter in this folder.', 'Dismiss', { duration: 3000 });
+      this.snackBar.open('You’re at the start. No previous chapter in this folder.', 'Dismiss', { duration: 3000 });
       return;
     }
     this.saveProgress();

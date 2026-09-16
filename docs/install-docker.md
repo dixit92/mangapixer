@@ -1,16 +1,11 @@
 # Install with Docker
 
-This guide walks through `deploy/compose.yaml`, the canonical way to run the
-server. It works on any Linux host, on a NAS that runs Docker, and on Docker
-Desktop. For Unraid, see [Install on Unraid](install-unraid.md) instead.
+This guide walks through `deploy/compose.yaml`, the canonical way to run the server. It works on any Linux host, on a NAS that runs Docker, and on Docker Desktop. For Unraid, see [Install on Unraid](install-unraid.md) instead.
 
 ## What you need
 
-- Docker Engine with the Compose plugin (`docker compose`). The override
-  example below uses the `!override` tag, which needs Compose 2.24 or later.
-- A clone of this repository. MangaPixer does not publish a prebuilt image yet,
-  so you build the image from source. The build is fully containerized: you
-  do not need .NET or Node.js on the host.
+- Docker Engine with the Compose plugin (`docker compose`). The override example below uses the `!override` tag, which needs Compose 2.24 or later.
+- A clone of this repository. MangaPixer does not publish a prebuilt image yet, so you build the image from source. The build is fully containerized: you do not need .NET or Node.js on the host.
 - Your comics or manga in folders that the Docker host can read.
 
 <!-- TODO(owner): if a registry image is published, add a "pull instead of build" path here. -->
@@ -28,13 +23,9 @@ Desktop. For Unraid, see [Install on Unraid](install-unraid.md) instead.
 | Logging | `local` driver, 20 MB × 5 files | Container output cannot fill your disk. |
 | Restart | `unless-stopped` | The server comes back after a reboot or crash. |
 
-The container starts as root only long enough to fix ownership of the state
-folders, then drops to UID/GID `1000:1000`. You can change that with `PUID` and
-`PGID` (see [Configuration](configuration.md#container-user)).
+The container starts as root only long enough to fix ownership of the state folders, then drops to UID/GID `1000:1000`. You can change that with `PUID` and `PGID` (see [Configuration](configuration.md#container-user)).
 
-Compose names the volumes after the project, which defaults to the folder
-containing the Compose file. With the commands below the volumes are called
-`deploy_mangapixer-data`, `deploy_mangapixer-cache` and `deploy_mangapixer-scratch`.
+Compose names the volumes after the project, which defaults to the folder containing the Compose file. With the commands below the volumes are called `deploy_mangapixer-data`, `deploy_mangapixer-cache` and `deploy_mangapixer-scratch`.
 
 ## Step 1: get the source
 
@@ -43,14 +34,11 @@ git clone <repository-url> mangapixer
 cd mangapixer
 ```
 
-To install a specific release, check out its tag (for example `git checkout v1.12.0`).
+To install a specific release, check out its tag (for example `git checkout v1.13.0`).
 
 ## Step 2: mount your media read-only
 
-The server never writes to your media (see [Library layout](library-layout.md#read-only-guarantee)),
-and mounting it read-only makes the operating system enforce that too. Keep
-your real paths out of the tracked Compose file: put them in an override file
-next to it, `deploy/compose.override.yaml`:
+The server never writes to your media (see [Library layout](library-layout.md#read-only-guarantee)), and mounting it read-only makes the operating system enforce that too. Keep your real paths out of the tracked Compose file: put them in an override file next to it, `deploy/compose.override.yaml`:
 
 ```yaml
 services:
@@ -60,34 +48,26 @@ services:
       - /srv/manga:/media/manga:ro
 ```
 
-Mount every share somewhere under `/media`. That is the folder the library
-**Browse…** picker starts in (you can change it with
-[`MangaPixer__Storage__MediaRoot`](configuration.md#storage)).
+Mount every share somewhere under `/media`. That is the folder the library **Browse…** picker starts in (you can change it with [`MangaPixer__Storage__MediaRoot`](configuration.md#storage)).
 
-Compose only reads the override file when you pass it with `-f`, as in the
-commands below. The repository's `.gitignore` already excludes
-`deploy/compose.override.yaml`, so Git never picks it up.
+Compose only reads the override file when you pass it with `-f`, as in the commands below. The repository's `.gitignore` already excludes `deploy/compose.override.yaml`, so Git never picks it up.
 
 ## Step 3: choose the image tag
 
-The Compose file tags the image `mangapixer:${MANGAPIXER_VERSION}`. When the
-variable is unset it falls back to `latest`, so always set the variable to the
-version you are building. The version is in `Version.props`, and this script
-prints it:
+The Compose file tags the image `mangapixer:${MANGAPIXER_VERSION}`. When the variable is unset it falls back to `latest`, so always set the variable to the version you are building. The version is in `Version.props`, and this script prints it:
 
 ```sh
 pwsh ./scripts/Get-MangaPixerVersion.ps1
 ```
 
-Then set it in your shell. Set it again in every new shell before you run
-`docker compose`, or Compose looks for an image under the fallback tag.
+Then set it in your shell. Set it again in every new shell before you run `docker compose`, or Compose looks for an image under the fallback tag.
 
 ```sh
-export MANGAPIXER_VERSION=1.12.0          # bash / zsh
+export MANGAPIXER_VERSION=1.13.0          # bash / zsh
 ```
 
 ```powershell
-$env:MANGAPIXER_VERSION = "1.12.0"         # PowerShell
+$env:MANGAPIXER_VERSION = "1.13.0"         # PowerShell
 ```
 
 ## Step 4: build and start
@@ -98,8 +78,7 @@ Run this from the repository root:
 docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --build
 ```
 
-The first build downloads the .NET and Node base images and takes several
-minutes. Later builds reuse cached layers.
+The first build downloads the .NET and Node base images and takes several minutes. Later builds reuse cached layers.
 
 Check that the server is up:
 
@@ -107,52 +86,38 @@ Check that the server is up:
 curl http://127.0.0.1:8080/health
 ```
 
-It answers `Healthy`. The image also has a Docker health check that calls the
-same endpoint every 30 seconds, so `docker compose -f deploy/compose.yaml ps`
-shows `(healthy)` once start-up finishes.
+It answers `Healthy`. The image also has a Docker health check that calls the same endpoint every 30 seconds, so `docker compose -f deploy/compose.yaml ps` shows `(healthy)` once start-up finishes.
 
 ## Step 5: create the admin account
 
 There is **no default username or password.** A new server has no users at all.
 
-Open `http://127.0.0.1:8080` in a browser. The **Welcome to MangaPixer** setup
-screen appears. Choose an **Admin username** and a **Password**, confirm it,
-and select **Create account**. You are signed in as the first admin.
+Open `http://127.0.0.1:8080` in a browser. The **Welcome to MangaPixer** setup screen appears. Choose an **Admin username** and a **Password**, confirm it, and select **Create account**. You are signed in as the first admin.
 
 - Passwords need at least 8 characters, including at least one lowercase letter.
 - Usernames can contain letters, digits and `- . _ @ +`. No spaces.
 
-The setup screen only works while the server has no users. After the first
-account exists, the setup endpoint refuses every request, so nobody can use
-it to create a second admin.
+The setup screen only works while the server has no users. After the first account exists, the setup endpoint refuses every request, so nobody can use it to create a second admin.
 
 <!-- TODO(owner): screenshot of the first-run setup screen -->
 
 ## Step 6: add a library
 
 1. Open the account menu and choose **MangaPixer Administration**.
-2. In the **Libraries** card, under **Register New Library**, enter a
-   **Display Name** and a **Root Path (server-side mount)**, for example
-   `/media/comics`. **Browse…** lets you pick a folder under `/media` instead
-   of typing it.
+2. In the **Libraries** card, under **Register New Library**, enter a **Display Name** and a **Root Path (server-side mount)**, for example `/media/comics`. **Browse…** lets you pick a folder under `/media` instead of typing it.
 3. Select **Register**.
-4. Select the **Scan now** button (the circular-arrow icon) on the new library's row. Registering a
-   library does not scan it, and the server never scans on its own; you
-   start every scan. See [Library layout](library-layout.md#rescans-moves-and-deletions).
+4. Select the **Scan now** button (the circular-arrow icon) on the new library's row. Registering a library does not scan it, and the server never scans on its own; you start every scan. See [Library layout](library-layout.md#rescans-moves-and-deletions).
 
 <!-- TODO(owner): screenshot of the Administration > Libraries card -->
 
-New users you create see no libraries until you give them access. See
-[Users and access](users-and-access.md).
+New users you create see no libraries until you give them access. See [Users and access](users-and-access.md).
 
 ## Reaching the server from other devices
 
 The default port mapping only listens on `127.0.0.1`. You have two options:
 
-- **Recommended:** keep the loopback binding and run a reverse proxy on the
-  same host that adds HTTPS. See [Reverse proxy and HTTPS](reverse-proxy-and-https.md).
-- **LAN only, plain HTTP:** replace the port list in your override file. The
-  `!override` tag replaces the list instead of adding to it:
+- **Recommended:** keep the loopback binding and run a reverse proxy on the same host that adds HTTPS. See [Reverse proxy and HTTPS](reverse-proxy-and-https.md).
+- **LAN only, plain HTTP:** replace the port list in your override file. The `!override` tag replaces the list instead of adding to it:
 
   ```yaml
   services:
@@ -161,9 +126,7 @@ The default port mapping only listens on `127.0.0.1`. You have two options:
         - "8080:8080"
   ```
 
-The server always listens on port 8080 inside the container. To use a
-different host port, change only the left-hand number (for example
-`"127.0.0.1:8181:8080"`).
+The server always listens on port 8080 inside the container. To use a different host port, change only the left-hand number (for example `"127.0.0.1:8181:8080"`).
 
 ## Upgrading
 
@@ -175,33 +138,13 @@ different host port, change only the left-hand number (for example
    docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --build
    ```
 
-Your volumes are kept. On start-up the server upgrades the database schema if
-the new version needs it. **Before it changes an existing database it writes a
-snapshot** called `pre-migration-<UTC timestamp>.db` to `/data/backups`. If
-that snapshot fails, the server refuses to start rather than risk your data.
-Automatic backup rotation never deletes these snapshots.
+Your volumes are kept. On start-up the server upgrades the database schema if the new version needs it. **Before it changes an existing database it writes a snapshot** called `pre-migration-<UTC timestamp>.db` to `/data/backups`. If that snapshot fails, the server refuses to start rather than risk your data. Automatic backup rotation never deletes these snapshots.
 
-Each version is its own image tag, so the previous image stays on disk. Once
-the new version is running, you can remove old ones with `docker image rm mangapixer:<old-version>`.
+Each version is its own image tag, so the previous image stays on disk. Once the new version is running, you can remove old ones with `docker image rm mangapixer:<old-version>`.
 
 ## Where backups land
 
-Everything is under `/data/backups` in the `mangapixer-data` volume:
-
-| File | Written when |
-|---|---|
-| `rotating-<timestamp>.db` | Every 24 hours (first run 2 minutes after start) and when you select **Back up now**. The newest 7 are kept. |
-| `pre-migration-<timestamp>.db` | Before a schema upgrade. Never pruned. |
-| `pre-restore-<timestamp>.db` | Before a restore is staged. Never pruned. |
-
-Timestamps are UTC. To copy them to the host:
-
-```sh
-docker compose -f deploy/compose.yaml cp mangapixer:/data/backups ./mangapixer-backups
-```
-
-A backup contains the database only. See [Backup and restore](backup-and-restore.md)
-for what that covers, how to restore, and how to change the schedule.
+The server writes its own database snapshots to `/data/backups` in the `mangapixer-data` volume: a rotating one every 24 hours (newest 7 kept) plus one-off snapshots before schema upgrades and restores. What they contain, how to copy them out, how to restore one and how to change the schedule are all in [Backup and restore](backup-and-restore.md).
 
 ## Stopping and removing
 
@@ -209,5 +152,4 @@ for what that covers, how to restore, and how to change the schedule.
 docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml down
 ```
 
-`down` keeps the volumes. `down -v` **deletes them**, including your database
-and backups. Copy `/data/backups` out first if you ever do that.
+`down` keeps the volumes. `down -v` **deletes them**, including your database and backups. Copy `/data/backups` out first if you ever do that.
