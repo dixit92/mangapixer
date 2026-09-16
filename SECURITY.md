@@ -16,19 +16,19 @@ The newest version is always listed on the Releases page and in [CHANGELOG.md](C
 ## Reporting a vulnerability
 
 **Do not open a public issue, discussion, or pull request for a security problem.**
-
 Please report it privately through GitHub's private vulnerability reporting:
 
 1. Open the repository's **Security** tab.
 2. Choose **Report a vulnerability**.
+
 3. Fill in the advisory form. Only the maintainers can see it.
+
 
 <!-- TODO(owner): enable private vulnerability reporting under
 Settings > Code security > Private vulnerability reporting, or the
 "Report a vulnerability" button above will not appear. -->
 
-If you cannot use GitHub, e-mail the maintainers instead:
-<!-- TODO(owner): contact e-mail for security reports -->
+If you cannot use GitHub, e-mail the maintainer instead: [smitdixit92@gmail.com](mailto:smitdixit92@gmail.com).
 
 A useful report includes:
 

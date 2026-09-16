@@ -29,7 +29,9 @@ msiexec /i MangaPixer-1.13.0.msi /qn                 # silent, defaults
 msiexec /i MangaPixer-1.13.0.msi /qn RUNATSIGNIN=0   # silent, without start at sign-in
 ```
 
-<!-- TODO(owner): screenshot of the installer's last page with the "Start MangaPixer now" checkbox -->
+| Destination folder | Last page |
+|---|---|
+| ![The installer's Destination Folder page, defaulting to the Programs folder in your profile](../assets/screenshots/windows-installer-destination.png) | ![The installer's last page with the Start MangaPixer now checkbox ticked](../assets/screenshots/windows-installer-finish.png) |
 
 ## Step 2: the tray app
 
@@ -47,7 +49,7 @@ Start **MangaPixer** from the Start menu if the installer did not launch it. A M
 
 Closing the browser does nothing to the server. Only **Stop Server**, **Exit** or signing out of Windows stops it.
 
-<!-- TODO(owner): screenshot of the tray menu -->
+![The tray menu: Status, Open MangaPixer, Start, Stop and Restart Server, Set Port, Allow LAN Access, Start MangaPixer When I Sign In, Exit](../assets/screenshots/windows-tray-menu.png)
 
 ## Step 3: first-run setup and your first library
 
