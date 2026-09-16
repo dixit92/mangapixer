@@ -8,8 +8,6 @@ This guide walks through `deploy/compose.yaml`, the canonical way to run the ser
 - A clone of this repository. MangaPixer does not publish a prebuilt image yet, so you build the image from source. The build is fully containerized: you do not need .NET or Node.js on the host.
 - Your comics or manga in folders that the Docker host can read.
 
-<!-- TODO(owner): if a registry image is published, add a "pull instead of build" path here. -->
-
 ## What the Compose file sets up
 
 | Setting | Value | Why |

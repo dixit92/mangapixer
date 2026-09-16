@@ -10,8 +10,8 @@ in `/app/licenses/`: this file, `LICENSE`, the Angular build's
 `3rdpartylicenses.txt` (license texts of the npm packages bundled into the web
 app), and Magick.NET's `Notice.txt` as `Magick.NET-Notice.txt` (ImageMagick and
 the native libraries bundled in it). The Windows distribution
-(`scripts/Publish-Windows.ps1`, and the MSI built from it) carries this file and
-`LICENSE` in its install folder, next to `MangaPixer.Tray.exe`.
+(`scripts/Publish-Windows.ps1`, and the MSI built from it) carries the same four
+files in its install folder, next to `MangaPixer.Tray.exe` (section 6).
 
 Entry format: `name` - version - license (SPDX where one exists) - upstream URL.
 
@@ -31,70 +31,6 @@ License values come from each package's own metadata: the `<license>` element
 of the `.nuspec` in the NuGet cache, and the `license` field of
 `web/node_modules/<pkg>/package.json`. Container facts were read from the
 1.12.0 release image with `dpkg-query`.
-
-## Review before publishing
-
-<!-- TODO(owner): resolve or accept each item below before the repository or an image goes public. -->
-
-These are the items that are copyleft, non-standard, missing an SPDX expression,
-or where MangaPixer does not yet carry the notice that a license asks for.
-
-1. **Weak-copyleft code inside Magick.NET's native library (shipped).**
-   `Magick.NET-Q8-AnyCPU` 14.17.1 ships a single native binary per platform
-   (`runtimes/<rid>/native/Magick.Native-Q8-*`). Its `Notice.txt` lists ImageMagick and
-   36 bundled libraries, and 12 of them are LGPL- or MPL-licensed:
-   cairo 1.18.4 (MPL-1.1), libcroco 0.6.13 (LGPL-2.0), libde265 1.1.1 (LGPL-3.0), fribidi 1.0.16 (LGPL-2.1-or-later), gdk-pixbuf 2.44.8 (LGPL-2.1-or-later), glib 2.64.3 (LGPL-2.1-or-later), libheif 1.23.2 (LGPL-3.0), liblqr 0.4.2 (LGPL-3.0), liblzma 5.8.3 (LGPL-2.1-or-later), pango 1.45.3 (LGPL-2.0), libraw 0.22.2 (LGPL-2.1), librsvg 2.40.20 (LGPL-2.0).
-   Redistributing the image or installer means redistributing these. LGPL terms
-   cover license text, notices, and the recipient's ability to replace or relink
-   the library. Get a legal read on whether the upstream Magick.NET distribution
-   already satisfies that, or whether MangaPixer has to ship extra material.
-2. **Which license texts ship with the binaries.** MIT, BSD, Apache-2.0, OFL-1.1
-   and LGPL all ask for the notice or license to go with binary copies.
-   `deploy/Dockerfile` copies this file, `LICENSE`, the Angular build's
-   `3rdpartylicenses.txt` and Magick.NET's `Notice.txt` into `/app/licenses/`
-   (the build fails if `Notice.txt` cannot be found in the restored package).
-   The Windows distribution ships this file and `LICENSE` only. Remaining gaps to
-   accept or close: `dotnet publish` still copies no per-package NuGet license
-   files (this file lists each package with its license and upstream URL
-   instead), and the Windows distribution does not yet carry
-   `3rdpartylicenses.txt` or Magick.NET's `Notice.txt`.
-3. **`Microsoft.EntityFrameworkCore.Design` ships in the image.** It is design-time
-   tooling (its nuspec sets `developmentDependency`), yet the server publish output
-   contains it and 27 packages that come in only through it
-   (Roslyn, MSBuild, Humanizer, Mono.TextTemplating, Newtonsoft.Json, System.Composition
-   and more; see section 1b). All are MIT, so there is no license conflict, but they
-   grow the image and the attribution list. Marking the reference
-   `PrivateAssets="all"` would likely drop them. That is a code change, outside this lane.
-4. **The Roboto font is OFL-1.1, not Apache-2.0.** `@fontsource/roboto` 5.3.0
-   declares `OFL-1.1`, and its LICENSE is the SIL Open Font License 1.1. The
-   `.woff`/`.woff2` files ship in the image under `wwwroot/media/`. OFL
-   requires the copyright notice and license to go with the font files; see item 2.
-5. **`SQLite` 3.53.4 (the shipped native `e_sqlite3`) has no SPDX expression.**
-   Its nuspec points to a LICENSE.txt that says "SQLite is Public Domain"
-   (https://sqlite.org/copyright.html). It is listed below as `blessing`, the SPDX ID
-   for the SQLite dedication. No attribution is required.
-6. **`xunit.abstractions` 2.0.3 (test only) has no SPDX expression.** Its nuspec has
-   only a deprecated `licenseUrl`
-   (https://raw.githubusercontent.com/xunit/xunit/master/license.txt), which is
-   upstream xUnit's Apache-2.0 license. Not distributed.
-7. **Build-only npm packages with non-mainstream licenses** (not distributed; for information):
-   `@csstools/color-helpers` 6.1.1 (MIT-0), `@csstools/css-syntax-patches-for-csstree` 1.1.12 (MIT-0), `argparse` 2.0.1 (Python-2.0), `caniuse-lite` 1.0.30001810 (CC-BY-4.0), `lightningcss` 1.33.0 (MPL-2.0), `lightningcss-win32-x64-msvc` 1.33.0 (MPL-2.0), `lru-cache` 11.5.2 (BlueOak-1.0.0), `mdn-data` 2.27.1 (CC0-1.0), `minimatch` 10.2.6 (BlueOak-1.0.0), `sax` 1.6.1 (BlueOak-1.0.0).
-   The only copyleft one is MPL-2.0 (`lightningcss`, file-level weak copyleft). It is
-   a build-time CSS tool and none of its code reaches the bundle.
-8. **The container image redistributes an Ubuntu 24.04 userland.** It includes
-   GPL-licensed packages (bash, coreutils and others; see section 5). That is normal for
-   a published image, but GPL terms on source availability apply to whoever
-   distributes the image. `scripts/Package-Release.ps1` already produces an SPDX
-   SBOM that lists every OS package.
-9. **License metadata elsewhere in the repo (resolved).** `deploy/compose.yaml` and
-   `deploy/compose.unraid.yaml` label the image
-   `org.opencontainers.image.licenses: "MIT"`, and `Directory.Build.props` sets
-   `<Authors>` and `<Copyright>` to match `LICENSE`, so the assemblies carry that
-   copyright metadata. `<Company/>` stays empty.
-10. **Inventory note:** `npm ls --all` exits with `ELSPROBLEMS` because two dev-tree
-    packages are "invalid", meaning the installed version is outside a dependent's range:
-    `chokidar@5.0.0` and `@noble/hashes@1.4.0`. This affects version ranges only,
-    not licenses, and both are build-only.
 
 ## 1. .NET packages - shipped (79)
 
@@ -149,7 +85,7 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 - `Serilog.Sinks.File` - 7.0.0 - Apache-2.0 - https://github.com/serilog/serilog-sinks-file
 - `Serilog` - 4.3.0 - Apache-2.0 - https://github.com/serilog/serilog
 - `SharpCompress` - 0.50.4 - MIT - https://github.com/adamhathcock/sharpcompress
-- `SQLite` - 3.53.4 - blessing (SQLite public-domain dedication; no SPDX expression in nuspec - see Review) - https://sqlite.org/
+- `SQLite` - 3.53.4 - blessing (SQLite public-domain dedication; the nuspec has no SPDX expression and points to https://sqlite.org/copyright.html) - https://sqlite.org/
 - `SQLitePCLRaw.bundle_e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
 - `SQLitePCLRaw.config.e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
 - `SQLitePCLRaw.core` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
@@ -158,7 +94,7 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 
 ### 1b. Shipped only through `Microsoft.EntityFrameworkCore.Design` (28)
 
-Design-time EF Core tooling and its dependency tree (see Review item 3). This set
+Design-time EF Core tooling and its dependency tree: `Microsoft.EntityFrameworkCore.Design` is a development dependency, yet the publish output contains it and everything it pulls in. All of it is MIT. This set
 is computed from the dependency graph in the published `MangaPixer.Server.deps.json`.
 
 - `Humanizer.Core` - 2.14.1 - MIT - https://github.com/Humanizr/Humanizer
@@ -301,7 +237,7 @@ shared framework.
 - `System.Security.Cryptography.Pkcs` - 10.0.11 - MIT - https://github.com/dotnet/dotnet
 - `System.Security.Cryptography.Pkcs` - 9.0.0 - MIT - https://github.com/dotnet/runtime
 - `System.Security.Cryptography.Xml` - 10.0.11 - MIT - https://github.com/dotnet/dotnet
-- `xunit.abstractions` - 2.0.3 - Apache-2.0 (nuspec has only a licenseUrl - see Review) - https://github.com/xunit/xunit
+- `xunit.abstractions` - 2.0.3 - Apache-2.0 (the nuspec has only a licenseUrl, which points at upstream xUnit's Apache-2.0 license) - https://github.com/xunit/xunit
 - `xunit.analyzers` - 1.18.0 - Apache-2.0 - https://github.com/xunit/xunit.analyzers
 - `xunit.assert` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
 - `xunit.core` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
@@ -1256,9 +1192,16 @@ by the packages above) keeps its own license. Each one's copyright file is at
 
 ## 6. Windows distribution
 
-<!-- TODO(owner): the Windows tray app / MSI installer (parallel cycle) will need its own inventory. A self-contained Windows publish also redistributes the .NET runtime (MIT) and its THIRD-PARTY-NOTICES.TXT, the Windows native binaries (Magick.Native-Q8-x64.dll, e_sqlite3.dll), and any installer-toolchain runtime. Add them here once that build exists. -->
+The Windows package (`scripts/Publish-Windows.ps1` stages it; `installer/MangaPixer.Installer` builds the MSI from that folder) ships the same server and worker as the container image, so sections 1a-1d apply to it unchanged. Beyond those packages it redistributes the following. Versions were read from the published binaries of MangaPixer 1.13.0 (`dev` @ `66ed9ac`, .NET SDK 10.0.401).
 
-Not yet covered - see the TODO above.
+- `.NET runtime` - 10.0.12 (win-x64, self-contained: `coreclr.dll`, `clrjit.dll`, `hostfxr.dll`, `hostpolicy.dll`, `msquic.dll`, `System.IO.Compression.Native.dll`, the `System.*` assemblies and the diagnostics helpers, published into `server\` and `worker\`) - MIT - https://github.com/dotnet/runtime. Microsoft's own third-party notices for the runtime are in that repository's `THIRD-PARTY-NOTICES.TXT`; `dotnet publish` does not copy that file.
+- `ASP.NET Core runtime` - 10.0.12 (`Microsoft.AspNetCore.*` assemblies, server only) - MIT - https://github.com/dotnet/aspnetcore
+- `.NET Windows Desktop runtime` (Windows Forms) - 10.0.12, inside the single-file `MangaPixer.Tray.exe` - MIT - https://github.com/dotnet/winforms. The tray project references no NuGet packages; the framework is all it ships.
+- `Magick.Native-Q8-x64.dll` - the Windows build of the native library described in section 1c: the same bundled components and licenses, from the same `Magick.NET-Q8-AnyCPU` 14.17.1 package. Its `Notice.txt` ships as `Magick.NET-Notice.txt` next to the tray executable.
+- `e_sqlite3.dll` - SQLite 3.53.4 (win-x64, from `SQLitePCLRaw.bundle_e_sqlite3`, section 1a) - blessing (SQLite public-domain dedication) - https://sqlite.org/
+- `WiX Toolset` - 6.0.2 (`WixToolset.Sdk`, `WixToolset.UI.wixext`, `WixToolset.Util.wixext`, restored as the pinned `wix` .NET tool by `scripts/Build-Installer.ps1`) - MS-RL (Microsoft Reciprocal License) for the source; the prebuilt packages are provided under the WiX Open Source Maintenance Fee agreement, whose fee applies only to revenue-generating use and which leaves redistribution of built output governed by MS-RL - https://github.com/wixtoolset/wix. The MSI embeds the two extensions' custom-action libraries (the WixUI and WixUtil custom actions) in its `Binary` table; nothing else from the toolset reaches users. `License.rtf`, shown by the installer, is the MIT text of `LICENSE`.
+
+The install folder carries this file, `LICENSE`, the Angular build's `3rdpartylicenses.txt` and `Magick.NET-Notice.txt`, the same four files the container image places in `/app/licenses/`.
 
 ## 7. Regenerating this inventory
 

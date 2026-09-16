@@ -18,9 +18,11 @@
         worker/                 self-contained win-x64 MangaPixer.MediaWorker.exe
         MangaPixer.Tray.exe      the tray launcher project, if present
                                  (src/MangaPixer.Tray)
-        LICENSE, THIRD-PARTY-NOTICES.md
-                                 license notices; the MSI harvests this whole
-                                 folder, so they are installed too
+        LICENSE, THIRD-PARTY-NOTICES.md, 3rdpartylicenses.txt, Magick.NET-Notice.txt
+                                 license notices (the same four files the
+                                 container image ships in /app/licenses/); the
+                                 MSI harvests this whole folder, so they are
+                                 installed too
 
     Never touches deploy/**, Version.props, package.json, or the tray project.
     Default bind: http://127.0.0.1:27272 (see -BindUrl).
@@ -147,6 +149,21 @@ Write-Stage "Copy license notices"
 foreach ($notice in @("LICENSE", "THIRD-PARTY-NOTICES.md")) {
     Copy-Item (Join-Path $repoRoot $notice) (Join-Path $distRoot $notice) -Force
 }
+# The Angular build writes the license texts of the bundled npm packages next
+# to (not inside) the browser output folder that is copied into wwwroot.
+$webLicenses = Join-Path (Split-Path -Parent $webDist) "3rdpartylicenses.txt"
+if (-not (Test-Path $webLicenses)) { throw "Web license file not found: $webLicenses" }
+Copy-Item $webLicenses (Join-Path $distRoot "3rdpartylicenses.txt") -Force
+# Magick.NET's Notice.txt (ImageMagick + the native libraries bundled in
+# Magick.Native) is not copied by dotnet publish; take it from the restored
+# package, version-independently, and fail rather than ship without it. Same
+# rule as deploy/Dockerfile.
+$nugetRoot = if ($env:NUGET_PACKAGES) { $env:NUGET_PACKAGES } else { Join-Path $HOME ".nuget/packages" }
+$magickNotice = Get-ChildItem (Join-Path $nugetRoot "magick.net-q8-anycpu") -Directory -ErrorAction SilentlyContinue |
+    Sort-Object { [Version]($_.Name -replace '[^0-9.].*$', '') } |
+    Select-Object -Last 1 | ForEach-Object { Join-Path $_.FullName "Notice.txt" }
+if (-not $magickNotice -or -not (Test-Path $magickNotice)) { throw "Magick.NET Notice.txt not found under $nugetRoot/magick.net-q8-anycpu" }
+Copy-Item $magickNotice (Join-Path $distRoot "Magick.NET-Notice.txt") -Force
 
 Write-Stage "Publish-Windows summary"
 Write-Host "Staging folder: $distRoot" -ForegroundColor Green

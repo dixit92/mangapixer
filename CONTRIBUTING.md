@@ -2,7 +2,7 @@
 
 Thanks for your interest in MangaPixer, a folder-native comic/manga server with an Angular web reader. This guide explains how to set up a development environment, how changes are verified, and the rules every contribution has to follow.
 
-By participating you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md). Security problems should **not** be filed as public issues; see [SECURITY.md](SECURITY.md).
+Be respectful in issues, discussions and reviews; a formal code of conduct will follow if a community forms around the project. Security problems should **not** be filed as public issues; see [SECURITY.md](SECURITY.md).
 
 ## Ways to contribute
 

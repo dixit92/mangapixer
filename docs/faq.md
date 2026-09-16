@@ -55,7 +55,7 @@ Cache and scratch do not need to be copied.
 
 ### How much disk space does it need?
 
-- **Database:** usually small, growing with the number of archives and users.
+- **Database:** grows with the number of archives and users. <0.5 GB for 10,000+ tracked archives
 - **Thumbnails:** one small WebP per archive, in the data root.
 - **Page cache:** capped at 1 GiB by default.
 - **Scratch:** up to 1 GiB, and only used heavily by solid archives.
