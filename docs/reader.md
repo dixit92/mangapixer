@@ -2,7 +2,7 @@
 
 Select any archive in a library to open it in the reader. This page covers the reader's layouts, controls and how it remembers where you are.
 
-<!-- TODO(owner): screenshot of the reader toolbar on desktop -->
+![The reader toolbar on desktop: back arrow and page counter on the left; previous and next chapter, reading mode, image fit, direction, page transition, help and fullscreen on the right](../assets/screenshots/docs-reader-toolbar-desktop.png)
 
 ## Toolbar
 
@@ -35,7 +35,7 @@ On screens narrower than 600 px, the toolbar keeps only **Next chapter**, **Full
 
 Changing a setting keeps the sheet open.
 
-<!-- TODO(owner): screenshot of the phone Reader options sheet -->
+![The Reader options bottom sheet on a phone, with the Layout, Image fit, Reading direction and Page transition groups and the chapter buttons](../assets/screenshots/docs-reader-phone-options.png)
 
 ## Page modes
 
@@ -139,7 +139,7 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
 
 Select **Reading help** (`?`) or press `?` to see the controls for the current mode, drawn over the page. The overlay opens automatically the first time you use the reader on each device. Tap anywhere to close it.
 
-<!-- TODO(owner): screenshot of the help overlay -->
+![The help overlay drawn over a page: tap zones on the left, center and right, the swipe band across the middle, and the Reader controls card listing the keyboard shortcuts](../assets/screenshots/docs-reader-help-overlay.png)
 
 ## Moving between chapters
 

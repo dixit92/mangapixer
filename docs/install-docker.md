@@ -97,7 +97,7 @@ Open `http://127.0.0.1:8080` in a browser. The **Welcome to MangaPixer** setup s
 
 The setup screen only works while the server has no users. After the first account exists, the setup endpoint refuses every request, so nobody can use it to create a second admin.
 
-<!-- TODO(owner): screenshot of the first-run setup screen -->
+![The first-run setup screen: Welcome to MangaPixer, with the admin username, password and confirmation fields and the Create account button](../assets/screenshots/docs-setup-screen.png)
 
 ## Step 6: add a library
 
@@ -106,7 +106,7 @@ The setup screen only works while the server has no users. After the first accou
 3. Select **Register**.
 4. Select the **Scan now** button (the circular-arrow icon) on the new library's row. Registering a library does not scan it, and the server never scans on its own; you start every scan. See [Library layout](library-layout.md#rescans-moves-and-deletions).
 
-<!-- TODO(owner): screenshot of the Administration > Libraries card -->
+![The Libraries card on the Administration page: an existing library row with its Direction menu and action icons, and the Register New Library form with Display Name, Root Path, Browse and Register](../assets/screenshots/docs-admin-libraries.png)
 
 New users you create see no libraries until you give them access. See [Users and access](users-and-access.md).
 

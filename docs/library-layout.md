@@ -28,6 +28,8 @@ There is no special "series" or "chapter" type. By convention a series is a fold
 └── A One-shot.cbz                <- archives can sit at any level, including the root
 ```
 
+![A series folder in the library view: the breadcrumb, the View, Filter and Select buttons, the Start reading row and one card per chapter archive](../assets/screenshots/docs-library-folder.png)
+
 Structure matters in two places:
 
 - **Next/previous chapter** in the reader moves between archives in the *same folder*. It does not cross into a sibling folder, so `Vol 01` does not continue into `Vol 02`.
