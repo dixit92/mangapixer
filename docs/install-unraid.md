@@ -61,7 +61,7 @@ services:
       PUID: "99"
       PGID: "100"
     volumes:
-      - /mnt/user/Reading:/media/reading:ro
+      - /mnt/user/Manga:/media/manga:ro
       - /mnt/user/Comics:/media/comics:ro
 ```
 
@@ -91,7 +91,7 @@ It answers `Healthy`. If port 6266 is already taken, change the left-hand number
 
 ## Step 5: first-run setup and libraries
 
-Open `http://<unraid-ip>:6266`. There is no default account. Create the first admin on the **Welcome to MangaPixer** screen, then register and scan your libraries. Use root paths like `/media/reading`. The steps are the same as [steps 5 and 6 of the Docker guide](install-docker.md#step-5-create-the-admin-account).
+Open `http://<unraid-ip>:6266`. There is no default account. Create the first admin on the **Welcome to MangaPixer** screen, then register and scan your libraries. Use root paths like `/media/manga`. The steps are the same as [steps 5 and 6 of the Docker guide](install-docker.md#step-5-create-the-admin-account).
 
 Port 6266 is published on every interface, but the server itself only speaks plain HTTP. If you plan to reach it from outside your LAN, put it behind a [reverse proxy with HTTPS](reverse-proxy-and-https.md), and consider binding the port to a specific address.
 

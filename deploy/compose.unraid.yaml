@@ -55,12 +55,12 @@ services:
       # Uncomment and edit to point at your manga/comic shares. Each mounted
       # share becomes a library root you configure via the admin UI/API.
       # Multiple shares are fine; add one line each.
-      # - /mnt/user/Reading:/media/reading:ro
+      # - /mnt/user/Manga:/media/manga:ro
       #
       #
       # Each library's folder is picked in the admin UI. The folder picker
       # starts at /media; to start it elsewhere, set (under environment:)
-      #   MangaPixer__Storage__MediaRoot: "/media/reading"
+      #   MangaPixer__Storage__MediaRoot: "/media/manga"
     restart: unless-stopped
     logging:
       driver: local
