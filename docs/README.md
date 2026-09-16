@@ -8,7 +8,7 @@ These guides are for people who run MangaPixer on their own hardware. They descr
 |---|---|
 | [Install with Docker](install-docker.md) | The canonical Compose setup: volumes, media mounts, ports, first-run setup, upgrades, where backups land. |
 | [Install on Unraid](install-unraid.md) | The Unraid Compose file: single `/config` folder, `PUID`/`PGID`, media shares, keeping private paths in an override file. |
-| [Install on Windows](install-windows.md) | Placeholder for the upcoming native Windows installer. |
+| [Install on Windows](install-windows.md) | The native package since 1.13.0: the MSI installer, the tray app, ports and LAN access, where data lives, upgrades and uninstall. |
 
 ## Set up and run
 
