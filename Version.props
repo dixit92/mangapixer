@@ -176,9 +176,15 @@
          holds the database file open (Windows + bind-mount first-start failure). Git history
          author identity rewritten to the GitHub noreply address before the first push. No
          schema change; additive/renamed API surface only -> MINOR per SemVer 2.0.0. -->
+    <!-- 1.14.1 - PATCH over 1.14.0 (2026-09-16), deployment files, docs and release tooling only;
+         no app behavior, API or schema change. The Compose files pull the published image from
+         ghcr.io/dixit92/mangapixer (build section moved to the compose.build.yaml overlay), the
+         install guides and README describe the pull-based install, the release build embeds the
+         commit SHA (the 1.14.0 image reported "+dirty"), and the release gate fixes from the
+         1.14.0 cut (Linux smoke marker, Verify-Contracts version stage) are recorded. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
     <MangaPixerVersionMinor>14</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
