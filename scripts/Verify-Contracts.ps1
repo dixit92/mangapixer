@@ -39,11 +39,19 @@ function Invoke-Stage {
 
 # Stage 1: Version consistency check
 Invoke-Stage "Version consistency" {
+    # Version.props composes MangaPixerVersionFull from four parts with MSBuild
+    # conditions, so compose it the same way here instead of matching a literal.
     $versionProps = Get-Content (Join-Path $repoRoot "Version.props") -Raw
-    if ($versionProps -notmatch '<MangaPixerVersionFull>([^<]+)</MangaPixerVersionFull>') {
-        throw "Could not find MangaPixerVersionFull in Version.props"
+    $parts = @{}
+    foreach ($name in "Major", "Minor", "Patch", "Prerelease") {
+        if ($versionProps -match "<MangaPixerVersion$name>([^<]*)</MangaPixerVersion$name>") {
+            $parts[$name] = $Matches[1].Trim()
+        } elseif ($name -ne "Prerelease") {
+            throw "Could not find MangaPixerVersion$name in Version.props"
+        }
     }
-    $expectedVersion = $Matches[1]
+    $expectedVersion = "$($parts.Major).$($parts.Minor).$($parts.Patch)"
+    if ($parts.Prerelease) { $expectedVersion += "-$($parts.Prerelease)" }
     Write-Host "Product version: $expectedVersion"
 
     $packageJson = Get-Content (Join-Path $repoRoot "web/package.json") -Raw | ConvertFrom-Json
