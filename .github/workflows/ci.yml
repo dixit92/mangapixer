@@ -4,7 +4,13 @@
 # CI calls the repository's verification scripts; it never re-implements their
 # steps. What runs is exactly `pwsh ./scripts/Verify.ps1 -Configuration Release`
 # (privacy preflight, locked restore, dotnet format, Release build, all .NET
-# tests, npm ci + lint + production build, Compose validation).
+# tests, npm ci + lint + production build + Vitest unit tests, Compose
+# validation). See that script's header for the full ordered stage list.
+#
+# Playwright e2e (`npm run e2e`) is NOT run: it needs an already-running
+# instance this tier does not provision. It stays a manual / reviewer step
+# (CONTRIBUTING.md, the PR template). The Vitest unit suite has no such
+# dependency and does run here.
 #
 # Required status check name for branch protection: "Verify (Full tier)"
 # (job id: verify).
