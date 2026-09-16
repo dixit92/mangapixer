@@ -48,7 +48,7 @@ jobs:
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -163,7 +163,7 @@ jobs:
       contents: write   # attach the MSI to the release
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
