@@ -4,8 +4,7 @@
 
 **A self-hosted, multi-user, folder-native manga and comic library server with a web reader. Also works standalone on Windows!**
 
-[![Version](https://img.shields.io/github/v/release/OWNER/REPO?label=version&color=6d4aff)](https://github.com/OWNER/REPO/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Verify](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
-<!-- TODO(owner): pre-push - replace OWNER/REPO in the three badge URLs above with the real GitHub path (same as .github/ISSUE_TEMPLATE/config.yml). -->
+[![Version](https://img.shields.io/github/v/release/dixit92/mangapixer?label=version&color=6d4aff)](https://github.com/dixit92/mangapixer/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Verify](https://github.com/dixit92/mangapixer/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/dixit92/mangapixer/actions/workflows/ci.yml)
 
 MangaPixer serves your existing manga and comic folders to any browser.
 
