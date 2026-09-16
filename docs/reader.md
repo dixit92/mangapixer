@@ -2,6 +2,8 @@
 
 Select any archive in a library to open it in the reader. This page covers the reader's layouts, controls and how it remembers where you are.
 
+![The reader on desktop: a single page centered on a dark background, the toolbar above and the page slider below](../assets/screenshots/docs-reader-desktop.png)
+
 ![The reader toolbar on desktop: back arrow and page counter on the left; previous and next chapter, reading mode, image fit, direction, page transition, help and fullscreen on the right](../assets/screenshots/docs-reader-toolbar-desktop.png)
 
 ## Toolbar
