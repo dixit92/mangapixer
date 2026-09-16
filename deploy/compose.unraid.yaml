@@ -1,7 +1,7 @@
-# MangaPlex Unraid-targeted Compose file
+# MangaPixer Unraid-targeted Compose file
 #
 # Differences from deploy/compose.yaml (the canonical volume-based default):
-#   - Single /config bind to /mnt/user/appdata/MangaPlex (Plex-style),
+#   - Single /config bind to /mnt/user/appdata/MangaPixer (Plex-style),
 #     instead of three named Docker volumes. All state (database, keys,
 #     cache, scratch) lives under that one host folder so it is covered by
 #     the array/parity and your normal appdata backup.
@@ -21,11 +21,11 @@
 # (gitignored) and put your mounts there.
 
 services:
-  mangaplex:
+  mangapixer:
     # Pre-built image path (recommended): build on your dev machine with
     # Package-Release.ps1, transfer the tar to Unraid, docker load it, then
     # `up -d` here. No repo needed on Unraid.
-    image: mangaplex:${MANGAPLEX_VERSION:-1.0.0}
+    image: mangapixer:${MANGAPIXER_VERSION:-latest}
     # To build on Unraid instead, comment out `image:` above and uncomment:
     # build:
     #   context: ..
@@ -44,23 +44,23 @@ services:
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
       # Redirect state roots into the single /config bind.
-      MangaPlex__Storage__DataRoot: "/config/data"
-      MangaPlex__Storage__CacheRoot: "/config/cache"
-      MangaPlex__Storage__ScratchRoot: "/config/scratch"
+      MangaPixer__Storage__DataRoot: "/config/data"
+      MangaPixer__Storage__CacheRoot: "/config/cache"
+      MangaPixer__Storage__ScratchRoot: "/config/scratch"
     volumes:
       # Single appdata bind — Plex-style. Back this up with your normal
       # /mnt/user/appdata backup strategy.
-      - /mnt/user/appdata/MangaPlex:/config
+      - /mnt/user/appdata/MangaPixer:/config
       # --- Media mounts (read-only) ---
       # Uncomment and edit to point at your manga/comic shares. Each mounted
       # share becomes a library root you configure via the admin UI/API.
       # Multiple shares are fine; add one line each.
-      # - /mnt/user/Reading:/media/reading:ro
+      # - /mnt/user/Manga:/media/manga:ro
       #
-      # Then set Media__RootPath (or per-library rootPath) to the mounted
-      # path, e.g.:
-      # environment:
-      #   Media__RootPath: "/media/reading"
+      #
+      # Each library's folder is picked in the admin UI. The folder picker
+      # starts at /media; to start it elsewhere, set (under environment:)
+      #   MangaPixer__Storage__MediaRoot: "/media/manga"
     restart: unless-stopped
     logging:
       driver: local
@@ -73,7 +73,7 @@ services:
     tmpfs:
       - /tmp
     labels:
-      org.opencontainers.image.title: "MangaPlex"
+      org.opencontainers.image.title: "MangaPixer"
       org.opencontainers.image.description: "Folder-native comic/manga server and Angular web reader"
-      org.opencontainers.image.version: "${MANGAPLEX_VERSION:-1.0.0}"
-      org.opencontainers.image.licenses: "proprietary"
+      org.opencontainers.image.version: "${MANGAPIXER_VERSION:-latest}"
+      org.opencontainers.image.licenses: "MIT"

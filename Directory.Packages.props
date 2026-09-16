@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Directory.Packages.props — Central Package Management (CPM) for MangaPlex.
+  Directory.Packages.props — Central Package Management (CPM) for MangaPixer.
   All NuGet package versions are pinned here. Individual .csproj files reference
   packages without versions. Update versions only here with advisory review.
 
-  P00: Archive/image packages (SharpCompress, Magick.NET) are NOT referenced yet.
-  They are added in P01 after version vetting and compatibility verification.
+  Archive/image packages (SharpCompress, Magick.NET) are pinned below only
+  after version vetting and compatibility verification.
 -->
 <Project>
   <PropertyGroup>
@@ -35,7 +35,7 @@
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
 
-    <!-- Archive and image processing (P01: vetted versions) -->
+    <!-- Archive and image processing (versions vetted for compatibility) -->
     <PackageVersion Include="SharpCompress" Version="0.50.4" />
     <PackageVersion Include="Magick.NET-Q8-AnyCPU" Version="14.17.1" />
 

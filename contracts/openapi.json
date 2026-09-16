@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.1",
   "info": {
-    "title": "MangaPlex.Server | v1",
+    "title": "MangaPixer.Server | v1",
     "version": "1.0.0"
   },
   "servers": [

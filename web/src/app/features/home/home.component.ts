@@ -19,19 +19,19 @@ import {
 import { readerModeGlyph } from '../../shared/reader-mode-glyph';
 
 /**
- * Home page. As of 1.5.0 the library **sidebar was promoted to the app shell**
+ * Home page. The library **sidebar was promoted to the app shell**
  * (`LibrarySidebarComponent`, rendered by `layout.component`), so home no longer
  * owns a sidebar and no longer filters its continue-reading by a locally selected
  * library. Home shows three sections:
  *   1. the consolidated **Continue reading** row across all (non-Private, while
  *      incognito) libraries,
- *   2. the **New chapters** row - as of 1.12.0 one STACKED card per top-level unit
- *      (a top-level folder with recently-added descendant archives, or a loose
+ *   2. the **New chapters** row - one STACKED card per top-level unit (a
+ *      top-level folder with recently-added descendant archives, or a loose
  *      top-level archive), grouped by library, newest activity first, and
  *   3. the **library grid**, each card showing a reading-direction indicator
- *      (Task C) derived from `LibraryDto.defaultReaderMode`.
+ *      derived from `LibraryDto.defaultReaderMode`.
  *
- * 1.12.0 home polish (Lane B):
+ * Additional details:
  *   - Stacked cards (`RecentChapterStack`): the cover, the unit's name, the newest
  *     chapter's name, and a "+N" badge when the stack holds more than one new
  *     chapter. Tapping a FOLDER stack opens that folder's browse with the
@@ -48,7 +48,7 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
  * Folder-tap sort: a folder card routes with a TRANSIENT `?sort=recentlyUpdated`
  * query param that the browse view honours for that view ONLY (descending, per the
  * 1.10.4 recency rule) - it does NOT persist to the user's library preference, so
- * opening a library normally stays Name-ascending (owner refinement, 1.12.0). The
+ * opening a library normally stays Name-ascending. The
  * plain href carries the same query param so open-in-new-tab is consistent.
  *
  * Switching libraries is a shell-sidebar navigation (routes to
@@ -298,7 +298,7 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
     }
     .library-card { cursor: pointer; position: relative; }
     .lib-icon { font-size: 40px; width: 40px; height: 40px; color: #888; }
-    /* Reading-direction indicator (Task C): a subtle glyph in the card's top-right
+    /* Reading-direction indicator: a subtle glyph in the card's top-right
        corner. The direction name is carried by the tooltip and aria-label. */
     .card-dir {
       position: absolute; top: 10px; right: 10px;
@@ -321,7 +321,7 @@ export class HomeComponent implements OnInit {
   /**
    * Home library visibility (1.12.0): the per-user, server-persisted EXCLUDED set, read
    * on load to filter which libraries contribute New-chapters cards. The picker that
-   * EDITS this set lives under Settings > New Chapters (owner refinement, 1.12.0); home
+   * EDITS this set lives under Settings > New Chapters (1.12.0); home
    * only reads it here.
    */
   readonly excludedLibraryIds = signal<ReadonlySet<string>>(new Set());
@@ -405,7 +405,7 @@ export class HomeComponent implements OnInit {
    * carries the same transient sort). A plain click routes with a TRANSIENT
    * `?sort=recentlyUpdated` query param that the browse view honours for this view
    * only - it does NOT change the user's persisted library sort, so opening a
-   * library normally stays Name-ascending. (1.12.0 owner refinement.)
+   * library normally stays Name-ascending. (1.12.0)
    */
   openFolder(event: MouseEvent, group: RecentChaptersLibraryGroup, stack: RecentChapterStack): void {
     if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;

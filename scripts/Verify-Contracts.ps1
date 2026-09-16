@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Verify-Contracts.ps1
+    MangaPixer Verify-Contracts.ps1
     For API/DTO/migration/protocol/version changes: run drift and compatibility checks.
     Verifies OpenAPI regenerate/compare, generated Angular types, worker protocol tests,
     SemVer/build-identity checks, and migration model snapshot check.
@@ -39,11 +39,19 @@ function Invoke-Stage {
 
 # Stage 1: Version consistency check
 Invoke-Stage "Version consistency" {
+    # Version.props composes MangaPixerVersionFull from four parts with MSBuild
+    # conditions, so compose it the same way here instead of matching a literal.
     $versionProps = Get-Content (Join-Path $repoRoot "Version.props") -Raw
-    if ($versionProps -notmatch '<MangaPlexVersionFull>([^<]+)</MangaPlexVersionFull>') {
-        throw "Could not find MangaPlexVersionFull in Version.props"
+    $parts = @{}
+    foreach ($name in "Major", "Minor", "Patch", "Prerelease") {
+        if ($versionProps -match "<MangaPixerVersion$name>([^<]*)</MangaPixerVersion$name>") {
+            $parts[$name] = $Matches[1].Trim()
+        } elseif ($name -ne "Prerelease") {
+            throw "Could not find MangaPixerVersion$name in Version.props"
+        }
     }
-    $expectedVersion = $Matches[1]
+    $expectedVersion = "$($parts.Major).$($parts.Minor).$($parts.Patch)"
+    if ($parts.Prerelease) { $expectedVersion += "-$($parts.Prerelease)" }
     Write-Host "Product version: $expectedVersion"
 
     $packageJson = Get-Content (Join-Path $repoRoot "web/package.json") -Raw | ConvertFrom-Json
@@ -56,12 +64,12 @@ Invoke-Stage "Version consistency" {
 
 # Stage 2: .NET build and contract tests
 Invoke-Stage "dotnet build" {
-    dotnet build MangaPlex.slnx -c Release 2>&1 | Out-Host
+    dotnet build MangaPixer.slnx -c Release 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
 }
 
 Invoke-Stage "dotnet test (contracts)" {
-    dotnet test MangaPlex.slnx --no-build -c Release --filter "FullyQualifiedName~Contracts|FullyQualifiedName~Ordering|FullyQualifiedName~Protocol" --verbosity normal 2>&1 | Out-Host
+    dotnet test MangaPixer.slnx --no-build -c Release --filter "FullyQualifiedName~Contracts|FullyQualifiedName~Ordering|FullyQualifiedName~Protocol" --verbosity normal 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Contract tests failed" }
 }
 

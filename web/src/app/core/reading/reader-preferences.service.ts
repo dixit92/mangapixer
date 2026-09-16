@@ -31,8 +31,8 @@ export type PageAnimation = 'slide' | 'reveal' | 'none';
  */
 @Injectable({ providedIn: 'root' })
 export class ReaderPreferencesService {
-  static readonly PageAnimationKey = 'mangaplex-reader-page-animation';
-  static readonly HelpSeenKey = 'mangaplex-reader-help-seen';
+  static readonly PageAnimationKey = 'mangapixer-reader-page-animation';
+  static readonly HelpSeenKey = 'mangapixer-reader-help-seen';
 
   /** Default page-turn transition (owner request 1.9.0): a tasteful slide. */
   static readonly DefaultPageAnimation: PageAnimation = 'slide';

@@ -1,0 +1,63 @@
+name: Feature request
+description: Suggest an idea or an improvement for MangaPixer.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. If the idea is still rough, consider starting a
+        thread in Discussions first. It is easier to shape an idea there before it
+        becomes a tracked request.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation or frustration, not only the solution.
+      placeholder: When I read long webtoon series on my phone, I ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like MangaPixer to behave?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you use today, or how other readers handle this.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Reader
+        - Library browse and search
+        - Home and continue reading
+        - Administration and users
+        - Scanning and library management
+        - Deployment and packaging
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and discussions for a similar request.
+          required: true
+        - label: >-
+            I understand MangaPixer never modifies source media. Features that
+            write into library folders, such as renaming files or embedding
+            metadata, are out of scope.
+          required: false

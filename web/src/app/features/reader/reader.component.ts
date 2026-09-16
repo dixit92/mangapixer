@@ -36,7 +36,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
  * vertical-webtoon views. All views address pages by the manifest's opaque entry
  * keys, never numeric indices.
  *
- * Reader-view requirements (2026-09-07 review, see the MVP-gap checkpoint):
+ * Reader-view behavior:
  *  1. Fit-to-screen (contain) is the default image fit.
  *  2. Page navigation is via the invisible left/right edge tap zones and the arrow
  *     keys; the on-screen prev/next chevron FABs were removed (2026-09-08) as
@@ -130,9 +130,9 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
         </span>
         <span class="spacer"></span>
 
-        <!-- Requirement 3 (revised 2026-09-08): controls stay visible in fullscreen. -->
+        <!-- Controls stay visible in fullscreen. -->
         @if (phase() === 'ready' && compact()) {
-          <!-- PHONE bar (requirement 10): Next chapter + Fullscreen stay where they
+          <!-- PHONE bar: Next chapter + Fullscreen stay where they
                were (first and last of the right-hand group), everything else is
                one tap away in the options sheet. -->
           <button mat-icon-button (click)="nextChapter()" [disabled]="!hasNextChapter()"
@@ -195,7 +195,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
           </mat-menu>
 
           @if (view() === 'webtoon') {
-            <!-- Requirement 6: webtoon width slider replaces the inoperative fit menu. -->
+            <!-- Webtoon width slider replaces the inoperative fit menu. -->
             <mat-icon class="slider-icon" aria-hidden="true">width_normal</mat-icon>
             <mat-slider class="width-slider" min="15" max="100" step="5"
                         matTooltip="Page width" aria-label="Webtoon page width">
@@ -256,7 +256,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
         </div>
       } @else if (view() === 'webtoon') {
         <!-- Vertical continuous scroll; progress tracked by scroll position.
-             1.11.0 tap-to-scroll (requirement 11): a tap resolves by vertical
+             Tap-to-scroll (added 1.11.0): a tap resolves by vertical
              thirds (onWebtoonTap) and a horizontal swipe steps a screen (the shared
              pointer tracking, see onReaderPointerDown). touch-action keeps the
              vertical pan + pinch native and claims only horizontal drags, and only
@@ -291,7 +291,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
         </div>
       } @else {
         <!-- Paged or double-spread: fixed viewport, one screen at a time.
-             1.8.0 full-surface swipe (requirement 1): the pointer gesture is
+             Full-surface swipe (added 1.8.0): the pointer gesture is
              tracked from a pointerdown here to a DOCUMENT-level up/cancel/move (see
              the host listeners), so a swipe that starts anywhere on the page and ends
              over the toolbar/bar still resolves. The viewport's touch-action is
@@ -309,7 +309,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
           @if (pageLoading()) {
             <mat-spinner class="page-spinner" diameter="36"></mat-spinner>
           }
-          <!-- 1.11.0 page-turn ghost (requirement 13): the page(s) just left stay
+          <!-- Page-turn ghost (added 1.11.0): the page(s) just left stay
                rendered UNDER the incoming row for the length of the transition, so
                Slide pushes over and Reveal wipes across the old page rather than the
                dark background. Same layout classes as the live row so both line up;
@@ -363,7 +363,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
         </div>
       }
 
-      <!-- 1.8.0 page slider (requirement 2). The 1.7.0 scrubber was a 16px hit strip
+      <!-- Page slider (reworked 1.8.0). The 1.7.0 scrubber was a 16px hit strip
            glued to the very bottom edge of the screen — exactly where iPadOS reserves
            its swipe-up Home/Dock gesture, so touches there were mostly eaten by the
            OS. The slider now lives in a proper bottom BAR that follows the same
@@ -520,7 +520,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     /* flex:0 0 auto stops flexbox from shrinking the image (which would defeat
        fit-height / original and re-break fit-width). */
     .spread-row img { display: block; flex: 0 0 auto; }
-    /* Requirement 1: fit-screen (contain) is the default. Unlike max-* sizing —
+    /* Fit-screen (contain) is the default. Unlike max-* sizing —
        which only ever shrinks an oversized page and leaves a small page at its
        native size — giving the image a full-viewport box plus object-fit:contain
        scales BOTH ways, so small pages are enlarged to fill the screen while the
@@ -543,7 +543,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     }
     /* Webtoon: full-width column, natural vertical scroll. */
     .reader-viewport.webtoon { flex-direction: column; align-items: center; }
-    /* Width is driven by the webtoon width slider (requirement 6), 15–100% of viewport. */
+    /* Width is driven by the webtoon width slider, 15–100% of viewport. */
     /* height:auto + the per-page aspect-ratio (set inline from the manifest) reserves
        each page's box before it lazy-loads; the faint background makes the reserved
        placeholder visible while the image streams in. */
@@ -571,7 +571,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
       overscroll-behavior: contain;
     }
-    /* Bottom bar with the page slider (requirement 2). Same chrome rules as the
+    /* Bottom bar with the page slider. Same chrome rules as the
        toolbar: in flow when windowed, overlaid + auto-hidden when fullscreen. */
     .reader-nav {
       flex-shrink: 0; display: flex; align-items: center; gap: 6px;
@@ -723,12 +723,12 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   private readonly breakpoints = inject(BreakpointObserver);
   // Public so the template can read the persisted page-transition preference.
   readonly prefs = inject(ReaderPreferencesService);
-  // Webtoon tap-to-scroll step / on-off (1.11.0, requirement 11); per-device.
+  // Webtoon tap-to-scroll step / on-off (added 1.11.0); per-device.
   readonly webtoonNav = inject(WebtoonNavPreferencesService);
   readonly fitOptions = FIT_OPTIONS;
 
   /**
-   * Handset-width layout (requirement 10): CDK's XSmall breakpoint (< 600px CSS
+   * Handset-width layout: CDK's XSmall breakpoint (< 600px CSS
    * width) - phones in portrait, a narrow iPad Split View pane. Width-driven, not
    * device-driven, because the trigger is simply that the full bar no longer
    * fits; a phone in landscape (>= 640px) and every tablet/desktop keep the full
@@ -739,7 +739,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
     { initialValue: this.breakpoints.isMatched(Breakpoints.XSmall) },
   );
   /**
-   * Narrow PORTRAIT screen (requirement 12): CDK's HandsetPortrait breakpoint
+   * Narrow PORTRAIT screen: CDK's HandsetPortrait breakpoint
    * (< 600px wide AND portrait) - the one case where a synthetic two-up spread
    * leaves each page unreadably small. Live, so rotating a phone to landscape
    * (>= 640px, not portrait) brings double page straight back. A narrow landscape
@@ -762,7 +762,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   readonly pageCount = computed(() => this.pages().length);
   readonly pages = signal<ManifestPageEntry[]>([]);
   readonly pageLoading = signal(true);
-  readonly fitMode = signal<FitMode>('screen'); // Requirement 1
+  readonly fitMode = signal<FitMode>('screen'); // Default image fit is fit-to-screen
   readonly direction = signal<ReadingDirection>('ltr');
   readonly view = signal<ReaderView>('paged');
   readonly isFullscreen = signal(false);
@@ -771,7 +771,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   // when false, pairing starts at 0-1, 2-3… No reliable way to infer which a
   // given comic wants, so it's a reader-side toggle (two menu modes). Default on.
   readonly coverIsStandalone = signal(this.loadCoverStandalone());
-  readonly webtoonWidthPct = signal<number>(this.loadWebtoonWidth()); // requirement 6
+  readonly webtoonWidthPct = signal<number>(this.loadWebtoonWidth()); // webtoon page-width preference
   // Per-device default page mode (1.2.x). Highlighted in the reading-mode menu; a
   // non-null value overrides the server-resolved layout on every chapter open.
   readonly viewPref = signal<ViewPref | null>(this.loadViewPref());
@@ -855,13 +855,13 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   readonly nextNeighbor = signal<{ id: string; displayName: string } | null>(null);
   readonly prevNeighbor = signal<{ id: string; displayName: string } | null>(null);
 
-  // 1.7.0 reader touch-UX. Chapter-arrow availability (requirement 3): the toolbar
+  // Chapter-arrow availability: the toolbar
   // prev/next CHAPTER buttons are enabled only when a neighbor archive exists, so
   // they grey out at the ends of a folder. Distinct from page turning.
   readonly hasNextChapter = computed(() => !!this.nextNeighbor());
   readonly hasPrevChapter = computed(() => !!this.prevNeighbor());
 
-  // 1.7.0 page scrubber (requirement 2): `scrubbing` is true only while the reader
+  // Page scrubber: `scrubbing` is true only while the reader
   // is actively dragging the bottom rail, which is what surfaces the prominent page
   // bubble + enlarged bar (so nothing clutters the page otherwise). The thumb knob
   // shows whenever chrome is visible, to advertise that the rail is draggable.
@@ -887,7 +887,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
     return `calc(${r}px + (100% - ${2 * r}px) * ${this.scrubThumbPct() / 100})`;
   });
 
-  // 1.8.0 full-surface swipe (requirement 1). `swipeDx` is the live horizontal
+  // Full-surface swipe (added 1.8.0). `swipeDx` is the live horizontal
   // finger offset while a page swipe is in progress (the spread row follows it);
   // 0 when idle. The help legend labels are phrased by FINGER direction ("swipe
   // left"), the inverse of the tap-zone labels, and mirror in RTL.
@@ -916,8 +916,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
     return this.overflowsY() ? 'pan-y pinch-zoom' : 'pinch-zoom';
   });
   /**
-   * Whether the webtoon scroller takes a horizontal swipe as a screen step
-   * (requirement 11): only with tap-to-scroll on and the page not pinch-zoomed
+   * Whether the webtoon scroller takes a horizontal swipe as a screen step:
+   * only with tap-to-scroll on and the page not pinch-zoomed
    * (a zoomed page pans natively in both axes, as in the paged reader).
    */
   readonly webtoonSwipeEnabled = computed(() => this.webtoonNav.tapZonesEnabled() && !this.zoomed());
@@ -949,7 +949,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
       : 'crop_portrait');
 
   /**
-   * The view actually RENDERED (requirement 12). `view` is what the reader chose
+   * The view actually RENDERED. `view` is what the reader chose
    * (and what the menus highlight); a chosen double page is rendered as single
    * pages on a narrow portrait screen, and comes back on rotation. Everything
    * that depends on the on-screen grouping - the visible entries, end/start
@@ -960,7 +960,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
     this.view() === 'spread' && this.narrowPortrait() ? 'paged' : this.view());
 
   /**
-   * Page-turn ghost (requirement 13): the entries that were on screen just before
+   * Page-turn ghost: the entries that were on screen just before
    * the current turn, rendered inert underneath the incoming row for the length
    * of the transition, then dropped. Empty when no transition is playing.
    */
@@ -996,7 +996,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   private static readonly RevealHotZonePx = 80;
   private destroyed = false;
 
-  // --- Swipe gesture state (requirement 1, paged/spread only) ---
+  // --- Swipe gesture state (paged/spread only) ---
   // A single-pointer horizontal drag on the paged viewport turns the page,
   // direction-aware like the edge zones. Multi-touch (pinch-zoom) and vertical
   // drags are ignored so native zoom/scroll are never hijacked.
@@ -1238,7 +1238,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   }
 
   /**
-   * Phone "Reader options" (requirement 10): open the bottom sheet with this
+   * Phone "Reader options": open the bottom sheet with this
    * reader as its host (live signals in, actions out - see `ReaderOptionsHost`).
    * Pins the chrome like an open menu does, and releases it on dismiss.
    */
@@ -1407,7 +1407,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   // reader's <img> without a re-transfer. Ahead-heavy since reading is
   // overwhelmingly forward; manga flips fast, so keep a generous forward buffer.
   //
-  // Webtoon (vertical) read-ahead (2026-09-10, post-1.3.0 lane D): the paged/spread
+  // Webtoon (vertical) read-ahead: the paged/spread
   // prefetch above is skipped in webtoon (native lazy-load + aspect placeholders
   // reserve layout). But a fast vertical scroll can outrun native lazy-load and hit
   // unloaded pages. So onWebtoonScroll warms the next few pages ahead of the scroll
@@ -1587,7 +1587,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   private goToNextChapter(): void {
     const next = this.nextNeighbor();
     if (!next) {
-      this.snackBar.open('You’ve reached the end — no next chapter in this folder.', 'Dismiss', { duration: 3000 });
+      this.snackBar.open('You’ve reached the end. No next chapter in this folder.', 'Dismiss', { duration: 3000 });
       return;
     }
     this.saveProgress();
@@ -1610,7 +1610,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   private goToPreviousChapter(): void {
     const prev = this.prevNeighbor();
     if (!prev) {
-      this.snackBar.open('You’re at the start — no previous chapter in this folder.', 'Dismiss', { duration: 3000 });
+      this.snackBar.open('You’re at the start. No previous chapter in this folder.', 'Dismiss', { duration: 3000 });
       return;
     }
     this.saveProgress();
@@ -1623,7 +1623,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   }
 
   /**
-   * Reader-bar chapter arrows (requirement 3) and the webtoon end-of-chapter
+   * Reader-bar chapter arrows and the webtoon end-of-chapter
    * footer both call these. They reuse the exact same chapter-navigation path as
    * the auto-advance gestures (progress saved, snackbar, `/reader/:id` navigation);
    * the toolbar buttons are disabled when there is no neighbor, so these are safe
@@ -1657,7 +1657,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
 
   /**
    * Keep the page(s) about to leave rendered underneath the incoming row for the
-   * length of the chosen transition (requirement 13), then drop them. Only while
+   * length of the chosen transition, then drop them. Only while
    * a transition will actually play: not for 'none', not where `pageAnimActive`
    * gates the animation off, and not under prefers-reduced-motion (the CSS
    * disables the keyframes there, so a ghost would just sit under the new page).
@@ -1670,7 +1670,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
     this.outgoingTimer = setTimeout(() => this.outgoing.set([]), ms);
   }
 
-  // --- Page scrubber (requirement 2): draggable position control on the rail ---
+  // --- Page scrubber: draggable position control on the rail ---
 
   /**
    * Map a fraction (0..1) along the rail to a page index, direction-aware — in RTL
@@ -1769,7 +1769,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   /**
    * Edge-tap navigation. The invisible left/right zones ARE direction-aware
    * (tap the right side in RTL to go back) — this is expected reader behavior and
-   * distinct from requirement 2, which is about the visible chevron controls.
+   * distinct from the page slider, which is the visible chevron controls.
    */
   onEdge(side: 'prev' | 'next'): void {
     // A completed swipe fires a ghost click on the zone it ended over; swallow it so
@@ -1789,7 +1789,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
     return Date.now() - this.lastSwipeAt < ReaderComponent.SwipeClickSuppressMs;
   }
 
-  // --- Swipe gestures (requirement 1): direction-aware page turning on touch ---
+  // --- Swipe gestures: direction-aware page turning on touch ---
 
   /**
    * Resolve a horizontal drag into a page action, or null when it isn't a page
@@ -1807,7 +1807,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   }
 
   /**
-   * Webtoon variant (requirement 11): the same gesture thresholds, but the result
+   * Webtoon variant: the same gesture thresholds, but the result
    * is a SCREEN STEP, not a page. Fixed mapping - a vertical strip has no reading
    * direction - swipe left (finger moves left) = forward, right = back, matching
    * the LTR paged reader most webtoon readers already know.
@@ -1908,7 +1908,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
     const dy = e.clientY - this.swipeStartY;
     const dt = e.timeStamp - this.swipeStartT;
     if (this.view() === 'webtoon') {
-      // Webtoon (requirement 11): a horizontal swipe steps a screen; the ghost
+      // Webtoon: a horizontal swipe steps a screen; the ghost
       // click that follows must not ALSO resolve as a tap zone.
       const step = this.resolveWebtoonSwipe(dx, dy, dt);
       if (step) { this.lastSwipeAt = Date.now(); this.scrollWebtoonBy(step); }
@@ -2025,9 +2025,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   /** Explicit direction pick (the phone sheet's radio pair; the bar button toggles). */
   setDirection(direction: ReadingDirection): void { this.direction.set(direction); }
 
-  // --- Webtoon width (requirement 6): per-device preference in localStorage ---
+  // --- Webtoon width: per-device preference in localStorage ---
 
-  private static readonly WebtoonWidthKey = 'mangaplex-webtoon-width';
+  private static readonly WebtoonWidthKey = 'mangapixer-webtoon-width';
 
   setWebtoonWidth(pct: number): void {
     const clamped = Math.min(100, Math.max(15, Math.round(pct)));
@@ -2046,8 +2046,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
 
   // --- Per-device default page mode (1.2.x): stored per device in localStorage ---
 
-  private static readonly ViewPrefKey = 'mangaplex-reader-view';
-  private static readonly CoverStandaloneKey = 'mangaplex-reader-cover-standalone';
+  private static readonly ViewPrefKey = 'mangapixer-reader-view';
+  private static readonly CoverStandaloneKey = 'mangapixer-reader-cover-standalone';
 
   private loadViewPref(): ViewPref | null {
     try {
@@ -2119,7 +2119,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
     this.coverIsStandalone.set(offset);
     this.saveCoverStandalone(offset);
     this.chooseView('spread');
-    // Requirement 12: the pick is honoured (persisted, highlighted) but this
+    // The pick is honoured (persisted, highlighted) but this
     // screen renders single pages; say so once, at the moment of choice, so the
     // unchanged page is not mistaken for a broken setting. The phone sheet
     // carries the same note inline (a snackbar would land under it), so only the
@@ -2159,7 +2159,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
     if (idx !== this.currentPage()) {
       this.currentPage.set(idx);
       // Warm the next few pages ahead of the scroll position so a fast vertical
-      // scroll doesn't outrun native lazy-load (post-1.3.0 lane D).
+      // scroll doesn't outrun native lazy-load.
       this.prefetchWebtoonAhead(idx);
       // Debounce progress writes while scrolling.
       if (this.webtoonSaveTimer) clearTimeout(this.webtoonSaveTimer);
@@ -2180,7 +2180,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
     }
   }
 
-  // --- Webtoon tap-to-scroll (1.11.0, requirement 11) ---
+  // --- Webtoon tap-to-scroll (added 1.11.0) ---
 
   /**
    * A tap on the webtoon scroller. With tap-to-scroll on, the tap resolves by

@@ -23,11 +23,11 @@ import { readerModeGlyph } from './reader-mode-glyph';
  *  - The active item is **derived from the current route** (URL parse), not a
  *    local selection signal - so it stays correct on deep links and when you
  *    navigate by any means (a breadcrumb, the browser back button, a card).
- *  - Each library icon carries a reading-direction badge (Task C) via the shared
+ *  - Each library icon carries a reading-direction badge via the shared
  *    `readerModeGlyph` helper.
  *
  * Desktop collapse persists to localStorage under a **shell-scoped** key (the old
- * home-scoped `mangaplex-home-nav-collapsed` key belonged to the home page).
+ * home-scoped `mangapixer-home-nav-collapsed` key belonged to the home page).
  *
  * **Page mode (1.10.0, F3):** on phone breakpoints, `layout.component` no longer
  * mounts this component inside the shell at all - it mounts a dedicated route
@@ -147,8 +147,8 @@ import { readerModeGlyph } from './reader-mode-glyph';
        triggers and the trailing glyph/count get pushed past the sidebar's
        right edge instead of the name truncating. */
     .nav-label { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    /* Reading-direction badge (Task C): a muted, non-interactive glyph tucked
-       against the count. Subtle by design - the label lives in the tooltip /
+    /* Reading-direction badge: a muted, non-interactive glyph tucked against
+       the count. Subtle by design - the label lives in the tooltip /
        aria-label. */
     .nav-dir { flex: 0 0 auto; color: #8a8a99; opacity: 0.9; }
     /* Fixed, right-aligned count column so 1- to 5-digit counts (e.g. 8715)
@@ -196,10 +196,10 @@ export class LibrarySidebarComponent {
 
   /**
    * Desktop/tablet sidebar collapse. Shell-scoped localStorage key (distinct
-   * from the old home-only `mangaplex-home-nav-collapsed`). Never applied in
+   * from the old home-only `mangapixer-home-nav-collapsed`). Never applied in
    * page mode (1.10.0, F3) - see the template's `[class.collapsed]` binding.
    */
-  private static readonly CollapsedKey = 'mangaplex-nav-collapsed';
+  private static readonly CollapsedKey = 'mangapixer-nav-collapsed';
   readonly collapsed = signal<boolean>(this.loadCollapsed());
 
   /** Current top-level path, tracked reactively off navigation (seeded for first paint). */
@@ -247,7 +247,7 @@ export class LibrarySidebarComponent {
   }
 
   private loadCollapsed(): boolean {
-    // Default to COLLAPSED (1.10.3, owner preference): a fresh device / no stored choice
+    // Default to COLLAPSED (1.10.3): a fresh device / no stored choice
     // starts with the shell sidebar closed; an explicit stored '0'/'1' is respected.
     try {
       const v = localStorage.getItem(LibrarySidebarComponent.CollapsedKey);

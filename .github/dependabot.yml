@@ -1,0 +1,71 @@
+# Dependabot version updates. Weekly, with minor and patch updates grouped
+# into one pull request per ecosystem; major updates arrive as individual pull
+# requests so they can be reviewed on their own.
+#
+# All pull requests target dev (the integration trunk). main is release-only.
+# Note: GitHub reads this file from the DEFAULT branch. If the default branch
+# is main, these settings take effect after the next release merges dev into main.
+
+version: 2
+
+updates:
+  # .NET: central package versions in Directory.Packages.props.
+  - package-ecosystem: nuget
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      nuget-minor-patch:
+        update-types: [minor, patch]
+
+  # Angular web reader.
+  - package-ecosystem: npm
+    directory: "/web"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  # Actions used by .github/workflows.
+  - package-ecosystem: github-actions
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]
+
+  # Base images in deploy/Dockerfile (node, dotnet sdk, aspnet).
+  - package-ecosystem: docker
+    directory: "/deploy"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      docker-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Runtime majors (Node LTS line, .NET 10) move deliberately, together
+      # with global.json and the CI setup, never by an automated bump.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

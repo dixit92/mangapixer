@@ -2,10 +2,10 @@ import { readerModeGlyph } from './reader-mode-glyph';
 import { ReaderMode } from '../core/api/api-types';
 
 /**
- * Task C (1.5.0): the ReaderMode -> glyph mapping shared by the app-shell sidebar
- * and the home library grid. Every non-null mode gets a distinct glyph and a
- * human-readable label (used for both tooltip and aria-label); null (inherit)
- * intentionally gets no badge.
+ * The ReaderMode -> glyph mapping shared by the app-shell sidebar and the home
+ * library grid. Every non-null mode gets a distinct glyph and a human-readable
+ * label (used for both tooltip and aria-label); null (inherit) intentionally gets
+ * no badge.
  */
 describe('readerModeGlyph', () => {
   it('maps each concrete reader mode to a distinct glyph and label', () => {

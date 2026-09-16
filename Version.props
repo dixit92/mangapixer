@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Version.props — single source of truth for MangaPlex product version.
+  Version.props — single source of truth for MangaPixer product version.
   Consumed by Directory.Build.props. Angular reads generated build info from the same source.
   SemVer 2.0.0: https://semver.org/
 -->
@@ -163,21 +163,34 @@
          SystemInfoDto.Platform; Windows path wording instead of container mount idioms). Server
          code changes are Windows-gated - container/Linux behavior byte-identical (verified).
          Additive API only, no schema change -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.13.x. -->
-    <MangaPlexVersionMajor>1</MangaPlexVersionMajor>
-    <MangaPlexVersionMinor>13</MangaPlexVersionMinor>
-    <MangaPlexVersionPatch>0</MangaPlexVersionPatch>
-    <MangaPlexVersionPrerelease></MangaPlexVersionPrerelease>
+    <!-- 1.14.0 - additive MINOR over 1.13.0 (public-repository cycle, 2026-09-16). The product
+         is renamed from its working title MangaPlex to MangaPixer (all identifiers: namespaces,
+         assemblies, database file, config prefix, cookies/CSRF header, image/service/volume
+         names, Windows data folder, registry keys, tray + MSI identity with a new UpgradeCode;
+         no compatibility shim - the only deployments were the owner's, migrated by hand), and
+         the repository goes public on GitHub (dixit92/mangapixer): README, MIT LICENSE,
+         THIRD-PARTY-NOTICES with a Windows inventory, CONTRIBUTING, SECURITY, docs/ user
+         guides incl. the Windows guide, issue/PR templates, Dependabot, CI (Verify full tier)
+         and a tag-triggered release workflow (GHCR image + SBOM + MSI). License notices ship
+         in the image and the Windows distribution. Fix: backup/restore validation no longer
+         holds the database file open (Windows + bind-mount first-start failure). Git history
+         author identity rewritten to the GitHub noreply address before the first push. No
+         schema change; additive/renamed API surface only -> MINOR per SemVer 2.0.0. -->
+    <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
+    <MangaPixerVersionMinor>14</MangaPixerVersionMinor>
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
-    <MangaPlexVersion>$(MangaPlexVersionMajor).$(MangaPlexVersionMinor).$(MangaPlexVersionPatch)</MangaPlexVersion>
-    <MangaPlexVersionFull Condition="'$(MangaPlexVersionPrerelease)' != ''">$(MangaPlexVersion)-$(MangaPlexVersionPrerelease)</MangaPlexVersionFull>
-    <MangaPlexVersionFull Condition="'$(MangaPlexVersionPrerelease)' == ''">$(MangaPlexVersion)</MangaPlexVersionFull>
+    <MangaPixerVersion>$(MangaPixerVersionMajor).$(MangaPixerVersionMinor).$(MangaPixerVersionPatch)</MangaPixerVersion>
+    <MangaPixerVersionFull Condition="'$(MangaPixerVersionPrerelease)' != ''">$(MangaPixerVersion)-$(MangaPixerVersionPrerelease)</MangaPixerVersionFull>
+    <MangaPixerVersionFull Condition="'$(MangaPixerVersionPrerelease)' == ''">$(MangaPixerVersion)</MangaPixerVersionFull>
 
     <!-- Build counter for FileVersion (numeric only). Defaults to 0 for local builds. -->
-    <MangaPlexBuildCounter Condition="'$(MangaPlexBuildCounter)' == ''">0</MangaPlexBuildCounter>
+    <MangaPixerBuildCounter Condition="'$(MangaPixerBuildCounter)' == ''">0</MangaPixerBuildCounter>
 
     <!-- AssemblyVersion stays at MAJOR.MINOR.0.0 (1.1.0.0 now) through a minor
          line to avoid binding churn; patch/build vary in FileVersion only. -->
-    <MangaPlexAssemblyVersion>$(MangaPlexVersionMajor).$(MangaPlexVersionMinor).0.0</MangaPlexAssemblyVersion>
+    <MangaPixerAssemblyVersion>$(MangaPixerVersionMajor).$(MangaPixerVersionMinor).0.0</MangaPixerAssemblyVersion>
   </PropertyGroup>
 </Project>

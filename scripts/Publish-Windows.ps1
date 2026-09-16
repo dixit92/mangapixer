@@ -1,11 +1,11 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Publish-Windows.ps1
+    MangaPixer Publish-Windows.ps1
     Produces a complete, runnable Windows distribution staging folder at
     artifacts/windows-dist/:
 
       artifacts/windows-dist/
-        server/                 self-contained win-x64 MangaPlex.Server.exe
+        server/                 self-contained win-x64 MangaPixer.Server.exe
           wwwroot/              built Angular web assets (same bundle the
                                  Docker image serves, per deploy/Dockerfile)
           appsettings.Production.json
@@ -15,8 +15,14 @@
                                  loads this automatically; Docker/Linux never
                                  ships this file, so container behavior is
                                  byte-identical to before.
-        worker/                 self-contained win-x64 MangaPlex.MediaWorker.exe
-        MangaPlex.Tray.exe      only if src/MangaPlex.Tray exists (Lane B)
+        worker/                 self-contained win-x64 MangaPixer.MediaWorker.exe
+        MangaPixer.Tray.exe      the tray launcher project, if present
+                                 (src/MangaPixer.Tray)
+        LICENSE, THIRD-PARTY-NOTICES.md, 3rdpartylicenses.txt, Magick.NET-Notice.txt
+                                 license notices (the same four files the
+                                 container image ships in /app/licenses/); the
+                                 MSI harvests this whole folder, so they are
+                                 installed too
 
     Never touches deploy/**, Version.props, package.json, or the tray project.
     Default bind: http://127.0.0.1:27272 (see -BindUrl).
@@ -27,7 +33,7 @@
 param(
     [string]$OutputDir = "artifacts/windows-dist",
 
-    # Loopback-only default bind per the cycle's Windows-distribution decision.
+    # Loopback-only default bind for the Windows distribution.
     # This overlay default applies to DIRECT exe launches. The tray launcher
     # overrides it by passing --Urls on the server's command line (NOT via
     # ASPNETCORE_URLS alone: ASPNETCORE_-prefixed env vars are host-level
@@ -50,7 +56,7 @@ Set-Location $repoRoot
 # Single source of truth for the product name embedded in project/exe names
 # below. A future product rename only needs to change this constant (plus
 # the physical project/folder renames it mirrors).
-$ProductName = "MangaPlex"
+$ProductName = "MangaPixer"
 
 function Write-Stage {
     param([string]$Name)
@@ -68,7 +74,7 @@ if (Test-Path $distRoot) {
 New-Item -ItemType Directory -Path $distRoot | Out-Null
 
 # --- Web assets (matches deploy/Dockerfile stage "web-build") ---
-$webDist = Join-Path $repoRoot "web/dist/mangaplex-web/browser"
+$webDist = Join-Path $repoRoot "web/dist/mangapixer-web/browser"
 if (-not $SkipWebBuild) {
     Write-Stage "Build web assets (npm --prefix web ci && npm --prefix web run build)"
     npm --prefix web ci
@@ -115,9 +121,9 @@ $overlay = [ordered]@{
 $overlayPath = Join-Path $serverDir "appsettings.Production.json"
 $overlay | ConvertTo-Json -Depth 5 | Set-Content -Path $overlayPath -Encoding utf8
 
-# --- Tray launcher (Lane B, built in parallel) ---
-# Guarded so this lane's build stays green whether or not the tray project
-# exists yet. Never edits the tray project or MangaPlex.slnx.
+# --- Tray launcher (the tray launcher project, if present) ---
+# Guarded so the publish stays green whether or not src/MangaPixer.Tray
+# exists. Never edits the tray project or MangaPixer.slnx.
 $trayProject = Join-Path $repoRoot "src/$ProductName.Tray/$ProductName.Tray.csproj"
 if (Test-Path $trayProject) {
     Write-Stage "Publish $ProductName.Tray (single-file self-contained win-x64)"
@@ -134,8 +140,30 @@ if (Test-Path $trayProject) {
     Remove-Item $trayStaging -Recurse -Force
 }
 else {
-    Write-Host "SKIPPED: src/$ProductName.Tray not found (Lane B not landed yet)" -ForegroundColor Yellow
+    Write-Host "SKIPPED: src/$ProductName.Tray not found (tray launcher project not present)" -ForegroundColor Yellow
 }
+
+# --- License notices, next to the tray exe (the installer payload is this
+# whole folder, so they ship in the MSI as well) ---
+Write-Stage "Copy license notices"
+foreach ($notice in @("LICENSE", "THIRD-PARTY-NOTICES.md")) {
+    Copy-Item (Join-Path $repoRoot $notice) (Join-Path $distRoot $notice) -Force
+}
+# The Angular build writes the license texts of the bundled npm packages next
+# to (not inside) the browser output folder that is copied into wwwroot.
+$webLicenses = Join-Path (Split-Path -Parent $webDist) "3rdpartylicenses.txt"
+if (-not (Test-Path $webLicenses)) { throw "Web license file not found: $webLicenses" }
+Copy-Item $webLicenses (Join-Path $distRoot "3rdpartylicenses.txt") -Force
+# Magick.NET's Notice.txt (ImageMagick + the native libraries bundled in
+# Magick.Native) is not copied by dotnet publish; take it from the restored
+# package, version-independently, and fail rather than ship without it. Same
+# rule as deploy/Dockerfile.
+$nugetRoot = if ($env:NUGET_PACKAGES) { $env:NUGET_PACKAGES } else { Join-Path $HOME ".nuget/packages" }
+$magickNotice = Get-ChildItem (Join-Path $nugetRoot "magick.net-q8-anycpu") -Directory -ErrorAction SilentlyContinue |
+    Sort-Object { [Version]($_.Name -replace '[^0-9.].*$', '') } |
+    Select-Object -Last 1 | ForEach-Object { Join-Path $_.FullName "Notice.txt" }
+if (-not $magickNotice -or -not (Test-Path $magickNotice)) { throw "Magick.NET Notice.txt not found under $nugetRoot/magick.net-q8-anycpu" }
+Copy-Item $magickNotice (Join-Path $distRoot "Magick.NET-Notice.txt") -Force
 
 Write-Stage "Publish-Windows summary"
 Write-Host "Staging folder: $distRoot" -ForegroundColor Green

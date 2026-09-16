@@ -1,7 +1,7 @@
 import { libraryPathCopy } from './library-path-copy';
 
 /**
- * Lane WinDeploy H (1.13.0): the admin Libraries "register" field must speak
+ * Added in 1.13.0: the admin Libraries "register" field must speak
  * the server's platform idiom — no /media mount jargon on Windows, and no
  * regression to the existing Linux/container wording.
  */
@@ -12,7 +12,7 @@ describe('libraryPathCopy', () => {
     expect(copy.placeholder).toBe('D:\\Manga');
     expect(copy.noBrowseRootHint).not.toMatch(/mount/i);
     expect(copy.noBrowseRootHint).not.toContain('/media');
-    expect(copy.noBrowseRootHint).toContain('MangaPlex:Storage:MediaRoot');
+    expect(copy.noBrowseRootHint).toContain('MangaPixer:Storage:MediaRoot');
   });
 
   it('keeps the existing container wording for a Linux server', () => {

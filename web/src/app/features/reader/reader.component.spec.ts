@@ -569,13 +569,13 @@ describe('ReaderComponent per-device page mode', () => {
     c.chooseView('webtoon');
     expect(c.viewPref()).toBeNull();
     expect(c.view()).toBe('webtoon');
-    expect(localStorage.getItem('mangaplex-reader-view')).toBeNull();
+    expect(localStorage.getItem('mangapixer-reader-view')).toBeNull();
   });
 
   it('a paged-layout preference set on a paged item does not survive a stale localStorage "webtoon" value', () => {
     // Pre-Option-A localStorage could hold 'webtoon' (from the old sticky bug).
     // loadViewPref must not resurrect it as a device pref.
-    localStorage.setItem('mangaplex-reader-view', 'webtoon');
+    localStorage.setItem('mangapixer-reader-view', 'webtoon');
     const c = create();
     expect(c.viewPref()).toBeNull();
   });
@@ -618,16 +618,16 @@ describe('ReaderComponent per-device page mode', () => {
     c.chooseSpread(false);
     expect(c.viewPref()).toBe('spread');
     expect(c.coverIsStandalone()).toBe(false);
-    expect(localStorage.getItem('mangaplex-reader-cover-standalone')).toBe('0');
+    expect(localStorage.getItem('mangapixer-reader-cover-standalone')).toBe('0');
 
     c.chooseSpread(true);
     expect(c.coverIsStandalone()).toBe(true);
-    expect(localStorage.getItem('mangaplex-reader-cover-standalone')).toBe('1');
+    expect(localStorage.getItem('mangapixer-reader-cover-standalone')).toBe('1');
   });
 
   it('loads a stored preference on construction (view + cover offset)', () => {
-    localStorage.setItem('mangaplex-reader-view', 'spread');
-    localStorage.setItem('mangaplex-reader-cover-standalone', '0');
+    localStorage.setItem('mangapixer-reader-view', 'spread');
+    localStorage.setItem('mangapixer-reader-cover-standalone', '0');
     const c = create();
     expect(c.viewPref()).toBe('spread');
     expect(c.coverIsStandalone()).toBe(false);
@@ -661,7 +661,7 @@ describe('ReaderComponent per-device page mode', () => {
 });
 
 /**
- * Webtoon scroll-driven prefetch (post-1.3.0 lane D). The paged/spread prefetch
+ * Webtoon scroll-driven prefetch. The paged/spread prefetch
  * is skipped in webtoon; instead onWebtoonScroll warms the next N pages ahead of
  * the scroll position. These tests drive prefetchWebtoonAhead directly (it's
  * private, accessed via bracket notation) and assert on the shared prefetchedUrls
@@ -851,7 +851,7 @@ function baseProviders() {
   ];
 }
 
-describe('ReaderComponent swipe gestures (requirement 1)', () => {
+describe('ReaderComponent swipe gestures', () => {
   function create() {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     return TestBed.createComponent(ReaderComponent).componentInstance;
@@ -1068,7 +1068,7 @@ describe('ReaderComponent swipe gestures (requirement 1)', () => {
   });
 });
 
-describe('ReaderComponent reader-bar chapter arrows (requirement 3)', () => {
+describe('ReaderComponent reader-bar chapter arrows', () => {
   function create() {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     return TestBed.createComponent(ReaderComponent).componentInstance;
@@ -1155,7 +1155,7 @@ describe('ReaderComponent reader-bar chapter arrows (requirement 3)', () => {
   });
 });
 
-describe('ReaderComponent page scrubber (requirement 2)', () => {
+describe('ReaderComponent page scrubber', () => {
   function create() {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
@@ -1640,7 +1640,7 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
 });
 
 /**
- * 1.11.0 Lane B - webtoon tap-to-scroll (requirement 11). Free scroll stays the
+ * Webtoon tap-to-scroll (1.11.0). Free scroll stays the
  * default; on top of it a tap resolves by vertical thirds (top = back a screen,
  * bottom = forward, centre = toggle chrome) and a horizontal swipe steps a screen.
  * The step is a per-device preference (`WebtoonNavPreferencesService`); 0 = off
@@ -1786,7 +1786,7 @@ describe('ReaderComponent webtoon tap-to-scroll (1.11.0)', () => {
 });
 
 /**
- * 1.11.0 Lane B - adaptive double page (requirement 12). A synthetic two-up
+ * Adaptive double page (1.11.0). A synthetic two-up
  * spread on a narrow PORTRAIT screen (CDK HandsetPortrait) makes each page tiny,
  * so the reader renders single pages there while the CHOSEN mode stays "Double
  * page" (menus keep highlighting it, the preference persists) and the pairing
@@ -1895,7 +1895,7 @@ describe('ReaderComponent adaptive double page on narrow portrait (1.11.0)', () 
     c.chooseSpread(true);
     expect(c.view()).toBe('spread');
     expect(c.viewPref()).toBe('spread');
-    expect(localStorage.getItem('mangaplex-reader-view')).toBe('spread');
+    expect(localStorage.getItem('mangapixer-reader-view')).toBe('spread');
     expect(snack).toHaveBeenCalledTimes(1);
     expect(String(snack.mock.calls[0][0])).toContain('landscape');
     // The phone sheet carries the note inline, so no toast is stacked under it.
@@ -1916,7 +1916,7 @@ describe('ReaderComponent adaptive double page on narrow portrait (1.11.0)', () 
 });
 
 /**
- * 1.11.0 Lane B - page-turn ghost (requirement 13). The page(s) just left stay
+ * Page-turn ghost (1.11.0). The page(s) just left stay
  * rendered underneath the incoming row for the length of the Slide / Reveal
  * transition, so the wipe / push runs over the OLD page instead of the dark
  * background, then they are dropped. Never held where no transition plays.

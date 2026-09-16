@@ -1,0 +1,104 @@
+# Continuous integration: runs the Full verification tier on every push to the
+# trunks and on every pull request into dev.
+#
+# CI calls the repository's verification scripts; it never re-implements their
+# steps. What runs is exactly `pwsh ./scripts/Verify.ps1 -Configuration Release`
+# (privacy preflight, locked restore, dotnet format, Release build, all .NET
+# tests, npm ci + lint + production build, Compose validation).
+#
+# Required status check name for branch protection: "Verify (Full tier)"
+# (job id: verify).
+
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Superseded pull-request runs are cancelled; trunk pushes always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Product name used for artifact names. Single place to change on a rename.
+  PRODUCT_NAME: mangapixer
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+  NG_CLI_ANALYTICS: "false"
+
+jobs:
+  verify:
+    name: Verify (Full tier)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET (global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # No packages.lock.json is tracked, so setup-dotnet's built-in cache cannot
+      # key on it; central package versions live in Directory.Packages.props.
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('global.json', 'Directory.Packages.props', 'Directory.Build.props', '**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      # The 7z archive fixture tests skip themselves when 7z is not on PATH.
+      # Make sure they run in CI.
+      - name: Ensure 7-Zip for archive fixture tests
+        run: |
+          if ! command -v 7z >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq p7zip-full
+          fi
+          command -v 7z
+
+      - name: Tool versions
+        run: |
+          dotnet --version
+          node --version
+          npm --version
+          pwsh --version
+          docker compose version
+
+      # Verify.ps1 does not run Playwright (e2e needs a running instance), so no
+      # browsers are installed here.
+      - name: Verify (Full tier)
+        run: pwsh ./scripts/Verify.ps1 -Configuration Release 2>&1 | tee "$RUNNER_TEMP/verify-full.log"
+
+      - name: Upload verification log and test output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PRODUCT_NAME }}-verify-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/verify-full.log
+            **/TestResults/
+            web/test-results/
+            web/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14

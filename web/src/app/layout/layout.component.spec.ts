@@ -30,10 +30,10 @@ class FakeBreakpointObserver {
 }
 
 /**
- * Layout shell tests (1.5.0 Task A): the app-shell library sidebar is rendered on
- * content routes but EXCLUDED from the immersive reader (`/reader/:id`), which
- * instead gets a full-bleed content column. Auth routes live outside this
- * component entirely, so there is nothing to assert for them here.
+ * Layout shell tests: the app-shell library sidebar is rendered on content routes
+ * but EXCLUDED from the immersive reader (`/reader/:id`), which instead gets a
+ * full-bleed content column. Auth routes live outside this component entirely, so
+ * there is nothing to assert for them here.
  *
  * 1.10.0 (F3) adds phone-breakpoint coverage: on phone widths the shell stops
  * mounting the sidebar at all (even on content routes) and instead shows a

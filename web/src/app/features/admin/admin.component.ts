@@ -135,7 +135,7 @@ import { libraryPathCopy } from './library-path-copy';
                   </button>
                   <button mat-icon-button type="button" (click)="openDelete(lib)"
                           [disabled]="lib.isScanning || anyScanning()"
-                          [matTooltip]="anyScanning() ? 'Cannot remove a library while a scan is running' : 'Remove library from MangaPlex'"
+                          [matTooltip]="anyScanning() ? 'Cannot remove a library while a scan is running' : 'Remove library from MangaPixer'"
                           aria-label="Remove library">
                     <mat-icon>delete_outline</mat-icon>
                   </button>
@@ -162,8 +162,8 @@ import { libraryPathCopy } from './library-path-copy';
                 <div class="lib-panel danger">
                   <div class="lib-panel-msg">
                     <mat-icon>warning</mat-icon>
-                    <span>Remove <strong>{{ lib.name }}</strong> from MangaPlex? This deletes
-                      MangaPlex's record and reading progress for this library — your files on
+                    <span>Remove <strong>{{ lib.name }}</strong> from MangaPixer? This deletes
+                      MangaPixer's record and reading progress for this library — your files on
                       disk are <strong>not</strong> touched.</span>
                   </div>
                   <div class="lib-panel-actions">
@@ -195,7 +195,7 @@ import { libraryPathCopy } from './library-path-copy';
                     </p>
                     <mat-checkbox [checked]="yacOverwrite()"
                                   (change)="toggleYacOverwrite($event.checked)">
-                      Overwrite items that already have MangaPlex progress
+                      Overwrite items that already have MangaPixer progress
                     </mat-checkbox>
                     <div class="yac-actions">
                       <button mat-raised-button color="primary" type="button"
@@ -560,7 +560,7 @@ export class AdminComponent implements OnInit, OnDestroy {
   readonly newLibName = signal('');
   readonly newLibPath = signal('');
 
-  // Platform-aware register-form copy (lane WinDeploy H, 1.13.0): null until
+  // Platform-aware register-form copy (added in 1.13.0): null until
   // GET /system/info returns (or on an older server that lacks the field),
   // which falls back to the historical container wording — never blocks the
   // form on this best-effort load.
@@ -731,7 +731,7 @@ export class AdminComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Delete a library's MangaPlex metadata (never the source files). The server
+   * Delete a library's MangaPixer metadata (never the source files). The server
    * refuses with 409 while a scan is running; surface that clearly if it races.
    */
   confirmDelete(lib: LibraryDto): void {
@@ -741,7 +741,7 @@ export class AdminComponent implements OnInit, OnDestroy {
         this.setLibBusy(lib.id, false);
         this.closeLibPanels();
         this.loadLibraries();
-        this.snackBar.open(`Removed "${lib.name}" from MangaPlex. Source files are untouched.`,
+        this.snackBar.open(`Removed "${lib.name}" from MangaPixer. Source files are untouched.`,
           'Close', { duration: 4000 });
       },
       error: (err) => {
@@ -756,7 +756,7 @@ export class AdminComponent implements OnInit, OnDestroy {
 
   // --- YACReader import (1.2.0) ---
 
-  /** Detect a YACReader library inside each MangaPlex library's root, in parallel. */
+  /** Detect a YACReader library inside each MangaPixer library's root, in parallel. */
   private detectYacForAll(libs: LibraryDto[]): void {
     for (const lib of libs) {
       this.api.detectYacReader(lib.id).subscribe({

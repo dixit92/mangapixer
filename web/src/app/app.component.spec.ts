@@ -6,7 +6,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { AppComponent } from './app.component';
 
 /**
- * Footer version display (post-1.3.0 lane D). The app shell fetches
+ * Footer version display. The app shell fetches
  * GET /api/v1/system/info on init and renders the version in a small footer.
  * These tests flush the HTTP request via HttpTestingController and assert the
  * rendered DOM.
@@ -35,7 +35,7 @@ describe('AppComponent footer version', () => {
 
     const footer = fixture.nativeElement.querySelector('.app-footer') as HTMLElement;
     expect(footer).toBeTruthy();
-    expect(footer.textContent).toContain('MangaPlex');
+    expect(footer.textContent).toContain('MangaPixer');
     expect(footer.textContent).toContain('1.3.0');
   });
 

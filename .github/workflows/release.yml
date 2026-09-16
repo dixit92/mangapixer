@@ -1,0 +1,219 @@
+# Release: runs when a v<semver> tag is pushed.
+#
+#   package           (ubuntu)  scripts/Package-Release.ps1 builds the
+#                               version-tagged image, SPDX SBOM and SHA-256
+#                               checksums into artifacts/release/<version>;
+#                               scripts/Smoke-Container.ps1 gates publishing;
+#                               the image goes to GHCR and a GitHub Release is
+#                               created with the CHANGELOG.md section as its body.
+#   windows-installer (windows) GUARDED: builds and attaches the MSI when
+#                               scripts/Publish-Windows.ps1 and
+#                               scripts/Build-Installer.ps1 exist in the tagged
+#                               tree. For an older tag without them it logs a
+#                               notice and succeeds without doing anything.
+#
+# The workflow calls the repository's scripts; it never re-implements them.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Image and product name. This is the single place to change on a rename.
+  # It must match the local image tag and artifact file names that
+  # scripts/Package-Release.ps1 produces ("<name>:<version>").
+  IMAGE_NAME: mangapixer
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  package:
+    name: Package and publish (container)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write   # create the GitHub Release
+      packages: write   # push to ghcr.io
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve version and check it matches the tag
+        id: version
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          $version = (& ./scripts/Get-MangaPixerVersion.ps1).Trim()
+          if ($env:TAG -ne "v$version") {
+            throw "Tag '$env:TAG' does not match Version.props (expected 'v$version')."
+          }
+          $prerelease = $version.Contains('-').ToString().ToLowerInvariant()
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "prerelease=$prerelease" >> $env:GITHUB_OUTPUT
+          Write-Host "Releasing $version (prerelease: $prerelease)"
+
+      # Builds <IMAGE_NAME>:<version> locally, then writes the image archive,
+      # SPDX SBOM (syft) and SHA256SUMS.txt to artifacts/release/<version>.
+      - name: Build image, SBOM and checksums
+        run: pwsh ./scripts/Package-Release.ps1
+
+      # Full container HTTP flow against a synthetic library with a read-only
+      # media mount. It builds its own throwaway tag from the same Dockerfile
+      # and context, so the layers come from the build cache above.
+      - name: Smoke-test the container
+        run: pwsh ./scripts/Smoke-Container.ps1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image to GHCR
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          remote="ghcr.io/${OWNER,,}/${IMAGE_NAME}"
+          docker tag "${IMAGE_NAME}:${VERSION}" "${remote}:${VERSION}"
+          docker push "${remote}:${VERSION}"
+          if [ "$PRERELEASE" = "false" ]; then
+            docker tag "${IMAGE_NAME}:${VERSION}" "${remote}:latest"
+            docker push "${remote}:latest"
+          fi
+          {
+            echo "### Published image"
+            echo "- \`${remote}:${VERSION}\`"
+            if [ "$PRERELEASE" = "false" ]; then echo "- \`${remote}:latest\`"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Extract release notes from CHANGELOG.md
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          notes="$RUNNER_TEMP/release-notes.md"
+          awk -v heading="## [${VERSION}]" '
+            index($0, heading) == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > "$notes"
+          if ! grep -q '[^[:space:]]' "$notes"; then
+            echo "::warning title=No CHANGELOG section::CHANGELOG.md has no '## [${VERSION}]' section; using a placeholder body."
+            echo "See [CHANGELOG.md](CHANGELOG.md) for details." > "$notes"
+          fi
+          {
+            echo
+            echo "### Container image"
+            echo
+            echo '```bash'
+            echo "docker pull ghcr.io/${OWNER,,}/${IMAGE_NAME}:${VERSION}"
+            echo '```'
+            echo
+            echo "Release assets: the image archive (\`docker load -i\`), its SPDX SBOM, and"
+            echo "\`SHA256SUMS.txt\` (check with \`sha256sum -c SHA256SUMS.txt\`)."
+          } >> "$notes"
+          cat "$notes"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          flags=()
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "$TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            "${flags[@]}" \
+            "artifacts/release/${VERSION}"/*
+
+  # Both scripts run with their defaults: Publish-Windows.ps1 builds the web
+  # assets (npm, hence Node) and stages the self-contained distribution in
+  # artifacts/windows-dist; Build-Installer.ps1 restores the pinned WiX tool
+  # itself, stamps the version from Version.props, and writes
+  # artifacts/installer/<product>-<version>.msi from that folder.
+  windows-installer:
+    name: Windows installer (guarded)
+    needs: package
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write   # attach the MSI to the release
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check for Windows packaging scripts
+        id: guard
+        shell: pwsh
+        run: |
+          $present = (Test-Path scripts/Publish-Windows.ps1) -and (Test-Path scripts/Build-Installer.ps1)
+          "present=$($present.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          if (-not $present) {
+            Write-Output "::notice title=Windows installer skipped::scripts/Publish-Windows.ps1 or scripts/Build-Installer.ps1 is not in this tree; no MSI is attached to this release."
+          }
+
+      - name: Set up .NET (global.json)
+        if: steps.guard.outputs.present == 'true'
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Set up Node 24
+        if: steps.guard.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Publish the Windows build
+        if: steps.guard.outputs.present == 'true'
+        shell: pwsh
+        run: ./scripts/Publish-Windows.ps1
+
+      - name: Build the installer
+        if: steps.guard.outputs.present == 'true'
+        shell: pwsh
+        run: ./scripts/Build-Installer.ps1
+
+      - name: Attach the MSI to the release
+        if: steps.guard.outputs.present == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          $msi = @(Get-ChildItem -Path artifacts/installer -Filter *.msi -File)
+          if ($msi.Count -eq 0) { throw "Build-Installer.ps1 produced no .msi in artifacts/installer/." }
+          foreach ($file in $msi) {
+            $hash = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            $sidecar = "$($file.FullName).sha256"
+            "$hash  $($file.Name)" | Set-Content -Encoding ascii $sidecar
+            gh release upload $env:TAG $file.FullName $sidecar --repo $env:GITHUB_REPOSITORY
+            if ($LASTEXITCODE -ne 0) { throw "gh release upload failed for $($file.Name)" }
+          }

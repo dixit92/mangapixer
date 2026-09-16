@@ -153,7 +153,7 @@ export class ApiService {
     return this.get<CatalogNodeDto>(`/nodes/${nodeId}`);
   }
 
-  /** Per-library A–Z/script jump index (1.4.0 Lane E). */
+  /** Per-library A–Z/script jump index. */
   getJumpIndex(libraryId: string): Observable<JumpIndexDto> {
     return this.get<JumpIndexDto>(`/libraries/${libraryId}/jump-index`);
   }
@@ -173,7 +173,7 @@ export class ApiService {
   }
 
   /**
-   * Home "New chapters" (1.11.0 Lane C): the most-recently-added archives
+   * Home "New chapters": the most-recently-added archives
    * grouped by visible library, newest first, capped per library. Respects
    * Incognito/Private visibility server-side (the X-Incognito header is set
    * by the incognito interceptor like every other discovery call).
@@ -432,7 +432,7 @@ export class ApiService {
     return this.post<RotatingBackupStatusDto>('/operations/backups/rotating', {});
   }
 
-  // --- System info (post-1.3.0 lane D) ---
+  // --- System info ---
 
   /** Read-only product version (unauthenticated; shown in the app footer). */
   getSystemInfo(): Observable<SystemInfoDto> {

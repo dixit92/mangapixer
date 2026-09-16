@@ -1,4 +1,4 @@
-# MangaPlex .dockerignore
+# MangaPixer .dockerignore
 # Exclude everything not needed for container builds to protect privacy and reduce context size
 
 # Git history and metadata

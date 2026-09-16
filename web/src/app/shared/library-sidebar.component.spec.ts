@@ -14,11 +14,11 @@ import { LibraryDto } from '../core/api/api-types';
 class BlankComponent {}
 
 /**
- * Tests for the app-shell LibrarySidebarComponent (1.5.0 Task A + C):
+ * Tests for the app-shell LibrarySidebarComponent:
  *  - active item is derived from the CURRENT ROUTE (URL parse), not a local
  *    selection signal - so it is correct on deep links and back-button nav;
  *  - a library stays active while you browse a subfolder inside it;
- *  - each library icon carries a reading-direction badge (Task C);
+ *  - each library icon carries a reading-direction badge;
  *  - desktop collapse persists to a shell-scoped localStorage key.
  */
 describe('LibrarySidebarComponent', () => {
@@ -52,7 +52,7 @@ describe('LibrarySidebarComponent', () => {
     fixture.detectChanges();
   }
 
-  beforeEach(() => localStorage.removeItem('mangaplex-nav-collapsed'));
+  beforeEach(() => localStorage.removeItem('mangapixer-nav-collapsed'));
 
   it('renders Home plus a navigable item per library with browse-root links', async () => {
     const { fixture, router } = create();
@@ -103,7 +103,7 @@ describe('LibrarySidebarComponent', () => {
     expect(fixture.componentInstance.activeLibraryId()).toBeNull();
   });
 
-  it('renders a reading-direction badge only for libraries with an explicit mode (Task C)', async () => {
+  it('renders a reading-direction badge only for libraries with an explicit mode', async () => {
     const { fixture, router } = create();
     await navigate(router, '/', fixture);
 
@@ -149,14 +149,14 @@ describe('LibrarySidebarComponent', () => {
     expect(comp.collapsed()).toBe(true);
     comp.toggleCollapsed();
     expect(comp.collapsed()).toBe(false);
-    expect(localStorage.getItem('mangaplex-nav-collapsed')).toBe('0');
+    expect(localStorage.getItem('mangapixer-nav-collapsed')).toBe('0');
 
     comp.toggleCollapsed();
-    expect(localStorage.getItem('mangaplex-nav-collapsed')).toBe('1');
+    expect(localStorage.getItem('mangapixer-nav-collapsed')).toBe('1');
   });
 
   it('restores a persisted collapsed state on init', async () => {
-    localStorage.setItem('mangaplex-nav-collapsed', '1');
+    localStorage.setItem('mangapixer-nav-collapsed', '1');
     const { fixture, router } = create();
     await navigate(router, '/', fixture);
     expect(fixture.componentInstance.collapsed()).toBe(true);
@@ -195,7 +195,7 @@ describe('LibrarySidebarComponent', () => {
     });
 
     it('never shows as collapsed in page mode even if the shell collapse flag is persisted', async () => {
-      localStorage.setItem('mangaplex-nav-collapsed', '1');
+      localStorage.setItem('mangapixer-nav-collapsed', '1');
       const { fixture, router } = create();
       fixture.componentRef.setInput('pageMode', true);
       await navigate(router, '/', fixture);

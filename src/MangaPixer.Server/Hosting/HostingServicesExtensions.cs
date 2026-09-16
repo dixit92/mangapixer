@@ -1,0 +1,130 @@
+namespace com.lifepixer.mangapixer.Server.Hosting;
+
+using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Operations;
+using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Features.Import.YacReader;
+using com.lifepixer.mangapixer.Server.Features.Reading;
+using com.lifepixer.mangapixer.Server.Scanning;
+using com.lifepixer.mangapixer.Server.Storage;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using System.IO;
+
+/// <summary>
+/// DI registration extensions for hosted lifecycle services and the
+/// supporting services they depend on.
+/// </summary>
+public static class HostingServicesExtensions
+{
+    /// <summary>
+    /// Registers hosted services (worker pool, startup recovery, maintenance)
+    /// and the catalog/storage/operations services they require that are not
+    /// already registered by <c>AddMangaPixerAuth</c> or <c>AddMangaPixerMedia</c>.
+    /// </summary>
+    public static IServiceCollection AddMangaPixerHosting(this IServiceCollection services)
+    {
+        // Storage / scanning services that were implemented but never registered.
+        services.AddScoped<LibraryRegistrationService>();
+        services.AddScoped<ScanLeaseService>();
+        services.AddScoped<LibraryMaintenanceService>();
+        services.AddSingleton<LibraryScanPolicy>();
+        services.AddSingleton<ScanRunRegistry>();
+        services.AddSingleton<AppRootOptions>(sp =>
+        {
+            var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
+            return new AppRootOptions
+            {
+                DataRoot = config["MangaPixer:Storage:DataRoot"],
+                CacheRoot = config["MangaPixer:Storage:CacheRoot"],
+                ScratchRoot = config["MangaPixer:Storage:ScratchRoot"],
+            };
+        });
+        services.AddScoped<IdentityRelinkService>();
+
+        // YACReader progress importer (admin-only). The library reader is a
+        // stateless singleton; the import service is scoped (depends on DbContext).
+        services.AddSingleton<YacReaderLibraryReader>();
+        services.AddScoped<YacReaderImportService>();
+
+        // Admin directory browser for the library-registration path picker.
+        // Confined to the configured media browse root (default /media).
+        services.AddSingleton<MediaBrowseOptions>(sp =>
+        {
+            var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var configured = config["MangaPixer:Storage:MediaRoot"];
+            return new MediaBrowseOptions
+            {
+                Root = string.IsNullOrWhiteSpace(configured) ? "/media" : configured,
+            };
+        });
+        services.AddScoped<FilesystemBrowseService>();
+
+        // Page delivery depends on DbContext + CacheService + JobScheduler,
+        // all of which are registered by AddMangaPixerAuth/AddMangaPixerMedia.
+        services.AddScoped<PageDeliveryService>();
+
+        // WriteCoordinator for serialized DB writes.
+        services.AddScoped<WriteCoordinator>();
+
+        // JobRecoveryService — used by StartupRecoveryHostedService to recover
+        // interrupted jobs, analyses, and scratch workspaces. Was missing in
+        // the I01 wiring, which caused "No service for type JobRecoveryService"
+        // at startup (audit defect D15/D25).
+        services.AddScoped<JobRecoveryService>();
+
+        // Rotating DB backups — scheduled online snapshots (VACUUM INTO) with
+        // retention-based pruning. Interval/retention are admin-configurable
+        // via MangaPixer:Backups:*; backups land in <dataRoot>/backups, the
+        // same folder as pre-migration backups (which are never pruned).
+        services.AddSingleton(sp =>
+        {
+            var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var dataRoot = config["MangaPixer:Storage:DataRoot"];
+            var backupsDir = Path.Combine(
+                string.IsNullOrWhiteSpace(dataRoot)
+                    ? Path.Combine(AppContext.BaseDirectory, "data")
+                    : dataRoot,
+                "backups");
+
+            var options = new RotatingBackupOptions { BackupDirectory = backupsDir };
+            if (double.TryParse(config["MangaPixer:Backups:IntervalHours"],
+                    System.Globalization.CultureInfo.InvariantCulture, out var hours) && hours > 0)
+                options.Interval = TimeSpan.FromHours(hours);
+            if (int.TryParse(config["MangaPixer:Backups:RetentionCount"], out var retention) && retention > 0)
+                options.RetentionCount = retention;
+            if (bool.TryParse(config["MangaPixer:Backups:Enabled"], out var enabled))
+                options.Enabled = enabled;
+            return options;
+        });
+        services.AddSingleton<RotatingBackupState>();
+        services.AddScoped<RotatingBackupService>();
+
+        // DB backup import/restore (1.7.0). Admin-only upload + validate +
+        // stage; the atomic swap is applied on the next restart (see
+        // Program.cs). Size cap is admin-configurable via
+        // MangaPixer:Backups:MaxRestoreUploadBytes (default 512 MiB).
+        services.AddSingleton(sp =>
+        {
+            var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var options = new DbRestoreOptions();
+            if (long.TryParse(config["MangaPixer:Backups:MaxRestoreUploadBytes"],
+                    System.Globalization.CultureInfo.InvariantCulture, out var cap) && cap > 0)
+                options.MaxUploadBytes = cap;
+            return options;
+        });
+        services.AddScoped<DbRestoreService>();
+
+        // Hosted services — order matters for startup recovery, which runs
+        // before the worker pool starts dispatching. The thumbnail backfill
+        // runs after the worker pool so it can dispatch generation jobs.
+        services.AddHostedService<StartupRecoveryHostedService>();
+        services.AddHostedService<MediaWorkerHostedService>();
+        services.AddHostedService<PendingAnalysisResumeHostedService>();
+        services.AddHostedService<ThumbnailBackfillHostedService>();
+        services.AddHostedService<MaintenanceHostedService>();
+        services.AddHostedService<RotatingBackupHostedService>();
+
+        return services;
+    }
+}

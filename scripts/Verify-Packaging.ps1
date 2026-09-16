@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Verify-Packaging.ps1
+    MangaPixer Verify-Packaging.ps1
     Build and smoke packaged Linux/Windows targets.
     Never publishes, tags, pushes, installs host tools, or alters media mounts.
     User invocation recommended because it is resource intensive.
@@ -44,8 +44,8 @@ Invoke-Stage "Clean tree check" {
         Write-Host "Working tree is not clean:" -ForegroundColor Yellow
         Write-Host $status
     }
-    $remote = git remote -v 2>&1
-    if ($remote) { throw "Git remote is configured. Expected no remote." }
+    # A remote is expected; fail only if a remote URL embeds a credential.
+    & "$PSScriptRoot/Test-GitRemotes.ps1"
 }
 
 # Stage 2: Docker compose build
@@ -70,7 +70,7 @@ if ($isWindows) {
     $dotnetAvailable = [bool](Get-Command dotnet -ErrorAction SilentlyContinue)
     if ($dotnetAvailable) {
         Invoke-Stage "dotnet publish win-x64" {
-            dotnet publish src/MangaPlex.Server/MangaPlex.Server.csproj -c Release -r win-x64 --self-contained true -o artifacts/win-x64 2>&1 | Out-Host
+            dotnet publish src/MangaPixer.Server/MangaPixer.Server.csproj -c Release -r win-x64 --self-contained true -o artifacts/win-x64 2>&1 | Out-Host
             if ($LASTEXITCODE -ne 0) { throw "win-x64 publish failed" }
         }
     }

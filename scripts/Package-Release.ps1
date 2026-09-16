@@ -39,8 +39,8 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw "docker is required on PATH to package a release."
 }
 
-$version = (& "$PSScriptRoot/Get-MangaPlexVersion.ps1").Trim()
-$imageTag = "mangaplex:$version"
+$version = (& "$PSScriptRoot/Get-MangaPixerVersion.ps1").Trim()
+$imageTag = "mangapixer:$version"
 Write-Host "Release version: $version  ->  $imageTag" -ForegroundColor Cyan
 
 # --- Immutable versioned build ---
@@ -57,9 +57,9 @@ else {
 }
 
 if ($Latest) {
-    docker tag $imageTag "mangaplex:latest" 2>&1 | Out-Host
+    docker tag $imageTag "mangapixer:latest" 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "docker tag :latest failed" }
-    Write-Host "Tagged mangaplex:latest at the same image id as $imageTag." -ForegroundColor Green
+    Write-Host "Tagged mangapixer:latest at the same image id as $imageTag." -ForegroundColor Green
 }
 
 # --- Output directory ---
@@ -68,8 +68,8 @@ New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $outDirFull = (Resolve-Path $outDir).Path
 
 # --- SBOM from a saved image archive ---
-$tarName = "mangaplex-$version-image.tar"
-$sbomName = "mangaplex-$version.sbom.spdx.json"
+$tarName = "mangapixer-$version-image.tar"
+$sbomName = "mangapixer-$version.sbom.spdx.json"
 Write-Host "Saving image archive..." -ForegroundColor Cyan
 docker save $imageTag -o (Join-Path $outDir $tarName)
 if ($LASTEXITCODE -ne 0) { throw "docker save failed" }
@@ -81,7 +81,7 @@ if ($LASTEXITCODE -ne 0) { throw "syft SBOM generation failed" }
 # --- SBOM the Windows self-contained folder too, if it was published ---
 $winDir = Join-Path $repoRoot "artifacts/win-x64"
 if (Test-Path $winDir) {
-    $winSbom = "mangaplex-$version.win-x64.sbom.spdx.json"
+    $winSbom = "mangapixer-$version.win-x64.sbom.spdx.json"
     $winFull = (Resolve-Path $winDir).Path
     Write-Host "Generating SBOM for win-x64 publish folder..." -ForegroundColor Cyan
     docker run --rm -v "${winFull}:/scan:ro" -v "${outDirFull}:/work" $SyftImage scan "dir:/scan" -o "spdx-json=/work/$winSbom" -q 2>&1 | Out-Host

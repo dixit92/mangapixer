@@ -269,10 +269,10 @@ export class SettingsComponent implements OnInit {
   readonly homeWindowSaving = signal(false);
   readonly homeWindowError = signal<string | null>(null);
 
-  // Home "New chapters" library visibility (1.12.0 refinement): the per-user, server-
-  // persisted EXCLUDED set (GET/PUT /reading/home-libraries). A library is SHOWN on the
-  // home New-chapters row when it is NOT in this set. This picker moved here from the home
-  // page (owner refinement) so all New-chapters configuration lives under Settings.
+  // Home "New chapters" library visibility: the per-user, server-persisted EXCLUDED
+  // set (GET/PUT /reading/home-libraries). A library is SHOWN on the home New-chapters
+  // row when it is NOT in this set. This picker moved here from the home page so all
+  // New-chapters configuration lives under Settings.
   readonly homeExcludedLibraryIds = signal<ReadonlySet<string>>(new Set());
   readonly homeLibrariesSaving = signal(false);
   readonly homeLibrariesError = signal<string | null>(null);

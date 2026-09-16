@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 <#
-    MangaPlex Verify-Quick.ps1
+    MangaPixer Verify-Quick.ps1
     Quick verification for the normal implementation loop.
     Runs privacy preflight, formatting/lint checks, affected .NET unit tests, and Angular unit tests.
     Target: under 10 minutes after warm restore.
@@ -45,8 +45,8 @@ function Invoke-Stage {
 # Stage 1: Privacy preflight
 Invoke-Stage "Privacy Preflight" {
     $status = git status --short 2>&1
-    $remote = git remote -v 2>&1
-    if ($remote) { throw "Git remote is configured. Expected no remote." }
+    # A remote is expected; fail only if a remote URL embeds a credential.
+    & "$PSScriptRoot/Test-GitRemotes.ps1"
 
     # Check that .devin/config.local.json is ignored
     $ignored = git check-ignore .devin/config.local.json 2>&1
@@ -61,29 +61,29 @@ Invoke-Stage "Privacy Preflight" {
 }
 
 # Stage 2: .NET restore (if needed)
-$needRestore = -not (Test-Path "src/MangaPlex.Core/obj/project.assets.json")
+$needRestore = -not (Test-Path "src/MangaPixer.Core/obj/project.assets.json")
 if ($needRestore) {
     Invoke-Stage "dotnet restore" {
-        dotnet restore MangaPlex.slnx 2>&1 | Out-Host
+        dotnet restore MangaPixer.slnx 2>&1 | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed" }
     }
 }
 
 # Stage 3: .NET format check
 Invoke-Stage "dotnet format verify" {
-    dotnet format MangaPlex.slnx --verify-no-changes --no-restore 2>&1 | Out-Host
+    dotnet format MangaPixer.slnx --verify-no-changes --no-restore 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "dotnet format found changes needed" }
 }
 
 # Stage 4: .NET build
 Invoke-Stage "dotnet build ($Configuration)" {
-    dotnet build MangaPlex.slnx --no-restore -c $Configuration 2>&1 | Out-Host
+    dotnet build MangaPixer.slnx --no-restore -c $Configuration 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
 }
 
 # Stage 5: .NET tests
 Invoke-Stage "dotnet test" {
-    dotnet test MangaPlex.slnx --no-build -c $Configuration --verbosity normal 2>&1 | Out-Host
+    dotnet test MangaPixer.slnx --no-build -c $Configuration --verbosity normal 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "dotnet test failed" }
 }
 

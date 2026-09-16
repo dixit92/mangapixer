@@ -1,25 +1,9 @@
-# MangaPlex — Claude Code project instructions
+# MangaPixer - Claude Code project instructions
 
-## Docker testing environments
+Project instructions for all contributors and agents live in [AGENTS.md](AGENTS.md); this file only imports them for Claude Code.
 
-Two Docker environments exist for this project:
+@AGENTS.md
 
-- **Local Docker (default)** — use this for regular issue resolution, feature
-  development, and day-to-day container testing. This is the default; no
-  special setup needed beyond what's in `deploy/compose.yaml` /
-  `deploy/compose.dev.yaml`.
-- **Unraid host** (`deploy/compose.unraid.yaml`, port 6266, `mangaplex`
-  container is live there) — reserved for:
-  - testing against large/real-sized libraries that don't fit local dev setups
-  - destructive testing (volume wipes, corruption scenarios, crash/recovery,
-    anything you would NOT want to risk against a shared or persistent env)
+## Docker testing environment
 
-  Do **not** default to the Unraid host for routine work. Only use it when the
-  task specifically calls for scale or destruction that local Docker can't
-  safely provide, and prefer to ask the user for confirmation before running
-  destructive commands there (deleting volumes, `docker system prune`, etc.),
-  same as you would for any other production-adjacent, hard-to-reverse
-  action.
-
-  Connection details (host, credentials) are intentionally **not** committed
-  here — see `.claude/unraid-docker.md` (git-ignored, local machine only).
+Use local Docker for container testing: `deploy/compose.yaml` (plus `deploy/compose.dev.yaml` where needed) is the default test environment. See the container-based build and live review instance sections in AGENTS.md.

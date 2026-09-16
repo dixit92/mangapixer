@@ -12,11 +12,10 @@ import { HomeComponent } from './home.component';
 import { LibraryViewPreferencesDto, RecentChaptersDto } from '../../core/api/api-types';
 
 /**
- * Home page tests. The library sidebar was promoted to the app shell (1.5.0), so
- * home is the consolidated continue-reading row, the New chapters row - STACKED
- * cards per top-level unit as of 1.12.0, with the shared card-size slider and the
- * per-user library picker - plus the library grid (each card carrying a Task C
- * reading-direction indicator).
+ * Home page tests. The library sidebar was promoted to the app shell, so home is
+ * the consolidated continue-reading row, the New chapters row - STACKED cards per
+ * top-level unit, with the shared card-size slider and the per-user library picker -
+ * plus the library grid (each card carrying a reading-direction indicator).
  */
 describe('HomeComponent', () => {
   let httpMock: HttpTestingController;
@@ -95,7 +94,7 @@ describe('HomeComponent', () => {
     expect(cards[1].textContent).toContain('Beta');
   });
 
-  it('shows a reading-direction indicator only for libraries with an explicit mode (Task C)', () => {
+  it('shows a reading-direction indicator only for libraries with an explicit mode', () => {
     const fixture = createComponent();
     const cards = fixture.nativeElement.querySelectorAll('.library-card') as NodeListOf<HTMLElement>;
 
@@ -171,7 +170,7 @@ describe('HomeComponent', () => {
     expect(click.defaultPrevented).toBe(true);
 
     // Transient: the folder opens sorted recentlyUpdated via a query param, WITHOUT
-    // writing the user's persisted library sort (owner refinement, 1.12.0).
+    // writing the user's persisted library sort.
     httpMock.expectNone({ method: 'PUT', url: '/api/v1/reading/library-preferences' });
     expect(navigate).toHaveBeenCalledWith(
       ['/libraries', 'L1', 'browse', 'f1'], { queryParams: { sort: 'recentlyUpdated' } });
@@ -269,8 +268,8 @@ describe('HomeComponent', () => {
   });
 
   // --- Library visibility: home READS the per-user excluded set to filter which
-  //     libraries contribute cards. The picker that EDITS the set now lives under
-  //     Settings > New Chapters (owner refinement, 1.12.0). ---
+  //     libraries contribute cards. The picker that EDITS the set lives under
+  //     Settings > New Chapters. ---
 
   it('reads the excluded set from the server and drops those libraries from the row', () => {
     const fixture = createComponent({ excluded: ['L1'] });
