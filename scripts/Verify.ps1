@@ -18,9 +18,10 @@
 
     NOT run here: Playwright e2e (`npm run e2e`). Playwright targets an
     already-running instance (see web/playwright.config.ts, default
-    127.0.0.1:8091) which this tier does not provision, so e2e stays a manual /
-    reviewer step (CONTRIBUTING.md, the live review instance in AGENTS.md, and
-    the PR template). The Vitest unit suite above needs no server and runs here.
+    127.0.0.1:8091) which this fast, server-free tier does not provision. e2e
+    has its own home instead: scripts/Verify-E2E.ps1 (a throwaway container +
+    the browser suite), run in CI as the separate "E2E (Playwright)" job. The
+    Vitest unit suite above needs no server and runs here.
 
     Usage: pwsh ./scripts/Verify.ps1 -Configuration Release
 #>
