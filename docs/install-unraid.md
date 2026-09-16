@@ -20,8 +20,8 @@ The Compose file expects an image called `mangapixer:<version>`. MangaPixer does
 **Option A: build on another machine and copy it over (recommended).** On a machine with Docker and a clone of the repository:
 
 ```sh
-docker build -f deploy/Dockerfile -t mangapixer:1.13.0 .
-docker save mangapixer:1.13.0 -o mangapixer-1.13.0-image.tar
+docker build -f deploy/Dockerfile -t mangapixer:1.14.0 .
+docker save mangapixer:1.14.0 -o mangapixer-1.14.0-image.tar
 ```
 
 `pwsh ./scripts/Package-Release.ps1` does the same thing and also writes an SBOM and SHA-256 checksums to `artifacts/release/<version>/`. It pulls the `anchore/syft` image to create the SBOM.
@@ -29,7 +29,7 @@ docker save mangapixer:1.13.0 -o mangapixer-1.13.0-image.tar
 Copy the `.tar` file to Unraid and load it:
 
 ```sh
-docker load -i mangapixer-1.13.0-image.tar
+docker load -i mangapixer-1.14.0-image.tar
 ```
 
 **Option B: build on Unraid.** Clone the repository on the server. In `compose.unraid.yaml`, comment out the `image:` line and uncomment the `build:` block beneath it.
@@ -37,7 +37,7 @@ docker load -i mangapixer-1.13.0-image.tar
 Whichever option you use, set `MANGAPIXER_VERSION` to the version you loaded or built. If it is unset, the file falls back to `mangapixer:latest`.
 
 ```sh
-export MANGAPIXER_VERSION=1.13.0
+export MANGAPIXER_VERSION=1.14.0
 ```
 
 ## Step 2: set PUID and PGID

@@ -6,12 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-09-16
+
 ### Added
 
-- Contributor guide and security policy for the public repository.
+- Public repository: README, MIT license and third-party notices, contributor guide and security policy.
+- User and operator documentation under `docs/`: install guides for Docker, Unraid and Windows, the configuration reference, library layout, the reader, users and access, backup and restore, reverse proxy and HTTPS, troubleshooting and an FAQ.
 - Continuous integration that runs the full verification script on every push and pull request, plus a release workflow that publishes the container image to the GitHub Container Registry with an SBOM and SHA-256 checksums.
 - Dependabot configuration and issue and pull request templates.
-- The container image and the Windows distribution ship the license texts of their third-party components (`/app/licenses/` in the image).
+- The container image and the Windows distribution ship the license texts of their third-party components (`/app/licenses/` in the image, next to the tray executable on Windows).
 
 ### Changed
 

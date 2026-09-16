@@ -4,11 +4,11 @@ MangaPixer is a self-hosted server that people point at their own media librarie
 
 ## Supported versions
 
-Security fixes are made on the **latest minor release line only**. A fix ships as a new patch release on that line (for example `1.13.x`), and older lines are not patched. To stay covered, upgrade to the newest release.
+Security fixes are made on the **latest minor release line only**. A fix ships as a new patch release on that line (for example `1.14.x`), and older lines are not patched. To stay covered, upgrade to the newest release.
 
 | Version | Supported |
 |---|---|
-| Latest minor line (currently 1.13.x) | Yes |
+| Latest minor line (currently 1.14.x) | Yes |
 | Any older minor line | No, please upgrade |
 
 The newest version is always listed on the Releases page and in [CHANGELOG.md](CHANGELOG.md).
@@ -23,10 +23,6 @@ Please report it privately through GitHub's private vulnerability reporting:
 
 3. Fill in the advisory form. Only the maintainers can see it.
 
-
-<!-- TODO(owner): enable private vulnerability reporting under
-Settings > Code security > Private vulnerability reporting, or the
-"Report a vulnerability" button above will not appear. -->
 
 If you cannot use GitHub, e-mail the maintainer instead: [smitdixit92@gmail.com](mailto:smitdixit92@gmail.com).
 

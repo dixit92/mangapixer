@@ -32,7 +32,7 @@ git clone <repository-url> mangapixer
 cd mangapixer
 ```
 
-To install a specific release, check out its tag (for example `git checkout v1.13.0`).
+To install a specific release, check out its tag (for example `git checkout v1.14.0`).
 
 ## Step 2: mount your media read-only
 
@@ -61,11 +61,11 @@ pwsh ./scripts/Get-MangaPixerVersion.ps1
 Then set it in your shell. Set it again in every new shell before you run `docker compose`, or Compose looks for an image under the fallback tag.
 
 ```sh
-export MANGAPIXER_VERSION=1.13.0          # bash / zsh
+export MANGAPIXER_VERSION=1.14.0          # bash / zsh
 ```
 
 ```powershell
-$env:MANGAPIXER_VERSION = "1.13.0"         # PowerShell
+$env:MANGAPIXER_VERSION = "1.14.0"         # PowerShell
 ```
 
 ## Step 4: build and start
