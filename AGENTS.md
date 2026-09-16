@@ -61,13 +61,9 @@ docker run --rm -v "$PWD:/workspace" -w /workspace mcr.microsoft.com/dotnet/sdk:
 # Angular build (requires npm ci first)
 docker run --rm -v "$PWD/web:/workspace/web" -w /workspace/web node:24-bookworm-slim \
     sh -c "npm ci && npm run build"
-
-# Container smoke test (when host lacks pwsh; requires Docker socket)
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-    -v "$PWD:/workspace" -w /workspace \
-    mcr.microsoft.com/powershell:7.5 \
-    pwsh ./scripts/Smoke-Container.ps1
 ```
+
+`scripts/Smoke-Container.ps1` needs PowerShell 7 and the Docker CLI on the same host; there is no container fallback for it (the PowerShell images ship no Docker client).
 
 ### Direct .NET commands (when SDK is available)
 

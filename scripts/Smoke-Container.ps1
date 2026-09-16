@@ -104,7 +104,9 @@ $stateVolumes = [ordered]@{
 }
 Invoke-Stage "Run container" {
     New-Item -ItemType File -Path $mediaMarker -Force | Out-Null
-    $mediaMarkerTime = (Get-Item $mediaMarker).LastWriteTime
+    # -Force: on Linux, PowerShell treats dot-files as hidden and Get-Item /
+    # Get-ChildItem skip them without it (the CI runner failed here).
+    $mediaMarkerTime = (Get-Item -Force $mediaMarker).LastWriteTime
     Write-Host "Media marker created at: $mediaMarkerTime"
 
     # Remove any existing container and state from an earlier run
@@ -123,7 +125,9 @@ Invoke-Stage "Run container" {
     if ($LASTEXITCODE -ne 0) { throw "docker run failed" }
 
     # Wait for health
-    $maxWait = 30
+    # Generous limits: a cold start on a two-core CI runner (first-run migrations,
+    # worker spawn) can take well over 30 s.
+    $maxWait = 120
     $waited = 0
     while ($waited -lt $maxWait) {
         Start-Sleep -Seconds 2
@@ -206,7 +210,7 @@ Invoke-Stage "HTTP smoke flow" {
     Write-Host "Scan triggered"
 
     # Poll the latest scan run until it finishes
-    $maxScanWait = 30
+    $maxScanWait = 120
     $scanWaited = 0
     $scanState = $null
     while ($scanWaited -lt $maxScanWait) {
@@ -229,7 +233,7 @@ Invoke-Stage "HTTP smoke flow" {
     Write-Host "Archive found: $itemId"
 
     # Fetch manifest (may 202 then 200)
-    $maxManifestWait = 30
+    $maxManifestWait = 120
     $manifestWaited = 0
     $manifest = $null
     while ($manifestWaited -lt $maxManifestWait) {
@@ -271,7 +275,7 @@ Invoke-Stage "HTTP smoke flow" {
 
     # Fetch cover (202 while the thumbnail is still being generated)
     $coverResp = $null
-    for ($coverWaited = 0; $coverWaited -lt 30; $coverWaited += 2) {
+    for ($coverWaited = 0; $coverWaited -lt 120; $coverWaited += 2) {
         $coverResp = Invoke-WebRequest -Uri "$baseUrl/api/v1/items/$itemId/cover" `
             -WebSession $session -SkipHttpErrorCheck -TimeoutSec 10
         if ($coverResp.StatusCode -ne 202) { break }
@@ -286,8 +290,8 @@ Invoke-Stage "HTTP smoke flow" {
 # Stage 5: Source media immutability check
 Invoke-Stage "Source media immutability" {
     # Verify no files in the media directory were modified after the marker
-    $markerTime = (Get-Item $mediaMarker).LastWriteTime
-    $violations = Get-ChildItem -Path $tempLib -Recurse -File |
+    $markerTime = (Get-Item -Force $mediaMarker).LastWriteTime
+    $violations = Get-ChildItem -Path $tempLib -Recurse -File -Force |
         Where-Object { $_.LastWriteTime -gt $markerTime -and $_.Name -ne ".smoke-marker" }
     if ($violations) {
         $violationList = $violations | ForEach-Object { $_.FullName }

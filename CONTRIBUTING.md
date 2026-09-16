@@ -78,12 +78,9 @@ docker run --rm -v "${PWD}:/workspace" -w /workspace mcr.microsoft.com/dotnet/sd
 # Web app: install, lint, build, unit tests
 docker run --rm -v "${PWD}/web:/workspace/web" -w /workspace/web node:24-bookworm-slim \
     sh -c "npm ci && npm run lint && npm run build && npm run test:ci"
-
-# Container smoke test from a PowerShell container (needs the Docker socket)
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-    -v "${PWD}:/workspace" -w /workspace mcr.microsoft.com/powershell:7.5 \
-    pwsh ./scripts/Smoke-Container.ps1
 ```
+
+`scripts/Smoke-Container.ps1` needs PowerShell 7 and the Docker CLI on the same host; there is no container fallback for it (the PowerShell images ship no Docker client).
 
 The .NET SDK image includes PowerShell, so you can also run `pwsh ./scripts/Verify-Quick.ps1` inside it.
 
