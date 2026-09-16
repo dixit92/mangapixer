@@ -5,7 +5,7 @@ This guide walks through `deploy/compose.yaml`, the canonical way to run the ser
 ## What you need
 
 - Docker Engine with the Compose plugin (`docker compose`). The override example below uses the `!override` tag, which needs Compose 2.24 or later.
-- A clone of this repository. MangaPixer does not publish a prebuilt image yet, so you build the image from source. The build is fully containerized: you do not need .NET or Node.js on the host.
+- The two Compose files from this repository (`deploy/compose.yaml` and your own override). The image itself is pulled from the GitHub Container Registry; nothing is built on your machine.
 - Your comics or manga in folders that the Docker host can read.
 
 ## What the Compose file sets up
@@ -25,14 +25,23 @@ The container starts as root only long enough to fix ownership of the state fold
 
 Compose names the volumes after the project, which defaults to the folder containing the Compose file. With the commands below the volumes are called `deploy_mangapixer-data`, `deploy_mangapixer-cache` and `deploy_mangapixer-scratch`.
 
-## Step 1: get the source
+## Step 1: get the Compose file
+
+Either clone the repository, which is also what you need to build from source later:
 
 ```sh
-git clone <repository-url> mangapixer
+git clone https://github.com/dixit92/mangapixer.git mangapixer
 cd mangapixer
 ```
 
-To install a specific release, check out its tag (for example `git checkout v1.14.0`).
+or download just the Compose file into a folder of your choice:
+
+```sh
+mkdir -p mangapixer/deploy && cd mangapixer
+curl -fsSL -o deploy/compose.yaml https://raw.githubusercontent.com/dixit92/mangapixer/main/deploy/compose.yaml
+```
+
+The commands below assume you are in that `mangapixer` folder.
 
 ## Step 2: mount your media read-only
 
@@ -52,7 +61,7 @@ Compose only reads the override file when you pass it with `-f`, as in the comma
 
 ## Step 3: choose the image tag
 
-The Compose file tags the image `mangapixer:${MANGAPIXER_VERSION}`. When the variable is unset it falls back to `latest`, so always set the variable to the version you are building. The version is in `Version.props`, and this script prints it:
+The Compose file pulls `ghcr.io/dixit92/mangapixer:${MANGAPIXER_VERSION}`. When the variable is unset it falls back to `latest`, which moves with every release; pin the version you want so upgrades happen when you decide. Released versions are listed on the [Releases page](https://github.com/dixit92/mangapixer/releases). In a clone, this script prints the version of the checked-out source:
 
 ```sh
 pwsh ./scripts/Get-MangaPixerVersion.ps1
@@ -61,22 +70,20 @@ pwsh ./scripts/Get-MangaPixerVersion.ps1
 Then set it in your shell. Set it again in every new shell before you run `docker compose`, or Compose looks for an image under the fallback tag.
 
 ```sh
-export MANGAPIXER_VERSION=1.14.0          # bash / zsh
+export MANGAPIXER_VERSION=1.14.1          # bash / zsh
 ```
 
 ```powershell
-$env:MANGAPIXER_VERSION = "1.14.0"         # PowerShell
+$env:MANGAPIXER_VERSION = "1.14.1"         # PowerShell
 ```
 
-## Step 4: build and start
-
-Run this from the repository root:
+## Step 4: start
 
 ```sh
-docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --build
+docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d
 ```
 
-The first build downloads the .NET and Node base images and takes several minutes. Later builds reuse cached layers.
+The first start pulls the image (about 600 MB compressed). Later starts reuse it.
 
 Check that the server is up:
 
@@ -128,17 +135,27 @@ The server always listens on port 8080 inside the container. To use a different 
 
 ## Upgrading
 
-1. Update your clone (`git pull`, or `git checkout` the new release tag).
-2. Set `MANGAPIXER_VERSION` to the new version (`pwsh ./scripts/Get-MangaPixerVersion.ps1`).
-3. Rebuild and restart:
+1. Set `MANGAPIXER_VERSION` to the new version from the Releases page (and `git pull` if you keep a clone, so the Compose files match).
+2. Pull and restart:
 
    ```sh
-   docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --build
+   docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml pull
+   docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d
    ```
 
 Your volumes are kept. On start-up the server upgrades the database schema if the new version needs it. **Before it changes an existing database it writes a snapshot** called `pre-migration-<UTC timestamp>.db` to `/data/backups`. If that snapshot fails, the server refuses to start rather than risk your data. Automatic backup rotation never deletes these snapshots.
 
-Each version is its own image tag, so the previous image stays on disk. Once the new version is running, you can remove old ones with `docker image rm mangapixer:<old-version>`.
+Each version is its own image tag, so the previous image stays on disk. Once the new version is running, you can remove old ones with `docker image rm ghcr.io/dixit92/mangapixer:<old-version>`.
+
+## Building from source
+
+Contributors and anyone who wants to run an unreleased commit add the build overlay, which builds the image from the clone under the same name the canonical file pulls:
+
+```sh
+docker compose -f deploy/compose.yaml -f deploy/compose.build.yaml -f deploy/compose.override.yaml up -d --build
+```
+
+The build is fully containerized (no .NET or Node.js needed on the host); the first one downloads the SDK base images and takes several minutes. Set `MANGAPIXER_VERSION` to the version in `Version.props` (`pwsh ./scripts/Get-MangaPixerVersion.ps1` prints it) so the local image does not shadow a released tag.
 
 ## Where backups land
 

@@ -1,0 +1,13 @@
+# Build-from-source overlay for deploy/compose.yaml (contributors, unreleased
+# builds). Adds a build section so `docker compose ... up -d --build` builds the
+# image from this checkout under the same name the canonical file pulls:
+#
+#   docker compose -f deploy/compose.yaml -f deploy/compose.build.yaml up -d --build
+#
+# Not needed to run a released version: compose.yaml alone pulls it from GHCR.
+
+services:
+  mangapixer:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile

@@ -52,7 +52,18 @@ if ($tagExists -and -not $Force) {
 }
 else {
     if ($tagExists) { Write-Host "Rebuilding existing tag '$imageTag' because -Force was given." -ForegroundColor Yellow }
-    docker build -f deploy/Dockerfile -t $imageTag . 2>&1 | Out-Host
+    # Git build metadata for InformationalVersion (deploy/Dockerfile ARGs ->
+    # Directory.Build.props). Without them the image reports "<version>+dirty",
+    # which the first public release did. CI checks out the tagged commit, so
+    # the tree is clean there; locally the dirty flag reflects the working tree.
+    $gitShort = (git rev-parse --short HEAD 2>$null)
+    if (-not $gitShort) { $gitShort = "" }
+    $gitDirty = if (git status --porcelain 2>$null) { "true" } else { "false" }
+    Write-Host "Git: $gitShort (dirty=$gitDirty)"
+    docker build -f deploy/Dockerfile `
+        --build-arg GIT_COMMIT_SHORT=$gitShort `
+        --build-arg GIT_IS_DIRTY=$gitDirty `
+        -t $imageTag . 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "docker build failed" }
 }
 

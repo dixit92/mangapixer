@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.14.1] - 2026-09-16
+
+### Changed
+
+- The Compose files pull the published image from `ghcr.io/dixit92/mangapixer` instead of building from source; the build section moved to the `deploy/compose.build.yaml` overlay for contributors. The install guides and the README quick start follow.
+
+### Fixed
+
+- The published container image reported its version as `+dirty`; the release build now embeds the commit (`<version>+sha.<short>`).
+- The container smoke test that gates releases failed on Linux runners because its marker file starts with a dot; it also waits longer for cold starts.
+- The Contracts verification tier had never passed its version-consistency stage.
+
 ## [1.14.0] - 2026-09-16
 
 ### Added

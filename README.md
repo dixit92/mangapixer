@@ -37,9 +37,9 @@ Why folder-native? Because I wanted a way to organize my content freely and not 
 
 ## Quick start (Docker Compose)
 
-You need Docker with Compose v2 and a clone of this repository; the Compose file builds the image from source. Full guide: [Install with Docker](docs/install-docker.md).
+You need Docker with Compose v2. The Compose file pulls the published image from the GitHub Container Registry. Full guide: [Install with Docker](docs/install-docker.md).
 
-1. Clone the repository.
+1. Clone the repository, or download just `deploy/compose.yaml` into a folder.
 2. Mount your libraries read-only in a `deploy/compose.override.yaml` (git-ignored):
 
    ```yaml
@@ -50,20 +50,20 @@ You need Docker with Compose v2 and a clone of this repository; the Compose file
          - /path/to/your/comics:/media/comics:ro
    ```
 
-3. From the repository root, build and start with the current version (`pwsh ./scripts/Get-MangaPixerVersion.ps1` prints it):
+3. From that folder, pull and start the version you want (see [Releases](https://github.com/dixit92/mangapixer/releases)):
 
    ```bash
-   export MANGAPIXER_VERSION=1.14.0
-   docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --build
+   export MANGAPIXER_VERSION=1.14.1
+   docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d
    ```
 
 4. Open <http://127.0.0.1:8080>, create the first admin account on the setup screen, then add a library under **Administration** and scan it.
 
-The port is published on loopback only; put a [reverse proxy](docs/reverse-proxy-and-https.md) in front for other devices. Your database, keys, backups and thumbnails live in the `mangapixer-data` volume: back that one up. To upgrade, pull the new source, set `MANGAPIXER_VERSION` to the new version and run the same `up -d --build` command; schema upgrades run at startup after an automatic backup.
+The port is published on loopback only; put a [reverse proxy](docs/reverse-proxy-and-https.md) in front for other devices. Your database, keys, backups and thumbnails live in the `mangapixer-data` volume: back that one up. To upgrade, set `MANGAPIXER_VERSION` to the new version, run `pull` and then the same `up -d`; schema upgrades run at startup after an automatic backup. Building from source is one overlay away: see the Docker guide.
 
 **Unraid:** `deploy/compose.unraid.yaml` uses a single appdata folder and `PUID`/`PGID`. See [Install on Unraid](docs/install-unraid.md).
 
-**Windows:** a native tray app with a per-user MSI installer ships since 1.13.0, no Docker needed. See [Install on Windows](docs/install-windows.md).
+**Windows:** a native tray app with a per-user MSI installer, no Docker needed. Download `MangaPixer-<version>.msi` from [Releases](https://github.com/dixit92/mangapixer/releases); see [Install on Windows](docs/install-windows.md).
 
 [FAQ - in case you're in a hurry](docs/faq.md)
 
@@ -156,7 +156,7 @@ The toolchain is .NET SDK 10.0.4xx, Node.js 24 and PowerShell 7, or the official
 
 ## Project status
 
-MangaPixer is at **1.14.0**. It follows SemVer, and the version lives in `Version.props`. 
+MangaPixer is at **1.14.1**. It follows SemVer, and the version lives in `Version.props`. 
 
 ## Contributing
 
