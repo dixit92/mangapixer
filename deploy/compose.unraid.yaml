@@ -22,14 +22,10 @@
 
 services:
   mangapixer:
-    # Pre-built image path (recommended): build on your dev machine with
-    # Package-Release.ps1, transfer the tar to Unraid, docker load it, then
-    # `up -d` here. No repo needed on Unraid.
-    image: mangapixer:${MANGAPIXER_VERSION:-latest}
-    # To build on Unraid instead, comment out `image:` above and uncomment:
-    # build:
-    #   context: ..
-    #   dockerfile: deploy/Dockerfile
+    # Published image (pulled on `up -d`). No repository clone needed on Unraid.
+    image: ghcr.io/dixit92/mangapixer:${MANGAPIXER_VERSION:-latest}
+    # To build on Unraid from a clone instead, add the build overlay:
+    #   docker compose -f deploy/compose.unraid.yaml -f deploy/compose.build.yaml up -d --build
     # Host port 6266 — IANA unassigned, no known service or CVEs. Container
     # internal port stays 8080. Change the host port if 6266 is taken on your
     # Unraid box.

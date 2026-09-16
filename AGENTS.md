@@ -159,7 +159,7 @@ Two Compose files coexist under `deploy/`. They are alternatives, not layers.
 
 | File | Layout | Use |
 |---|---|---|
-| `deploy/compose.yaml` | Three named Docker volumes (`/data`, `/cache`, `/scratch`) | Canonical, portable default. Used by CI, `Verify-Packaging.ps1`, `Verify.ps1`, and the e2e/smoke flow. |
+| `deploy/compose.yaml` | Three named Docker volumes (`/data`, `/cache`, `/scratch`); pulls `ghcr.io/dixit92/mangapixer` (add `compose.build.yaml` to build from source) | Canonical, portable default. Used by CI, `Verify-Packaging.ps1`, `Verify.ps1`, and the e2e/smoke flow. |
 | `deploy/compose.unraid.yaml` | Single `/config` bind to `/mnt/user/appdata/MangaPixer`, with `data`/`cache`/`scratch` as subfolders | Unraid-targeted. Appdata lives on the array (parity-protected, backed up with the rest of `/mnt/user/appdata`). |
 
 Conventions for the Unraid config:

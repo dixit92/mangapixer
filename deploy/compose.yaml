@@ -1,14 +1,13 @@
 # MangaPixer production Compose file (template)
 # Real library mounts and app-data paths are supplied through ignored local overrides.
-# Set MANGAPIXER_VERSION to pin the image tag; it falls back to 'latest' when unset.
+# Pulls the published image from GHCR. Set MANGAPIXER_VERSION to pin the tag;
+# it falls back to 'latest' when unset. To build from source instead, add the
+# compose.build.yaml overlay (see docs/install-docker.md, "Building from source").
 # Loopback-only publication by default; reverse proxies handle external access.
 
 services:
   mangapixer:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
-    image: mangapixer:${MANGAPIXER_VERSION:-latest}
+    image: ghcr.io/dixit92/mangapixer:${MANGAPIXER_VERSION:-latest}
     ports:
       - "127.0.0.1:8080:8080"
     environment:

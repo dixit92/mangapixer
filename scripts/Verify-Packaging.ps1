@@ -56,7 +56,7 @@ if ($dockerAvailable) {
         if ($LASTEXITCODE -ne 0) { throw "docker compose config failed" }
     }
     Invoke-Stage "docker compose build" {
-        docker compose -f deploy/compose.yaml build 2>&1 | Out-Host
+        docker compose -f deploy/compose.yaml -f deploy/compose.build.yaml build 2>&1 | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "docker compose build failed" }
     }
 }

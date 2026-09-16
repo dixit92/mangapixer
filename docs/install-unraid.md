@@ -7,38 +7,23 @@
 | State | Three named Docker volumes | One host folder, `/mnt/user/appdata/MangaPixer`, mounted at `/config` |
 | File ownership | UID/GID 1000 by default | `PUID`/`PGID` so files belong to your Unraid user |
 | Port | `127.0.0.1:8080` (loopback only) | `6266`, published on **all** interfaces, so the app is reachable from your LAN |
-| Image | Built from the repository | Uses a prebuilt image by default; building on Unraid is optional |
+| Image | Pulled from GHCR (or built from a clone with the build overlay) | Pulled from GHCR; building on Unraid is optional |
 
 The hardening is the same in both: read-only container filesystem, a `tmpfs` for `/tmp`, `no-new-privileges`, and bounded container logs.
 
 An Unraid Community Applications template is planned but does not exist yet. For now you run the Compose file directly, so the host needs `docker compose` (on Unraid that usually comes from a Compose plugin).
 
-## Step 1: get an image onto Unraid
+## Step 1: get the Compose file and choose a version
 
-The Compose file expects an image called `mangapixer:<version>`. MangaPixer does not publish images to a registry, so you either load one you built elsewhere or build it on the server.
+Copy `deploy/compose.unraid.yaml` from the repository to a folder on the server, for example `/mnt/user/appdata/MangaPixer-compose/`, or clone the repository there. The file pulls `ghcr.io/dixit92/mangapixer:<version>` when the container starts, so nothing needs to be built or copied by hand.
 
-**Option A: build on another machine and copy it over (recommended).** On a machine with Docker and a clone of the repository:
-
-```sh
-docker build -f deploy/Dockerfile -t mangapixer:1.14.0 .
-docker save mangapixer:1.14.0 -o mangapixer-1.14.0-image.tar
-```
-
-`pwsh ./scripts/Package-Release.ps1` does the same thing and also writes an SBOM and SHA-256 checksums to `artifacts/release/<version>/`. It pulls the `anchore/syft` image to create the SBOM.
-
-Copy the `.tar` file to Unraid and load it:
-
-```sh
-docker load -i mangapixer-1.14.0-image.tar
-```
-
-**Option B: build on Unraid.** Clone the repository on the server. In `compose.unraid.yaml`, comment out the `image:` line and uncomment the `build:` block beneath it.
-
-Whichever option you use, set `MANGAPIXER_VERSION` to the version you loaded or built. If it is unset, the file falls back to `mangapixer:latest`.
+Set `MANGAPIXER_VERSION` to the release you want (see the [Releases page](https://github.com/dixit92/mangapixer/releases)). If it is unset, the file falls back to `latest`, which moves with every release.
 
 ```sh
 export MANGAPIXER_VERSION=1.14.0
 ```
+
+To run an unreleased build instead, clone the repository on the server and add `deploy/compose.build.yaml` to the `-f` list in step 4; Compose then builds the image from the clone. `pwsh ./scripts/Package-Release.ps1` on another machine still produces a loadable `.tar` if you prefer to build elsewhere and `docker load` it.
 
 ## Step 2: set PUID and PGID
 
@@ -115,4 +100,4 @@ If you want the page cache off the array, mount another path and point `MangaPix
 
 ## Upgrading
 
-Load or build the new image, set `MANGAPIXER_VERSION` to the new version, and run the same `up -d` command. Compose recreates the container with the new image, and `/config` is kept. Database schema upgrades take a `pre-migration-*.db` snapshot first, as described in [Install with Docker](install-docker.md#upgrading).
+Set `MANGAPIXER_VERSION` to the new version, run the same command with `pull` instead of `up -d`, then `up -d` again. Compose recreates the container with the new image, and `/config` is kept. Database schema upgrades take a `pre-migration-*.db` snapshot first, as described in [Install with Docker](install-docker.md#upgrading).

@@ -12,7 +12,7 @@ If you would rather run the container on Windows, Docker Desktop works too; foll
 
 ## Step 1: run the installer
 
-Download `MangaPixer-<version>.msi` from the Releases page and run it. The installer is not code-signed yet, so Windows may show a SmartScreen warning the first time; choose **More info** > **Run anyway**.
+Download `MangaPixer-<version>.msi` from the [Releases page](https://github.com/dixit92/mangapixer/releases) (each release also lists its SHA-256) and run it. The installer is not code-signed yet, so Windows may show a SmartScreen warning the first time; choose **More info** > **Run anyway**.
 
 The wizard shows the license, lets you change the install folder, installs, and offers **Start MangaPixer now** on the last page. Defaults:
 
