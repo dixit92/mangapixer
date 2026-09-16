@@ -48,6 +48,7 @@ All verification is **script-driven**. Local runs and CI call the same scripts i
 | Full | `pwsh ./scripts/Verify.ps1 -Configuration Release` | Privacy preflight, locked restore, `dotnet format` check, Release build, all .NET tests, `npm ci` + lint + production build of the web app, Compose file validation | Before opening or updating a pull request (this is what CI runs) |
 | Contracts | `pwsh ./scripts/Verify-Contracts.ps1` | `Version.props` / `web/package.json` version match, contract/ordering/protocol tests, OpenAPI drift check (needs `web/node_modules`, so run it after the Full tier or `npm --prefix web ci`) | Any change to API routes, DTOs, EF migrations, the worker protocol, or versions |
 | Smoke | `pwsh ./scripts/Smoke-Container.ps1` | Builds the image, runs it against a synthetic library with a read-only media mount, and exercises the full HTTP flow, restart persistence, source-media immutability, and log hygiene | Changes to hosting, Docker, storage, or anything the HTTP flow touches |
+| E2E | `pwsh ./scripts/Verify-E2E.ps1` | Builds the image, runs it on a free loopback port with throwaway storage, provisions the first admin via first-run setup, installs Chromium, and runs the Playwright browser suite (`web/e2e`) against it; always tears the container down | Changes to the web reader, auth/login flow, or anything a browser exercises end to end |
 | Packaging | `pwsh ./scripts/Verify-Packaging.ps1` | Compose build, Windows self-contained publish (on Windows), the Smoke tier, and release packaging | Release candidates; resource-intensive |
 | Safety review | `pwsh ./scripts/Review-Safety.ps1` | Read-only review of your diff for safety issues | Before a pull request that touches file access, auth, or logging |
 
@@ -55,14 +56,15 @@ The scripts never modify code to make a check pass. Fix the reported issue inste
 
 The privacy preflight accepts a normal clone with its `origin` remote. It fails only if a remote URL embeds a credential, such as `https://user:token@host/...` or a token-looking string; use a credential helper or SSH instead, and rotate any secret that ended up in a URL.
 
-The web app has two test suites the tiers above do not run. Run them yourself when you change anything under `web/`:
+The web app's Vitest unit suite is not part of the tiers above — run it yourself when you change anything under `web/`:
 
 ```text
 npm --prefix web run test:ci   # Vitest unit tests
-npm --prefix web run e2e       # Playwright; needs a running instance (set E2E_BASE_URL)
 ```
 
-Playwright targets `http://127.0.0.1:8091` by default. Point `E2E_BASE_URL` at `ng serve` or at a locally built container.
+The Playwright end-to-end suite now has an automated home: the **E2E tier** (`pwsh ./scripts/Verify-E2E.ps1`) provisions a throwaway container and runs the browser suite against it, and CI runs it as its own job (`E2E (Playwright)`) on every pull request. You no longer have to stand an instance up by hand.
+
+If you do want to iterate against your own running instance, `npm --prefix web run e2e` still works and targets `http://127.0.0.1:8091` by default; point `E2E_BASE_URL` at `ng serve` or a locally built container, and note that a fresh instance has no admin, so the login test needs one created first (the E2E tier does this via `POST /api/v1/auth/setup`).
 
 ### Container fallback (no host SDKs)
 

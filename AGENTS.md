@@ -33,6 +33,7 @@ All verification is script-driven. Local runs and CI call the same scripts.
 | Contracts | `pwsh ./scripts/Verify-Contracts.ps1` | API/DTO/migration/protocol/version changes |
 | Packaging | `pwsh ./scripts/Verify-Packaging.ps1` | Release candidates |
 | Smoke | `pwsh ./scripts/Smoke-Container.ps1` | Full container HTTP smoke flow |
+| E2E | `pwsh ./scripts/Verify-E2E.ps1` | Playwright browser suite: builds the image, runs it on a free loopback port with throwaway storage, provisions the first admin, installs Chromium, runs `web/e2e`, always tears down. Runs as its own CI job, separate from the Full tier. |
 | Release | `pwsh ./scripts/Package-Release.ps1` | Build the version-tagged image (immutable), SBOM (syft) + SHA-256 checksums into `artifacts/release/<version>` |
 | Safety review | `pwsh ./scripts/Review-Safety.ps1` | Read-only diff safety review |
 
