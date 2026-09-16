@@ -93,7 +93,10 @@ jobs:
       # Verify.ps1 does not run Playwright (e2e needs a running instance), so no
       # browsers are installed here.
       - name: Verify (Full tier)
-        run: pwsh ./scripts/Verify.ps1 -Configuration Release 2>&1 | tee "$RUNNER_TEMP/verify-full.log"
+        run: |
+          # pipefail so a Verify.ps1 failure is not masked by tee's exit code.
+          set -o pipefail
+          pwsh ./scripts/Verify.ps1 -Configuration Release 2>&1 | tee "$RUNNER_TEMP/verify-full.log"
 
       - name: Upload verification log and test output
         if: failure()
@@ -139,7 +142,10 @@ jobs:
           docker --version
 
       - name: E2E (build, provision, Playwright)
-        run: pwsh ./scripts/Verify-E2E.ps1 2>&1 | tee "$RUNNER_TEMP/verify-e2e.log"
+        run: |
+          # pipefail so a Verify-E2E.ps1 failure is not masked by tee's exit code.
+          set -o pipefail
+          pwsh ./scripts/Verify-E2E.ps1 2>&1 | tee "$RUNNER_TEMP/verify-e2e.log"
 
       - name: Upload Playwright report and e2e log
         if: failure()
