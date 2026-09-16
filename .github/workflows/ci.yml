@@ -1,13 +1,18 @@
-# Continuous integration: runs the Full verification tier on every push to the
-# trunks and on every pull request into dev.
+# Continuous integration: runs the Full verification tier and the end-to-end
+# (browser) suite on every push to the trunks and on every pull request into dev.
 #
-# CI calls the repository's verification scripts; it never re-implements their
-# steps. What runs is exactly `pwsh ./scripts/Verify.ps1 -Configuration Release`
-# (privacy preflight, locked restore, dotnet format, Release build, all .NET
-# tests, npm ci + lint + production build, Compose validation).
+# steps. Two independent jobs run in parallel:
+#   - verify: `pwsh ./scripts/Verify.ps1 -Configuration Release` (privacy
+#     preflight, locked restore, dotnet format, Release build, all .NET tests,
+#     npm ci + lint + production build + Vitest unit tests, Compose validation).
+#     Server-free and fast. See that script's header for the full ordered stages.
+#   - e2e: `pwsh ./scripts/Verify-E2E.ps1` (build the image, run it on a free
+#     loopback port with throwaway storage, provision the first admin, install
+#     Chromium, run the Playwright suite). Kept separate so the fast unit tier is
+#     never gated on container provisioning.
 #
-# Required status check name for branch protection: "Verify (Full tier)"
-# (job id: verify).
+# Required status check names for branch protection: "Verify (Full tier)"
+# (job id: verify) and "E2E (Playwright)" (job id: e2e).
 
 name: CI
 
@@ -88,7 +93,10 @@ jobs:
       # Verify.ps1 does not run Playwright (e2e needs a running instance), so no
       # browsers are installed here.
       - name: Verify (Full tier)
-        run: pwsh ./scripts/Verify.ps1 -Configuration Release 2>&1 | tee "$RUNNER_TEMP/verify-full.log"
+        run: |
+          # pipefail so a Verify.ps1 failure is not masked by tee's exit code.
+          set -o pipefail
+          pwsh ./scripts/Verify.ps1 -Configuration Release 2>&1 | tee "$RUNNER_TEMP/verify-full.log"
 
       - name: Upload verification log and test output
         if: failure()
@@ -100,5 +108,53 @@ jobs:
             **/TestResults/
             web/test-results/
             web/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # End-to-end (browser) suite. Runs as its own job — independent of `verify` —
+  # so the fast unit tier is not gated on building and provisioning a container.
+  # This job re-implements nothing: it builds the image, runs it on a free
+  # loopback port with throwaway storage, provisions the first admin, installs
+  # Chromium, and runs the Playwright suite, all inside Verify-E2E.ps1.
+  # Docker and pwsh are preinstalled on ubuntu-latest.
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Tool versions
+        run: |
+          node --version
+          npm --version
+          pwsh --version
+          docker --version
+
+      - name: E2E (build, provision, Playwright)
+        run: |
+          # pipefail so a Verify-E2E.ps1 failure is not masked by tee's exit code.
+          set -o pipefail
+          pwsh ./scripts/Verify-E2E.ps1 2>&1 | tee "$RUNNER_TEMP/verify-e2e.log"
+
+      - name: Upload Playwright report and e2e log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.PRODUCT_NAME }}-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/verify-e2e.log
+            web/playwright-report/
+            web/test-results/
           if-no-files-found: ignore
           retention-days: 14

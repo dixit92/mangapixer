@@ -2,9 +2,26 @@
 <#
     MangaPixer Verify.ps1 (Full)
     Full release-mode verification before declaring a work package complete.
-    Runs clean locked restores, format/lint, all unit and component tests,
-    file-backed SQLite integration, worker/archive/image fixtures, coverage,
-    Angular production build, Playwright Chromium smoke, and privacy scan.
+    This is exactly what CI runs (.github/workflows/ci.yml, check "Verify (Full tier)").
+
+    Stages, in order:
+      1. Privacy preflight (remote-credential / ignored-config / tracked-media scan)
+      2. dotnet restore (locked)
+      3. dotnet format --verify-no-changes
+      4. dotnet build (Release)
+      5. dotnet test (all .NET suites: unit, service-with-DB, HTTP, process)
+      6. npm ci               (web/, when npm is on PATH)
+      7. npm run lint         (web/)
+      8. npm run build        (web/, Angular production build)
+      9. npm run test:ci      (web/, Vitest unit suite via Angular CLI, single run)
+     10. docker compose config (when docker is on PATH)
+
+    NOT run here: Playwright e2e (`npm run e2e`). Playwright targets an
+    already-running instance (see web/playwright.config.ts, default
+    127.0.0.1:8091) which this fast, server-free tier does not provision. e2e
+    has its own home instead: scripts/Verify-E2E.ps1 (a throwaway container +
+    the browser suite), run in CI as the separate "E2E (Playwright)" job. The
+    Vitest unit suite above needs no server and runs here.
 
     Usage: pwsh ./scripts/Verify.ps1 -Configuration Release
 #>
@@ -104,6 +121,12 @@ if ($npmAvailable) {
     Invoke-Stage "npm build" {
         npm --prefix web run build 2>&1 | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "npm build failed" }
+    }
+    # Angular unit tests: Vitest via Angular CLI (test target has watch:false, so
+    # this runs the suite once and exits). No running server needed — unlike e2e.
+    Invoke-Stage "npm test:ci" {
+        npm --prefix web run test:ci 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "npm test:ci failed" }
     }
 }
 else {
