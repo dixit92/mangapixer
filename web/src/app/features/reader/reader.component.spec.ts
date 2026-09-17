@@ -16,7 +16,7 @@ import { ReaderOptionsSheetComponent } from './reader-settings-menu.component';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import { WebtoonNavPreferencesService } from './webtoon-nav.service';
-import { ManifestPageEntry, CatalogNodeDto } from '../../core/api/api-types';
+import { ManifestPageEntry, CatalogNodeDto, ItemReadiness } from '../../core/api/api-types';
 
 function makePages(n: number): ManifestPageEntry[] {
   return Array.from({ length: n }, (_, i) => ({
@@ -2012,5 +2012,113 @@ describe('ReaderComponent page-turn ghost (1.11.0)', () => {
     expect(before).toBeGreaterThan(0);
     c.ngOnDestroy();
     expect(vi.getTimerCount()).toBeLessThan(before);
+  });
+});
+
+/**
+ * Solid .cb7/.7z archives (SharpCompress reports every 7z as solid) analyze fine
+ * but can never be read page-by-page; the server persister now records
+ * AnalysisState=Unsupported with AnalysisError="unsupported_solid" instead of
+ * marking the item ready. These tests cover the reader's half: mapping that error
+ * code to a specific message rather than the generic unsupported-format fallback.
+ */
+describe('ReaderComponent unsupported_solid error mapping', () => {
+  function create() {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    return TestBed.createComponent(ReaderComponent).componentInstance;
+  }
+  const mapErrorCode = (c: ReaderComponent, code: string | null | undefined, fallback?: string | null) =>
+    (c as unknown as { mapErrorCode: (code: string | null | undefined, fallback?: string | null) => string })
+      .mapErrorCode(code, fallback);
+  const terminalMessage = (c: ReaderComponent, r: ItemReadiness) =>
+    (c as unknown as { terminalReadinessMessage: (r: ItemReadiness) => string | null })
+      .terminalReadinessMessage(r);
+
+  it('mapErrorCode gives a specific message for unsupported_solid', () => {
+    const c = create();
+    expect(mapErrorCode(c, 'unsupported_solid')).toBe('Solid archives are not yet supported for reading.');
+  });
+
+  it('falls back to the generic message for an unmapped code', () => {
+    const c = create();
+    expect(mapErrorCode(c, 'some_new_code', 'fallback text')).toBe('fallback text');
+    expect(mapErrorCode(c, null)).toBe('Something went wrong loading this chapter.');
+  });
+
+  it('a Failed readiness with unsupported_solid surfaces the specific message', () => {
+    const c = create();
+    const r: ItemReadiness = {
+      itemId: 'item-1', state: 'Failed', contentVersion: 1,
+      error: 'unsupported_solid', lastAttempt: null, isAnalyzing: false,
+    };
+    expect(terminalMessage(c, r)).toBe('Solid archives are not yet supported for reading.');
+  });
+
+  it('an Unsupported readiness with unsupported_solid surfaces the specific message too', () => {
+    // The persister records solid .cb7/.7z as Unsupported, not Failed, so the
+    // Unsupported branch must also consult mapErrorCode rather than always
+    // returning the generic "archive format is not supported" text.
+    const c = create();
+    const r: ItemReadiness = {
+      itemId: 'item-1', state: 'Unsupported', contentVersion: 1,
+      error: 'unsupported_solid', lastAttempt: null, isAnalyzing: false,
+    };
+    expect(terminalMessage(c, r)).toBe('Solid archives are not yet supported for reading.');
+  });
+
+  it('an Unsupported readiness with no specific error keeps the generic message', () => {
+    const c = create();
+    const r: ItemReadiness = {
+      itemId: 'item-1', state: 'Unsupported', contentVersion: 1,
+      error: null, lastAttempt: null, isAnalyzing: false,
+    };
+    expect(terminalMessage(c, r)).toBe('This archive format is not supported.');
+  });
+});
+
+/**
+ * The help overlay renders uppercase <kbd>M</kbd>/<kbd>F</kbd>, but onKeyDown only
+ * matched the lowercase event.key. Under Shift or CapsLock, browsers report
+ * event.key as 'M'/'F', so the documented shortcuts silently did nothing.
+ */
+describe('ReaderComponent onKeyDown case-insensitive single-letter shortcuts', () => {
+  function create() {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.pages.set(makePages(3));
+    c.view.set('paged');
+    c.phase.set('ready');
+    return c;
+  }
+  function press(key: string): KeyboardEvent {
+    return { key, target: document.createElement('div') } as unknown as KeyboardEvent;
+  }
+
+  it("toggles chrome on 'm' and uppercase 'M' alike", () => {
+    const c = create();
+    c.isFullscreen.set(true);
+    expect(c.chromeVisible()).toBe(true);
+    c.onKeyDown(press('M'));
+    expect(c.chromeVisible()).toBe(false);
+    c.onKeyDown(press('m'));
+    expect(c.chromeVisible()).toBe(true);
+  });
+
+  it("toggles fullscreen on 'f' and uppercase 'F' alike", () => {
+    const c = create();
+    const toggle = vi.spyOn(c, 'toggleFullscreen').mockImplementation(() => { /* noop */ });
+    c.onKeyDown(press('F'));
+    c.onKeyDown(press('f'));
+    expect(toggle).toHaveBeenCalledTimes(2);
+  });
+
+  it('multi-char key names are unaffected by the case fold', () => {
+    const c = create();
+    c.currentPage.set(1);
+    c.direction.set('ltr');
+    c.onKeyDown(press('ArrowRight'));
+    expect(c.currentPage()).toBe(2);
+    c.onKeyDown(press('Home'));
+    expect(c.currentPage()).toBe(0);
   });
 });

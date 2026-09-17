@@ -84,6 +84,16 @@ public sealed class WorkerProcessFixture : IDisposable
             FixtureDir, name,
             "page010.png", "page002.png", "page001.png", "cover000.png");
 
+    /// <summary>
+    /// A solid .cb7 (7z) archive. SharpCompress reports every 7z archive as solid
+    /// regardless of the actual compression setting, so this exercises the
+    /// accepted-at-scan / unreadable-forever path the worker and persister must
+    /// guard against. Falls back to a signature-only marker file (length &lt;= 8)
+    /// when the 7z CLI is unavailable — callers should skip in that case.
+    /// </summary>
+    public string CreateSolidSevenZip(string name = "solid.cb7") =>
+        SevenZipFixtureGenerator.CreateSolidSevenZip(FixtureDir, name);
+
     public string CreateLargeZip(string name = "large.zip", int entries = 2000)
     {
         var paths = new string[entries];

@@ -39,6 +39,7 @@ public sealed class LibraryScanPolicy
         ".@__thumb",  // Synology thumbnail cache
         ".synology_dir",  // Synology metadata
         "#recycle",
+        "__macosx",  // macOS zip-archive metadata (not dot-prefixed)
     };
 
     /// <summary>
@@ -78,10 +79,13 @@ public sealed class LibraryScanPolicy
     }
 
     /// <summary>
-    /// Returns true if the file name should be ignored.
+    /// Returns true if the file name should be ignored: the known bookkeeping
+    /// names, plus any AppleDouble sidecar file (<c>._foo.cbz</c>) macOS writes
+    /// alongside a real file when copying to a non-HFS+ filesystem.
     /// </summary>
     public bool IsIgnoredFile(string fileName)
     {
+        if (fileName.StartsWith("._", StringComparison.Ordinal)) return true;
         return IgnoredFileNames.Contains(fileName);
     }
 
