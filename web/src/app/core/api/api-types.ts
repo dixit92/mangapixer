@@ -457,6 +457,11 @@ export interface ResetPasswordResponse {
   temporaryPassword: string;
 }
 
+export interface ReissueActivationResponse {
+  user: AdminUserDto;
+  activationUrl: string;
+}
+
 export interface UserGrantsDto {
   userId: string;
   /** Admins access every library regardless of explicit grants. */
@@ -606,4 +611,28 @@ export interface RecentChapterStack {
  */
 export interface HomeLibraryVisibility {
   excludedLibraryIds: string[];
+}
+
+/**
+ * A saved in-reader bookmark (1.17.0). `ordinal` is the zero-based page index it
+ * marks (matches `ManifestPageEntry.pageIndex` / `currentPage`), mirroring
+ * `BookmarkEntry` on the server (`ReadingStateService.GetBookmarksAsync`).
+ */
+export interface BookmarkDto {
+  id: string;
+  itemId: string;
+  ordinal: number;
+  normalizedAnchor: number;
+  label: string | null;
+  createdAt: string;
+}
+
+export interface AddBookmarkRequest {
+  ordinal: number;
+  normalizedAnchor?: number;
+  label?: string | null;
+}
+
+export interface AddBookmarkResult {
+  id: string;
 }

@@ -6,9 +6,12 @@ import { catchError } from 'rxjs/operators';
 import { BYPASS_INCOGNITO } from '../incognito/incognito.interceptor';
 import {
   ActivateAccountRequest,
+  AddBookmarkRequest,
+  AddBookmarkResult,
   ApiError,
   AdminUserDto,
   AuthUserDto,
+  BookmarkDto,
   CatalogNodeDto,
   ChangePasswordRequest,
   ContinueReadingEntry,
@@ -43,6 +46,7 @@ import {
   ReadingProgressDto,
   RecentChaptersDto,
   RegisterLibraryRequest,
+  ReissueActivationResponse,
   ResetPasswordResponse,
   ScanRunDto,
   ScanTriggeredDto,
@@ -177,9 +181,16 @@ export class ApiService {
    * grouped by visible library, newest first, capped per library. Respects
    * Incognito/Private visibility server-side (the X-Incognito header is set
    * by the incognito interceptor like every other discovery call).
+   *
+   * `readState` (1.17.0) optionally restricts stacks to Reading/Read/Unread by
+   * their top-level rollup, mirroring the library browse filter. Reuses
+   * `LibraryReadStateFilter` (same wire values) rather than a separate type — a
+   * transient toolbar control, not a persisted preference; 'all' sends no param
+   * (server default = unfiltered).
    */
-  getRecentChapters(perLibrary = 12): Observable<RecentChaptersDto> {
-    const params = new HttpParams().set('perLibrary', perLibrary.toString());
+  getRecentChapters(perLibrary = 12, readState: LibraryReadStateFilter = 'all'): Observable<RecentChaptersDto> {
+    let params = new HttpParams().set('perLibrary', perLibrary.toString());
+    if (readState !== 'all') params = params.set('readState', readState);
     return this.get<RecentChaptersDto>('/home/recent-chapters', params);
   }
 
@@ -304,6 +315,22 @@ export class ApiService {
       : this.delete<BulkReadMarkResultDto>(`/reading/folders/${nodeId}/read`);
   }
 
+  // --- Bookmarks (1.17.0) ---
+
+  /** Per-page bookmarks for an item, ordered by page. */
+  getBookmarks(itemId: string): Observable<BookmarkDto[]> {
+    return this.get<BookmarkDto[]>(`/reading/${itemId}/bookmarks`);
+  }
+
+  addBookmark(itemId: string, request: AddBookmarkRequest): Observable<AddBookmarkResult> {
+    return this.post<AddBookmarkResult>(`/reading/${itemId}/bookmarks`, request);
+  }
+
+  /** NOTE: not nested under itemId — the server addresses a bookmark by its own id. */
+  removeBookmark(bookmarkId: string): Observable<void> {
+    return this.delete<void>(`/reading/bookmarks/${bookmarkId}`);
+  }
+
   // --- Admin ---
 
   registerLibrary(request: RegisterLibraryRequest): Observable<LibraryDto> {
@@ -392,6 +419,14 @@ export class ApiService {
 
   resetUserPassword(id: string): Observable<ResetPasswordResponse> {
     return this.post<ResetPasswordResponse>(`/admin/users/${id}/reset-password`, {});
+  }
+
+  deleteUser(id: string): Observable<void> {
+    return this.delete<void>(`/admin/users/${id}`);
+  }
+
+  reissueActivation(id: string): Observable<ReissueActivationResponse> {
+    return this.post<ReissueActivationResponse>(`/admin/users/${id}/reissue-activation`, {});
   }
 
   revokeUserSessions(id: string): Observable<void> {

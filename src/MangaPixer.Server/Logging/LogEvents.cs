@@ -303,6 +303,8 @@ public static class LogEvents
         public const int ActivationFailedInvalidToken = 7022;
         public const int ActivationFailedExpiredToken = 7023;
         public const int ActivationFailedConsumedToken = 7024;
+        public const int UserDeleted = 7025;
+        public const int ActivationReissued = 7026;
     }
 
     /// <summary>App-level request pipeline errors (unhandled 500s).</summary>

@@ -53,7 +53,7 @@ You need Docker with Compose v2. The Compose file pulls the published image from
 3. From that folder, pull and start the version you want (see [Releases](https://github.com/dixit92/mangapixer/releases)):
 
    ```bash
-   export MANGAPIXER_VERSION=1.14.1
+   export MANGAPIXER_VERSION=1.17.0
    docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d
    ```
 
@@ -153,10 +153,6 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 ## Building from source
 
 The toolchain is .NET SDK 10.0.4xx, Node.js 24 and PowerShell 7, or the official SDK containers if you have none of them installed. Build, test and verification commands, the repository layout and how to run a local instance are in [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Project status
-
-MangaPixer is at **1.14.1**. It follows SemVer, and the version lives in `Version.props`. 
 
 ## Contributing
 

@@ -1,4 +1,5 @@
 using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Home;
 using com.lifepixer.mangapixer.Server.Persistence;
@@ -318,6 +319,54 @@ public sealed class RecentChaptersServiceTests : IDisposable
             var alpha = result.Libraries.First(g => g.LibraryId == "recLibA");
             var stack = Assert.Single(alpha.Stacks);
             Assert.Equal("inside", stack.LatestItemId);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task ReadStateFilter_RestrictsStacksToMatchingTopLevelRollup()
+    {
+        var (db, userId, libAId, _) = await SetupAsync();
+        try
+        {
+            // Series A: single recent archive, sticky read-mark -> folder rollup = Read.
+            var seriesA = await AddFolderAsync(db, libAId, "seriesA", "Series A");
+            var a1 = await AddArchiveAsync(db, libAId, "a1", "A1.cbz", Now.AddHours(-1), parentId: seriesA.Id);
+            db.ReadMarks.Add(new ReadMarkEntity { UserId = userId, ItemId = a1.Id, MarkedAt = Now });
+
+            // Series B: single recent archive, in-progress (no read-mark) -> rollup = Reading.
+            var seriesB = await AddFolderAsync(db, libAId, "seriesB", "Series B");
+            var b1 = await AddArchiveAsync(db, libAId, "b1", "B1.cbz", Now.AddHours(-2), parentId: seriesB.Id);
+            db.ReadingProgress.Add(new ReadingProgressEntity
+            {
+                UserId = userId, ItemId = b1.Id, State = (int)ReadingState.InProgress,
+                EntryKey = "e1", LastMutationId = "m1", UpdatedAt = Now,
+            });
+
+            // Loose top-level archive, untouched -> standalone rollup = Unread.
+            await AddArchiveAsync(db, libAId, "loose1", "Loose.cbz", Now.AddHours(-3));
+
+            await db.SaveChangesAsync();
+
+            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
+
+            var read = await service.GetRecentChaptersAsync(userId, readState: HomeReadStateFilter.Read);
+            var readStacks = read.Libraries.First(g => g.LibraryId == "recLibA").Stacks;
+            Assert.Equal(new[] { "seriesA" }, readStacks.Select(s => s.Id).ToArray());
+
+            var reading = await service.GetRecentChaptersAsync(userId, readState: HomeReadStateFilter.Reading);
+            var readingStacks = reading.Libraries.First(g => g.LibraryId == "recLibA").Stacks;
+            Assert.Equal(new[] { "seriesB" }, readingStacks.Select(s => s.Id).ToArray());
+
+            var unread = await service.GetRecentChaptersAsync(userId, readState: HomeReadStateFilter.Unread);
+            var unreadStacks = unread.Libraries.First(g => g.LibraryId == "recLibA").Stacks;
+            Assert.Equal(new[] { "loose1" }, unreadStacks.Select(s => s.Id).ToArray());
+
+            // All (default): every stack, unfiltered, NewCount unaffected by the read state.
+            var all = await service.GetRecentChaptersAsync(userId);
+            var allStacks = all.Libraries.First(g => g.LibraryId == "recLibA").Stacks;
+            Assert.Equal(3, allStacks.Count);
+            Assert.All(allStacks, st => Assert.Equal(1, st.NewCount));
         }
         finally { await db.DisposeAsync(); }
     }

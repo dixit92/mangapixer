@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-09-17
+
+### Added
+
+- Admins can now delete a user account. The last remaining admin is protected and cannot be deleted.
+- Admins can reissue a fresh activation link for a user who was invited but has not yet activated their account.
+- The home "New chapters" view now has a read-state filter (Reading / Read / Unread), matching the library browse filter.
+- In-reader bookmarks: bookmark the current page and jump back to bookmarked pages from a bookmarks panel in the reader.
+- A per-category debug log-level control is now available in the Administration screen.
+
+### Changed
+
+- The browse sort menu uses distinct icons for Name / Recently added / Recently read / Recently updated, which previously read as three similar clock glyphs.
+- The library list view now uses multiple columns on wide screens, and the selection/read marker sits to the right of each row instead of over the cover thumbnail.
+- The reader's next/previous chapter arrows are now direction-aware, reflecting left-to-right versus right-to-left reading direction.
+
 ## [1.16.0] - 2026-09-17
 
 ### Added
