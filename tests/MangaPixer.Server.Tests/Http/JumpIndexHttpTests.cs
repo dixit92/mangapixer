@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Ordering;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +16,10 @@ namespace com.lifepixer.mangapixer.Tests.Server.Http;
 /// Verifies the endpoint is reachable, authenticated, returns the right shape,
 /// and that the bucket cursor actually lands on the bucket's first node via the
 /// browse endpoint.
+///
+/// Fixture keys come from <see cref="SortKey.ForNode"/> - the call the scanner makes -
+/// rather than being hand-written, so the rail's cursor contract is exercised against
+/// the format actually stored on disk (1.15.0).
 /// </summary>
 [Collection("HttpSerial")]
 public sealed class JumpIndexHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
@@ -61,7 +67,7 @@ public sealed class JumpIndexHttpTests : IClassFixture<MangaPixerWebApplicationF
             DisplayName = "Alpha",
             RelativePath = "Alpha.cbz",
             PathKey = "Alpha.cbz",
-            SortKey = "0\u001f1Alpha",
+            SortKey = SortKey.ForNode(CatalogNodeKind.Archive, "Alpha"),
             Availability = 0,
             CreatedAt = DateTimeOffset.UtcNow,
         });
@@ -73,7 +79,7 @@ public sealed class JumpIndexHttpTests : IClassFixture<MangaPixerWebApplicationF
             DisplayName = "Beta",
             RelativePath = "Beta.cbz",
             PathKey = "Beta.cbz",
-            SortKey = "0\u001f1Beta",
+            SortKey = SortKey.ForNode(CatalogNodeKind.Archive, "Beta"),
             Availability = 0,
             CreatedAt = DateTimeOffset.UtcNow,
         });
@@ -85,7 +91,7 @@ public sealed class JumpIndexHttpTests : IClassFixture<MangaPixerWebApplicationF
             DisplayName = "あいうえお",
             RelativePath = "あいうえお.cbz",
             PathKey = "あいうえお.cbz",
-            SortKey = "0\u001f1あいうえお",
+            SortKey = SortKey.ForNode(CatalogNodeKind.Archive, "あいうえお"),
             Availability = 0,
             CreatedAt = DateTimeOffset.UtcNow,
         });

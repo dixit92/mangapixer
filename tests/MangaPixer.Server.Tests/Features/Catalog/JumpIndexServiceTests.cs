@@ -231,19 +231,21 @@ public sealed class JumpIndexServiceTests : IDisposable
     public async Task GetJumpIndex_HashBucketLeadsRailAndCursorLandsOnFirstNumericNode()
     {
         // "#" must lead the rail, and its cursor must land on the first numeric
-        // node in browse name-sort order — even when a letter folder sorts ahead
-        // of the numeric nodes (within folders, SortKey is ordinal, so 'A' < 'D'
-        // and a letter folder precedes a numeric folder). Uses real SortKeys via
-        // SortKey.ForNode so the cursor contract is exercised against the actual
-        // browse ordering, not hand-crafted keys.
+        // node in browse name-sort order — even when another node sorts ahead of
+        // the numeric nodes. Since 1.15.0 the encoded SortKey puts digit-leading
+        // names ahead of letter-leading ones (as plain ordinal comparison does), so
+        // the node ahead of "#" here is "-Bonus": '-' (0x2D) precedes the digit
+        // range, and the rail buckets it under "B" because a leading '-' is skipped.
+        // Uses real SortKeys via SortKey.ForNode so the cursor contract is exercised
+        // against the actual browse ordering, not hand-crafted keys.
         var (db, userId, libraryId) = await SetupAsync();
         try
         {
-            var root = SortKey.ForLibraryRoot();
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Folder, "Apple", SortKey.ForNode(CatalogNodeKind.Folder, "Apple", root));
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Folder, "10-Title", SortKey.ForNode(CatalogNodeKind.Folder, "10-Title", root));
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "Banana", SortKey.ForNode(CatalogNodeKind.Archive, "Banana", root));
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "7-Title", SortKey.ForNode(CatalogNodeKind.Archive, "7-Title", root));
+            await AddNodeAsync(db, libraryId, CatalogNodeKind.Folder, "-Bonus", SortKey.ForNode(CatalogNodeKind.Folder, "-Bonus"));
+            await AddNodeAsync(db, libraryId, CatalogNodeKind.Folder, "Apple", SortKey.ForNode(CatalogNodeKind.Folder, "Apple"));
+            await AddNodeAsync(db, libraryId, CatalogNodeKind.Folder, "10-Title", SortKey.ForNode(CatalogNodeKind.Folder, "10-Title"));
+            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "Banana", SortKey.ForNode(CatalogNodeKind.Archive, "Banana"));
+            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "7-Title", SortKey.ForNode(CatalogNodeKind.Archive, "7-Title"));
 
             var jumpService = new JumpIndexService(db);
             var browseService = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
@@ -254,16 +256,21 @@ public sealed class JumpIndexServiceTests : IDisposable
             Assert.Equal("#", index.Buckets[0].Label);
 
             var hash = index.Buckets.First(b => b.Label == "#");
-            // The first numeric node is the "10-Title" folder (it follows the
-            // "Apple" letter folder in SortKey order), so the "#" cursor is the
-            // Apple SortKey — non-null, because "#" is NOT the global first node.
+            // Folder order is "-Bonus", "10-Title", "Apple"; archives follow. The first
+            // numeric node is therefore the "10-Title" folder, preceded by "-Bonus", so
+            // the "#" cursor is the "-Bonus" SortKey — non-null, because "#" is NOT the
+            // global first node.
             Assert.NotNull(hash.FirstCursor);
-            Assert.Equal(SortKey.ForNode(CatalogNodeKind.Folder, "Apple", root), hash.FirstCursor);
+            Assert.Equal(SortKey.ForNode(CatalogNodeKind.Folder, "-Bonus"), hash.FirstCursor);
 
-            // The "A" bucket's first node ("Apple") IS the global first node, so
-            // its cursor is null regardless of rail position.
+            // The "A" bucket's first node ("Apple") follows "10-Title".
             var a = index.Buckets.First(b => b.Label == "A");
-            Assert.Null(a.FirstCursor);
+            Assert.Equal(SortKey.ForNode(CatalogNodeKind.Folder, "10-Title"), a.FirstCursor);
+
+            // The "B" bucket's first node ("-Bonus") IS the global first node, so its
+            // cursor is null regardless of rail position.
+            var b = index.Buckets.First(x => x.Label == "B");
+            Assert.Null(b.FirstCursor);
 
             // End-to-end: passing the "#" cursor to browse lands on "10-Title",
             // the first numeric node — not the end of the listing.

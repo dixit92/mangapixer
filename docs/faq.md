@@ -12,9 +12,9 @@ No. The server only ever reads your media; everything it generates lives in its 
 
 CBZ/ZIP and CBR/RAR (non-solid). CB7/7z files show up in the library but cannot be opened yet. PDF, EPUB and folders of loose images are not supported. See [Library layout](library-layout.md#supported-archive-formats).
 
-### Why does "Chapter 10" come before "Chapter 2"?
+### How are "Chapter 2" and "Chapter 10" ordered?
 
-Name sort in the library compares names character by character. Zero-pad the numbers in your file names (`Chapter 002`, `Chapter 010`). Pages inside an archive already sort by number. See [Library layout](library-layout.md#sorting).
+Numerically. Name sort compares runs of digits as numbers, so `Chapter 2` comes before `Chapter 10` whether or not the numbers are zero-padded. Pages inside an archive use the same rules. Libraries scanned by an older version are corrected automatically the first time the upgraded server starts; no rescan is needed. See [Library layout](library-layout.md#sorting).
 
 ### Does it notice new files automatically?
 
