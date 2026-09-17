@@ -86,11 +86,14 @@ public static class SortKey
     ///
     /// Known deviation: <see cref="NaturalOrderComparer"/> treats every Unicode digit
     /// (<c>char.IsDigit</c>) as numeric, so a fullwidth or Arabic-Indic digit compares
-    /// numerically against an ASCII digit but ORDINALLY against a letter - which is not
-    /// a transitive order ("１" &gt; "A" &gt; "2" &gt; "１"), and therefore cannot be
-    /// reproduced by ANY key encoding. For those non-ASCII digits the encoded key groups
-    /// the name with the numerics. ASCII digit runs - every realistic chapter/volume
-    /// name - match the comparer exactly.
+    /// numerically against an ASCII digit but ORDINALLY against a letter - which is not a
+    /// transitive order, and therefore cannot be reproduced by ANY key encoding. Writing
+    /// U+FF11 (fullwidth one) as F: "10" &gt; F because a two-digit run beats a one-digit
+    /// run, F &gt; "A" because U+FF11 &gt; 'A' ordinally, and "A" &gt; "10" because 'A' &gt;
+    /// '1' ordinally - a cycle. (Two non-ASCII digits of the SAME run length stay
+    /// consistent; it takes a length difference to close the loop.) For those non-ASCII
+    /// digits the encoded key groups the name with the numerics. ASCII digit runs - every
+    /// realistic chapter/volume name - match the comparer exactly.
     /// </summary>
     public static string EncodeName(string name)
     {
