@@ -1186,12 +1186,16 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
     const target = event.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
     if (this.phase() !== 'ready') return;
-    if (event.key === '?') { this.toggleHelp(); return; }
-    if (this.helpVisible() && event.key === 'Escape') { this.closeHelp(); return; }
-    if (event.key === 'm') { this.toggleChrome(); return; } // toggle chrome in any view
+    // Single-letter shortcuts are case-folded so Shift/CapsLock (event.key 'M'/'F')
+    // still match the uppercase <kbd> the Help overlay shows; multi-char key names
+    // ('ArrowLeft', 'Escape', …) are never case-variant and pass through as-is.
+    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+    if (key === '?') { this.toggleHelp(); return; }
+    if (this.helpVisible() && key === 'Escape') { this.closeHelp(); return; }
+    if (key === 'm') { this.toggleChrome(); return; } // toggle chrome in any view
     if (this.view() === 'webtoon') return; // native scroll drives webtoon
 
-    switch (event.key) {
+    switch (key) {
       case 'ArrowLeft': this.direction() === 'rtl' ? this.nextPage() : this.prevPage(); break;
       case 'ArrowRight': this.direction() === 'rtl' ? this.prevPage() : this.nextPage(); break;
       case 'Home': this.goToPage(0); break;
@@ -1498,7 +1502,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   private terminalReadinessMessage(r: ItemReadiness): string | null {
     const s = String(r.state);
     if (s === 'Failed') return this.mapErrorCode(r.error, 'This chapter could not be analyzed.');
-    if (s === 'Unsupported') return 'This archive format is not supported.';
+    if (s === 'Unsupported') return this.mapErrorCode(r.error, 'This archive format is not supported.');
     if (s === 'Encrypted') return 'This archive is password-protected and cannot be opened.';
     if (s === 'Missing') return 'The source file is no longer available.';
     return null;
@@ -1512,6 +1516,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
       case 'not_readable':
       case 'unsupported': return "This item can't be read.";
       case 'encrypted': return 'This archive is password-protected.';
+      case 'unsupported_solid': return 'Solid archives are not yet supported for reading.';
       case 'page_not_found': return 'That page could not be found.';
       case 'extraction_failed':
       case 'extraction_error': return 'This page could not be extracted from the archive.';

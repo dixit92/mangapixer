@@ -247,6 +247,35 @@ public sealed class ScannerIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Scan_AppleDoubleAndMacosxMetadata_NotScanned()
+    {
+        CreateSyntheticLibrary();
+        // AppleDouble sidecar sitting next to a real archive — macOS writes these
+        // when copying a library onto a non-HFS+ filesystem (e.g. a network share).
+        File.WriteAllText(Path.Combine(_libRoot, "Series A", "._volume 02.cbz"), "sidecar, not an archive");
+        // __MACOSX is the metadata folder a zip utility drops when expanding an
+        // archive on macOS; it is not dot-prefixed so the generic hidden-dir rule
+        // does not catch it on its own.
+        Directory.CreateDirectory(Path.Combine(_libRoot, "__MACOSX"));
+        File.WriteAllText(Path.Combine(_libRoot, "__MACOSX", "._chapter01.cbz"), "macOS zip metadata");
+
+        var (db, library) = await SetupAsync();
+        var fs = new ReadOnlyLibraryFileSystem(_libRoot);
+        var policy = new LibraryScanPolicy();
+        var coordinator = new LibraryScanCoordinator(db, fs, policy, library.Id, scanRevision: 1, leaseOwner: "test");
+
+        var result = await coordinator.ScanAsync();
+        Assert.True(result.Success);
+
+        var nodes = await db.CatalogNodes.Where(n => n.LibraryId == library.Id).ToListAsync();
+        Assert.DoesNotContain(nodes, n => n.DisplayName == "__MACOSX");
+        Assert.DoesNotContain(nodes, n => n.DisplayName == "._volume 02.cbz");
+        Assert.DoesNotContain(nodes, n => n.DisplayName == "._chapter01.cbz");
+        // The real archive next to the sidecar is still scanned normally.
+        Assert.Contains(nodes, n => n.DisplayName == "volume 02.cbz");
+    }
+
+    [Fact]
     public async Task ScanLease_AcquireAndRelease()
     {
         var (db, library) = await SetupAsync();

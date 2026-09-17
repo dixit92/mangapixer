@@ -489,6 +489,93 @@ public sealed class WorkerProcessTests : IClassFixture<WorkerProcessFixture>, IA
         }
     }
 
+    // Test 8: a solid .cb7 (SharpCompress reports every 7z as solid) analyzes
+    // successfully at scan time but can never be read page-by-page — extraction
+    // always fails "unsupported_solid" later. The persister must not mark the item
+    // ready (state 0), which would leave the cover permanently, silently broken;
+    // it must record the unsupported state up front instead.
+    [Fact]
+    public async Task Pool_SolidSevenZip_MarksUnsupportedNotReady()
+    {
+        var archivePath = _fixture.CreateSolidSevenZip("pool-solid.cb7");
+        var fileInfo = new FileInfo(archivePath);
+        if (fileInfo.Length <= 8)
+        {
+            // 7z CLI unavailable in this environment — the generator fell back to a
+            // signature-only marker file; skip (matches SevenZipArchiveReaderTests).
+            return;
+        }
+
+        var dbPath = Path.Combine(_fixture.TempRoot, "solid-" + Guid.NewGuid().ToString("N")[..6] + ".db");
+        var services = new ServiceCollection();
+        services.AddDbContext<MangaPixerDbContext>(o => o.UseSqlite(DatabaseInitialization.BuildConnectionString(dbPath)));
+        await using var provider = services.BuildServiceProvider();
+
+        long nodeId;
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            await db.Database.MigrateAsync();
+            var library = new LibraryEntity { PublicId = "solidl", DisplayName = "Solid", RootPath = _fixture.FixtureDir, CreatedAt = DateTimeOffset.UtcNow };
+            db.Libraries.Add(library);
+            await db.SaveChangesAsync();
+            var node = new CatalogNodeEntity
+            {
+                PublicId = "solidn",
+                LibraryId = library.Id,
+                Kind = 1,
+                DisplayName = "pool-solid.cb7",
+                RelativePath = "pool-solid.cb7",
+                PathKey = "pool-solid.cb7",
+                SortKey = "1pool-solid.cb7",
+                LastSeenScanRevision = 1,
+                CreatedAt = DateTimeOffset.UtcNow,
+                ArchiveItem = new ArchiveItemEntity { ContentVersion = 1, AnalysisState = 1 },
+            };
+            db.CatalogNodes.Add(node);
+            await db.SaveChangesAsync();
+            nodeId = node.Id;
+        }
+
+        var options = _fixture.CreatePoolOptions();
+        var scheduler = new JobScheduler(options);
+        var pool = new MediaWorkerPool(
+            options, scheduler, new ScratchWorkspaceManager(_fixture.ScratchRoot),
+            NullLogger<MediaWorkerPool>.Instance, NullLoggerFactory.Instance,
+            provider.GetRequiredService<IServiceScopeFactory>(), new AnalysisResultPersister());
+        await pool.StartAsync();
+        try
+        {
+            var job = scheduler.EnqueueAsync(
+                itemId: nodeId, contentVersion: 1, operation: JobOperation.Analyze, priority: JobPriority.CurrentPage,
+                archivePath: archivePath, expectedLastWriteTicks: fileInfo.LastWriteTimeUtc.Ticks, expectedByteLength: fileInfo.Length);
+            await pool.DispatchAsync();
+            var result = await job.WaitAsync(TimeSpan.FromSeconds(40));
+            Assert.True(result.Success, result.ErrorType);
+
+            // Persistence happens after the job completes; poll briefly for the
+            // terminal (non-pending) analysis state.
+            ArchiveItemEntity? item = null;
+            for (var i = 0; i < 100 && item?.LastAnalyzedAt is null; i++)
+            {
+                await Task.Delay(100);
+                using var scope = provider.CreateScope();
+                item = await scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>()
+                    .ArchiveItems.AsNoTracking().SingleAsync(a => a.NodeId == nodeId);
+            }
+
+            Assert.NotNull(item);
+            Assert.NotEqual(0, item!.AnalysisState); // never marked ready
+            Assert.Equal(3, item.AnalysisState); // unsupported
+            Assert.Equal("unsupported_solid", item.AnalysisError);
+        }
+        finally
+        {
+            await pool.StopAsync();
+            await pool.DisposeAsync();
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         foreach (var sup in _supervisors)
