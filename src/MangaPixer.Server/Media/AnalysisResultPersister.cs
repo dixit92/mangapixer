@@ -79,6 +79,22 @@ public sealed class AnalysisResultPersister
             return;
         }
 
+        // Solid archives (all .cb7/.7z — SharpCompress reports every 7z as solid)
+        // analyze successfully but can never be read page-by-page: HandleExtractAsync
+        // refuses every page with "unsupported_solid". Marking the item ready (state 0)
+        // here would leave its cover permanently broken with no error surfaced, since
+        // solidity is only checked at extract time. Record it as unsupported instead so
+        // the scan never leaves it silently stuck.
+        if (analyzeResult.IsSolid)
+        {
+            archiveItem.AnalysisState = 3; // unsupported
+            archiveItem.AnalysisError = "unsupported_solid";
+            archiveItem.LastAnalyzedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(ct);
+            _logger?.LogDebug(LogEvents.Worker.PersistFailureRecorded, "Persisted unsupported_solid for item {ItemId}", nodeId);
+            return;
+        }
+
         if (archiveItem.Pages.Count > 0)
             db.PageEntries.RemoveRange(archiveItem.Pages);
 

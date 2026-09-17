@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-09-17
+
+### Changed
+
+- Release assets now have descriptive, platform-specific names (for example `mangapixer-<version>-docker-image-linux-amd64.tar` and `MangaPixer-<version>-windows-x64.msi`).
+- `/health/ready` now performs a real readiness check (the database is reachable) that is distinct from the cheap `/health` liveness check.
+
+### Fixed
+
+- Folders and archives now sort in natural order everywhere the catalog "Name" sort is used — browse listings, folder covers, next/previous chapter, the Continue row and the A-Z jump rail — so "Chapter 2" sorts before "Chapter 10". Existing libraries are corrected automatically the first time the upgraded server starts; no rescan is needed.
+- Changing the sort, view, card size or page size no longer resets the home page's recent-time-window setting to its default.
+- The library scan no longer mistakes macOS `._` sidecar files for archives or descends into `__MACOSX` folders.
+- Archives compressed with 7-Zip solid mode (`.cb7`/`.7z`) are now flagged as unsupported at scan time with a clear message, instead of appearing ready and then failing to load every page.
+- The reader's `M` (menu) and `F` (fullscreen) keyboard shortcuts now work when Shift or Caps Lock is active, matching the keys shown in the help overlay.
+- Restoring a database backup larger than 128 MiB no longer fails before the application's own (larger) size limit applies.
+- Superseded database files are removed after a successful restore instead of accumulating with each restore.
+- The data-protection key directory is created with restrictive permissions on first start rather than only on the second start.
+- Removed unused logging configuration keys that had no effect on log output.
+- The tray "Set Port" dialog scales correctly on high-DPI/scaled displays instead of clipping its text and buttons.
+
 ## [1.14.1] - 2026-09-16
 
 ### Changed

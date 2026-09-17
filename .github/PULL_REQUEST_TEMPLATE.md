@@ -14,7 +14,8 @@ Tiers run (see CONTRIBUTING.md, "Building and verifying"):
 - [ ] Full: `pwsh ./scripts/Verify.ps1 -Configuration Release`
 - [ ] Contracts: `pwsh ./scripts/Verify-Contracts.ps1` (API, DTO, migration, worker-protocol, or version changes)
 - [ ] Smoke: `pwsh ./scripts/Smoke-Container.ps1` (hosting, Docker, storage, or HTTP-flow changes)
-- [ ] Web: `npm --prefix web run test:ci` and, where relevant, `npm --prefix web run e2e` (changes under `web/`)
+- [ ] E2E: `pwsh ./scripts/Verify-E2E.ps1` (web reader, auth/login, or browser-facing changes; CI also runs this as the `E2E (Playwright)` job)
+- [ ] Web unit: `npm --prefix web run test:ci` (changes under `web/`)
 
 Tests by kind (counts, passed / total):
 

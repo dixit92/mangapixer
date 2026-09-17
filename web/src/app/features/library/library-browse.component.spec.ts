@@ -341,6 +341,20 @@ describe('LibraryBrowseComponent card view', () => {
       expect.objectContaining({ viewMode: 'card', cardSize: String(comp.cardSizeMax) }));
   });
 
+  it('round-trips the stored homeRecentWindowDays on an unrelated persistView (card size)', () => {
+    const { comp, setLibraryPreferences } = setup({ viewMode: 'card', homeRecentWindowDays: 7 });
+    comp.setCardSize(200);
+    expect(setLibraryPreferences).toHaveBeenCalledWith(
+      expect.objectContaining({ homeRecentWindowDays: 7 }));
+  });
+
+  it('round-trips the stored homeRecentWindowDays on a sort change', () => {
+    const { comp, setLibraryPreferences } = setup({ viewMode: 'card', sort: 'name', homeRecentWindowDays: 14 });
+    comp.setSort('recentlyAdded');
+    expect(setLibraryPreferences).toHaveBeenCalledWith(
+      expect.objectContaining({ homeRecentWindowDays: 14 }));
+  });
+
   it('shows the size slider only in card mode', () => {
     const { fixture, comp } = setup({ viewMode: 'card' });
     expect(fixture.nativeElement.querySelector('.size-slider')).not.toBeNull();

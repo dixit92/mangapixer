@@ -237,22 +237,24 @@ public sealed class JumpIndexService
     /// order, with "Other" last.
     ///
     /// The rail is a coarse A–Z navigation aid, not a 1:1 mirror of the persisted
-    /// <c>SortKey</c> listing. Within each kind, <c>SortKey.EncodeName</c> orders
-    /// letter-leading names ahead of digit-leading names (digit runs are encoded
-    /// with a leading 'D' > 'A'), so numeric titles do not globally lead browse;
-    /// the "#" bucket is placed first by convention (as in a typical A–Z index).
-    /// The bucket's <c>FirstCursor</c> still honours <c>SortKey</c> order: it is the
-    /// key of the node immediately before the first numeric node, so the browse
-    /// endpoint's exclusive <c>SortKey > cursor</c> filter lands on that first
-    /// numeric node wherever it falls in the listing.
+    /// <c>SortKey</c> listing. Since 1.15.0 <c>SortKey.EncodeName</c> opens a digit run
+    /// with a marker inside the ASCII digit range, so digit-leading names sort ahead of
+    /// letter-leading names within a kind — the same place plain ordinal comparison
+    /// puts them, and the same place the leading "#" bucket sits on the rail. The rail
+    /// is still not a mirror of the listing: it groups a letter's folders and archives
+    /// into one bucket, while the listing puts every folder before every archive.
+    /// The bucket's <c>FirstCursor</c> honours <c>SortKey</c> order regardless: it is
+    /// the key of the node immediately before the bucket's first node, so the browse
+    /// endpoint's exclusive <c>SortKey > cursor</c> filter lands on that node wherever
+    /// it falls in the listing.
     /// </summary>
     internal static int RailRank(string label)
     {
         // "#" (numeric/symbol) first — a leading numeric/symbol bucket by
-        // convention (as in a typical A–Z index). The cursor is the SortKey of
-        // the node just before the first numeric node, so browse lands on that
-        // first numeric node; numeric titles do not globally lead the persisted
-        // SortKey listing (letters precede digits within each kind).
+        // convention (as in a typical A–Z index), which since 1.15.0 also matches
+        // the persisted listing: digits precede letters within each kind. The cursor
+        // is still the SortKey of the node just before the bucket's first node, so
+        // browse lands on it wherever it falls.
         if (label == "#")
             return 0;
 

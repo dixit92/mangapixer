@@ -317,11 +317,17 @@ public sealed class DbRestoreService
             // Move the staged file into place.
             File.Move(stagedPath, dbPath);
 
-            // Success — clear the marker and the moved-aside staged file.
+            // Success — clear the marker and the moved-aside staged file. The
+            // swap is now durable (the new DB is live at dbPath), so the
+            // moved-aside copy is no longer needed for rollback and would
+            // otherwise accumulate one-per-restore; the VACUUM INTO
+            // pre-restore snapshot in the backups folder remains as the
+            // durable rollback point.
             ClearPending(pendingDir);
+            TryDelete(replacedPath);
 
             logger?.LogWarning(LogEvents.Backup.RestoreApplied,
-                "DB restore applied (replaced DB moved aside; pre-restore snapshot {PreRestore}); sessions invalidated on next open",
+                "DB restore applied (pre-restore snapshot {PreRestore}); sessions invalidated on next open",
                 marker.PreRestoreBackupFileName ?? "none");
 
             return RestoreApplyOutcome.Succeeded(

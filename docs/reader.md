@@ -151,7 +151,7 @@ In single and double page mode:
 - Going back from the **first page** opens the previous archive, on its last page.
 - A short message names the chapter you moved to. At either end of the folder you see "You’ve reached the end. No next chapter in this folder." or "You’re at the start. No previous chapter in this folder."
 
-"Next" follows the folder's Name order (see [Library layout](library-layout.md#folders-and-archives-character-order)). Chapter moves replace the browser history entry, so **Back** always returns to the folder.
+"Next" follows the folder's Name order (see [Library layout](library-layout.md#folders-and-archives)). Chapter moves replace the browser history entry, so **Back** always returns to the folder.
 
 ## Loading and prefetch
 

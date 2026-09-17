@@ -182,9 +182,26 @@
          install guides and README describe the pull-based install, the release build embeds the
          commit SHA (the 1.14.0 image reported "+dirty"), and the release gate fixes from the
          1.14.0 cut (Linux smoke marker, Verify-Contracts version stage) are recorded. -->
+    <!-- 1.15.0 - additive MINOR over 1.14.1 (Correctness and Hardening cycle, 2026-09-17;
+         first cycle run in the Unraid dev-container environment alongside the public GitHub
+         remote). Five parallel lanes: (A) catalog Name sort is now natural order end to end -
+         SortKey.ForNode wired into the scan persist path, a forward-only data-only idempotent
+         backfill migration (mp_sort_key SQLite UDF) recomputes existing rows, corrected on
+         first upgrade start with no rescan; read-side ordering, DTOs and the
+         (ParentId,Kind,SortKey) index unchanged; (B) scanner + reader fixes - skip AppleDouble
+         ._* files and __MACOSX dirs, mark solid .cb7/.7z archives Unsupported at persist time
+         with an unsupported_solid reader message (no longer falsely ready), case-fold the
+         reader help-overlay M/F shortcuts; (C) backend hardening - restore multipart limit
+         raised to the configured cap, replaced-* DB files cleaned after a durable swap, keys
+         dir created + chmod 700 on first boot, /health (liveness) split from /health/ready
+         (DB readiness), dead Logging:LogLevel config removed; (D) changing sort/view/card-size/
+         page-size no longer resets HomeRecentWindowDays (web-only); (E) DPI-aware tray Set Port
+         dialog + descriptive release asset names. One additive data-only migration
+         (BackfillNaturalSortKeys); no breaking API/contract change (OpenAPI snapshot unchanged)
+         -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.15.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <MangaPixerVersionMinor>14</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
+    <MangaPixerVersionMinor>15</MangaPixerVersionMinor>
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

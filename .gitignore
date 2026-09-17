@@ -99,6 +99,11 @@ e2e-results/
 scripts/Deploy-Unraid.ps1
 *.tar
 
+# Personal Unraid dev-environment provisioning (machine-specific, not tracked)
+scripts/Provision-UnraidDev.ps1
+deploy/Dockerfile.dev
+deploy/entrypoint-dev.sh
+
 # Unraid host connection details (credentials, machine-specific, not tracked)
 .claude/unraid-docker.md
 

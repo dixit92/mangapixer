@@ -63,7 +63,7 @@ The port is published on loopback only; put a [reverse proxy](docs/reverse-proxy
 
 **Unraid:** `deploy/compose.unraid.yaml` uses a single appdata folder and `PUID`/`PGID`. See [Install on Unraid](docs/install-unraid.md).
 
-**Windows:** a native tray app with a per-user MSI installer, no Docker needed. Download `MangaPixer-<version>.msi` from [Releases](https://github.com/dixit92/mangapixer/releases); see [Install on Windows](docs/install-windows.md).
+**Windows:** a native tray app with a per-user MSI installer, no Docker needed. Download `MangaPixer-<version>-windows-x64.msi` from [Releases](https://github.com/dixit92/mangapixer/releases); see [Install on Windows](docs/install-windows.md).
 
 [FAQ - in case you're in a hurry](docs/faq.md)
 

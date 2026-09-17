@@ -12,7 +12,7 @@ If you would rather run the container on Windows, Docker Desktop works too; foll
 
 ## Step 1: run the installer
 
-Download `MangaPixer-<version>.msi` from the [Releases page](https://github.com/dixit92/mangapixer/releases) (each release also lists its SHA-256) and run it. The installer is not code-signed yet, so Windows may show a SmartScreen warning the first time; choose **More info** > **Run anyway**.
+Download `MangaPixer-<version>-windows-x64.msi` from the [Releases page](https://github.com/dixit92/mangapixer/releases) (each release also lists its SHA-256) and run it. The installer is not code-signed yet, so Windows may show a SmartScreen warning the first time; choose **More info** > **Run anyway**.
 
 The wizard shows the license, lets you change the install folder, installs, and offers **Start MangaPixer now** on the last page. Defaults:
 
@@ -25,8 +25,8 @@ The wizard shows the license, lets you change the install folder, installs, and 
 To install without the wizard, for example from a script:
 
 ```powershell
-msiexec /i MangaPixer-1.14.1.msi /qn                 # silent, defaults
-msiexec /i MangaPixer-1.14.1.msi /qn RUNATSIGNIN=0   # silent, without start at sign-in
+msiexec /i MangaPixer-1.14.1-windows-x64.msi /qn                 # silent, defaults
+msiexec /i MangaPixer-1.14.1-windows-x64.msi /qn RUNATSIGNIN=0   # silent, without start at sign-in
 ```
 
 | Destination folder | Last page |
@@ -121,7 +121,7 @@ To move the data somewhere else, set the storage variables from the [configurati
 - **Upgrade:** run the newer installer. It replaces the previous version in place, keeps your **Start at sign-in** choice as you last set it, and leaves the data folder alone. Exit the tray app first if it is running. On the next start the server upgrades the database schema if the new version needs it, after writing a `pre-migration-*.db` snapshot to `data\backups`.
 - **Reinstall the same version:** allowed; the installer repairs the program files.
 - **Downgrade:** refused with a message. Uninstall the newer version first, then run the older installer. Your data stays, but a database that a newer version already upgraded may not open in an older one; restore the matching `pre-migration-*.db` snapshot in that case.
-- **Uninstall:** Windows Settings > Apps > **MangaPixer** > Uninstall, or `msiexec /x MangaPixer-1.14.1.msi /qn`. This removes the program folder, the Start menu shortcut and the start-at-sign-in entry. **Your data in `%LOCALAPPDATA%\MangaPixer` is kept.** Delete that folder yourself if you want everything gone.
+- **Uninstall:** Windows Settings > Apps > **MangaPixer** > Uninstall, or `msiexec /x MangaPixer-1.14.1-windows-x64.msi /qn`. This removes the program folder, the Start menu shortcut and the start-at-sign-in entry. **Your data in `%LOCALAPPDATA%\MangaPixer` is kept.** Delete that folder yourself if you want everything gone.
 
 ## Building the installer yourself
 
@@ -130,7 +130,7 @@ On a Windows machine with the .NET SDK, Node.js and PowerShell 7 (see [CONTRIBUT
 ```powershell
 pwsh ./scripts/Publish-Windows.ps1     # stages artifacts/windows-dist
 pwsh ./scripts/Smoke-Windows.ps1       # optional: starts it from a clean data root and checks health, setup and shutdown
-pwsh ./scripts/Build-Installer.ps1     # writes artifacts/installer/MangaPixer-<version>.msi
+pwsh ./scripts/Build-Installer.ps1     # writes artifacts/installer/MangaPixer-<version>-windows-x64.msi
 ```
 
 ## Troubleshooting on Windows

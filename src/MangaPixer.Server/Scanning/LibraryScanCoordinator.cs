@@ -5,6 +5,7 @@ using com.lifepixer.mangapixer.Server.Logging;
 
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Media;
+using com.lifepixer.mangapixer.Core.Ordering;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using com.lifepixer.mangapixer.Server.Storage;
@@ -633,12 +634,18 @@ public sealed class LibraryScanCoordinator
             await LatestDescendantAddedAtMaintenance.RecomputeFoldersAsync(_db, affected, ct);
     }
 
-    private static string BuildSortKey(int kind, string name)
-    {
-        // Folders sort before archives: prefix with 0 for folders, 1 for archives
-        var prefix = kind == 0 ? "0" : "1";
-        return prefix + name;
-    }
+    /// <summary>
+    /// Builds the persisted sort key for an observed node.
+    ///
+    /// Delegates to the shared <see cref="SortKey.ForNode"/> encoder, which is the
+    /// single source of truth for the on-disk key format. Until 1.15.0 this method
+    /// stored the RAW display name behind the kind prefix, so "Chapter 10" sorted
+    /// before "Chapter 2" everywhere the catalog is ordered - the encoder existed but
+    /// was only ever called from tests. Any change here must be matched by a
+    /// backfill migration (BackfillNaturalSortKeys).
+    /// </summary>
+    private static string BuildSortKey(int kind, string name) =>
+        SortKey.ForNode((CatalogNodeKind)kind, name);
 
     private sealed class ReconciliationResult
     {

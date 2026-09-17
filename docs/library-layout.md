@@ -58,27 +58,30 @@ Structure matters in two places:
 
 ## Sorting
 
-MangaPixer uses two different orders. Knowing which applies where saves surprises.
+MangaPixer sorts names in **natural order**. The same rules apply to pages inside an archive and to folders and archives in the library view.
 
-### Pages: natural order
+### The rules
 
-Page files inside an archive sort in natural order:
-
-- Runs of digits compare as numbers: `page2.png` < `page10.png`.
+- Runs of digits compare as numbers: `Chapter 2` < `Chapter 10`, `page2.png` < `page10.png`.
 - Equal numbers with different zero-padding put the longer padding first: `001` < `01` < `1`.
 - Letters compare by character code, so uppercase comes before lowercase (`Cover.png` < `cover.png`) and there is no language-specific collation.
+- Digits sort before letters: `10 Tigers` < `Akira`.
 - Decimals work the way you expect for volume numbers: `Vol.1.5` < `Vol.2`.
 
-### Folders and archives: character order
+### Pages
 
-In the library view, **Name** sort compares names character by character. It does not treat numbers as numbers. This affects browsing, next/previous chapter, and folder covers:
+Page files inside an archive sort by these rules on their full path inside the archive.
+
+### Folders and archives
+
+In the library view, **Name** sort applies the same rules. This affects browsing, next/previous chapter, folder covers, the pinned Continue row and the A–Z jump rail:
 
 | On disk | Shown in Name order |
 |---|---|
-| `Chapter 1.cbz`, `Chapter 2.cbz`, `Chapter 10.cbz` | `Chapter 1`, `Chapter 10`, `Chapter 2` |
+| `Chapter 1.cbz`, `Chapter 2.cbz`, `Chapter 10.cbz` | `Chapter 1`, `Chapter 2`, `Chapter 10` |
 | `Chapter 001.cbz`, `Chapter 002.cbz`, `Chapter 010.cbz` | `Chapter 001`, `Chapter 002`, `Chapter 010` |
 
-**Zero-pad your numbers** (`001`, `002`, … `010`) so every name in a folder has the same number of digits. Then character order and numeric order agree. Digits also sort before letters, and uppercase before lowercase.
+Zero-padding your numbers is no longer necessary for them to sort correctly. It is still harmless, and padded and unpadded names sort the same way, so an existing padded collection is unaffected.
 
 With Name ascending, folders come before archives. With Name descending, the whole list is reversed, so archives come first.
 
@@ -88,7 +91,7 @@ The **View** button (tooltip "Change how the library is displayed") holds:
 
 - **Card** or **List** view, plus a **Card size** slider.
 - **Sort by:**
-  - **Name.** Character order, as above. **Order** can be **Ascending** or **Descending**.
+  - **Name.** Natural order, as above. **Order** can be **Ascending** or **Descending**.
   - **Recently added** ("New items appear"). Newest first, by when the server first found the item, not the file's modification date. Folders are listed first.
   - **Recently read.** Your own reading activity, newest first, with folders and archives mixed. A folder counts activity anywhere below it.
   - **Recently updated** ("Folders with new content"). Folders rank by the newest archive added anywhere below them, mixed with archives. Useful for spotting series that received new chapters.

@@ -251,6 +251,8 @@ public sealed class StorageIntegrationTests : IDisposable
         Assert.True(policy.IsIgnoredDirectory("$RECYCLE.BIN"));
         Assert.True(policy.IsIgnoredDirectory(".git"));
         Assert.True(policy.IsIgnoredDirectory(".manga_collection")); // hidden dirs are ignored (user requirement)
+        Assert.True(policy.IsIgnoredDirectory("__MACOSX")); // macOS zip metadata — not dot-prefixed
+        Assert.True(policy.IsIgnoredDirectory("__macosx")); // case-insensitive
         Assert.False(policy.IsIgnoredDirectory("My Manga"));
     }
 
@@ -262,7 +264,42 @@ public sealed class StorageIntegrationTests : IDisposable
         Assert.True(policy.IsIgnoredFile(".DS_Store"));
         Assert.True(policy.IsIgnoredFile("ComicInfo.xml"));
         Assert.True(policy.IsIgnoredFile("thumbs.db"));
+        Assert.True(policy.IsIgnoredFile("._manga.cbz")); // AppleDouble sidecar
+        Assert.True(policy.IsIgnoredFile("._.DS_Store")); // AppleDouble sidecar of a sidecar
         Assert.False(policy.IsIgnoredFile("page001.png"));
+    }
+
+    [Fact]
+    public void LibraryScanPolicy_IsArchiveCandidate_ExcludesAppleDoubleSidecar()
+    {
+        var policy = new LibraryScanPolicy();
+
+        // A real cbz is a candidate…
+        var realArchive = new FileSystemEntry
+        {
+            RelativePath = "manga.cbz",
+            Name = "manga.cbz",
+            Kind = EntryKind.File,
+            ByteLength = 100,
+            LastWriteTimeUtc = DateTimeOffset.UtcNow,
+            IsHidden = false,
+            IsSymlink = false,
+        };
+        Assert.True(policy.IsArchiveCandidate(realArchive));
+
+        // …but its AppleDouble sidecar (written by macOS when copying to a
+        // non-HFS+ filesystem) must not be treated as a second archive.
+        var sidecar = new FileSystemEntry
+        {
+            RelativePath = "._manga.cbz",
+            Name = "._manga.cbz",
+            Kind = EntryKind.File,
+            ByteLength = 100,
+            LastWriteTimeUtc = DateTimeOffset.UtcNow,
+            IsHidden = false,
+            IsSymlink = false,
+        };
+        Assert.False(policy.IsArchiveCandidate(sidecar));
     }
 
     [Fact]
