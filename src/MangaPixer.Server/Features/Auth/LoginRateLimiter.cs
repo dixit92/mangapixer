@@ -78,8 +78,8 @@ public sealed class LoginRateLimiter
     public TimeSpan? GetRetryAfter(string ipAddress, string username)
     {
         var now = DateTimeOffset.UtcNow;
-        var ipRetry = GetRetryAfter(_ipAttempts, $"ip:{ipAddress}", now, _options.MaxAttemptsPerIp);
-        var userRetry = GetRetryAfter(_userAttempts, $"user:{username.ToLowerInvariant()}", now, _options.MaxAttemptsPerUser);
+        var ipRetry = GetRetryAfter(_ipAttempts, $"ip:{ipAddress}", now, _options.MaxAttemptsPerIp, _options.Window);
+        var userRetry = GetRetryAfter(_userAttempts, $"user:{username.ToLowerInvariant()}", now, _options.MaxAttemptsPerUser, _options.Window);
 
         if (ipRetry is null && userRetry is null) return null;
         if (ipRetry is null) return userRetry;
@@ -114,13 +114,16 @@ public sealed class LoginRateLimiter
             });
     }
 
-    private static TimeSpan? GetRetryAfter(ConcurrentDictionary<string, RateEntry> dict, string key, DateTimeOffset now, int maxAttempts)
+    private static TimeSpan? GetRetryAfter(ConcurrentDictionary<string, RateEntry> dict, string key, DateTimeOffset now, int maxAttempts, TimeSpan window)
     {
         if (dict.TryGetValue(key, out var entry))
         {
             if (entry.AttemptCount >= maxAttempts)
             {
-                var resetTime = entry.WindowStart + TimeSpan.FromMinutes(15); // Lock for 15 minutes after exceeding
+                // The block actually lifts when the sliding window that got the
+                // caller rate-limited ends, not some independent fixed duration —
+                // otherwise a client is told to wait longer than the real block.
+                var resetTime = entry.WindowStart + window;
                 var remaining = resetTime - now;
                 return remaining > TimeSpan.Zero ? remaining : null;
             }

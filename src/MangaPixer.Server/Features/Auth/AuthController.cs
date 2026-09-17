@@ -323,21 +323,25 @@ public sealed class AuthController : ControllerBase
             return BadRequest(new ApiError { Error = "weak_password", Message = "Password must be at least 8 characters." });
 
         var ipAddress = GetClientIpAddress();
-        if (!_rateLimiter.AllowAttempt(ipAddress, "__activation__"))
+
+        // Keyed per-target (hash of the activation token being attempted), not
+        // a single shared "__activation__" bucket — otherwise attempts against
+        // one user's activation link rate-limit every other pending activation.
+        var tokenHash = AdminController.HashToken(request.Token);
+        var activationTarget = $"__activation__:{tokenHash}";
+        if (!_rateLimiter.AllowAttempt(ipAddress, activationTarget))
         {
-            var retryAfter = _rateLimiter.GetRetryAfter(ipAddress, "__activation__");
+            var retryAfter = _rateLimiter.GetRetryAfter(ipAddress, activationTarget);
             Response.Headers["Retry-After"] = ((int?)retryAfter?.TotalSeconds ?? 60).ToString();
             return StatusCode(429, new ApiError { Error = "rate_limited", Message = "Too many attempts. Please try again later." });
         }
-
-        var tokenHash = AdminController.HashToken(request.Token);
 
         var user = await _db.Users.FirstOrDefaultAsync(
             u => u.ActivationTokenHash == tokenHash && u.IsPendingActivation, ct);
 
         if (user is null)
         {
-            _rateLimiter.RecordFailure(ipAddress, "__activation__");
+            _rateLimiter.RecordFailure(ipAddress, activationTarget);
             _logger.LogInformation(LogEvents.Administration.ActivationFailedInvalidToken,
                 "Activation failed: no matching token");
             return BadRequest(new ApiError { Error = "invalid_token", Message = "Invalid or expired activation link." });
@@ -345,7 +349,7 @@ public sealed class AuthController : ControllerBase
 
         if (user.ActivationTokenConsumed)
         {
-            _rateLimiter.RecordFailure(ipAddress, "__activation__");
+            _rateLimiter.RecordFailure(ipAddress, activationTarget);
             _logger.LogInformation(LogEvents.Administration.ActivationFailedConsumedToken,
                 "Activation failed: token already consumed for user {PublicId}", user.PublicId);
             return BadRequest(new ApiError { Error = "invalid_token", Message = "Invalid or expired activation link." });
@@ -353,7 +357,7 @@ public sealed class AuthController : ControllerBase
 
         if (user.ActivationTokenExpiry.HasValue && user.ActivationTokenExpiry.Value < DateTimeOffset.UtcNow)
         {
-            _rateLimiter.RecordFailure(ipAddress, "__activation__");
+            _rateLimiter.RecordFailure(ipAddress, activationTarget);
             _logger.LogInformation(LogEvents.Administration.ActivationFailedExpiredToken,
                 "Activation failed: token expired for user {PublicId}", user.PublicId);
             return BadRequest(new ApiError { Error = "invalid_token", Message = "Invalid or expired activation link." });
@@ -368,7 +372,7 @@ public sealed class AuthController : ControllerBase
 
         await _db.SaveChangesAsync(ct);
 
-        _rateLimiter.RecordSuccess(ipAddress, "__activation__");
+        _rateLimiter.RecordSuccess(ipAddress, activationTarget);
         _logger.LogInformation(LogEvents.Administration.ActivationSucceeded,
             "Account activated for user {PublicId}", user.PublicId);
 
