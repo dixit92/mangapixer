@@ -271,6 +271,57 @@ describe('HomeComponent', () => {
   //     libraries contribute cards. The picker that EDITS the set lives under
   //     Settings > New Chapters. ---
 
+  // --- Read-state filter (1.17.0): New chapters row only ---
+
+  it('sends no readState param by default and reloads with it when the filter changes', () => {
+    const fixture = createComponent();
+    const cmp = fixture.componentInstance;
+
+    // Default 'all': no readState query param, "Filter" label, inactive styling.
+    const button = fixture.nativeElement.querySelector('.filter-toggle') as HTMLElement;
+    expect(button.textContent).toContain('Filter');
+    expect(button.classList.contains('filter-active')).toBe(false);
+
+    cmp.setRecentReadStateFilter('read');
+    const req = httpMock.expectOne((r) => r.url === '/api/v1/home/recent-chapters');
+    expect(req.request.params.get('readState')).toBe('read');
+    req.flush({ libraries: [] });
+    fixture.detectChanges();
+
+    expect(cmp.recentReadStateFilter()).toBe('read');
+    expect(button.textContent).toContain('Read');
+    expect(button.classList.contains('filter-active')).toBe(true);
+  });
+
+  it('does not reload when the filter is set to its current value', () => {
+    const fixture = createComponent();
+    fixture.componentInstance.setRecentReadStateFilter('all');
+    httpMock.expectNone((r) => r.url === '/api/v1/home/recent-chapters');
+  });
+
+  it('picks the read-state option from the toolbar menu', () => {
+    // mat-menu renders its panel in a CDK overlay outside the component's host
+    // element (same pattern as the library browse view's Filter menu), so the
+    // trigger is opened via fixture.nativeElement but the options are queried
+    // through `document`.
+    const fixture = createComponent();
+    (fixture.nativeElement.querySelector('.filter-toggle') as HTMLElement).click();
+    fixture.detectChanges();
+
+    const panel = document.querySelector('.view-options-menu') as HTMLElement;
+    expect(panel, 'the view-options-menu overlay panel').not.toBeNull();
+    const options = panel.querySelectorAll('[role="menuitemradio"]') as NodeListOf<HTMLButtonElement>;
+    // All / Reading / Read / Unread, in that order.
+    expect(options).toHaveLength(4);
+
+    options[2].click(); // "Read"
+    const req = httpMock.expectOne((r) => r.url === '/api/v1/home/recent-chapters');
+    expect(req.request.params.get('readState')).toBe('read');
+    req.flush({ libraries: [] });
+
+    expect(fixture.componentInstance.recentReadStateFilter()).toBe('read');
+  });
+
   it('reads the excluded set from the server and drops those libraries from the row', () => {
     const fixture = createComponent({ excluded: ['L1'] });
     const cmp = fixture.componentInstance;

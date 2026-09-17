@@ -213,6 +213,76 @@ public sealed class RecentChaptersHttpTests : IClassFixture<MangaPixerWebApplica
     }
 
     [Fact]
+    public async Task GetRecentChapters_ReadStateFilter_RestrictsReturnedStacks()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            if (!await db.Libraries.AnyAsync(l => l.PublicId == "recrslib"))
+            {
+                var now = DateTimeOffset.UtcNow;
+                var lib = new LibraryEntity { PublicId = "recrslib", DisplayName = "ReadState Library", RootPath = "/tmp/recent-rs", CreatedAt = now };
+                db.Libraries.Add(lib);
+                await db.SaveChangesAsync();
+
+                var readArchive = new CatalogNodeEntity
+                {
+                    PublicId = "recrs_read",
+                    LibraryId = lib.Id,
+                    Kind = 1,
+                    DisplayName = "Read.cbz",
+                    RelativePath = "Read.cbz",
+                    PathKey = "Read.cbz",
+                    SortKey = "1Read",
+                    Availability = 0,
+                    CreatedAt = now.AddHours(-1),
+                };
+                var unreadArchive = new CatalogNodeEntity
+                {
+                    PublicId = "recrs_unread",
+                    LibraryId = lib.Id,
+                    Kind = 1,
+                    DisplayName = "Unread.cbz",
+                    RelativePath = "Unread.cbz",
+                    PathKey = "Unread.cbz",
+                    SortKey = "1Unread",
+                    Availability = 0,
+                    CreatedAt = now.AddHours(-2),
+                };
+                db.CatalogNodes.AddRange(readArchive, unreadArchive);
+                await db.SaveChangesAsync();
+
+                var admin = await db.Users.FirstAsync(u => u.NormalizedUserName == "ADMIN");
+                db.ReadMarks.Add(new ReadMarkEntity { UserId = admin.Id, ItemId = readArchive.Id, MarkedAt = now });
+                await db.SaveChangesAsync();
+            }
+        }
+
+        var client = await GetAuthenticatedClientAsync();
+        client.DefaultRequestHeaders.Remove("X-Incognito");
+
+        var unfiltered = await client.GetAsync("/api/v1/home/recent-chapters");
+        unfiltered.EnsureSuccessStatusCode();
+        var unfilteredDto = await unfiltered.Content.ReadFromJsonAsync<RecentChaptersDto>();
+        var unfilteredLib = unfilteredDto!.Libraries.First(g => g.LibraryId == "recrslib");
+        Assert.Equal(
+            new[] { "recrs_read", "recrs_unread" },
+            unfilteredLib.Stacks.Select(s => s.Id).OrderBy(id => id).ToArray());
+
+        var readOnly = await client.GetAsync("/api/v1/home/recent-chapters?readState=read");
+        readOnly.EnsureSuccessStatusCode();
+        var readDto = await readOnly.Content.ReadFromJsonAsync<RecentChaptersDto>();
+        var readLib = readDto!.Libraries.First(g => g.LibraryId == "recrslib");
+        Assert.Equal(new[] { "recrs_read" }, readLib.Stacks.Select(s => s.Id).ToArray());
+
+        var unreadOnly = await client.GetAsync("/api/v1/home/recent-chapters?readState=unread");
+        unreadOnly.EnsureSuccessStatusCode();
+        var unreadDto = await unreadOnly.Content.ReadFromJsonAsync<RecentChaptersDto>();
+        var unreadLib = unreadDto!.Libraries.First(g => g.LibraryId == "recrslib");
+        Assert.Equal(new[] { "recrs_unread" }, unreadLib.Stacks.Select(s => s.Id).ToArray());
+    }
+
+    [Fact]
     public async Task GetRecentChapters_Incognito_ExcludesPrivateLibrary()
     {
         await SeedAsync();

@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.Server.Features.Home;
 using System.Data;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -81,6 +82,7 @@ public sealed class RecentChaptersService
         long userId,
         int? perLibrary = null,
         bool incognito = false,
+        HomeReadStateFilter readState = HomeReadStateFilter.All,
         CancellationToken ct = default)
     {
         var cap = perLibrary is null or < 1
@@ -115,7 +117,7 @@ public sealed class RecentChaptersService
         var groups = new List<RecentChaptersLibraryGroup>(libs.Count);
         foreach (var lib in libs)
         {
-            var stacks = await BuildStacksAsync(lib.Id, cutoff, cap, ct);
+            var stacks = await BuildStacksAsync(lib.Id, cutoff, cap, userId, readState, ct);
             groups.Add(new RecentChaptersLibraryGroup
             {
                 LibraryId = lib.PublicId,
@@ -157,6 +159,8 @@ public sealed class RecentChaptersService
         long libraryId,
         DateTimeOffset cutoff,
         int cap,
+        long userId,
+        HomeReadStateFilter readState,
         CancellationToken ct)
     {
         // Candidate archives (window-bounded). EF encodes/decodes the CreatedAt binary column.
@@ -227,6 +231,19 @@ public sealed class RecentChaptersService
                 LatestAddedAt = latest.CreatedAt,
                 NewCount = list.Count,
             }, topId));
+        }
+
+        // Read-state filter (1.17.0), applied BEFORE the newest-activity ordering and the
+        // per-library cap so a filtered-out stack never displaces one that matches — mirrors
+        // the browse view applying its read-state filter to the base query before pagination.
+        // Rollup is over each stack's TOP-LEVEL node's readable descendants (its whole subtree
+        // for a folder stack, or just itself for a standalone archive stack) — NOT limited to
+        // the recency-window candidates — so a stack's read state matches what the folder
+        // rollup badge / archive card would show if the user browsed to it directly.
+        if (readState != HomeReadStateFilter.All)
+        {
+            var rollups = await ResolveReadRollupsAsync(stacks.Select(s => s.TopId).ToList(), userId, ct);
+            stacks = stacks.Where(s => MatchesReadState(rollups, s.TopId, readState)).ToList();
         }
 
         // Order by newest activity, cap to perLibrary STACKS.
@@ -346,6 +363,96 @@ public sealed class RecentChaptersService
         return result;
     }
 
+    /// <summary>
+    /// Resolves the derived read rollup (<see cref="FolderReadRollupRules"/>, same rule the
+    /// browse view's folder badge uses) for each given TOP-LEVEL stack node, via a single
+    /// recursive CTE. Works uniformly whether the root is a folder (rolled up over every
+    /// descendant archive) or a standalone archive (the root itself is the sole readable
+    /// descendant, since the base case of the recursive walk includes the root row): the
+    /// archive join only requires <c>Kind = 1</c>, not that the root be a folder. Root ids
+    /// with no readable (non-tombstoned) descendant archive are omitted (null rollup) — same
+    /// as <c>CatalogBrowseService.ResolveFolderReadRollupsAsync</c>, which this mirrors.
+    /// </summary>
+    private async Task<Dictionary<long, FolderReadRollup>> ResolveReadRollupsAsync(
+        List<long> topLevelIds,
+        long userId,
+        CancellationToken ct)
+    {
+        var result = new Dictionary<long, FolderReadRollup>();
+        if (topLevelIds.Count == 0)
+            return result;
+
+        var ids = string.Join(",", topLevelIds);
+        var connection = _db.Database.GetDbConnection();
+        var wasOpen = connection.State == ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync(ct);
+        try
+        {
+            using var command = connection.CreateCommand();
+            // Kind = 1 is Archive; Availability = 5 is Tombstoned; State = 1 is InProgress
+            // (same literals as CatalogBrowseService's sibling CTE).
+            command.CommandText = $"""
+                WITH RECURSIVE subtree(RootId, NodeId) AS (
+                    SELECT r.Id, r.Id FROM catalog_nodes r WHERE r.Id IN ({ids})
+                    UNION ALL
+                    SELECT s.RootId, cn.Id FROM subtree s
+                    JOIN catalog_nodes cn ON cn.ParentId = s.NodeId
+                )
+                SELECT s.RootId,
+                       COUNT(*) AS Total,
+                       SUM(CASE WHEN rm.ItemId IS NOT NULL THEN 1 ELSE 0 END) AS ReadCount,
+                       SUM(CASE WHEN rm.ItemId IS NULL AND rp.State = 1 THEN 1 ELSE 0 END) AS InProgressCount
+                FROM subtree s
+                JOIN catalog_nodes a ON a.Id = s.NodeId AND a.Kind = 1 AND a.Availability != 5
+                LEFT JOIN read_marks rm ON rm.ItemId = a.Id AND rm.UserId = $user
+                LEFT JOIN reading_progress rp ON rp.ItemId = a.Id AND rp.UserId = $user
+                GROUP BY s.RootId;
+                """;
+            var p = command.CreateParameter();
+            p.ParameterName = "$user";
+            p.Value = userId;
+            command.Parameters.Add(p);
+
+            using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var rollup = FolderReadRollupRules.Classify(
+                    total: reader.GetInt32(1),
+                    read: reader.GetInt32(2),
+                    inProgress: reader.GetInt32(3));
+                if (rollup is not null)
+                    result[reader.GetInt64(0)] = rollup.Value;
+            }
+        }
+        finally
+        {
+            if (!wasOpen) await connection.CloseAsync();
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Whether a stack matches the read-state filter by its top-level node's read rollup.
+    /// A MISSING <paramref name="rollups"/> entry means no readable descendant archive
+    /// (cannot occur in practice — every stack has &gt;= 1 in-window candidate archive — but
+    /// handled defensively the same way the browse view's folder filter does): Unread also
+    /// keeps that case, Read/Reading require the matching rollup.
+    /// </summary>
+    private static bool MatchesReadState(
+        Dictionary<long, FolderReadRollup> rollups,
+        long topId,
+        HomeReadStateFilter readState)
+    {
+        var has = rollups.TryGetValue(topId, out var rollup);
+        return readState switch
+        {
+            HomeReadStateFilter.Read => has && rollup == FolderReadRollup.Read,
+            HomeReadStateFilter.Reading => has && rollup == FolderReadRollup.Reading,
+            HomeReadStateFilter.Unread => !has || rollup == FolderReadRollup.Unread,
+            _ => true,
+        };
+    }
+
     private sealed record CandidateArchive
     {
         public required long Id { get; init; }
@@ -353,4 +460,20 @@ public sealed class RecentChaptersService
         public required string DisplayName { get; init; }
         public required DateTimeOffset CreatedAt { get; init; }
     }
+}
+
+/// <summary>
+/// Home "New chapters" read-state filter (1.17.0), mirroring
+/// <c>CatalogBrowseService.BrowseReadStateFilter</c> but scoped to the New chapters view: a
+/// stack is kept when its TOP-LEVEL node's read rollup matches (<see cref="FolderReadRollupRules"/>
+/// over the node's readable descendant archives — the whole subtree for a folder stack, just
+/// itself for a standalone archive stack). <see cref="All"/> disables the filter (server
+/// default — no breaking change for existing callers).
+/// </summary>
+public enum HomeReadStateFilter
+{
+    All,
+    Reading,
+    Read,
+    Unread,
 }

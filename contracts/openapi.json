@@ -1021,6 +1021,13 @@
               ],
               "format": "int32"
             }
+          },
+          {
+            "name": "readState",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {

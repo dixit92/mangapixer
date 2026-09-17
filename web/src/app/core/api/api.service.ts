@@ -178,9 +178,16 @@ export class ApiService {
    * grouped by visible library, newest first, capped per library. Respects
    * Incognito/Private visibility server-side (the X-Incognito header is set
    * by the incognito interceptor like every other discovery call).
+   *
+   * `readState` (1.17.0) optionally restricts stacks to Reading/Read/Unread by
+   * their top-level rollup, mirroring the library browse filter. Reuses
+   * `LibraryReadStateFilter` (same wire values) rather than a separate type — a
+   * transient toolbar control, not a persisted preference; 'all' sends no param
+   * (server default = unfiltered).
    */
-  getRecentChapters(perLibrary = 12): Observable<RecentChaptersDto> {
-    const params = new HttpParams().set('perLibrary', perLibrary.toString());
+  getRecentChapters(perLibrary = 12, readState: LibraryReadStateFilter = 'all'): Observable<RecentChaptersDto> {
+    let params = new HttpParams().set('perLibrary', perLibrary.toString());
+    if (readState !== 'all') params = params.set('readState', readState);
     return this.get<RecentChaptersDto>('/home/recent-chapters', params);
   }
 
