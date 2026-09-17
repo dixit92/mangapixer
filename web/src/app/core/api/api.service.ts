@@ -6,9 +6,12 @@ import { catchError } from 'rxjs/operators';
 import { BYPASS_INCOGNITO } from '../incognito/incognito.interceptor';
 import {
   ActivateAccountRequest,
+  AddBookmarkRequest,
+  AddBookmarkResult,
   ApiError,
   AdminUserDto,
   AuthUserDto,
+  BookmarkDto,
   CatalogNodeDto,
   ChangePasswordRequest,
   ContinueReadingEntry,
@@ -302,6 +305,22 @@ export class ApiService {
     return read
       ? this.put<BulkReadMarkResultDto>(`/reading/folders/${nodeId}/read`, {})
       : this.delete<BulkReadMarkResultDto>(`/reading/folders/${nodeId}/read`);
+  }
+
+  // --- Bookmarks (1.17.0) ---
+
+  /** Per-page bookmarks for an item, ordered by page. */
+  getBookmarks(itemId: string): Observable<BookmarkDto[]> {
+    return this.get<BookmarkDto[]>(`/reading/${itemId}/bookmarks`);
+  }
+
+  addBookmark(itemId: string, request: AddBookmarkRequest): Observable<AddBookmarkResult> {
+    return this.post<AddBookmarkResult>(`/reading/${itemId}/bookmarks`, request);
+  }
+
+  /** NOTE: not nested under itemId — the server addresses a bookmark by its own id. */
+  removeBookmark(bookmarkId: string): Observable<void> {
+    return this.delete<void>(`/reading/bookmarks/${bookmarkId}`);
   }
 
   // --- Admin ---
