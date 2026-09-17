@@ -306,6 +306,31 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       </div>
     }
 
+    <!-- Read / rollup / direction / selection markers for one node. Rendered over the
+         cover in card mode and at the right edge of the row in list mode (1.17.0). -->
+    <ng-template #markers let-node>
+      @if (node.isRead) {
+        <span class="badge read" matTooltip="Read">✓ Read</span>
+      } @else if (node.readingState === 'InProgress') {
+        <span class="badge reading">Reading</span>
+      }
+      <app-folder-rollup-badge [rollup]="node.readRollup" />
+
+      <!-- Admin folders show their current direction override as a small,
+           non-interactive chip (the control now lives in the action bar). -->
+      @if (auth.isAdmin() && node.kind === 'Folder' && node.readerDefault) {
+        <span class="badge dir" matTooltip="Reading direction override">
+          {{ directionShort(node.readerDefault) }}
+        </span>
+      }
+
+      @if (selectMode()) {
+        <span class="check" [class.on]="isSelected(node)">
+          <mat-icon>{{ isSelected(node) ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+        </span>
+      }
+    </ng-template>
+
     <div class="nodes" [class.card]="viewMode() === 'card'"
          [class.list]="viewMode() === 'list'"
          [style.--card-size]="cardSize() + 'px'">
@@ -323,25 +348,10 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               }
               <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
 
-              @if (node.isRead) {
-                <span class="badge read" matTooltip="Read">✓ Read</span>
-              } @else if (node.readingState === 'InProgress') {
-                <span class="badge reading">Reading</span>
-              }
-              <app-folder-rollup-badge [rollup]="node.readRollup" />
-
-              <!-- Admin folders show their current direction override as a small,
-                   non-interactive chip (the control now lives in the action bar). -->
-              @if (auth.isAdmin() && node.kind === 'Folder' && node.readerDefault) {
-                <span class="badge dir" matTooltip="Reading direction override">
-                  {{ directionShort(node.readerDefault) }}
-                </span>
-              }
-
-              @if (selectMode()) {
-                <span class="check" [class.on]="isSelected(node)">
-                  <mat-icon>{{ isSelected(node) ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
-                </span>
+              <!-- Card mode: read/selection markers overlay the cover. List mode renders
+                   the same markers to the RIGHT of the row instead (1.17.0), see below. -->
+              @if (viewMode() !== 'list') {
+                <ng-container *ngTemplateOutlet="markers; context: { $implicit: node }" />
               }
 
               <!-- Touch range fill (long-press "Select to here"): shown only on the
@@ -362,6 +372,13 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                 @if (node.availability !== 'Available') { · {{ node.availability }} }
               </div>
             </div>
+            <!-- List mode (1.17.0): markers trail the row so the small thumbnail stays
+                 unobstructed. Same template as the card overlay, so the two never drift. -->
+            @if (viewMode() === 'list') {
+              <div class="row-markers">
+                <ng-container *ngTemplateOutlet="markers; context: { $implicit: node }" />
+              </div>
+            }
           </a>
         </div>
       } @empty {
@@ -457,16 +474,34 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       gap: clamp(10px, calc(var(--card-size, 150px) * 0.09), 20px);
       grid-template-columns: repeat(auto-fill, minmax(var(--card-size, 150px), 1fr));
     }
-    .nodes.list { display: flex; flex-direction: column; gap: 8px; }
-    .nodes.list .node-wrap { width: 100%; }
+    /* List (1.17.0): a grid so wide viewports get 2-3 columns instead of one long
+       row per item. Row-major order keeps infinite scroll appending at the bottom.
+       minmax(0, 1fr) (not 1fr) lets a long title ellipsize instead of widening its
+       column. Phone/narrow stays single column. */
+    .nodes.list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    @media (min-width: 960px) {
+      .nodes.list { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+    }
+    @media (min-width: 1800px) {
+      .nodes.list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    .nodes.list .node-wrap { min-width: 0; }
     .nodes.list .node-card {
       display: flex; align-items: center; gap: 12px;
       padding: 6px; border-radius: 8px; background: rgba(255,255,255,0.03);
     }
     .nodes.list .cover { width: 46px; height: 66px; flex: 0 0 auto; border-radius: 4px; }
     .nodes.list .cover-fallback { font-size: 24px; width: 24px; height: 24px; }
-    .nodes.list .badge { font-size: 9px; padding: 1px 4px; top: 2px; right: 2px; }
-    .nodes.list .badge.dir { bottom: 2px; top: auto; }
+    /* List markers (1.17.0) sit in a trailing flex group at the right of the row, in
+       normal flow - not absolutely positioned over the 46px thumbnail. The rollup
+       badge lives in a shared child component, hence ::ng-deep for that one rule. */
+    .nodes.list .row-markers {
+      flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding-right: 4px;
+    }
+    .nodes.list .row-markers .badge,
+    .nodes.list .row-markers ::ng-deep .badge { position: static; font-size: 11px; padding: 2px 6px; }
+    .nodes.list .row-markers .check { position: static; background: transparent; }
+    .nodes.list .row-markers .check.on { background: #fff; }
     .nodes.list .node-text { flex: 1 1 auto; min-width: 0; }
     .nodes.list .node-title { margin-top: 0; white-space: nowrap; }
     .node-wrap { position: relative; border-radius: 8px; }
@@ -778,8 +813,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    */
   readonly sortOptions: { value: LibrarySortOrder; label: string; icon: string; hint?: string }[] = [
     { value: 'name', label: 'Name', icon: 'sort_by_alpha' },
-    { value: 'recentlyAdded', label: 'Recently added', icon: 'schedule', hint: 'New items appear' },
-    { value: 'recentlyRead', label: 'Recently read', icon: 'history' },
+    { value: 'recentlyAdded', label: 'Recently added', icon: 'new_releases', hint: 'New items appear' },
+    { value: 'recentlyRead', label: 'Recently read', icon: 'menu_book' },
     { value: 'recentlyUpdated', label: 'Recently updated', icon: 'update', hint: 'Folders with new content' },
   ];
 
