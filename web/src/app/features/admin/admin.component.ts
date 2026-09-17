@@ -29,6 +29,7 @@ import {
   YacReaderImportPreviewDto,
 } from '../../core/api/api-types';
 import { libraryPathCopy } from './library-path-copy';
+import { DebugLogCardComponent } from './debug-log-card.component';
 
 /**
  * Admin component. Shows library and user administration.
@@ -43,6 +44,7 @@ import { libraryPathCopy } from './library-path-copy';
   standalone: true,
   imports: [
     CommonModule,
+    DebugLogCardComponent,
     FormsModule,
     MatCardModule,
     MatButtonModule,
@@ -451,6 +453,9 @@ import { libraryPathCopy } from './library-path-copy';
         </button>
       </mat-card-content>
     </mat-card>
+
+    <!-- Logging (1.17.0 DEBUGUI lane, integrator-wired for discoverability) -->
+    <app-debug-log-card />
   `,
   styles: [`
     mat-card { margin-bottom: 16px; }
