@@ -1,9 +1,11 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { ApiService } from '../../core/api/api.service';
@@ -11,6 +13,7 @@ import { CoverImageDirective } from '../../shared/cover-image.directive';
 import {
   LibraryDto,
   ContinueReadingEntry,
+  LibraryReadStateFilter,
   LibraryViewPreferencesDto,
   RecentChaptersDto,
   RecentChaptersLibraryGroup,
@@ -61,9 +64,11 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
   imports: [
     CommonModule,
     RouterLink,
+    MatButtonModule,
     MatCardModule,
     MatIconModule,
     MatChipsModule,
+    MatMenuModule,
     MatTooltipModule,
     CoverImageDirective,
   ],
@@ -120,6 +125,27 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
         <section class="strip-section recent-section">
           <div class="section-head">
             <h3>New chapters</h3>
+            <!-- Read-state filter (1.17.0): scoped to New chapters only, mirroring the
+                 library browse view's filter but transient (session-only, not a
+                 persisted preference) since this row is a discovery surface, not a
+                 navigable listing. -->
+            <button mat-stroked-button class="filter-toggle" [matMenuTriggerFor]="recentFilterMenu"
+                    [class.filter-active]="recentReadStateFilter() !== 'all'"
+                    matTooltip="Filter by read state" aria-label="Filter new chapters by read state">
+              <mat-icon>filter_list</mat-icon> {{ recentReadStateLabel() }}
+            </button>
+            <mat-menu #recentFilterMenu="matMenu" class="view-options-menu">
+              <span class="menu-caption">Show</span>
+              @for (opt of recentReadStateOptions; track opt.value) {
+                <button mat-menu-item role="menuitemradio"
+                        [class.selected-option]="recentReadStateFilter() === opt.value"
+                        [attr.aria-checked]="recentReadStateFilter() === opt.value"
+                        (click)="setRecentReadStateFilter(opt.value)">
+                  <mat-icon>{{ opt.icon }}</mat-icon>
+                  {{ opt.label }}
+                </button>
+              }
+            </mat-menu>
           </div>
 
           @for (group of visibleGroups(); track group.libraryId) {
@@ -268,8 +294,25 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
     /* New chapters: a heading, then one sub-row per library headed by the library name
        (clickable into browse), then its stacks. Which libraries appear here is a per-user
        setting under Settings > New Chapters. */
-    .section-head { margin-bottom: 4px; }
+    .section-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
     .section-head h3 { margin-bottom: 8px; }
+    /* Read-state filter (1.17.0): mirrors the library browse toolbar's filter button
+       and menu styling so the two filters read as the same control at a glance. */
+    .menu-caption {
+      display: block; padding: 6px 16px 2px; font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px; color: #8a8a99;
+    }
+    ::ng-deep .view-options-menu .selected-option {
+      background: rgba(124, 77, 255, 0.16);
+    }
+    ::ng-deep .view-options-menu .selected-option,
+    ::ng-deep .view-options-menu .selected-option .mat-icon {
+      color: #b39dff;
+    }
+    .filter-toggle { margin-bottom: 8px; }
+    .filter-toggle mat-icon { margin-right: 4px; }
+    .filter-toggle.filter-active { border-color: #7c4dff; color: #b39dff; }
+    .filter-toggle.filter-active mat-icon { color: #b39dff; }
     .empty { margin: 4px 0 0; }
     .recent-lib { margin-bottom: 12px; }
     .recent-lib h4 {
@@ -332,6 +375,28 @@ export class HomeComponent implements OnInit {
     return this.recentGroups().filter((g) => g.stacks.length > 0 && !excluded.has(g.libraryId));
   });
 
+  /**
+   * New chapters read-state filter (1.17.0): restricts the row to All / Reading /
+   * Read / Unread stacks, mirroring the library browse view's filter (server-side,
+   * additive `readState` param on the recent-chapters endpoint). A TRANSIENT,
+   * session-only toolbar control — not round-tripped through any persisted
+   * preference — scoped to this row ONLY (the library grid and continue-reading
+   * row are unaffected). 'all' sends no param (server default = unfiltered).
+   */
+  readonly recentReadStateFilter = signal<LibraryReadStateFilter>('all');
+  readonly recentReadStateOptions: { value: LibraryReadStateFilter; label: string; icon: string }[] = [
+    { value: 'all', label: 'All', icon: 'filter_list' },
+    { value: 'reading', label: 'Reading', icon: 'auto_stories' },
+    { value: 'read', label: 'Read', icon: 'check_circle' },
+    { value: 'unread', label: 'Unread', icon: 'radio_button_unchecked' },
+  ];
+
+  /** Toolbar button label: "Filter" when inactive, else the active option's label. */
+  readonly recentReadStateLabel = computed(() =>
+    this.recentReadStateFilter() === 'all'
+      ? 'Filter'
+      : this.recentReadStateOptions.find((o) => o.value === this.recentReadStateFilter())?.label ?? 'Filter');
+
   // Card size (1.12.0): the SAME preference the library browse view uses
   // (LibraryViewPreferencesDto.cardSize, a stringified px value), same slider range.
   readonly cardSizeMin = 110;
@@ -366,10 +431,17 @@ export class HomeComponent implements OnInit {
   }
 
   private loadRecentChapters(): void {
-    this.api.getRecentChapters(12).subscribe({
+    this.api.getRecentChapters(12, this.recentReadStateFilter()).subscribe({
       next: (dto: RecentChaptersDto) => this.recentGroups.set(dto.libraries),
       error: () => this.recentGroups.set([]),
     });
+  }
+
+  /** Change the New-chapters read-state filter and reload the row (1.17.0). */
+  setRecentReadStateFilter(filter: LibraryReadStateFilter): void {
+    if (this.recentReadStateFilter() === filter) return;
+    this.recentReadStateFilter.set(filter);
+    this.loadRecentChapters();
   }
 
   glyph(lib: LibraryDto) {
