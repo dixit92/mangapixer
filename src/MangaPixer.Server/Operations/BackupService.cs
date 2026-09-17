@@ -172,9 +172,14 @@ public sealed class BackupService
         var deleted = await _db.Database
             .ExecuteSqlRawAsync("DELETE FROM sessions;", ct);
 
-        // Also bump all user security stamps to invalidate any cached auth
+        // Also bump all user security stamps to invalidate any cached auth.
+        // The column is mapped by property name (SecurityStamp) — no snake_case
+        // convention is applied — so the identifier must match exactly, or SQLite
+        // raises "no such column". This method was previously unreachable (never
+        // wired into the restore path), which is how the wrong identifier went
+        // unnoticed; fix SESS #5 both wires it in and corrects it.
         await _db.Database
-            .ExecuteSqlRawAsync("UPDATE users SET security_stamp = hex(randomblob(16));", ct);
+            .ExecuteSqlRawAsync("UPDATE users SET SecurityStamp = lower(hex(randomblob(16)));", ct);
 
         _logger?.LogWarning(LogEvents.Backup.SessionsInvalidated, "All sessions invalidated — {Count} sessions removed", deleted);
         return deleted;
