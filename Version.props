@@ -199,8 +199,18 @@
          dialog + descriptive release asset names. One additive data-only migration
          (BackfillNaturalSortKeys); no breaking API/contract change (OpenAPI snapshot unchanged)
          -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.15.x. -->
+    <!-- 1.16.0 -- "Auth/Session & Reverse-Proxy Hardening". Additive reverse-proxy
+         support (ForwardedHeaders middleware with an env-configurable trust list, default
+         loopback+private ranges; auth cookies marked Secure when the effective scheme is
+         https) plus backward-compatible auth/session correctness fixes: logout now revokes
+         the server session row, an admin role change rotates the security stamp, active
+         sessions slide instead of hard-expiring at 7 days, restore truly invalidates
+         sessions, and the login rate limiter keys on the real client IP with an accurate
+         Retry-After and a per-target activation bucket. No new/changed API routes, no DTO
+         change, no migration, worker protocol unchanged (OpenAPI snapshot unchanged)
+         -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.16.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <MangaPixerVersionMinor>15</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>16</MangaPixerVersionMinor>
     <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 

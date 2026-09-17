@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-09-17
+
+### Added
+
+- Reverse-proxy support: the server now honors `X-Forwarded-*` headers from trusted proxies, configurable via `MangaPixer__Network__KnownProxies` / `MangaPixer__Network__KnownNetworks` (default trusts loopback and private ranges only). Behind a TLS-terminating reverse proxy, activation links now use the correct external scheme (`https`) instead of `http`.
+
+### Security
+
+- Auth cookies are now marked `Secure` when the effective request scheme is `https` (including behind a trusted reverse proxy), while plain-http LAN access still works.
+- Logging out now actually revokes the server-side session record, so the session cannot be reused after logout.
+- Changing a user's admin role now immediately invalidates that user's existing sessions instead of taking effect only at their next sign-in.
+- Restoring a database backup now genuinely invalidates all sessions.
+- The login rate limiter now keys on the real client IP when behind a trusted proxy (so distinct clients get distinct limits), reports an accurate `Retry-After`, and no longer shares a single rate-limit bucket across all activation attempts.
+
+### Fixed
+
+- Active sessions now extend their expiry as they are used, instead of being hard-expired after a fixed 7 days despite the sliding auth cookie.
+
 ## [1.15.0] - 2026-09-17
 
 ### Changed
