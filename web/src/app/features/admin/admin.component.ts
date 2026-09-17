@@ -315,8 +315,36 @@ import { libraryPathCopy } from './library-path-copy';
                           matTooltip="Reset password" aria-label="Reset password">
                     <mat-icon>vpn_key</mat-icon>
                   </button>
+                  @if (user.isPendingActivation) {
+                    <button mat-icon-button type="button" (click)="reissueActivationLink(user)"
+                            [disabled]="userActionBusy().has(user.id)"
+                            matTooltip="Reissue activation link" aria-label="Reissue activation link">
+                      <mat-icon>mail</mat-icon>
+                    </button>
+                  }
+                  <button mat-icon-button type="button" (click)="openDeleteUser(user)"
+                          matTooltip="Delete user" aria-label="Delete user">
+                    <mat-icon>delete_outline</mat-icon>
+                  </button>
                 </span>
               </mat-list-item>
+
+              @if (deleteUserPanelId() === user.id) {
+                <div class="lib-panel danger">
+                  <div class="lib-panel-msg">
+                    <mat-icon>warning</mat-icon>
+                    <span>Delete <strong>{{ user.username }}</strong>? This permanently removes
+                      their account, active sessions, library access, and reading history. This
+                      cannot be undone.</span>
+                  </div>
+                  <div class="lib-panel-actions">
+                    <button mat-raised-button color="warn" type="button"
+                            [disabled]="userActionBusy().has(user.id)"
+                            (click)="confirmDeleteUser(user)">Delete user</button>
+                    <button mat-button type="button" (click)="deleteUserPanelId.set(null)">Cancel</button>
+                  </div>
+                </div>
+              }
 
               @if (grantsOpenUserId() === user.id) {
                 <div class="grants">
@@ -590,6 +618,12 @@ export class AdminComponent implements OnInit, OnDestroy {
   readonly grantsLoading = signal(false);
   readonly grantedLibIds = signal<Set<string>>(new Set());
   readonly grantBusy = signal<Set<string>>(new Set());
+
+  // User delete / activation-reissue (1.17.0): inline danger-confirm panel for
+  // delete, mirroring the library delete pattern; reissue has no confirm step
+  // (non-destructive, just replaces an unused link).
+  readonly deleteUserPanelId = signal<string | null>(null);
+  readonly userActionBusy = signal<Set<string>>(new Set());
 
   readonly newUsername = signal('');
   readonly newUserPassword = signal('');
@@ -1135,6 +1169,61 @@ export class AdminComponent implements OnInit, OnDestroy {
         this.snackBar.open(`Temporary password: ${res.temporaryPassword}`, 'Close', { duration: 10000 });
       },
       error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 5000 }),
+    });
+  }
+
+  openDeleteUser(user: AdminUserDto): void {
+    this.deleteUserPanelId.set(user.id);
+  }
+
+  confirmDeleteUser(user: AdminUserDto): void {
+    this.userActionBusy.update((s) => new Set(s).add(user.id));
+    this.api.deleteUser(user.id).subscribe({
+      next: () => {
+        this.userActionBusy.update((s) => {
+          const next = new Set(s);
+          next.delete(user.id);
+          return next;
+        });
+        this.deleteUserPanelId.set(null);
+        this.users.update((users) => users.filter((u) => u.id !== user.id));
+        this.snackBar.open(`Deleted "${user.username}".`, 'Close', { duration: 4000 });
+      },
+      error: (err) => {
+        this.userActionBusy.update((s) => {
+          const next = new Set(s);
+          next.delete(user.id);
+          return next;
+        });
+        const msg = err?.error === 'last_admin'
+          ? 'Cannot delete the last active admin.'
+          : `Delete failed: ${err.message}`;
+        this.snackBar.open(msg, 'Close', { duration: 5000 });
+      },
+    });
+  }
+
+  reissueActivationLink(user: AdminUserDto): void {
+    this.userActionBusy.update((s) => new Set(s).add(user.id));
+    this.activationUrl.set(null);
+    this.api.reissueActivation(user.id).subscribe({
+      next: (res) => {
+        this.userActionBusy.update((s) => {
+          const next = new Set(s);
+          next.delete(user.id);
+          return next;
+        });
+        this.activationUrl.set(res.activationUrl);
+        this.snackBar.open(`New activation link for "${user.username}" — the previous link no longer works`, 'Close', { duration: 8000 });
+      },
+      error: (err) => {
+        this.userActionBusy.update((s) => {
+          const next = new Set(s);
+          next.delete(user.id);
+          return next;
+        });
+        this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 5000 });
+      },
     });
   }
 

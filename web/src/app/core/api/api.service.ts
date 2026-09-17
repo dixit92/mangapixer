@@ -43,6 +43,7 @@ import {
   ReadingProgressDto,
   RecentChaptersDto,
   RegisterLibraryRequest,
+  ReissueActivationResponse,
   ResetPasswordResponse,
   ScanRunDto,
   ScanTriggeredDto,
@@ -392,6 +393,14 @@ export class ApiService {
 
   resetUserPassword(id: string): Observable<ResetPasswordResponse> {
     return this.post<ResetPasswordResponse>(`/admin/users/${id}/reset-password`, {});
+  }
+
+  deleteUser(id: string): Observable<void> {
+    return this.delete<void>(`/admin/users/${id}`);
+  }
+
+  reissueActivation(id: string): Observable<ReissueActivationResponse> {
+    return this.post<ReissueActivationResponse>(`/admin/users/${id}/reissue-activation`, {});
   }
 
   revokeUserSessions(id: string): Observable<void> {

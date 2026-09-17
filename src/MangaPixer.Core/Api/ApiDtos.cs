@@ -621,6 +621,18 @@ public sealed record ActivateAccountRequest
 }
 
 /// <summary>
+/// Response from reissuing an activation link (1.17.0) for a user created
+/// passwordless who has not yet activated their account. Same payload shape
+/// as <see cref="CreateUserResponse"/> for a pending-activation user: the
+/// previous token is invalidated and a fresh one is returned exactly once.
+/// </summary>
+public sealed record ReissueActivationResponse
+{
+    public required AdminUserDto User { get; init; }
+    public required string ActivationUrl { get; init; }
+}
+
+/// <summary>
 /// Request to update a user (enable/disable, admin flag).
 /// </summary>
 public sealed record UpdateUserRequest
