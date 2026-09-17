@@ -71,7 +71,7 @@ $builtMsi = Join-Path $repoRoot "installer/MangaPixer.Installer/bin/Release/Mang
 if (-not (Test-Path $builtMsi)) { throw "Expected build output not found: $builtMsi" }
 
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
-$outputMsi = Join-Path $OutputDir "MangaPixer-$version.msi"
+$outputMsi = Join-Path $OutputDir "MangaPixer-$version-windows-x64.msi"
 Copy-Item $builtMsi $outputMsi -Force
 
 Write-Host "Built: $outputMsi" -ForegroundColor Green

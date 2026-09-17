@@ -28,31 +28,38 @@ public sealed class SetPortDialog : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(360, 130);
         ShowIcon = false;
         ShowInTaskbar = false;
+
+        // Every control below is AutoSize and the form/panels grow to fit them,
+        // so the dialog scales correctly under the app's SystemAware high-DPI
+        // mode instead of clipping (the old fixed-pixel/96-DPI layout did not).
+        AutoScaleMode = AutoScaleMode.Font;
+        AutoSize = true;
+        AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        Padding = new Padding(12);
 
         var promptLabel = new Label
         {
             Text = "MangaPixer will use this port the next time the server restarts:",
-            AutoSize = false,
-            Location = new Point(12, 12),
-            Size = new Size(336, 32),
+            AutoSize = true,
+            MaximumSize = new Size(336, 0),
+            Margin = new Padding(0, 0, 0, 12),
         };
 
         _portTextBox = new TextBox
         {
             Text = currentPort.ToString(),
-            Location = new Point(12, 48),
-            Size = new Size(100, 23),
+            Width = 100,
+            Margin = new Padding(0, 0, 0, 12),
         };
 
         _errorLabel = new Label
         {
             ForeColor = Color.Firebrick,
-            AutoSize = false,
-            Location = new Point(12, 74),
-            Size = new Size(336, 32),
+            AutoSize = true,
+            MaximumSize = new Size(336, 0),
+            Margin = new Padding(0, 0, 0, 12),
             Visible = false,
         };
 
@@ -60,8 +67,8 @@ public sealed class SetPortDialog : Form
         {
             Text = "OK",
             DialogResult = DialogResult.None,
-            Location = new Point(192, 95),
-            Size = new Size(75, 23),
+            AutoSize = true,
+            Margin = new Padding(0, 0, 8, 0),
         };
         okButton.Click += OnOkClicked;
 
@@ -69,11 +76,39 @@ public sealed class SetPortDialog : Form
         {
             Text = "Cancel",
             DialogResult = DialogResult.Cancel,
-            Location = new Point(273, 95),
-            Size = new Size(75, 23),
+            AutoSize = true,
+            Margin = new Padding(0),
         };
 
-        Controls.AddRange([promptLabel, _portTextBox, _errorLabel, okButton, cancelButton]);
+        var buttonRow = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.LeftToRight,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Anchor = AnchorStyles.Right,
+            Margin = new Padding(0),
+        };
+        buttonRow.Controls.Add(okButton);
+        buttonRow.Controls.Add(cancelButton);
+
+        var layout = new TableLayoutPanel
+        {
+            ColumnCount = 1,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+        };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.Controls.Add(promptLabel);
+        layout.Controls.Add(_portTextBox);
+        layout.Controls.Add(_errorLabel);
+        layout.Controls.Add(buttonRow);
+
+        Controls.Add(layout);
         AcceptButton = okButton;
         CancelButton = cancelButton;
     }
