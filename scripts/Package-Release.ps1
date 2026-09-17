@@ -79,8 +79,8 @@ New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $outDirFull = (Resolve-Path $outDir).Path
 
 # --- SBOM from a saved image archive ---
-$tarName = "mangapixer-$version-image.tar"
-$sbomName = "mangapixer-$version.sbom.spdx.json"
+$tarName = "mangapixer-$version-docker-image-linux-amd64.tar"
+$sbomName = "mangapixer-$version-docker-image-linux-amd64-sbom.spdx.json"
 Write-Host "Saving image archive..." -ForegroundColor Cyan
 docker save $imageTag -o (Join-Path $outDir $tarName)
 if ($LASTEXITCODE -ne 0) { throw "docker save failed" }
@@ -92,7 +92,7 @@ if ($LASTEXITCODE -ne 0) { throw "syft SBOM generation failed" }
 # --- SBOM the Windows self-contained folder too, if it was published ---
 $winDir = Join-Path $repoRoot "artifacts/win-x64"
 if (Test-Path $winDir) {
-    $winSbom = "mangapixer-$version.win-x64.sbom.spdx.json"
+    $winSbom = "mangapixer-$version-win-x64-sbom.spdx.json"
     $winFull = (Resolve-Path $winDir).Path
     Write-Host "Generating SBOM for win-x64 publish folder..." -ForegroundColor Cyan
     docker run --rm -v "${winFull}:/scan:ro" -v "${outDirFull}:/work" $SyftImage scan "dir:/scan" -o "spdx-json=/work/$winSbom" -q 2>&1 | Out-Host
