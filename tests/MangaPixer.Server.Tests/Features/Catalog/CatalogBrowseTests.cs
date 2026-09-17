@@ -1079,18 +1079,17 @@ public sealed class CatalogBrowseTests : IDisposable
             // Webtoon pattern: a cover-only @000.cbz archive that sorts first by
             // name/sort-key order, followed by chapter archives. The folder cover
             // should come from @000.cbz's first page (1.6.1 confirmation).
-            var rootKey = SortKey.ForLibraryRoot();
-            var folderKey = SortKey.ForNode(CatalogNodeKind.Folder, "Series", rootKey);
-            var folder = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series", folderKey);
+            var folder = await AddNodeAsync(db, libraryId, null, CatalogNodeKind.Folder, "Series",
+                SortKey.ForNode(CatalogNodeKind.Folder, "Series"));
 
             // Add chapters first (by insertion order) to ensure the cover is picked
             // by sort-key order, not by insertion or ID order.
             await AddNodeAsync(db, libraryId, folder.Id, CatalogNodeKind.Archive, "Chapter 002.cbz",
-                SortKey.ForNode(CatalogNodeKind.Archive, "Chapter 002.cbz", folderKey));
+                SortKey.ForNode(CatalogNodeKind.Archive, "Chapter 002.cbz"));
             await AddNodeAsync(db, libraryId, folder.Id, CatalogNodeKind.Archive, "Chapter 001.cbz",
-                SortKey.ForNode(CatalogNodeKind.Archive, "Chapter 001.cbz", folderKey));
+                SortKey.ForNode(CatalogNodeKind.Archive, "Chapter 001.cbz"));
             var coverArchive = await AddNodeAsync(db, libraryId, folder.Id, CatalogNodeKind.Archive, "@000.cbz",
-                SortKey.ForNode(CatalogNodeKind.Archive, "@000.cbz", folderKey));
+                SortKey.ForNode(CatalogNodeKind.Archive, "@000.cbz"));
 
             var service = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var result = await service.BrowseAsync(userId, libraryId, parentId: null, cursor: null);

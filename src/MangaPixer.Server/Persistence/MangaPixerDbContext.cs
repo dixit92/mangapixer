@@ -22,6 +22,20 @@ public sealed class MangaPixerDbContext : DbContext
     }
 
     /// <summary>
+    /// Adds the <c>mp_sort_key</c> SQLite user-defined function to every connection this
+    /// context opens. The natural-sort backfill migration calls it, so it has to be present
+    /// wherever migrations can run - the app, the worker, the backup/restore paths, the
+    /// design-time factory and the tests. Attaching it here covers all of them without
+    /// touching each construction site. The provider itself is configured by the caller;
+    /// this only adds an interceptor.
+    /// </summary>
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        optionsBuilder.AddInterceptors(SortKeySqlFunctionInterceptor.Instance);
+    }
+
+    /// <summary>
     /// Configures model conventions. Every <see cref="DateTimeOffset"/> property
     /// is stored as a comparable <c>long</c> (binary representation) so that
     /// EF Core SQLite can translate <c>OrderBy</c>/<c>Where</c> comparisons on
