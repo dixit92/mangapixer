@@ -363,8 +363,18 @@ public sealed class DbRestoreService
     }
 
     /// <summary>
-    /// Records an audit event for a restore outcome. Called after the new DB
-    /// is opened (post-migrate) so the audit row lands in the restored DB.
+    /// Finalizes a completed restore against the newly-opened restored DB:
+    /// invalidates every session, then records an audit event. Called after the
+    /// new DB is opened (post-migrate) so both the invalidation and the audit
+    /// row land in the restored DB.
+    ///
+    /// The restore swaps in the backup's contents, which include the backup's
+    /// own session rows and user security stamps. A cookie minted before the
+    /// restore could otherwise still validate against a session row that came
+    /// back with the backup. Invalidating here (the DB is open at this point) is
+    /// what makes the "sessions invalidated on next open" promise logged by
+    /// <see cref="ApplyPendingRestoreAsync"/> actually true. Program only calls
+    /// this when a restore applied, so it runs exactly once per applied restore.
     /// </summary>
     public async Task AuditRestoreAsync(
         string action,
@@ -373,6 +383,9 @@ public sealed class DbRestoreService
         string? correlationId,
         CancellationToken ct = default)
     {
+        // Actually invalidate all sessions carried in from the restored backup.
+        await _backup.InvalidateAllSessionsAsync(ct);
+
         long? actorId = null;
         if (!string.IsNullOrWhiteSpace(actorUserName))
         {

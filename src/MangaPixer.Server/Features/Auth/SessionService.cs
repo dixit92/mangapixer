@@ -52,7 +52,8 @@ public sealed class SessionService
         var session = await _db.Sessions
             .FirstOrDefaultAsync(s => s.TicketId == ticketId, ct);
 
-        if (session is null || session.IsRevoked || session.ExpiresAt < DateTimeOffset.UtcNow)
+        var now = DateTimeOffset.UtcNow;
+        if (session is null || session.IsRevoked || session.ExpiresAt < now)
             return null;
 
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == session.UserId, ct);
@@ -62,6 +63,21 @@ public sealed class SessionService
         // Security stamp check: if the user's stamp changed, the session is invalid
         if (user.SecurityStamp != session.SecurityStamp)
             return null;
+
+        // Sliding server-side expiry (throttled). ExpiresAt is stamped once at
+        // creation, so without this an actively-used session is hard-killed at
+        // the original lifetime (7 days) even though the auth cookie itself
+        // slides. When a session validates and less than half its lifetime
+        // remains, push ExpiresAt forward by a full lifetime from now. Throttled
+        // to the second half of the window (remaining < lifetime/2) so a normal
+        // request does NOT incur a DB write; after an extension the next write
+        // cannot happen for another lifetime/2. Reuses ExpiresAt only — no new
+        // column (per the cycle decision: no migration).
+        if (session.ExpiresAt - now < _options.SessionLifetime / 2)
+        {
+            session.ExpiresAt = now + _options.SessionLifetime;
+            await _db.SaveChangesAsync(ct);
+        }
 
         return user;
     }
