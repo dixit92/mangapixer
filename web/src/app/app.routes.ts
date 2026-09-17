@@ -58,6 +58,14 @@ export const routes: Routes = [
           import('./features/admin/admin.component').then((m) => m.AdminComponent),
       },
       {
+        // WIRING HOOK (1.17.0 DEBUGUI lane): per-category debug log-level UI.
+        // Integrator: keep this route and/or embed <app-debug-log-card /> in AdminComponent.
+        path: 'admin/logging',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./features/admin/debug-log-card.component').then((m) => m.DebugLogCardComponent),
+      },
+      {
         path: 'reader/:itemId',
         loadComponent: () =>
           import('./features/reader/reader.component').then((m) => m.ReaderComponent),
