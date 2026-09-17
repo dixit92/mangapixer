@@ -67,6 +67,14 @@ public static class AuthServicesExtensions
             {
                 options.Cookie.Name = ".MangaPixer.Auth";
                 options.Cookie.HttpOnly = true;
+                // FH (1.16.0): SameAsRequest emits the cookie Secure exactly when
+                // Request.IsHttps is true. Request.IsHttps derives from Request.Scheme,
+                // which the ForwardedHeaders middleware (enabled first in Program.cs)
+                // rewrites to "https" for requests arriving via a TRUSTED reverse proxy
+                // that sent X-Forwarded-Proto: https. So behind TLS the auth cookie is
+                // Secure, while a genuine plain-http LAN request (no trusted forwarded
+                // proto) still gets a non-Secure cookie and keeps working. Do NOT switch
+                // this to Always: that would break the plain-http LAN scenario.
                 options.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.SameAsRequest;
                 options.Cookie.SameSite = SameSiteMode.Strict;
                 options.ExpireTimeSpan = TimeSpan.FromDays(7);

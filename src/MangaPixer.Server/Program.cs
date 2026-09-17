@@ -295,7 +295,33 @@ public sealed partial class Program
             // test and `openapi-typescript` can fetch it without credentials.
             builder.Services.AddOpenApi();
 
+            // Reverse-proxy / forwarded-headers support (1.16.0). Bind the trust
+            // model from MangaPixer:Network (env: MangaPixer__Network__KnownProxies
+            // / __KnownNetworks) and hand it to ForwardedHeadersSetup, which layers
+            // it on top of a safe default (loopback + RFC1918 only). The middleware
+            // itself is enabled first in the pipeline below via UseForwardedHeaders.
+            var networkOptions = new NetworkOptions();
+            builder.Configuration.GetSection(NetworkOptions.SectionName).Bind(networkOptions);
+            builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(
+                options => ForwardedHeadersSetup.Configure(options, networkOptions));
+
             var app = builder.Build();
+
+            // Forwarded-headers middleware — FIRST in the pipeline so every
+            // downstream component (auth cookie SecurePolicy, activation-URL
+            // building in AdminController, the SPA fallback) observes the
+            // external scheme/host/client-IP rather than the proxy hop. Only
+            // honors X-Forwarded-* from a trusted source (see ForwardedHeadersSetup);
+            // a spoofed header from an untrusted/public peer is ignored.
+            //
+            // FH: activation URLs (AdminController builds $"{Request.Scheme}://{Request.Host}")
+            // become https:// behind TLS automatically once this rewrites the
+            // scheme/host — no change to that owned-by-another-lane controller is
+            // needed. FH: HSTS (UseHsts) and PathBase are intentionally NOT added
+            // here: HSTS would fight the plain-http LAN scenario this lane must
+            // keep working, and no PathBase/sub-path deployment is in scope. Both
+            // are deferred rather than half-implemented.
+            app.UseForwardedHeaders();
 
             // Unhandled-error middleware: app-level capture of 500s.
             // The exception goes to the log (file sink gets the trace); the client
