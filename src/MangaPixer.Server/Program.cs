@@ -162,9 +162,17 @@ public sealed partial class Program
         {
             builder.Host.UseSerilog();
 
-            // Health checks
+            // Health checks. "/health" is liveness (cheap, in-process only,
+            // tagged "live"); "/health/ready" is readiness (tagged "ready") —
+            // it exercises the database so an admin/orchestrator can tell a
+            // process that is merely alive apart from one that can actually
+            // serve requests. Before this split both endpoints mapped to the
+            // same "self" check, so a broken DB never showed up as unready.
             builder.Services.AddHealthChecks()
-                .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("MangaPixer server is running"));
+                .AddCheck("self",
+                    () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("MangaPixer server is running"),
+                    tags: new[] { "live" })
+                .AddCheck<DatabaseReadinessHealthCheck>("database", tags: new[] { "ready" });
 
             // Auth + database (registers DbContext, Identity, cookie auth, auth services)
             builder.Services.AddMangaPixerAuth(databasePath, storageOverride?.RateLimitDisabled);
@@ -382,9 +390,17 @@ public sealed partial class Program
                 }
             }
 
-            // Health endpoints (before auth so they're always accessible)
-            app.MapHealthChecks("/health");
-            app.MapHealthChecks("/health/ready");
+            // Health endpoints (before auth so they're always accessible).
+            // Each maps to its own tag so liveness stays cheap and independent
+            // of readiness (see the AddHealthChecks registration above).
+            app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+            {
+                Predicate = check => check.Tags.Contains("live"),
+            });
+            app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+            {
+                Predicate = check => check.Tags.Contains("ready"),
+            });
 
             // Auth middleware
             app.UseAuthentication();
@@ -498,5 +514,41 @@ public sealed partial class Program
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         return int.TryParse(value.Trim(), out var n) && n > 0 ? n : null;
+    }
+}
+
+/// <summary>
+/// Readiness check for <c>/health/ready</c>: confirms the database is
+/// actually reachable, unlike the cheap in-process "self" liveness check
+/// mapped to <c>/health</c>. Registered via <c>AddCheck&lt;T&gt;</c> so a new
+/// scoped instance (and DbContext) is resolved per health-check execution.
+/// </summary>
+public sealed class DatabaseReadinessHealthCheck : Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck
+{
+    private readonly com.lifepixer.mangapixer.Server.Persistence.MangaPixerDbContext _db;
+
+    public DatabaseReadinessHealthCheck(com.lifepixer.mangapixer.Server.Persistence.MangaPixerDbContext db)
+    {
+        _db = db;
+    }
+
+    public async Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult> CheckHealthAsync(
+        Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext context,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            // A real (trivial) query, not just Database.CanConnectAsync: SQLite
+            // opens the file lazily on connect without validating its
+            // contents, so CanConnectAsync alone would not catch a corrupt or
+            // unreadable database file.
+            await _db.Users.AsNoTracking().AnyAsync(ct);
+            return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Database reachable");
+        }
+        catch (Exception ex)
+        {
+            return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy(
+                "Database check failed", ex);
+        }
     }
 }

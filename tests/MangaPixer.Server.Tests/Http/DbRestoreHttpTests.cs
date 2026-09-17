@@ -106,6 +106,32 @@ public sealed class DbRestoreHttpTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    /// <summary>
+    /// ASP.NET Core's <c>FormOptions.MultipartBodyLengthLimit</c> defaults to
+    /// 128 MiB; without <see cref="com.lifepixer.mangapixer.Server.Operations.RestoreUploadFormLimitsFilter"/>
+    /// raising it to match <c>DbRestoreOptions.MaxUploadBytes</c>, a form body
+    /// over 128 MiB is rejected by the framework before the controller action
+    /// ever runs — the request never reaches <c>DbRestoreService</c>'s own
+    /// (larger, configurable) validation. Sending 129 MiB of invalid-magic
+    /// junk and getting back OUR "invalid_backup" JSON error (not a raw
+    /// framework/model-binding failure) proves the body was accepted past
+    /// the multipart layer and reached app-level validation.
+    /// </summary>
+    [Fact]
+    public async Task Restore_UploadOver128MiB_ReachesAppValidation()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+        var bytes = new byte[129 * 1024 * 1024];
+        var upload = new MultipartFormDataContent();
+        upload.Add(new ByteArrayContent(bytes), "file", "oversized.db");
+
+        var response = await client.PostAsync("/api/v1/operations/restore", upload);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var err = await response.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("invalid_backup", err!.Error);
+    }
+
     [Fact]
     public async Task Restore_BadMagic_Returns400()
     {

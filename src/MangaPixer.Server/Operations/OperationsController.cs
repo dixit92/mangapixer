@@ -229,6 +229,7 @@ public sealed class OperationsController : ControllerBase
     /// </summary>
     [HttpPost("restore")]
     [RequestSizeLimit(1073741824)]
+    [TypeFilter(typeof(RestoreUploadFormLimitsFilter))]
     public async Task<IActionResult> Restore([FromForm] RestoreUploadRequest? request, CancellationToken ct)
     {
         if (request?.File is null || request.File.Length == 0)
@@ -303,4 +304,37 @@ public sealed record RestoreStageResponseDto
 {
     public required string? PreRestoreBackupFileName { get; init; }
     public required string? Message { get; init; }
+}
+
+/// <summary>
+/// Raises the multipart form-parsing body limit for the restore upload to
+/// match <see cref="DbRestoreOptions.MaxUploadBytes"/>. Without this, ASP.NET
+/// Core's 128 MiB default <c>FormOptions.MultipartBodyLengthLimit</c> rejects
+/// the form before the app's own (larger, configurable) cap ever applies —
+/// the <see cref="RequestSizeLimitAttribute"/> on the action only raises the
+/// overall request body limit, not this separate multipart-parsing limit.
+/// </summary>
+public sealed class RestoreUploadFormLimitsFilter : Microsoft.AspNetCore.Mvc.Filters.IResourceFilter
+{
+    private readonly DbRestoreOptions _options;
+
+    public RestoreUploadFormLimitsFilter(DbRestoreOptions options)
+    {
+        _options = options;
+    }
+
+    public void OnResourceExecuting(Microsoft.AspNetCore.Mvc.Filters.ResourceExecutingContext context)
+    {
+        context.HttpContext.Features.Set<Microsoft.AspNetCore.Http.Features.IFormFeature>(
+            new Microsoft.AspNetCore.Http.Features.FormFeature(
+                context.HttpContext.Request,
+                new Microsoft.AspNetCore.Http.Features.FormOptions
+                {
+                    MultipartBodyLengthLimit = _options.MaxUploadBytes,
+                }));
+    }
+
+    public void OnResourceExecuted(Microsoft.AspNetCore.Mvc.Filters.ResourceExecutedContext context)
+    {
+    }
 }
