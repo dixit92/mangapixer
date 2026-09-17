@@ -26,13 +26,21 @@ if [ "$(id -u)" = "0" ]; then
     # Restrict Data Protection key directory to owner-only access.
     # Linux has no DPAPI, so keys are stored unencrypted inside the private
     # data root; owner-only permissions are the at-rest protection boundary
-    # (audit defect D16).
-    for keys_dir in /data/keys /config/data/keys; do
-        if [ -d "$keys_dir" ]; then
-            chmod 700 "$keys_dir" 2>/dev/null || true
-            chown "$PUID:$PGID" "$keys_dir" 2>/dev/null || true
-        fi
-    done
+    # (audit defect D16). Created here (mkdir -p), not just chmod'd, so a
+    # first-ever boot already has 700 permissions — the .NET app creates this
+    # same directory AFTER entrypoint runs (Program.cs), so chmod'ing only an
+    # already-existing directory left the first boot at the default umask and
+    # tightened it only from the second boot onward.
+    if [ -d /data ]; then
+        mkdir -p /data/keys
+        chmod 700 /data/keys 2>/dev/null || true
+        chown "$PUID:$PGID" /data/keys 2>/dev/null || true
+    fi
+    if [ -d /config ]; then
+        mkdir -p /config/data/keys
+        chmod 700 /config/data/keys 2>/dev/null || true
+        chown "$PUID:$PGID" /config/data/keys 2>/dev/null || true
+    fi
     # Ensure the runtime group and user exist with the requested IDs.
     # If PUID/PGID match the image's built-in 1000:1000, these are no-ops.
     if ! getent group "$PGID" > /dev/null 2>&1; then
