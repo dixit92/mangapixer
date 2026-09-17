@@ -693,6 +693,156 @@ public sealed class AdminHttpTests : IDisposable
         Assert.NotNull(scans);
     }
 
+    // --- Delete User Tests (1.17.0) ---
+
+    [Fact]
+    public async Task DeleteUser_Happy_RemovesUserAndOwnedRows()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var libResponse = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Delete User Library",
+            RootPath = _libRoot,
+        });
+        var library = await libResponse.Content.ReadFromJsonAsync<LibraryDto>();
+
+        var userResponse = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "deleteuser1",
+            Password = "DeleteUserPass123!",
+            IsAdmin = false,
+        });
+        var createdUser = (await userResponse.Content.ReadFromJsonAsync<CreateUserResponse>())!.User;
+
+        // Give the user a library grant and an active session (log in as them)
+        // so the delete has real owned rows to clean up.
+        await client.PutAsync($"/api/v1/admin/users/{createdUser.Id}/grants/{library!.Id}", null);
+        await LoginAndChangePasswordAsync("deleteuser1", "DeleteUserPass123!", "DeleteUserNewPass123!");
+
+        long internalId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<com.lifepixer.mangapixer.Server.Persistence.MangaPixerDbContext>();
+            var user = db.Users.First(u => u.PublicId == createdUser.Id);
+            internalId = user.Id;
+            Assert.True(db.Sessions.Any(s => s.UserId == internalId));
+            Assert.True(db.LibraryGrants.Any(g => g.UserId == internalId));
+        }
+
+        var deleteResponse = await client.DeleteAsync($"/api/v1/admin/users/{createdUser.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        var getResponse = await client.GetAsync($"/api/v1/admin/users/{createdUser.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<com.lifepixer.mangapixer.Server.Persistence.MangaPixerDbContext>();
+            Assert.False(db.Users.Any(u => u.Id == internalId));
+            Assert.False(db.Sessions.Any(s => s.UserId == internalId));
+            Assert.False(db.LibraryGrants.Any(g => g.UserId == internalId));
+        }
+    }
+
+    [Fact]
+    public async Task DeleteUser_NotFound_Returns404()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var fakeId = com.lifepixer.mangapixer.Core.Catalog.OpaqueId.Encode(99999);
+        var response = await client.DeleteAsync($"/api/v1/admin/users/{fakeId}");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteUser_LastAdmin_Returns409()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var usersResponse = await client.GetAsync("/api/v1/admin/users");
+        var users = await usersResponse.Content.ReadFromJsonAsync<List<AdminUserDto>>();
+        var admin = users!.First(u => u.Username == "admin");
+
+        var response = await client.DeleteAsync($"/api/v1/admin/users/{admin.Id}");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("last_admin", error!.Error);
+    }
+
+    // --- Reissue Activation Tests (1.17.0) ---
+
+    [Fact]
+    public async Task ReissueActivation_Happy_ReturnsNewTokenAndInvalidatesOld()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var createResponse = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "reissueuser1",
+            IsAdmin = false,
+        });
+        var createResult = await createResponse.Content.ReadFromJsonAsync<CreateUserResponse>();
+        var oldToken = ExtractToken(createResult!.ActivationUrl!);
+
+        var reissueResponse = await client.PostAsync(
+            $"/api/v1/admin/users/{createResult.User.Id}/reissue-activation", null);
+        Assert.Equal(HttpStatusCode.OK, reissueResponse.StatusCode);
+
+        var reissueResult = await reissueResponse.Content.ReadFromJsonAsync<ReissueActivationResponse>();
+        Assert.NotNull(reissueResult);
+        Assert.Contains("/activate?token=", reissueResult!.ActivationUrl);
+        Assert.True(reissueResult.User.IsPendingActivation);
+        var newToken = ExtractToken(reissueResult.ActivationUrl);
+        Assert.NotEqual(oldToken, newToken);
+
+        // The old token no longer activates the account.
+        var oldActivate = await _factory.CreateClient().PostAsJsonAsync("/api/v1/auth/activate", new ActivateAccountRequest
+        {
+            Token = oldToken,
+            Password = "ShouldNotWork123!",
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, oldActivate.StatusCode);
+
+        // The new token does.
+        var newActivate = await _factory.CreateClient().PostAsJsonAsync("/api/v1/auth/activate", new ActivateAccountRequest
+        {
+            Token = newToken,
+            Password = "NewTokenWorks123!",
+        });
+        Assert.Equal(HttpStatusCode.OK, newActivate.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReissueActivation_AlreadyActivatedUser_Returns400()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var createResponse = await client.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "reissuewrongstate",
+            Password = "AlreadyHasPassword123!",
+            IsAdmin = false,
+        });
+        var createResult = await createResponse.Content.ReadFromJsonAsync<CreateUserResponse>();
+
+        var response = await client.PostAsync(
+            $"/api/v1/admin/users/{createResult!.User.Id}/reissue-activation", null);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("not_pending_activation", error!.Error);
+    }
+
+    [Fact]
+    public async Task ReissueActivation_NotFound_Returns404()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var fakeId = com.lifepixer.mangapixer.Core.Catalog.OpaqueId.Encode(99999);
+        var response = await client.PostAsync($"/api/v1/admin/users/{fakeId}/reissue-activation", null);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     // --- Activation Token Tests ---
 
     [Fact]

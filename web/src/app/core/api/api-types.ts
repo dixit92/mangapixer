@@ -457,6 +457,11 @@ export interface ResetPasswordResponse {
   temporaryPassword: string;
 }
 
+export interface ReissueActivationResponse {
+  user: AdminUserDto;
+  activationUrl: string;
+}
+
 export interface UserGrantsDto {
   userId: string;
   /** Admins access every library regardless of explicit grants. */

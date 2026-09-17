@@ -640,12 +640,9 @@ public sealed class AdminController : ControllerBase
         }
         else
         {
-            rawToken = GenerateActivationToken();
             user.IsPendingActivation = true;
             user.ForcePasswordChange = false;
-            user.ActivationTokenHash = HashToken(rawToken);
-            user.ActivationTokenExpiry = DateTimeOffset.UtcNow.AddHours(48);
-            user.ActivationTokenConsumed = false;
+            rawToken = IssueActivationToken(user);
         }
 
         IdentityResult result;
@@ -701,6 +698,93 @@ public sealed class AdminController : ControllerBase
             IsPendingActivation = user.IsPendingActivation,
             CreatedAt = user.CreatedAt,
             LastLoginAt = user.LastLoginAt,
+        });
+    }
+
+    /// <summary>
+    /// Deletes a user and every row they own (1.17.0). Guarded by the last-admin
+    /// protection — refuses with 409 rather than leaving the instance adminless.
+    /// Owned rows are deleted explicitly, in the same transaction as the user
+    /// row, rather than relying solely on the database's <c>ON DELETE CASCADE</c>
+    /// foreign keys: SQLite enforces those only on connections that have run
+    /// <c>PRAGMA foreign_keys = ON</c>, which this app currently sets once at
+    /// startup on a single connection (see
+    /// <see cref="com.lifepixer.mangapixer.Server.Persistence.DatabaseInitialization.ConfigureDatabaseAsync"/>)
+    /// rather than on every pooled connection Microsoft.Data.Sqlite may hand out
+    /// under concurrent load — so the DB-level cascade is not guaranteed to fire
+    /// on every delete. Never touches rows the user does not own (library/catalog
+    /// data, other users' rows, audit history).
+    /// </summary>
+    [HttpDelete("users/{id}")]
+    public async Task<IActionResult> DeleteUser(string id, CancellationToken ct)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.PublicId == id, ct);
+        if (user is null) return NotFound();
+
+        if (!await _lastAdminProtection.CanDeleteUserAsync(user.Id, ct))
+            return Conflict(new ApiError { Error = "last_admin", Message = "Cannot delete the last active admin." });
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        await _db.Sessions.Where(s => s.UserId == user.Id).ExecuteDeleteAsync(ct);
+        await _db.LibraryGrants.Where(g => g.UserId == user.Id).ExecuteDeleteAsync(ct);
+        await _db.PrivateLibraries.Where(p => p.UserId == user.Id).ExecuteDeleteAsync(ct);
+        await _db.HomeExcludedLibraries.Where(h => h.UserId == user.Id).ExecuteDeleteAsync(ct);
+        await _db.ReadingProgress.Where(r => r.UserId == user.Id).ExecuteDeleteAsync(ct);
+        await _db.ReadMarks.Where(r => r.UserId == user.Id).ExecuteDeleteAsync(ct);
+        await _db.ReaderPreferences.Where(r => r.UserId == user.Id).ExecuteDeleteAsync(ct);
+        await _db.ItemReaderOverrides.Where(r => r.UserId == user.Id).ExecuteDeleteAsync(ct);
+        await _db.Bookmarks.Where(b => b.UserId == user.Id).ExecuteDeleteAsync(ct);
+
+        _db.Users.Remove(user);
+        await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        _logger.LogInformation(LogEvents.Administration.UserDeleted, "Admin deleted user {PublicId}", user.PublicId);
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Reissues a one-time activation link (1.17.0) for a user created
+    /// passwordless (the 1.5.0 activation onboarding flow) who has not yet
+    /// activated their account — e.g. the original link expired or was lost.
+    /// Reuses the same token-issuing path as <see cref="CreateUser"/> via
+    /// <see cref="IssueActivationToken"/>; the previous token is invalidated
+    /// because it is overwritten, not merely superseded. Only valid while the
+    /// user is still pending activation; an already-activated (or password-
+    /// created) user gets a clear 400 rather than a silently reissued token.
+    /// </summary>
+    [HttpPost("users/{id}/reissue-activation")]
+    public async Task<IActionResult> ReissueActivation(string id, CancellationToken ct)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.PublicId == id, ct);
+        if (user is null) return NotFound();
+
+        if (!user.IsPendingActivation)
+            return BadRequest(new ApiError { Error = "not_pending_activation", Message = "User has already activated their account." });
+
+        var rawToken = IssueActivationToken(user);
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation(LogEvents.Administration.ActivationReissued, "Activation link reissued for user {PublicId}", user.PublicId);
+
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var userDto = new AdminUserDto
+        {
+            Id = user.PublicId,
+            Username = user.UserName,
+            IsAdmin = user.IsAdmin,
+            IsActive = user.IsActive,
+            IsPendingActivation = user.IsPendingActivation,
+            CreatedAt = user.CreatedAt,
+            LastLoginAt = user.LastLoginAt,
+        };
+
+        return Ok(new ReissueActivationResponse
+        {
+            User = userDto,
+            ActivationUrl = $"{baseUrl}/activate?token={rawToken}",
         });
     }
 
@@ -912,6 +996,21 @@ public sealed class AdminController : ControllerBase
         RandomNumberGenerator.Fill(bytes);
         return Convert.ToBase64String(bytes)
             .Replace('+', '-').Replace('/', '_').TrimEnd('=');
+    }
+
+    /// <summary>
+    /// Generates a fresh one-time activation token, hashes it onto the user
+    /// (overwriting any previous token so it can no longer be used), and
+    /// returns the raw token for a one-time response. Shared by the initial
+    /// passwordless user-create path and admin-triggered reissue.
+    /// </summary>
+    private static string IssueActivationToken(UserEntity user)
+    {
+        var rawToken = GenerateActivationToken();
+        user.ActivationTokenHash = HashToken(rawToken);
+        user.ActivationTokenExpiry = DateTimeOffset.UtcNow.AddHours(48);
+        user.ActivationTokenConsumed = false;
+        return rawToken;
     }
 
     internal static string HashToken(string rawToken)
