@@ -209,8 +209,15 @@
          Retry-After and a per-target activation bucket. No new/changed API routes, no DTO
          change, no migration, worker protocol unchanged (OpenAPI snapshot unchanged)
          -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.16.x. -->
+    <!-- 1.17.0: "User Management and UX Polish". Additive admin/auth endpoints
+         (delete a user with last-admin protection; reissue a pending user's activation
+         link) plus a home New-chapters read-state filter, surfaced in-reader bookmarks
+         with direction-aware chapter arrows, distinct browse sort icons, a multi-column
+         list view, and a per-category debug log-level admin UI. No breaking API/contract
+         change, no migration, worker protocol unchanged (still 2)
+         -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.17.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <MangaPixerVersionMinor>16</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>17</MangaPixerVersionMinor>
     <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
