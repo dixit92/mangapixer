@@ -199,7 +199,7 @@
          dialog + descriptive release asset names. One additive data-only migration
          (BackfillNaturalSortKeys); no breaking API/contract change (OpenAPI snapshot unchanged)
          -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.15.x. -->
-    <!-- 1.16.0 -- "Auth/Session & Reverse-Proxy Hardening". Additive reverse-proxy
+    <!-- 1.16.0: "Auth/Session and Reverse-Proxy Hardening". Additive reverse-proxy
          support (ForwardedHeaders middleware with an env-configurable trust list, default
          loopback+private ranges; auth cookies marked Secure when the effective scheme is
          https) plus backward-compatible auth/session correctness fixes: logout now revokes
