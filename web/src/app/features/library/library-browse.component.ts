@@ -803,6 +803,12 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   // (possibly transient) active sort. (1.12.0)
   private storedSort: LibrarySortOrder = 'name';
   private storedDirection: LibrarySortDirection = 'asc';
+  // The user's PERSISTED "New chapters" home window (1.12.0), captured verbatim from
+  // library-preferences on load and never mutated by this component (no control here
+  // changes it). persistView() must echo this back unchanged - omitting it sends
+  // `undefined`, which the DTO binds as 0 and the server writes unconditionally,
+  // silently resetting the window to its 30-day default on every sort/view/card change.
+  private storedHomeRecentWindowDays: number | undefined = undefined;
 
   /** How many currently-selected nodes are folders (gates the Direction action). */
   readonly selectedFolderCount = computed(() => {
@@ -872,6 +878,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
         // can be reverted to it on the next navigation without re-reading preferences.
         this.storedSort = this.sort();
         this.storedDirection = this.sortDirection();
+        this.storedHomeRecentWindowDays = p.homeRecentWindowDays;
         this.subscribeToRoute();
       },
       error: () => this.subscribeToRoute(), // keep defaults, still load
@@ -1315,7 +1322,10 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private persistView(): void {
     // Persist the STORED sort/direction, never the active one: a transient home-tap
     // sort (`?sort=`) must not be written to preferences by an unrelated persist
-    // (card size, view mode, page size all call through here).
+    // (card size, view mode, page size all call through here). Also echo back the
+    // stored home-window value untouched (1.12.0 fix): this component never changes
+    // it, but the server overwrites the field unconditionally on every write, so
+    // omitting it here would silently reset the user's window to the 30-day default.
     this.api.setLibraryPreferences({
       viewMode: this.viewMode(),
       density: this.density(),
@@ -1323,6 +1333,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       direction: this.storedDirection,
       cardSize: String(this.cardSize()),
       libraryPageSize: this.pageSize(),
+      homeRecentWindowDays: this.storedHomeRecentWindowDays,
     }).subscribe({ error: () => { /* non-fatal: the choice still applies this session */ } });
   }
 
