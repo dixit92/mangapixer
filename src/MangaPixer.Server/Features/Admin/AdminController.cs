@@ -721,15 +721,36 @@ public sealed class AdminController : ControllerBase
         if (request.IsActive.HasValue && request.IsActive.Value)
             user.IsActive = true;
 
+        var roleChanged = false;
+
         if (request.IsAdmin.HasValue && !request.IsAdmin.Value)
         {
             if (!await _lastAdminProtection.CanRemoveAdminRoleAsync(user.Id, ct))
                 return BadRequest(new ApiError { Error = "last_admin", Message = "Cannot remove admin role from the last active admin." });
+            if (user.IsAdmin) roleChanged = true;
             user.IsAdmin = false;
         }
 
         if (request.IsAdmin.HasValue && request.IsAdmin.Value)
+        {
+            if (!user.IsAdmin) roleChanged = true;
             user.IsAdmin = true;
+        }
+
+        // A role change (grant OR remove) must rotate the security stamp. The
+        // role travels in the auth cookie's claims, minted at sign-in; existing
+        // sessions carry the OLD role until they expire. Rotating the stamp
+        // makes ValidateSessionAsync reject those sessions on the very next
+        // request, so a demoted admin loses admin access immediately instead of
+        // retaining it for up to the session lifetime (privilege-persistence
+        // gap). Previously only the account-disable path rotated the stamp.
+        // Also revoke the session rows (the reset-password / disable pattern) so
+        // the DB reflects the forced re-login.
+        if (roleChanged)
+        {
+            await _userManager.UpdateSecurityStampAsync(user);
+            await _sessionService.RevokeAllSessionsAsync(user.Id, ct);
+        }
 
         await _userManager.UpdateAsync(user);
         return Ok(new AdminUserDto

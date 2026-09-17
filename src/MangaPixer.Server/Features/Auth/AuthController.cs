@@ -185,12 +185,25 @@ public sealed class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Logout(CancellationToken ct)
     {
-        var ticketId = Request.Cookies[".MangaPixer.Auth"];
-        if (!string.IsNullOrEmpty(ticketId))
+        // The raw session ticket id lives in the auth ticket's Properties under
+        // ".MangaPixer.ticket" — the same key AuthServicesExtensions writes at
+        // sign-in and reads back in OnValidatePrincipal. It is NOT the cookie
+        // value: Request.Cookies[".MangaPixer.Auth"] is the encrypted auth blob
+        // and never equals SessionEntity.TicketId, so revoking by that value was
+        // a silent no-op that left the server session row live. Re-authenticate
+        // to recover the ticket id and revoke THAT, so the DB row is actually
+        // marked revoked and a copied cookie stops validating.
+        var authResult = await HttpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        if (authResult.Succeeded
+            && authResult.Properties is not null
+            && authResult.Properties.Items.TryGetValue(".MangaPixer.ticket", out var ticketId)
+            && !string.IsNullOrEmpty(ticketId))
         {
             await _sessionService.RevokeSessionAsync(ticketId, ct);
-            Response.Cookies.Delete(".MangaPixer.Auth");
         }
+
+        // Clear the auth cookie via the cookie handler (mirrors SignInAsync).
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return NoContent();
     }
 
@@ -240,7 +253,12 @@ public sealed class AuthController : ControllerBase
             await _userManager.UpdateAsync(user);
         }
 
-        // Revoke all sessions except the current one (force re-login on other devices)
+        // Revoke ALL sessions, including the current one (decision: kill all).
+        // The security-stamp bump above already invalidates every existing
+        // session — this device included — because ValidateSessionAsync rejects
+        // any session whose stamp no longer matches the user's; this call also
+        // marks those rows revoked so the DB reflects it. The user must log in
+        // again everywhere, on this device too.
         await _sessionService.RevokeAllSessionsAsync(user.Id, ct);
 
         _logger.LogInformation(LogEvents.Auth.PasswordChanged, "User {UserName} changed password", user.UserName);
