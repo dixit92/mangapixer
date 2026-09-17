@@ -21,7 +21,8 @@ import {
   ReaderSettingsMenuComponent, ReaderOptionsSheetComponent, ReaderOptionsHost,
   ReaderView, ViewPref, FitMode, ReadingDirection, FIT_OPTIONS,
 } from './reader-settings-menu.component';
-import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode } from '../../core/api/api-types';
+import { BookmarksPanelComponent, BookmarksPanelHost } from './bookmarks-panel.component';
+import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode, BookmarkDto } from '../../core/api/api-types';
 import {
   WebtoonNavPreferencesService, webtoonTapZone, webtoonScrollTarget, prefersReducedMotion,
 } from './webtoon-nav.service';
@@ -135,7 +136,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
           <!-- PHONE bar: Next chapter + Fullscreen stay where they
                were (first and last of the right-hand group), everything else is
                one tap away in the options sheet. -->
-          <button mat-icon-button (click)="nextChapter()" [disabled]="!hasNextChapter()"
+          <button mat-icon-button class="chapter-arrow" [class.direction-mirrored]="direction() === 'rtl'"
+                  (click)="nextChapter()" [disabled]="!hasNextChapter()"
                   [matTooltip]="nextNeighbor() ? 'Next chapter: ' + nextNeighbor()!.displayName : 'No next chapter'"
                   [attr.aria-label]="nextNeighbor() ? 'Next chapter: ' + nextNeighbor()!.displayName : 'No next chapter'">
             <mat-icon>skip_next</mat-icon>
@@ -152,13 +154,19 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
           </button>
         } @else if (phase() === 'ready') {
           <!-- 1.7.0 reader-bar CHAPTER arrows: move between archives in the folder
-               (distinct from page turning); disabled at the ends of the folder. -->
-          <button mat-icon-button (click)="prevChapter()" [disabled]="!hasPrevChapter()"
+               (distinct from page turning); disabled at the ends of the folder.
+               1.17.0: the glyph mirrors (CSS transform) and picks up an accent
+               tint when the reading direction is RTL, so the arrows read with the
+               manga flow instead of always pointing the LTR way — see
+               .chapter-arrow.direction-mirrored below. -->
+          <button mat-icon-button class="chapter-arrow" [class.direction-mirrored]="direction() === 'rtl'"
+                  (click)="prevChapter()" [disabled]="!hasPrevChapter()"
                   [matTooltip]="prevNeighbor() ? 'Previous chapter: ' + prevNeighbor()!.displayName : 'No previous chapter'"
                   [attr.aria-label]="prevNeighbor() ? 'Previous chapter: ' + prevNeighbor()!.displayName : 'No previous chapter'">
             <mat-icon>skip_previous</mat-icon>
           </button>
-          <button mat-icon-button (click)="nextChapter()" [disabled]="!hasNextChapter()"
+          <button mat-icon-button class="chapter-arrow" [class.direction-mirrored]="direction() === 'rtl'"
+                  (click)="nextChapter()" [disabled]="!hasNextChapter()"
                   [matTooltip]="nextNeighbor() ? 'Next chapter: ' + nextNeighbor()!.displayName : 'No next chapter'"
                   [attr.aria-label]="nextNeighbor() ? 'Next chapter: ' + nextNeighbor()!.displayName : 'No next chapter'">
             <mat-icon>skip_next</mat-icon>
@@ -193,6 +201,22 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                     [attr.aria-checked]="view() === 'webtoon'">
               <mat-icon>view_day</mat-icon> Vertical (webtoon)</button>
           </mat-menu>
+
+          <!-- In-reader bookmarks (1.17.0): the toggle marks/unmarks the CURRENT
+               page (reflects its bookmarked state via isCurrentPageBookmarked),
+               the second button opens the panel listing every bookmark on this
+               item. Shown in every view (paged/spread/webtoon) — bookmarking a
+               page is meaningful regardless of how it turns. -->
+          <button mat-icon-button (click)="toggleBookmark()"
+                  [matTooltip]="isCurrentPageBookmarked() ? 'Remove bookmark' : 'Bookmark this page'"
+                  [attr.aria-label]="isCurrentPageBookmarked() ? 'Remove bookmark from this page' : 'Bookmark this page'"
+                  [attr.aria-pressed]="isCurrentPageBookmarked()">
+            <mat-icon>{{ isCurrentPageBookmarked() ? 'bookmark' : 'bookmark_border' }}</mat-icon>
+          </button>
+          <button mat-icon-button (click)="openBookmarks()" matTooltip="Bookmarks" aria-label="Bookmarks"
+                  aria-haspopup="dialog">
+            <mat-icon>bookmarks</mat-icon>
+          </button>
 
           @if (view() === 'webtoon') {
             <!-- Webtoon width slider replaces the inoperative fit menu. -->
@@ -486,6 +510,13 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     }
     .page-info { margin-left: 8px; font-variant-numeric: tabular-nums; }
     .spacer { flex: 1 1 auto; }
+    /* Chapter arrows (1.17.0): the glyph implies a direction (skip_previous
+       points left / skip_next points right), so it is mirrored when the reading
+       direction is RTL to match the manga flow, and picks up the same accent
+       tint the reader's other "differs from default" indicators use, so the
+       mismatch from the LTR default is visible at a glance. */
+    .chapter-arrow.direction-mirrored mat-icon { transform: scaleX(-1); }
+    .chapter-arrow.direction-mirrored { color: #b39dff; }
     /* Reader menus' selected-state (1.10.0, F4): accent highlight instead of a
        checkmark, same values as the 1.8.1 browse View menu. The panels render in
        a CDK overlay, so the rules are scoped via the reader-options-menu panel
@@ -712,7 +743,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     }
   `],
 })
-export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
+export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, BookmarksPanelHost {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly location = inject(Location);
@@ -860,6 +891,14 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   // they grey out at the ends of a folder. Distinct from page turning.
   readonly hasNextChapter = computed(() => !!this.nextNeighbor());
   readonly hasPrevChapter = computed(() => !!this.prevNeighbor());
+
+  // In-reader bookmarks (1.17.0), fetched per item alongside the neighbors.
+  // `ordinal` is the zero-based page index (matches `currentPage`), so the
+  // toolbar toggle's state is just "is there a bookmark at this ordinal".
+  readonly bookmarks = signal<BookmarkDto[]>([]);
+  readonly currentPageBookmark = computed(() =>
+    this.bookmarks().find((b) => b.ordinal === this.currentPage()) ?? null);
+  readonly isCurrentPageBookmarked = computed(() => this.currentPageBookmark() !== null);
 
   // Page scrubber: `scrubbing` is true only while the reader
   // is actively dragging the bottom rail, which is what surfaces the prominent page
@@ -1070,6 +1109,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
       this.loadManifest();
       this.loadNeighbors(id);
       this.loadFallbackBackRoute(id);
+      this.loadBookmarks(id);
     });
   }
 
@@ -1085,6 +1125,18 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
     this.api.getNeighbors(itemId).subscribe({
       next: (n) => { this.nextNeighbor.set(n.next); this.prevNeighbor.set(n.previous); },
       error: () => { /* no neighbors / not available — chapter buttons simply stay disabled */ },
+    });
+  }
+
+  /**
+   * Load this item's bookmarks (1.17.0) — feeds the toolbar toggle's
+   * `isCurrentPageBookmarked` state and the bookmarks panel list.
+   */
+  private loadBookmarks(itemId: string): void {
+    this.bookmarks.set([]);
+    this.api.getBookmarks(itemId).subscribe({
+      next: (list) => this.bookmarks.set(list),
+      error: () => { /* bookmarks unavailable — toggle simply reads as unset */ },
     });
   }
 
@@ -1267,6 +1319,59 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost {
   }
 
   closeHelp(): void { this.helpVisible.set(false); }
+
+  /**
+   * Toolbar bookmark toggle (1.17.0): add or remove a bookmark on the current
+   * page. Delegates to `deleteBookmark` when one already exists at this ordinal
+   * (`currentPageBookmark`), so the same button both creates and clears.
+   */
+  toggleBookmark(): void {
+    const existing = this.currentPageBookmark();
+    if (existing) {
+      this.deleteBookmark(existing);
+      return;
+    }
+    const itemId = this.itemId();
+    const ordinal = this.currentPage();
+    this.api.addBookmark(itemId, { ordinal }).subscribe({
+      next: (result) => {
+        const bookmark: BookmarkDto = {
+          id: result.id, itemId, ordinal, normalizedAnchor: 0,
+          label: null, createdAt: new Date().toISOString(),
+        };
+        this.bookmarks.update((list) => [...list, bookmark].sort((a, b) => a.ordinal - b.ordinal));
+      },
+      error: () => this.snackBar.open('Could not add the bookmark.', 'Dismiss', { duration: 3000 }),
+    });
+  }
+
+  /** BookmarksPanelHost: jump to a bookmark's page (panel row tap). */
+  jumpToBookmark(bookmark: BookmarkDto): void {
+    this.seekToPage(bookmark.ordinal);
+  }
+
+  /** BookmarksPanelHost: remove a bookmark (toolbar toggle or panel delete). */
+  deleteBookmark(bookmark: BookmarkDto): void {
+    this.api.removeBookmark(bookmark.id).subscribe({
+      next: () => this.bookmarks.update((list) => list.filter((b) => b.id !== bookmark.id)),
+      error: () => this.snackBar.open('Could not remove the bookmark.', 'Dismiss', { duration: 3000 }),
+    });
+  }
+
+  /**
+   * Open the bookmarks panel with this reader as its host (live signals in,
+   * actions out — see `BookmarksPanelHost`). Pins the chrome like the phone
+   * options sheet does, and releases it on dismiss.
+   */
+  openBookmarks(): void {
+    this.menuOpen.set(true);
+    const ref = this.bottomSheet.open(BookmarksPanelComponent, {
+      data: this as BookmarksPanelHost,
+      panelClass: 'bookmarks-panel-sheet',
+      ariaLabel: 'Bookmarks',
+    });
+    ref.afterDismissed().subscribe(() => this.onMenuClosed());
+  }
 
   /**
    * One-shot onboarding: on the first reader open on this device, surface the help

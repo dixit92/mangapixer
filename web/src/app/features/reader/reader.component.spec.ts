@@ -1153,6 +1153,190 @@ describe('ReaderComponent reader-bar chapter arrows', () => {
     expect(prevBtn.disabled).toBe(true);  // still no previous
     expect(nextBtn.disabled).toBe(false); // next now available
   });
+
+  /**
+   * 1.17.0: the reader-bar chapter arrows mirror their glyph (CSS transform) and
+   * pick up the accent tint whenever the reading direction is RTL, so they read
+   * with the manga flow and visibly differ from the LTR default.
+   */
+  it('chapter arrows mirror and tint when the reading direction is RTL', () => {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const fixture = TestBed.createComponent(ReaderComponent);
+    fixture.detectChanges(); // ngOnInit
+    const c = fixture.componentInstance;
+    c.pages.set(makePages(3));
+    c.view.set('paged');
+    c.phase.set('ready');
+    c.direction.set('ltr');
+    fixture.detectChanges();
+
+    const arrows = () => Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.chapter-arrow'),
+    ) as HTMLButtonElement[];
+
+    expect(arrows().length).toBe(2);
+    expect(arrows().every((b) => !b.classList.contains('direction-mirrored'))).toBe(true);
+
+    c.direction.set('rtl');
+    fixture.detectChanges();
+    expect(arrows().every((b) => b.classList.contains('direction-mirrored'))).toBe(true);
+
+    c.direction.set('ltr');
+    fixture.detectChanges();
+    expect(arrows().every((b) => !b.classList.contains('direction-mirrored'))).toBe(true);
+  });
+});
+
+/**
+ * In-reader bookmarks (1.17.0): the per-page bookmark API already existed on
+ * the server (GET/POST /reading/:itemId/bookmarks, DELETE
+ * /reading/bookmarks/:bookmarkId — note the delete route is NOT nested under
+ * itemId) but was unwired in the web reader. These tests exercise the reader's
+ * toggle/list/delete against the mocked HTTP layer.
+ */
+describe('ReaderComponent in-reader bookmarks (1.17.0)', () => {
+  function create() {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    return TestBed.createComponent(ReaderComponent).componentInstance;
+  }
+  afterEach(() => vi.restoreAllMocks());
+
+  it('isCurrentPageBookmarked reflects a bookmark at the current page ordinal', () => {
+    const c = create();
+    c.currentPage.set(2);
+    expect(c.isCurrentPageBookmarked()).toBe(false);
+
+    c.bookmarks.set([
+      { id: 'b1', itemId: 'item-1', ordinal: 2, normalizedAnchor: 0, label: null, createdAt: '2026-01-01T00:00:00Z' },
+    ]);
+    expect(c.isCurrentPageBookmarked()).toBe(true);
+
+    c.currentPage.set(3);
+    expect(c.isCurrentPageBookmarked()).toBe(false);
+  });
+
+  it('loads the item bookmarks on init (list)', () => {
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [
+        ...baseProviders(),
+        // baseProviders()'s ActivatedRoute stub has no `snapshot` — fine for the
+        // other describes here, which never drive ngOnInit far enough to reach
+        // `route.snapshot.queryParamMap` (the "at=end" back-navigation check).
+        // This test needs ngOnInit to run to completion so the bookmarks GET
+        // actually fires, so it supplies a complete stub.
+        { provide: ActivatedRoute, useValue: {
+          paramMap: of({ get: () => 'item-1' }),
+          snapshot: { queryParamMap: { get: () => null } },
+        } },
+      ],
+    });
+    const fixture = TestBed.createComponent(ReaderComponent);
+    fixture.detectChanges(); // ngOnInit — fires the bookmarks GET among others
+    const httpMock = TestBed.inject(HttpTestingController);
+
+    const req = httpMock.expectOne('/api/v1/reading/item-1/bookmarks');
+    expect(req.request.method).toBe('GET');
+    req.flush([
+      { id: 'b1', itemId: 'item-1', ordinal: 0, normalizedAnchor: 0, label: 'Cliffhanger', createdAt: '2026-01-01T00:00:00Z' },
+    ]);
+
+    expect(fixture.componentInstance.bookmarks().length).toBe(1);
+    expect(fixture.componentInstance.bookmarks()[0].label).toBe('Cliffhanger');
+  });
+
+  it('toggleBookmark() POSTs a new bookmark at the current page when none exists (toggle)', () => {
+    const c = create();
+    const httpMock = TestBed.inject(HttpTestingController);
+    c.itemId.set('item-1');
+    c.currentPage.set(4);
+
+    c.toggleBookmark();
+
+    const req = httpMock.expectOne('/api/v1/reading/item-1/bookmarks');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ ordinal: 4 });
+    req.flush({ id: 'b9' });
+
+    expect(c.bookmarks()).toEqual([
+      expect.objectContaining({ id: 'b9', ordinal: 4, itemId: 'item-1' }),
+    ]);
+    expect(c.isCurrentPageBookmarked()).toBe(true);
+  });
+
+  it('toggleBookmark() DELETEs the existing bookmark when the current page is already bookmarked (toggle)', () => {
+    const c = create();
+    const httpMock = TestBed.inject(HttpTestingController);
+    c.currentPage.set(1);
+    c.bookmarks.set([
+      { id: 'b1', itemId: 'item-1', ordinal: 1, normalizedAnchor: 0, label: null, createdAt: '2026-01-01T00:00:00Z' },
+    ]);
+
+    c.toggleBookmark();
+
+    // Note the delete route: bookmarks/{bookmarkId}, NOT nested under itemId.
+    const req = httpMock.expectOne('/api/v1/reading/bookmarks/b1');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+
+    expect(c.bookmarks()).toEqual([]);
+    expect(c.isCurrentPageBookmarked()).toBe(false);
+  });
+
+  it('deleteBookmark() (panel action) DELETEs and removes it from the list without touching others (delete)', () => {
+    const c = create();
+    const httpMock = TestBed.inject(HttpTestingController);
+    c.bookmarks.set([
+      { id: 'b1', itemId: 'item-1', ordinal: 1, normalizedAnchor: 0, label: null, createdAt: '2026-01-01T00:00:00Z' },
+      { id: 'b2', itemId: 'item-1', ordinal: 5, normalizedAnchor: 0, label: 'Nice splash page', createdAt: '2026-01-01T00:00:00Z' },
+    ]);
+
+    c.deleteBookmark(c.bookmarks()[0]);
+
+    const req = httpMock.expectOne('/api/v1/reading/bookmarks/b1');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+
+    expect(c.bookmarks().map((b) => b.id)).toEqual(['b2']);
+  });
+
+  it('jumpToBookmark() (panel action) seeks the reader to that bookmark\'s page', () => {
+    const c = create();
+    c.pages.set(makePages(6));
+    c.view.set('paged');
+    c.phase.set('ready');
+    c.currentPage.set(0);
+
+    c.jumpToBookmark({ id: 'b1', itemId: 'item-1', ordinal: 4, normalizedAnchor: 0, label: null, createdAt: '2026-01-01T00:00:00Z' });
+
+    expect(c.currentPage()).toBe(4);
+  });
+
+  it('renders the toolbar toggle reflecting bookmarked state via aria-pressed', () => {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const fixture = TestBed.createComponent(ReaderComponent);
+    fixture.detectChanges(); // ngOnInit
+    const c = fixture.componentInstance;
+    c.pages.set(makePages(3));
+    c.view.set('paged');
+    c.phase.set('ready');
+    c.currentPage.set(0);
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    let toggle = el.querySelector('[aria-label="Bookmark this page"]') as HTMLButtonElement;
+    expect(toggle).toBeTruthy();
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+
+    c.bookmarks.set([
+      { id: 'b1', itemId: 'item-1', ordinal: 0, normalizedAnchor: 0, label: null, createdAt: '2026-01-01T00:00:00Z' },
+    ]);
+    fixture.detectChanges();
+
+    toggle = el.querySelector('[aria-label="Remove bookmark from this page"]') as HTMLButtonElement;
+    expect(toggle).toBeTruthy();
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+  });
 });
 
 describe('ReaderComponent page scrubber', () => {
@@ -1478,8 +1662,9 @@ describe('ReaderComponent onboarding help auto-show (1.9.0)', () => {
  *
  * At handset width (CDK XSmall) the bar keeps only Next chapter + Fullscreen +
  * a "Reader options" trigger that opens the options bottom sheet; everywhere
- * else the full 8-control bar is UNCHANGED (guarded here so a later change
- * cannot silently drift the desktop/tablet chrome). The reader menus mark the
+ * else the full desktop/tablet bar (10 controls as of the 1.17.0 bookmark
+ * toggle + panel trigger) is UNCHANGED (guarded here so a later change cannot
+ * silently drift the desktop/tablet chrome). The reader menus mark the
  * active option with the `selected-option` highlight, not a checkmark; they
  * render in a CDK overlay so the tests open them and query `document` (same
  * approach as the 1.8.1 browse View-menu tests).
@@ -1524,13 +1709,13 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('DESKTOP / TABLET: the full bar is unchanged (all eight controls, no overflow trigger)', () => {
+  it('DESKTOP / TABLET: the full bar is unchanged (all ten controls, no overflow trigger)', () => {
     const { c, labels } = render(false);
     expect(c.compact()).toBe(false);
     expect(labels()).toEqual([
       'Back to folder',
       'No previous chapter', 'No next chapter',
-      'Reading mode', 'Image fit', 'Switch to right-to-left', 'Page transition',
+      'Reading mode', 'Bookmark this page', 'Bookmarks', 'Image fit', 'Switch to right-to-left', 'Page transition',
       'Reading help', 'Enter fullscreen',
     ]);
   });
