@@ -1728,3 +1728,111 @@ describe('LibraryBrowseComponent transient home-tap sort (1.12.0)', () => {
     expect(setLibraryPreferences).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Browse visual polish (1.17.0): the four sort options carry visually distinct icons
+ * (no trio of clock faces), and in LIST mode the read / selection markers render at
+ * the right of the row instead of over the small thumbnail. Card mode keeps the
+ * overlay-on-cover placement. The multi-column list layout is pure CSS (media
+ * queries), which jsdom cannot lay out; it is asserted here only as far as the
+ * container being a list-classed grid host.
+ */
+describe('LibraryBrowseComponent browse visual polish (1.17.0)', () => {
+  function node(id: string, isRead = false): CatalogNodeDto {
+    return {
+      id, parentId: 'p', libraryId: 'lib1', kind: 'Archive', displayName: id,
+      availability: 'Available', coverUrl: null, childFolderCount: null, childArchiveCount: null,
+      pageCount: 10, readingState: null, lastReadPage: null, readerDefault: null, isRead,
+    } as CatalogNodeDto;
+  }
+
+  function setup(viewMode: 'card' | 'list', nodes: CatalogNodeDto[] = []) {
+    const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
+    const apiSpy = {
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode, density: 'comfortable', sort: 'name', direction: 'asc' })),
+      setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      browseLibrary: vi.fn().mockReturnValue(of(page)),
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
+      getNode: vi.fn().mockReturnValue(of({} as CatalogNodeDto)),
+      getReadMark: vi.fn().mockReturnValue(of({ itemId: '', isRead: false })),
+      getProgress: vi.fn().mockReturnValue(of(null)),
+    };
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: { isAdmin: () => false } },
+        { provide: ReadStateService, useValue: new ReadStateService() },
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : null) }) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges();
+    return { fixture, comp: fixture.componentInstance, el: fixture.nativeElement as HTMLElement };
+  }
+
+  it('gives all four sort options a distinct icon, with at most one clock-style glyph', () => {
+    const { comp } = setup('card');
+    const icons = comp.sortOptions.map((o) => o.icon);
+    expect(icons).toHaveLength(4);
+    expect(new Set(icons).size).toBe(4);
+    expect(comp.sortOptions.find((o) => o.value === 'name')!.icon).toBe('sort_by_alpha');
+    const clockFaces = ['schedule', 'history', 'update', 'access_time', 'watch_later', 'restore', 'query_builder'];
+    expect(icons.filter((i) => clockFaces.includes(i)).length).toBeLessThanOrEqual(1);
+    // The read-state filter sits beside the sort menu: no glyph is shared between them.
+    const filterIcons = comp.readStateOptions.map((o) => o.icon);
+    expect(icons.filter((i) => filterIcons.includes(i))).toEqual([]);
+  });
+
+  it('renders the chosen sort icons in the View menu', () => {
+    const { fixture, el } = setup('card');
+    (el.querySelector('.view-toggle') as HTMLElement).click();
+    fixture.detectChanges();
+    const panel = document.querySelector('.view-options-menu') as HTMLElement;
+    const iconFor = (label: string) => Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'))
+      .find((i) => (i.textContent ?? '').replace(/\s+/g, ' ').trim().endsWith(label))
+      ?.querySelector('mat-icon')?.textContent?.trim();
+    expect(iconFor('Recently added')).toBe('new_releases');
+    expect(iconFor('Recently read')).toBe('menu_book');
+    expect(iconFor('Recently updated')).toBe('update');
+  });
+
+  it('list mode: the read marker sits in the trailing row-markers group, not over the cover', () => {
+    const { el } = setup('list', [node('a', true), node('b')]);
+    expect(el.querySelector('.nodes.list')).not.toBeNull();
+    const rows = Array.from(el.querySelectorAll<HTMLElement>('.node-card'));
+    expect(rows).toHaveLength(2);
+    expect(rows[0].querySelector('.cover .badge')).toBeNull();
+    expect(rows[0].querySelector('.row-markers .badge.read')).not.toBeNull();
+    // The marker group is the LAST child of the row: after the cover and the text.
+    expect(rows[0].lastElementChild?.classList.contains('row-markers')).toBe(true);
+    expect(rows[1].querySelector('.badge.read')).toBeNull();
+  });
+
+  it('list mode: the selection check sits in row-markers, and reflects selection', () => {
+    const { fixture, comp, el } = setup('list', [node('a'), node('b')]);
+    expect(el.querySelector('.check')).toBeNull(); // selection mode unchanged: off by default
+    comp.toggleSelectMode();
+    fixture.detectChanges();
+    expect(el.querySelector('.cover .check')).toBeNull();
+    expect(el.querySelectorAll('.row-markers .check')).toHaveLength(2);
+    (el.querySelector('.node-card') as HTMLElement).click();
+    fixture.detectChanges();
+    expect(el.querySelectorAll('.row-markers .check.on')).toHaveLength(1);
+  });
+
+  it('card mode: markers still overlay the cover and no row-markers group is rendered', () => {
+    const { fixture, comp, el } = setup('card', [node('a', true)]);
+    comp.toggleSelectMode();
+    fixture.detectChanges();
+    expect(el.querySelector('.row-markers')).toBeNull();
+    expect(el.querySelector('.cover .badge.read')).not.toBeNull();
+    expect(el.querySelector('.cover .check')).not.toBeNull();
+  });
+});
