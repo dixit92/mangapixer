@@ -20,7 +20,7 @@ Copy `deploy/compose.unraid.yaml` from the repository to a folder on the server,
 Set `MANGAPIXER_VERSION` to the release you want (see the [Releases page](https://github.com/dixit92/mangapixer/releases)). If it is unset, the file falls back to `latest`, which moves with every release.
 
 ```sh
-export MANGAPIXER_VERSION=1.19.2
+export MANGAPIXER_VERSION=1.20.0
 ```
 
 To run an unreleased build instead, clone the repository on the server and add `deploy/compose.build.yaml` to the `-f` list in step 4; Compose then builds the image from the clone. `pwsh ./scripts/Package-Release.ps1` on another machine still produces a loadable `.tar` if you prefer to build elsewhere and `docker load` it.

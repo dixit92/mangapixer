@@ -267,9 +267,23 @@
          touch-point count. The installed home-screen app declares itself (apple-mobile-web-app
          meta tags, opaque black status bar, app title) so it opens without Safari's bars. Owner-
          reported from the 1.19.x iPad test. -->
+    <!-- 1.20.0: "Downscale Filter and Home Polish". Additive MINOR over 1.19.2, three lanes.
+         FILTER-SERVER: the page endpoint accepts an optional ?filter=sharp|balanced|soft for
+         display-sized variants (Lanczos / Mitchell / Box area-average); the variant string and cache
+         key become webp@<bucket>:<filter>, reported in X-MangaPixer-Variant; the Auto default moves
+         from Lanczos to Balanced (Mitchell) via MangaPixer:Media:PageVariants:DefaultFilter, taming
+         the screentone moire a sharp kernel plus the browser's second resample produced; additive
+         worker ExtractRequest.ResizeFilter (null = Lanczos), protocol stays 2. FILTER-CLIENT: a
+         per-device Downscale filter reader option sent only with sized requests, and the installed
+         home-screen app opens the reader in its immersive mode by default (toggle still available).
+         HOME: additive RecentChapterStack.ReadState from the existing read rollups (now resolved for
+         every stack) rendered as the Read / Reading marker on New-chapters cards, and the home
+         toolbar's card-size slider labelled as page-wide with the New-chapters filter tied to its
+         heading. Additive API only (one query parameter, one DTO field), no migration -> MINOR per
+         SemVer 2.0.0. Bugfixes ship as 1.20.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <MangaPixerVersionMinor>19</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>2</MangaPixerVersionPatch>
+    <MangaPixerVersionMinor>20</MangaPixerVersionMinor>
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

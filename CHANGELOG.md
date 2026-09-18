@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-09-18
+
 ### Added
 
 - A new "Downscale filter" reader option (Sharp / Balanced / Soft) chooses the resampling kernel the server uses for display-sized pages. Balanced (Mitchell) is the new default and tames the screentone moire that the sharper Lanczos kernel could produce; Sharp keeps the previous Lanczos look; Soft (area average) is the smoothest on heavily screentoned scans. The choice is per device, applies only when Page quality is Auto, and is sent as a `filter` query parameter on sized page requests; the `X-MangaPixer-Variant` header now reports it (for example `webp@2160:balanced`). Administrators can change the server default with `MangaPixer:Media:PageVariants:DefaultFilter`.
