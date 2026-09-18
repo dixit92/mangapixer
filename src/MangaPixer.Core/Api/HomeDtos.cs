@@ -88,6 +88,18 @@ public sealed record RecentChapterStack
     /// Count of recently-added descendant archives attributed to this stack (always ≥ 1).
     /// </summary>
     public required int NewCount { get; init; }
+
+    /// <summary>
+    /// Derived read state of the stack's TOP-LEVEL node (1.20.0), one of
+    /// <c>"read"</c> / <c>"reading"</c> / <c>"unread"</c> — the same rollup the read-state
+    /// filter already uses (<c>FolderReadRollupRules</c>), so the tag on a card and the
+    /// filter that would keep or drop it never disagree. A folder stack rolls up over its
+    /// whole subtree; a standalone (loose) archive stack rolls up over just itself. A stack
+    /// with no readable descendant archive (should not occur — every stack has at least one
+    /// in-window candidate) reports <c>"unread"</c>, matching the filter's treatment of a
+    /// missing rollup.
+    /// </summary>
+    public required string ReadState { get; init; }
 }
 
 /// <summary>

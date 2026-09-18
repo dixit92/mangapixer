@@ -74,13 +74,19 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
   ],
   template: `
     <div class="home" [style.--card-size]="cardSize() + 'px'">
-      <!-- Home view toolbar (1.12.0): the card-size slider lives here because it sizes
-           BOTH cover strips (Continue reading + New chapters), not just one row - mirroring
-           the library browse view's top card-size control. Shown once there is any card
-           content to size. -->
+      <!-- Home view toolbar (1.12.0; scope caption added 1.20.0): the card-size slider
+           lives here because it sizes BOTH cover strips (Continue reading + New chapters),
+           not just one row - mirroring the library browse view's top card-size control.
+           Shown once there is any card content to size. The "Card size" caption + page-level
+           icon label the control's SCOPE (all rows on Home) so it doesn't read as belonging
+           to whichever section happens to sit under it. -->
       @if (continueReading().length > 0 || visibleGroups().length > 0) {
         <div class="home-toolbar">
-          <div class="size-control" matTooltip="Card size">
+          <div class="toolbar-scope" matTooltip="Applies to all rows on Home">
+            <mat-icon class="size-icon">dashboard</mat-icon>
+            <span class="scope-label">Card size</span>
+          </div>
+          <div class="size-control">
             <mat-icon class="size-icon">zoom_out</mat-icon>
             <input type="range" class="size-slider" aria-label="Card size"
                    [min]="cardSizeMin" [max]="cardSizeMax" [step]="cardSizeStep"
@@ -125,6 +131,10 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
         <section class="strip-section recent-section">
           <div class="section-head">
             <h3>New chapters</h3>
+            <!-- Section-scope divider (1.20.0): a small accent between the heading and its
+                 own filter, so the Filter button reads as tightly grouped with "New chapters"
+                 rather than a stray control floating in the row. -->
+            <span class="head-divider" aria-hidden="true"></span>
             <!-- Read-state filter (1.17.0): scoped to New chapters only, mirroring the
                  library browse view's filter but transient (session-only, not a
                  persisted preference) since this row is a discovery surface, not a
@@ -192,6 +202,14 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
               <img appCover [src]="stack.coverUrl" alt="" loading="lazy">
             }
             <mat-icon class="cover-fallback">{{ stack.isFolder ? 'folder' : 'menu_book' }}</mat-icon>
+            <!-- Read-state marker (1.20.0): same visual vocabulary as the library browse
+                 view's per-card marker (green "Read", purple "Reading"); Unread renders
+                 nothing, the quiet default. Placed top-left so it never collides with the
+                 top-right "+N new" badge. -->
+            @if (readStateView(stack.readState); as rv) {
+              <span class="badge read-state" [class.read]="rv.kind === 'read'" [class.reading]="rv.kind === 'reading'"
+                    [matTooltip]="rv.tooltip" [attr.aria-label]="rv.tooltip" role="img">{{ rv.text }}</span>
+            }
             @if (stack.newCount > 1) {
               <span class="badge new" [matTooltip]="stack.newCount + ' new chapters'"
                     [attr.aria-label]="stack.newCount + ' new chapters'">+{{ stack.newCount }}</span>
@@ -285,6 +303,13 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
       margin: 0 0 12px; padding: 0 8px 0 0;
     }
+    /* Toolbar-scope caption (1.20.0): labels the slider's reach so it reads as page-level
+       chrome, not a control belonging to whichever section sits under it. */
+    .toolbar-scope {
+      display: flex; align-items: center; gap: 6px; flex: 0 0 auto;
+      color: #8a8a99; font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .4px; padding-right: 8px; border-right: 1px solid rgba(255,255,255,.1);
+    }
     .size-control { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
     .size-control .size-icon { font-size: 18px; width: 18px; height: 18px; color: #8a8a99; }
     .size-slider {
@@ -296,6 +321,9 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
        setting under Settings > New Chapters. */
     .section-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
     .section-head h3 { margin-bottom: 8px; }
+    /* Section-scope divider (1.20.0): ties the Filter button to the "New chapters" heading
+       it scopes to, instead of floating unattached in the row. Purely decorative. */
+    .head-divider { width: 1px; height: 16px; background: rgba(255,255,255,.14); margin: 0 -4px 8px 0; }
     /* Read-state filter (1.17.0): mirrors the library browse toolbar's filter button
        and menu styling so the two filters read as the same control at a glance. */
     .menu-caption {
@@ -336,6 +364,10 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
       font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
       background: rgba(124, 77, 255, 0.92); color: #fff; letter-spacing: 0.2px;
     }
+    /* Read-state marker (1.20.0): top-left (browse's own Read/Reading colours), so it never
+       collides with the top-right "+N new" badge; Unread renders nothing (quiet default). */
+    .badge.read-state { left: 6px; right: auto; }
+    .badge.read-state.read { background: rgba(76, 175, 80, .95); }
     .library-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;
     }
@@ -446,6 +478,25 @@ export class HomeComponent implements OnInit {
 
   glyph(lib: LibraryDto) {
     return readerModeGlyph(lib.defaultReaderMode);
+  }
+
+  /**
+   * Read-state marker view for a New-chapters stack (1.20.0): mirrors the library
+   * browse view's per-card read marker (`✓ Read` green, `Reading` purple) and its
+   * folder-rollup badge convention - `null` for Unread renders no marker at all, so
+   * an unread stack looks exactly as quiet as an unread archive/folder card does in
+   * browse. Exported logic kept inline (not a shared component) per this lane's
+   * file ownership.
+   */
+  readStateView(state: RecentChapterStack['readState']): { kind: 'read' | 'reading'; text: string; tooltip: string } | null {
+    switch (state) {
+      case 'read':
+        return { kind: 'read', text: '✓ Read', tooltip: 'All items read' };
+      case 'reading':
+        return { kind: 'reading', text: 'Reading', tooltip: 'Partially read' };
+      default:
+        return null;
+    }
   }
 
   coverUrl(itemId: string): string {
