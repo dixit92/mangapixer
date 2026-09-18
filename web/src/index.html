@@ -4,7 +4,14 @@
   <meta charset="utf-8" />
   <title>MangaPixer</title>
   <base href="/" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- viewport-fit=cover: lets the installed (standalone) PWA lay out under the
+       display cutout/gesture bars instead of being fit into a slightly-smaller
+       safe area. Without it, some Android WebViews compute an initial layout
+       viewport that doesn't quite match the visual viewport, which is read back
+       as a spurious visualViewport.scale a hair above 1 (see ZoomedScaleThreshold
+       in reader.component.ts) and can make the reader think the page is
+       pinch-zoomed before the user has touched it. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#333333" />
   <link rel="icon" type="image/svg+xml" href="assets/icons/icon.svg" />
   <link rel="icon" type="image/x-icon" href="favicon.ico" />
