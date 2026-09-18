@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.17.1] - 2026-09-18
+
+### Changed
+
+- The Administration page now groups all logging controls in one **Debug Logging** card — the global log level with the per-subsystem overrides (Scanning / Media / Reading) shown beneath it — and gives database backups their own **Backups** card.
+
 ## [1.17.0] - 2026-09-17
 
 ### Added
