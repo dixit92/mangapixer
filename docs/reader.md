@@ -24,6 +24,12 @@ In a normal window the controls stay visible. In fullscreen they hide after 3 se
 
 The bottom bar has a **page slider**: tap to jump, or drag to scrub, with a bubble showing where you will land. When the controls are hidden, a thin progress line shows how far through the chapter you are.
 
+### Fullscreen on iPad and iPhone
+
+In Safari, **Fullscreen** switches the reader to its own immersive in-page mode instead of Safari's fullscreen: Safari's fullscreen would leave a system close button and the status bar sitting over the page, and the page has no way to hide either. Immersive mode hides the reader's own toolbar and bars the same way fullscreen does elsewhere, without any of that.
+
+For a chrome-free reader with no Safari bars at all, add MangaPixer to the Home Screen (**Share** > **Add to Home Screen**). The installed app opens straight into the reader's own UI, with an opaque black status bar instead of Safari's.
+
 ### On phones
 
 On screens narrower than 600 px, the toolbar keeps only **Next chapter**, **Fullscreen** and **Reader options** (⋮). **Reader options** opens a bottom sheet with every other setting:

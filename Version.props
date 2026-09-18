@@ -260,9 +260,16 @@
          (desktop DPR 1 masked it). The gate now compares in device pixels, matching the canvas
          it already rasterized at rect * dpr. Owner-reported on Android + iPad after the 1.19.0
          deploy. -->
+    <!-- 1.19.2 - PATCH over 1.19.1 (2026-09-18), web-only, no API/schema change. On iPad and
+         iPhone the reader's Fullscreen button now drives the in-page immersive mode instead of
+         Safari's Fullscreen API, which painted a persistent system close button and kept the
+         status bar over the page; iPadOS Safari's Mac-masquerading identity is detected via the
+         touch-point count. The installed home-screen app declares itself (apple-mobile-web-app
+         meta tags, opaque black status bar, app title) so it opens without Safari's bars. Owner-
+         reported from the 1.19.x iPad test. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
     <MangaPixerVersionMinor>19</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
+    <MangaPixerVersionPatch>2</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

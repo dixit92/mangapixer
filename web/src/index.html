@@ -12,6 +12,14 @@
        in reader.component.ts) and can make the reader think the page is
        pinch-zoomed before the user has touched it. -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <!-- iOS home-screen install (IPAD-FULLSCREEN): status-bar-style is "black" (opaque),
+       not "black-translucent" - translucent lays the app out UNDER the status bar,
+       which would need safe-area-inset padding across the whole shell. That's a
+       bigger change than this patch takes on; "black" keeps today's layout. -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="MangaPixer" />
   <meta name="theme-color" content="#333333" />
   <link rel="icon" type="image/svg+xml" href="assets/icons/icon.svg" />
   <link rel="icon" type="image/x-icon" href="favicon.ico" />
