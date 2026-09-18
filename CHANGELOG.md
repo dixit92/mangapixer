@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- On iPad and iPhone, the reader's Fullscreen button now switches to an in-page immersive mode (hiding the reader's own bars) instead of using Safari's fullscreen, which showed a persistent system close button and the status bar over the page. Adding MangaPixer to the Home Screen gives a reader without Safari's bars; the installed app now declares an opaque black status bar and its app title.
+
 ## [1.19.1] - 2026-09-18
 
 ### Fixed
