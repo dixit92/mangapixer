@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A new "Downscale filter" reader option (Sharp / Balanced / Soft) chooses the resampling kernel the server uses for display-sized pages. Balanced (Mitchell) is the new default and tames the screentone moire that the sharper Lanczos kernel could produce; Sharp keeps the previous Lanczos look; Soft (area average) is the smoothest on heavily screentoned scans. The choice is per device, applies only when Page quality is Auto, and is sent as a `filter` query parameter on sized page requests; the `X-MangaPixer-Variant` header now reports it (for example `webp@2160:balanced`). Administrators can change the server default with `MangaPixer:Media:PageVariants:DefaultFilter`.
+- The home "New chapters" cards now show the same Read / Reading marker as the library view, computed from the same read-state rollup the row's filter uses (a new `readState` field on each stack).
+- When MangaPixer runs as an installed home-screen app, the reader now opens in its immersive mode with the bars hidden; the Fullscreen button still brings them back.
+
+### Changed
+
+- The home page's card-size slider is labelled as page-wide ("Card size", applies to all rows), and the New-chapters filter is visually tied to its section heading.
+
 ## [1.19.2] - 2026-09-18
 
 ### Fixed
