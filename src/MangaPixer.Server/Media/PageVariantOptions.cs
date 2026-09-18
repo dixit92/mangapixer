@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangapixer.Server.Media;
 
 using System.Globalization;
+using com.lifepixer.mangapixer.Core.Media;
 
 /// <summary>
 /// Server-authoritative bucket ladder for downscaled page variants (1.19.0).
@@ -43,6 +44,19 @@ public sealed class PageVariantOptions
     public int WebpQuality { get; set; } = 82;
 
     /// <summary>
+    /// Resampling filter used for sized page variants when the reader does not
+    /// name one: <c>sharp</c>, <c>balanced</c> or <c>soft</c> (see
+    /// <see cref="PageVariantFilters"/>). Default: <c>balanced</c> (Mitchell).
+    ///
+    /// This deliberately differs from 1.19.x, which was always Lanczos: the
+    /// default reader mode picks a size automatically, so the default filter is
+    /// what most pages are actually encoded with, and Mitchell is the safer
+    /// choice on screentones. Readers who prefer the old look ask for
+    /// <c>sharp</c> explicitly.
+    /// </summary>
+    public string DefaultFilter { get; set; } = PageVariantFilters.Balanced;
+
+    /// <summary>
     /// Validates the ladder. Called at startup so a malformed configuration fails
     /// loudly instead of silently serving the wrong sizes.
     /// </summary>
@@ -68,6 +82,15 @@ public sealed class PageVariantOptions
         if (WebpQuality is < 1 or > 100)
             throw new InvalidOperationException(
                 "MangaPixer:Media:PageVariants:WebpQuality must be between 1 and 100.");
+
+        // Normalise in place so the rest of the process only ever sees the
+        // canonical lower-case name (it reaches cache keys and a response
+        // header, where "Balanced" and "balanced" must not diverge).
+        if (!PageVariantFilters.TryNormalize(DefaultFilter, out var normalizedFilter))
+            throw new InvalidOperationException(
+                "MangaPixer:Media:PageVariants:DefaultFilter must be one of " +
+                PageVariantFilters.Vocabulary + $" (got '{DefaultFilter}').");
+        DefaultFilter = normalizedFilter;
     }
 
     /// <summary>
@@ -92,10 +115,23 @@ public sealed class PageVariantOptions
     }
 
     /// <summary>
-    /// Worker/cache variant string for a bucket, e.g. <c>webp@1440</c>. Distinct
-    /// per bucket so <see cref="CacheService.BuildCacheKey"/> keeps one cache
-    /// entry per (page, bucket) pair.
+    /// Worker/cache variant string for a (bucket, filter) pair, e.g.
+    /// <c>webp@1440:balanced</c>. Distinct per pair so
+    /// <see cref="CacheService.BuildCacheKey"/> keeps one cache entry per
+    /// (page, bucket, filter) combination - two filters at the same size are
+    /// genuinely different bytes. Pre-1.20.0 <c>webp@&lt;bucket&gt;</c> entries
+    /// are simply never looked up again and age out of the cache LRU.
     /// </summary>
-    public static string VariantName(int bucket) =>
-        "webp@" + bucket.ToString(CultureInfo.InvariantCulture);
+    /// <param name="filter">
+    /// A <see cref="PageVariantFilters"/> name. Unknown or empty input falls
+    /// back to <see cref="PageVariantFilters.Sharp"/> so the string is always
+    /// well formed; callers validate before they get here.
+    /// </param>
+    public static string VariantName(int bucket, string? filter)
+    {
+        var name = PageVariantFilters.TryNormalize(filter, out var normalized)
+            ? normalized
+            : PageVariantFilters.Sharp;
+        return "webp@" + bucket.ToString(CultureInfo.InvariantCulture) + ":" + name;
+    }
 }

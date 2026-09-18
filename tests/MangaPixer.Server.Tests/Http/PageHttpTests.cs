@@ -97,14 +97,92 @@ public sealed class PageHttpTests : IDisposable
         var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 3000, pageHeight: 2000);
         // Only the bucket entry is seeded: if the controller picked any other
         // variant it would miss the cache and fail (no worker in this factory).
-        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp@1440");
+        // No ?filter= is sent, so this also pins the default filter (1.20.0):
+        // a seed of plain "webp@1440" would now miss.
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp@1440:balanced");
 
         var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}?maxDim=1300");
         response.EnsureSuccessStatusCode();
 
         Assert.Equal("image/webp", response.Content.Headers.ContentType?.MediaType);
-        Assert.Equal("webp@1440", VariantHeader(response));
+        Assert.Equal("webp@1440:balanced", VariantHeader(response));
         Assert.NotEmpty(await response.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
+    public async Task GetPage_MaxDimWithFilter_ServesThatFiltersSizedVariant()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 3000, pageHeight: 2000);
+        // Only the soft entry exists, so a controller that ignored ?filter= (or
+        // normalised it to the default) would miss the cache and fail.
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp@1440:soft");
+
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}?maxDim=1300&filter=soft");
+        response.EnsureSuccessStatusCode();
+
+        Assert.Equal("image/webp", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("webp@1440:soft", VariantHeader(response));
+        Assert.NotEmpty(await response.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
+    public async Task GetPage_FilterIsCaseInsensitiveAndReportedCanonically()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 3000, pageHeight: 2000);
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp@1440:sharp");
+
+        // "Sharp" must reach the same cache entry as "sharp": two spellings of
+        // one filter must not mint two copies of identical bytes.
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}?maxDim=1300&filter=Sharp");
+        response.EnsureSuccessStatusCode();
+
+        Assert.Equal("webp@1440:sharp", VariantHeader(response));
+    }
+
+    [Fact]
+    public async Task GetPage_FilterWithoutMaxDim_StillServesFullVariant()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 3000, pageHeight: 2000);
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp");
+
+        // A filter with nothing to resize is accepted but inert: the full-size
+        // variant has no filter suffix and must not grow one.
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}?filter=sharp");
+        response.EnsureSuccessStatusCode();
+
+        Assert.Equal("webp", VariantHeader(response));
+    }
+
+    [Fact]
+    public async Task GetPage_UnknownFilter_Returns400()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 3000, pageHeight: 2000);
+
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}?maxDim=1300&filter=nope");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("invalid_request", error?.Error);
+    }
+
+    [Fact]
+    public async Task GetPage_UnknownFilterWithoutMaxDim_StillReturns400()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 3000, pageHeight: 2000);
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp");
+
+        // Validation is unconditional: a typo must surface immediately, not the
+        // first time the reader happens to ask for a size.
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}?filter=nope");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("invalid_request", error?.Error);
     }
 
     [Fact]
@@ -113,7 +191,7 @@ public sealed class PageHttpTests : IDisposable
         var (client, itemId) = await SetupLibraryAndScanAsync();
         var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 3000, pageHeight: 2000);
         await SeedCacheAsync(itemId, ordinal: 0, variant: "webp");
-        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp@1440");
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp@1440:balanced");
 
         var full = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}");
         var sized = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}?maxDim=1440");
@@ -245,7 +323,7 @@ public sealed class PageHttpTests : IDisposable
 
     /// <summary>
     /// Reads the X-MangaPixer-Variant header the page endpoints stamp with the
-    /// variant actually served ("webp", "webp@1440", "thumbnail").
+    /// variant actually served ("webp", "webp@1440:balanced", "thumbnail").
     /// </summary>
     private static string? VariantHeader(HttpResponseMessage response) =>
         response.Headers.TryGetValues("X-MangaPixer-Variant", out var values)
