@@ -28,7 +28,7 @@ import { UpscaleDirective } from './upscale.directive';
 import {
   WebtoonNavPreferencesService, webtoonTapZone, webtoonScrollTarget, prefersReducedMotion,
 } from './webtoon-nav.service';
-import { isApplePlatformTouch } from './platform';
+import { isApplePlatformTouch, isStandaloneDisplay } from './platform';
 
 type ReaderPhase = 'preparing' | 'ready' | 'error';
 // ReaderView / ViewPref (the per-device paged-layout preference; see the note on
@@ -487,9 +487,11 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 @if (isFullscreen()) { Tap the centre to bring it back when it is hidden. }</li>
               <li><kbd>M</kbd> show / hide the controls · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> exit ·
                 <kbd>?</kbd> this help</li>
-              @if (isIOSImmersive) {
-                <li><b>Fullscreen</b> on iPhone/iPad goes immersive (hides the reader's own bars)
-                  instead of using Safari's fullscreen.</li>
+              @if (useInPageImmersive) {
+                <li><b>Fullscreen</b> goes immersive here (hides the reader's own bars) instead of
+                  the browser's fullscreen - on iPhone/iPad, and in this app installed to the home
+                  screen{{ isStandalone ? ', where it is already on by default when you open a chapter' : '' }}.
+                  The button still toggles it off and back on.</li>
               }
             </ul>
             <p class="help-dismiss">Tap anywhere to close</p>
@@ -839,6 +841,14 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   // can't hide, so toggleFullscreen() drives isFullscreen (in-page immersive
   // mode) directly instead, and onFullscreenChange must not undo that (see both).
   readonly isIOSImmersive = isApplePlatformTouch(navigator);
+  // 1.20.0 (owner request): the installed home-screen app / standalone PWA has
+  // no browser chrome to hide either, so it gets the same in-page immersive
+  // treatment as iOS/iPadOS Safari above rather than the Fullscreen API.
+  // Computed once at construction, same as isIOSImmersive; see isStandaloneDisplay.
+  readonly isStandalone = isStandaloneDisplay(window);
+  // Either platform reason to prefer the reader's own immersive mode over the
+  // Fullscreen API - see toggleFullscreen() / onFullscreenChange().
+  readonly useInPageImmersive = this.isIOSImmersive || this.isStandalone;
   // Double-page pairing phase (the "offset"): when true, page 0 (the cover) is
   // shown alone and pages pair 1-2, 3-4… (right for a typical standalone cover);
   // when false, pairing starts at 0-1, 2-3… No reliable way to infer which a
@@ -1056,9 +1066,14 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
    * waiting for the next page turn. `untracked` keeps the effect subscribed to
    * the preference alone — refreshVariantTarget reads half a dozen other signals
    * and must not make them all invalidate the cache.
+   *
+   * 1.20.0: "Downscale filter" (`?filter=`) is the same kind of explicit quality
+   * decision, so it re-targets the same way — the effect also depends on
+   * `downscaleFilter` and clears the pinned URLs on every change.
    */
   private readonly pageQualityEffect = effect(() => {
     this.prefs.pageQuality();
+    this.prefs.downscaleFilter();
     untracked(() => {
       this.pageUrlCache.clear();
       this.refreshVariantTarget();
@@ -1176,7 +1191,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     const cached = this.pageUrlCache.get(entry.entryKey);
     if (cached !== undefined) return cached;
     const base = `/api/v1/items/${this.itemId()}/pages/${encodeURIComponent(entry.entryKey)}`;
-    const url = withMaxDim(base, this.variantTarget);
+    const url = withMaxDim(base, this.variantTarget, this.prefs.downscaleFilter());
     this.pageUrlCache.set(entry.entryKey, url);
     return url;
   }
@@ -1262,6 +1277,20 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       this.loadFallbackBackRoute(id);
       this.loadBookmarks(id);
     });
+    // 1.20.0 standalone-immersive default (owner request): the installed
+    // home-screen app / standalone PWA has no browser chrome to hide, so it
+    // opens the reader already immersive (bars auto-hide, tap-centre reveals)
+    // rather than starting windowed like an ordinary browser tab - "by
+    // default", not "always": toggleFullscreen() still flips it off and back
+    // on. Set once here, AFTER the paramMap subscribe above (whose first,
+    // synchronous emission calls loadManifest() -> clearHideTimer(), which
+    // would otherwise cancel a timer scheduled before it) — ngOnInit only
+    // ever runs once per reader mount, so a later chapter change (a second
+    // paramMap emission) can never re-force this back on over a manual toggle.
+    if (this.isStandalone) {
+      this.isFullscreen.set(true);
+      this.scheduleChromeHide();
+    }
   }
 
   /**
@@ -1376,10 +1405,11 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
-    // On iOS/iPadOS toggleFullscreen() never calls the Fullscreen API (see
-    // there), so document.fullscreenElement stays null forever there and must
-    // never be allowed to flip isFullscreen back off from underneath it.
-    if (this.isIOSImmersive) return;
+    // On iOS/iPadOS, or in a standalone/installed app, toggleFullscreen() never
+    // calls the Fullscreen API (see there), so document.fullscreenElement stays
+    // null forever there and must never be allowed to flip isFullscreen back
+    // off from underneath it.
+    if (this.useInPageImmersive) return;
     // Keep our signal in sync when the browser exits fullscreen via Esc.
     const fs = !!document.fullscreenElement;
     this.isFullscreen.set(fs);
@@ -2281,12 +2311,13 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   }
 
   toggleFullscreen(): void {
-    if (this.isIOSImmersive) {
-      // Safari's own Fullscreen API paints a persistent system close button
-      // over the page and keeps the status bar showing, with no way for the
-      // page to hide either — so skip it and drive the reader's own in-page
-      // immersive mode (isFullscreen) directly. onFullscreenChange ignores
-      // fullscreenchange here, so this is the only place isFullscreen moves.
+    if (this.useInPageImmersive) {
+      // Either Safari's own Fullscreen API paints a persistent system close
+      // button over the page and keeps the status bar showing (iOS/iPadOS), or
+      // there is no browser chrome to hide via the Fullscreen API at all (a
+      // standalone/installed app) — either way, skip it and drive the reader's
+      // own in-page immersive mode (isFullscreen) directly. onFullscreenChange
+      // ignores fullscreenchange here, so this is the only place isFullscreen moves.
       const next = !this.isFullscreen();
       this.isFullscreen.set(next);
       if (next) { this.scheduleChromeHide(); }

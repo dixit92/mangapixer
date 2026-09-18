@@ -194,3 +194,35 @@ describe('withMaxDim', () => {
     expect(withMaxDim('', 1080)).toBe('');
   });
 });
+
+/**
+ * 1.20.0 "Downscale filter" (Lane B FILTER-CLIENT): `withMaxDim` grew an
+ * optional third argument that appends `&filter=<f>` alongside a real
+ * `maxDim` bucket. Every existing 2-arg call/test above must keep working
+ * unchanged - a filter is never sent alongside `maxDim=0` (the full-size
+ * transcode never resamples, so the server has nothing to apply it to).
+ */
+describe('withMaxDim with a downscale filter', () => {
+  const base = '/api/v1/items/item-1/pages/p0';
+
+  it('appends the filter alongside a real bucket, one case per filter', () => {
+    expect(withMaxDim(base, 1080, 'sharp')).toBe(`${base}?maxDim=1080&filter=sharp`);
+    expect(withMaxDim(base, 1440, 'balanced')).toBe(`${base}?maxDim=1440&filter=balanced`);
+    expect(withMaxDim(base, 2160, 'soft')).toBe(`${base}?maxDim=2160&filter=soft`);
+  });
+
+  it('never appends a filter for the full-size transcode (maxDim 0)', () => {
+    expect(withMaxDim(base, 0, 'sharp')).toBe(base);
+    expect(withMaxDim(base, 0, 'balanced')).toBe(base);
+    expect(withMaxDim(base, 0, 'soft')).toBe(base);
+  });
+
+  it('never appends a filter for a negative / non-finite maxDim', () => {
+    expect(withMaxDim(base, -1, 'sharp')).toBe(base);
+    expect(withMaxDim(base, Number.NaN, 'sharp')).toBe(base);
+  });
+
+  it('omitting the filter argument keeps the pre-1.20.0 URL shape (existing call sites)', () => {
+    expect(withMaxDim(base, 1080)).toBe(`${base}?maxDim=1080`);
+  });
+});
