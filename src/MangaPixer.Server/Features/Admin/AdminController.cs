@@ -39,6 +39,7 @@ public sealed class AdminController : ControllerBase
     private readonly LibraryAuthorizationService _libraryAuth;
     private readonly SessionService _sessionService;
     private readonly MangaPixerDbContext _db;
+    private readonly AuditService _audit;
     private readonly ILogger<AdminController> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IServiceScopeFactory _scopeFactory;
@@ -55,6 +56,7 @@ public sealed class AdminController : ControllerBase
         LibraryAuthorizationService libraryAuth,
         SessionService sessionService,
         MangaPixerDbContext db,
+        AuditService audit,
         ILogger<AdminController> logger,
         ILoggerFactory loggerFactory,
         IServiceScopeFactory scopeFactory)
@@ -70,6 +72,7 @@ public sealed class AdminController : ControllerBase
         _libraryAuth = libraryAuth;
         _sessionService = sessionService;
         _db = db;
+        _audit = audit;
         _logger = logger;
         _loggerFactory = loggerFactory;
         _scopeFactory = scopeFactory;
@@ -742,6 +745,9 @@ public sealed class AdminController : ControllerBase
 
         _logger.LogInformation(LogEvents.Administration.UserDeleted, "Admin deleted user {PublicId}", user.PublicId);
 
+        await _audit.RecordAsync(AuditActions.UserDeleted, AuditResults.Success,
+            User.Identity?.Name, targetUserId: user.Id, correlationId: null, ct);
+
         return NoContent();
     }
 
@@ -768,6 +774,9 @@ public sealed class AdminController : ControllerBase
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation(LogEvents.Administration.ActivationReissued, "Activation link reissued for user {PublicId}", user.PublicId);
+
+        await _audit.RecordAsync(AuditActions.UserActivationReissued, AuditResults.Success,
+            User.Identity?.Name, targetUserId: user.Id, correlationId: null, ct);
 
         var baseUrl = $"{Request.Scheme}://{Request.Host}";
         var userDto = new AdminUserDto
@@ -867,7 +876,26 @@ public sealed class AdminController : ControllerBase
 
         _logger.LogInformation(LogEvents.Administration.AdminPasswordReset, "Admin reset password for user {UserName}", user.UserName);
 
+        await _audit.RecordAsync(AuditActions.UserPasswordReset, AuditResults.Success,
+            User.Identity?.Name, targetUserId: user.Id, correlationId: null, ct);
+
         return Ok(new ResetPasswordResponse { TemporaryPassword = tempPassword });
+    }
+
+    // --- Audit trail ---
+
+    /// <summary>
+    /// Returns one page of the administrative audit trail, newest first
+    /// (1.18.0). Admin-only. The audit store predates this endpoint but was
+    /// write-only; this is the read side that backs the audit-trail UI. Rows
+    /// carry action/result verbs, resolved actor user name, numeric ids and a
+    /// timestamp only — never paths, secrets, or DB contents.
+    /// </summary>
+    [HttpGet("audit")]
+    public async Task<IActionResult> GetAuditTrail([FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default)
+    {
+        var result = await _audit.GetPageAsync(page, pageSize, ct);
+        return Ok(result);
     }
 
     [HttpDelete("users/{id}/sessions")]

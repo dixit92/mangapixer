@@ -172,6 +172,41 @@ public sealed class RotatingBackupService
         Directory.Exists(directory)
             ? Directory.EnumerateFiles(directory, FileNamePrefix + "*.db").Count()
             : 0;
+
+    /// <summary>
+    /// Enumerates the on-disk rotating snapshots newest-first, exposing only the
+    /// generated file name, byte size, and last-write timestamp — NEVER an
+    /// absolute path (privacy invariant for API-visible data). File names embed
+    /// a UTC timestamp, so ordinal name order is chronological; sorting on the
+    /// name (not the mtime) keeps the list stable and matches the pruning order.
+    /// </summary>
+    public IReadOnlyList<RotatingBackupFileInfo> ListBackups(string directory)
+    {
+        if (!Directory.Exists(directory))
+            return Array.Empty<RotatingBackupFileInfo>();
+
+        return Directory.EnumerateFiles(directory, FileNamePrefix + "*.db")
+            .Select(p => new FileInfo(p))
+            .OrderByDescending(fi => fi.Name, StringComparer.Ordinal)
+            .Select(fi => new RotatingBackupFileInfo
+            {
+                FileName = fi.Name,
+                ByteSize = fi.Length,
+                TimestampUtc = new DateTimeOffset(fi.LastWriteTimeUtc, TimeSpan.Zero),
+            })
+            .ToList();
+    }
+}
+
+/// <summary>
+/// One on-disk rotating snapshot, safe for API exposure: a generated file name,
+/// its byte size, and its last-write timestamp — never an absolute path.
+/// </summary>
+public sealed record RotatingBackupFileInfo
+{
+    public required string FileName { get; init; }
+    public required long ByteSize { get; init; }
+    public required DateTimeOffset TimestampUtc { get; init; }
 }
 
 /// <summary>
