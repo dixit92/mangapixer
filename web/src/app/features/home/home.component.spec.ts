@@ -277,7 +277,7 @@ describe('HomeComponent', () => {
     const scope = fixture.nativeElement.querySelector('.toolbar-scope') as HTMLElement;
     expect(scope).not.toBeNull();
     expect(scope.querySelector('.scope-label')!.textContent).toContain('Card size');
-    expect(scope.querySelector('.scope-icon')).not.toBeNull();
+    expect(scope.querySelector('mat-icon')).not.toBeNull();
   });
 
   it('groups the New-chapters Filter button with its heading via a section divider', () => {

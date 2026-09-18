@@ -83,7 +83,7 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
       @if (continueReading().length > 0 || visibleGroups().length > 0) {
         <div class="home-toolbar">
           <div class="toolbar-scope" matTooltip="Applies to all rows on Home">
-            <mat-icon class="scope-icon">dashboard</mat-icon>
+            <mat-icon class="size-icon">dashboard</mat-icon>
             <span class="scope-label">Card size</span>
           </div>
           <div class="size-control">
@@ -303,17 +303,13 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
       margin: 0 0 12px; padding: 0 8px 0 0;
     }
-    /* Toolbar-scope caption (1.20.0): labels the slider's reach ("all rows on Home") so the
-       page-level control reads as page-level chrome rather than belonging to whichever
-       section happens to sit under it. Wraps onto its own line before the slider on narrow
-       widths via the toolbar's existing flex-wrap. */
+    /* Toolbar-scope caption (1.20.0): labels the slider's reach so it reads as page-level
+       chrome, not a control belonging to whichever section sits under it. */
     .toolbar-scope {
       display: flex; align-items: center; gap: 6px; flex: 0 0 auto;
       color: #8a8a99; font-size: 11px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.4px; padding-right: 10px; margin-right: 2px;
-      border-right: 1px solid rgba(255,255,255,0.1);
+      letter-spacing: .4px; padding-right: 8px; border-right: 1px solid rgba(255,255,255,.1);
     }
-    .toolbar-scope .scope-icon { font-size: 16px; width: 16px; height: 16px; }
     .size-control { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
     .size-control .size-icon { font-size: 18px; width: 18px; height: 18px; color: #8a8a99; }
     .size-slider {
@@ -325,11 +321,9 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
        setting under Settings > New Chapters. */
     .section-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
     .section-head h3 { margin-bottom: 8px; }
-    /* Section-scope divider (1.20.0): ties the Filter button visually to the "New chapters"
-       heading it scopes to, instead of the button floating unattached in the row. Purely
-       decorative (aria-hidden); the section-head's own flex-wrap still lets the button drop
-       to its own line on narrow widths, the divider drops with it. */
-    .head-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.14); margin: 0 -4px 8px 0; }
+    /* Section-scope divider (1.20.0): ties the Filter button to the "New chapters" heading
+       it scopes to, instead of floating unattached in the row. Purely decorative. */
+    .head-divider { width: 1px; height: 16px; background: rgba(255,255,255,.14); margin: 0 -4px 8px 0; }
     /* Read-state filter (1.17.0): mirrors the library browse toolbar's filter button
        and menu styling so the two filters read as the same control at a glance. */
     .menu-caption {
@@ -370,11 +364,10 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
       font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
       background: rgba(124, 77, 255, 0.92); color: #fff; letter-spacing: 0.2px;
     }
-    /* Read-state marker (1.20.0): top-left, mirroring the library browse view's card
-       marker colours (green Read, purple Reading) so the two surfaces read the same at a
-       glance. Unread renders no marker at all - the quiet default, matching browse. */
-    .badge.read-state { top: 6px; left: 6px; right: auto; font-weight: 600; }
-    .badge.read-state.read { background: rgba(76, 175, 80, 0.95); }
+    /* Read-state marker (1.20.0): top-left (browse's own Read/Reading colours), so it never
+       collides with the top-right "+N new" badge; Unread renders nothing (quiet default). */
+    .badge.read-state { left: 6px; right: auto; }
+    .badge.read-state.read { background: rgba(76, 175, 80, .95); }
     .library-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;
     }
