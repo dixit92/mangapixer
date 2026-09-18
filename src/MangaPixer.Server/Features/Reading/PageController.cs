@@ -14,9 +14,16 @@ using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// Page and cover delivery endpoints.
-/// GET /api/v1/items/{itemId}/pages/{entryKey} — page image (original or variant)
+/// GET /api/v1/items/{itemId}/pages/{entryKey}[?maxDim=n] — page image (full or display-sized)
 /// GET /api/v1/items/{itemId}/pages/{entryKey}/thumbnail — thumbnail variant
 /// GET /api/v1/items/{itemId}/cover — cover image (first page)
+///
+/// Every page response carries an <c>X-MangaPixer-Variant</c> header naming the
+/// variant actually served ("webp", "webp@1440", "thumbnail"), so the client can
+/// tell when its <c>maxDim</c> request was snapped to a bucket or declined
+/// (page already smaller than the bucket, or above the ladder). This header is
+/// not expressible in the generated OpenAPI document, which is why it is
+/// specified here.
 ///
 /// All endpoints check authorization before serving. Source paths are never
 /// exposed. Pages are extracted on-demand from archives and cached.
@@ -35,11 +42,18 @@ public sealed class PageController : ControllerBase
     private readonly CatalogIdResolver _idResolver;
     private readonly MediaWorkerPool _workerPool;
     private readonly ThumbnailStore _thumbnailStore;
+    private readonly PageVariantOptions _pageVariants;
     private readonly ILogger<PageController> _logger;
 
     // WebP transcode defaults for on-demand page delivery; not yet user-configurable.
     private const int ThumbnailMaxDimension = 320;
     private const int WebpQuality = 82;
+
+    /// <summary>
+    /// Response header naming the variant actually served, so the client can
+    /// detect bucket snapping and full-size fallbacks without guessing.
+    /// </summary>
+    internal const string VariantHeaderName = "X-MangaPixer-Variant";
 
     public PageController(
         MangaPixerDbContext db,
@@ -47,6 +61,7 @@ public sealed class PageController : ControllerBase
         CatalogIdResolver idResolver,
         MediaWorkerPool workerPool,
         ThumbnailStore thumbnailStore,
+        PageVariantOptions pageVariants,
         ILogger<PageController> logger)
     {
         _db = db;
@@ -54,13 +69,46 @@ public sealed class PageController : ControllerBase
         _idResolver = idResolver;
         _workerPool = workerPool;
         _thumbnailStore = thumbnailStore;
+        _pageVariants = pageVariants;
         _logger = logger;
     }
 
+    /// <summary>
+    /// Serves one page image. Without <paramref name="maxDim"/> this is the
+    /// pre-1.19.0 behaviour: the full-size WebP transcode. With a positive
+    /// <paramref name="maxDim"/> (the longest edge the client will actually
+    /// display, in device pixels) the request snaps UP to the smallest
+    /// configured bucket that covers it and serves a Lanczos-downscaled variant
+    /// instead — sharper on line art and screentones than a browser downscale,
+    /// and a fraction of the bytes.
+    ///
+    /// The full-size variant is served anyway when the request exceeds the
+    /// largest bucket, or when the page's own longest edge already fits inside
+    /// the chosen bucket (the server never upscales, and a pass-through bucket
+    /// entry would only waste cache budget).
+    /// </summary>
+    /// <param name="maxDim">
+    /// Optional longest edge in pixels. Absent, empty or non-positive means
+    /// "full size". A value that is not an integer is rejected with 400
+    /// <c>invalid_request</c>. Bound as a string so the rejection is a typed
+    /// ApiError like every other bad request, not a framework ProblemDetails.
+    /// </param>
     [HttpGet("{itemId}/pages/{entryKey}")]
-    public async Task<IActionResult> GetPage(string itemId, string entryKey, CancellationToken ct)
+    public async Task<IActionResult> GetPage(
+        string itemId,
+        string entryKey,
+        CancellationToken ct,
+        [FromQuery(Name = "maxDim")] string? maxDim = null)
     {
-        return await GetPageInternal(itemId, entryKey, "original", ct);
+        int requestedMaxDim = 0;
+        if (!string.IsNullOrWhiteSpace(maxDim) &&
+            !int.TryParse(maxDim, System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out requestedMaxDim))
+        {
+            return BadRequest(new ApiError { Error = "invalid_request", Message = "maxDim must be an integer." });
+        }
+
+        return await GetPageInternal(itemId, entryKey, "original", ct, requestedMaxDim);
     }
 
     [HttpGet("{itemId}/pages/{entryKey}/thumbnail")]
@@ -76,7 +124,7 @@ public sealed class PageController : ControllerBase
         return await GetCoverInternal(itemId, ct);
     }
 
-    private async Task<IActionResult> GetPageInternal(string itemId, string entryKey, string variant, CancellationToken ct)
+    private async Task<IActionResult> GetPageInternal(string itemId, string entryKey, string variant, CancellationToken ct, int requestedMaxDim = 0)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -105,8 +153,26 @@ public sealed class PageController : ControllerBase
             return NotFound(new ApiError { Error = "page_not_found", Message = "Page entry key not found." });
 
         // Map the requested variant to a worker variant. Pages and covers are
-        // served as WebP; the thumbnail endpoint gets a downscaled WebP.
+        // served as WebP; the thumbnail endpoint gets a downscaled WebP; a page
+        // request carrying maxDim may get a bucket-sized WebP (1.19.0).
         var workerVariant = variant == "thumbnail" ? "thumbnail" : "webp";
+        var pageMaxDimension = 0;
+
+        if (variant != "thumbnail" && requestedMaxDim > 0 &&
+            _pageVariants.SelectBucket(requestedMaxDim) is int bucket)
+        {
+            // Never upscale, and never spend cache budget on a "downscale" that
+            // would be a verbatim copy: when the page's own longest edge already
+            // fits the bucket, the full-size variant IS the sized variant. Width
+            // and height are null/0 when analysis could not determine them; in
+            // that case size it and let the worker decide (it never upscales).
+            var longestEdge = Math.Max(pageEntry.Width ?? 0, pageEntry.Height ?? 0);
+            if (longestEdge <= 0 || longestEdge > bucket)
+            {
+                workerVariant = PageVariantOptions.VariantName(bucket);
+                pageMaxDimension = bucket;
+            }
+        }
 
         // Try cache first — serve the stored media type (handles animated passthrough).
         var cacheKey = CacheService.BuildCacheKey(node.Id, archiveItem.ContentVersion, pageEntry.EntryKey, workerVariant);
@@ -115,7 +181,7 @@ public sealed class PageController : ControllerBase
             var cachedStream = _cache.OpenRead(cacheKey);
             if (cachedStream is not null)
             {
-                SetCacheHeaders(cacheKey, hit.MediaType);
+                SetCacheHeaders(cacheKey, workerVariant);
                 return File(cachedStream, hit.MediaType);
             }
         }
@@ -136,7 +202,11 @@ public sealed class PageController : ControllerBase
         var outcome = await _workerPool.ExtractPageAsync(
             sourcePath, pageEntry.SourceEntryLocator, workerVariant,
             archiveItem.ModificationTicks, archiveItem.ByteLength,
-            outputPath, ThumbnailMaxDimension, WebpQuality, ct);
+            outputPath, ThumbnailMaxDimension,
+            // Sized variants get their own configurable quality; the full-size
+            // and thumbnail paths keep the existing constant.
+            pageMaxDimension > 0 ? _pageVariants.WebpQuality : WebpQuality,
+            ct, pageMaxDimension);
 
         if (!outcome.Success)
         {
@@ -160,7 +230,7 @@ public sealed class PageController : ControllerBase
         var published = _cache.OpenRead(cacheKey);
         if (published is not null)
         {
-            SetCacheHeaders(cacheKey, outcome.MediaType!);
+            SetCacheHeaders(cacheKey, workerVariant);
             return File(published, outcome.MediaType!);
         }
 
@@ -264,12 +334,16 @@ public sealed class PageController : ControllerBase
 
     /// <summary>
     /// Sets a coherent Cache-Control + ETag pair on binary page responses so the
-    /// browser can cache and revalidate (audit defect D9 / finding A1).
+    /// browser can cache and revalidate (audit defect D9 / finding A1), plus the
+    /// <c>X-MangaPixer-Variant</c> header naming what was actually served. The
+    /// cache key already embeds the variant, so per-bucket responses get distinct
+    /// ETags for free.
     /// </summary>
-    private void SetCacheHeaders(string cacheKey, string mediaType)
+    private void SetCacheHeaders(string cacheKey, string servedVariant)
     {
         Response.Headers.CacheControl = $"private, max-age={PageCacheMaxAgeSeconds}, immutable";
         Response.Headers.ETag = $"\"{cacheKey}\"";
+        Response.Headers[VariantHeaderName] = servedVariant;
     }
 
     private long? GetUserId()

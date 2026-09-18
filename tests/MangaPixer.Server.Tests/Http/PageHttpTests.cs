@@ -65,6 +65,122 @@ public sealed class PageHttpTests : IDisposable
     }
 
     [Fact]
+    public async Task GetPage_NoMaxDim_ServesFullVariant()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 3000, pageHeight: 2000);
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp");
+
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}");
+        response.EnsureSuccessStatusCode();
+
+        Assert.Equal("webp", VariantHeader(response));
+    }
+
+    [Fact]
+    public async Task GetPage_MaxDimZero_ServesFullVariant()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 3000, pageHeight: 2000);
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp");
+
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}?maxDim=0");
+        response.EnsureSuccessStatusCode();
+
+        Assert.Equal("webp", VariantHeader(response));
+    }
+
+    [Fact]
+    public async Task GetPage_MaxDim_SnapsUpToBucketAndServesSizedVariant()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 3000, pageHeight: 2000);
+        // Only the bucket entry is seeded: if the controller picked any other
+        // variant it would miss the cache and fail (no worker in this factory).
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp@1440");
+
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}?maxDim=1300");
+        response.EnsureSuccessStatusCode();
+
+        Assert.Equal("image/webp", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("webp@1440", VariantHeader(response));
+        Assert.NotEmpty(await response.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
+    public async Task GetPage_MaxDim_SizedVariantGetsItsOwnETag()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 3000, pageHeight: 2000);
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp");
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp@1440");
+
+        var full = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}");
+        var sized = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}?maxDim=1440");
+        full.EnsureSuccessStatusCode();
+        sized.EnsureSuccessStatusCode();
+
+        Assert.NotNull(full.Headers.ETag);
+        Assert.NotNull(sized.Headers.ETag);
+        Assert.NotEqual(full.Headers.ETag!.Tag, sized.Headers.ETag!.Tag);
+    }
+
+    [Fact]
+    public async Task GetPage_MaxDimAboveLadder_ServesFullVariant()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 9000, pageHeight: 9000);
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp");
+
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}?maxDim=99999");
+        response.EnsureSuccessStatusCode();
+
+        Assert.Equal("webp", VariantHeader(response));
+    }
+
+    [Fact]
+    public async Task GetPage_PageSmallerThanBucket_ServesFullVariant()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        // 900x600 already fits inside the 1440 bucket: sizing it would be an
+        // upscale and a pointless second cache entry.
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 900, pageHeight: 600);
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "webp");
+
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}?maxDim=1300");
+        response.EnsureSuccessStatusCode();
+
+        Assert.Equal("webp", VariantHeader(response));
+    }
+
+    [Fact]
+    public async Task GetPage_NonIntegerMaxDim_Returns400()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 3000, pageHeight: 2000);
+
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}?maxDim=abc");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("invalid_request", error?.Error);
+    }
+
+    [Fact]
+    public async Task GetPageThumbnail_ReportsThumbnailVariant()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        var entryKey = await PersistAnalysisResultAsync(itemId, pageCount: 1, pageWidth: 3000, pageHeight: 2000);
+        await SeedCacheAsync(itemId, ordinal: 0, variant: "thumbnail");
+
+        // maxDim is a page-endpoint concern; the thumbnail endpoint ignores it.
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}/thumbnail");
+        response.EnsureSuccessStatusCode();
+
+        Assert.Equal("thumbnail", VariantHeader(response));
+    }
+
+    [Fact]
     public async Task GetPage_InvalidIndex_Returns404()
     {
         var (client, itemId) = await SetupLibraryAndScanAsync();
@@ -126,6 +242,15 @@ public sealed class PageHttpTests : IDisposable
     }
 
     // --- Helpers ---
+
+    /// <summary>
+    /// Reads the X-MangaPixer-Variant header the page endpoints stamp with the
+    /// variant actually served ("webp", "webp@1440", "thumbnail").
+    /// </summary>
+    private static string? VariantHeader(HttpResponseMessage response) =>
+        response.Headers.TryGetValues("X-MangaPixer-Variant", out var values)
+            ? values.FirstOrDefault()
+            : null;
 
     private async Task<(HttpClient Client, string ItemId)> SetupLibraryAndScanAsync()
     {
@@ -212,7 +337,13 @@ public sealed class PageHttpTests : IDisposable
         try { File.Delete(tmp); } catch { /* best effort */ }
     }
 
-    private async Task<string> PersistAnalysisResultAsync(string itemPublicId, int pageCount)
+    /// <summary>
+    /// Seeds analysis state and page entries. <paramref name="pageWidth"/> /
+    /// <paramref name="pageHeight"/> default to the original 1x1 placeholder so
+    /// pre-existing tests are unaffected; the page-variant tests pass realistic
+    /// intrinsic sizes because the controller consults them before sizing a page.
+    /// </summary>
+    private async Task<string> PersistAnalysisResultAsync(string itemPublicId, int pageCount, int pageWidth = 1, int pageHeight = 1)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
@@ -259,8 +390,8 @@ public sealed class PageHttpTests : IDisposable
                 EntryKey = new com.lifepixer.mangapixer.Core.Catalog.PageEntryKey(i).ToOpaque(),
                 SourceEntryLocator = entryNames[i],
                 MediaType = "image/png",
-                Width = 1,
-                Height = 1,
+                Width = pageWidth,
+                Height = pageHeight,
                 AnimationState = 0,
                 PageState = 0,
                 ByteSize = 100,

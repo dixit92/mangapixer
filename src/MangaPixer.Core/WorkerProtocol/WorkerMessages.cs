@@ -11,6 +11,11 @@ public static class WorkerProtocolVersion
 {
     // v2: added on-demand page extraction (extract / extract_result / extract_error)
     // with worker-side WebP transcode + thumbnail variants.
+    //
+    // Still v2 after 1.19.0's sized page variants: ExtractRequest.MaxDimension is
+    // an OPTIONAL field with a default (0 = no resize), so both directions of a
+    // version skew degrade to the pre-1.19.0 behaviour instead of failing. A bump
+    // is reserved for changes that an older peer cannot ignore safely.
     public const int Current = 2;
 }
 
@@ -203,8 +208,10 @@ public sealed record ExtractRequest
     public required string SourceEntryKey { get; init; }
 
     /// <summary>
-    /// Variant to produce: "webp" (full-size WebP), "thumbnail" (≤ThumbnailMaxDimension
-    /// WebP), or "original" (verbatim source bytes, no transcode).
+    /// Variant to produce: "webp" (full-size WebP), "webp@&lt;n&gt;" (WebP downscaled
+    /// so the longest edge is ≤ <see cref="MaxDimension"/>, e.g. "webp@1440"),
+    /// "thumbnail" (≤ThumbnailMaxDimension WebP), or "original" (verbatim source
+    /// bytes, no transcode).
     /// </summary>
     public required string Variant { get; init; }
 
@@ -223,6 +230,19 @@ public sealed record ExtractRequest
 
     /// <summary>WebP quality (0–100) for lossy transcode.</summary>
     public int WebpQuality { get; init; } = 82;
+
+    /// <summary>
+    /// Longest edge (px) for sized page variants ("webp@&lt;n&gt;"). 0 means no
+    /// resize — the full-size transcode. The worker never upscales: a source
+    /// already within this bound is encoded at its native size.
+    ///
+    /// Additive field with a default, so it does NOT bump
+    /// <see cref="WorkerProtocolVersion.Current"/>: an older worker simply
+    /// ignores it and a newer worker defaults it to 0 when an older server
+    /// omits it. Server and worker always ship together in one image/package,
+    /// so a mixed pair is not a supported deployment anyway.
+    /// </summary>
+    public int MaxDimension { get; init; }
 }
 
 /// <summary>

@@ -354,7 +354,8 @@ public sealed class WorkerLoop
             {
                 encoded = new ImageVariantEncoder().Encode(
                     bytes, request.Variant, request.OutputPath,
-                    request.ThumbnailMaxDimension, request.WebpQuality);
+                    request.ThumbnailMaxDimension, request.WebpQuality,
+                    request.MaxDimension);
             }
             catch (Exception ex)
             {

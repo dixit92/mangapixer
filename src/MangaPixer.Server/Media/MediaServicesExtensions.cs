@@ -35,6 +35,30 @@ public static class MediaServicesExtensions
                 opts.BackoffMs = backoffMs;
             return opts;
         });
+        // Downscaled page-variant ladder (1.19.0). Bound from
+        // MangaPixer:Media:PageVariants:*; a default instance is used when the
+        // section is absent so sized page variants work without explicit config.
+        // The ladder accepts either indexed children
+        // (MangaPixer__Media__PageVariants__MaxDimensions__0=1080) or a single
+        // comma-separated value, because env-var arrays are awkward to write.
+        services.AddSingleton(sp =>
+        {
+            var config = sp.GetService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var opts = new PageVariantOptions();
+            if (config is null)
+                return opts;
+            var section = config.GetSection("MangaPixer:Media:PageVariants");
+            var ladder = ReadLadder(section);
+            if (ladder is not null)
+                opts.MaxDimensions = ladder;
+            if (int.TryParse(section["WebpQuality"], System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture, out var quality))
+                opts.WebpQuality = quality;
+            // Fail fast at startup: a malformed ladder must not silently serve
+            // the wrong sizes for the lifetime of the process.
+            opts.Validate();
+            return opts;
+        });
         services.AddSingleton<ScratchWorkspaceManager>(sp =>
             new ScratchWorkspaceManager(options.ScratchRoot, options.ScratchBudgetBytes,
                 sp.GetService<ILogger<ScratchWorkspaceManager>>()));
@@ -86,5 +110,45 @@ public static class MediaServicesExtensions
         });
 
         return services;
+    }
+
+    /// <summary>
+    /// Reads the page-variant ladder from configuration, accepting either an
+    /// indexed array section or a single comma-separated string. Returns null
+    /// when the key is absent (keep the defaults). A present-but-unparseable
+    /// entry throws so a typo surfaces at startup rather than silently dropping
+    /// a bucket.
+    /// </summary>
+    private static int[]? ReadLadder(Microsoft.Extensions.Configuration.IConfiguration section)
+    {
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        var arraySection = section.GetSection("MaxDimensions");
+
+        var children = arraySection.GetChildren().ToList();
+        if (children.Count > 0)
+        {
+            var values = new int[children.Count];
+            for (var i = 0; i < children.Count; i++)
+            {
+                if (!int.TryParse(children[i].Value, System.Globalization.NumberStyles.Integer, invariant, out values[i]))
+                    throw new InvalidOperationException(
+                        "MangaPixer:Media:PageVariants:MaxDimensions contains a non-integer entry.");
+            }
+            return values;
+        }
+
+        var raw = arraySection.Value;
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        var parts = raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var parsed = new int[parts.Length];
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (!int.TryParse(parts[i], System.Globalization.NumberStyles.Integer, invariant, out parsed[i]))
+                throw new InvalidOperationException(
+                    "MangaPixer:Media:PageVariants:MaxDimensions contains a non-integer entry.");
+        }
+        return parsed;
     }
 }
