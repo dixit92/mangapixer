@@ -19,7 +19,6 @@ import {
   AdminUserDto,
   DirectoryListingDto,
   LibraryDto,
-  LogLevel,
   ReaderMode,
   RegisterLibraryRequest,
   CreateUserRequest,
@@ -403,29 +402,13 @@ import { DebugLogCardComponent } from './debug-log-card.component';
       </mat-card-content>
     </mat-card>
 
-    <!-- Diagnostics: log-level control (section 9) + database backups -->
+    <!-- Backups (was "Diagnostics"; the global log-level control was removed - per-category
+         logging lives in the Debug Logging card, avoiding an accidental global-DEBUG log explosion) -->
     <mat-card>
       <mat-card-header>
-        <mat-card-title>Diagnostics</mat-card-title>
+        <mat-card-title>Backups</mat-card-title>
       </mat-card-header>
       <mat-card-content>
-        <div class="log-level-control">
-          <mat-form-field appearance="fill">
-            <mat-label>Log Level</mat-label>
-            <mat-select [(ngModel)]="logLevel" (selectionChange)="setLogLevel()">
-              @for (level of logLevels; track level) {
-                <mat-option [value]="level">{{ level }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-          <p class="log-level-hint">
-            <mat-icon inline>info</mat-icon>
-            Ephemeral — resets to Information on restart. Microsoft.* overrides stay at Warning.
-          </p>
-        </div>
-
-        <mat-divider></mat-divider>
-        <h4>Database Backups</h4>
         @if (backupLoading()) {
           <p>Loading…</p>
         } @else if (backupStatus(); as status) {
@@ -548,11 +531,6 @@ import { DebugLogCardComponent } from './debug-log-card.component';
     .browser-list { max-height: 260px; overflow-y: auto; }
     .browser-entry { cursor: pointer; }
     .browser-actions { display: inline-flex; align-items: center; gap: 4px; }
-    .log-level-control { max-width: 400px; }
-    .log-level-hint {
-      font-size: 13px; opacity: 0.8; margin: 4px 0 0;
-      display: flex; align-items: center; gap: 6px;
-    }
     .activation-link-box {
       margin-top: 16px; padding: 12px 16px; border-radius: 8px;
       border: 1px solid rgba(76, 175, 80, 0.5); background: rgba(76, 175, 80, 0.06);
@@ -644,10 +622,6 @@ export class AdminComponent implements OnInit, OnDestroy {
     { value: 'VerticalWebtoon', label: 'Vertical' },
   ];
 
-  readonly logLevels: LogLevel[] = ['Verbose', 'Debug', 'Information', 'Warning', 'Error', 'Fatal'];
-  logLevel = 'Information';
-  private logLevelLoading = false;
-
   // Rotating database backups status (1.2.0).
   readonly backupLoading = signal(true);
   readonly backupBusy = signal(false);
@@ -656,7 +630,6 @@ export class AdminComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadLibraries();
     this.loadUsers();
-    this.loadLogLevel();
     this.loadBackupStatus();
     this.loadPlatform();
   }
@@ -1229,32 +1202,6 @@ export class AdminComponent implements OnInit, OnDestroy {
         });
         this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 5000 });
       },
-    });
-  }
-
-  // --- Log-level control (section 9) ---
-
-  private loadLogLevel(): void {
-    this.logLevelLoading = true;
-    this.api.getLoggingLevel().subscribe({
-      next: (dto) => {
-        this.logLevel = dto.level;
-        this.logLevelLoading = false;
-      },
-      error: () => {
-        this.logLevelLoading = false;
-      },
-    });
-  }
-
-  setLogLevel(): void {
-    if (this.logLevelLoading) return;
-    this.api.setLoggingLevel(this.logLevel).subscribe({
-      next: (dto) => {
-        this.logLevel = dto.level;
-        this.snackBar.open(`Log level set to ${dto.level}`, 'Close', { duration: 3000 });
-      },
-      error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 5000 }),
     });
   }
 

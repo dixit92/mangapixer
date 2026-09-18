@@ -130,6 +130,23 @@ describe('DebugLogCardComponent', () => {
     expect(c.error()).toBe('nope');
   });
 
+  it('PUTs only the global level (no categories) when the global level is changed', () => {
+    const fixture = createLoaded();
+    const c = fixture.componentInstance;
+
+    c.setGlobalLevel(change('Debug'));
+    expect(c.savingGlobal()).toBe(true);
+
+    const req = httpMock.expectOne(URL);
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ level: 'Debug' });
+    req.flush(state({}, 'Debug'));
+    fixture.detectChanges();
+
+    expect(c.savingGlobal()).toBe(false);
+    expect(c.globalLevel()).toBe('Debug');
+  });
+
   it('shows an error instead of controls when the initial load fails', () => {
     const fixture = create();
     httpMock.expectOne(URL).flush(
