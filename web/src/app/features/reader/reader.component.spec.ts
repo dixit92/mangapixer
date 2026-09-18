@@ -2409,10 +2409,10 @@ describe('ReaderComponent standalone-display immersive default (1.20.0)', () => 
       matches: standalone && q === '(display-mode: standalone)',
       media: q,
       onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
+      addListener: () => { /* stub: no change events in tests */ },
+      removeListener: () => { /* stub */ },
+      addEventListener: () => { /* stub */ },
+      removeEventListener: () => { /* stub */ },
       dispatchEvent: () => false,
     })) as unknown as typeof window.matchMedia;
     return () => { window.matchMedia = original; };
