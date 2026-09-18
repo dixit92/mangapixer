@@ -36,6 +36,11 @@ using Microsoft.EntityFrameworkCore;
 /// of candidate archives attributed to the stack (always ≥ 1). Convention-agnostic: a stack is
 /// never assumed to be a "series" — the top level is whatever unit the user's layout chose.
 /// </description></item>
+/// <item><description>
+/// Every stack carries a derived <see cref="RecentChapterStack.ReadState"/> (1.20.0), the same
+/// read rollup (<see cref="FolderReadRollupRules"/>) the optional <c>readState</c> filter uses —
+/// resolved once per library group so the tag and the filter can never disagree.
+/// </description></item>
 /// </list>
 /// </summary>
 public sealed class RecentChaptersService
@@ -230,21 +235,28 @@ public sealed class RecentChaptersService
                 LatestItemName = latest.DisplayName,
                 LatestAddedAt = latest.CreatedAt,
                 NewCount = list.Count,
+                ReadState = ReadStateWireValue(null), // placeholder; set below once rollups resolve
             }, topId));
         }
+
+        // Read-state rollup (1.20.0 tag + 1.17.0 filter, unified): resolved for EVERY stack —
+        // one bounded rollup query per library group, same as the folder-cover resolution below
+        // — so the per-card tag and the read-state filter are always derived from the same
+        // rollup and never disagree. Rollup is over each stack's TOP-LEVEL node's readable
+        // descendants (its whole subtree for a folder stack, or just itself for a standalone
+        // archive stack) — NOT limited to the recency-window candidates — so a stack's read
+        // state matches what the folder rollup badge / archive card would show if the user
+        // browsed to it directly.
+        var rollups = await ResolveReadRollupsAsync(stacks.Select(s => s.TopId).ToList(), userId, ct);
+        stacks = stacks
+            .Select(s => (s.Stack with { ReadState = ReadStateWireValue(ResolveRollup(rollups, s.TopId)) }, s.TopId))
+            .ToList();
 
         // Read-state filter (1.17.0), applied BEFORE the newest-activity ordering and the
         // per-library cap so a filtered-out stack never displaces one that matches — mirrors
         // the browse view applying its read-state filter to the base query before pagination.
-        // Rollup is over each stack's TOP-LEVEL node's readable descendants (its whole subtree
-        // for a folder stack, or just itself for a standalone archive stack) — NOT limited to
-        // the recency-window candidates — so a stack's read state matches what the folder
-        // rollup badge / archive card would show if the user browsed to it directly.
         if (readState != HomeReadStateFilter.All)
-        {
-            var rollups = await ResolveReadRollupsAsync(stacks.Select(s => s.TopId).ToList(), userId, ct);
             stacks = stacks.Where(s => MatchesReadState(rollups, s.TopId, readState)).ToList();
-        }
 
         // Order by newest activity, cap to perLibrary STACKS.
         var ordered = stacks
@@ -452,6 +464,25 @@ public sealed class RecentChaptersService
             _ => true,
         };
     }
+
+    /// <summary>Looks up a stack's rollup by its top-level node id, or null when absent (same "no readable descendant" case <see cref="MatchesReadState"/> treats as Unread).</summary>
+    private static FolderReadRollup? ResolveRollup(Dictionary<long, FolderReadRollup> rollups, long topId) =>
+        rollups.TryGetValue(topId, out var rollup) ? rollup : null;
+
+    /// <summary>
+    /// Maps a rollup to the stack's <see cref="RecentChapterStack.ReadState"/> wire value
+    /// (1.20.0): lower-case <c>"read"</c> / <c>"reading"</c> / <c>"unread"</c>, matching the
+    /// <c>readState</c> query param's own casing rather than the PascalCase
+    /// <see cref="FolderReadRollup"/> enum names. <c>null</c> (no readable descendant archive)
+    /// reports <c>"unread"</c>, the same fallback <see cref="MatchesReadState"/> uses for the
+    /// <see cref="HomeReadStateFilter.Unread"/> filter.
+    /// </summary>
+    private static string ReadStateWireValue(FolderReadRollup? rollup) => rollup switch
+    {
+        FolderReadRollup.Read => "read",
+        FolderReadRollup.Reading => "reading",
+        _ => "unread",
+    };
 
     private sealed record CandidateArchive
     {

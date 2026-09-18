@@ -84,6 +84,39 @@ describe('ReaderPreferencesService', () => {
     });
   });
 
+  /**
+   * 1.20.0 "Downscale filter": which resampling filter the server uses when it
+   * downscales a page. Same storage contract as the other 1.19.0 preferences
+   * (default when unset, round-trip across instances, default for garbage).
+   */
+  describe('downscale filter', () => {
+    it('defaults to balanced (server Mitchell default) when nothing is stored', () => {
+      expect(new ReaderPreferencesService().downscaleFilter()).toBe('balanced');
+    });
+
+    it('persists and reloads the chosen filter', () => {
+      const a = new ReaderPreferencesService();
+      a.setDownscaleFilter('sharp');
+      expect(a.downscaleFilter()).toBe('sharp');
+      expect(localStorage.getItem(ReaderPreferencesService.DownscaleFilterKey)).toBe('sharp');
+      expect(new ReaderPreferencesService().downscaleFilter()).toBe('sharp');
+      a.setDownscaleFilter('soft');
+      expect(new ReaderPreferencesService().downscaleFilter()).toBe('soft');
+      a.setDownscaleFilter('balanced');
+      expect(new ReaderPreferencesService().downscaleFilter()).toBe('balanced');
+    });
+
+    it('falls back to balanced for an unrecognised stored value', () => {
+      localStorage.setItem(ReaderPreferencesService.DownscaleFilterKey, 'crunchy');
+      expect(new ReaderPreferencesService().downscaleFilter()).toBe('balanced');
+    });
+
+    it('falls back to balanced for an empty stored value', () => {
+      localStorage.setItem(ReaderPreferencesService.DownscaleFilterKey, '');
+      expect(new ReaderPreferencesService().downscaleFilter()).toBe('balanced');
+    });
+  });
+
   describe('storage failures', () => {
     /**
      * Private-mode Safari throws from setItem. The in-memory signal must still
@@ -98,6 +131,8 @@ describe('ReaderPreferencesService', () => {
         expect(svc.pageQuality()).toBe('full');
         expect(() => svc.setUpscaler('enhance')).not.toThrow();
         expect(svc.upscaler()).toBe('enhance');
+        expect(() => svc.setDownscaleFilter('sharp')).not.toThrow();
+        expect(svc.downscaleFilter()).toBe('sharp');
       } finally {
         Storage.prototype.setItem = original;
       }
@@ -110,6 +145,7 @@ describe('ReaderPreferencesService', () => {
         const svc = new ReaderPreferencesService();
         expect(svc.pageQuality()).toBe('auto');
         expect(svc.upscaler()).toBe('smooth');
+        expect(svc.downscaleFilter()).toBe('balanced');
       } finally {
         Storage.prototype.getItem = original;
       }

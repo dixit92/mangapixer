@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.Tests.Server.Media;
 
+using com.lifepixer.mangapixer.Core.Media;
 using com.lifepixer.mangapixer.Server.Media;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +19,8 @@ public sealed class PageVariantOptionsTests
 
         Assert.Equal(new[] { 1080, 1440, 2160 }, options.MaxDimensions);
         Assert.Equal(82, options.WebpQuality);
+        // 1.20.0 moved the default off Lanczos ("sharp") deliberately.
+        Assert.Equal("balanced", options.DefaultFilter);
         options.Validate();
     }
 
@@ -56,10 +59,63 @@ public sealed class PageVariantOptionsTests
         Assert.Null(options.SelectBucket(1440));
     }
 
-    [Fact]
-    public void VariantName_IsTheCacheDistinctBucketVariant()
+    [Theory]
+    [InlineData(1440, "balanced", "webp@1440:balanced")]
+    [InlineData(2160, "sharp", "webp@2160:sharp")]
+    [InlineData(1080, "soft", "webp@1080:soft")]
+    public void VariantName_IsTheCacheDistinctBucketAndFilterVariant(int bucket, string filter, string expected)
     {
-        Assert.Equal("webp@1440", PageVariantOptions.VariantName(1440));
+        Assert.Equal(expected, PageVariantOptions.VariantName(bucket, filter));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("nope")]
+    public void VariantName_FallsBackToSharpForUnusableFilters(string? filter)
+    {
+        // Callers validate first; this only guarantees the string stays well
+        // formed, and the fallback matches the encoder's own null/unknown rule.
+        Assert.Equal("webp@1440:sharp", PageVariantOptions.VariantName(1440, filter));
+    }
+
+    [Theory]
+    [InlineData("sharp")]
+    [InlineData("balanced")]
+    [InlineData("soft")]
+    public void Validate_AcceptsEveryFilterInTheVocabulary(string filter)
+    {
+        var options = new PageVariantOptions { DefaultFilter = filter };
+
+        options.Validate();
+
+        Assert.Equal(filter, options.DefaultFilter);
+    }
+
+    [Theory]
+    [InlineData("Balanced")]
+    [InlineData("  SOFT  ")]
+    public void Validate_NormalisesFilterCaseAndWhitespace(string configured)
+    {
+        // The value reaches a cache key and a response header, so it is folded
+        // to the canonical lower-case spelling instead of being rejected: a
+        // capitalised config value is a reasonable thing for a human to write.
+        var options = new PageVariantOptions { DefaultFilter = configured };
+
+        options.Validate();
+
+        Assert.Equal(configured.Trim().ToLowerInvariant(), options.DefaultFilter);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("lanczos")]
+    [InlineData("crisp")]
+    public void Validate_RejectsUnknownDefaultFilter(string filter)
+    {
+        var options = new PageVariantOptions { DefaultFilter = filter };
+
+        Assert.Throws<InvalidOperationException>(options.Validate);
     }
 
     [Theory]
@@ -93,12 +149,25 @@ public sealed class PageVariantOptionsTests
             ["MangaPixer:Media:PageVariants:MaxDimensions:0"] = "800",
             ["MangaPixer:Media:PageVariants:MaxDimensions:1"] = "1600",
             ["MangaPixer:Media:PageVariants:WebpQuality"] = "70",
+            ["MangaPixer:Media:PageVariants:DefaultFilter"] = "soft",
         });
 
         var options = provider.GetRequiredService<PageVariantOptions>();
 
         Assert.Equal(new[] { 800, 1600 }, options.MaxDimensions);
         Assert.Equal(70, options.WebpQuality);
+        Assert.Equal("soft", options.DefaultFilter);
+    }
+
+    [Fact]
+    public void Registration_ThrowsOnUnknownDefaultFilter()
+    {
+        var provider = BuildProvider(new Dictionary<string, string?>
+        {
+            ["MangaPixer:Media:PageVariants:DefaultFilter"] = "lanczos",
+        });
+
+        Assert.Throws<InvalidOperationException>(() => provider.GetRequiredService<PageVariantOptions>());
     }
 
     [Fact]
@@ -124,6 +193,7 @@ public sealed class PageVariantOptionsTests
         var options = provider.GetRequiredService<PageVariantOptions>();
 
         Assert.Equal(new[] { 1080, 1440, 2160 }, options.MaxDimensions);
+        Assert.Equal(PageVariantFilters.Balanced, options.DefaultFilter);
     }
 
     [Fact]

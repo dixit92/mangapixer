@@ -4,6 +4,7 @@ using com.lifepixer.mangapixer.Server.Logging;
 
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Media;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Server.Media;
 using com.lifepixer.mangapixer.Server.Persistence;
@@ -14,16 +15,16 @@ using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// Page and cover delivery endpoints.
-/// GET /api/v1/items/{itemId}/pages/{entryKey}[?maxDim=n] — page image (full or display-sized)
+/// GET /api/v1/items/{itemId}/pages/{entryKey}[?maxDim=n][&filter=sharp|balanced|soft] — page image (full or display-sized)
 /// GET /api/v1/items/{itemId}/pages/{entryKey}/thumbnail — thumbnail variant
 /// GET /api/v1/items/{itemId}/cover — cover image (first page)
 ///
 /// Every page response carries an <c>X-MangaPixer-Variant</c> header naming the
-/// variant actually served ("webp", "webp@1440", "thumbnail"), so the client can
-/// tell when its <c>maxDim</c> request was snapped to a bucket or declined
-/// (page already smaller than the bucket, or above the ladder). This header is
-/// not expressible in the generated OpenAPI document, which is why it is
-/// specified here.
+/// variant actually served ("webp", "webp@1440:balanced", "thumbnail"), so the
+/// client can tell when its <c>maxDim</c> request was snapped to a bucket or
+/// declined (page already smaller than the bucket, or above the ladder), and
+/// which resampling filter it actually got. This header is not expressible in
+/// the generated OpenAPI document, which is why it is specified here.
 ///
 /// All endpoints check authorization before serving. Source paths are never
 /// exposed. Pages are extracted on-demand from archives and cached.
@@ -86,6 +87,11 @@ public sealed class PageController : ControllerBase
     /// largest bucket, or when the page's own longest edge already fits inside
     /// the chosen bucket (the server never upscales, and a pass-through bucket
     /// entry would only waste cache budget).
+    ///
+    /// <paramref name="filter"/> picks the resampling kernel for that downscale
+    /// (1.20.0). It is validated on every request but only has an effect when a
+    /// sized variant is actually produced: on a full-size response the served
+    /// variant stays plain "webp".
     /// </summary>
     /// <param name="maxDim">
     /// Optional longest edge in pixels. Absent, empty or non-positive means
@@ -93,12 +99,21 @@ public sealed class PageController : ControllerBase
     /// <c>invalid_request</c>. Bound as a string so the rejection is a typed
     /// ApiError like every other bad request, not a framework ProblemDetails.
     /// </param>
+    /// <param name="filter">
+    /// Optional resampling filter: <c>sharp</c>, <c>balanced</c> or <c>soft</c>
+    /// (case-insensitive). Absent or empty means the server default
+    /// (<see cref="PageVariantOptions.DefaultFilter"/>). Any other value is
+    /// rejected with 400 <c>invalid_request</c> rather than silently ignored,
+    /// so a client typo is visible instead of quietly producing the wrong look.
+    /// Bound as a string for the same typed-ApiError reason as maxDim.
+    /// </param>
     [HttpGet("{itemId}/pages/{entryKey}")]
     public async Task<IActionResult> GetPage(
         string itemId,
         string entryKey,
         CancellationToken ct,
-        [FromQuery(Name = "maxDim")] string? maxDim = null)
+        [FromQuery(Name = "maxDim")] string? maxDim = null,
+        [FromQuery(Name = "filter")] string? filter = null)
     {
         int requestedMaxDim = 0;
         if (!string.IsNullOrWhiteSpace(maxDim) &&
@@ -108,7 +123,21 @@ public sealed class PageController : ControllerBase
             return BadRequest(new ApiError { Error = "invalid_request", Message = "maxDim must be an integer." });
         }
 
-        return await GetPageInternal(itemId, entryKey, "original", ct, requestedMaxDim);
+        // Validate unconditionally, even when no sized variant will be produced:
+        // a client that misspells the filter should learn that now, not the
+        // first time it happens to request a size.
+        var resolvedFilter = _pageVariants.DefaultFilter;
+        if (!string.IsNullOrWhiteSpace(filter) &&
+            !PageVariantFilters.TryNormalize(filter, out resolvedFilter))
+        {
+            return BadRequest(new ApiError
+            {
+                Error = "invalid_request",
+                Message = "filter must be one of " + PageVariantFilters.Vocabulary + ".",
+            });
+        }
+
+        return await GetPageInternal(itemId, entryKey, "original", ct, requestedMaxDim, resolvedFilter);
     }
 
     [HttpGet("{itemId}/pages/{entryKey}/thumbnail")]
@@ -124,7 +153,9 @@ public sealed class PageController : ControllerBase
         return await GetCoverInternal(itemId, ct);
     }
 
-    private async Task<IActionResult> GetPageInternal(string itemId, string entryKey, string variant, CancellationToken ct, int requestedMaxDim = 0)
+    private async Task<IActionResult> GetPageInternal(
+        string itemId, string entryKey, string variant, CancellationToken ct,
+        int requestedMaxDim = 0, string? resizeFilter = null)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -157,6 +188,9 @@ public sealed class PageController : ControllerBase
         // request carrying maxDim may get a bucket-sized WebP (1.19.0).
         var workerVariant = variant == "thumbnail" ? "thumbnail" : "webp";
         var pageMaxDimension = 0;
+        // Only set alongside pageMaxDimension: the filter is meaningless (and
+        // must stay out of the cache key) when nothing is being resampled.
+        string? pageResizeFilter = null;
 
         if (variant != "thumbnail" && requestedMaxDim > 0 &&
             _pageVariants.SelectBucket(requestedMaxDim) is int bucket)
@@ -169,7 +203,8 @@ public sealed class PageController : ControllerBase
             var longestEdge = Math.Max(pageEntry.Width ?? 0, pageEntry.Height ?? 0);
             if (longestEdge <= 0 || longestEdge > bucket)
             {
-                workerVariant = PageVariantOptions.VariantName(bucket);
+                pageResizeFilter = resizeFilter ?? _pageVariants.DefaultFilter;
+                workerVariant = PageVariantOptions.VariantName(bucket, pageResizeFilter);
                 pageMaxDimension = bucket;
             }
         }
@@ -206,7 +241,7 @@ public sealed class PageController : ControllerBase
             // Sized variants get their own configurable quality; the full-size
             // and thumbnail paths keep the existing constant.
             pageMaxDimension > 0 ? _pageVariants.WebpQuality : WebpQuality,
-            ct, pageMaxDimension);
+            ct, pageMaxDimension, pageResizeFilter);
 
         if (!outcome.Success)
         {

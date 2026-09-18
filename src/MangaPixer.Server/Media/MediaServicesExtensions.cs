@@ -54,6 +54,13 @@ public static class MediaServicesExtensions
             if (int.TryParse(section["WebpQuality"], System.Globalization.NumberStyles.Integer,
                     System.Globalization.CultureInfo.InvariantCulture, out var quality))
                 opts.WebpQuality = quality;
+            // Default resampling filter for sized page variants (1.20.0).
+            // Taken verbatim; Validate() below normalises the case and rejects
+            // an unknown name, so a typo fails at startup rather than silently
+            // falling back to a filter the owner did not choose.
+            var defaultFilter = section["DefaultFilter"];
+            if (!string.IsNullOrWhiteSpace(defaultFilter))
+                opts.DefaultFilter = defaultFilter;
             // Fail fast at startup: a malformed ladder must not silently serve
             // the wrong sizes for the lifetime of the process.
             opts.Validate();

@@ -656,6 +656,12 @@ export interface RecentChapterStack {
   latestAddedAt: string;
   /** Count of recently-added descendant archives in the stack (>= 1). */
   newCount: number;
+  /**
+   * Derived read state of the stack's top-level node (1.20.0, additive): the same rollup
+   * the `readState` filter uses, so the tag and the filter never disagree. A folder stack
+   * rolls up over its whole subtree; a loose archive stack rolls up over just itself.
+   */
+  readState: 'read' | 'reading' | 'unread';
 }
 
 /**

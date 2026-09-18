@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.MediaWorker.Images;
 
+using com.lifepixer.mangapixer.Core.Media;
 using ImageMagick;
 
 /// <summary>
@@ -20,9 +21,10 @@ public sealed record EncodedVariant
 ///
 /// Variants:
 ///  - "webp":      full-size WebP transcode (lossy, quality-tunable).
-///  - "webp@&lt;n&gt;": WebP downscaled so the longest edge ≤ pageMaxDimension, using
-///                 the same Lanczos path as the thumbnail (1.19.0). The bucket in
-///                 the name is informational; the size comes from the parameter.
+///  - "webp@&lt;n&gt;:&lt;filter&gt;": WebP downscaled so the longest edge ≤ pageMaxDimension
+///                 (1.19.0), with a selectable resampling kernel (1.20.0). The
+///                 bucket and filter in the name are informational; the size and
+///                 kernel come from the parameters.
 ///  - "thumbnail": WebP downscaled so the longest edge ≤ thumbnailMaxDimension, using a
 ///                 high-quality Lanczos filter (good for line art; avoids the
 ///                 mushy default and screentone moiré on downscale).
@@ -54,7 +56,16 @@ public sealed class ImageVariantEncoder
     /// Longest edge (px) for sized page variants; 0 (default) means no resize, i.e.
     /// the pre-1.19.0 full-size transcode.
     /// </param>
-    public EncodedVariant Encode(byte[] source, string variant, string outputPath, int thumbnailMaxDimension, int webpQuality, int pageMaxDimension = 0)
+    /// <param name="resizeFilter">
+    /// Resampling kernel for sized page variants only: a
+    /// <see cref="PageVariantFilters"/> name. Null (default) or an unrecognised
+    /// name means Lanczos, so a version-skewed or malformed request degrades to
+    /// the pre-1.20.0 behaviour rather than failing. The thumbnail bound keeps
+    /// Lanczos unconditionally: thumbnails are tiny, sharpness matters more than
+    /// screentone beating at that size, and changing them would invalidate every
+    /// cached thumbnail for no reader-visible gain.
+    /// </param>
+    public EncodedVariant Encode(byte[] source, string variant, string outputPath, int thumbnailMaxDimension, int webpQuality, int pageMaxDimension = 0, string? resizeFilter = null)
     {
         if (variant == "original")
         {
@@ -92,7 +103,11 @@ public sealed class ImageVariantEncoder
         if (resizeBound > 0 &&
             (image.Width > (uint)resizeBound || image.Height > (uint)resizeBound))
         {
-            image.FilterType = FilterType.Lanczos;
+            // The thumbnail is always Lanczos; only a sized page variant honours
+            // the requested kernel.
+            image.FilterType = variant == "thumbnail"
+                ? FilterType.Lanczos
+                : MapFilter(resizeFilter);
             // Greater=only shrink; aspect ratio preserved by a single WxH box.
             image.Resize(new MagickGeometry((uint)resizeBound, (uint)resizeBound) { Greater = true });
         }
@@ -107,6 +122,31 @@ public sealed class ImageVariantEncoder
             ByteSize = info.Length,
         };
     }
+
+    /// <summary>
+    /// Maps the public filter vocabulary onto Magick.NET kernels. This is the
+    /// only place the two are tied together - the names travel over HTTP and the
+    /// worker protocol as plain strings so no other assembly needs Magick.NET.
+    ///
+    /// Box is genuine area averaging on a downscale, which is why it is the
+    /// "soft" option: it integrates the halftone dots away instead of ringing
+    /// against them. Mitchell sits between that and Lanczos's sharp, slightly
+    /// ringing reconstruction.
+    ///
+    /// Unknown and null both fall back to Lanczos rather than throwing: the
+    /// server validates the vocabulary at its own boundary, so anything odd
+    /// arriving here is a version skew, and serving a slightly-too-sharp page
+    /// beats failing the request.
+    /// </summary>
+    private static FilterType MapFilter(string? resizeFilter) =>
+        PageVariantFilters.TryNormalize(resizeFilter, out var name)
+            ? name switch
+            {
+                PageVariantFilters.Balanced => FilterType.Mitchell,
+                PageVariantFilters.Soft => FilterType.Box,
+                _ => FilterType.Lanczos,
+            }
+            : FilterType.Lanczos;
 
     private static int CountFrames(byte[] source)
     {

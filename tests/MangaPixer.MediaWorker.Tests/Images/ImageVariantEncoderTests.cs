@@ -6,8 +6,8 @@ using Xunit;
 
 /// <summary>
 /// Tests for sized page-variant encoding (1.19.0). The reader can ask for a
-/// page sized to its display ("webp@1440"); the worker must downscale with
-/// Lanczos, preserve aspect ratio, and never upscale.
+/// page sized to its display ("webp@1440:balanced"); the worker must downscale
+/// with the requested kernel, preserve aspect ratio, and never upscale.
 ///
 /// Fixtures are generated in-process with Magick.NET (a flat PNG compresses to
 /// a few KB even at 3000x2000) rather than committed, following the synthetic
@@ -100,6 +100,81 @@ public sealed class ImageVariantEncoderTests : IDisposable
     }
 
     [Fact]
+    public void Encode_SizedVariant_EveryFilterYieldsSameSizeButDifferentBytes()
+    {
+        // A fine checkerboard is the worst case the filter choice exists for:
+        // it is pure high-frequency energy, exactly like the screentone that
+        // beats against the browser's second resample. If the three kernels
+        // were not actually being applied, their output bytes would be equal.
+        var source = CreateCheckerboardPng(3000, 2000, cell: 3);
+
+        var bytes = new Dictionary<string, byte[]>();
+        foreach (var filter in new[] { "sharp", "balanced", "soft" })
+        {
+            var output = OutputPath();
+            var result = _encoder.Encode(
+                source, "webp@1080:" + filter, output,
+                thumbnailMaxDimension: 320, webpQuality: 82,
+                pageMaxDimension: 1080, resizeFilter: filter);
+
+            // The kernel changes the pixels, never the geometry.
+            Assert.Equal(1080, result.Width);
+            Assert.Equal(720, result.Height);
+            bytes[filter] = File.ReadAllBytes(output);
+        }
+
+        Assert.NotEqual(bytes["sharp"], bytes["balanced"]);
+        Assert.NotEqual(bytes["balanced"], bytes["soft"]);
+        Assert.NotEqual(bytes["sharp"], bytes["soft"]);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("lanczos")]
+    [InlineData("SHARP")]
+    public void Encode_SizedVariant_UnusableFilterFallsBackToSharp(string? filter)
+    {
+        // Null/unknown degrade to the pre-1.20.0 Lanczos path rather than
+        // failing, so a version-skewed worker still serves the page. "SHARP"
+        // is here because normalisation is case-insensitive: it must produce
+        // the sharp kernel, not the fallback by accident.
+        var source = CreateCheckerboardPng(3000, 2000, cell: 3);
+
+        var fallbackOutput = OutputPath();
+        _encoder.Encode(source, "webp@1080", fallbackOutput,
+            thumbnailMaxDimension: 320, webpQuality: 82,
+            pageMaxDimension: 1080, resizeFilter: filter);
+
+        var sharpOutput = OutputPath();
+        _encoder.Encode(source, "webp@1080:sharp", sharpOutput,
+            thumbnailMaxDimension: 320, webpQuality: 82,
+            pageMaxDimension: 1080, resizeFilter: "sharp");
+
+        Assert.Equal(File.ReadAllBytes(sharpOutput), File.ReadAllBytes(fallbackOutput));
+    }
+
+    [Fact]
+    public void Encode_ThumbnailVariant_IgnoresTheResizeFilter()
+    {
+        // Thumbnails stay Lanczos whatever the page filter is: changing them
+        // would invalidate every cached thumbnail for no reader-visible gain.
+        var source = CreateCheckerboardPng(3000, 2000, cell: 3);
+
+        var softOutput = OutputPath();
+        _encoder.Encode(source, "thumbnail", softOutput,
+            thumbnailMaxDimension: 320, webpQuality: 82,
+            pageMaxDimension: 1080, resizeFilter: "soft");
+
+        var defaultOutput = OutputPath();
+        _encoder.Encode(source, "thumbnail", defaultOutput,
+            thumbnailMaxDimension: 320, webpQuality: 82,
+            pageMaxDimension: 1080);
+
+        Assert.Equal(File.ReadAllBytes(defaultOutput), File.ReadAllBytes(softOutput));
+    }
+
+    [Fact]
     public void Encode_ThumbnailVariant_StillUsesThumbnailBound()
     {
         var source = CreatePng(3000, 2000);
@@ -127,6 +202,35 @@ public sealed class ImageVariantEncoderTests : IDisposable
         using var image = new MagickImage(MagickColors.White, (uint)width, (uint)height);
         using var gradient = new MagickImage("gradient:black-white", (uint)width, (uint)height);
         image.Composite(gradient, CompositeOperator.Over);
+        image.Format = MagickFormat.Png;
+        return image.ToByteArray();
+    }
+
+    /// <summary>
+    /// Synthetic PNG of a fine checkerboard - a stand-in for a screentone: a
+    /// near-Nyquist pattern where different resampling kernels visibly (and
+    /// therefore byte-wise) disagree. A gradient would not distinguish them.
+    /// </summary>
+    private static byte[] CreateCheckerboardPng(int width, int height, int cell)
+    {
+        // Written as raw 8-bit grayscale and read back, rather than poked in
+        // pixel by pixel: one allocation and no per-pixel Magick.NET calls for
+        // six million pixels.
+        var raw = new byte[width * height];
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+                raw[(y * width) + x] = ((x / cell) + (y / cell)) % 2 == 0 ? (byte)0 : (byte)255;
+        }
+
+        var settings = new MagickReadSettings
+        {
+            Format = MagickFormat.Gray,
+            Width = (uint)width,
+            Height = (uint)height,
+            Depth = 8,
+        };
+        using var image = new MagickImage(raw, settings);
         image.Format = MagickFormat.Png;
         return image.ToByteArray();
     }

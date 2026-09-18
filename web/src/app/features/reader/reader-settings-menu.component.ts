@@ -7,7 +7,7 @@ import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import {
-  ReaderPreferencesService, PageAnimation, PageQuality, Upscaler,
+  ReaderPreferencesService, PageAnimation, PageQuality, Upscaler, DownscaleFilter,
 } from '../../core/reading/reader-preferences.service';
 import { WebtoonNavPreferencesService, WebtoonTapStep } from './webtoon-nav.service';
 import { UpscaleSupportService } from './upscale.directive';
@@ -83,6 +83,20 @@ export const UPSCALER_OPTIONS: readonly ReaderOption<Upscaler>[] = [
 export const PAGE_QUALITY_OPTIONS: readonly ReaderOption<PageQuality>[] = [
   { value: 'auto', label: 'Auto', icon: 'tune' },
   { value: 'full', label: 'Full', icon: 'high_quality' },
+];
+
+/**
+ * Downscale resampling filter choices (1.20.0). Only takes effect for a sized
+ * (`?maxDim=`) request under Page quality: Auto — a Full-quality / `original`
+ * fit request never downscales, so the group is shown disabled there (see
+ * `ReaderSettingsMenuComponent.filterDisabled`). Vocabulary mirrors the server:
+ * `sharp` = Lanczos (crisp lines, can moire on screentones), `balanced` =
+ * Mitchell (the default), `soft` = area average (smoothest screentones).
+ */
+export const DOWNSCALE_FILTER_OPTIONS: readonly ReaderOption<DownscaleFilter>[] = [
+  { value: 'sharp', label: 'Sharp', icon: 'deblur' },
+  { value: 'balanced', label: 'Balanced', icon: 'texture' },
+  { value: 'soft', label: 'Soft', icon: 'blur_on' },
 ];
 
 export const DIRECTION_OPTIONS: readonly ReaderOption<ReadingDirection>[] = [
@@ -202,6 +216,22 @@ export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
           </button>
         }
       </div>
+      <div role="group" aria-label="Downscale filter">
+        <div class="menu-group-label">Downscale filter</div>
+        @for (opt of downscaleFilterOptions; track opt.value) {
+          <button mat-menu-item role="menuitemradio"
+                  [disabled]="filterDisabled()"
+                  [class.selected-option]="prefs.downscaleFilter() === opt.value"
+                  [attr.aria-checked]="prefs.downscaleFilter() === opt.value"
+                  (click)="chooseDownscaleFilter(opt.value)"
+                  [matTooltip]="filterOptionHint(opt.value)" matTooltipPosition="right"
+                  [attr.aria-label]="'Downscale filter: ' + opt.label">
+            <mat-icon>{{ opt.icon }}</mat-icon>
+            {{ opt.label }}
+          </button>
+        }
+        <div class="menu-hint">{{ filterHint() }}</div>
+      </div>
     </mat-menu>
   `,
   styles: [`
@@ -228,6 +258,7 @@ export class ReaderSettingsMenuComponent {
   readonly tapStepOptions = WEBTOON_TAP_STEP_OPTIONS;
   readonly upscalerOptions = UPSCALER_OPTIONS;
   readonly pageQualityOptions = PAGE_QUALITY_OPTIONS;
+  readonly downscaleFilterOptions = DOWNSCALE_FILTER_OPTIONS;
 
   /** The reader's current view: webtoon swaps the transition menu for tap-to-scroll. */
   readonly view = input<ReaderView>('paged');
@@ -251,6 +282,28 @@ export class ReaderSettingsMenuComponent {
     return this.support.statusText();
   });
 
+  /**
+   * The Downscale filter only affects a SIZED (`?maxDim=`) request, which only
+   * happens under Page quality: Auto (see `page-variant.ts`). Under Full it is
+   * offered disabled with a reason, the same treatment as Enhance above.
+   */
+  readonly filterDisabled = computed<boolean>(() => this.prefs.pageQuality() === 'full');
+
+  /** One short line under the Downscale filter group: why it's disabled, or what the current pick does. */
+  readonly filterHint = computed<string>(() => {
+    if (this.filterDisabled()) return 'Applies to Auto page quality';
+    return this.filterOptionHint(this.prefs.downscaleFilter());
+  });
+
+  /** Per-option tooltip text (also feeds `filterHint` for the currently selected option). */
+  filterOptionHint(value: DownscaleFilter): string {
+    switch (value) {
+      case 'sharp': return 'Crisp lines, may moire on screentones';
+      case 'balanced': return 'Balanced (default)';
+      case 'soft': return 'Smoothest screentones';
+    }
+  }
+
   choose(mode: PageAnimation): void {
     this.prefs.setPageAnimation(mode);
   }
@@ -262,6 +315,11 @@ export class ReaderSettingsMenuComponent {
 
   choosePageQuality(quality: PageQuality): void {
     this.prefs.setPageQuality(quality);
+  }
+
+  chooseDownscaleFilter(filter: DownscaleFilter): void {
+    if (this.filterDisabled()) return;
+    this.prefs.setDownscaleFilter(filter);
   }
 
   chooseTapStep(step: WebtoonTapStep): void {
@@ -461,6 +519,24 @@ export interface ReaderOptionsHost {
           }
         </div>
       </section>
+      <!-- 1.20.0 downscale filter: only takes effect for a sized (Auto) request,
+           so it is offered disabled with a reason under Full - same treatment
+           as Enhance above. -->
+      <section class="group">
+        <h3 class="group-label" id="reader-options-filter">Downscale filter</h3>
+        <div class="chips" role="radiogroup" aria-labelledby="reader-options-filter">
+          @for (opt of downscaleFilterOptions; track opt.value) {
+            <button type="button" class="chip" role="radio"
+                    [disabled]="filterDisabled()"
+                    [class.selected]="prefs.downscaleFilter() === opt.value"
+                    [attr.aria-checked]="prefs.downscaleFilter() === opt.value"
+                    (click)="pickDownscaleFilter(opt.value)">
+              <mat-icon aria-hidden="true">{{ opt.icon }}</mat-icon>{{ opt.label }}
+            </button>
+          }
+        </div>
+        <p class="group-hint">{{ filterHint() }}</p>
+      </section>
 
       <div class="chapter-row">
         <button mat-stroked-button class="chapter" (click)="chapter('prev')" [disabled]="!host.hasPrevChapter()"
@@ -552,6 +628,7 @@ export class ReaderOptionsSheetComponent {
   readonly tapStepOptions = WEBTOON_TAP_STEP_OPTIONS;
   readonly upscalerOptions = UPSCALER_OPTIONS;
   readonly pageQualityOptions = PAGE_QUALITY_OPTIONS;
+  readonly downscaleFilterOptions = DOWNSCALE_FILTER_OPTIONS;
 
   /** Same rule as the desktop menu: no usable WebGPU, or the webtoon view. */
   readonly enhanceDisabled = computed<boolean>(
@@ -563,9 +640,30 @@ export class ReaderOptionsSheetComponent {
     return this.support.statusText();
   });
 
+  /** Same rule as the desktop menu: only a sized (Auto) request can be filtered. */
+  readonly filterDisabled = computed<boolean>(() => this.prefs.pageQuality() === 'full');
+
+  readonly filterHint = computed<string>(() => {
+    if (this.filterDisabled()) return 'Applies to Auto page quality';
+    return this.filterOptionHint(this.prefs.downscaleFilter());
+  });
+
+  filterOptionHint(value: DownscaleFilter): string {
+    switch (value) {
+      case 'sharp': return 'Crisp lines, may moire on screentones';
+      case 'balanced': return 'Balanced (default)';
+      case 'soft': return 'Smoothest screentones';
+    }
+  }
+
   pickUpscaler(upscaler: Upscaler): void {
     if (upscaler === 'enhance' && this.enhanceDisabled()) return;
     this.prefs.setUpscaler(upscaler);
+  }
+
+  pickDownscaleFilter(filter: DownscaleFilter): void {
+    if (this.filterDisabled()) return;
+    this.prefs.setDownscaleFilter(filter);
   }
 
   /**

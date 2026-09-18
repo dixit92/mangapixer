@@ -2387,6 +2387,87 @@ describe('ReaderComponent iOS/iPadOS immersive fullscreen (IPAD-FULLSCREEN)', ()
 });
 
 /**
+ * Standalone/installed-app immersive default (1.20.0, owner request): the
+ * installed home-screen app / standalone PWA has no browser chrome to hide
+ * either, so the reader should already be immersive (bars auto-hide,
+ * tap-centre reveals) the moment it opens, WITHOUT ever calling the
+ * Fullscreen API — same in-page immersive mechanism as iOS/iPadOS above, just
+ * a different reason to prefer it (see `useInPageImmersive`).
+ *
+ * isStandalone is computed once from `window` when the component is
+ * constructed (like isIOSImmersive is from `navigator`), so matchMedia must be
+ * stubbed BEFORE createComponent().
+ */
+describe('ReaderComponent standalone-display immersive default (1.20.0)', () => {
+  function stubStandaloneMatchMedia(standalone: boolean) {
+    const original = window.matchMedia;
+    // The full MediaQueryList shape (both the legacy addListener/removeListener
+    // and the modern EventTarget methods): ReaderComponent also has a live
+    // BreakpointObserver (narrow-portrait detection) that calls these on
+    // whatever matchMedia returns, so a bare { matches } fake makes it throw.
+    window.matchMedia = ((q: string) => ({
+      matches: standalone && q === '(display-mode: standalone)',
+      media: q,
+      onchange: null,
+      addListener: () => { /* stub: no change events in tests */ },
+      removeListener: () => { /* stub */ },
+      addEventListener: () => { /* stub */ },
+      removeEventListener: () => { /* stub */ },
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+    return () => { window.matchMedia = original; };
+  }
+
+  function create() {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const fixture = TestBed.createComponent(ReaderComponent);
+    fixture.detectChanges(); // ngOnInit
+    return { fixture, c: fixture.componentInstance };
+  }
+
+  it('starts immersive (isFullscreen true) when launched standalone', () => {
+    const restore = stubStandaloneMatchMedia(true);
+    try {
+      const { c } = create();
+      expect(c.isStandalone).toBe(true);
+      expect(c.isFullscreen()).toBe(true);
+    } finally {
+      restore();
+    }
+  });
+
+  it('starts non-immersive in an ordinary browser tab', () => {
+    const restore = stubStandaloneMatchMedia(false);
+    try {
+      const { c } = create();
+      expect(c.isStandalone).toBe(false);
+      expect(c.isFullscreen()).toBe(false);
+    } finally {
+      restore();
+    }
+  });
+
+  it('the button still toggles it off and back on, without ever calling requestFullscreen', () => {
+    const restore = stubStandaloneMatchMedia(true);
+    try {
+      const { c } = create();
+      expect(c.isFullscreen()).toBe(true);
+      const requestFullscreen = vi.fn();
+      Object.defineProperty(document.documentElement, 'requestFullscreen', {
+        value: requestFullscreen, configurable: true,
+      });
+      c.toggleFullscreen();
+      expect(c.isFullscreen()).toBe(false);
+      c.toggleFullscreen();
+      expect(c.isFullscreen()).toBe(true);
+      expect(requestFullscreen).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+});
+
+/**
  * Display-sized page requests (1.19.0 "Image Scaling", Lane B).
  *
  * `pageUrlFor` is the single URL builder for both the reader's `<img>` sources
@@ -2435,14 +2516,16 @@ describe('ReaderComponent page variant requests', () => {
     const { c } = create();
     setViewport(1024, 768);
     c.refreshVariantTarget();
-    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080');
+    // Alongside maxDim the filter defaults to 'balanced' (the new server
+    // default) - see the "downscale filter" describe block below.
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=balanced');
   });
 
   it('picks a larger bucket on a bigger / denser screen', () => {
     const { c } = create();
     setViewport(1024, 768, 2); // longest edge 1024 * 2 = 2048 -> the 2160 rung
     c.refreshVariantTarget();
-    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=2160');
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=2160&filter=balanced');
   });
 
   it('omits maxDim entirely in the original fit mode', () => {
@@ -2467,7 +2550,7 @@ describe('ReaderComponent page variant requests', () => {
     c.refreshVariantTarget();
     prefs.setPageQuality('auto');
     c.refreshVariantTarget();
-    expect(c.pageUrlFor(c.pages()[1])).toBe('/api/v1/items/item-1/pages/p1?maxDim=1080');
+    expect(c.pageUrlFor(c.pages()[1])).toBe('/api/v1/items/item-1/pages/p1?maxDim=1080&filter=balanced');
   });
 
   it('halves the width for a double-page spread, which can lower the bucket', () => {
@@ -2478,7 +2561,7 @@ describe('ReaderComponent page variant requests', () => {
     (c as unknown as { pageUrlCache: Map<string, string> }).pageUrlCache.clear();
     c.view.set('spread');
     c.setFitMode('screen');
-    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1440'); // 1200 -> 1440
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1440&filter=balanced'); // 1200 -> 1440
   });
 
   it('uses the manifest aspect ratio in the webtoon view', () => {
@@ -2486,7 +2569,7 @@ describe('ReaderComponent page variant requests', () => {
     setViewport(1000, 800);
     c.view.set('webtoon');
     c.setWebtoonWidth(70); // 700 wide, aspect 1.5 -> 1050 -> 1080
-    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080');
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=balanced');
   });
 
   /**
@@ -2499,12 +2582,12 @@ describe('ReaderComponent page variant requests', () => {
     setViewport(1024, 768);
     c.refreshVariantTarget();
     const pinned = c.pageUrlFor(c.pages()[0]);
-    expect(pinned).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080');
+    expect(pinned).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=balanced');
 
     setViewport(1024, 768, 2); // same box, retina: 2048 -> the 2160 rung
     c.onViewportChange();
     expect(c.pageUrlFor(c.pages()[0])).toBe(pinned); // unchanged: no re-download
-    expect(c.pageUrlFor(c.pages()[1])).toBe('/api/v1/items/item-1/pages/p1?maxDim=2160');
+    expect(c.pageUrlFor(c.pages()[1])).toBe('/api/v1/items/item-1/pages/p1?maxDim=2160&filter=balanced');
   });
 
   /**
@@ -2522,5 +2605,121 @@ describe('ReaderComponent page variant requests', () => {
     for (const url of warmed) expect(url).toContain('?maxDim=');
     // The reader's own <img> src for a warmed page is byte-identical.
     expect(warmed).toContain(c.pageUrlFor(c.pages()[1]));
+  });
+});
+
+/**
+ * Downscale filter (1.20.0, Lane B FILTER-CLIENT). `pageUrlFor` passes the
+ * `ReaderPreferencesService.downscaleFilter` preference straight into
+ * `withMaxDim`: present alongside a real `maxDim` bucket, never alongside the
+ * full-size transcode (Full page quality or the `original` fit), and — like
+ * Page quality — an explicit quality decision, so changing it re-targets the
+ * chapter (clears the pinned URL cache) exactly like changing Page quality does.
+ */
+describe('ReaderComponent downscale filter requests (1.20.0)', () => {
+  function create() {
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => 'item-1' }) } },
+      ],
+    });
+    localStorage.clear();
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.itemId.set('item-1');
+    c.pages.set(makePages(6));
+    Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true });
+    Object.defineProperty(window, 'devicePixelRatio', { value: 1, configurable: true });
+    return { c, prefs: TestBed.inject(ReaderPreferencesService) };
+  }
+
+  it('defaults to filter=balanced on a sized (Auto) request', () => {
+    const { c } = create();
+    c.refreshVariantTarget();
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=balanced');
+  });
+
+  it('follows the preference for sharp and soft', () => {
+    const { c, prefs } = create();
+    prefs.setDownscaleFilter('sharp');
+    c.refreshVariantTarget();
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=sharp');
+
+    (c as unknown as { pageUrlCache: Map<string, string> }).pageUrlCache.clear();
+    prefs.setDownscaleFilter('soft');
+    c.refreshVariantTarget();
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=soft');
+  });
+
+  it('omits the filter in the original fit (never downscaled)', () => {
+    const { c } = create();
+    c.setFitMode('original');
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0');
+  });
+
+  it('omits the filter when Page quality is Full (never downscaled)', () => {
+    const { c, prefs } = create();
+    prefs.setPageQuality('full');
+    c.refreshVariantTarget();
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0');
+  });
+
+  it('changing the filter is an explicit quality decision, like Page quality: re-targeting picks it up on an already-resolved page', () => {
+    // Mirrors the existing "comes back to display-sized requests when Full is
+    // switched off again" Page-quality test above: refreshVariantTarget() is
+    // called explicitly rather than relying on pageQualityEffect's own timing,
+    // which the production reader drives via change detection.
+    const { c, prefs } = create();
+    c.refreshVariantTarget();
+    const pinned = c.pageUrlFor(c.pages()[0]);
+    expect(pinned).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=balanced');
+
+    prefs.setDownscaleFilter('sharp');
+    (c as unknown as { pageUrlCache: Map<string, string> }).pageUrlCache.clear();
+    c.refreshVariantTarget();
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=sharp');
+  });
+
+  /**
+   * The effect itself (not just what happens once it has fired): a plain
+   * signal write is synchronous, so calling the effect's registered callback
+   * is what pageQualityEffect subscribes to change detection to do in the
+   * running app - here we drive it directly through TestBed's own change
+   * detection to confirm it is actually wired to `downscaleFilter`, not just
+   * `pageQuality`.
+   */
+  it('the pinned-cache-clearing effect is wired to downscaleFilter, not just pageQuality', () => {
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => 'item-1' }) } },
+      ],
+    });
+    localStorage.clear();
+    Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true });
+    Object.defineProperty(window, 'devicePixelRatio', { value: 1, configurable: true });
+    const fixture = TestBed.createComponent(ReaderComponent);
+    const c = fixture.componentInstance;
+    const prefs = TestBed.inject(ReaderPreferencesService);
+    c.itemId.set('item-1');
+    c.pages.set(makePages(6));
+    fixture.detectChanges(); // ngOnInit + first effect flush
+    c.refreshVariantTarget();
+    const pinned = c.pageUrlFor(c.pages()[0]);
+    expect(pinned).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=balanced');
+
+    prefs.setDownscaleFilter('sharp');
+    fixture.detectChanges(); // flushes pageQualityEffect
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=sharp');
   });
 });

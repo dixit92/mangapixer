@@ -134,12 +134,32 @@ export function targetMaxDim(
 }
 
 /**
- * Append `?maxDim=<n>` to a page URL, or return it untouched when `n` is 0 (the
- * full-size transcode) — the single place the query shape is decided, shared by
- * the reader's `<img>` sources and its prefetch warm-up so both produce the exact
- * same string and the prefetched response is a browser cache HIT.
+ * Downscale resampling filter (1.20.0, Lane B "FILTER-CLIENT"). Only meaningful
+ * when the server is actually downscaling a page (i.e. `maxDim` produces a sized
+ * bucket) — a full-size transcode never resamples, so the parameter is never
+ * sent alongside `maxDim=0`/no `maxDim` at all. Mirrors the server vocabulary:
+ *  - `sharp`    — Lanczos (the 1.19.x behaviour): crisp lines, can moire on
+ *                 screentones.
+ *  - `balanced` — Mitchell, the new default: a middle ground.
+ *  - `soft`     — area average: kills screentone moire, slightly softer lines.
  */
-export function withMaxDim(url: string, maxDim: number): string {
+export type DownscaleFilter = 'sharp' | 'balanced' | 'soft';
+
+/**
+ * Append `?maxDim=<n>` (and, when a filter is given, `&filter=<f>`) to a page
+ * URL, or return it untouched when `n` is 0 (the full-size transcode) — the
+ * single place the query shape is decided, shared by the reader's `<img>`
+ * sources and its prefetch warm-up so both produce the exact same string and
+ * the prefetched response is a browser cache HIT.
+ *
+ * The `filter` is only ever appended alongside a real `maxDim` bucket: for
+ * `maxDim <= 0` the URL is returned exactly as it was in 1.19.x (no `filter=`
+ * param), since the server ignores it on the full-size transcode anyway and an
+ * unchanged URL keeps existing caches (and `withMaxDim` call sites that predate
+ * the filter preference) a byte-for-byte HIT.
+ */
+export function withMaxDim(url: string, maxDim: number, filter?: DownscaleFilter): string {
   if (!url || !Number.isFinite(maxDim) || maxDim <= 0) return url;
-  return `${url}?maxDim=${Math.round(maxDim)}`;
+  const base = `${url}?maxDim=${Math.round(maxDim)}`;
+  return filter ? `${base}&filter=${filter}` : base;
 }

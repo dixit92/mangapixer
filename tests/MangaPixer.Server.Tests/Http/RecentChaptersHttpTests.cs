@@ -159,6 +159,7 @@ public sealed class RecentChaptersHttpTests : IClassFixture<MangaPixerWebApplica
         Assert.Equal("recA_new", seriesStack.LatestItemId);
         Assert.Equal("Newest.cbz", seriesStack.LatestItemName);
         Assert.NotNull(seriesStack.CoverUrl);
+        Assert.Equal("unread", seriesStack.ReadState);          // never read/progressed in this fixture
 
         var looseStack = alpha.Stacks[1];
         Assert.False(looseStack.IsFolder);
@@ -280,6 +281,13 @@ public sealed class RecentChaptersHttpTests : IClassFixture<MangaPixerWebApplica
         var unreadDto = await unreadOnly.Content.ReadFromJsonAsync<RecentChaptersDto>();
         var unreadLib = unreadDto!.Libraries.First(g => g.LibraryId == "recrslib");
         Assert.Equal(new[] { "recrs_unread" }, unreadLib.Stacks.Select(s => s.Id).ToArray());
+
+        // The unfiltered response's own per-stack ReadState field (1.20.0) agrees with the
+        // filter that would keep or drop each stack.
+        var readTag = unfilteredLib.Stacks.Single(s => s.Id == "recrs_read");
+        Assert.Equal("read", readTag.ReadState);
+        var unreadTag = unfilteredLib.Stacks.Single(s => s.Id == "recrs_unread");
+        Assert.Equal("unread", unreadTag.ReadState);
     }
 
     [Fact]
