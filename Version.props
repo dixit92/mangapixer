@@ -216,9 +216,27 @@
          list view, and a per-category debug log-level admin UI. No breaking API/contract
          change, no migration, worker protocol unchanged (still 2)
          -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.17.x. -->
+    <!-- 1.18.0: "Backups, Audit and Reader Fixes". Additive MINOR over 1.17.1,
+         three lanes. ADMIN: a DB backup restore UI (new admin-only endpoints
+         GET operations/backups/files to list on-disk rotating snapshots and POST
+         operations/backups/restore to restore a chosen snapshot via the existing
+         validate + snapshot + apply-on-restart + rollback path, traversal-guarded)
+         plus an admin audit trail (new AuditService write points on user delete /
+         activation reissue / password reset / backup restore / logging change, a
+         paged GET admin/audit read endpoint, and an admin card) reusing the
+         pre-existing audit_events table (no new migration). COLUMNS: a per-user
+         selectable list-view column count (1 to 3) reusing the card-size slider
+         pattern, persisted as LibraryViewPreferencesDto.ListColumns (one additive
+         forward-only column, migration AddListColumns, AddHomeRecentWindowDays
+         shape). READERFIX: correct fit-width / fit-height / original image sizing
+         in paired double-page spreads, and stop an installed Android PWA zoom
+         false-positive from blocking swipe paging (viewport-fit=cover plus a
+         widened pinch-zoom threshold; device-verified by the owner post-deploy).
+         Additive API only (new endpoints and one optional DTO field); one additive
+         forward-only migration -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.18.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <MangaPixerVersionMinor>17</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
+    <MangaPixerVersionMinor>18</MangaPixerVersionMinor>
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

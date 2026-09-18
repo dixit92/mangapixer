@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-09-18
+
+### Added
+
+- Administrators can now list the automatic rotating database backups and restore the server from a chosen backup, directly from the Administration page's Backups card.
+- A new admin audit trail records sensitive administrative actions (user deletion, activation-link reissue, password reset, database restore, and logging changes) and is viewable as a paged list in the Administration page.
+- The library list view now has a column-count control (1-3) on wide screens, alongside the existing card-size slider.
+
+### Fixed
+
+- In double-page (spread) reading, the Fit width, Fit height and Original size modes now size each page correctly instead of being constrained to the single-page rules.
+- On an installed Android home-screen app, a false "zoomed in" reading no longer blocks swipe paging between pages.
+
 ## [1.17.1] - 2026-09-18
 
 ### Changed
