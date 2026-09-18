@@ -20,6 +20,36 @@ html, body {
   font-family: Roboto, "Helvetica Neue", sans-serif;
 }
 
+/* Installed Android home-screen app (backlog bug, "no scrollbars" half - the
+   zoom/swipe half of the same item shipped in 1.18.0 for the reader). In the
+   chrome-less `standalone` display mode there is no address bar to absorb a
+   stray pixel or two of document-level overflow (toolbar height rounding,
+   dvh vs. the real visual viewport, etc.), so a document scrollbar that would
+   be invisible/unnoticed in a normal browser tab becomes a visible, "not
+   native-looking" sliver once installed.
+   Scoped strictly to `(display-mode: standalone)` so a normal browser tab is
+   completely untouched - native scrollbars and pull-to-refresh keep working
+   there exactly as before. Only the *visual* scrollbar is hidden
+   (scrollbar-width / ::-webkit-scrollbar); `overflow` itself is left alone,
+   so document/page scrolling keeps working for the library-browse infinite
+   scroll and the home page - a blanket `overflow: hidden` would break both.
+   `overscroll-behavior: none` stops scroll chaining into the OS-level
+   pull-to-refresh/glow effect once the document itself can't scroll further,
+   which is what actually produced the visible scrollbar flash on open. */
+@media (display-mode: standalone) {
+  html, body {
+    overscroll-behavior: none;
+    scrollbar-width: none; /* Firefox */
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none; /* Chromium-based WebViews (Android installed PWA) */
+  }
+}
+
 /* Additive layout tokens (1.5.0 UI taste pass). Scoped to app chrome/density —
    NOT a general theming feature (that is deferred). Kept here so the shell and
    the home sidebar share one source of truth for content width, gutters and the

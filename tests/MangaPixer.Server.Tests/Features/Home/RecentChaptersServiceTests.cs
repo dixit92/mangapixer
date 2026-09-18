@@ -339,8 +339,12 @@ public sealed class RecentChaptersServiceTests : IDisposable
             var b1 = await AddArchiveAsync(db, libAId, "b1", "B1.cbz", Now.AddHours(-2), parentId: seriesB.Id);
             db.ReadingProgress.Add(new ReadingProgressEntity
             {
-                UserId = userId, ItemId = b1.Id, State = (int)ReadingState.InProgress,
-                EntryKey = "e1", LastMutationId = "m1", UpdatedAt = Now,
+                UserId = userId,
+                ItemId = b1.Id,
+                State = (int)ReadingState.InProgress,
+                EntryKey = "e1",
+                LastMutationId = "m1",
+                UpdatedAt = Now,
             });
 
             // Loose top-level archive, untouched -> standalone rollup = Unread.

@@ -20,10 +20,16 @@ public sealed record EncodedVariant
 ///
 /// Variants:
 ///  - "webp":      full-size WebP transcode (lossy, quality-tunable).
-///  - "thumbnail": WebP downscaled so the longest edge ≤ maxDimension, using a
+///  - "webp@&lt;n&gt;": WebP downscaled so the longest edge ≤ pageMaxDimension, using
+///                 the same Lanczos path as the thumbnail (1.19.0). The bucket in
+///                 the name is informational; the size comes from the parameter.
+///  - "thumbnail": WebP downscaled so the longest edge ≤ thumbnailMaxDimension, using a
 ///                 high-quality Lanczos filter (good for line art; avoids the
 ///                 mushy default and screentone moiré on downscale).
 ///  - "original":  verbatim source bytes, no transcode.
+///
+/// Downscale never becomes upscale: a source already within the requested bound is
+/// encoded at its native size.
 ///
 /// Animated sources (multi-frame GIF/WebP/APNG) are passed through verbatim for the
 /// full-size variant so animation is preserved (criterion 5); their thumbnail uses
@@ -31,7 +37,24 @@ public sealed record EncodedVariant
 /// </summary>
 public sealed class ImageVariantEncoder
 {
-    public EncodedVariant Encode(byte[] source, string variant, string outputPath, int maxDimension, int webpQuality)
+    /// <summary>
+    /// Prefix shared by the full-size and sized page variants ("webp", "webp@1440").
+    /// </summary>
+    private const string WebpVariantPrefix = "webp";
+
+    /// <summary>
+    /// Encodes one page variant.
+    /// </summary>
+    /// <param name="source">Raw source entry bytes.</param>
+    /// <param name="variant">"original", "thumbnail", "webp", or "webp@&lt;n&gt;".</param>
+    /// <param name="outputPath">Server-owned path to write the encoded bytes to.</param>
+    /// <param name="thumbnailMaxDimension">Longest edge (px) for the "thumbnail" variant.</param>
+    /// <param name="webpQuality">WebP quality (1-100).</param>
+    /// <param name="pageMaxDimension">
+    /// Longest edge (px) for sized page variants; 0 (default) means no resize, i.e.
+    /// the pre-1.19.0 full-size transcode.
+    /// </param>
+    public EncodedVariant Encode(byte[] source, string variant, string outputPath, int thumbnailMaxDimension, int webpQuality, int pageMaxDimension = 0)
     {
         if (variant == "original")
         {
@@ -43,9 +66,11 @@ public sealed class ImageVariantEncoder
         var frameCount = CountFrames(source);
         var animated = frameCount > 1;
 
-        // Preserve animation for the full-size variant by passing the source through
-        // untouched — a single-frame re-encode would freeze it.
-        if (animated && variant == "webp")
+        // Preserve animation for the page variants by passing the source through
+        // untouched — a single-frame re-encode would freeze it. This deliberately
+        // also covers sized variants ("webp@1440"): an animation is never resized,
+        // so a sized request for an animated page yields the original animation.
+        if (animated && variant.StartsWith(WebpVariantPrefix, StringComparison.Ordinal))
         {
             File.WriteAllBytes(outputPath, source);
             var (w, h) = ProbeDimensions(source);
@@ -57,12 +82,19 @@ public sealed class ImageVariantEncoder
         image.Format = MagickFormat.WebP;
         image.Quality = (uint)Math.Clamp(webpQuality, 1, 100);
 
-        if (variant == "thumbnail" && maxDimension > 0 &&
-            (image.Width > (uint)maxDimension || image.Height > (uint)maxDimension))
+        // One resize rule for both downscaling variants: the thumbnail uses the
+        // thumbnail bound, a sized page variant uses the bucket bound, and the
+        // full-size "webp" variant passes 0 and is left alone.
+        var resizeBound = variant == "thumbnail"
+            ? thumbnailMaxDimension
+            : variant.StartsWith(WebpVariantPrefix, StringComparison.Ordinal) ? pageMaxDimension : 0;
+
+        if (resizeBound > 0 &&
+            (image.Width > (uint)resizeBound || image.Height > (uint)resizeBound))
         {
             image.FilterType = FilterType.Lanczos;
             // Greater=only shrink; aspect ratio preserved by a single WxH box.
-            image.Resize(new MagickGeometry((uint)maxDimension, (uint)maxDimension) { Greater = true });
+            image.Resize(new MagickGeometry((uint)resizeBound, (uint)resizeBound) { Greater = true });
         }
 
         image.Write(outputPath);

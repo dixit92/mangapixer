@@ -364,6 +364,13 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "maxDim",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {

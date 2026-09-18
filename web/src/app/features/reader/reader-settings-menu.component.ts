@@ -1,4 +1,4 @@
-import { Component, Signal, inject, input, output } from '@angular/core';
+import { Component, Signal, computed, inject, input, output } from '@angular/core';
 import { MatBottomSheetRef, MAT_BOTTOM_SHEET_DATA } from '@angular/material/bottom-sheet';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -6,8 +6,11 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
-import { ReaderPreferencesService, PageAnimation } from '../../core/reading/reader-preferences.service';
+import {
+  ReaderPreferencesService, PageAnimation, PageQuality, Upscaler,
+} from '../../core/reading/reader-preferences.service';
 import { WebtoonNavPreferencesService, WebtoonTapStep } from './webtoon-nav.service';
+import { UpscaleSupportService } from './upscale.directive';
 
 // --- Reader option vocabulary -------------------------------------------------
 // The value types the reader's settings surfaces (desktop menus + the phone
@@ -58,6 +61,28 @@ export const FIT_OPTIONS: readonly ReaderOption<FitMode>[] = [
   { value: 'width', label: 'Fit width', icon: 'swap_horiz' },
   { value: 'height', label: 'Fit height', icon: 'swap_vert' },
   { value: 'original', label: 'Original size', icon: 'crop_original' },
+];
+
+/**
+ * Display upscaling choices (1.19.0). `enhance` runs the Anime4K line-art
+ * upscaler on the GPU for pages painted LARGER than their natural size; `smooth`
+ * is the browser's own resampling, i.e. exactly the pre-1.19.0 picture. Needs
+ * WebGPU - where it is missing the option is offered disabled with a reason
+ * rather than silently doing nothing (`UpscaleSupportService`).
+ */
+export const UPSCALER_OPTIONS: readonly ReaderOption<Upscaler>[] = [
+  { value: 'smooth', label: 'Smooth', icon: 'blur_on' },
+  { value: 'enhance', label: 'Enhance', icon: 'auto_fix_high' },
+];
+
+/**
+ * How many pixels to fetch per page (1.19.0). `auto` sizes each request to the
+ * screen (`?maxDim=`, server-side Lanczos: fewer bytes AND a sharper downscale);
+ * `full` always takes the full-size transcode, the pre-1.19.0 behaviour.
+ */
+export const PAGE_QUALITY_OPTIONS: readonly ReaderOption<PageQuality>[] = [
+  { value: 'auto', label: 'Auto', icon: 'tune' },
+  { value: 'full', label: 'Full', icon: 'high_quality' },
 ];
 
 export const DIRECTION_OPTIONS: readonly ReaderOption<ReadingDirection>[] = [
@@ -138,6 +163,46 @@ export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
         }
       </mat-menu>
     }
+
+    <!-- 1.19.0 image scaling. One extra trigger, present in every view, holding the
+         two picture-quality decisions: how an UPSCALED page is resampled
+         (Rendering) and how many pixels are fetched per page (Page quality). The
+         trigger's tooltip doubles as the WebGPU status readout, which is the only
+         way to confirm the GPU path on a real device (it cannot be exercised in
+         jsdom or on a headless box). -->
+    <button mat-icon-button [matMenuTriggerFor]="renderMenu"
+            [matTooltip]="'Rendering - ' + support.statusText()" aria-label="Rendering"
+            (menuOpened)="opened.emit()" (menuClosed)="closed.emit()">
+      <mat-icon>auto_fix_high</mat-icon>
+    </button>
+    <mat-menu #renderMenu="matMenu" class="reader-options-menu">
+      <div role="group" aria-label="Rendering">
+        <div class="menu-group-label">Rendering</div>
+        @for (opt of upscalerOptions; track opt.value) {
+          <button mat-menu-item role="menuitemradio"
+                  [disabled]="opt.value === 'enhance' && enhanceDisabled()"
+                  [class.selected-option]="prefs.upscaler() === opt.value"
+                  [attr.aria-checked]="prefs.upscaler() === opt.value"
+                  (click)="chooseUpscaler(opt.value)" [attr.aria-label]="'Rendering: ' + opt.label">
+            <mat-icon>{{ opt.icon }}</mat-icon>
+            {{ opt.label }}
+          </button>
+        }
+        <div class="menu-hint">{{ renderingHint() }}</div>
+      </div>
+      <div role="group" aria-label="Page quality">
+        <div class="menu-group-label">Page quality</div>
+        @for (opt of pageQualityOptions; track opt.value) {
+          <button mat-menu-item role="menuitemradio"
+                  [class.selected-option]="prefs.pageQuality() === opt.value"
+                  [attr.aria-checked]="prefs.pageQuality() === opt.value"
+                  (click)="choosePageQuality(opt.value)" [attr.aria-label]="'Page quality: ' + opt.label">
+            <mat-icon>{{ opt.icon }}</mat-icon>
+            {{ opt.label }}
+          </button>
+        }
+      </div>
+    </mat-menu>
   `,
   styles: [`
     /* Selected-state highlight (1.10.0): the panel renders in a CDK overlay, so
@@ -146,13 +211,23 @@ export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
     ::ng-deep .reader-options-menu .selected-option { background: rgba(124, 77, 255, 0.16); }
     ::ng-deep .reader-options-menu .selected-option,
     ::ng-deep .reader-options-menu .selected-option .mat-icon { color: #b39dff; }
+    /* 1.19.0: the Rendering menu carries two radio groups, so each needs a small
+       caption, plus a one-line hint for why Enhance may be unavailable. */
+    ::ng-deep .reader-options-menu .menu-group-label {
+      padding: 8px 16px 2px; font-size: 11px; font-weight: 600;
+      letter-spacing: 0.5px; text-transform: uppercase; opacity: 0.6;
+    }
+    ::ng-deep .reader-options-menu .menu-hint { padding: 0 16px 6px; font-size: 11px; opacity: 0.6; max-width: 220px; }
   `],
 })
 export class ReaderSettingsMenuComponent {
   readonly prefs = inject(ReaderPreferencesService);
   readonly webtoonNav = inject(WebtoonNavPreferencesService);
+  readonly support = inject(UpscaleSupportService);
   readonly options = PAGE_ANIMATION_OPTIONS;
   readonly tapStepOptions = WEBTOON_TAP_STEP_OPTIONS;
+  readonly upscalerOptions = UPSCALER_OPTIONS;
+  readonly pageQualityOptions = PAGE_QUALITY_OPTIONS;
 
   /** The reader's current view: webtoon swaps the transition menu for tap-to-scroll. */
   readonly view = input<ReaderView>('paged');
@@ -161,8 +236,32 @@ export class ReaderSettingsMenuComponent {
   readonly opened = output<void>();
   readonly closed = output<void>();
 
+  /**
+   * GPU upscaling is offered but not selectable when the platform has no usable
+   * WebGPU device, and in the webtoon view, which the directive deliberately does
+   * not cover in 1.19.0. Disabled-with-a-reason beats an option that does nothing.
+   */
+  readonly enhanceDisabled = computed<boolean>(
+    () => this.support.support() !== 'ready' || this.view() === 'webtoon');
+
+  /** One short line under the Rendering group explaining the current state. */
+  readonly renderingHint = computed<string>(() => {
+    if (this.support.support() !== 'ready') return 'Enhance needs WebGPU';
+    if (this.view() === 'webtoon') return 'Enhance is for paged views';
+    return this.support.statusText();
+  });
+
   choose(mode: PageAnimation): void {
     this.prefs.setPageAnimation(mode);
+  }
+
+  chooseUpscaler(upscaler: Upscaler): void {
+    if (upscaler === 'enhance' && this.enhanceDisabled()) return;
+    this.prefs.setUpscaler(upscaler);
+  }
+
+  choosePageQuality(quality: PageQuality): void {
+    this.prefs.setPageQuality(quality);
   }
 
   chooseTapStep(step: WebtoonTapStep): void {
@@ -330,6 +429,39 @@ export interface ReaderOptionsHost {
         </section>
       }
 
+      <!-- 1.19.0 image scaling, shown in every view: Rendering is how an UPSCALED
+           page is resampled, Page quality is how many pixels are fetched. Enhance
+           is disabled (with the reason) without WebGPU and in the webtoon view,
+           which the upscale directive does not cover this cycle. -->
+      <section class="group">
+        <h3 class="group-label" id="reader-options-rendering">Rendering</h3>
+        <div class="chips" role="radiogroup" aria-labelledby="reader-options-rendering">
+          @for (opt of upscalerOptions; track opt.value) {
+            <button type="button" class="chip" role="radio"
+                    [disabled]="opt.value === 'enhance' && enhanceDisabled()"
+                    [class.selected]="prefs.upscaler() === opt.value"
+                    [attr.aria-checked]="prefs.upscaler() === opt.value"
+                    (click)="pickUpscaler(opt.value)">
+              <mat-icon aria-hidden="true">{{ opt.icon }}</mat-icon>{{ opt.label }}
+            </button>
+          }
+        </div>
+        <p class="group-hint">{{ renderingHint() }}</p>
+      </section>
+      <section class="group">
+        <h3 class="group-label" id="reader-options-quality">Page quality</h3>
+        <div class="chips" role="radiogroup" aria-labelledby="reader-options-quality">
+          @for (opt of pageQualityOptions; track opt.value) {
+            <button type="button" class="chip" role="radio"
+                    [class.selected]="prefs.pageQuality() === opt.value"
+                    [attr.aria-checked]="prefs.pageQuality() === opt.value"
+                    (click)="prefs.setPageQuality(opt.value)">
+              <mat-icon aria-hidden="true">{{ opt.icon }}</mat-icon>{{ opt.label }}
+            </button>
+          }
+        </div>
+      </section>
+
       <div class="chapter-row">
         <button mat-stroked-button class="chapter" (click)="chapter('prev')" [disabled]="!host.hasPrevChapter()"
                 [attr.aria-label]="host.prevNeighbor() ? 'Previous chapter: ' + host.prevNeighbor()!.displayName : 'No previous chapter'">
@@ -379,6 +511,9 @@ export interface ReaderOptionsHost {
     .group-label .value { font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0; font-weight: 500; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
     .note { margin: 0; font-size: 12px; line-height: 16px; color: var(--mat-sys-on-surface-variant, #8a8a99); }
+    /* Same look as .note, but a separate class: .note is the narrow-portrait
+       double-page explanation and a test asserts it is absent everywhere else. */
+    .group-hint { margin: 0; font-size: 12px; line-height: 16px; color: var(--mat-sys-on-surface-variant, #8a8a99); }
     /* Chips: 44px touch targets, the option's own glyph, and the accent highlight
        (not a tick) for the selected one. */
     .chip {
@@ -393,6 +528,7 @@ export interface ReaderOptionsHost {
     .chip mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .chip.selected { background: var(--mp-accent-bg, rgba(124, 77, 255, 0.18)); color: var(--mp-accent, #b39dff); border-color: transparent; }
     .chip:focus-visible { outline: 2px solid var(--mp-accent, #b39dff); outline-offset: 2px; }
+    .chip:disabled { opacity: 0.4; cursor: default; }
     @media (hover: hover) {
       .chip:hover:not(.selected) { background: var(--mat-sys-surface-container-highest, rgba(255, 255, 255, 0.08)); }
     }
@@ -406,6 +542,7 @@ export class ReaderOptionsSheetComponent {
   readonly host = inject<ReaderOptionsHost>(MAT_BOTTOM_SHEET_DATA);
   readonly prefs = inject(ReaderPreferencesService);
   readonly webtoonNav = inject(WebtoonNavPreferencesService);
+  readonly support = inject(UpscaleSupportService);
   private readonly ref = inject<MatBottomSheetRef<ReaderOptionsSheetComponent>>(MatBottomSheetRef);
 
   readonly layoutOptions = LAYOUT_OPTIONS;
@@ -413,6 +550,23 @@ export class ReaderOptionsSheetComponent {
   readonly directionOptions = DIRECTION_OPTIONS;
   readonly transitionOptions = PAGE_ANIMATION_OPTIONS;
   readonly tapStepOptions = WEBTOON_TAP_STEP_OPTIONS;
+  readonly upscalerOptions = UPSCALER_OPTIONS;
+  readonly pageQualityOptions = PAGE_QUALITY_OPTIONS;
+
+  /** Same rule as the desktop menu: no usable WebGPU, or the webtoon view. */
+  readonly enhanceDisabled = computed<boolean>(
+    () => this.support.support() !== 'ready' || this.host.view() === 'webtoon');
+
+  readonly renderingHint = computed<string>(() => {
+    if (this.support.support() !== 'ready') return 'Enhance needs WebGPU';
+    if (this.host.view() === 'webtoon') return 'Enhance is for paged views';
+    return this.support.statusText();
+  });
+
+  pickUpscaler(upscaler: Upscaler): void {
+    if (upscaler === 'enhance' && this.enhanceDisabled()) return;
+    this.prefs.setUpscaler(upscaler);
+  }
 
   /**
    * The layout chip to highlight: the EFFECTIVE layout on screen. Coincides with

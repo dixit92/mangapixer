@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, OnDestroy, HostListener, ElementRef, viewChild } from '@angular/core';
+import { Component, inject, signal, computed, effect, untracked, OnInit, OnDestroy, HostListener, ElementRef, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -23,6 +23,8 @@ import {
 } from './reader-settings-menu.component';
 import { BookmarksPanelComponent, BookmarksPanelHost } from './bookmarks-panel.component';
 import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode, BookmarkDto } from '../../core/api/api-types';
+import { targetMaxDim, withMaxDim, VariantFitMode } from './page-variant';
+import { UpscaleDirective } from './upscale.directive';
 import {
   WebtoonNavPreferencesService, webtoonTapZone, webtoonScrollTarget, prefersReducedMotion,
 } from './webtoon-nav.service';
@@ -117,6 +119,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     MatProgressSpinnerModule,
     MatSnackBarModule,
     ReaderSettingsMenuComponent,
+    UpscaleDirective,
   ],
   template: `
     <div class="reader-container">
@@ -371,6 +374,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 [class.anim-reveal]="pageAnimActive() && prefs.pageAnimation() === 'reveal'"
                 [class.from-right]="navEnter() === 'from-right'"
                 [class.from-left]="navEnter() === 'from-left'"
+                [appUpscale]="upscaleActive()"
                 (load)="onPageLoaded()"
                 (error)="onPageError()"
                 draggable="false"
@@ -1027,6 +1031,31 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.view() === 'spread' && this.narrowPortrait() ? 'paged' : this.view());
 
   /**
+   * Is the GPU line-art upscaler on for the pages currently rendered? The
+   * preference is device-wide, but the `UpscaleDirective` only sits on the
+   * paged / double-spread `<img>`s (webtoon is out of scope for 1.19.0), so this
+   * is simply the preference — the webtoon template never reads it. The directive
+   * itself is a no-op without WebGPU and when the page is not being upscaled.
+   */
+  readonly upscaleActive = computed<boolean>(() => this.prefs.upscaler() === 'enhance');
+
+  /**
+   * "Page quality" is an explicit quality decision, so unlike a rotation it DOES
+   * apply to the page on screen: drop the pinned URLs so the current page
+   * re-resolves (full resolution, or back to a display-sized bucket) instead of
+   * waiting for the next page turn. `untracked` keeps the effect subscribed to
+   * the preference alone — refreshVariantTarget reads half a dozen other signals
+   * and must not make them all invalidate the cache.
+   */
+  private readonly pageQualityEffect = effect(() => {
+    this.prefs.pageQuality();
+    untracked(() => {
+      this.pageUrlCache.clear();
+      this.refreshVariantTarget();
+    });
+  });
+
+  /**
    * Page-turn ghost: the entries that were on screen just before
    * the current turn, rendered inert underneath the incoming row for the length
    * of the transition, then dropped. Empty when no transition is playing.
@@ -1110,8 +1139,71 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.zoomed.set(!!vv && vv.scale > ReaderComponent.ZoomedScaleThreshold);
   };
 
+  // --- Display-sized page requests (1.19.0 "Image Scaling") --------------------
+  //
+  // The reader asks the server for a page at roughly the pixels the screen will
+  // actually paint (`?maxDim=<bucket>`, snapped to the shared ladder in
+  // page-variant.ts) instead of the full-size transcode. Two rules keep it from
+  // fighting the reader:
+  //
+  //  1. The target is a PLAIN FIELD, not a signal. Recomputing it must never
+  //     re-run the `[src]` binding of a page already on screen — that would swap
+  //     the src mid-read and re-download a page the browser already has.
+  //  2. Resolved URLs are CACHED PER ENTRY KEY for the life of the chapter. The
+  //     first time a page is needed (rendered or prefetched) it is pinned to the
+  //     target current at that moment and keeps it; a new page picks up whatever
+  //     the target is by then. That is what makes the prefetch a genuine cache
+  //     hit: `prefetchIndices` goes through this same builder, so the warmed URL
+  //     and the URL the `<img>` later asks for are byte-identical.
+  //
+  // Net effect: rotating the device or changing the fit mode re-targets the NEXT
+  // pages, never the one being read. A chapter change clears the cache.
+  private variantTarget = 0;
+  private readonly pageUrlCache = new Map<string, string>();
+
   pageUrlFor(entry: ManifestPageEntry | undefined): string {
-    return entry ? `/api/v1/items/${this.itemId()}/pages/${encodeURIComponent(entry.entryKey)}` : '';
+    if (!entry) return '';
+    const cached = this.pageUrlCache.get(entry.entryKey);
+    if (cached !== undefined) return cached;
+    const base = `/api/v1/items/${this.itemId()}/pages/${encodeURIComponent(entry.entryKey)}`;
+    const url = withMaxDim(base, this.variantTarget);
+    this.pageUrlCache.set(entry.entryKey, url);
+    return url;
+  }
+
+  /**
+   * Re-measure the variant bucket for pages loaded from now on. Called wherever
+   * the page's layout box can change: viewport resize / orientation, fit mode,
+   * view (single vs paired vs webtoon), the webtoon width slider, and once the
+   * manifest lands (which is when the page aspect ratio becomes known).
+   *
+   * "Page quality: Full" short-circuits to 0, i.e. no `maxDim` param at all.
+   */
+  refreshVariantTarget(): void {
+    if (this.prefs.pageQuality() === 'full') { this.variantTarget = 0; return; }
+    const el = this.viewport()?.nativeElement;
+    const viewportW = el?.clientWidth || window.innerWidth || 0;
+    const viewportH = el?.clientHeight || window.innerHeight || 0;
+    const dpr = typeof window.devicePixelRatio === 'number' ? window.devicePixelRatio : 1;
+    const webtoon = this.view() === 'webtoon';
+    const fit: VariantFitMode = webtoon ? 'webtoon' : this.fitMode();
+    const paired = !webtoon && this.effectiveView() === 'spread';
+    this.variantTarget = targetMaxDim(
+      viewportW, viewportH, dpr, fit, paired, this.webtoonWidthPct(), this.representativeAspect(),
+    );
+  }
+
+  /**
+   * Page height / width for the fit modes whose box is unbounded on one axis
+   * (fit-width, webtoon). Taken from the FIRST page with usable manifest
+   * dimensions rather than per page, so every page of a chapter lands on the same
+   * bucket and the URLs stay uniform (and cacheable). 0 when unknown.
+   */
+  private representativeAspect(): number {
+    for (const p of this.pages()) {
+      if (p.width > 0 && p.height > 0) return p.height / p.width;
+    }
+    return 0;
   }
 
   /**
@@ -1140,6 +1232,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       // Reset the page-prefetch cache for the new chapter (URLs are per-item).
       this.prefetchedUrls.clear();
       this.prefetchImgs = [];
+      // Page URLs are pinned per chapter (see pageUrlFor): a new chapter re-targets.
+      this.pageUrlCache.clear();
       // "at=end" (set when arriving via previous-chapter back-navigation) asks to
       // land on the last page instead of resuming from saved progress.
       this.landOnLastPage = this.route.snapshot.queryParamMap.get('at') === 'end';
@@ -1266,6 +1360,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     if (this.phase() === 'ready' && this.viewPref() === 'auto' && this.view() !== 'webtoon') {
       this.applyAutoView();
     }
+    this.refreshVariantTarget();
     this.scheduleMeasure();
   }
 
@@ -1501,6 +1596,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private onManifestReady(manifest: ItemManifest): void {
     this.pages.set(manifest.pages);
     this.contentVersion = manifest.contentVersion;
+    // The page aspect ratio is only knowable once the manifest is in; re-target
+    // before the first <img> resolves its src.
+    this.refreshVariantTarget();
     if (manifest.pages.length === 0) {
       this.fail('This chapter has no readable pages.');
       return;
@@ -2177,7 +2275,11 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // isFullscreen() is updated by the fullscreenchange listener.
   }
 
-  setFitMode(mode: FitMode): void { this.fitMode.set(mode); this.scheduleMeasure(); }
+  setFitMode(mode: FitMode): void {
+    this.fitMode.set(mode);
+    this.refreshVariantTarget();
+    this.scheduleMeasure();
+  }
   toggleDirection(): void { this.direction.update((d) => (d === 'ltr' ? 'rtl' : 'ltr')); }
   /** Explicit direction pick (the phone sheet's radio pair; the bar button toggles). */
   setDirection(direction: ReadingDirection): void { this.direction.set(direction); }
@@ -2189,6 +2291,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   setWebtoonWidth(pct: number): void {
     const clamped = Math.min(100, Math.max(15, Math.round(pct)));
     this.webtoonWidthPct.set(clamped);
+    this.refreshVariantTarget();
     try { localStorage.setItem(ReaderComponent.WebtoonWidthKey, String(clamped)); } catch { /* private mode */ }
   }
 
@@ -2237,6 +2340,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   setView(view: ReaderView): void {
     const wasWebtoon = this.view() === 'webtoon';
     this.view.set(view);
+    this.refreshVariantTarget();
     if (view === 'webtoon' && !wasWebtoon) {
       queueMicrotask(() => this.scrollWebtoonTo(this.currentPage()));
     }

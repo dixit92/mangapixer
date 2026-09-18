@@ -1709,13 +1709,15 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('DESKTOP / TABLET: the full bar is unchanged (all ten controls, no overflow trigger)', () => {
+  it('DESKTOP / TABLET: the full bar keeps every control, no overflow trigger (+ Rendering, 1.19.0)', () => {
     const { c, labels } = render(false);
     expect(c.compact()).toBe(false);
     expect(labels()).toEqual([
       'Back to folder',
       'No previous chapter', 'No next chapter',
       'Reading mode', 'Bookmark this page', 'Bookmarks', 'Image fit', 'Switch to right-to-left', 'Page transition',
+      // 1.19.0 image scaling: the second settings-menu slot (Rendering + Page quality).
+      'Rendering',
       'Reading help', 'Enter fullscreen',
     ]);
   });
@@ -2305,5 +2307,144 @@ describe('ReaderComponent onKeyDown case-insensitive single-letter shortcuts', (
     expect(c.currentPage()).toBe(2);
     c.onKeyDown(press('Home'));
     expect(c.currentPage()).toBe(0);
+  });
+});
+
+/**
+ * Display-sized page requests (1.19.0 "Image Scaling", Lane B).
+ *
+ * `pageUrlFor` is the single URL builder for both the reader's `<img>` sources
+ * and the prefetch warm-up, so these tests pin down exactly when `?maxDim=`
+ * appears, that it is PINNED per page for the life of a chapter (so a resize
+ * never re-downloads a page already on screen), and that the prefetch produces
+ * byte-identical URLs (otherwise the warm-up would be wasted bandwidth).
+ *
+ * As elsewhere in this file we deliberately skip detectChanges(), so ngOnInit
+ * never fires: the URL rule is exercised directly through its public seams.
+ */
+describe('ReaderComponent page variant requests', () => {
+  function create() {
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => 'item-1' }) } },
+      ],
+    });
+    localStorage.clear();
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.itemId.set('item-1');
+    c.pages.set(makePages(6)); // 800x1200 -> aspect 1.5
+    return { c, prefs: TestBed.inject(ReaderPreferencesService) };
+  }
+
+  /** jsdom reports 1024x768 / dpr 1; pin it so the expected buckets are explicit. */
+  function setViewport(width: number, height: number, dpr = 1): void {
+    Object.defineProperty(window, 'innerWidth', { value: width, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: height, configurable: true });
+    Object.defineProperty(window, 'devicePixelRatio', { value: dpr, configurable: true });
+  }
+
+  afterEach(() => setViewport(1024, 768, 1));
+
+  it('asks for the full-size transcode until a target has been measured', () => {
+    const { c } = create();
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0');
+  });
+
+  it('appends the display-sized bucket once the target is measured', () => {
+    const { c } = create();
+    setViewport(1024, 768);
+    c.refreshVariantTarget();
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080');
+  });
+
+  it('picks a larger bucket on a bigger / denser screen', () => {
+    const { c } = create();
+    setViewport(1024, 768, 2); // longest edge 1024 * 2 = 2048 -> the 2160 rung
+    c.refreshVariantTarget();
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=2160');
+  });
+
+  it('omits maxDim entirely in the original fit mode', () => {
+    const { c } = create();
+    setViewport(1024, 768);
+    c.setFitMode('original');
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0');
+  });
+
+  it('omits maxDim when the page-quality preference is Full', () => {
+    const { c, prefs } = create();
+    setViewport(1024, 768);
+    prefs.setPageQuality('full');
+    c.refreshVariantTarget();
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0');
+  });
+
+  it('comes back to display-sized requests when Full is switched off again', () => {
+    const { c, prefs } = create();
+    setViewport(1024, 768);
+    prefs.setPageQuality('full');
+    c.refreshVariantTarget();
+    prefs.setPageQuality('auto');
+    c.refreshVariantTarget();
+    expect(c.pageUrlFor(c.pages()[1])).toBe('/api/v1/items/item-1/pages/p1?maxDim=1080');
+  });
+
+  it('halves the width for a double-page spread, which can lower the bucket', () => {
+    const { c } = create();
+    setViewport(2400, 900);
+    c.setFitMode('screen');
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0'); // 2400 -> above the ladder
+    (c as unknown as { pageUrlCache: Map<string, string> }).pageUrlCache.clear();
+    c.view.set('spread');
+    c.setFitMode('screen');
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1440'); // 1200 -> 1440
+  });
+
+  it('uses the manifest aspect ratio in the webtoon view', () => {
+    const { c } = create();
+    setViewport(1000, 800);
+    c.view.set('webtoon');
+    c.setWebtoonWidth(70); // 700 wide, aspect 1.5 -> 1050 -> 1080
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080');
+  });
+
+  /**
+   * The anti-thrash rule: a page already resolved keeps its URL, so a rotation
+   * mid-chapter never re-downloads what is on screen. Pages not yet seen pick up
+   * the new target.
+   */
+  it('pins a resolved page URL and re-targets only pages not yet seen', () => {
+    const { c } = create();
+    setViewport(1024, 768);
+    c.refreshVariantTarget();
+    const pinned = c.pageUrlFor(c.pages()[0]);
+    expect(pinned).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080');
+
+    setViewport(1024, 768, 2); // same box, retina: 2048 -> the 2160 rung
+    c.onViewportChange();
+    expect(c.pageUrlFor(c.pages()[0])).toBe(pinned); // unchanged: no re-download
+    expect(c.pageUrlFor(c.pages()[1])).toBe('/api/v1/items/item-1/pages/p1?maxDim=2160');
+  });
+
+  /**
+   * Prefetch MUST go through the same builder, or the warmed response is a
+   * different URL from the one the <img> asks for and the browser fetches twice.
+   */
+  it('prefetches exactly the URLs the <img> will ask for', () => {
+    const { c } = create();
+    setViewport(1024, 768);
+    c.view.set('webtoon');
+    c.refreshVariantTarget();
+    (c as unknown as { prefetchWebtoonAhead: (i: number) => void }).prefetchWebtoonAhead(0);
+    const warmed = Array.from((c as unknown as { prefetchedUrls: Set<string> }).prefetchedUrls);
+    expect(warmed.length).toBeGreaterThan(0);
+    for (const url of warmed) expect(url).toContain('?maxDim=');
+    // The reader's own <img> src for a warmed page is byte-identical.
+    expect(warmed).toContain(c.pageUrlFor(c.pages()[1]));
   });
 });
