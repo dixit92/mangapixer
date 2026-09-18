@@ -25,11 +25,14 @@ describe('HomeComponent', () => {
       {
         libraryId: 'L1', libraryName: 'Alpha', stacks: [
           // A top-level folder with three new chapters: ONE card, newest chapter named.
+          // Unread (the quiet default): no read-state marker should render.
           { id: 'f1', displayName: 'Series A', isFolder: true, coverUrl: '/api/v1/items/c3/cover',
-            latestItemId: 'c3', latestItemName: 'Ch3.cbz', latestAddedAt: '2026-09-12T00:00:00Z', newCount: 3 },
-          // A loose top-level archive: its own single-chapter stack.
+            latestItemId: 'c3', latestItemName: 'Ch3.cbz', latestAddedAt: '2026-09-12T00:00:00Z', newCount: 3,
+            readState: 'unread' },
+          // A loose top-level archive: its own single-chapter stack, fully read.
           { id: 'a1', displayName: 'Oneshot.cbz', isFolder: false, coverUrl: null,
-            latestItemId: 'a1', latestItemName: 'Oneshot.cbz', latestAddedAt: '2026-09-11T00:00:00Z', newCount: 1 },
+            latestItemId: 'a1', latestItemName: 'Oneshot.cbz', latestAddedAt: '2026-09-11T00:00:00Z', newCount: 1,
+            readState: 'read' },
         ],
       },
       { libraryId: 'L2', libraryName: 'Beta', stacks: [] },
@@ -160,6 +163,58 @@ describe('HomeComponent', () => {
     expect(cards[1].getAttribute('href')).toBe('/reader/a1');
   });
 
+  // --- Read-state marker on New-chapters cards (1.20.0) ---
+
+  it('renders no read-state marker for an unread stack (the quiet default)', () => {
+    const fixture = createComponent();
+    const cards = fixture.nativeElement.querySelectorAll('.stack-card') as NodeListOf<HTMLElement>;
+    // f1 (Series A) carries readState 'unread' in the fixture.
+    expect(cards[0].querySelector('.badge.read-state')).toBeNull();
+  });
+
+  it('renders a green "Read" marker for a fully-read stack, with an aria-label', () => {
+    const fixture = createComponent();
+    const cards = fixture.nativeElement.querySelectorAll('.stack-card') as NodeListOf<HTMLElement>;
+    // a1 (the loose archive) carries readState 'read' in the fixture.
+    const marker = cards[1].querySelector('.badge.read-state') as HTMLElement;
+    expect(marker).not.toBeNull();
+    expect(marker.classList.contains('read')).toBe(true);
+    expect(marker.classList.contains('reading')).toBe(false);
+    expect(marker.textContent).toContain('Read');
+    expect(marker.getAttribute('aria-label')).toBe('All items read');
+  });
+
+  it('renders a purple "Reading" marker for a partially-read stack', () => {
+    const fixture = createComponent({
+      recent: {
+        libraries: [
+          {
+            libraryId: 'L1', libraryName: 'Alpha', stacks: [
+              { id: 'f2', displayName: 'Series B', isFolder: true, coverUrl: null,
+                latestItemId: 'c9', latestItemName: 'Ch9.cbz', latestAddedAt: '2026-09-12T00:00:00Z',
+                newCount: 1, readState: 'reading' },
+            ],
+          },
+        ],
+      },
+    });
+    const card = fixture.nativeElement.querySelector('.stack-card') as HTMLElement;
+    const marker = card.querySelector('.badge.read-state') as HTMLElement;
+    expect(marker).not.toBeNull();
+    expect(marker.classList.contains('reading')).toBe(true);
+    expect(marker.classList.contains('read')).toBe(false);
+    expect(marker.textContent!.trim()).toBe('Reading');
+    expect(marker.getAttribute('aria-label')).toBe('Partially read');
+  });
+
+  it('readStateView maps each wire value to the matching marker (or null for unread)', () => {
+    const fixture = createComponent();
+    const cmp = fixture.componentInstance;
+    expect(cmp.readStateView('read')).toEqual({ kind: 'read', text: '✓ Read', tooltip: 'All items read' });
+    expect(cmp.readStateView('reading')).toEqual({ kind: 'reading', text: 'Reading', tooltip: 'Partially read' });
+    expect(cmp.readStateView('unread')).toBeNull();
+  });
+
   it('folder tap routes with a transient recentlyUpdated sort and does NOT persist a preference', () => {
     const fixture = createComponent();
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
@@ -216,6 +271,20 @@ describe('HomeComponent', () => {
   });
 
   // --- B2: card-size slider (shared library preference) ---
+
+  it('labels the toolbar slider\'s scope with a "Card size" caption (1.20.0)', () => {
+    const fixture = createComponent();
+    const scope = fixture.nativeElement.querySelector('.toolbar-scope') as HTMLElement;
+    expect(scope).not.toBeNull();
+    expect(scope.querySelector('.scope-label')!.textContent).toContain('Card size');
+    expect(scope.querySelector('.scope-icon')).not.toBeNull();
+  });
+
+  it('groups the New-chapters Filter button with its heading via a section divider', () => {
+    const fixture = createComponent();
+    const head = fixture.nativeElement.querySelector('.section-head') as HTMLElement;
+    expect(head.querySelector('.head-divider')).not.toBeNull();
+  });
 
   it('reads the stored library card size and feeds it to the home cards as --card-size', () => {
     const fixture = createComponent();

@@ -376,6 +376,102 @@ public sealed class RecentChaptersServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ReadState_TaggedPerStack_ReadReadingUnread_LooseArchiveIncluded()
+    {
+        var (db, userId, libAId, _) = await SetupAsync();
+        try
+        {
+            // Series A: single recent archive, sticky read-mark -> ReadState = "read".
+            var seriesA = await AddFolderAsync(db, libAId, "seriesA", "Series A");
+            var a1 = await AddArchiveAsync(db, libAId, "a1", "A1.cbz", Now.AddHours(-1), parentId: seriesA.Id);
+            db.ReadMarks.Add(new ReadMarkEntity { UserId = userId, ItemId = a1.Id, MarkedAt = Now });
+
+            // Series B: single recent archive, in-progress (no read-mark) -> ReadState = "reading".
+            var seriesB = await AddFolderAsync(db, libAId, "seriesB", "Series B");
+            var b1 = await AddArchiveAsync(db, libAId, "b1", "B1.cbz", Now.AddHours(-2), parentId: seriesB.Id);
+            db.ReadingProgress.Add(new ReadingProgressEntity
+            {
+                UserId = userId,
+                ItemId = b1.Id,
+                State = (int)ReadingState.InProgress,
+                EntryKey = "e1",
+                LastMutationId = "m1",
+                UpdatedAt = Now,
+            });
+
+            // Loose top-level archive, untouched -> a "loose archive" stack (IsFolder = false)
+            // whose own progress/read-mark (none here) rolls up to ReadState = "unread".
+            await AddArchiveAsync(db, libAId, "loose1", "Loose.cbz", Now.AddHours(-3));
+
+            await db.SaveChangesAsync();
+
+            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
+
+            // Unfiltered (All): every stack still appears, each tagged with its own rollup.
+            var all = await service.GetRecentChaptersAsync(userId);
+            var stacks = all.Libraries.First(g => g.LibraryId == "recLibA").Stacks;
+            Assert.Equal(3, stacks.Count);
+
+            var stackA = stacks.Single(s => s.Id == "seriesA");
+            Assert.Equal("read", stackA.ReadState);
+
+            var stackB = stacks.Single(s => s.Id == "seriesB");
+            Assert.Equal("reading", stackB.ReadState);
+
+            var looseStack = stacks.Single(s => s.Id == "loose1");
+            Assert.False(looseStack.IsFolder);
+            Assert.Equal("unread", looseStack.ReadState);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task ReadState_AgreesWithReadStateFilter_ForEveryReturnedStack()
+    {
+        // The per-stack ReadState tag and the readState filter both derive from the same
+        // rollup resolution; a stack returned under a given filter must carry the matching
+        // ReadState string, and vice versa (no stack of another state leaks through).
+        var (db, userId, libAId, _) = await SetupAsync();
+        try
+        {
+            var seriesA = await AddFolderAsync(db, libAId, "seriesA", "Series A");
+            var a1 = await AddArchiveAsync(db, libAId, "a1", "A1.cbz", Now.AddHours(-1), parentId: seriesA.Id);
+            db.ReadMarks.Add(new ReadMarkEntity { UserId = userId, ItemId = a1.Id, MarkedAt = Now });
+
+            var seriesB = await AddFolderAsync(db, libAId, "seriesB", "Series B");
+            var b1 = await AddArchiveAsync(db, libAId, "b1", "B1.cbz", Now.AddHours(-2), parentId: seriesB.Id);
+            db.ReadingProgress.Add(new ReadingProgressEntity
+            {
+                UserId = userId,
+                ItemId = b1.Id,
+                State = (int)ReadingState.InProgress,
+                EntryKey = "e1",
+                LastMutationId = "m1",
+                UpdatedAt = Now,
+            });
+
+            await AddArchiveAsync(db, libAId, "loose1", "Loose.cbz", Now.AddHours(-3));
+            await db.SaveChangesAsync();
+
+            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
+
+            foreach (var (filter, expectedReadState) in new[]
+                     {
+                         (HomeReadStateFilter.Read, "read"),
+                         (HomeReadStateFilter.Reading, "reading"),
+                         (HomeReadStateFilter.Unread, "unread"),
+                     })
+            {
+                var result = await service.GetRecentChaptersAsync(userId, readState: filter);
+                var libStacks = result.Libraries.First(g => g.LibraryId == "recLibA").Stacks;
+                Assert.NotEmpty(libStacks);
+                Assert.All(libStacks, s => Assert.Equal(expectedReadState, s.ReadState));
+            }
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
     public async Task Incognito_ExcludesPrivateLibrary()
     {
         var (db, userId, libAId, libBId) = await SetupAsync();
