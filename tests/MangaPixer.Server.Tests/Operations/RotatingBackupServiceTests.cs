@@ -193,4 +193,44 @@ public sealed class RotatingBackupServiceTests : IDisposable
         }
         finally { await db.DisposeAsync(); }
     }
+
+    [Fact]
+    public async Task ListBackups_ReturnsSnapshotsNewestFirst_WithSizeAndTimestamp()
+    {
+        var (db, service) = await SetupAsync(retentionCount: 5);
+        try
+        {
+            await service.RunAsync();
+            await Task.Delay(1100); // generated file names have 1-second resolution
+            await service.RunAsync();
+
+            var files = service.ListBackups(_backupsDir);
+
+            Assert.Equal(2, files.Count);
+            // Newest-first: names embed a UTC timestamp, so descending ordinal
+            // name order is chronological.
+            Assert.True(string.CompareOrdinal(files[0].FileName, files[1].FileName) > 0);
+            Assert.All(files, f =>
+            {
+                Assert.StartsWith("rotating-", f.FileName);
+                Assert.True(f.ByteSize > 0);
+                Assert.DoesNotContain(Path.DirectorySeparatorChar, f.FileName);
+            });
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public void ListBackups_MissingDirectory_ReturnsEmpty()
+    {
+        var service = new RotatingBackupService(
+            new MangaPixerDbContext(_options),
+            new BackupService(new MangaPixerDbContext(_options)),
+            new RotatingBackupOptions { BackupDirectory = _backupsDir },
+            new RotatingBackupState());
+
+        var files = service.ListBackups(Path.Combine(_tempDir, "does-not-exist"));
+
+        Assert.Empty(files);
+    }
 }

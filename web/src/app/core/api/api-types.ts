@@ -541,6 +541,54 @@ export interface RotatingBackupStatusDto {
   retainedCount: number;
 }
 
+/** One on-disk rotating snapshot, exposed for the restore picker (no paths). */
+export interface RotatingBackupFileDto {
+  fileName: string;
+  byteSize: number;
+  timestampUtc: string;
+}
+
+/** Listing of the on-disk rotating snapshots (newest first). */
+export interface RotatingBackupListDto {
+  files: RotatingBackupFileDto[];
+}
+
+/** Request to restore from a chosen on-disk rotating snapshot. */
+export interface RestoreFromBackupRequest {
+  fileName: string;
+}
+
+/** Response for a staged restore (202 Accepted) — upload or from a snapshot. */
+export interface RestoreStageResponseDto {
+  preRestoreBackupFileName: string | null;
+  message: string | null;
+}
+
+// --- Admin audit trail (1.18.0) ---
+
+/**
+ * One administrative audit event. Carries action/result verbs, resolved actor
+ * user name, numeric ids and a timestamp only — never paths or secrets.
+ */
+export interface AuditEventDto {
+  id: number;
+  action: string;
+  result: string;
+  actorUserId: number | null;
+  actorUserName: string | null;
+  targetUserId: number | null;
+  timestamp: string;
+  correlationId: string | null;
+}
+
+/** One page of the audit trail (newest first), with total count. */
+export interface AuditTrailPageDto {
+  items: AuditEventDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
 // --- System info ---
 
 /**
