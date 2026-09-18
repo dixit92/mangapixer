@@ -1,4 +1,4 @@
-import { isApplePlatformTouch } from './platform';
+import { isApplePlatformTouch, isStandaloneDisplay } from './platform';
 
 /**
  * Pure detection rule (IPAD-FULLSCREEN): true for real iOS/iPadOS devices and
@@ -46,5 +46,42 @@ describe('isApplePlatformTouch', () => {
       platform: 'Linux armv8l', maxTouchPoints: 5,
       userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36',
     })).toBe(false);
+  });
+});
+
+/**
+ * Standalone/installed-app detection (1.20.0 owner request): true with no
+ * browser chrome to hide in the first place, via either the standard
+ * `display-mode: standalone` media feature or iOS Safari's older
+ * `navigator.standalone` flag.
+ */
+describe('isStandaloneDisplay', () => {
+  it('is true when the display-mode: standalone media feature matches', () => {
+    expect(isStandaloneDisplay({
+      matchMedia: (q) => ({ matches: q === '(display-mode: standalone)' }),
+    })).toBe(true);
+  });
+
+  it('is true for iOS Safari\'s navigator.standalone, even without matchMedia', () => {
+    expect(isStandaloneDisplay({ navigator: { standalone: true } })).toBe(true);
+  });
+
+  it('navigator.standalone wins even when matchMedia disagrees', () => {
+    expect(isStandaloneDisplay({
+      matchMedia: () => ({ matches: false }),
+      navigator: { standalone: true },
+    })).toBe(true);
+  });
+
+  it('is false in an ordinary browser tab (media feature does not match)', () => {
+    expect(isStandaloneDisplay({
+      matchMedia: (q) => ({ matches: q !== '(display-mode: standalone)' && false }),
+      navigator: { standalone: false },
+    })).toBe(false);
+  });
+
+  it('is false, not throwing, when matchMedia is missing (jsdom-safe)', () => {
+    expect(isStandaloneDisplay({})).toBe(false);
+    expect(isStandaloneDisplay({ navigator: { standalone: false } })).toBe(false);
   });
 });

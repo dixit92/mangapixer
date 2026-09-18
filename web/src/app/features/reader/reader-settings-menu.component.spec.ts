@@ -134,6 +134,73 @@ describe('ReaderSettingsMenuComponent', () => {
     });
   });
 
+  /**
+   * 1.20.0 "Downscale filter": a third radio group in the same Rendering menu,
+   * after Page quality. Only meaningful for a sized (Auto) page request, so it
+   * is offered disabled with a reason under Full - the same treatment as
+   * Enhance being disabled with a reason on webtoon.
+   */
+  describe('Downscale filter menu (1.20.0)', () => {
+    function openRendering(fixture: ReturnType<typeof create>['fixture']) {
+      const trigger = (fixture.nativeElement as HTMLElement)
+        .querySelector('button[aria-label="Rendering"]') as HTMLElement;
+      trigger.click();
+      fixture.detectChanges();
+      return { panel: document.querySelector('.reader-options-menu') as HTMLElement };
+    }
+
+    it('offers Sharp / Balanced / Soft as menuitemradios, Balanced selected by default', () => {
+      const { fixture } = create();
+      const { panel } = openRendering(fixture);
+      const items = Array.from(panel.querySelectorAll<HTMLElement>('button[aria-label^="Downscale filter:"]'));
+      expect(items.map((i) => i.getAttribute('aria-label'))).toEqual([
+        'Downscale filter: Sharp', 'Downscale filter: Balanced', 'Downscale filter: Soft',
+      ]);
+      for (const i of items) expect(i.getAttribute('role')).toBe('menuitemradio');
+      const byLabel = (l: string) => items.find((i) => i.getAttribute('aria-label') === `Downscale filter: ${l}`)!;
+      expect(byLabel('Balanced').classList.contains('selected-option')).toBe(true);
+      expect(byLabel('Balanced').getAttribute('aria-checked')).toBe('true');
+      expect(byLabel('Sharp').getAttribute('aria-checked')).toBe('false');
+      expect(byLabel('Soft').getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('choosing a filter persists through the shared service', () => {
+      const { fixture, prefs } = create();
+      const { panel } = openRendering(fixture);
+      (panel.querySelector('button[aria-label="Downscale filter: Sharp"]') as HTMLElement).click();
+      expect(prefs.downscaleFilter()).toBe('sharp');
+    });
+
+    it('is disabled with "Applies to Auto page quality" when Page quality is Full', () => {
+      const { fixture, c, prefs } = create();
+      prefs.setPageQuality('full');
+      fixture.detectChanges();
+      expect(c.filterDisabled()).toBe(true);
+      const { panel } = openRendering(fixture);
+      const sharp = panel.querySelector('button[aria-label="Downscale filter: Sharp"]') as HTMLButtonElement;
+      expect(sharp.disabled).toBe(true);
+      const hints = Array.from(panel.querySelectorAll('.menu-hint')).map((e) => e.textContent);
+      expect(hints.some((t) => t?.includes('Applies to Auto page quality'))).toBe(true);
+    });
+
+    it('re-enables once Page quality goes back to Auto', () => {
+      const { fixture, c, prefs } = create();
+      prefs.setPageQuality('full');
+      fixture.detectChanges();
+      expect(c.filterDisabled()).toBe(true);
+      prefs.setPageQuality('auto');
+      fixture.detectChanges();
+      expect(c.filterDisabled()).toBe(false);
+    });
+
+    it('chooseDownscaleFilter refuses to change the preference while disabled', () => {
+      const { c, prefs } = create();
+      prefs.setPageQuality('full');
+      c.chooseDownscaleFilter('sharp');
+      expect(prefs.downscaleFilter()).toBe('balanced');
+    });
+  });
+
   it('emits opened/closed for chrome pinning', () => {
     const { c } = create();
     let opened = 0;
@@ -418,6 +485,49 @@ describe('ReaderOptionsSheetComponent', () => {
       webtoon.fixture.detectChanges();
       expect(webtoon.c.enhanceDisabled()).toBe(true);
       expect(webtoon.c.renderingHint()).toBe('Enhance is for paged views');
+    });
+  });
+
+  /**
+   * 1.20.0 "Downscale filter" on the phone: a third chip radiogroup
+   * (`reader-options-filter`), shown in every view like Page quality, disabled
+   * with a reason under Full page quality.
+   */
+  describe('Downscale filter chip group (1.20.0)', () => {
+    it('adds the group with exactly one checked chip, Balanced by default', () => {
+      const { chips, checked } = create();
+      expect(chips('reader-options-filter').map((c) => (c.textContent ?? '').trim()).length).toBe(3);
+      expect(checked('reader-options-filter').length).toBe(1);
+      expect(checked('reader-options-filter')[0].textContent).toContain('Balanced');
+    });
+
+    it('keeps the group in the webtoon view too', () => {
+      const { el, chips } = create(makeHost({ view: 'webtoon' }));
+      expect(el.querySelector('[aria-labelledby="reader-options-filter"]')).toBeTruthy();
+      expect(chips('reader-options-filter').length).toBe(3);
+    });
+
+    it('choosing a chip persists through the shared service and keeps the sheet open', () => {
+      const { ref, chip } = create();
+      chip('reader-options-filter', 'Sharp').click();
+      expect(TestBed.inject(ReaderPreferencesService).downscaleFilter()).toBe('sharp');
+      expect(ref.dismiss).not.toHaveBeenCalled();
+    });
+
+    it('is disabled with "Applies to Auto page quality" once Page quality is Full', () => {
+      const { fixture, c, el, chip } = create();
+      TestBed.inject(ReaderPreferencesService).setPageQuality('full');
+      fixture.detectChanges();
+      expect(c.filterDisabled()).toBe(true);
+      expect((chip('reader-options-filter', 'Sharp') as HTMLButtonElement).disabled).toBe(true);
+      expect(el.querySelectorAll('.group-hint')[1]?.textContent).toContain('Applies to Auto page quality');
+    });
+
+    it('pickDownscaleFilter refuses to change the preference while disabled', () => {
+      const { c } = create();
+      TestBed.inject(ReaderPreferencesService).setPageQuality('full');
+      c.pickDownscaleFilter('sharp');
+      expect(TestBed.inject(ReaderPreferencesService).downscaleFilter()).toBe('balanced');
     });
   });
 

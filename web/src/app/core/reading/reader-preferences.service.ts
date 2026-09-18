@@ -47,6 +47,19 @@ export type PageQuality = 'auto' | 'full';
 export type Upscaler = 'smooth' | 'enhance';
 
 /**
+ * Which resampling filter the server uses when it downscales a page (1.20.0,
+ * "Downscale filter"). Only takes effect when `pageQuality` is `auto` AND the
+ * request lands on a sized bucket (`maxDim` — see `page-variant.ts`); Full page
+ * quality and `original` fit never downscale, so the filter has nothing to act
+ * on there.
+ *  - `sharp`    — Lanczos, the 1.19.x behaviour: crisp lines, can moire on
+ *                 screentones.
+ *  - `balanced` — Mitchell. The default: a middle ground between the other two.
+ *  - `soft`     — area average: kills screentone moire, slightly softer lines.
+ */
+export type DownscaleFilter = 'sharp' | 'balanced' | 'soft';
+
+/**
  * Per-DEVICE reader preferences kept in `localStorage` (never a backend/EF
  * preference — deliberately device-local, like the existing webtoon-width and
  * page-mode prefs in the reader). Covers:
@@ -92,17 +105,23 @@ export class ReaderPreferencesService {
 
   static readonly PageQualityKey = 'mangapixer-reader-page-quality';
   static readonly UpscalerKey = 'mangapixer-reader-upscaler';
+  static readonly DownscaleFilterKey = 'mangapixer-reader-downscale-filter';
 
   /** Display-sized page requests are the default: less bandwidth, sharper pages. */
   static readonly DefaultPageQuality: PageQuality = 'auto';
   /** Rendering defaults to the browser's own resampling (pre-1.19.0 behaviour). */
   static readonly DefaultUpscaler: Upscaler = 'smooth';
+  /** Mitchell is the new server default: a middle ground between Sharp and Soft. */
+  static readonly DefaultDownscaleFilter: DownscaleFilter = 'balanced';
 
   /** How many pixels to request per page; see `PageQuality`. */
   readonly pageQuality = signal<PageQuality>(this.loadPageQuality());
 
   /** How an upscaled page is resampled for display; see `Upscaler`. */
   readonly upscaler = signal<Upscaler>(this.loadUpscaler());
+
+  /** Which resampling filter a sized-down page request asks for; see `DownscaleFilter`. */
+  readonly downscaleFilter = signal<DownscaleFilter>(this.loadDownscaleFilter());
 
   setPageQuality(quality: PageQuality): void {
     this.pageQuality.set(quality);
@@ -117,6 +136,15 @@ export class ReaderPreferencesService {
     this.upscaler.set(upscaler);
     try {
       localStorage.setItem(ReaderPreferencesService.UpscalerKey, upscaler);
+    } catch {
+      /* storage unavailable (private mode) — keep the in-memory value */
+    }
+  }
+
+  setDownscaleFilter(filter: DownscaleFilter): void {
+    this.downscaleFilter.set(filter);
+    try {
+      localStorage.setItem(ReaderPreferencesService.DownscaleFilterKey, filter);
     } catch {
       /* storage unavailable (private mode) — keep the in-memory value */
     }
@@ -140,6 +168,16 @@ export class ReaderPreferencesService {
       /* storage unavailable — fall through to the default */
     }
     return ReaderPreferencesService.DefaultUpscaler;
+  }
+
+  private loadDownscaleFilter(): DownscaleFilter {
+    try {
+      const raw = localStorage.getItem(ReaderPreferencesService.DownscaleFilterKey);
+      if (raw === 'sharp' || raw === 'balanced' || raw === 'soft') return raw;
+    } catch {
+      /* storage unavailable — fall through to the default */
+    }
+    return ReaderPreferencesService.DefaultDownscaleFilter;
   }
 
   /**
