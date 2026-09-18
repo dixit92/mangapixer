@@ -115,6 +115,12 @@ public static class HostingServicesExtensions
         });
         services.AddScoped<DbRestoreService>();
 
+        // Administrative audit trail (1.18.0): centralised write (used by the
+        // admin + operations controllers) and the paged, admin-only read path
+        // that backs the audit-trail UI. The audit_events store predates this;
+        // this only adds read/write access on top.
+        services.AddScoped<com.lifepixer.mangapixer.Server.Features.Admin.AuditService>();
+
         // Hosted services — order matters for startup recovery, which runs
         // before the worker pool starts dispatching. The thumbnail backfill
         // runs after the worker pool so it can dispatch generation jobs.

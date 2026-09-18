@@ -176,6 +176,42 @@ public sealed class DbRestoreService
     }
 
     /// <summary>
+    /// Stages a restore from an on-disk rotating snapshot chosen by file NAME
+    /// (never a caller-supplied path). The name must be a bare file name that
+    /// resolves strictly inside the app's own backups directory; any path
+    /// separator or traversal is rejected before a byte is read. The resolved
+    /// file is then fed through the same validate + pre-restore-snapshot +
+    /// stage-for-apply-on-restart path as an uploaded backup, so the security
+    /// model is identical.
+    /// </summary>
+    public async Task<RestoreStageResult> StageRestoreFromBackupAsync(
+        string fileName,
+        string actorUserName,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+            return RestoreStageResult.Failed("invalid_request", "A backup file name is required.");
+
+        // Only a bare file name is accepted — never a path. Reject any directory
+        // component or traversal outright, then confirm the resolved path is
+        // strictly inside the backups directory before touching the filesystem.
+        if (fileName.IndexOfAny(new[] { '/', '\\' }) >= 0 ||
+            !string.Equals(fileName, Path.GetFileName(fileName), StringComparison.Ordinal))
+            return RestoreStageResult.Failed("invalid_backup_name", "Invalid backup file name.");
+
+        var backupsFull = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_backupsDir));
+        var candidate = Path.GetFullPath(Path.Combine(_backupsDir, fileName));
+        if (!candidate.StartsWith(backupsFull + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            return RestoreStageResult.Failed("invalid_backup_name", "Backup file is outside the backups directory.");
+
+        if (!File.Exists(candidate))
+            return RestoreStageResult.Failed("backup_not_found", "The requested backup file does not exist.");
+
+        await using var stream = new FileStream(candidate, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return await StageRestoreAsync(stream, actorUserName, ct);
+    }
+
+    /// <summary>
     /// Validates a staged/candidate backup file: SQLite magic header, a
     /// passing <c>PRAGMA integrity_check</c>, the expected MangaPixer core
     /// tables, and a recognised schema version marker (not newer than this

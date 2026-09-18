@@ -101,6 +101,21 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
             <mat-icon class="size-icon">zoom_in</mat-icon>
           </div>
         }
+        <!-- List columns slider (1.18.0): only meaningful for the List view, mirroring
+             the card-size slider immediately above (same drag-to-preview / release-to-persist
+             pattern via input/change). Desktop + iPad inline toolbar control; phone gets the
+             equivalent control in the View menu below. -->
+        @if (viewMode() === 'list') {
+          <div class="size-control size-control-inline" matTooltip="List columns">
+            <mat-icon class="size-icon">view_agenda</mat-icon>
+            <input type="range" class="size-slider" aria-label="List columns"
+                   [min]="listColumnsMin" [max]="listColumnsMax" [step]="listColumnsStep"
+                   [value]="listColumns()"
+                   (input)="onListColumnsInput($event)"
+                   (change)="onListColumnsChange($event)">
+            <mat-icon class="size-icon">view_module</mat-icon>
+          </div>
+        }
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
                 matTooltip="Change how the library is displayed" aria-label="View options">
           <mat-icon>{{ viewIcon() }}</mat-icon> View
@@ -170,6 +185,23 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                        (input)="onCardSizeInput($event)"
                        (change)="onCardSizeChange($event)">
                 <mat-icon class="size-icon">zoom_in</mat-icon>
+              </div>
+            </div>
+          }
+          <!-- List columns (1.18.0): phone equivalent of the inline toolbar slider above,
+               same PHONE-only placement rationale as the Card size section. -->
+          @if (viewMode() === 'list') {
+            <mat-divider></mat-divider>
+            <div class="view-size-section" (click)="$event.stopPropagation()">
+              <span class="menu-caption">List columns</span>
+              <div class="size-control size-control-menu">
+                <mat-icon class="size-icon">view_agenda</mat-icon>
+                <input type="range" class="size-slider" aria-label="List columns"
+                       [min]="listColumnsMin" [max]="listColumnsMax" [step]="listColumnsStep"
+                       [value]="listColumns()"
+                       (input)="onListColumnsInput($event)"
+                       (change)="onListColumnsChange($event)">
+                <mat-icon class="size-icon">view_module</mat-icon>
               </div>
             </div>
           }
@@ -333,7 +365,8 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
 
     <div class="nodes" [class.card]="viewMode() === 'card'"
          [class.list]="viewMode() === 'list'"
-         [style.--card-size]="cardSize() + 'px'">
+         [style.--card-size]="cardSize() + 'px'"
+         [style.--list-columns]="listColumns()">
       @for (node of nodes(); track node.id) {
         <div class="node-wrap" [class.selected]="isSelected(node)">
           <a class="node-card" [routerLink]="selectMode() ? null : getNodeLink(node)"
@@ -474,16 +507,20 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       gap: clamp(10px, calc(var(--card-size, 150px) * 0.09), 20px);
       grid-template-columns: repeat(auto-fill, minmax(var(--card-size, 150px), 1fr));
     }
-    /* List (1.17.0): a grid so wide viewports get 2-3 columns instead of one long
-       row per item. Row-major order keeps infinite scroll appending at the bottom.
-       minmax(0, 1fr) (not 1fr) lets a long title ellipsize instead of widening its
-       column. Phone/narrow stays single column. */
+    /* List (1.17.0, column count user-selectable since 1.18.0): a grid so wide
+       viewports get up to 3 columns instead of one long row per item. Row-major
+       order keeps infinite scroll appending at the bottom. minmax(0, 1fr) (not 1fr)
+       lets a long title ellipsize instead of widening its column. Phone/narrow
+       stays single column regardless of the stored preference - the slider (gated
+       to List view) only takes effect at the >=960px breakpoint below, driven by
+       the --list-columns custom property (1-3, default 2) instead of the old fixed
+       960px/1800px media-query counts. */
     .nodes.list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
     @media (min-width: 960px) {
-      .nodes.list { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
-    }
-    @media (min-width: 1800px) {
-      .nodes.list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .nodes.list {
+        grid-template-columns: repeat(var(--list-columns, 2), minmax(0, 1fr));
+        column-gap: 16px;
+      }
     }
     .nodes.list .node-wrap { min-width: 0; }
     .nodes.list .node-card {
@@ -800,6 +837,16 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   readonly defaultCardSize = 150;
   readonly cardSize = signal<number>(this.defaultCardSize);
 
+  // List columns (1.18.0): the list-view column count on wide viewports, replacing
+  // the old media-query-only 1/2/3 breakpoints with a user-selectable value driven
+  // via the --list-columns CSS custom property. Persisted as an integer in
+  // LibraryViewPreferencesDto.listColumns, mirroring the cardSize pattern.
+  readonly listColumnsMin = 1;
+  readonly listColumnsMax = 3;
+  readonly listColumnsStep = 1;
+  readonly defaultListColumns = 2;
+  readonly listColumns = signal<number>(this.defaultListColumns);
+
   // Per-user browse sort (post-1.2.0). Folders stay first in every mode; the sort
   // orders within kind. Omitted on the request → the server uses the stored pref;
   // we pass it explicitly so a change reorders immediately without a persist race.
@@ -948,6 +995,15 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     this.density.set(p.density === 'compact' ? 'compact' : 'comfortable');
     this.cardSize.set(this.resolveCardSize(p));
     this.pageSize.set(this.resolvePageSize(p));
+    this.listColumns.set(this.resolveListColumns(p));
+  }
+
+  /** Stored listColumns when it is a sane integer in range, else the default (2). */
+  private resolveListColumns(p: LibraryViewPreferencesDto): number {
+    const n = Number(p.listColumns);
+    return Number.isInteger(n) && n >= this.listColumnsMin && n <= this.listColumnsMax
+      ? n
+      : this.defaultListColumns;
   }
 
   /** Stored libraryPageSize when it is a sane integer, else the default (50). */
@@ -1318,6 +1374,32 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     return Math.min(this.cardSizeMax, Math.max(this.cardSizeMin, Math.round(px)));
   }
 
+  /**
+   * Live list-columns preview while dragging the slider (1.18.0): mirrors
+   * onCardSizeInput - updates only the signal (which drives --list-columns),
+   * deliberately WITHOUT persisting. The commit happens on `change`.
+   */
+  onListColumnsInput(event: Event): void {
+    this.listColumns.set(this.clampListColumns(Number((event.target as HTMLInputElement).value)));
+  }
+
+  /** Commit the list column count when the slider is released (change): persists it. */
+  onListColumnsChange(event: Event): void {
+    this.setListColumns(Number((event.target as HTMLInputElement).value));
+  }
+
+  /** Set the list column count (clamped to 1-3) and persist the preference. */
+  setListColumns(count: number): void {
+    const cols = this.clampListColumns(count);
+    this.listColumns.set(cols);
+    this.persistView();
+  }
+
+  private clampListColumns(count: number): number {
+    if (!Number.isFinite(count)) return this.defaultListColumns;
+    return Math.min(this.listColumnsMax, Math.max(this.listColumnsMin, Math.round(count)));
+  }
+
   /** Change the browse sort: persist the preference and reorder from the top. */
   setSort(s: LibrarySortOrder): void {
     if (this.storedSort === s && this.sort() === s) return;
@@ -1369,6 +1451,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       cardSize: String(this.cardSize()),
       libraryPageSize: this.pageSize(),
       homeRecentWindowDays: this.storedHomeRecentWindowDays,
+      listColumns: this.listColumns(),
     }).subscribe({ error: () => { /* non-fatal: the choice still applies this session */ } });
   }
 

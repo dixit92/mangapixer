@@ -23,6 +23,8 @@ import {
   RegisterLibraryRequest,
   CreateUserRequest,
   RotatingBackupStatusDto,
+  RotatingBackupFileDto,
+  AuditEventDto,
   SystemPlatform,
   YacReaderDetectDto,
   YacReaderImportPreviewDto,
@@ -434,6 +436,83 @@ import { DebugLogCardComponent } from './debug-log-card.component';
                 [disabled]="backupBusy() || backupLoading()">
           {{ backupBusy() ? 'Backing up…' : 'Back up now' }}
         </button>
+
+        <!-- Restore: pick an on-disk snapshot, or upload an external backup.
+             Both stage the restore; the swap applies on the next server
+             restart (the live DB is never overwritten while in use). -->
+        <h4>Restore from a snapshot</h4>
+        @if (backupFilesLoading()) {
+          <p>Loading snapshots…</p>
+        } @else if (backupFiles().length === 0) {
+          <p class="backup-info">No snapshots on disk yet. Take a backup first.</p>
+        } @else {
+          <mat-list class="snapshot-list">
+            @for (f of backupFiles(); track f.fileName) {
+              <mat-list-item>
+                <span matListItemTitle>{{ f.fileName }}</span>
+                <span matListItemLine>
+                  {{ f.timestampUtc | date:'short' }} · {{ formatSize(f.byteSize) }}
+                </span>
+                <button mat-stroked-button matListItemMeta type="button"
+                        (click)="restoreFromSnapshot(f.fileName)"
+                        [disabled]="restoreBusy()">
+                  Restore
+                </button>
+              </mat-list-item>
+            }
+          </mat-list>
+        }
+
+        <h4>Restore from an uploaded file</h4>
+        <p class="backup-info">
+          Upload a MangaPixer SQLite backup. It is validated before anything is
+          replaced; the restore applies on the next restart.
+        </p>
+        <input #restoreFile type="file" accept=".db,application/octet-stream"
+               (change)="onRestoreFileSelected(restoreFile)"
+               [disabled]="restoreBusy()">
+
+        @if (restoreMessage(); as msg) {
+          <p class="restore-message">{{ msg }}</p>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Audit trail (1.18.0): read side of the previously write-only audit store. -->
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Audit trail</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        @if (auditLoading()) {
+          <p>Loading…</p>
+        } @else if (auditEvents().length === 0) {
+          <p class="backup-info">No audit events recorded yet.</p>
+        } @else {
+          <mat-list class="audit-list">
+            @for (e of auditEvents(); track e.id) {
+              <mat-list-item>
+                <span matListItemTitle>{{ e.action }} · {{ e.result }}</span>
+                <span matListItemLine>
+                  {{ e.timestamp | date:'short' }}
+                  @if (e.actorUserName) { · by {{ e.actorUserName }} }
+                  @if (e.targetUserId !== null) { · target #{{ e.targetUserId }} }
+                </span>
+              </mat-list-item>
+            }
+          </mat-list>
+          <div class="audit-pager">
+            <button mat-stroked-button type="button"
+                    (click)="auditPrevPage()" [disabled]="auditPage() <= 1 || auditLoading()">
+              Previous
+            </button>
+            <span>Page {{ auditPage() }} of {{ auditTotalPages() }}</span>
+            <button mat-stroked-button type="button"
+                    (click)="auditNextPage()" [disabled]="auditPage() >= auditTotalPages() || auditLoading()">
+              Next
+            </button>
+          </div>
+        }
       </mat-card-content>
     </mat-card>
 
@@ -506,6 +585,9 @@ import { DebugLogCardComponent } from './debug-log-card.component';
       display: flex; align-items: center; gap: 6px;
     }
     .backup-info { margin: 0 0 12px; font-size: 13px; opacity: 0.9; }
+    .snapshot-list, .audit-list { max-height: 320px; overflow-y: auto; }
+    .restore-message { margin: 12px 0 0; font-size: 13px; }
+    .audit-pager { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 13px; }
     .browser {
       margin-top: 12px;
       border: 1px solid rgba(255, 255, 255, 0.12);
@@ -627,10 +709,27 @@ export class AdminComponent implements OnInit, OnDestroy {
   readonly backupBusy = signal(false);
   readonly backupStatus = signal<RotatingBackupStatusDto | null>(null);
 
+  // Backup restore (1.18.0): on-disk snapshot list + upload restore.
+  readonly backupFiles = signal<RotatingBackupFileDto[]>([]);
+  readonly backupFilesLoading = signal(true);
+  readonly restoreBusy = signal(false);
+  readonly restoreMessage = signal<string | null>(null);
+
+  // Audit trail (1.18.0).
+  readonly auditEvents = signal<AuditEventDto[]>([]);
+  readonly auditLoading = signal(true);
+  readonly auditPage = signal(1);
+  readonly auditTotal = signal(0);
+  readonly auditPageSize = 50;
+  readonly auditTotalPages = computed(() =>
+    Math.max(1, Math.ceil(this.auditTotal() / this.auditPageSize)));
+
   ngOnInit(): void {
     this.loadLibraries();
     this.loadUsers();
     this.loadBackupStatus();
+    this.loadBackupFiles();
+    this.loadAuditTrail();
     this.loadPlatform();
   }
 
@@ -1232,11 +1331,101 @@ export class AdminComponent implements OnInit, OnDestroy {
         this.backupStatus.set(status);
         this.backupBusy.set(false);
         this.snackBar.open('Database backup created', 'Close', { duration: 3000 });
+        // A fresh snapshot is now restorable — refresh the picker.
+        this.loadBackupFiles();
       },
       error: (err) => {
         this.backupBusy.set(false);
         this.snackBar.open(`Backup failed: ${err.message}`, 'Close', { duration: 5000 });
       },
     });
+  }
+
+  // --- Backup restore (1.18.0) ---
+
+  private loadBackupFiles(): void {
+    this.backupFilesLoading.set(true);
+    this.api.listRotatingBackups().subscribe({
+      next: (list) => {
+        this.backupFiles.set(list.files);
+        this.backupFilesLoading.set(false);
+      },
+      error: () => this.backupFilesLoading.set(false),
+    });
+  }
+
+  /** Human-readable byte size, e.g. "1.4 MB". */
+  formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    const units = ['KB', 'MB', 'GB'];
+    let value = bytes / 1024;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit++;
+    }
+    return `${value.toFixed(1)} ${units[unit]}`;
+  }
+
+  restoreFromSnapshot(fileName: string): void {
+    this.restoreBusy.set(true);
+    this.restoreMessage.set(null);
+    this.api.restoreFromBackup(fileName).subscribe({
+      next: (res) => {
+        this.restoreBusy.set(false);
+        this.restoreMessage.set(res.message ?? 'Restore staged. Restart the server to complete it.');
+        this.snackBar.open('Restore staged — restart to apply', 'Close', { duration: 5000 });
+      },
+      error: (err) => {
+        this.restoreBusy.set(false);
+        this.snackBar.open(`Restore failed: ${err.message}`, 'Close', { duration: 5000 });
+      },
+    });
+  }
+
+  onRestoreFileSelected(input: HTMLInputElement): void {
+    const file = input.files?.[0];
+    if (!file) return;
+    this.restoreBusy.set(true);
+    this.restoreMessage.set(null);
+    this.api.restoreFromUpload(file).subscribe({
+      next: (res) => {
+        this.restoreBusy.set(false);
+        input.value = '';
+        this.restoreMessage.set(res.message ?? 'Restore staged. Restart the server to complete it.');
+        this.snackBar.open('Restore staged — restart to apply', 'Close', { duration: 5000 });
+      },
+      error: (err) => {
+        this.restoreBusy.set(false);
+        input.value = '';
+        this.snackBar.open(`Restore failed: ${err.message}`, 'Close', { duration: 5000 });
+      },
+    });
+  }
+
+  // --- Audit trail (1.18.0) ---
+
+  private loadAuditTrail(): void {
+    this.auditLoading.set(true);
+    this.api.getAuditTrail(this.auditPage(), this.auditPageSize).subscribe({
+      next: (result) => {
+        this.auditEvents.set(result.items);
+        this.auditTotal.set(result.totalCount);
+        this.auditLoading.set(false);
+      },
+      error: () => this.auditLoading.set(false),
+    });
+  }
+
+  auditNextPage(): void {
+    if (this.auditPage() >= this.auditTotalPages()) return;
+    this.auditPage.update((p) => p + 1);
+    this.loadAuditTrail();
+  }
+
+  auditPrevPage(): void {
+    if (this.auditPage() <= 1) return;
+    this.auditPage.update((p) => p - 1);
+    this.loadAuditTrail();
   }
 }

@@ -321,6 +321,11 @@ public sealed record ReadMarkDto
 /// and never interprets or clamps it itself. Reusing this preferences blob (rather than
 /// a new endpoint) keeps the Settings screen's single "load once, echo back on save"
 /// round-trip intact.
+///
+/// ListColumns (1.18.0) is the per-user list-view column count (1-3) on wide
+/// viewports, mirroring CardSize's presentation-only pattern. 0 means unset — the
+/// frontend applies its own default (2) — and the server never interprets or clamps
+/// this value; it is stored and returned verbatim, like the other presentation fields.
 /// </summary>
 public sealed record LibraryViewPreferencesDto
 {
@@ -331,6 +336,7 @@ public sealed record LibraryViewPreferencesDto
     public string CardSize { get; init; } = "";
     public int LibraryPageSize { get; init; }
     public int HomeRecentWindowDays { get; init; }
+    public int ListColumns { get; init; }
 }
 
 /// <summary>

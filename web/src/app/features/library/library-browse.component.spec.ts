@@ -355,18 +355,97 @@ describe('LibraryBrowseComponent card view', () => {
       expect.objectContaining({ homeRecentWindowDays: 14 }));
   });
 
-  it('shows the size slider only in card mode', () => {
+  it('shows the card-size slider only in card mode, and the list-columns slider only in list mode', () => {
     const { fixture, comp } = setup({ viewMode: 'card' });
-    expect(fixture.nativeElement.querySelector('.size-slider')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('input[aria-label="Card size"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('input[aria-label="List columns"]')).toBeNull();
     comp.setViewMode('list');
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.size-slider')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[aria-label="Card size"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[aria-label="List columns"]')).not.toBeNull();
   });
 
   it('feeds the card size into the grid as the --card-size custom property', () => {
     const { fixture } = setup({ viewMode: 'card', cardSize: '180' });
     const nodes = fixture.nativeElement.querySelector('.nodes') as HTMLElement;
     expect(nodes.style.getPropertyValue('--card-size')).toBe('180px');
+  });
+});
+
+/**
+ * List columns (1.18.0): reuses the card-size slider pattern (drag-to-preview via
+ * `input`, commit-on-`change`), gated to List view, persisted as an integer 1-3 in
+ * LibraryViewPreferencesDto.listColumns.
+ */
+describe('LibraryBrowseComponent list columns', () => {
+  function setup(prefs: Partial<LibraryViewPreferencesDto>) {
+    const fullPrefs = { viewMode: 'list', density: 'comfortable', sort: 'name', ...prefs } as LibraryViewPreferencesDto;
+    const libs: LibraryDto[] = [{ id: 'lib1', name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }];
+    const emptyPage: PageResponse<CatalogNodeDto> = { items: [], totalCount: 0, nextCursor: null, hasMore: false };
+    const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
+
+    const apiSpy = {
+      getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
+      setLibraryPreferences,
+      getLibraries: vi.fn().mockReturnValue(of(libs)),
+      browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getNode: vi.fn().mockReturnValue(of({} as CatalogNodeDto)),
+    };
+    const authSpy = { isAdmin: () => false };
+
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: authSpy },
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : null) }) } },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges();
+    return { fixture, comp: fixture.componentInstance, setLibraryPreferences };
+  }
+
+  it('defaults to 2 columns when no listColumns is stored', () => {
+    const { comp } = setup({});
+    expect(comp.listColumns()).toBe(2);
+  });
+
+  it('uses a valid stored listColumns', () => {
+    const { comp } = setup({ listColumns: 3 });
+    expect(comp.listColumns()).toBe(3);
+  });
+
+  it('falls back to the default for an out-of-range stored listColumns', () => {
+    const { comp } = setup({ listColumns: 7 });
+    expect(comp.listColumns()).toBe(2);
+  });
+
+  it('setListColumns clamps out-of-range values and persists the new count', () => {
+    const { comp, setLibraryPreferences } = setup({});
+    comp.setListColumns(99);
+    expect(comp.listColumns()).toBe(comp.listColumnsMax);
+    expect(setLibraryPreferences).toHaveBeenCalledWith(
+      expect.objectContaining({ viewMode: 'list', listColumns: comp.listColumnsMax }));
+  });
+
+  it('round-trips the stored homeRecentWindowDays on an unrelated persistView (list columns)', () => {
+    const { comp, setLibraryPreferences } = setup({ homeRecentWindowDays: 9 });
+    comp.setListColumns(1);
+    expect(setLibraryPreferences).toHaveBeenCalledWith(
+      expect.objectContaining({ homeRecentWindowDays: 9 }));
+  });
+
+  it('feeds the list column count into the grid as the --list-columns custom property', () => {
+    const { fixture } = setup({ listColumns: 3 });
+    const nodes = fixture.nativeElement.querySelector('.nodes') as HTMLElement;
+    expect(nodes.style.getPropertyValue('--list-columns')).toBe('3');
   });
 });
 

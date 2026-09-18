@@ -572,6 +572,34 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     .spread-row.paired img.fit-screen, .spread-row img.paired.fit-screen {
       width: auto; height: 100%; max-width: 50%; object-fit: contain;
     }
+    /* Paired + fit-width: single-page fit-width force-fills the full viewport
+       width (scaling small pages up, not just capping large ones down) via
+       width:100%. Its paired analog force-fills each page's half of the row:
+       width:50% (not max-width alone), so a small page is still scaled up to
+       its cell instead of sitting at native size. */
+    .spread-row.paired img.fit-width, .spread-row img.paired.fit-width {
+      width: 50%; height: auto; max-width: 50%;
+    }
+    /* Paired + fit-height: single-page fit-height force-fills the viewport
+       height via height:100% and lets width run free (page may overflow the
+       viewport horizontally; the viewport scrolls rather than clipping). In
+       a pair that overflow would spill into or past the other page's cell,
+       so the paired analog keeps height:100% but caps width at the half-cell
+       and falls back to object-fit:contain (letterboxing top/bottom) for an
+       unusually wide page, same as the fit-screen paired override above. */
+    .spread-row.paired img.fit-height, .spread-row img.paired.fit-height {
+      width: auto; height: 100%; max-width: 50%; object-fit: contain;
+    }
+    /* Paired + original: single-page original is genuinely unscaled
+       (max-width/max-height: none) and relies on viewport scroll for any
+       overflow. Paired mode still needs the half-cell width cap so the two
+       pages don't draw on top of each other, but must NOT force height:auto
+       over the image's native height — that's already the default box
+       behavior, restated here so the cap doesn't accidentally pick up any
+       future height rule from the generic .paired selector. */
+    .spread-row.paired img.original, .spread-row img.paired.original {
+      max-width: 50%; max-height: none; height: auto;
+    }
     /* Webtoon: full-width column, natural vertical scroll. */
     .reader-viewport.webtoon { flex-direction: column; align-items: center; }
     /* Width is driven by the webtoon width slider, 15–100% of viewport. */
@@ -1064,9 +1092,22 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   // (toolbar, slider) also end.
   private readonly activePointers = new Set<number>();
   private lastSwipeAt = 0;
+  // Threshold for "the user has actually pinch-zoomed in", vs. visualViewport.scale
+  // merely reporting device-pixel rounding noise. An installed Android PWA
+  // (standalone WebView, no browser chrome to anchor the layout viewport against)
+  // has been observed to settle a hair above 1.0 — e.g. 1.02–1.03 — on first paint
+  // with NO user gesture at all, and to stay there indefinitely (unlike a transient
+  // layout-settling blip, nothing ever fires another resize to bring it back down).
+  // At the old 1.01 cutoff that reads as "zoomed" forever, which parks touchAction
+  // at 'auto' and onReaderPointerDown never claims the drag (see claim below) — so
+  // swipe paging silently never works on those devices. A real pinch-to-zoom (the
+  // in-app feature this signal exists to detect, see touchAction's doc comment)
+  // moves the scale well past this, so widening the tolerance loses no real
+  // zoom detection while absorbing the installed-PWA rounding jitter.
+  private static readonly ZoomedScaleThreshold = 1.05;
   private readonly onVisualViewportChange = (): void => {
     const vv = window.visualViewport;
-    this.zoomed.set(!!vv && vv.scale > 1.01);
+    this.zoomed.set(!!vv && vv.scale > ReaderComponent.ZoomedScaleThreshold);
   };
 
   pageUrlFor(entry: ManifestPageEntry | undefined): string {
@@ -1086,6 +1127,12 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   ngOnInit(): void {
     // Pinch-zoom (visual viewport scale) hands one-finger drags back to the browser.
     window.visualViewport?.addEventListener('resize', this.onVisualViewportChange);
+    // Sync from the CURRENT scale immediately, rather than leaving `zoomed` at its
+    // false default until the first 'resize' fires. On a fresh navigation into the
+    // reader (e.g. deep-linked while an installed PWA is already open) there may be
+    // no resize event at all before the very first swipe, which would otherwise
+    // read a stale "not zoomed" against a viewport that is actually already zoomed.
+    this.onVisualViewportChange();
     this.route.paramMap.subscribe((params) => {
       const id = params.get('itemId') ?? '';
       this.itemId.set(id);
