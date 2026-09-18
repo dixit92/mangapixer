@@ -40,6 +40,10 @@ import {
   PrivateLibrariesDto,
   HomeLibraryVisibility,
   RotatingBackupStatusDto,
+  RotatingBackupListDto,
+  RestoreFromBackupRequest,
+  RestoreStageResponseDto,
+  AuditTrailPageDto,
   LoginRequest,
   PageResponse,
   ProgressUpdateResult,
@@ -465,6 +469,30 @@ export class ApiService {
 
   runRotatingBackupNow(): Observable<RotatingBackupStatusDto> {
     return this.post<RotatingBackupStatusDto>('/operations/backups/rotating', {});
+  }
+
+  /** Lists the on-disk rotating snapshots available to restore from. */
+  listRotatingBackups(): Observable<RotatingBackupListDto> {
+    return this.get<RotatingBackupListDto>('/operations/backups/files');
+  }
+
+  /** Stages a restore from a chosen on-disk rotating snapshot (apply on restart). */
+  restoreFromBackup(fileName: string): Observable<RestoreStageResponseDto> {
+    return this.post<RestoreStageResponseDto>('/operations/backups/restore', { fileName } as RestoreFromBackupRequest);
+  }
+
+  /** Stages a restore from an uploaded backup file (multipart; apply on restart). */
+  restoreFromUpload(file: File): Observable<RestoreStageResponseDto> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.post<RestoreStageResponseDto>('/operations/restore', form);
+  }
+
+  /** One page of the administrative audit trail (newest first). */
+  getAuditTrail(page: number, pageSize: number): Observable<AuditTrailPageDto> {
+    return this.get<AuditTrailPageDto>('/admin/audit', new HttpParams()
+      .set('page', String(page))
+      .set('pageSize', String(pageSize)));
   }
 
   // --- System info ---

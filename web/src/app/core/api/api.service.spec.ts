@@ -106,6 +106,79 @@ describe('ApiService rotating backup status (1.2.0)', () => {
   });
 });
 
+describe('ApiService backup restore + audit trail (1.18.0)', () => {
+  let api: ApiService;
+  let httpMock: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    api = TestBed.inject(ApiService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => httpMock.verify());
+
+  it('lists the on-disk rotating snapshots', () => {
+    api.listRotatingBackups().subscribe((dto) => {
+      expect(dto.files.length).toBe(1);
+      expect(dto.files[0].fileName).toBe('rotating-20260909-035000.db');
+      expect(dto.files[0].byteSize).toBe(4096);
+    });
+
+    const req = httpMock.expectOne('/api/v1/operations/backups/files');
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      files: [{ fileName: 'rotating-20260909-035000.db', byteSize: 4096, timestampUtc: '2026-09-09T03:50:00Z' }],
+    });
+  });
+
+  it('stages a restore from a chosen snapshot file name', () => {
+    api.restoreFromBackup('rotating-20260909-035000.db').subscribe((res) => {
+      expect(res.preRestoreBackupFileName).toBe('pre-restore-20260909-040000.db');
+    });
+
+    const req = httpMock.expectOne('/api/v1/operations/backups/restore');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body.fileName).toBe('rotating-20260909-035000.db');
+    req.flush({ preRestoreBackupFileName: 'pre-restore-20260909-040000.db', message: 'Restore staged.' });
+  });
+
+  it('stages a restore from an uploaded file via multipart form', () => {
+    const file = new File([new Uint8Array([1, 2, 3])], 'backup.db', { type: 'application/octet-stream' });
+    api.restoreFromUpload(file).subscribe((res) => {
+      expect(res.message).toBe('Restore staged.');
+    });
+
+    const req = httpMock.expectOne('/api/v1/operations/restore');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body instanceof FormData).toBe(true);
+    req.flush({ preRestoreBackupFileName: 'pre-restore.db', message: 'Restore staged.' });
+  });
+
+  it('fetches a page of the audit trail with page params', () => {
+    api.getAuditTrail(2, 50).subscribe((dto) => {
+      expect(dto.totalCount).toBe(120);
+      expect(dto.items[0].action).toBe('user.delete');
+    });
+
+    const req = httpMock.expectOne((r) => r.url === '/api/v1/admin/audit');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('page')).toBe('2');
+    expect(req.request.params.get('pageSize')).toBe('50');
+    req.flush({
+      items: [{
+        id: 1, action: 'user.delete', result: 'success', actorUserId: 1,
+        actorUserName: 'admin', targetUserId: 5, timestamp: '2026-09-09T03:50:00Z', correlationId: null,
+      }],
+      totalCount: 120,
+      page: 2,
+      pageSize: 50,
+    });
+  });
+});
+
 describe('ApiService incognito / Private libraries (1.4.0)', () => {
   let api: ApiService;
   let httpMock: HttpTestingController;
