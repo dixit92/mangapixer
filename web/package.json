@@ -25,6 +25,7 @@
     "@angular/platform-browser": "^22.1.6",
     "@angular/router": "^22.1.6",
     "@fontsource/roboto": "^5.1.0",
+    "anime4k-webgpu": "^1.0.0",
     "material-icons": "^1.13.12",
     "rxjs": "^7.8.0",
     "tslib": "^2.6.0",

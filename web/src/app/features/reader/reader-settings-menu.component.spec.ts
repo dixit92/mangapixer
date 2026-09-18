@@ -37,6 +37,103 @@ describe('ReaderSettingsMenuComponent', () => {
     expect(prefs.pageAnimation()).toBe('none');
   });
 
+  /**
+   * 1.19.0 image scaling. A second trigger, present in every view, opens a menu
+   * with two radio groups: Rendering (how an upscaled page is resampled) and
+   * Page quality (how many pixels are fetched). Its tooltip is the WebGPU status
+   * readout - the only way to confirm the GPU path on a real device.
+   */
+  describe('Rendering menu (1.19.0)', () => {
+    function openRendering(fixture: ReturnType<typeof create>['fixture']) {
+      const trigger = (fixture.nativeElement as HTMLElement)
+        .querySelector('button[aria-label="Rendering"]') as HTMLElement;
+      expect(trigger).toBeTruthy();
+      trigger.click();
+      fixture.detectChanges();
+      return { trigger, panel: document.querySelector('.reader-options-menu') as HTMLElement };
+    }
+
+    it('renders a Rendering trigger in the paged AND webtoon views', () => {
+      const { fixture } = create();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('button[aria-label="Rendering"]')).toBeTruthy();
+      fixture.componentRef.setInput('view', 'webtoon');
+      fixture.detectChanges();
+      expect(host.querySelector('button[aria-label="Rendering"]')).toBeTruthy();
+    });
+
+    it('offers Smooth / Enhance and Auto / Full as menuitemradios, defaults highlighted', () => {
+      const { fixture } = create();
+      const { panel } = openRendering(fixture);
+      const items = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'));
+      // textContent carries the icon ligature first, as elsewhere in these menus.
+      expect(items.map((i) => (i.textContent ?? '').trim().split(/\s+/).pop()))
+        .toEqual(['Smooth', 'Enhance', 'Auto', 'Full']);
+      for (const i of items) expect(i.getAttribute('role')).toBe('menuitemradio');
+      const byLabel = (l: string) => items.find((i) => (i.textContent ?? '').trim().endsWith(l))!;
+      expect(byLabel('Smooth').classList.contains('selected-option')).toBe(true);
+      expect(byLabel('Smooth').getAttribute('aria-checked')).toBe('true');
+      expect(byLabel('Auto').classList.contains('selected-option')).toBe(true);
+      expect(byLabel('Enhance').getAttribute('aria-checked')).toBe('false');
+      expect(byLabel('Full').getAttribute('aria-checked')).toBe('false');
+      // Colour highlight, never a tick - same rule as every other reader menu.
+      for (const i of items) expect(i.querySelector('mat-icon')?.textContent?.trim()).not.toBe('check');
+    });
+
+    it('page quality is selectable and persists through the shared service', () => {
+      const { fixture, prefs } = create();
+      const { panel } = openRendering(fixture);
+      const full = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'))
+        .find((i) => (i.textContent ?? '').trim().endsWith('Full'))!;
+      full.click();
+      expect(prefs.pageQuality()).toBe('full');
+    });
+
+    it('Enhance is disabled with a "needs WebGPU" hint on a platform without WebGPU', () => {
+      const { fixture, c } = create();
+      expect(c.support.support()).toBe('unavailable'); // jsdom: no navigator.gpu
+      expect(c.enhanceDisabled()).toBe(true);
+      expect(c.renderingHint()).toBe('Enhance needs WebGPU');
+      const { panel } = openRendering(fixture);
+      const enhance = Array.from(panel.querySelectorAll<HTMLButtonElement>('button[mat-menu-item]'))
+        .find((i) => (i.textContent ?? '').trim().endsWith('Enhance'))!;
+      expect(enhance.disabled).toBe(true);
+      expect(panel.querySelector('.menu-hint')?.textContent).toContain('needs WebGPU');
+    });
+
+    it('chooseUpscaler refuses Enhance while it is unavailable, but always allows Smooth', () => {
+      const { c, prefs } = create();
+      c.chooseUpscaler('enhance');
+      expect(prefs.upscaler()).toBe('smooth'); // rejected: no WebGPU here
+      c.chooseUpscaler('smooth');
+      expect(prefs.upscaler()).toBe('smooth');
+    });
+
+    it('with WebGPU ready, Enhance is selectable everywhere except the webtoon view', () => {
+      const { fixture, c, prefs } = create();
+      c.support.support.set('ready');
+      fixture.detectChanges();
+      expect(c.enhanceDisabled()).toBe(false);
+      expect(c.renderingHint()).toBe('GPU: WebGPU ready');
+      c.chooseUpscaler('enhance');
+      expect(prefs.upscaler()).toBe('enhance');
+
+      fixture.componentRef.setInput('view', 'webtoon');
+      fixture.detectChanges();
+      expect(c.enhanceDisabled()).toBe(true);
+      expect(c.renderingHint()).toBe('Enhance is for paged views');
+    });
+
+    it('the GPU status readout is a short, owner-verifiable string', () => {
+      const { c } = create();
+      expect(c.support.statusText()).toBe('GPU: WebGPU unavailable');
+      c.support.support.set('ready');
+      expect(c.support.statusText()).toBe('GPU: WebGPU ready');
+      c.support.support.set('checking');
+      expect(c.support.statusText()).toContain('checking');
+    });
+  });
+
   it('emits opened/closed for chrome pinning', () => {
     const { c } = create();
     let opened = 0;
@@ -265,6 +362,63 @@ describe('ReaderOptionsSheetComponent', () => {
     (host.nextChapter as ReturnType<typeof vi.fn>).mockImplementation(() => order.push('next'));
     next.click();
     expect(order).toEqual(['dismiss', 'next']);
+  });
+
+  /**
+   * 1.19.0 image scaling on the phone: two more chip groups, shown in EVERY view
+   * (Page quality applies to webtoon too), with Enhance disabled and explained
+   * wherever it cannot work.
+   */
+  describe('Rendering + Page quality chip groups (1.19.0)', () => {
+    it('adds both groups in the paged view, each with exactly one checked chip', () => {
+      const { chips, checked } = create();
+      for (const id of ['reader-options-rendering', 'reader-options-quality']) {
+        expect(chips(id).map((c) => (c.textContent ?? '').trim()).length, id).toBe(2);
+        expect(checked(id).length, id).toBe(1);
+        expect(checked(id)[0].classList.contains('selected'), id).toBe(true);
+      }
+      expect(checked('reader-options-rendering')[0].textContent).toContain('Smooth');
+      expect(checked('reader-options-quality')[0].textContent).toContain('Auto');
+    });
+
+    it('keeps both groups in the webtoon view (page quality applies there too)', () => {
+      const { el, chips } = create(makeHost({ view: 'webtoon' }));
+      expect(el.querySelector('[aria-labelledby="reader-options-rendering"]')).toBeTruthy();
+      expect(chips('reader-options-quality').length).toBe(2);
+    });
+
+    it('page quality chips apply immediately and keep the sheet open', () => {
+      const { ref, chip } = create();
+      chip('reader-options-quality', 'Full').click();
+      expect(TestBed.inject(ReaderPreferencesService).pageQuality()).toBe('full');
+      expect(ref.dismiss).not.toHaveBeenCalled();
+    });
+
+    it('Enhance is disabled and explained without WebGPU (jsdom has none)', () => {
+      const { c, el, chip } = create();
+      expect(c.enhanceDisabled()).toBe(true);
+      expect((chip('reader-options-rendering', 'Enhance') as HTMLButtonElement).disabled).toBe(true);
+      expect(el.querySelector('.group-hint')?.textContent).toContain('needs WebGPU');
+      c.pickUpscaler('enhance');
+      expect(TestBed.inject(ReaderPreferencesService).upscaler()).toBe('smooth');
+    });
+
+    it('with WebGPU ready the Enhance chip is selectable, except in webtoon', () => {
+      const { fixture, c, checked, chip } = create();
+      c.support.support.set('ready');
+      fixture.detectChanges();
+      expect(c.enhanceDisabled()).toBe(false);
+      chip('reader-options-rendering', 'Enhance').click();
+      fixture.detectChanges();
+      expect(TestBed.inject(ReaderPreferencesService).upscaler()).toBe('enhance');
+      expect(checked('reader-options-rendering')[0].textContent).toContain('Enhance');
+
+      const webtoon = create(makeHost({ view: 'webtoon' }));
+      webtoon.c.support.support.set('ready');
+      webtoon.fixture.detectChanges();
+      expect(webtoon.c.enhanceDisabled()).toBe(true);
+      expect(webtoon.c.renderingHint()).toBe('Enhance is for paged views');
+    });
   });
 
   it('Reading help and Close dismiss the sheet (help then opens the overlay)', () => {

@@ -33,6 +33,89 @@ describe('ReaderPreferencesService', () => {
     });
   });
 
+  /**
+   * 1.19.0 image scaling: two more per-device preferences, same storage contract
+   * (default when unset, round-trip across instances, default for garbage).
+   */
+  describe('page quality', () => {
+    it('defaults to auto (display-sized requests) when nothing is stored', () => {
+      expect(new ReaderPreferencesService().pageQuality()).toBe('auto');
+    });
+
+    it('persists and reloads the chosen quality', () => {
+      const a = new ReaderPreferencesService();
+      a.setPageQuality('full');
+      expect(a.pageQuality()).toBe('full');
+      expect(localStorage.getItem(ReaderPreferencesService.PageQualityKey)).toBe('full');
+      expect(new ReaderPreferencesService().pageQuality()).toBe('full');
+      a.setPageQuality('auto');
+      expect(new ReaderPreferencesService().pageQuality()).toBe('auto');
+    });
+
+    it('falls back to auto for an unrecognised stored value', () => {
+      localStorage.setItem(ReaderPreferencesService.PageQualityKey, 'ultra');
+      expect(new ReaderPreferencesService().pageQuality()).toBe('auto');
+    });
+
+    it('falls back to auto for an empty stored value', () => {
+      localStorage.setItem(ReaderPreferencesService.PageQualityKey, '');
+      expect(new ReaderPreferencesService().pageQuality()).toBe('auto');
+    });
+  });
+
+  describe('upscaler (rendering)', () => {
+    it('defaults to smooth (the pre-1.19.0 browser resampling)', () => {
+      expect(new ReaderPreferencesService().upscaler()).toBe('smooth');
+    });
+
+    it('persists and reloads the chosen renderer', () => {
+      const a = new ReaderPreferencesService();
+      a.setUpscaler('enhance');
+      expect(a.upscaler()).toBe('enhance');
+      expect(localStorage.getItem(ReaderPreferencesService.UpscalerKey)).toBe('enhance');
+      expect(new ReaderPreferencesService().upscaler()).toBe('enhance');
+      a.setUpscaler('smooth');
+      expect(new ReaderPreferencesService().upscaler()).toBe('smooth');
+    });
+
+    it('falls back to smooth for an unrecognised stored value', () => {
+      localStorage.setItem(ReaderPreferencesService.UpscalerKey, 'anime4k');
+      expect(new ReaderPreferencesService().upscaler()).toBe('smooth');
+    });
+  });
+
+  describe('storage failures', () => {
+    /**
+     * Private-mode Safari throws from setItem. The in-memory signal must still
+     * take the new value (the setting works for this session) and nothing throws.
+     */
+    it('keeps the in-memory value when localStorage.setItem throws', () => {
+      const svc = new ReaderPreferencesService();
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = () => { throw new Error('denied'); };
+      try {
+        expect(() => svc.setPageQuality('full')).not.toThrow();
+        expect(svc.pageQuality()).toBe('full');
+        expect(() => svc.setUpscaler('enhance')).not.toThrow();
+        expect(svc.upscaler()).toBe('enhance');
+      } finally {
+        Storage.prototype.setItem = original;
+      }
+    });
+
+    it('falls back to the defaults when localStorage.getItem throws', () => {
+      const original = Storage.prototype.getItem;
+      Storage.prototype.getItem = () => { throw new Error('denied'); };
+      try {
+        const svc = new ReaderPreferencesService();
+        expect(svc.pageQuality()).toBe('auto');
+        expect(svc.upscaler()).toBe('smooth');
+      } finally {
+        Storage.prototype.getItem = original;
+      }
+    });
+  });
+
   describe('onboarding help-seen flag', () => {
     it('reports unseen on a fresh device', () => {
       expect(new ReaderPreferencesService().hasSeenHelp()).toBe(false);
