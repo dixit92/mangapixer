@@ -324,6 +324,12 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     /// optional parameter is the only placement that keeps them compiling
     /// unchanged.
     /// </param>
+    /// <param name="resizeFilter">
+    /// Resampling kernel name for sized page variants (1.20.0), one of
+    /// <see cref="Core.Media.PageVariantFilters"/>. Null means the worker's
+    /// pre-1.20.0 Lanczos default. Appended after <paramref name="maxDimension"/>
+    /// for the same source-compatibility reason.
+    /// </param>
     public async Task<PageExtractionOutcome> ExtractPageAsync(
         string archivePath,
         string sourceEntryKey,
@@ -334,7 +340,8 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         int thumbnailMaxDimension,
         int webpQuality,
         CancellationToken ct = default,
-        int maxDimension = 0)
+        int maxDimension = 0,
+        string? resizeFilter = null)
     {
         if (_isShuttingDown)
             return PageExtractionOutcome.Failed("unavailable", "Server is shutting down.");
@@ -360,6 +367,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                 ThumbnailMaxDimension = thumbnailMaxDimension,
                 WebpQuality = webpQuality,
                 MaxDimension = maxDimension,
+                ResizeFilter = resizeFilter,
             };
 
             var tcs = new TaskCompletionSource<PageExtractionOutcome>(

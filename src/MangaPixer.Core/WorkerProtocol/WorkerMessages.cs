@@ -16,6 +16,11 @@ public static class WorkerProtocolVersion
     // an OPTIONAL field with a default (0 = no resize), so both directions of a
     // version skew degrade to the pre-1.19.0 behaviour instead of failing. A bump
     // is reserved for changes that an older peer cannot ignore safely.
+    //
+    // Still v2 after 1.20.0's selectable resize filter for the same reason:
+    // ExtractRequest.ResizeFilter is OPTIONAL and defaults to null, which the
+    // worker reads as the pre-1.20.0 Lanczos kernel. An older worker ignores the
+    // field; a newer worker receiving no field behaves exactly as 1.19.x did.
     public const int Current = 2;
 }
 
@@ -208,10 +213,13 @@ public sealed record ExtractRequest
     public required string SourceEntryKey { get; init; }
 
     /// <summary>
-    /// Variant to produce: "webp" (full-size WebP), "webp@&lt;n&gt;" (WebP downscaled
-    /// so the longest edge is ≤ <see cref="MaxDimension"/>, e.g. "webp@1440"),
+    /// Variant to produce: "webp" (full-size WebP), "webp@&lt;n&gt;:&lt;filter&gt;" (WebP
+    /// downscaled so the longest edge is ≤ <see cref="MaxDimension"/> with the
+    /// kernel named by <see cref="ResizeFilter"/>, e.g. "webp@1440:balanced"),
     /// "thumbnail" (≤ThumbnailMaxDimension WebP), or "original" (verbatim source
-    /// bytes, no transcode).
+    /// bytes, no transcode). Only the "webp" prefix is load-bearing for the
+    /// worker; the rest of a sized name is informational, the actual size and
+    /// kernel arrive as their own fields.
     /// </summary>
     public required string Variant { get; init; }
 
@@ -243,6 +251,19 @@ public sealed record ExtractRequest
     /// so a mixed pair is not a supported deployment anyway.
     /// </summary>
     public int MaxDimension { get; init; }
+
+    /// <summary>
+    /// Resampling kernel for sized page variants: a
+    /// <see cref="Core.Media.PageVariantFilters"/> name ("sharp", "balanced",
+    /// "soft"). Null (the default) and any unrecognised value mean Lanczos,
+    /// i.e. the pre-1.20.0 behaviour. Only consulted when a downscale actually
+    /// happens: it is ignored for "webp" (full size), "original" and the
+    /// thumbnail, which stays Lanczos regardless.
+    ///
+    /// Additive field with a default, so like <see cref="MaxDimension"/> it does
+    /// NOT bump <see cref="WorkerProtocolVersion.Current"/>.
+    /// </summary>
+    public string? ResizeFilter { get; init; }
 }
 
 /// <summary>
