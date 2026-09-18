@@ -496,7 +496,7 @@ import { DebugLogCardComponent } from './debug-log-card.component';
                 <span matListItemLine>
                   {{ e.timestamp | date:'short' }}
                   @if (e.actorUserName) { · by {{ e.actorUserName }} }
-                  @if (e.targetUserId != null) { · target #{{ e.targetUserId }} }
+                  @if (e.targetUserId !== null) { · target #{{ e.targetUserId }} }
                 </span>
               </mat-list-item>
             }

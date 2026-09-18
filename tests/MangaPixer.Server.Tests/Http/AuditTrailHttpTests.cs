@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Operations;
 using Xunit;
 
 /// <summary>
