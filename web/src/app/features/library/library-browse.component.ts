@@ -479,15 +479,16 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     /* Current folder: plain text, not a link. Slightly brighter than the muted
        ancestors' link color to read as "you are here", but no pointer/underline. */
     .breadcrumbs .current { color: #e6e6ee; font-weight: 500; }
-    .breadcrumbs.muted { color: #999; }
     .count { font-weight: 600; }
     .actions { flex: 1 1 auto; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-    .actions mat-icon { margin-right: 4px; }
-    .select-toggle mat-icon, .done mat-icon { margin-right: 4px; }
+    .actions mat-icon, .select-toggle mat-icon, .done mat-icon { margin-right: 4px; }
     /* Card size slider (1.6.0). Sits inline in the browse bar between the
        breadcrumbs and the View menu; the small/large icons frame the range. */
     .size-control { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
-    .size-control .size-icon { font-size: 18px; width: 18px; height: 18px; color: #8a8a99; }
+    .size-control .size-icon,
+    ::ng-deep .view-options-menu .size-control-menu .size-icon {
+      font-size: 18px; width: 18px; height: 18px; color: #8a8a99;
+    }
     .size-slider {
       width: 120px; max-width: 34vw; accent-color: #7c4dff; cursor: pointer;
       background: transparent;
@@ -506,11 +507,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
        viewport media query. */
     ::ng-deep .view-options-menu .view-size-section { display: none; padding: 2px 12px 10px; }
     ::ng-deep .view-options-menu .size-control-menu { display: flex; align-items: center; gap: 8px; padding: 6px 0 0; }
-    ::ng-deep .view-options-menu .size-control-menu .size-icon { font-size: 18px; width: 18px; height: 18px; color: #8a8a99; }
     ::ng-deep .view-options-menu .size-slider { width: 180px; max-width: 60vw; accent-color: #7c4dff; }
-    @media (max-width: 599.98px) {
-      ::ng-deep .view-options-menu .view-size-section { display: block; }
-    }
     /* View modes. Card (1.6.0) is a single cover grid whose card size is a
        continuous slider — the min column width comes from the --card-size custom
        property fed by the component, replacing the former Grid/Poster modes and the
@@ -613,14 +610,20 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       margin-bottom: 12px; padding: 6px 8px;
       background: #14141c; border-radius: 8px;
     }
-    .jump-chip {
-      min-width: 28px; padding: 4px 8px; border: none; cursor: pointer;
-      background: transparent; color: #b39dff; border-radius: 6px;
-      font-size: 12px; font-weight: 600; line-height: 1;
-      transition: background 0.1s;
+    /* Base chip look shared by the sticky rail (.jump-chip) and the phone
+       letter-picker menu (::ng-deep .jump-picker-menu .jump-chip, a CDK overlay
+       outside this component); each keeps its own size/spacing override below. */
+    .jump-chip,
+    ::ng-deep .jump-picker-menu .jump-chip {
+      border: none; cursor: pointer; background: transparent; color: #b39dff;
+      border-radius: 6px; font-weight: 600; line-height: 1;
     }
+    .jump-chip { min-width: 28px; padding: 4px 8px; font-size: 12px; transition: background 0.1s; }
     .jump-chip:hover { background: rgba(124,77,255,0.18); }
-    .jump-chip.active { background: #7c4dff; color: #fff; }
+    /* Declared after :hover (same specificity) so an active chip stays solid purple
+       even while hovered, instead of the hover tint winning the tie. */
+    .jump-chip.active,
+    ::ng-deep .jump-picker-menu .jump-chip.active { background: #7c4dff; color: #fff; }
     /* Phone A-Z letter-picker (1.10.1): the trigger is hidden on desktop/iPad (the
        full rail is used there); shown on the phone breakpoint. The picker grid + its
        chips render in a CDK overlay outside this component, so they are styled via
@@ -629,32 +632,25 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     ::ng-deep .jump-picker-menu .jump-picker {
       display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; max-width: 300px;
     }
-    ::ng-deep .jump-picker-menu .jump-chip {
-      min-width: 34px; padding: 8px 10px; border: none; cursor: pointer;
-      background: transparent; color: #b39dff; border-radius: 6px;
-      font-size: 14px; font-weight: 600; line-height: 1;
-    }
-    ::ng-deep .jump-picker-menu .jump-chip.active { background: #7c4dff; color: #fff; }
+    ::ng-deep .jump-picker-menu .jump-chip { min-width: 34px; padding: 8px 10px; font-size: 14px; }
 
-    /* Touch / small screens: keep the action bar compact by dropping button labels
-       (icons remain, so the controls stay usable). */
-    @media (max-width: 599.98px) {
-      .actions .lbl { display: none; }
-      .actions mat-icon { margin-right: 0; }
-    }
-
-    /* --- PHONE breakpoint only (1.10.0, F3). Desktop + iPad (>=561px) are untouched:
-       every rule that changes layout lives inside this media query. It covers two
-       findings from mobile use:
-        - the card-size slider is relocated OFF the cramped toolbar into a submenu
-          (the inline control is hidden; the icon-button trigger is shown);
+    /* --- PHONE breakpoint only (1.10.0, F3; folded into one media query - was three
+       separate @media blocks). Desktop + iPad (>=561px) are untouched: every rule
+       that changes layout lives inside this media query. It covers:
+        - dropping toolbar button labels to keep the action bar compact (icons remain);
+        - the card-size/list-columns slider is relocated OFF the cramped toolbar into
+          a submenu (the inline control is hidden; the icon-button trigger is shown);
+        - the jump rail collapses to the single A-Z letter-picker button (1.10.1);
         - the breadcrumb is redesigned for legibility: it was too small to read/tap.
           The trail is allowed to wrap, the type is larger, and the current folder is
           the prominent, high-contrast element so "where am I" reads at a glance. --- */
     @media (max-width: 599.98px) {
+      .actions .lbl { display: none; }
+      .actions mat-icon { margin-right: 0; }
+
+      ::ng-deep .view-options-menu .view-size-section { display: block; }
       .size-control-inline { display: none; }
 
-      /* Jump rail -> A-Z letter-picker button on phone (1.10.1). */
       .jump-rail { display: none; }
       .jump-menu-trigger { display: inline-flex; }
 
