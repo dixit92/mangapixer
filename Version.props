@@ -234,8 +234,26 @@
          widened pinch-zoom threshold; device-verified by the owner post-deploy).
          Additive API only (new endpoints and one optional DTO field); one additive
          forward-only migration -> MINOR per SemVer 2.0.0. Bugfixes ship as 1.18.x. -->
+    <!-- 1.19.0: "Image Scaling". Additive MINOR over 1.18.0, three lanes. SCALE-SERVER:
+         display-sized page variants - the page endpoint accepts an optional ?maxDim query
+         parameter snapped UP to a configurable bucket ladder (default 1080/1440/2160 px
+         longest edge, MangaPixer:Media:PageVariants) and served as a Lanczos-downscaled WebP
+         with its own cache key (webp@<bucket>); the server never upscales, animated pages keep
+         their passthrough, and every page response carries an X-MangaPixer-Variant header.
+         One additive optional field on the worker ExtractRequest (MaxDimension, default 0),
+         so the worker protocol stays 2. SCALE-CLIENT: the reader requests the size its layout
+         box will paint (fit mode, pairing, viewport, devicePixelRatio; URLs pinned per chapter
+         so rotation never re-fetches the page on screen), plus two per-device options - Page
+         quality (Auto / Full) and Rendering (Smooth / Enhance), where Enhance is an opt-in
+         Anime4K WebGPU line-art upscaler drawn on a canvas over the paged <img> only when the
+         page is displayed larger than its native size (lazy chunk; no-op without WebGPU;
+         webtoon excluded). POLISH: Backups-card Restore button alignment, installed-Android
+         standalone-mode document scrollbar, keyboard/focus semantics for clickable elements.
+         Also a format-only whitespace fix of 1.17.0-era test debt. Additive API only (one
+         optional query parameter, one response header), no migration -> MINOR per SemVer
+         2.0.0. Bugfixes ship as 1.19.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <MangaPixerVersionMinor>18</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>19</MangaPixerVersionMinor>
     <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 

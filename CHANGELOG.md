@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-09-18
+
 ### Added
 
 - Pages are now delivered at a size matched to the screen they are shown on. The reader asks the server for the smallest of three sizes (1080, 1440 or 2160 pixels on the longest edge) that still covers the display at its native pixel density, and the server produces that size with a high-quality Lanczos downscale. Pages load faster and line art and screentones look crisper than a browser downscale; nothing is ever upscaled on the server, and pages that are already small are sent as they are. A new "Page quality" reader option (Auto / Full) turns this off per device, and the Original size fit mode always requests full resolution.
