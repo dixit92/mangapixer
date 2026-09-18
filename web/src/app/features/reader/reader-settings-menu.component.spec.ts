@@ -65,7 +65,9 @@ describe('ReaderSettingsMenuComponent', () => {
     it('offers Smooth / Enhance and Auto / Full as menuitemradios, defaults highlighted', () => {
       const { fixture } = create();
       const { panel } = openRendering(fixture);
-      const items = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'));
+      // Excludes the 1.20.0 Downscale filter group (its own describe block below).
+      const items = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'))
+        .filter((i) => !(i.getAttribute('aria-label') ?? '').startsWith('Downscale filter'));
       // textContent carries the icon ligature first, as elsewhere in these menus.
       expect(items.map((i) => (i.textContent ?? '').trim().split(/\s+/).pop()))
         .toEqual(['Smooth', 'Enhance', 'Auto', 'Full']);

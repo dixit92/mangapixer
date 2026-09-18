@@ -42,9 +42,19 @@ export function isApplePlatformTouch(nav: Pick<Navigator, 'platform' | 'maxTouch
  * call with the real `window` from component code. jsdom does not implement
  * `matchMedia` at all, so a missing `matchMedia` reads as "not standalone"
  * rather than throwing.
+ *
+ * The `navigator` sub-type carries `userAgent` alongside the non-standard
+ * `standalone` flag purely so TypeScript sees it as structurally related to
+ * the real (lib.dom) `Navigator` type `window.navigator` is typed as -
+ * `standalone` alone would make it a "weak type" with nothing in common with
+ * `Navigator` (which does not declare `standalone`), which TS refuses to
+ * assign a real `Navigator` value to.
  */
 export function isStandaloneDisplay(
-  win: { matchMedia?: (query: string) => { matches: boolean }; navigator?: { standalone?: boolean } },
+  win: {
+    matchMedia?: (query: string) => { matches: boolean };
+    navigator?: { userAgent?: string; standalone?: boolean };
+  },
 ): boolean {
   if (win.navigator?.standalone === true) return true;
   if (typeof win.matchMedia !== 'function') return false;

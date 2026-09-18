@@ -2401,8 +2401,19 @@ describe('ReaderComponent iOS/iPadOS immersive fullscreen (IPAD-FULLSCREEN)', ()
 describe('ReaderComponent standalone-display immersive default (1.20.0)', () => {
   function stubStandaloneMatchMedia(standalone: boolean) {
     const original = window.matchMedia;
+    // The full MediaQueryList shape (both the legacy addListener/removeListener
+    // and the modern EventTarget methods): ReaderComponent also has a live
+    // BreakpointObserver (narrow-portrait detection) that calls these on
+    // whatever matchMedia returns, so a bare { matches } fake makes it throw.
     window.matchMedia = ((q: string) => ({
       matches: standalone && q === '(display-mode: standalone)',
+      media: q,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
     })) as unknown as typeof window.matchMedia;
     return () => { window.matchMedia = original; };
   }
