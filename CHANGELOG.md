@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.19.1] - 2026-09-18
+
+### Fixed
+
+- The reader's "Enhance" rendering option now takes effect on high-density phone and tablet screens. It previously compared the page's on-screen size in CSS pixels with the image's native size, so on a 2x or 3x display a page that was actually being upscaled was treated as a downscale and the enhancement was skipped; desktop displays were unaffected.
+
 ## [1.19.0] - 2026-09-18
 
 ### Added
