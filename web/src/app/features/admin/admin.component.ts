@@ -453,11 +453,13 @@ import { DebugLogCardComponent } from './debug-log-card.component';
                 <span matListItemLine>
                   {{ f.timestampUtc | date:'short' }} · {{ formatSize(f.byteSize) }}
                 </span>
-                <button mat-stroked-button matListItemMeta type="button"
-                        (click)="restoreFromSnapshot(f.fileName)"
-                        [disabled]="restoreBusy()">
-                  Restore
-                </button>
+                <span matListItemMeta class="snapshot-actions">
+                  <button mat-stroked-button type="button"
+                          (click)="restoreFromSnapshot(f.fileName)"
+                          [disabled]="restoreBusy()">
+                    Restore
+                  </button>
+                </span>
               </mat-list-item>
             }
           </mat-list>
@@ -544,11 +546,22 @@ import { DebugLogCardComponent } from './debug-log-card.component';
        which is taller than a default list line. Let those rows grow and keep the
        meta vertically centered so the dropdowns line up on first paint (they used
        to stagger before the mat-form-field settled its height). */
-    ::ng-deep .mat-mdc-list-item:has(.lib-meta) {
+    ::ng-deep .mat-mdc-list-item:has(.lib-meta, .snapshot-actions) {
       height: auto !important;
       min-height: 76px;
     }
-    .lib-meta { align-self: center; }
+    .lib-meta, .snapshot-actions { align-self: center; }
+    /* Restore buttons (Backups > "Restore from a snapshot"): a fixed trailing
+       column, vertically centered against the two-line title/timestamp text,
+       so the buttons line up regardless of file name or timestamp length
+       (owner-reported misalignment after 1.18.0). */
+    .snapshot-actions {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      min-width: 88px;
+      flex: 0 0 auto;
+    }
     .dir-select { width: 150px; }
     .yac-panel {
       margin: 4px 0 12px 56px; padding: 12px 16px;
