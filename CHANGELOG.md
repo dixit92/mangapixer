@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Pages are now delivered at a size matched to the screen they are shown on. The reader asks the server for the smallest of three sizes (1080, 1440 or 2160 pixels on the longest edge) that still covers the display at its native pixel density, and the server produces that size with a high-quality Lanczos downscale. Pages load faster and line art and screentones look crisper than a browser downscale; nothing is ever upscaled on the server, and pages that are already small are sent as they are. A new "Page quality" reader option (Auto / Full) turns this off per device, and the Original size fit mode always requests full resolution.
+- A new "Rendering" reader option (Smooth / Enhance) adds an optional GPU line-art upscaler (Anime4K, running in the browser via WebGPU) for paged and double-page views when a page is displayed larger than its native size. Enhance is off by default, loads its code only when selected, and is shown as unavailable on devices without WebGPU. It does not apply to the webtoon (vertical scroll) view in this release.
+- Two configuration keys under `MangaPixer:Media:PageVariants` (`MaxDimensions`, `WebpQuality`) let administrators change the size ladder and the WebP quality used for sized page variants.
+- Page responses carry an `X-MangaPixer-Variant` header naming the variant that was actually served.
+
+### Fixed
+
+- The per-snapshot Restore buttons in the Administration page's Backups card are now aligned in a consistent column.
+- The installed Android home-screen app no longer shows a stray document-level scrollbar on open; normal browser tabs are unaffected.
+- Clickable rows in the admin folder browser are real buttons now, so they can be reached and activated from the keyboard.
+
 ## [1.18.0] - 2026-09-18
 
 ### Added
