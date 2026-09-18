@@ -572,6 +572,34 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     .spread-row.paired img.fit-screen, .spread-row img.paired.fit-screen {
       width: auto; height: 100%; max-width: 50%; object-fit: contain;
     }
+    /* Paired + fit-width: single-page fit-width force-fills the full viewport
+       width (scaling small pages up, not just capping large ones down) via
+       width:100%. Its paired analog force-fills each page's half of the row:
+       width:50% (not max-width alone), so a small page is still scaled up to
+       its cell instead of sitting at native size. */
+    .spread-row.paired img.fit-width, .spread-row img.paired.fit-width {
+      width: 50%; height: auto; max-width: 50%;
+    }
+    /* Paired + fit-height: single-page fit-height force-fills the viewport
+       height via height:100% and lets width run free (page may overflow the
+       viewport horizontally; the viewport scrolls rather than clipping). In
+       a pair that overflow would spill into or past the other page's cell,
+       so the paired analog keeps height:100% but caps width at the half-cell
+       and falls back to object-fit:contain (letterboxing top/bottom) for an
+       unusually wide page, same as the fit-screen paired override above. */
+    .spread-row.paired img.fit-height, .spread-row img.paired.fit-height {
+      width: auto; height: 100%; max-width: 50%; object-fit: contain;
+    }
+    /* Paired + original: single-page original is genuinely unscaled
+       (max-width/max-height: none) and relies on viewport scroll for any
+       overflow. Paired mode still needs the half-cell width cap so the two
+       pages don't draw on top of each other, but must NOT force height:auto
+       over the image's native height — that's already the default box
+       behavior, restated here so the cap doesn't accidentally pick up any
+       future height rule from the generic .paired selector. */
+    .spread-row.paired img.original, .spread-row img.paired.original {
+      max-width: 50%; max-height: none; height: auto;
+    }
     /* Webtoon: full-width column, natural vertical scroll. */
     .reader-viewport.webtoon { flex-direction: column; align-items: center; }
     /* Width is driven by the webtoon width slider, 15–100% of viewport. */
