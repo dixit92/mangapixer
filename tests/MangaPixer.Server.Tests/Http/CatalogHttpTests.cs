@@ -206,6 +206,40 @@ public sealed class CatalogHttpTests : IClassFixture<MangaPixerWebApplicationFac
         Assert.Equal("B.cbz", overridePage.Items[1].DisplayName);
     }
 
+    /// <summary>
+    /// 1.18.0: listColumns round-trips through the HTTP PUT/GET library-preferences
+    /// surface like the other presentation fields (cardSize, etc.) - wiring end to
+    /// end, not just the service layer.
+    /// </summary>
+    [Fact]
+    public async Task LibraryPreferences_ListColumns_RoundTripsThroughHttp()
+    {
+        var client = await GetAuthenticatedClientAsync();
+
+        var putResponse = await client.PutAsJsonAsync("/api/v1/reading/library-preferences",
+            new { viewMode = "list", density = "comfortable", sort = "name", listColumns = 3 });
+        putResponse.EnsureSuccessStatusCode();
+
+        var getResponse = await client.GetAsync("/api/v1/reading/library-preferences");
+        getResponse.EnsureSuccessStatusCode();
+        var prefs = await getResponse.Content.ReadFromJsonAsync<LibraryViewPreferencesDto>();
+        Assert.NotNull(prefs);
+        Assert.Equal("list", prefs!.ViewMode);
+        Assert.Equal(3, prefs.ListColumns);
+
+        // Omitting listColumns on a subsequent PUT overwrites it back to unset (0) -
+        // setLibraryPreferences round-trips the WHOLE DTO, so the client must always
+        // echo the field back (matches the existing cardSize/homeRecentWindowDays note).
+        var putAgain = await client.PutAsJsonAsync("/api/v1/reading/library-preferences",
+            new { viewMode = "list", density = "comfortable", sort = "name" });
+        putAgain.EnsureSuccessStatusCode();
+
+        var getAgain = await client.GetAsync("/api/v1/reading/library-preferences");
+        getAgain.EnsureSuccessStatusCode();
+        var prefsAgain = await getAgain.Content.ReadFromJsonAsync<LibraryViewPreferencesDto>();
+        Assert.Equal(0, prefsAgain!.ListColumns);
+    }
+
     [Fact]
     public async Task Browse_WithUnknownPublicLibraryId_Returns404()
     {
