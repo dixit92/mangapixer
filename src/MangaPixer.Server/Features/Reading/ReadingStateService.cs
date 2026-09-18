@@ -849,6 +849,7 @@ public sealed class ReadingStateService
             CardSize = prefs.LibraryCardSize,
             LibraryPageSize = prefs.LibraryPageSize,
             HomeRecentWindowDays = prefs.HomeRecentWindowDays,
+            ListColumns = prefs.ListColumns,
         };
     }
 
@@ -877,6 +878,7 @@ public sealed class ReadingStateService
         prefs.LibraryCardSize = preferences.CardSize;
         prefs.LibraryPageSize = preferences.LibraryPageSize;
         prefs.HomeRecentWindowDays = preferences.HomeRecentWindowDays;
+        prefs.ListColumns = preferences.ListColumns;
 
         await _db.SaveChangesAsync(ct);
     }

@@ -450,6 +450,13 @@ public sealed class ReaderPreferencesEntity
     /// </summary>
     public int HomeRecentWindowDays { get; set; }
 
+    /// <summary>
+    /// Per-user list-view column count (1.18.0), 1-3, on wide viewports: 0 = unset
+    /// -> the frontend applies its own default (2). Mirrors LibraryCardSize's
+    /// presentation-only, stored-verbatim pattern.
+    /// </summary>
+    public int ListColumns { get; set; }
+
     public UserEntity? User { get; set; }
 }
 

@@ -274,6 +274,12 @@ export interface LibraryViewPreferencesDto {
    * server clamps stored values to 1-365.
    */
   homeRecentWindowDays?: number;
+  /**
+   * Optional (1.18.0): the per-user list-view column count (1-3) on wide
+   * viewports. 0/omitted/unrecognized → the frontend default (2). Stored
+   * verbatim, never interpreted server-side, like cardSize.
+   */
+  listColumns?: number;
 }
 
 // --- YACReader progress import (1.2.0, admin-only) ---
