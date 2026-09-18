@@ -252,9 +252,17 @@
          Also a format-only whitespace fix of 1.17.0-era test debt. Additive API only (one
          optional query parameter, one response header), no migration -> MINOR per SemVer
          2.0.0. Bugfixes ship as 1.19.x. -->
+    <!-- 1.19.1 - PATCH over 1.19.0 (2026-09-18), web-only, no API/schema change. The reader's
+         Rendering "Enhance" (Anime4K) overlay decided whether a page was being upscaled by
+         comparing the painted CSS width with the image's natural width, ignoring
+         devicePixelRatio - so on DPR 2-3 phones and tablets a page painted well past its
+         native resolution in device pixels read as a "downscale" and the overlay stayed hidden
+         (desktop DPR 1 masked it). The gate now compares in device pixels, matching the canvas
+         it already rasterized at rect * dpr. Owner-reported on Android + iPad after the 1.19.0
+         deploy. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
     <MangaPixerVersionMinor>19</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
