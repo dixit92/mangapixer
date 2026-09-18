@@ -28,6 +28,7 @@ import { UpscaleDirective } from './upscale.directive';
 import {
   WebtoonNavPreferencesService, webtoonTapZone, webtoonScrollTarget, prefersReducedMotion,
 } from './webtoon-nav.service';
+import { isApplePlatformTouch } from './platform';
 
 type ReaderPhase = 'preparing' | 'ready' | 'error';
 // ReaderView / ViewPref (the per-device paged-layout preference; see the note on
@@ -486,6 +487,10 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 @if (isFullscreen()) { Tap the centre to bring it back when it is hidden. }</li>
               <li><kbd>M</kbd> show / hide the controls · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> exit ·
                 <kbd>?</kbd> this help</li>
+              @if (isIOSImmersive) {
+                <li><b>Fullscreen</b> on iPhone/iPad goes immersive (hides the reader's own bars)
+                  instead of using Safari's fullscreen.</li>
+              }
             </ul>
             <p class="help-dismiss">Tap anywhere to close</p>
           </div>
@@ -829,6 +834,11 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   readonly direction = signal<ReadingDirection>('ltr');
   readonly view = signal<ReaderView>('paged');
   readonly isFullscreen = signal(false);
+  // iPhone/iPad/iPod, and iPadOS Safari's Mac-masquerading UA: the Fullscreen
+  // API there paints a persistent system close button and status bar the page
+  // can't hide, so toggleFullscreen() drives isFullscreen (in-page immersive
+  // mode) directly instead, and onFullscreenChange must not undo that (see both).
+  readonly isIOSImmersive = isApplePlatformTouch(navigator);
   // Double-page pairing phase (the "offset"): when true, page 0 (the cover) is
   // shown alone and pages pair 1-2, 3-4… (right for a typical standalone cover);
   // when false, pairing starts at 0-1, 2-3… No reliable way to infer which a
@@ -1366,6 +1376,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    // On iOS/iPadOS toggleFullscreen() never calls the Fullscreen API (see
+    // there), so document.fullscreenElement stays null forever there and must
+    // never be allowed to flip isFullscreen back off from underneath it.
+    if (this.isIOSImmersive) return;
     // Keep our signal in sync when the browser exits fullscreen via Esc.
     const fs = !!document.fullscreenElement;
     this.isFullscreen.set(fs);
@@ -2267,6 +2281,18 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   }
 
   toggleFullscreen(): void {
+    if (this.isIOSImmersive) {
+      // Safari's own Fullscreen API paints a persistent system close button
+      // over the page and keeps the status bar showing, with no way for the
+      // page to hide either — so skip it and drive the reader's own in-page
+      // immersive mode (isFullscreen) directly. onFullscreenChange ignores
+      // fullscreenchange here, so this is the only place isFullscreen moves.
+      const next = !this.isFullscreen();
+      this.isFullscreen.set(next);
+      if (next) { this.scheduleChromeHide(); }
+      else { this.chromeVisible.set(true); this.clearHideTimer(); }
+      return;
+    }
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen?.();
     } else {

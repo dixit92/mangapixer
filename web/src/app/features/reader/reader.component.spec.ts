@@ -2311,6 +2311,82 @@ describe('ReaderComponent onKeyDown case-insensitive single-letter shortcuts', (
 });
 
 /**
+ * iOS/iPadOS Safari (IPAD-FULLSCREEN): Safari's Fullscreen API leaves a
+ * persistent system close button and the status bar over the page, with no
+ * way for the page to hide either. On Apple touch platforms toggleFullscreen()
+ * must skip the Fullscreen API and drive the reader's own in-page immersive
+ * mode (isFullscreen) directly, and onFullscreenChange must not be able to
+ * undo that (document.fullscreenElement stays null there forever, since the
+ * API is never invoked).
+ *
+ * isIOSImmersive is computed once from `navigator` when the component is
+ * constructed, so the platform must be stubbed BEFORE createComponent().
+ */
+describe('ReaderComponent iOS/iPadOS immersive fullscreen (IPAD-FULLSCREEN)', () => {
+  const iosNav = {
+    platform: 'iPad', maxTouchPoints: 5,
+    userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+  };
+  const macNav = {
+    platform: 'MacIntel', maxTouchPoints: 0,
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/605.1.15',
+  };
+
+  function stubNavigator(nav: { platform: string; maxTouchPoints: number; userAgent: string }) {
+    Object.defineProperty(navigator, 'platform', { value: nav.platform, configurable: true });
+    Object.defineProperty(navigator, 'maxTouchPoints', { value: nav.maxTouchPoints, configurable: true });
+    Object.defineProperty(navigator, 'userAgent', { value: nav.userAgent, configurable: true });
+  }
+
+  function create(nav: { platform: string; maxTouchPoints: number; userAgent: string }) {
+    stubNavigator(nav);
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.pages.set(makePages(3));
+    c.view.set('paged');
+    c.phase.set('ready');
+    return c;
+  }
+
+  afterEach(() => {
+    // jsdom's real (desktop, non-touch) navigator values.
+    stubNavigator({ platform: '', maxTouchPoints: 0, userAgent: navigator.userAgent });
+  });
+
+  it('does not call requestFullscreen on iOS/iPadOS and toggles isFullscreen directly', () => {
+    const c = create(iosNav);
+    const requestFullscreen = vi.fn();
+    Object.defineProperty(document.documentElement, 'requestFullscreen', {
+      value: requestFullscreen, configurable: true,
+    });
+    expect(c.isFullscreen()).toBe(false);
+    c.toggleFullscreen();
+    expect(c.isFullscreen()).toBe(true);
+    c.toggleFullscreen();
+    expect(c.isFullscreen()).toBe(false);
+    expect(requestFullscreen).not.toHaveBeenCalled();
+  });
+
+  it('calls requestFullscreen on non-Apple-touch platforms', () => {
+    const c = create(macNav);
+    const requestFullscreen = vi.fn();
+    Object.defineProperty(document.documentElement, 'requestFullscreen', {
+      value: requestFullscreen, configurable: true,
+    });
+    c.toggleFullscreen();
+    expect(requestFullscreen).toHaveBeenCalledTimes(1);
+  });
+
+  it('onFullscreenChange does not reset isFullscreen on iOS when fullscreenElement is null', () => {
+    const c = create(iosNav);
+    c.isFullscreen.set(true);
+    expect(document.fullscreenElement).toBeFalsy(); // jsdom: undefined, not null
+    c.onFullscreenChange();
+    expect(c.isFullscreen()).toBe(true);
+  });
+});
+
+/**
  * Display-sized page requests (1.19.0 "Image Scaling", Lane B).
  *
  * `pageUrlFor` is the single URL builder for both the reader's `<img>` sources
