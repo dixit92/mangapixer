@@ -101,6 +101,80 @@ describe('UpscaleDirective', () => {
     const { fixture } = create();
     expect(() => fixture.destroy()).not.toThrow();
   });
+
+  describe('device-pixel gate (devicePixelRatio)', () => {
+    function setDpr(value: unknown): void {
+      Object.defineProperty(window, 'devicePixelRatio', { value, configurable: true });
+    }
+
+    let originalDpr: number;
+
+    beforeEach(() => {
+      originalDpr = window.devicePixelRatio;
+    });
+
+    afterEach(() => {
+      setDpr(originalDpr);
+    });
+
+    it('treats a CSS-px downscale as an upscale once DPR 3 device pixels are counted', async () => {
+      setDpr(3);
+      (navigator as unknown as { gpu?: unknown }).gpu = { requestAdapter: () => Promise.resolve(null) };
+      const { fixture, host, img } = create();
+      // Painted at 390 CSS px against a 780px-wide source: 0.5x in CSS px (would
+      // read as a downscale) but 390 * 3 / 780 = 1.5x in device px: an upscale.
+      fakeLayout(img, 780, 390);
+      img.dispatchEvent(new Event('load'));
+      await new Promise((r) => setTimeout(r, 40));
+      fixture.detectChanges();
+      expect(host.querySelector('canvas')).not.toBeNull();
+    });
+
+    it('stays a downscale at DPR 1 for the same painted/natural widths', async () => {
+      setDpr(1);
+      (navigator as unknown as { gpu?: unknown }).gpu = { requestAdapter: () => Promise.resolve(null) };
+      const { fixture, host, img } = create();
+      fakeLayout(img, 780, 390);
+      img.dispatchEvent(new Event('load'));
+      await new Promise((r) => setTimeout(r, 40));
+      fixture.detectChanges();
+      expect(host.querySelector('canvas')).toBeNull();
+    });
+
+    it('is an upscale for the iPad spread case: DPR 2, 1366 CSS px painted, 1415 natural', async () => {
+      setDpr(2);
+      (navigator as unknown as { gpu?: unknown }).gpu = { requestAdapter: () => Promise.resolve(null) };
+      const { fixture, host, img } = create();
+      // 1366 * 2 = 2732 device px against a 1415px-wide source: ~1.93x, an upscale.
+      fakeLayout(img, 1415, 1366);
+      img.dispatchEvent(new Event('load'));
+      await new Promise((r) => setTimeout(r, 40));
+      fixture.detectChanges();
+      expect(host.querySelector('canvas')).not.toBeNull();
+    });
+
+    it('treats a missing devicePixelRatio as 1 without throwing', async () => {
+      setDpr(undefined);
+      (navigator as unknown as { gpu?: unknown }).gpu = { requestAdapter: () => Promise.resolve(null) };
+      const { fixture, host, img } = create();
+      fakeLayout(img, 780, 390); // downscale at DPR 1
+      img.dispatchEvent(new Event('load'));
+      await expect(new Promise((r) => setTimeout(r, 40))).resolves.not.toThrow();
+      expect(() => fixture.detectChanges()).not.toThrow();
+      expect(host.querySelector('canvas')).toBeNull();
+    });
+
+    it('treats a zero devicePixelRatio as 1 without throwing', async () => {
+      setDpr(0);
+      (navigator as unknown as { gpu?: unknown }).gpu = { requestAdapter: () => Promise.resolve(null) };
+      const { fixture, host, img } = create();
+      fakeLayout(img, 780, 390); // downscale at DPR 1
+      img.dispatchEvent(new Event('load'));
+      await expect(new Promise((r) => setTimeout(r, 40))).resolves.not.toThrow();
+      expect(() => fixture.detectChanges()).not.toThrow();
+      expect(host.querySelector('canvas')).toBeNull();
+    });
+  });
 });
 
 describe('hasWebGpu', () => {
