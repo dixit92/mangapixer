@@ -1092,9 +1092,22 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   // (toolbar, slider) also end.
   private readonly activePointers = new Set<number>();
   private lastSwipeAt = 0;
+  // Threshold for "the user has actually pinch-zoomed in", vs. visualViewport.scale
+  // merely reporting device-pixel rounding noise. An installed Android PWA
+  // (standalone WebView, no browser chrome to anchor the layout viewport against)
+  // has been observed to settle a hair above 1.0 — e.g. 1.02–1.03 — on first paint
+  // with NO user gesture at all, and to stay there indefinitely (unlike a transient
+  // layout-settling blip, nothing ever fires another resize to bring it back down).
+  // At the old 1.01 cutoff that reads as "zoomed" forever, which parks touchAction
+  // at 'auto' and onReaderPointerDown never claims the drag (see claim below) — so
+  // swipe paging silently never works on those devices. A real pinch-to-zoom (the
+  // in-app feature this signal exists to detect, see touchAction's doc comment)
+  // moves the scale well past this, so widening the tolerance loses no real
+  // zoom detection while absorbing the installed-PWA rounding jitter.
+  private static readonly ZoomedScaleThreshold = 1.05;
   private readonly onVisualViewportChange = (): void => {
     const vv = window.visualViewport;
-    this.zoomed.set(!!vv && vv.scale > 1.01);
+    this.zoomed.set(!!vv && vv.scale > ReaderComponent.ZoomedScaleThreshold);
   };
 
   pageUrlFor(entry: ManifestPageEntry | undefined): string {
@@ -1114,6 +1127,12 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   ngOnInit(): void {
     // Pinch-zoom (visual viewport scale) hands one-finger drags back to the browser.
     window.visualViewport?.addEventListener('resize', this.onVisualViewportChange);
+    // Sync from the CURRENT scale immediately, rather than leaving `zoomed` at its
+    // false default until the first 'resize' fires. On a fresh navigation into the
+    // reader (e.g. deep-linked while an installed PWA is already open) there may be
+    // no resize event at all before the very first swipe, which would otherwise
+    // read a stale "not zoomed" against a viewport that is actually already zoomed.
+    this.onVisualViewportChange();
     this.route.paramMap.subscribe((params) => {
       const id = params.get('itemId') ?? '';
       this.itemId.set(id);
