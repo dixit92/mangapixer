@@ -210,16 +210,20 @@ export class UpscaleDirective implements OnDestroy {
     const rect = this.paintedRect();
     if (!rect) { this.hide(); return; }
 
-    // Not an upscale: the server's Lanczos downscale already did the right thing
-    // and a GPU pass would only cost battery.
-    const scale = rect.width / img.naturalWidth;
+    // Not an upscale: compare in DEVICE pixels, not CSS pixels. The canvas below
+    // is rasterized at `rect.width * dpr`, and that is what actually lands on the
+    // screen — on a high-DPR phone/tablet a CSS-px comparison alone reads a page
+    // painted well past its native resolution as a "downscale" (DPR 3 divides the
+    // painted width down before it ever reaches naturalWidth), so the overlay
+    // would stay hidden exactly where it is needed most.
+    const dpr = typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1;
+    const scale = (rect.width * dpr) / img.naturalWidth;
     if (!(scale > upscaleThreshold)) { this.hide(); return; }
     if (!hasWebGpu()) { this.hide(); return; }
 
     const canvas = this.ensureCanvas();
     if (!canvas) { this.hide(); return; }
 
-    const dpr = typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1;
     const targetWidth = Math.round(rect.width * dpr);
     const targetHeight = Math.round(rect.height * dpr);
     // Never ask the GPU for more than the page could ever fill at a sane cost.
