@@ -65,7 +65,13 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     <!-- Sticky top bar: breadcrumbs + Select normally; the merged action set while
          selecting. Sticky so the controls stay reachable when scrolling a long
          folder (touch-friendly). -->
-    <div class="browse-bar" #browseBar [class.selecting]="selectMode()"
+    <!-- role="presentation": this container itself is not a control - onBarClick is a
+         mouse/touch-only convenience (tap the bar's neutral background to scroll to
+         top) that explicitly ignores clicks landing on the real interactive children
+         (links, buttons, sliders), which all carry their own accessible/keyboard
+         semantics already. Marking the wrapper presentational keeps it out of the a11y
+         tree instead of misrepresenting the whole toolbar as one focusable widget. -->
+    <div class="browse-bar" #browseBar [class.selecting]="selectMode()" role="presentation"
          (click)="onBarClick($event)">
       @if (!selectMode()) {
         <div class="breadcrumbs">
@@ -175,7 +181,10 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                section is hidden there via the ::ng-deep + media-query CSS below. -->
           @if (viewMode() === 'card') {
             <mat-divider></mat-divider>
-            <div class="view-size-section" (click)="$event.stopPropagation()">
+            <!-- role="presentation": the click here only stops the range drag from
+                 bubbling up and closing the menu - it isn't itself a control, and the
+                 real interactive element (the range input) keeps its own semantics. -->
+            <div class="view-size-section" role="presentation" (click)="$event.stopPropagation()">
               <span class="menu-caption">Card size</span>
               <div class="size-control size-control-menu">
                 <mat-icon class="size-icon">zoom_out</mat-icon>
@@ -192,7 +201,9 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                same PHONE-only placement rationale as the Card size section. -->
           @if (viewMode() === 'list') {
             <mat-divider></mat-divider>
-            <div class="view-size-section" (click)="$event.stopPropagation()">
+            <!-- role="presentation": same rationale as the Card size section above - the
+                 click only stops the range drag from bubbling up and closing the menu. -->
+            <div class="view-size-section" role="presentation" (click)="$event.stopPropagation()">
               <span class="menu-caption">List columns</span>
               <div class="size-control size-control-menu">
                 <mat-icon class="size-icon">view_agenda</mat-icon>
@@ -311,7 +322,10 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
         <mat-icon>sort_by_alpha</mat-icon> {{ activeJump() || 'A-Z' }}
       </button>
       <mat-menu #jumpMenu="matMenu" class="jump-picker-menu">
-        <div class="jump-picker" (click)="$event.stopPropagation()">
+        <!-- role="presentation": same non-control stopPropagation pattern as the
+             size sections above - only stops menu-close-on-click; each chip button
+             below carries its own click/keyboard semantics. -->
+        <div class="jump-picker" role="presentation" (click)="$event.stopPropagation()">
           @for (bucket of jumpBuckets(); track bucket.label) {
             <button class="jump-chip" type="button"
                     (click)="jumpToBucket(bucket)"

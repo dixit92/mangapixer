@@ -267,10 +267,10 @@ import { DebugLogCardComponent } from './debug-log-card.component';
                   @for (entry of listing()!.entries; track entry.path) {
                     <mat-list-item>
                       <mat-icon matListItemIcon>folder</mat-icon>
-                      <div matListItemTitle class="browser-entry"
-                           (click)="entry.hasChildren ? browseInto(entry.path) : useFolder(entry.path)">
+                      <button type="button" matListItemTitle class="browser-entry"
+                              (click)="entry.hasChildren ? browseInto(entry.path) : useFolder(entry.path)">
                         {{ entry.name }}
-                      </div>
+                      </button>
                       <span matListItemMeta class="browser-actions">
                         <button mat-button type="button" (click)="useFolder(entry.path)">Select</button>
                         @if (entry.hasChildren) {
@@ -624,7 +624,23 @@ import { DebugLogCardComponent } from './debug-log-card.component';
     }
     .browser-hint { font-size: 13px; opacity: 0.8; }
     .browser-list { max-height: 260px; overflow-y: auto; }
-    .browser-entry { cursor: pointer; }
+    /* Was a plain <div> with a (click) handler (a11y warning: not focusable, no
+       keyboard equivalent). It is a real primary action - click the folder name to
+       browse into it (or select it, if it has no subfolders) - so it is now a real
+       <button>, which is natively focusable and keyboard-activatable; this CSS resets
+       the native button chrome so it still reads as list-item title text, not a button. */
+    .browser-entry {
+      cursor: pointer;
+      display: block;
+      width: 100%;
+      background: none;
+      border: none;
+      padding: 0;
+      margin: 0;
+      font: inherit;
+      color: inherit;
+      text-align: left;
+    }
     .browser-actions { display: inline-flex; align-items: center; gap: 4px; }
     .activation-link-box {
       margin-top: 16px; padding: 12px 16px; border-radius: 8px;
