@@ -317,6 +317,13 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     /// Returns an outcome the controller maps to an HTTP response; never throws for
     /// worker-side failures.
     /// </summary>
+    /// <param name="maxDimension">
+    /// Longest edge (px) for sized page variants ("webp@&lt;n&gt;", 1.19.0); 0 means
+    /// no resize. Declared after <paramref name="ct"/> deliberately: every existing
+    /// caller passes the cancellation token positionally, so appending the new
+    /// optional parameter is the only placement that keeps them compiling
+    /// unchanged.
+    /// </param>
     public async Task<PageExtractionOutcome> ExtractPageAsync(
         string archivePath,
         string sourceEntryKey,
@@ -326,7 +333,8 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         string outputPath,
         int thumbnailMaxDimension,
         int webpQuality,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int maxDimension = 0)
     {
         if (_isShuttingDown)
             return PageExtractionOutcome.Failed("unavailable", "Server is shutting down.");
@@ -351,6 +359,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                 Deadline = DateTimeOffset.UtcNow.Add(_options.AnalysisTimeout),
                 ThumbnailMaxDimension = thumbnailMaxDimension,
                 WebpQuality = webpQuality,
+                MaxDimension = maxDimension,
             };
 
             var tcs = new TaskCompletionSource<PageExtractionOutcome>(

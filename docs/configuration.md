@@ -62,6 +62,8 @@ The Unraid Compose file sets the three roots to `/config/data`, `/config/cache` 
 | `MangaPixer:Media:MaxConcurrentJobs` (`MangaPixer__Media__MaxConcurrentJobs`) | `2` | How many archive jobs (analysis, page extraction, thumbnails) run at once. When it is more than 1 and someone is waiting for a page, one slot is held back for them. Use `1` on a low-memory NAS. |
 | `MangaPixer:Media:ThumbnailBackfill:BatchSize` (`MangaPixer__Media__ThumbnailBackfill__BatchSize`) | `200` | How many items the background thumbnail pass loads at a time. |
 | `MangaPixer:Media:ThumbnailBackfill:BackoffMs` (`MangaPixer__Media__ThumbnailBackfill__BackoffMs`) | `200` | How long, in milliseconds, the thumbnail pass waits between checks while the server is busy with readers or analysis. |
+| `MangaPixer:Media:PageVariants:MaxDimensions` (`MangaPixer__Media__PageVariants__MaxDimensions`) | `1080,1440,2160` | Page sizes the reader may ask for, as longest edge in pixels, written smallest first and separated by commas. A request is rounded up to the next size on this list, so a few sizes cover every screen. Pages are never enlarged: a page already smaller than the requested size is sent as it is. At most six sizes; each extra size is another cached copy of every page you read. |
+| `MangaPixer:Media:PageVariants:WebpQuality` (`MangaPixer__Media__PageVariants__WebpQuality`) | `82` | Image quality (1-100) for those resized pages. Higher looks better and costs more space and bandwidth. |
 | `Media:WorkerExecutablePath` (`Media__WorkerExecutablePath`) | Set in the image; otherwise found automatically | Location of the helper process that opens archives. Leave it as it is. Note there is no `MangaPixer` prefix on this key. |
 
 ## Backups
