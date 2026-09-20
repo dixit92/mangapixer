@@ -696,3 +696,22 @@ export interface AddBookmarkRequest {
 export interface AddBookmarkResult {
   id: string;
 }
+
+/**
+ * Update Checker status (1.21.0). Mirrors `UpdateCheckStatusDto` on the server.
+ * The checker is OFF by default and is the single sanctioned outbound call:
+ * only version strings and a timestamp cross the wire — no instance id or
+ * telemetry. `latestVersion` is null when the check is off or has never run.
+ */
+export interface UpdateCheckStatusDto {
+  enabled: boolean;
+  currentVersion: string;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  lastChecked: string | null;
+}
+
+/** Request to change the Update Checker opt-in (`UpdateCheckSettingsRequest`). */
+export interface UpdateCheckSettingsRequest {
+  enabled: boolean;
+}

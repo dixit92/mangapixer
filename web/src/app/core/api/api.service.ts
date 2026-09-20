@@ -61,6 +61,8 @@ import {
   SetupRequest,
   SetupStatusDto,
   SystemInfoDto,
+  UpdateCheckSettingsRequest,
+  UpdateCheckStatusDto,
   UpdateLibraryRequest,
   UpdateLogLevelRequest,
   UpdateProgressRequest,
@@ -486,6 +488,19 @@ export class ApiService {
     const form = new FormData();
     form.append('file', file, file.name);
     return this.post<RestoreStageResponseDto>('/operations/restore', form);
+  }
+
+  /** Update Checker status (admin). Pass force=true for the "Check now" action. */
+  getUpdateCheck(force = false): Observable<UpdateCheckStatusDto> {
+    const params = force ? new HttpParams().set('force', 'true') : undefined;
+    return this.get<UpdateCheckStatusDto>('/operations/update-check', params);
+  }
+
+  /** Sets the Update Checker opt-in (admin). Enabling triggers an immediate check. */
+  setUpdateCheckEnabled(enabled: boolean): Observable<UpdateCheckStatusDto> {
+    return this.put<UpdateCheckStatusDto>(
+      '/operations/update-check/settings',
+      { enabled } as UpdateCheckSettingsRequest);
   }
 
   /** One page of the administrative audit trail (newest first). */

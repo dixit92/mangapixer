@@ -178,7 +178,7 @@ A Unraid Community Applications template (XML) is a separate post-MVP packaging 
 
 - Logs contain IDs, counts, timings, and sanitized error codes - never absolute paths, titles, passwords, tokens, cookies, archive entry names, or page bytes.
 - Browser bundles and source maps must not embed actual deployment roots.
-- No telemetry, analytics, remote fonts, or third-party library lookup calls.
+- No telemetry, analytics, remote fonts, or third-party library lookup calls. The single sanctioned exception is the optional Update Checker (off by default, admin opt-in): when enabled it makes one GET to the GitHub Releases API for `dixit92/mangapixer` to compare versions. The request sends only a generic `User-Agent` (required by the GitHub API) and carries no instance identifier, user data, path, or telemetry; the result is shown only in the admin page / app footer.
 - `.dockerignore` independently excludes secrets, app state, and media from build contexts.
 
 ## Branching
