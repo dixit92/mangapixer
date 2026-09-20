@@ -457,6 +457,22 @@ public sealed class ReaderPreferencesEntity
     /// </summary>
     public int ListColumns { get; set; }
 
+    /// <summary>
+    /// Per-user opt-in for the Home "Favorites" row (1.21.0). Off by default so a
+    /// fresh install / rows written before this column existed never surface the row.
+    /// The favorites core affordances (star toggle everywhere) are always present;
+    /// only this prominence surface is opt-in.
+    /// </summary>
+    public bool ShowFavoritesHomeRow { get; set; }
+
+    /// <summary>
+    /// Per-user opt-in for favorites prominence in search (1.21.0). Off by default.
+    /// When on, favorited results get a star badge AND are boosted to the top of the
+    /// result list; when off, favorited results render exactly like any other (no
+    /// badge, no boost).
+    /// </summary>
+    public bool FavoritesSearchProminence { get; set; }
+
     public UserEntity? User { get; set; }
 }
 
@@ -496,6 +512,33 @@ public sealed class BookmarkEntity
     public DateTimeOffset CreatedAt { get; set; }
 
     public UserEntity? User { get; set; }
+}
+
+/// <summary>
+/// Per-user "star" favorite for a catalog node (1.21.0). A favorite is explicit
+/// user curation — distinct from in-reader bookmarks (per-page markers) and from
+/// Continue-reading (recency). Works uniformly for archives and folders because the
+/// catalog is a single node id space with a <see cref="CatalogNodeEntity.Kind"/>
+/// discriminator (0=folder, 1=archive), so no polymorphic FK is needed.
+///
+/// Semantics (owner-approved design 2026-09-20):
+/// - Per-user: each user curates their own set. Uniqueness is (UserId, CatalogNodeId).
+/// - No cascade / rollup: a favorite points at the exact node; favoriting a folder
+///   does not favorite its descendants.
+/// - FK cascade-deletes with the catalog node so a rescan/remove cannot orphan a
+///   favorite (and with the user so account deletion cleans up).
+/// </summary>
+public sealed class FavoriteEntity
+{
+    public long Id { get; set; }
+    public long UserId { get; set; }
+    public long CatalogNodeId { get; set; }
+
+    /// <summary>When the favorite was created; drives the recently-favorited ordering.</summary>
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public UserEntity? User { get; set; }
+    public CatalogNodeEntity? Node { get; set; }
 }
 
 /// <summary>
@@ -698,6 +741,7 @@ public sealed class UserEntity
     public ICollection<ReadingProgressEntity> ReadingProgress { get; set; } = [];
     public ICollection<PrivateLibraryEntity> PrivateLibraries { get; set; } = [];
     public ICollection<HomeExcludedLibraryEntity> HomeExcludedLibraries { get; set; } = [];
+    public ICollection<FavoriteEntity> Favorites { get; set; } = [];
     public ReaderPreferencesEntity? Preferences { get; set; }
 }
 

@@ -132,6 +132,14 @@ public sealed record CatalogNodeDto
     public bool IsRead { get; init; }
 
     /// <summary>
+    /// Whether the current user has starred this node as a favorite (1.21.0). Applies
+    /// uniformly to folders and archives (favorites are per-node, no rollup). Populated
+    /// by browse, search, single-node lookup, and the favorites list via a single
+    /// batched join (no N+1); defaults false so older clients ignore it.
+    /// </summary>
+    public bool IsFavorite { get; init; }
+
+    /// <summary>
     /// Derived read rollup over this folder's readable descendant archives for the
     /// current user (1.6.0): Read when every one carries a read-mark, Reading when
     /// some are read or in progress, Unread when none are. Only populated in browse
@@ -337,6 +345,21 @@ public sealed record LibraryViewPreferencesDto
     public int LibraryPageSize { get; init; }
     public int HomeRecentWindowDays { get; init; }
     public int ListColumns { get; init; }
+
+    /// <summary>
+    /// Per-user opt-in for the Home "Favorites" row (1.21.0). False (default) hides the
+    /// row; the star affordances everywhere else are always present. Mirrors the other
+    /// presentation flags: stored verbatim, round-tripped through the existing
+    /// library-preferences endpoint, defaults preserve pre-1.21.0 behaviour.
+    /// </summary>
+    public bool ShowFavoritesHomeRow { get; init; }
+
+    /// <summary>
+    /// Per-user opt-in for favorites prominence in search (1.21.0). False (default) =
+    /// favorited results render normally (no badge, no reordering). True = favorited
+    /// results get a star badge and are boosted to the top of the result list.
+    /// </summary>
+    public bool FavoritesSearchProminence { get; init; }
 }
 
 /// <summary>

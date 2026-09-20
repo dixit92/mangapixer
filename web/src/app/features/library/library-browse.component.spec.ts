@@ -1296,6 +1296,39 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
     expect(comp.filterActive()).toBe(true);
   });
 
+  it('toggleFavoritesOnly reloads from the top and forwards favoritesOnly=true (1.21.0)', () => {
+    const { comp, browseLibrary } = setup({ browse: () => of(page([node('a')], 'c1')) });
+    comp.toggleFavoritesOnly();
+    expect(comp.favoritesOnly()).toBe(true);
+    const last = browseLibrary.mock.calls.at(-1)!;
+    // browseLibrary(libId, parentId, cursor, pageSize, sort, direction, readState, hideEmpty, before, favoritesOnly)
+    expect(last[2]).toBeNull();   // reloaded from the top
+    expect(last[9]).toBe(true);   // favoritesOnly forwarded
+    expect(comp.filterActive()).toBe(true);
+    // Toggling again turns it off.
+    comp.toggleFavoritesOnly();
+    expect(comp.favoritesOnly()).toBe(false);
+    expect(browseLibrary.mock.calls.at(-1)![9]).toBe(false);
+  });
+
+  it('favorites-only composes WITH the read-state filter (both forwarded) (1.21.0)', () => {
+    const { comp, browseLibrary } = setup({ browse: () => of(page([node('a')], 'c1')) });
+    comp.setReadStateFilter('unread');
+    comp.toggleFavoritesOnly();
+    const last = browseLibrary.mock.calls.at(-1)!;
+    expect(last[6]).toBe('unread'); // read-state still active
+    expect(last[9]).toBe(true);     // favorites-only on top of it
+  });
+
+  it('hides the jump rail while favorites-only is active and restores it when off (1.21.0)', () => {
+    const { comp } = setup({ buckets: [{ label: 'A', count: 1, firstCursor: null }] });
+    expect(comp.jumpBuckets().length).toBe(1);
+    comp.toggleFavoritesOnly();
+    expect(comp.jumpBuckets().length).toBe(0); // rail hidden under a filter
+    comp.toggleFavoritesOnly();
+    expect(comp.jumpBuckets().length).toBe(1); // restored
+  });
+
   it('hides the jump rail while hide-empty is active and restores it when off', () => {
     const { comp } = setup({ buckets: [{ label: 'A', count: 1, firstCursor: null }] });
     expect(comp.jumpBuckets().length).toBe(1);

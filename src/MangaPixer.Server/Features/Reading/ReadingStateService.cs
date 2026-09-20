@@ -850,6 +850,8 @@ public sealed class ReadingStateService
             LibraryPageSize = prefs.LibraryPageSize,
             HomeRecentWindowDays = prefs.HomeRecentWindowDays,
             ListColumns = prefs.ListColumns,
+            ShowFavoritesHomeRow = prefs.ShowFavoritesHomeRow,
+            FavoritesSearchProminence = prefs.FavoritesSearchProminence,
         };
     }
 
@@ -879,6 +881,8 @@ public sealed class ReadingStateService
         prefs.LibraryPageSize = preferences.LibraryPageSize;
         prefs.HomeRecentWindowDays = preferences.HomeRecentWindowDays;
         prefs.ListColumns = preferences.ListColumns;
+        prefs.ShowFavoritesHomeRow = preferences.ShowFavoritesHomeRow;
+        prefs.FavoritesSearchProminence = preferences.FavoritesSearchProminence;
 
         await _db.SaveChangesAsync(ct);
     }

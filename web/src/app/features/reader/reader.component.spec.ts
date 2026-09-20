@@ -1716,7 +1716,7 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
     expect(labels()).toEqual([
       'Back to folder',
       'No previous chapter', 'No next chapter',
-      'Reading mode', 'Bookmark this page', 'Bookmarks', 'Image fit', 'Switch to right-to-left', 'Page transition',
+      'Reading mode', 'Bookmark this page', 'Bookmarks', 'Add to favorites', 'Image fit', 'Switch to right-to-left', 'Page transition',
       // 1.19.0 image scaling: the second settings-menu slot (Rendering + Page quality).
       'Rendering',
       'Reading help', 'Enter fullscreen',

@@ -11,6 +11,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api/api.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import {
+  CatalogNodeDto,
   LibraryDto,
   ContinueReadingEntry,
   LibraryReadStateFilter,
@@ -119,6 +120,25 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
                   <mat-icon>close</mat-icon>
                 </button>
               </div>
+            }
+          </div>
+        </section>
+      }
+
+      <!-- Favorites row (1.21.0): opt-in (showFavoritesHomeRow), rendered only when the
+           user has favorites. Reuses the Continue-reading strip card styling. -->
+      @if (showFavoritesRow() && favorites().length > 0) {
+        <section class="strip-section">
+          <h3>Favorites</h3>
+          <div class="strip">
+            @for (node of favorites(); track node.id) {
+              <a class="cont-card" [routerLink]="favLink(node)">
+                <div class="cover">
+                  @if (favCover(node); as src) { <img appCover [src]="src" alt="" loading="lazy"> }
+                  <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
+                </div>
+                <div class="cont-title" [title]="node.displayName">{{ node.displayName }}</div>
+              </a>
             }
           </div>
         </section>
@@ -390,6 +410,9 @@ export class HomeComponent implements OnInit {
   readonly loading = signal(true);
   readonly libraries = signal<LibraryDto[]>([]);
   readonly continueReading = signal<ContinueReadingEntry[]>([]);
+  /** Opt-in Home "Favorites" row (1.21.0): hidden unless showFavoritesHomeRow is on. */
+  readonly showFavoritesRow = signal(false);
+  readonly favorites = signal<CatalogNodeDto[]>([]);
   /** New chapters (1.12.0): per-library groups of stacks, as returned by the server. */
   readonly recentGroups = signal<RecentChaptersLibraryGroup[]>([]);
 
@@ -453,6 +476,9 @@ export class HomeComponent implements OnInit {
       next: (p) => {
         this.libraryPrefs = p;
         this.cardSize.set(this.resolveCardSize(p));
+        // Home "Favorites" row (1.21.0): opt-in, off by default. Only fetch when on.
+        this.showFavoritesRow.set(p.showFavoritesHomeRow ?? false);
+        if (this.showFavoritesRow()) this.loadFavorites();
       },
       error: () => { /* keep the default size; the slider still works this session */ },
     });
@@ -467,6 +493,24 @@ export class HomeComponent implements OnInit {
       next: (dto: RecentChaptersDto) => this.recentGroups.set(dto.libraries),
       error: () => this.recentGroups.set([]),
     });
+  }
+
+  private loadFavorites(): void {
+    this.api.getFavorites(null, 12).subscribe({
+      next: (page) => this.favorites.set(page.items),
+      error: () => this.favorites.set([]),
+    });
+  }
+
+  /** Home row link: folders open browse, archives open the reader (1.21.0). */
+  favLink(node: CatalogNodeDto): string[] {
+    if (node.kind === 'Folder') return ['/libraries', node.libraryId, 'browse', node.id];
+    return ['/reader', node.id];
+  }
+
+  /** Cover URL for a favorite row card: folder cover if resolved, else the archive cover. */
+  favCover(node: CatalogNodeDto): string | null {
+    return node.coverUrl ?? (node.kind === 'Archive' ? `/api/v1/items/${node.id}/cover` : null);
   }
 
   /** Change the New-chapters read-state filter and reload the row (1.17.0). */

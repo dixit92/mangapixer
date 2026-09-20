@@ -62,6 +62,7 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<ItemReaderOverridesEntity> ItemReaderOverrides => Set<ItemReaderOverridesEntity>();
     public DbSet<FolderReaderDefaultEntity> FolderReaderDefaults => Set<FolderReaderDefaultEntity>();
     public DbSet<BookmarkEntity> Bookmarks => Set<BookmarkEntity>();
+    public DbSet<FavoriteEntity> Favorites => Set<FavoriteEntity>();
     public DbSet<JobEntity> Jobs => Set<JobEntity>();
     public DbSet<ScanRunEntity> ScanRuns => Set<ScanRunEntity>();
     public DbSet<ScanObservationEntity> ScanObservations => Set<ScanObservationEntity>();
@@ -88,6 +89,7 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigurePreferences(modelBuilder);
         ConfigureFolderReaderDefaults(modelBuilder);
         ConfigureBookmarks(modelBuilder);
+        ConfigureFavorites(modelBuilder);
         ConfigureJobs(modelBuilder);
         ConfigureCacheEntries(modelBuilder);
         ConfigureAuditEvents(modelBuilder);
@@ -353,6 +355,35 @@ public sealed class MangaPixerDbContext : DbContext
             e.Property(x => x.EntryKey).IsRequired().HasMaxLength(64);
             e.Property(x => x.Label).HasMaxLength(256);
             e.HasIndex(x => new { x.UserId, x.ItemId });
+        });
+    }
+
+    private static void ConfigureFavorites(ModelBuilder mb)
+    {
+        mb.Entity<FavoriteEntity>(e =>
+        {
+            e.ToTable("favorites");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+
+            // One favorite per (user, node) — the toggle is idempotent.
+            e.HasIndex(x => new { x.UserId, x.CatalogNodeId }).IsUnique();
+            // Recently-favorited ordering + per-user list scans.
+            e.HasIndex(x => new { x.UserId, x.CreatedAt });
+            // IsFavorite projection joins from the node side.
+            e.HasIndex(x => x.CatalogNodeId);
+
+            e.HasOne(x => x.User)
+                .WithMany(u => u.Favorites)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Cascade with the catalog node so a rescan/remove cannot orphan a
+            // favorite (the node's own row cascades from its library in turn).
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.CatalogNodeId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 
