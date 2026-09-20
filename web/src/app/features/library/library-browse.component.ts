@@ -36,6 +36,13 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
  * "Select all unread" / "Select all read" act over the currently-listed nodes
  * for whole-folder selection.
  *
+ * List-mode direct-select (1.21.0): list rows additionally carry a leading
+ * checkbox control that selects WITHOUT first entering select mode (tapping the
+ * row body still opens the item either way). Selecting the first row through it
+ * turns select mode on so the bulk-action bar appears; it reuses the same
+ * `selected`/`toggleOne` state as every other selection path. Card view is
+ * unchanged - it keeps the selectMode-gated overlay tap.
+ *
  * Infinite scroll + sticky navigation (1.8.0): the manual "Load More" button is
  * replaced by an IntersectionObserver sentinel that appends the next cursor page
  * as the user nears the bottom (the 1.7.3 read-state refresh and the 1.6.2
@@ -383,6 +390,19 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
          [style.--list-columns]="listColumns()">
       @for (node of nodes(); track node.id) {
         <div class="node-wrap" [class.selected]="isSelected(node)">
+          <!-- List-mode direct-select (1.21.0): a dedicated leading control so a row
+               can be selected WITHOUT first entering select mode - tapping the row
+               body still opens the item (selectMode still gates that). Selecting the
+               first item this way turns select mode on so the bulk-action bar
+               appears; card view keeps its existing selectMode-only overlay. -->
+          @if (viewMode() === 'list') {
+            <button type="button" class="row-select" role="checkbox"
+                    [attr.aria-checked]="isSelected(node)"
+                    [attr.aria-label]="(isSelected(node) ? 'Deselect ' : 'Select ') + node.displayName"
+                    (click)="onRowSelectClick($event, node)">
+              <mat-icon>{{ isSelected(node) ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
+            </button>
+          }
           <a class="node-card" [routerLink]="selectMode() ? null : getNodeLink(node)"
              (click)="onCardClick($event, node)"
              (pointerdown)="onCardPointerDown($event, node)"
@@ -533,7 +553,15 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
         column-gap: 16px;
       }
     }
-    .nodes.list .node-wrap { min-width: 0; }
+    .nodes.list .node-wrap { min-width: 0; display: flex; align-items: center; gap: 4px; }
+    .nodes.list .node-wrap .node-card { flex: 1 1 auto; min-width: 0; }
+    .row-select {
+      flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px;
+      background: transparent; color: #8a8a99; cursor: pointer;
+    }
+    .row-select mat-icon { font-size: 20px; width: 20px; height: 20px; }
+    .row-select[aria-checked="true"] { color: #7c4dff; }
     .nodes.list .node-card {
       display: flex; align-items: center; gap: 12px;
       padding: 6px; border-radius: 8px; background: rgba(255,255,255,0.03);
@@ -1508,6 +1536,22 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       this.selectRange(this.anchorIndex()!, index);
       return;
     }
+    this.toggleOne(node, index);
+  }
+
+  /**
+   * List-mode direct-select control (1.21.0): tapping/activating the leading row
+   * checkbox selects without requiring select mode first. Selecting the first item
+   * turns select mode on so the bulk-action bar appears; deselecting back to zero
+   * does NOT turn it back off (mirrors the explicit Select/Done toggle - only
+   * "Done" or clearing the selection exits select mode).
+   */
+  onRowSelectClick(event: Event, node: CatalogNodeDto): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const index = this.nodes().findIndex((n) => n.id === node.id);
+    if (index === -1) return;
+    if (!this.selectMode()) this.selectMode.set(true);
     this.toggleOne(node, index);
   }
 
