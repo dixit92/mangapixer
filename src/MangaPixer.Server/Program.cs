@@ -223,6 +223,23 @@ public sealed partial class Program
             builder.Services.AddScoped<BackupService>();
             builder.Services.AddScoped<DiagnosticsService>();
 
+            // Update Checker (1.21.0) — the ONE sanctioned outbound call, OFF by
+            // default. TimeProvider drives the 24h cadence gate (mockable in
+            // tests). The named HttpClient is the FIRST server-side HttpClient and
+            // is scoped to the single GitHub Releases call: only a generic
+            // User-Agent is sent (no instance id, path, or telemetry).
+            builder.Services.AddSingleton(TimeProvider.System);
+            builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Updates.UpdateCheckService>();
+            builder.Services.AddHttpClient(
+                com.lifepixer.mangapixer.Server.Features.Updates.UpdateCheckService.HttpClientName,
+                client =>
+                {
+                    client.Timeout = TimeSpan.FromSeconds(10);
+                    client.DefaultRequestHeaders.UserAgent.ParseAdd(
+                        com.lifepixer.mangapixer.Server.Features.Updates.UpdateCheckService.UserAgent);
+                    client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+                });
+
             // Log-level control — singleton so the switch survives
             // across requests and mutates the live Serilog pipeline.
             builder.Services.AddSingleton(levelSwitch);
