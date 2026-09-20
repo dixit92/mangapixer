@@ -1915,3 +1915,105 @@ describe('LibraryBrowseComponent browse visual polish (1.17.0)', () => {
     expect(el.querySelector('.cover .check')).not.toBeNull();
   });
 });
+
+/**
+ * List-mode direct-select tests (1.21.0): a leading row checkbox selects
+ * WITHOUT first entering select mode, and does not conflict with tapping the
+ * row body to open the item. Reuses the 1.17.0 block's setup pattern.
+ */
+describe('LibraryBrowseComponent list-mode direct select (1.21.0)', () => {
+  function node(id: string): CatalogNodeDto {
+    return {
+      id, parentId: 'p', libraryId: 'lib1', kind: 'Archive', displayName: id,
+      availability: 'Available', coverUrl: null, childFolderCount: null, childArchiveCount: null,
+      pageCount: 10, readingState: null, lastReadPage: null, readerDefault: null, isRead: false,
+    } as CatalogNodeDto;
+  }
+
+  function setup(viewMode: 'card' | 'list', nodes: CatalogNodeDto[] = []) {
+    const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
+    const apiSpy = {
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode, density: 'comfortable', sort: 'name', direction: 'asc' })),
+      setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      browseLibrary: vi.fn().mockReturnValue(of(page)),
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
+      getNode: vi.fn().mockReturnValue(of({} as CatalogNodeDto)),
+      getReadMark: vi.fn().mockReturnValue(of({ itemId: '', isRead: false })),
+      getProgress: vi.fn().mockReturnValue(of(null)),
+    };
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: { isAdmin: () => false } },
+        { provide: ReadStateService, useValue: new ReadStateService() },
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : null) }) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges();
+    return { fixture, comp: fixture.componentInstance, el: fixture.nativeElement as HTMLElement };
+  }
+
+  it('list mode: renders a leading checkbox per row, even outside select mode', () => {
+    const { comp, el } = setup('list', [node('a'), node('b')]);
+    expect(comp.selectMode()).toBe(false);
+    const boxes = el.querySelectorAll<HTMLButtonElement>('.row-select');
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0].tagName).toBe('BUTTON'); // native button: keyboard-operable (Enter/Space) with no extra JS
+    expect(boxes[0].getAttribute('role')).toBe('checkbox');
+    expect(boxes[0].getAttribute('aria-checked')).toBe('false');
+    expect(boxes[0].getAttribute('aria-label')).toContain('a');
+  });
+
+  it('list mode: tapping the row checkbox selects the item and turns select mode on, without a prior toggle', () => {
+    const { fixture, comp, el } = setup('list', [node('a'), node('b')]);
+    const box = el.querySelector<HTMLButtonElement>('.row-select')!;
+    box.click();
+    fixture.detectChanges();
+    expect(comp.selectMode()).toBe(true);
+    expect(comp.isSelected(node('a'))).toBe(true);
+    expect(el.querySelector('.row-select')!.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('list mode: the row checkbox toggles off again without leaving select mode', () => {
+    const { fixture, comp, el } = setup('list', [node('a')]);
+    const box = el.querySelector<HTMLButtonElement>('.row-select')!;
+    box.click();
+    fixture.detectChanges();
+    box.click();
+    fixture.detectChanges();
+    expect(comp.isSelected(node('a'))).toBe(false);
+    expect(comp.selectMode()).toBe(true); // exiting select mode stays an explicit action (Done)
+  });
+
+  it('list mode: tapping the row body still opens the item when not selecting', () => {
+    const { fixture, comp, el } = setup('list', [node('a'), node('b')]);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    (el.querySelector('.node-card') as HTMLElement).click();
+    fixture.detectChanges();
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(comp.selected().size).toBe(0);
+  });
+
+  it('list mode: checkbox-driven selection feeds the existing bulk-action bar', () => {
+    const { fixture, comp, el } = setup('list', [node('a'), node('b')]);
+    (el.querySelector('.row-select') as HTMLElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector('.count')?.textContent?.trim()).toBe('1 selected');
+    const markRead = Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.includes('Mark read')) as HTMLButtonElement;
+    expect(markRead.disabled).toBe(false);
+    expect(comp.selected().has('a')).toBe(true);
+  });
+
+  it('card view: no row-select control is rendered', () => {
+    const { el } = setup('card', [node('a')]);
+    expect(el.querySelector('.row-select')).toBeNull();
+  });
+});
