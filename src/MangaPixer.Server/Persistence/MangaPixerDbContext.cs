@@ -69,6 +69,7 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
     public DbSet<UserEntity> Users => Set<UserEntity>();
     public DbSet<SessionEntity> Sessions => Set<SessionEntity>();
+    public DbSet<AppSettingsEntity> AppSettings => Set<AppSettingsEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -90,6 +91,19 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureJobs(modelBuilder);
         ConfigureCacheEntries(modelBuilder);
         ConfigureAuditEvents(modelBuilder);
+        ConfigureAppSettings(modelBuilder);
+    }
+
+    private static void ConfigureAppSettings(ModelBuilder mb)
+    {
+        mb.Entity<AppSettingsEntity>(e =>
+        {
+            e.ToTable("app_settings");
+            e.HasKey(x => x.Id);
+            // Single-row table: the key is the fixed SingletonId, never generated.
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.UpdateLastKnownLatestVersion).HasMaxLength(64);
+        });
     }
 
     private static void ConfigureUsers(ModelBuilder mb)

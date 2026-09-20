@@ -702,6 +702,43 @@ public sealed class UserEntity
 }
 
 /// <summary>
+/// Server-wide application settings. A single-row ("singleton") table: exactly
+/// one row exists, addressed by the fixed key <see cref="SingletonId"/>. This is
+/// deliberately general-purpose so later admin-wide settings can be added as
+/// columns without a new table; the first consumer is the opt-in Update Checker
+/// (1.21.0).
+///
+/// Update Checker fields hold: whether the check is enabled (OFF by default —
+/// the check makes the one sanctioned outbound call only when enabled), the
+/// timestamp of the last completed check (drives the 24h cadence gate), and the
+/// last latest version string learned from GitHub (cached so the admin page can
+/// render a result without re-fetching on every load).
+/// </summary>
+public sealed class AppSettingsEntity
+{
+    /// <summary>The fixed primary key of the one and only settings row.</summary>
+    public const long SingletonId = 1;
+
+    /// <summary>Always <see cref="SingletonId"/>. Not database-generated.</summary>
+    public long Id { get; set; } = SingletonId;
+
+    /// <summary>
+    /// Opt-in flag for the Update Checker. Defaults to false so a fresh install
+    /// never makes the outbound GitHub call until an admin turns it on.
+    /// </summary>
+    public bool UpdateCheckEnabled { get; set; }
+
+    /// <summary>UTC time of the last completed update check, or null if never.</summary>
+    public DateTimeOffset? UpdateLastCheckedAt { get; set; }
+
+    /// <summary>
+    /// The latest release version last learned from GitHub (no leading "v"), or
+    /// null if never fetched. Cached so the admin page can render immediately.
+    /// </summary>
+    public string? UpdateLastKnownLatestVersion { get; set; }
+}
+
+/// <summary>
 /// Session entity for revocable authentication.
 /// </summary>
 public sealed class SessionEntity

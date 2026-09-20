@@ -840,3 +840,41 @@ public sealed record SystemInfoDto
     /// </summary>
     public string? Platform { get; init; }
 }
+
+/// <summary>
+/// Status of the optional Update Checker (1.21.0), returned by
+/// <c>GET /api/v1/operations/update-check</c> (admin-only). The checker is OFF by
+/// default and is the single sanctioned outbound third-party call: when enabled it
+/// compares the running version against the latest GitHub release. Carries only
+/// version strings and a timestamp — no instance identifier, path, or telemetry.
+/// </summary>
+public sealed record UpdateCheckStatusDto
+{
+    /// <summary>Whether the admin has opted in to update checking.</summary>
+    public required bool Enabled { get; init; }
+
+    /// <summary>The running server version (informational version, no leading "v").</summary>
+    public required string CurrentVersion { get; init; }
+
+    /// <summary>
+    /// The latest release version last learned from GitHub (no leading "v"), or
+    /// null if the check is off or has never successfully run.
+    /// </summary>
+    public string? LatestVersion { get; init; }
+
+    /// <summary>True when <see cref="LatestVersion"/> is strictly newer than <see cref="CurrentVersion"/>.</summary>
+    public required bool UpdateAvailable { get; init; }
+
+    /// <summary>UTC time of the last completed check attempt, or null if never checked.</summary>
+    public DateTimeOffset? LastChecked { get; init; }
+}
+
+/// <summary>
+/// Request to change the Update Checker opt-in, sent to
+/// <c>PUT /api/v1/operations/update-check/settings</c> (admin-only).
+/// </summary>
+public sealed record UpdateCheckSettingsRequest
+{
+    /// <summary>Whether update checking should be enabled.</summary>
+    public required bool Enabled { get; init; }
+}

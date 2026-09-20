@@ -22,6 +22,7 @@ public sealed class OperationsController : ControllerBase
     private readonly LogLevelSettingsService _logLevel;
     private readonly DbRestoreService _dbRestore;
     private readonly DbRestoreOptions _dbRestoreOptions;
+    private readonly com.lifepixer.mangapixer.Server.Features.Updates.UpdateCheckService _updateCheck;
     private readonly com.lifepixer.mangapixer.Server.Features.Admin.AuditService _audit;
     private readonly ILogger<OperationsController> _logger;
 
@@ -34,6 +35,7 @@ public sealed class OperationsController : ControllerBase
         LogLevelSettingsService logLevel,
         DbRestoreService dbRestore,
         DbRestoreOptions dbRestoreOptions,
+        com.lifepixer.mangapixer.Server.Features.Updates.UpdateCheckService updateCheck,
         com.lifepixer.mangapixer.Server.Features.Admin.AuditService audit,
         ILogger<OperationsController> logger)
     {
@@ -45,6 +47,7 @@ public sealed class OperationsController : ControllerBase
         _logLevel = logLevel;
         _dbRestore = dbRestore;
         _dbRestoreOptions = dbRestoreOptions;
+        _updateCheck = updateCheck;
         _audit = audit;
         _logger = logger;
     }
@@ -250,6 +253,35 @@ public sealed class OperationsController : ControllerBase
             LastBackupFileName = _rotatingState.LastBackupFileName,
             RetainedCount = retained,
         };
+    }
+
+    /// <summary>
+    /// Update Checker status (1.21.0). Returns the opt-in flag, the running and
+    /// latest-known versions, whether an update is available, and when the last
+    /// check ran. When enabled and past the 24h cadence (or with
+    /// <paramref name="force"/> set, the "Check now" action), performs the one
+    /// sanctioned GitHub Releases call first; failures degrade gracefully and
+    /// never block this response. Admin-only.
+    /// </summary>
+    [HttpGet("update-check")]
+    public async Task<IActionResult> GetUpdateCheck([FromQuery] bool force, CancellationToken ct)
+    {
+        var status = await _updateCheck.GetStatusAsync(force, ct);
+        return Ok(status);
+    }
+
+    /// <summary>
+    /// Sets the Update Checker opt-in. Enabling triggers an immediate first check.
+    /// Admin-only; the checker is OFF by default (no outbound call ships enabled).
+    /// </summary>
+    [HttpPut("update-check/settings")]
+    public async Task<IActionResult> UpdateCheckSettings([FromBody] UpdateCheckSettingsRequest? request, CancellationToken ct)
+    {
+        if (request is null)
+            return BadRequest(new ApiError { Error = "invalid_request", Message = "Request body is required." });
+
+        var status = await _updateCheck.SetEnabledAsync(request.Enabled, ct);
+        return Ok(status);
     }
 
     /// <summary>
