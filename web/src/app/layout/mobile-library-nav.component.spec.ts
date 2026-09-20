@@ -47,10 +47,11 @@ describe('MobileLibraryNavComponent', () => {
     expect(fixture.nativeElement.querySelector('.nav-collapse')).toBeNull();
   });
 
-  it('renders a nav item per library plus Home, same as the shell sidebar', () => {
+  it('renders a nav item per library plus Home and Favorites, same as the shell sidebar', () => {
     const { fixture } = create();
     const items = fixture.nativeElement.querySelectorAll('.nav-item');
-    expect(items).toHaveLength(2); // Home + Alpha
-    expect(items[1].textContent).toContain('Alpha');
+    expect(items).toHaveLength(3); // Home + Favorites (1.21.0) + Alpha
+    expect(items[1].textContent).toContain('Favorites');
+    expect(items[2].textContent).toContain('Alpha');
   });
 });

@@ -35,6 +35,7 @@ describe('LibrarySidebarComponent', () => {
         provideNoopAnimations(),
         provideRouter([
           { path: '', component: BlankComponent },
+          { path: 'favorites', component: BlankComponent },
           { path: 'libraries', component: BlankComponent },
           { path: 'libraries/:libraryId/browse', component: BlankComponent },
           { path: 'libraries/:libraryId/browse/:nodeId', component: BlankComponent },
@@ -59,11 +60,22 @@ describe('LibrarySidebarComponent', () => {
     await navigate(router, '/', fixture);
 
     const items = fixture.nativeElement.querySelectorAll('.nav-item') as NodeListOf<HTMLAnchorElement>;
-    // Home + 2 libraries
-    expect(items).toHaveLength(3);
+    // Home + Favorites (1.21.0) + 2 libraries
+    expect(items).toHaveLength(4);
     expect(items[0].getAttribute('href')).toBe('/');
-    expect(items[1].getAttribute('href')).toBe('/libraries/L1/browse');
-    expect(items[2].getAttribute('href')).toBe('/libraries/L2/browse');
+    expect(items[1].getAttribute('href')).toBe('/favorites');
+    expect(items[2].getAttribute('href')).toBe('/libraries/L1/browse');
+    expect(items[3].getAttribute('href')).toBe('/libraries/L2/browse');
+  });
+
+  it('renders the Favorites entry above the library list (1.21.0)', async () => {
+    const { fixture, router } = create();
+    await navigate(router, '/favorites', fixture);
+
+    const items = fixture.nativeElement.querySelectorAll('.nav-item') as NodeListOf<HTMLAnchorElement>;
+    expect(items[1].getAttribute('href')).toBe('/favorites');
+    expect(items[1].classList.contains('active')).toBe(true);
+    expect(fixture.componentInstance.isFavorites()).toBe(true);
   });
 
   it('marks Home active at the root and no library', async () => {
@@ -86,14 +98,14 @@ describe('LibrarySidebarComponent', () => {
     expect(fixture.componentInstance.isHome()).toBe(false);
     expect(fixture.componentInstance.activeLibraryId()).toBe('L1');
     let items = fixture.nativeElement.querySelectorAll('.nav-item');
-    expect(items[1].classList.contains('active')).toBe(true); // L1
+    expect(items[2].classList.contains('active')).toBe(true); // L1 (index 2: Home, Favorites, L1)
     expect(items[0].classList.contains('active')).toBe(false); // Home
 
     // Deep inside a subfolder: the library stays highlighted (prefix match).
     await navigate(router, '/libraries/L1/browse/nodeXYZ', fixture);
     expect(fixture.componentInstance.activeLibraryId()).toBe('L1');
     items = fixture.nativeElement.querySelectorAll('.nav-item');
-    expect(items[1].classList.contains('active')).toBe(true);
+    expect(items[2].classList.contains('active')).toBe(true);
   });
 
   it('highlights nothing on the /libraries list route (no id in the URL)', async () => {
@@ -108,11 +120,11 @@ describe('LibrarySidebarComponent', () => {
     await navigate(router, '/', fixture);
 
     const items = fixture.nativeElement.querySelectorAll('.nav-item');
-    // L1 (PagedRtl) has a badge with the RTL aria-label; L2 (null) has none.
-    const l1Badge = items[1].querySelector('.nav-dir');
+    // Indices: 0 Home, 1 Favorites, 2 L1, 3 L2. L1 (PagedRtl) has an RTL badge; L2 none.
+    const l1Badge = items[2].querySelector('.nav-dir');
     expect(l1Badge).not.toBeNull();
     expect(l1Badge!.getAttribute('aria-label')).toBe('Reading direction: Right to left');
-    expect(items[2].querySelector('.nav-dir')).toBeNull();
+    expect(items[3].querySelector('.nav-dir')).toBeNull();
   });
 
   it('renders large item counts without altering the count column markup (overflow fix)', async () => {
@@ -136,7 +148,8 @@ describe('LibrarySidebarComponent', () => {
     await navigate(router, '/', fixture);
 
     const items = fixture.nativeElement.querySelectorAll('.nav-item');
-    const count = items[1].querySelector('.nav-count') as HTMLElement;
+    // Indices: 0 Home, 1 Favorites, 2 the single library.
+    const count = items[2].querySelector('.nav-count') as HTMLElement;
     expect(count.textContent?.trim()).toBe('8715');
   });
 
@@ -190,8 +203,8 @@ describe('LibrarySidebarComponent', () => {
       await navigate(router, '/libraries/L1/browse', fixture);
 
       const items = fixture.nativeElement.querySelectorAll('.nav-item');
-      expect(items).toHaveLength(3); // Home + L1 + L2
-      expect(items[1].classList.contains('active')).toBe(true); // L1
+      expect(items).toHaveLength(4); // Home + Favorites + L1 + L2
+      expect(items[2].classList.contains('active')).toBe(true); // L1
     });
 
     it('never shows as collapsed in page mode even if the shell collapse flag is persisted', async () => {
