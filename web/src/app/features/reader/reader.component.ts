@@ -15,6 +15,7 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { map } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
+import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import {
@@ -121,6 +122,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     MatSnackBarModule,
     ReaderSettingsMenuComponent,
     UpscaleDirective,
+    StarToggleComponent,
   ],
   template: `
     <div class="reader-container">
@@ -221,6 +223,10 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                   aria-haspopup="dialog">
             <mat-icon>bookmarks</mat-icon>
           </button>
+          <!-- Favorite this chapter (1.21.0): the reader star targets the currently open
+               archive (itemId). Its own component styles keep the reader's near-budget
+               inline CSS untouched. -->
+          <app-star-toggle [nodeId]="itemId()" [favorite]="currentFavorite()" />
 
           @if (view() === 'webtoon') {
             <!-- Webtoon width slider replaces the inoperative fit menu. -->
@@ -830,6 +836,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private readonly viewport = viewChild<ElementRef<HTMLElement>>('viewport');
 
   readonly itemId = signal('');
+
+  /** Whether the currently open chapter (the archive) is favorited (1.21.0). */
+  readonly currentFavorite = signal(false);
   readonly phase = signal<ReaderPhase>('preparing');
   readonly statusMessage = signal('Loading…');
   readonly currentPage = signal(0);
@@ -1338,6 +1347,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
             ? ['/libraries', node.libraryId, 'browse', node.parentId]
             : ['/libraries', node.libraryId, 'browse'],
         );
+        // Seed the reader favorite star (1.21.0) from the same node fetch.
+        this.currentFavorite.set(!!node.isFavorite);
       },
       error: () => { /* keep the Home fallback — item metadata unavailable */ },
     });

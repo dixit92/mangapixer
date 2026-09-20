@@ -1298,6 +1298,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "favoritesOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {

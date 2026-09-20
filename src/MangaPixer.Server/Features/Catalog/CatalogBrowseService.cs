@@ -57,6 +57,7 @@ public sealed class CatalogBrowseService
         BrowseReadStateFilter readState = BrowseReadStateFilter.All,
         bool hideEmpty = false,
         string? before = null,
+        bool favoritesOnly = false,
         CancellationToken ct = default)
     {
         // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
@@ -101,6 +102,15 @@ public sealed class CatalogBrowseService
             baseQuery = baseQuery.Where(n => n.ParentId == null);
         else
             baseQuery = baseQuery.Where(n => n.ParentId == parentId);
+
+        // Favorites-only filter (1.21.0): keep only nodes the user has starred. Applied
+        // to the base query BEFORE counting/pagination so it composes with the read-state
+        // and hide-empty filters and yields an accurate TotalCount across keyset pages.
+        if (favoritesOnly)
+        {
+            baseQuery = baseQuery.Where(n =>
+                _db.Favorites.Any(f => f.UserId == userId && f.CatalogNodeId == n.Id));
+        }
 
         // Read-state filter (1.10.0) + hide-empty filter (1.11.0), applied to the base
         // query BEFORE counting/pagination (alongside the authorization filter) so both

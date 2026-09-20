@@ -62,6 +62,12 @@ import { readerModeGlyph } from './reader-mode-glyph';
         <mat-icon>home</mat-icon><span class="nav-label">Home</span>
       </a>
 
+      <a class="nav-item" routerLink="/favorites" [class.active]="isFavorites()"
+         [attr.aria-current]="isFavorites() ? 'page' : null"
+         [matTooltip]="collapsed() ? 'Favorites' : ''" matTooltipPosition="right">
+        <mat-icon>star</mat-icon><span class="nav-label">Favorites</span>
+      </a>
+
       @for (lib of libraries(); track lib.id) {
         <a class="nav-item" routerLink="/libraries/{{ lib.id }}/browse"
            [class.active]="activeLibraryId() === lib.id"
@@ -217,6 +223,9 @@ export class LibrarySidebarComponent {
 
   /** Home is active only on the exact root path. */
   readonly isHome = () => this.currentPath() === '/';
+
+  /** Favorites is active on the dedicated favorites route (1.21.0). */
+  readonly isFavorites = () => this.currentPath() === '/favorites';
 
   /**
    * The library id in the current URL, or null. Matches `/libraries/:id` and any

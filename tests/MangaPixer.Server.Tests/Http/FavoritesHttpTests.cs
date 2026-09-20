@@ -190,6 +190,24 @@ public sealed class FavoritesHttpTests : IClassFixture<MangaPixerWebApplicationF
     }
 
     [Fact]
+    public async Task Browse_FavoritesOnly_ReturnsOnlyFavorited()
+    {
+        await SeedAsync();
+        var client = await GetAuthenticatedClientAsync();
+        await ClearFavoritesAsync();
+        await client.PostAsync("/api/v1/nodes/favArcA/favorite", null);
+
+        var response = await client.GetAsync($"/api/v1/libraries/{LibPubId}/browse?favoritesOnly=true");
+        response.EnsureSuccessStatusCode();
+        var page = await response.Content.ReadFromJsonAsync<PageResponse<CatalogNodeDto>>(TestJson.Web);
+        Assert.NotNull(page);
+
+        Assert.Equal(1, page!.TotalCount);
+        Assert.Equal("favArcA", Assert.Single(page.Items).Id);
+        Assert.True(page.Items[0].IsFavorite);
+    }
+
+    [Fact]
     public async Task Search_ReflectsIsFavorite()
     {
         await SeedAsync();

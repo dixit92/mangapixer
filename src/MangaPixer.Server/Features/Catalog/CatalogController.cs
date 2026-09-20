@@ -141,6 +141,7 @@ public sealed class CatalogController : ControllerBase
         [FromQuery] string? readState = null,
         [FromQuery] bool hideEmpty = false,
         [FromQuery] string? before = null,
+        [FromQuery] bool favoritesOnly = false,
         CancellationToken ct = default)
     {
         var userId = GetUserId();
@@ -178,7 +179,8 @@ public sealed class CatalogController : ControllerBase
             userId.Value, library.Id, parentIdLong, cursor, pageSize,
             direction: ParseDirection(direction, storedDirection, effectiveSort),
             sort: effectiveSort, incognito: _incognito.IsIncognito,
-            readState: ParseReadState(readState), hideEmpty: hideEmpty, before: before, ct: ct);
+            readState: ParseReadState(readState), hideEmpty: hideEmpty, before: before,
+            favoritesOnly: favoritesOnly, ct: ct);
 
         return Ok(result);
     }
