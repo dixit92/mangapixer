@@ -23,6 +23,7 @@ public sealed class CatalogController : ControllerBase
     private readonly CatalogBrowseService _browseService;
     private readonly CatalogIdResolver _idResolver;
     private readonly ReadingStateService _readingStateService;
+    private readonly FavoritesService _favoritesService;
     private readonly LibraryAuthorizationService _libraryAuth;
     private readonly IncognitoAccessor _incognito;
     private readonly MangaPixerDbContext _db;
@@ -32,6 +33,7 @@ public sealed class CatalogController : ControllerBase
         CatalogBrowseService browseService,
         CatalogIdResolver idResolver,
         ReadingStateService readingStateService,
+        FavoritesService favoritesService,
         LibraryAuthorizationService libraryAuth,
         IncognitoAccessor incognito,
         MangaPixerDbContext db,
@@ -40,6 +42,7 @@ public sealed class CatalogController : ControllerBase
         _browseService = browseService;
         _idResolver = idResolver;
         _readingStateService = readingStateService;
+        _favoritesService = favoritesService;
         _libraryAuth = libraryAuth;
         _incognito = incognito;
         _db = db;
@@ -261,6 +264,57 @@ public sealed class CatalogController : ControllerBase
         var result = await _browseService.GetNeighborsAsync(userId.Value, node.Id, ct);
         if (result is null) return NotFound();
 
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Stars a catalog node as a favorite for the current user (1.21.0). Idempotent —
+    /// a repeat call is a no-op. Any authenticated user may favorite any node they can
+    /// access (favorites are per-user, not admin-gated).
+    /// </summary>
+    [HttpPost("nodes/{nodeId}/favorite")]
+    public async Task<IActionResult> AddFavorite(string nodeId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var result = await _favoritesService.AddFavoriteAsync(userId.Value, nodeId, ct);
+        return result == FavoritesService.FavoriteResult.NodeNotFound
+            ? NotFound()
+            : NoContent();
+    }
+
+    /// <summary>
+    /// Removes the current user's favorite for a catalog node (1.21.0). Idempotent —
+    /// removing a node that is not favorited still succeeds.
+    /// </summary>
+    [HttpDelete("nodes/{nodeId}/favorite")]
+    public async Task<IActionResult> RemoveFavorite(string nodeId, CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        await _favoritesService.RemoveFavoriteAsync(userId.Value, nodeId, ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Lists the current user's favorites (1.21.0), keyset-paged like browse and ordered
+    /// recently-favorited (newest first). Flows through the same visibility chokepoint +
+    /// X-Incognito signal as browse/search, so a favorite in a Private library appears
+    /// only in an incognito session.
+    /// </summary>
+    [HttpGet("favorites")]
+    public async Task<IActionResult> GetFavorites(
+        [FromQuery] string? cursor,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var result = await _browseService.ListFavoritesAsync(
+            userId.Value, cursor, pageSize, incognito: _incognito.IsIncognito, ct: ct);
         return Ok(result);
     }
 
