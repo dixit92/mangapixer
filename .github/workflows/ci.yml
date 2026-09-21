@@ -65,7 +65,7 @@ jobs:
       # No packages.lock.json is tracked, so setup-dotnet's built-in cache cannot
       # key on it; central package versions live in Directory.Packages.props.
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('global.json', 'Directory.Packages.props', 'Directory.Build.props', '**/*.csproj') }}
