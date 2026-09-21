@@ -2721,6 +2721,92 @@ describe('ReaderComponent page variant requests', () => {
 });
 
 /**
+ * Per-page true-aspect variant sizing (1.21.1 PATCH, webtoon downsampling fix).
+ *
+ * Before this fix, `refreshVariantTarget` picked ONE `maxDim` bucket per
+ * chapter from a single "representative" page's aspect ratio. A webtoon strip
+ * varies hugely in height page to page, so any page taller than that
+ * representative had its TRUE longest edge (its own height) capped to a
+ * bucket sized for a shorter page, starving its width — the browser then
+ * upscaled the undersized image back out, which is the pixelation the owner
+ * reported. `pageUrlFor` now resolves each page's `maxDim` from that page's
+ * OWN manifest width/height, so a very tall page correctly falls back to the
+ * full-size transcode (`targetMaxDim` already returns 0 past the top rung)
+ * instead of being crushed into a bucket meant for its shorter neighbours.
+ */
+describe('ReaderComponent per-page aspect requests (webtoon downsampling fix, 1.21.1)', () => {
+  function create() {
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => 'item-1' }) } },
+      ],
+    });
+    localStorage.clear();
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.itemId.set('item-1');
+    // A webtoon strip's pages vary hugely in height: p0 is a normal-aspect
+    // page (800x1200, aspect 1.5); p1 is a very tall page (800x3200, aspect
+    // 4) — the shape that used to get its width starved when the whole
+    // chapter picked one bucket from p0's aspect alone.
+    c.pages.set([
+      { entryKey: 'p0', pageIndex: 0, mediaType: 'image/png', width: 800, height: 1200, animationState: 'None', byteSize: 1000 },
+      { entryKey: 'p1', pageIndex: 1, mediaType: 'image/png', width: 800, height: 3200, animationState: 'None', byteSize: 1000 },
+    ]);
+    return { c };
+  }
+
+  function setViewport(width: number, height: number, dpr = 1): void {
+    Object.defineProperty(window, 'innerWidth', { value: width, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: height, configurable: true });
+    Object.defineProperty(window, 'devicePixelRatio', { value: dpr, configurable: true });
+  }
+
+  afterEach(() => setViewport(1024, 768, 1));
+
+  it('picks a bucket per page from its own aspect, not a chapter-wide representative', () => {
+    const { c } = create();
+    setViewport(1000, 800);
+    c.view.set('webtoon');
+    c.setWebtoonWidth(70); // 700px-wide box for every page in the chapter
+    // Normal page: 700 * 1.5 = 1050 tall -> the 1080 rung. Genuinely
+    // downscaled, and its 700px width is preserved rather than starved.
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=balanced');
+    // Very tall page: 700 * 4 = 2800 tall -> above the top rung. Falls back to
+    // the full-size transcode instead of being capped to a bucket sized for
+    // its shorter neighbour, which is exactly the pre-fix pixelation bug.
+    expect(c.pageUrlFor(c.pages()[1])).toBe('/api/v1/items/item-1/pages/p1');
+  });
+
+  it('leaves paged/spread sizing for a normal-aspect page unaffected', () => {
+    const { c } = create();
+    setViewport(1024, 768);
+    c.setFitMode('screen');
+    expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=balanced');
+  });
+
+  it('rotation/resize does not re-fetch an on-screen page, in either aspect', () => {
+    const { c } = create();
+    setViewport(1000, 800);
+    c.view.set('webtoon');
+    c.setWebtoonWidth(70);
+    const pinnedNormal = c.pageUrlFor(c.pages()[0]);
+    const pinnedTall = c.pageUrlFor(c.pages()[1]);
+    expect(pinnedNormal).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=balanced');
+    expect(pinnedTall).toBe('/api/v1/items/item-1/pages/p1');
+
+    setViewport(1000, 800, 2); // retina rotation/resize: would re-target NEW pages only
+    c.onViewportChange();
+    expect(c.pageUrlFor(c.pages()[0])).toBe(pinnedNormal); // unchanged: no re-download
+    expect(c.pageUrlFor(c.pages()[1])).toBe(pinnedTall);   // unchanged: no re-download
+  });
+});
+
+/**
  * Downscale filter (1.20.0, Lane B FILTER-CLIENT). `pageUrlFor` passes the
  * `ReaderPreferencesService.downscaleFilter` preference straight into
  * `withMaxDim`: present alongside a real `maxDim` bucket, never alongside the
