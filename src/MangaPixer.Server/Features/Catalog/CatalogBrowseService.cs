@@ -57,6 +57,7 @@ public sealed class CatalogBrowseService
         BrowseReadStateFilter readState = BrowseReadStateFilter.All,
         bool hideEmpty = false,
         string? before = null,
+        bool favoritesOnly = false,
         CancellationToken ct = default)
     {
         // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
@@ -101,6 +102,15 @@ public sealed class CatalogBrowseService
             baseQuery = baseQuery.Where(n => n.ParentId == null);
         else
             baseQuery = baseQuery.Where(n => n.ParentId == parentId);
+
+        // Favorites-only filter (1.21.0): keep only nodes the user has starred. Applied
+        // to the base query BEFORE counting/pagination so it composes with the read-state
+        // and hide-empty filters and yields an accurate TotalCount across keyset pages.
+        if (favoritesOnly)
+        {
+            baseQuery = baseQuery.Where(n =>
+                _db.Favorites.Any(f => f.UserId == userId && f.CatalogNodeId == n.Id));
+        }
 
         // Read-state filter (1.10.0) + hide-empty filter (1.11.0), applied to the base
         // query BEFORE counting/pagination (alongside the authorization filter) so both
@@ -338,6 +348,10 @@ public sealed class CatalogBrowseService
                 }).ToList();
             }
         }
+
+        // Per-user favorite star (1.21.0): applies to folders AND archives, so it is
+        // keyed off EVERY node on the page (not just archives). One batched join, no N+1.
+        nodes = await ApplyFavoritesAsync(nodes, userId, ct);
 
         // Compute next cursor from the last row on the current page. recentlyRead
         // paginates by offset (in-memory pure-recency order); the others use a keyset.
@@ -1107,6 +1121,13 @@ public sealed class CatalogBrowseService
             nextCursor = (string?)await cursorCommand.ExecuteScalarAsync(ct);
         }
 
+        // Per-user favorite star (1.21.0): one batched join over the page's public ids.
+        // The search-result items ARE CatalogNodeDtos, so this is the same enrichment as
+        // browse. Search prominence (badge + boost) is a client-side presentation choice
+        // driven by the FavoritesSearchProminence preference; the server only supplies the
+        // truthful IsFavorite flag here.
+        results = await ApplyFavoritesAsync(results, userId, ct);
+
         return new SearchResultsDto
         {
             Query = query,
@@ -1115,6 +1136,227 @@ public sealed class CatalogBrowseService
             NextCursor = nextCursor,
             HasMore = hasMore,
         };
+    }
+
+    /// <summary>
+    /// Sets <see cref="CatalogNodeDto.IsFavorite"/> on every node the current user has
+    /// starred, via ONE batched query (favorites ⋈ catalog_nodes projected to public ids)
+    /// keyed off the page's public ids — no N+1. Applies to folders and archives alike
+    /// (favorites are per-node, no rollup). Records are immutable, so matched nodes are
+    /// rebuilt with <c>with</c>.
+    /// </summary>
+    private async Task<List<CatalogNodeDto>> ApplyFavoritesAsync(
+        List<CatalogNodeDto> nodes, long userId, CancellationToken ct)
+    {
+        if (nodes.Count == 0)
+            return nodes;
+
+        var pageIds = nodes.Select(n => n.Id).ToList();
+        var favoritedPublicIds = (await _db.Favorites
+            .Where(f => f.UserId == userId)
+            .Join(_db.CatalogNodes, f => f.CatalogNodeId, n => n.Id, (f, n) => n.PublicId)
+            .Where(pid => pageIds.Contains(pid))
+            .ToListAsync(ct)).ToHashSet();
+
+        if (favoritedPublicIds.Count == 0)
+            return nodes;
+
+        return nodes
+            .Select(n => favoritedPublicIds.Contains(n.Id) ? n with { IsFavorite = true } : n)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Lists the current user's favorites (1.21.0), keyset-paged like browse and ordered
+    /// recently-favorited (newest first). Visibility flows through the SAME
+    /// <see cref="LibraryAuthorizationService.GetVisibleLibraryIdsAsync"/> chokepoint +
+    /// X-Incognito signal as browse/search, so a favorite pointing into a Private library
+    /// appears only in an incognito session and never leaks into a normal one. Returns
+    /// <see cref="CatalogNodeDto"/>s with folder covers and per-user read state resolved
+    /// exactly as browse does; every item carries <c>IsFavorite = true</c>. Tombstoned
+    /// nodes are excluded.
+    /// </summary>
+    public async Task<PageResponse<CatalogNodeDto>> ListFavoritesAsync(
+        long userId,
+        string? cursor = null,
+        int pageSize = 50,
+        bool incognito = false,
+        CancellationToken ct = default)
+    {
+        if (pageSize < 1)
+            pageSize = 50;
+
+        var visibleLibs = await _auth.GetVisibleLibraryIdsAsync(userId, incognito, ct);
+        if (visibleLibs.Count == 0)
+        {
+            return new PageResponse<CatalogNodeDto>
+            {
+                Items = [],
+                TotalCount = 0,
+                NextCursor = null,
+                HasMore = false,
+            };
+        }
+
+        // Favorites joined to their (visible, non-tombstoned) nodes.
+        var scoped = _db.Favorites
+            .Where(f => f.UserId == userId)
+            .Join(_db.CatalogNodes, f => f.CatalogNodeId, n => n.Id, (f, n) => new { f, n })
+            .Where(x => visibleLibs.Contains(x.n.LibraryId))
+            .Where(x => x.n.Availability != (int)CatalogNodeAvailability.Tombstoned);
+
+        var totalCount = await scoped.CountAsync(ct);
+
+        // Keyset on recently-favorited: (FavoritedAt desc, favorite Id desc). The cursor
+        // carries the last row's FavoritedAt + favorite Id so paging is stable even when
+        // several favorites share a timestamp.
+        if (!string.IsNullOrEmpty(cursor) && TryDecodeFavoriteCursor(cursor, out var curAt, out var curId))
+        {
+            scoped = scoped.Where(x =>
+                x.f.CreatedAt < curAt || (x.f.CreatedAt == curAt && x.f.Id < curId));
+        }
+
+        var rows = await scoped
+            .OrderByDescending(x => x.f.CreatedAt)
+            .ThenByDescending(x => x.f.Id)
+            .Take(pageSize + 1)
+            .Select(x => new FavoriteRow
+            {
+                InternalId = x.n.Id,
+                Id = x.n.PublicId,
+                ParentId = x.n.Parent != null ? x.n.Parent.PublicId : "",
+                LibraryId = x.n.Library!.PublicId,
+                Kind = x.n.Kind,
+                DisplayName = x.n.DisplayName,
+                Availability = x.n.Availability,
+                PageCount = x.n.ArchiveItem != null ? x.n.ArchiveItem.PageCount : null,
+                FavoritedAt = x.f.CreatedAt,
+                FavoriteId = x.f.Id,
+            })
+            .ToListAsync(ct);
+
+        var hasMore = rows.Count > pageSize;
+        if (hasMore)
+            rows = rows.Take(pageSize).ToList();
+
+        var nodes = rows.Select(r => new CatalogNodeDto
+        {
+            Id = r.Id,
+            ParentId = r.ParentId,
+            LibraryId = r.LibraryId,
+            Kind = (CatalogNodeKind)r.Kind,
+            DisplayName = r.DisplayName,
+            Availability = (CatalogNodeAvailability)r.Availability,
+            PageCount = r.PageCount,
+            IsFavorite = true,
+        }).ToList();
+
+        // Folder covers — same first-descendant-archive resolution as browse/search.
+        var folderRows = rows.Where(r => r.Kind == (int)CatalogNodeKind.Folder).ToList();
+        if (folderRows.Count > 0)
+        {
+            var coversByInternalId = await ResolveFolderCoversAsync(
+                folderRows.Select(r => r.InternalId).ToList(), ct);
+            var coversByPublicId = folderRows
+                .Where(r => coversByInternalId.ContainsKey(r.InternalId))
+                .ToDictionary(r => r.Id, r => coversByInternalId[r.InternalId]);
+            if (coversByPublicId.Count > 0)
+            {
+                nodes = nodes.Select(n =>
+                {
+                    if (n.Kind == CatalogNodeKind.Folder && coversByPublicId.TryGetValue(n.Id, out var coverPublicId))
+                        return n with { CoverUrl = $"/api/v1/items/{coverPublicId}/cover" };
+                    return n;
+                }).ToList();
+            }
+        }
+
+        // Per-user read state for archive favorites (sticky read-mark + progress),
+        // mirroring the browse enrichment so the favorites view renders identical badges.
+        var archiveIds = nodes.Where(n => n.Kind == CatalogNodeKind.Archive).Select(n => n.Id).ToList();
+        if (archiveIds.Count > 0)
+        {
+            var readPublicIds = (await _db.ReadMarks
+                .Where(m => m.UserId == userId)
+                .Join(_db.CatalogNodes, m => m.ItemId, n => n.Id, (m, n) => n.PublicId)
+                .Where(pid => archiveIds.Contains(pid))
+                .ToListAsync(ct)).ToHashSet();
+
+            var progressStates = await _db.ReadingProgress
+                .Where(p => p.UserId == userId)
+                .Join(_db.CatalogNodes, p => p.ItemId, n => n.Id, (p, n) => new { n.PublicId, p.State, p.Ordinal })
+                .Where(x => archiveIds.Contains(x.PublicId))
+                .ToDictionaryAsync(x => x.PublicId, x => new { x.State, x.Ordinal }, ct);
+
+            if (readPublicIds.Count > 0 || progressStates.Count > 0)
+            {
+                nodes = nodes.Select(n =>
+                {
+                    if (n.Kind != CatalogNodeKind.Archive)
+                        return n;
+                    var isRead = readPublicIds.Contains(n.Id);
+                    if (progressStates.TryGetValue(n.Id, out var p))
+                        return n with { IsRead = isRead, ReadingState = (ReadingState)p.State, LastReadPage = p.Ordinal };
+                    return isRead ? n with { IsRead = true } : n;
+                }).ToList();
+            }
+        }
+
+        string? nextCursor = null;
+        if (hasMore && rows.Count > 0)
+            nextCursor = EncodeFavoriteCursor(rows[^1].FavoritedAt, rows[^1].FavoriteId);
+
+        return new PageResponse<CatalogNodeDto>
+        {
+            Items = nodes,
+            TotalCount = totalCount,
+            NextCursor = nextCursor,
+            HasMore = hasMore,
+        };
+    }
+
+    /// <summary>Intermediate favorites-list projection carrying node DTO fields plus the
+    /// favorite's keyset fields, so the recently-favorited cursor needs no re-fetch.</summary>
+    private sealed record FavoriteRow
+    {
+        public required long InternalId { get; init; }
+        public required string Id { get; init; }
+        public required string ParentId { get; init; }
+        public required string LibraryId { get; init; }
+        public required int Kind { get; init; }
+        public required string DisplayName { get; init; }
+        public required int Availability { get; init; }
+        public int? PageCount { get; init; }
+        public required DateTimeOffset FavoritedAt { get; init; }
+        public required long FavoriteId { get; init; }
+    }
+
+    /// <summary>
+    /// Encodes a recently-favorited keyset cursor as <c>f:{utcTicks}:{favoriteId}</c>.
+    /// The <c>f:</c> prefix keeps it distinct from the name/recency browse cursors.
+    /// </summary>
+    private static string EncodeFavoriteCursor(DateTimeOffset favoritedAt, long favoriteId)
+        => $"f:{favoritedAt.UtcTicks.ToString(CultureInfo.InvariantCulture)}:{favoriteId.ToString(CultureInfo.InvariantCulture)}";
+
+    /// <summary>
+    /// Decodes an <c>f:{utcTicks}:{favoriteId}</c> favorites cursor. Returns false for any
+    /// malformed value so a bad cursor degrades to "first page" rather than throwing.
+    /// </summary>
+    private static bool TryDecodeFavoriteCursor(string cursor, out DateTimeOffset favoritedAt, out long favoriteId)
+    {
+        favoritedAt = default;
+        favoriteId = 0;
+        if (!cursor.StartsWith("f:", StringComparison.Ordinal))
+            return false;
+        var parts = cursor.Split(':');
+        if (parts.Length != 3
+            || !long.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var ticks)
+            || !long.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out favoriteId))
+            return false;
+        if (ticks < DateTimeOffset.MinValue.UtcTicks || ticks > DateTimeOffset.MaxValue.UtcTicks)
+            return false;
+        favoritedAt = new DateTimeOffset(ticks, TimeSpan.Zero);
+        return true;
     }
 
     /// <summary>
@@ -1138,6 +1380,11 @@ public sealed class CatalogBrowseService
         if (!accessibleLibs.Contains(node.LibraryId))
             return null;
 
+        // Single-node favorite flag (1.21.0) — one AnyAsync; lets the reader render its
+        // star for the currently open chapter without a separate round-trip.
+        var isFavorite = await _db.Favorites
+            .AnyAsync(f => f.UserId == userId && f.CatalogNodeId == node.Id, ct);
+
         return new CatalogNodeDto
         {
             Id = node.PublicId,
@@ -1147,6 +1394,7 @@ public sealed class CatalogBrowseService
             DisplayName = node.DisplayName,
             Availability = (CatalogNodeAvailability)node.Availability,
             PageCount = node.ArchiveItem?.PageCount,
+            IsFavorite = isFavorite,
         };
     }
 

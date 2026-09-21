@@ -16,6 +16,7 @@ import { ReaderOptionsSheetComponent } from './reader-settings-menu.component';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import { WebtoonNavPreferencesService } from './webtoon-nav.service';
+import { UpscaleSupportService } from './upscale.directive';
 import { ManifestPageEntry, CatalogNodeDto, ItemReadiness } from '../../core/api/api-types';
 
 function makePages(n: number): ManifestPageEntry[] {
@@ -1715,7 +1716,7 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
     expect(labels()).toEqual([
       'Back to folder',
       'No previous chapter', 'No next chapter',
-      'Reading mode', 'Bookmark this page', 'Bookmarks', 'Image fit', 'Switch to right-to-left', 'Page transition',
+      'Reading mode', 'Bookmark this page', 'Bookmarks', 'Add to favorites', 'Image fit', 'Switch to right-to-left', 'Page transition',
       // 1.19.0 image scaling: the second settings-menu slot (Rendering + Page quality).
       'Rendering',
       'Reading help', 'Enter fullscreen',
@@ -2307,6 +2308,117 @@ describe('ReaderComponent onKeyDown case-insensitive single-letter shortcuts', (
     expect(c.currentPage()).toBe(2);
     c.onKeyDown(press('Home'));
     expect(c.currentPage()).toBe(0);
+  });
+});
+
+/**
+ * 1.21.0 reader shortcuts: page mode ('d'), Downscale filter ('s'), Rendering
+ * ('e'). Each routes through the exact handler the settings menu itself calls
+ * (`chooseView`/`chooseSpread`, `ReaderPreferencesService.setDownscaleFilter`,
+ * `ReaderPreferencesService.setUpscaler`) so persistence never diverges from a
+ * mouse/touch pick. 's' is the odd one out: it must keep working in webtoon
+ * (the Downscale filter sizes every page request, not just paged/spread), so
+ * onKeyDown handles it above the webtoon early-return, unlike 'd'/'e'.
+ */
+describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filter / rendering)', () => {
+  function create(view: 'paged' | 'spread' | 'webtoon' = 'paged') {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.pages.set(makePages(3));
+    c.view.set(view);
+    c.phase.set('ready');
+    return c;
+  }
+  function press(key: string, target: HTMLElement = document.createElement('div')): KeyboardEvent {
+    return { key, target } as unknown as KeyboardEvent;
+  }
+
+  beforeEach(() => localStorage.clear());
+
+  it("'d' toggles single <-> double page, case-insensitively", () => {
+    const c = create('paged');
+    c.onKeyDown(press('d'));
+    expect(c.view()).toBe('spread');
+    c.onKeyDown(press('D'));
+    expect(c.view()).toBe('paged');
+  });
+
+  it("'d' does nothing in webtoon (view/paging keys stay below the native-scroll guard)", () => {
+    const c = create('webtoon');
+    c.onKeyDown(press('d'));
+    expect(c.view()).toBe('webtoon');
+  });
+
+  it("'s' cycles the Downscale filter sharp -> balanced -> soft -> sharp", () => {
+    const c = create('paged');
+    expect(c.prefs.downscaleFilter()).toBe('balanced'); // 1.20.0 default
+    c.onKeyDown(press('s'));
+    expect(c.prefs.downscaleFilter()).toBe('soft');
+    c.onKeyDown(press('S'));
+    expect(c.prefs.downscaleFilter()).toBe('sharp');
+    c.onKeyDown(press('s'));
+    expect(c.prefs.downscaleFilter()).toBe('balanced');
+  });
+
+  it("'s' still cycles the Downscale filter in webtoon, unlike 'd'/'e'", () => {
+    const c = create('webtoon');
+    c.onKeyDown(press('s'));
+    expect(c.prefs.downscaleFilter()).toBe('soft');
+  });
+
+  it("'s' is a no-op under Page quality: Full (the filter has nothing to act on there)", () => {
+    const c = create('paged');
+    c.prefs.setPageQuality('full');
+    c.onKeyDown(press('s'));
+    expect(c.prefs.downscaleFilter()).toBe('balanced');
+  });
+
+  it("'e' toggles Rendering Smooth <-> Enhance once WebGPU is ready", () => {
+    const c = create('paged');
+    TestBed.inject(UpscaleSupportService).support.set('ready');
+    expect(c.prefs.upscaler()).toBe('smooth');
+    c.onKeyDown(press('e'));
+    expect(c.prefs.upscaler()).toBe('enhance');
+    c.onKeyDown(press('E'));
+    expect(c.prefs.upscaler()).toBe('smooth');
+  });
+
+  it("'e' never enables Enhance without WebGPU — a disabled option must not be toggled", () => {
+    const c = create('paged');
+    TestBed.inject(UpscaleSupportService).support.set('unavailable');
+    c.onKeyDown(press('e'));
+    expect(c.prefs.upscaler()).toBe('smooth');
+  });
+
+  it("'e' does nothing in webtoon even with WebGPU ready (Enhance is paged/spread-only)", () => {
+    const c = create('webtoon');
+    TestBed.inject(UpscaleSupportService).support.set('ready');
+    c.onKeyDown(press('e'));
+    expect(c.prefs.upscaler()).toBe('smooth');
+  });
+
+  it('none of the new shortcuts fire while focus is in an input/textarea', () => {
+    const c = create('paged');
+    TestBed.inject(UpscaleSupportService).support.set('ready');
+    const input = document.createElement('input');
+    c.onKeyDown(press('d', input));
+    c.onKeyDown(press('s', input));
+    c.onKeyDown(press('e', input));
+    expect(c.view()).toBe('paged');
+    expect(c.prefs.downscaleFilter()).toBe('balanced');
+    expect(c.prefs.upscaler()).toBe('smooth');
+  });
+
+  it('none of the new shortcuts fire before the reader phase is ready', () => {
+    const c = create('paged');
+    TestBed.inject(UpscaleSupportService).support.set('ready');
+    c.phase.set('preparing');
+    c.onKeyDown(press('d'));
+    c.onKeyDown(press('s'));
+    c.onKeyDown(press('e'));
+    expect(c.view()).toBe('paged');
+    expect(c.prefs.downscaleFilter()).toBe('balanced');
+    expect(c.prefs.upscaler()).toBe('smooth');
   });
 });
 

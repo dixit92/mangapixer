@@ -143,6 +143,17 @@ public sealed class NaturalSortBackfillMigrationTests : IDisposable
         var db = NewContext(_options);
         await using (db)
         {
+            // BrowseAsync enriches every row with the per-user favorite flag (1.21.0),
+            // which reads the favorites table. This test deliberately runs against the
+            // pre-1.15.0 schema (migrated only up to AddHomeRecentWindowDays), which
+            // predates the favorites table (#20). Create it here — empty — so current
+            // BrowseAsync can run against the legacy schema; it has no bearing on the
+            // sort-key ordering under test.
+            await db.Database.ExecuteSqlRawAsync(
+                "CREATE TABLE IF NOT EXISTS \"favorites\" (" +
+                "\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_favorites\" PRIMARY KEY AUTOINCREMENT, " +
+                "\"UserId\" INTEGER NOT NULL, \"CatalogNodeId\" INTEGER NOT NULL, \"CreatedAt\" INTEGER NOT NULL);");
+
             var browse = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var page = await browse.BrowseAsync(userId, libraryId, seriesId, cursor: null, pageSize: 50, sort: "name");
 

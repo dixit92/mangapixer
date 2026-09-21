@@ -10,6 +10,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { ApiService } from '../../core/api/api.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
+import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
 import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
 
 /**
@@ -28,6 +29,7 @@ import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
     MatButtonModule,
     MatTooltipModule,
     CoverImageDirective,
+    StarToggleComponent,
   ],
   template: `
     <h2>Search</h2>
@@ -53,6 +55,12 @@ import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
               <span class="kind-badge" [matTooltip]="kindLabel(node)" [attr.aria-label]="kindLabel(node)" role="img">
                 <mat-icon>{{ kindIcon(node) }}</mat-icon>
               </span>
+              <!-- Favorites prominence (1.21.0): the star (badge + interactive toggle)
+                   appears in search only when the user opted in; when off, results render
+                   normally. Boosting favorited results to the top is done in doSearch(). -->
+              @if (prominence()) {
+                <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
+              }
             </div>
             <div class="result-title" [title]="node.displayName">{{ node.displayName }}</div>
           </a>
@@ -104,7 +112,18 @@ export class SearchComponent {
   readonly totalCount = signal(0);
   readonly searched = signal(false);
 
+  /** Per-user opt-in (1.21.0): show the favorite star + boost favorited results to top. */
+  readonly prominence = signal(false);
+
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor() {
+    // Favorites search prominence is a per-user preference in the library-view blob.
+    this.api.getLibraryPreferences().subscribe({
+      next: (prefs) => this.prominence.set(prefs.favoritesSearchProminence ?? false),
+      error: () => this.prominence.set(false),
+    });
+  }
 
   onSearch(): void {
     if (this.searchTimer) clearTimeout(this.searchTimer);
@@ -139,6 +158,18 @@ export class SearchComponent {
     return node.kind === 'Folder' ? 'Folder' : 'Archive';
   }
 
+  /**
+   * When favorites search prominence is on, boost favorited results to the top while
+   * preserving the server's relative order within each group (a stable partition). When
+   * off, the server order is returned unchanged.
+   */
+  private boost(items: CatalogNodeDto[]): CatalogNodeDto[] {
+    if (!this.prominence()) return items;
+    const favorited = items.filter((n) => n.isFavorite);
+    const rest = items.filter((n) => !n.isFavorite);
+    return [...favorited, ...rest];
+  }
+
   private doSearch(): void {
     if (!this.query.trim()) {
       this.results.set([]);
@@ -149,7 +180,7 @@ export class SearchComponent {
 
     this.api.search(this.query).subscribe({
       next: (response: SearchResultsDto) => {
-        this.results.set(response.items);
+        this.results.set(this.boost(response.items));
         this.totalCount.set(response.totalCount);
         this.searched.set(true);
       },

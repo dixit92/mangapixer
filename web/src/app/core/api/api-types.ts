@@ -68,6 +68,12 @@ export interface CatalogNodeDto {
   /** Whether the current user marked this item read (1.2.0 sticky flag). Archives only. */
   isRead: boolean;
   /**
+   * Whether the current user has starred this node as a favorite (1.21.0). Applies to
+   * folders and archives alike. Populated by browse, search, node lookup, and the
+   * favorites list; optional so responses predating the field read as not-favorited.
+   */
+  isFavorite?: boolean;
+  /**
    * Derived read rollup over a folder's readable descendant archives (1.6.0).
    * Browse only, folders only; null for archives, empty folders, and search results.
    */
@@ -280,6 +286,17 @@ export interface LibraryViewPreferencesDto {
    * verbatim, never interpreted server-side, like cardSize.
    */
   listColumns?: number;
+  /**
+   * Optional (1.21.0): per-user opt-in for the Home "Favorites" row. false/omitted →
+   * the row is hidden (default). The star affordances everywhere else are always on.
+   */
+  showFavoritesHomeRow?: boolean;
+  /**
+   * Optional (1.21.0): per-user opt-in for favorites prominence in search. false/omitted
+   * → favorited results render normally. true → they get a star badge and are boosted to
+   * the top of the result list.
+   */
+  favoritesSearchProminence?: boolean;
 }
 
 // --- YACReader progress import (1.2.0, admin-only) ---
@@ -695,4 +712,23 @@ export interface AddBookmarkRequest {
 
 export interface AddBookmarkResult {
   id: string;
+}
+
+/**
+ * Update Checker status (1.21.0). Mirrors `UpdateCheckStatusDto` on the server.
+ * The checker is OFF by default and is the single sanctioned outbound call:
+ * only version strings and a timestamp cross the wire — no instance id or
+ * telemetry. `latestVersion` is null when the check is off or has never run.
+ */
+export interface UpdateCheckStatusDto {
+  enabled: boolean;
+  currentVersion: string;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  lastChecked: string | null;
+}
+
+/** Request to change the Update Checker opt-in (`UpdateCheckSettingsRequest`). */
+export interface UpdateCheckSettingsRequest {
+  enabled: boolean;
 }

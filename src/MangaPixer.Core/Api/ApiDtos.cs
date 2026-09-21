@@ -132,6 +132,14 @@ public sealed record CatalogNodeDto
     public bool IsRead { get; init; }
 
     /// <summary>
+    /// Whether the current user has starred this node as a favorite (1.21.0). Applies
+    /// uniformly to folders and archives (favorites are per-node, no rollup). Populated
+    /// by browse, search, single-node lookup, and the favorites list via a single
+    /// batched join (no N+1); defaults false so older clients ignore it.
+    /// </summary>
+    public bool IsFavorite { get; init; }
+
+    /// <summary>
     /// Derived read rollup over this folder's readable descendant archives for the
     /// current user (1.6.0): Read when every one carries a read-mark, Reading when
     /// some are read or in progress, Unread when none are. Only populated in browse
@@ -337,6 +345,21 @@ public sealed record LibraryViewPreferencesDto
     public int LibraryPageSize { get; init; }
     public int HomeRecentWindowDays { get; init; }
     public int ListColumns { get; init; }
+
+    /// <summary>
+    /// Per-user opt-in for the Home "Favorites" row (1.21.0). False (default) hides the
+    /// row; the star affordances everywhere else are always present. Mirrors the other
+    /// presentation flags: stored verbatim, round-tripped through the existing
+    /// library-preferences endpoint, defaults preserve pre-1.21.0 behaviour.
+    /// </summary>
+    public bool ShowFavoritesHomeRow { get; init; }
+
+    /// <summary>
+    /// Per-user opt-in for favorites prominence in search (1.21.0). False (default) =
+    /// favorited results render normally (no badge, no reordering). True = favorited
+    /// results get a star badge and are boosted to the top of the result list.
+    /// </summary>
+    public bool FavoritesSearchProminence { get; init; }
 }
 
 /// <summary>
@@ -839,4 +862,42 @@ public sealed record SystemInfoDto
     /// any other OS. Not sensitive — no paths or hostnames.
     /// </summary>
     public string? Platform { get; init; }
+}
+
+/// <summary>
+/// Status of the optional Update Checker (1.21.0), returned by
+/// <c>GET /api/v1/operations/update-check</c> (admin-only). The checker is OFF by
+/// default and is the single sanctioned outbound third-party call: when enabled it
+/// compares the running version against the latest GitHub release. Carries only
+/// version strings and a timestamp — no instance identifier, path, or telemetry.
+/// </summary>
+public sealed record UpdateCheckStatusDto
+{
+    /// <summary>Whether the admin has opted in to update checking.</summary>
+    public required bool Enabled { get; init; }
+
+    /// <summary>The running server version (informational version, no leading "v").</summary>
+    public required string CurrentVersion { get; init; }
+
+    /// <summary>
+    /// The latest release version last learned from GitHub (no leading "v"), or
+    /// null if the check is off or has never successfully run.
+    /// </summary>
+    public string? LatestVersion { get; init; }
+
+    /// <summary>True when <see cref="LatestVersion"/> is strictly newer than <see cref="CurrentVersion"/>.</summary>
+    public required bool UpdateAvailable { get; init; }
+
+    /// <summary>UTC time of the last completed check attempt, or null if never checked.</summary>
+    public DateTimeOffset? LastChecked { get; init; }
+}
+
+/// <summary>
+/// Request to change the Update Checker opt-in, sent to
+/// <c>PUT /api/v1/operations/update-check/settings</c> (admin-only).
+/// </summary>
+public sealed record UpdateCheckSettingsRequest
+{
+    /// <summary>Whether update checking should be enabled.</summary>
+    public required bool Enabled { get; init; }
 }

@@ -61,6 +61,8 @@ import {
   SetupRequest,
   SetupStatusDto,
   SystemInfoDto,
+  UpdateCheckSettingsRequest,
+  UpdateCheckStatusDto,
   UpdateLibraryRequest,
   UpdateLogLevelRequest,
   UpdateProgressRequest,
@@ -136,6 +138,7 @@ export class ApiService {
     readState: LibraryReadStateFilter | null = null,
     hideEmpty = false,
     before: string | null = null,
+    favoritesOnly = false,
   ): Observable<PageResponse<CatalogNodeDto>> {
     let params = new HttpParams().set('pageSize', pageSize.toString());
     if (cursor) params = params.set('cursor', cursor);
@@ -151,6 +154,9 @@ export class ApiService {
     // Hide-empty-folders filter (1.11.0). Omitted/false → folders with no archive
     // descendants are kept (server default). Composes with the read-state filter.
     if (hideEmpty) params = params.set('hideEmpty', 'true');
+    // Favorites-only filter (1.21.0). Omitted/false → no filter. Composes with the
+    // read-state / hide-empty filters and keyset paging server-side.
+    if (favoritesOnly) params = params.set('favoritesOnly', 'true');
     return this.get<PageResponse<CatalogNodeDto>>(
       `/libraries/${libraryId}/browse`,
       params,
@@ -488,6 +494,19 @@ export class ApiService {
     return this.post<RestoreStageResponseDto>('/operations/restore', form);
   }
 
+  /** Update Checker status (admin). Pass force=true for the "Check now" action. */
+  getUpdateCheck(force = false): Observable<UpdateCheckStatusDto> {
+    const params = force ? new HttpParams().set('force', 'true') : undefined;
+    return this.get<UpdateCheckStatusDto>('/operations/update-check', params);
+  }
+
+  /** Sets the Update Checker opt-in (admin). Enabling triggers an immediate check. */
+  setUpdateCheckEnabled(enabled: boolean): Observable<UpdateCheckStatusDto> {
+    return this.put<UpdateCheckStatusDto>(
+      '/operations/update-check/settings',
+      { enabled } as UpdateCheckSettingsRequest);
+  }
+
   /** One page of the administrative audit trail (newest first). */
   getAuditTrail(page: number, pageSize: number): Observable<AuditTrailPageDto> {
     return this.get<AuditTrailPageDto>('/admin/audit', new HttpParams()
@@ -514,6 +533,26 @@ export class ApiService {
 
   prepareItem(itemId: string): Observable<{ status: string; contentVersion: number }> {
     return this.post<{ status: string; contentVersion: number }>(`/items/${itemId}/prepare`, {});
+  }
+
+  // --- Favorites (1.21.0) ---
+
+  /**
+   * The current user's favorites, keyset-paged and ordered recently-favorited (newest
+   * first). Respects Incognito/Private visibility server-side (the X-Incognito header is
+   * added by the incognito interceptor like every other discovery call).
+   */
+  getFavorites(cursor: string | null = null, pageSize = 50): Observable<PageResponse<CatalogNodeDto>> {
+    let params = new HttpParams().set('pageSize', pageSize.toString());
+    if (cursor) params = params.set('cursor', cursor);
+    return this.get<PageResponse<CatalogNodeDto>>('/favorites', params);
+  }
+
+  /** Stars a catalog node as a favorite (idempotent), or removes the star. */
+  setFavorite(nodeId: string, favorite: boolean): Observable<void> {
+    return favorite
+      ? this.post<void>(`/nodes/${nodeId}/favorite`, {})
+      : this.delete<void>(`/nodes/${nodeId}/favorite`);
   }
 
   // --- HTTP helpers ---

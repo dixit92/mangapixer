@@ -17,6 +17,7 @@ import {
   RotatingBackupListDto,
   RotatingBackupStatusDto,
   SystemInfoDto,
+  UpdateCheckStatusDto,
 } from '../../core/api/api-types';
 
 /**
@@ -41,6 +42,10 @@ describe('AdminComponent directory browser row', () => {
     const emptyAudit: AuditTrailPageDto = { items: [], totalCount: 0, page: 1, pageSize: 20 };
     const systemInfo: SystemInfoDto = { version: '1.19.0', platform: null };
     const logLevel: LogLevelDto = { level: 'Information', categories: [] };
+    const updateStatus: UpdateCheckStatusDto = {
+      enabled: false, currentVersion: '1.19.0', latestVersion: null,
+      updateAvailable: false, lastChecked: null,
+    };
     const libs: LibraryDto[] = [];
     const listing: DirectoryListingDto = {
       available: true, root: null, current: '/library-root', parent: null, entries: [entry],
@@ -55,6 +60,7 @@ describe('AdminComponent directory browser row', () => {
       getSystemInfo: vi.fn().mockReturnValue(of(systemInfo)),
       browseLibraryPaths: vi.fn().mockReturnValue(of(listing)),
       getLoggingLevel: vi.fn().mockReturnValue(of(logLevel)),
+      getUpdateCheck: vi.fn().mockReturnValue(of(updateStatus)),
     };
     const authSpy = { currentUser: () => null, isAdmin: () => true };
 

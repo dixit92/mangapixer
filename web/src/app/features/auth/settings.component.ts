@@ -173,6 +173,37 @@ import { ReadingPreferencesCardComponent } from './reading-preferences-card.comp
       </mat-card-content>
     </mat-card>
 
+    <mat-card class="favorites-card">
+      <mat-card-header>
+        <mat-card-title>Favorites</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p class="hint">
+          Favorites are always available via the star on any archive or folder and the
+          sidebar "Favorites" view. These options control how prominently they surface.
+        </p>
+        @if (favoritesLoaded()) {
+          <div class="fav-toggle">
+            <mat-checkbox [checked]="showFavoritesHomeRow()" [disabled]="favoritesSaving()"
+                          (change)="setShowFavoritesHomeRow($event)">
+              Show a "Favorites" row on the home page
+            </mat-checkbox>
+          </div>
+          <div class="fav-toggle">
+            <mat-checkbox [checked]="favoritesSearchProminence()" [disabled]="favoritesSaving()"
+                          (change)="setFavoritesSearchProminence($event)">
+              Highlight favorited results in search (star badge + boosted to the top)
+            </mat-checkbox>
+          </div>
+          @if (favoritesError()) {
+            <div class="error">{{ favoritesError() }}</div>
+          }
+        } @else {
+          <p class="muted">Loading…</p>
+        }
+      </mat-card-content>
+    </mat-card>
+
     <mat-card class="performance-card">
       <mat-card-header>
         <mat-card-title>Performance</mat-card-title>
@@ -277,6 +308,15 @@ export class SettingsComponent implements OnInit {
   readonly homeLibrariesSaving = signal(false);
   readonly homeLibrariesError = signal<string | null>(null);
 
+  // Favorites prominence opt-ins (1.21.0): the two per-user toggles on the same
+  // LibraryViewPreferencesDto blob (showFavoritesHomeRow, favoritesSearchProminence),
+  // reusing this screen's "load once, echo back on save" round-trip. Both default off.
+  readonly showFavoritesHomeRow = signal(false);
+  readonly favoritesSearchProminence = signal(false);
+  readonly favoritesLoaded = signal(false);
+  readonly favoritesSaving = signal(false);
+  readonly favoritesError = signal<string | null>(null);
+
   readonly form = this.fb.nonNullable.group({
     currentPassword: ['', Validators.required],
     newPassword: ['', [Validators.required, Validators.minLength(8)]],
@@ -303,10 +343,14 @@ export class SettingsComponent implements OnInit {
         this.pageSizeLoaded.set(true);
         this.homeWindowDays.set(this.resolveHomeWindowDays(p.homeRecentWindowDays));
         this.homeWindowLoaded.set(true);
+        this.showFavoritesHomeRow.set(p.showFavoritesHomeRow ?? false);
+        this.favoritesSearchProminence.set(p.favoritesSearchProminence ?? false);
+        this.favoritesLoaded.set(true);
       },
       error: () => {
         this.pageSizeLoaded.set(true); // show the default (50)
         this.homeWindowLoaded.set(true); // show the default (30)
+        this.favoritesLoaded.set(true); // show the defaults (both off)
       },
     });
   }
@@ -350,6 +394,50 @@ export class SettingsComponent implements OnInit {
         this.pageSize.set(previous);
         this.pageSizeSaving.set(false);
         this.pageSizeError.set(err.message || 'Failed to save the items-per-load setting');
+      },
+    });
+  }
+
+  /** Persist the "Favorites" home-row opt-in, echoing the whole blob back (1.21.0). */
+  setShowFavoritesHomeRow(change: MatCheckboxChange): void {
+    this.saveFavoritePref(
+      (body) => ({ ...body, showFavoritesHomeRow: change.checked }),
+      this.showFavoritesHomeRow,
+      change.checked,
+    );
+  }
+
+  /** Persist the search-prominence opt-in, echoing the whole blob back (1.21.0). */
+  setFavoritesSearchProminence(change: MatCheckboxChange): void {
+    this.saveFavoritePref(
+      (body) => ({ ...body, favoritesSearchProminence: change.checked }),
+      this.favoritesSearchProminence,
+      change.checked,
+    );
+  }
+
+  /**
+   * Shared save for the two favorites toggles: optimistically flips the control, echoes
+   * the whole last-loaded preferences blob back with only the one field changed (so the
+   * browse view's other fields round-trip untouched), and reverts on failure.
+   */
+  private saveFavoritePref(
+    apply: (body: LibraryViewPreferencesDto) => LibraryViewPreferencesDto,
+    control: ReturnType<typeof signal<boolean>>,
+    next: boolean,
+  ): void {
+    const previous = control();
+    control.set(next);
+    this.favoritesSaving.set(true);
+    this.favoritesError.set(null);
+
+    const body = apply(this.libraryPrefs ?? { viewMode: 'card', density: 'comfortable', sort: 'name' });
+    this.api.setLibraryPreferences(body).subscribe({
+      next: () => { this.libraryPrefs = body; this.favoritesSaving.set(false); },
+      error: (err: ApiError) => {
+        control.set(previous);
+        this.favoritesSaving.set(false);
+        this.favoritesError.set(err.message || 'Failed to save the favorites setting');
       },
     });
   }

@@ -15,16 +15,17 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { map } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
+import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import {
   ReaderSettingsMenuComponent, ReaderOptionsSheetComponent, ReaderOptionsHost,
-  ReaderView, ViewPref, FitMode, ReadingDirection, FIT_OPTIONS,
+  ReaderView, ViewPref, FitMode, ReadingDirection, FIT_OPTIONS, DOWNSCALE_FILTER_OPTIONS,
 } from './reader-settings-menu.component';
 import { BookmarksPanelComponent, BookmarksPanelHost } from './bookmarks-panel.component';
 import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode, BookmarkDto } from '../../core/api/api-types';
 import { targetMaxDim, withMaxDim, VariantFitMode } from './page-variant';
-import { UpscaleDirective } from './upscale.directive';
+import { UpscaleDirective, UpscaleSupportService } from './upscale.directive';
 import {
   WebtoonNavPreferencesService, webtoonTapZone, webtoonScrollTarget, prefersReducedMotion,
 } from './webtoon-nav.service';
@@ -121,6 +122,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     MatSnackBarModule,
     ReaderSettingsMenuComponent,
     UpscaleDirective,
+    StarToggleComponent,
   ],
   template: `
     <div class="reader-container">
@@ -221,6 +223,10 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                   aria-haspopup="dialog">
             <mat-icon>bookmarks</mat-icon>
           </button>
+          <!-- Favorite this chapter (1.21.0): the reader star targets the currently open
+               archive (itemId). Its own component styles keep the reader's near-budget
+               inline CSS untouched. -->
+          <app-star-toggle [nodeId]="itemId()" [favorite]="currentFavorite()" />
 
           @if (view() === 'webtoon') {
             <!-- Webtoon width slider replaces the inoperative fit menu. -->
@@ -475,6 +481,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                   <li>Double page shows in landscape or on a wider screen; this narrow portrait
                     screen shows one page at a time.</li>
                 }
+                <li><kbd>D</kbd> single / double page · <kbd>E</kbd> Rendering: Smooth / Enhance
+                  (needs WebGPU)</li>
               } @else if (webtoonNav.tapZonesEnabled()) {
                 <li>Scroll freely, or <b>tap</b> the lower part of the page to move forward a screen
                   ({{ webtoonNav.tapStep() }}%), the upper part to go back, the centre to show / hide
@@ -486,7 +494,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 where you land{{ direction() === 'rtl' ? '. It runs right to left, like the pages' : '' }}.
                 @if (isFullscreen()) { Tap the centre to bring it back when it is hidden. }</li>
               <li><kbd>M</kbd> show / hide the controls · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> exit ·
-                <kbd>?</kbd> this help</li>
+                <kbd>?</kbd> this help · <kbd>S</kbd> cycle Downscale filter</li>
               @if (useInPageImmersive) {
                 <li><b>Fullscreen</b> goes immersive here (hides the reader's own bars) instead of
                   the browser's fullscreen - on iPhone/iPad, and in this app installed to the home
@@ -795,6 +803,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   readonly prefs = inject(ReaderPreferencesService);
   // Webtoon tap-to-scroll step / on-off (added 1.11.0); per-device.
   readonly webtoonNav = inject(WebtoonNavPreferencesService);
+  // WebGPU readiness for the 'e' Rendering shortcut — same gate the settings menu uses.
+  private readonly upscaleSupport = inject(UpscaleSupportService);
   readonly fitOptions = FIT_OPTIONS;
 
   /**
@@ -826,6 +836,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private readonly viewport = viewChild<ElementRef<HTMLElement>>('viewport');
 
   readonly itemId = signal('');
+
+  /** Whether the currently open chapter (the archive) is favorited (1.21.0). */
+  readonly currentFavorite = signal(false);
   readonly phase = signal<ReaderPhase>('preparing');
   readonly statusMessage = signal('Loading…');
   readonly currentPage = signal(0);
@@ -1334,6 +1347,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
             ? ['/libraries', node.libraryId, 'browse', node.parentId]
             : ['/libraries', node.libraryId, 'browse'],
         );
+        // Seed the reader favorite star (1.21.0) from the same node fetch.
+        this.currentFavorite.set(!!node.isFavorite);
       },
       error: () => { /* keep the Home fallback — item metadata unavailable */ },
     });
@@ -1431,6 +1446,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     if (key === '?') { this.toggleHelp(); return; }
     if (this.helpVisible() && key === 'Escape') { this.closeHelp(); return; }
     if (key === 'm') { this.toggleChrome(); return; } // toggle chrome in any view
+    // Downscale filter affects every page request (webtoon included — see
+    // pageUrlFor), unlike page-mode/rendering below, so it must act before the
+    // webtoon early-return, same as 'm'.
+    if (key === 's') { this.cycleDownscaleFilter(); return; }
     if (this.view() === 'webtoon') return; // native scroll drives webtoon
 
     switch (key) {
@@ -1440,7 +1459,49 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       case 'End': this.goToPage(this.pageCount() - 1); break;
       case 'f': this.toggleFullscreen(); break;
       case 'Escape': this.isFullscreen() ? this.toggleFullscreen() : this.goBack(); break;
+      case 'd': this.toggleDoublePage(); break;
+      case 'e': this.toggleRendering(); break;
     }
+  }
+
+  /**
+   * 'd': single <-> double page, calling the exact same handlers the menu's
+   * "Single page" (`chooseView`) / "Double page" (`chooseSpread`, cover-alone
+   * offset left at its current/default false) radios call - so it persists
+   * per-device identically and, in narrow portrait, surfaces the same "shows in
+   * landscape" toast `chooseSpread` already gives that pick. Reads the current
+   * `view()` (not `viewPref`) so it flips relative to what 'auto' resolved to.
+   */
+  private toggleDoublePage(): void {
+    if (this.view() === 'spread') { this.chooseView('paged'); return; }
+    this.chooseSpread(false);
+  }
+
+  /**
+   * 's': cycles the 1.20.0 Downscale filter (sharp -> balanced -> soft -> …),
+   * same `DOWNSCALE_FILTER_OPTIONS` order as the Rendering menu and the same
+   * `ReaderPreferencesService` write it uses. Handled in onKeyDown ABOVE the
+   * webtoon early-return (like 'm') because `pageUrlFor` applies the filter to
+   * every page request regardless of view, not just paged/spread. No-op under
+   * Page quality: Full, mirroring `ReaderSettingsMenuComponent.filterDisabled` -
+   * the filter has nothing to act on there, so the shortcut must not "enable" it.
+   */
+  private cycleDownscaleFilter(): void {
+    if (this.prefs.pageQuality() === 'full') return;
+    const order = DOWNSCALE_FILTER_OPTIONS.map(o => o.value);
+    const next = order[(order.indexOf(this.prefs.downscaleFilter()) + 1) % order.length];
+    this.prefs.setDownscaleFilter(next);
+  }
+
+  /**
+   * 'e': toggles Rendering between Smooth and Enhance (Anime4K), via the same
+   * `ReaderPreferencesService.setUpscaler` the menu uses. Guarded exactly like
+   * `ReaderSettingsMenuComponent.enhanceDisabled` (WebGPU not ready) - webtoon is
+   * already excluded above this point in onKeyDown, so it need not be rechecked.
+   */
+  private toggleRendering(): void {
+    if (this.upscaleSupport.support() !== 'ready') return;
+    this.prefs.setUpscaler(this.prefs.upscaler() === 'smooth' ? 'enhance' : 'smooth');
   }
 
   // --- Immersive chrome (auto-hide toolbar + nav) ---

@@ -44,6 +44,7 @@ describe('HomeComponent', () => {
     prefs?: LibraryViewPreferencesDto;
     excluded?: string[];
     libraries?: unknown[];
+    favorites?: unknown[];
   }
 
   function createComponent(opts: Options = {}) {
@@ -72,6 +73,11 @@ describe('HomeComponent', () => {
     httpMock.expectOne('/api/v1/reading/library-preferences').flush(
       opts.prefs ?? { viewMode: 'list', density: 'comfortable', sort: 'name', direction: 'asc', cardSize: '180', libraryPageSize: 100 });
     httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: opts.excluded ?? [] });
+    // The opt-in Home "Favorites" row (1.21.0) only fetches when the pref is on.
+    if (opts.prefs?.showFavoritesHomeRow) {
+      httpMock.expectOne((r) => r.url === '/api/v1/favorites').flush(
+        { items: opts.favorites ?? [], totalCount: (opts.favorites ?? []).length, nextCursor: null, hasMore: false });
+    }
     fixture.detectChanges();
     return fixture;
   }
@@ -120,6 +126,32 @@ describe('HomeComponent', () => {
     httpMock.expectOne('/api/v1/reading/continue/i1').flush(null);
 
     expect(cmp.continueReading().map((e) => e.itemId)).toEqual(['i2']);
+  });
+
+  // --- Favorites home row (1.21.0), opt-in ---
+
+  it('hides the Favorites row by default (opt-in off)', () => {
+    const fixture = createComponent();
+    const headings = Array.from(fixture.nativeElement.querySelectorAll('.strip-section h3'))
+      .map((h) => (h as HTMLElement).textContent?.trim());
+    expect(headings).not.toContain('Favorites');
+    expect(fixture.componentInstance.showFavoritesRow()).toBe(false);
+  });
+
+  it('renders the Favorites row when the opt-in is on', () => {
+    const fixture = createComponent({
+      prefs: { viewMode: 'card', density: 'comfortable', sort: 'name', showFavoritesHomeRow: true },
+      favorites: [
+        { id: 'favA', kind: 'Archive', libraryId: 'L1', displayName: 'Fav Alpha', coverUrl: null },
+        { id: 'favF', kind: 'Folder', libraryId: 'L1', displayName: 'Fav Folder', coverUrl: null },
+      ],
+    });
+    expect(fixture.componentInstance.showFavoritesRow()).toBe(true);
+    expect(fixture.componentInstance.favorites().length).toBe(2);
+
+    const headings = Array.from(fixture.nativeElement.querySelectorAll('.strip-section h3'))
+      .map((h) => (h as HTMLElement).textContent?.trim());
+    expect(headings).toContain('Favorites');
   });
 
   // --- B1: stacked "New chapters" cards ---

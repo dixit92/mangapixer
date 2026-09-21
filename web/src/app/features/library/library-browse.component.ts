@@ -14,6 +14,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
+import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
 import { ContinueRowComponent } from '../../shared/continue-row/continue-row.component';
 import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
 
@@ -35,6 +36,13 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
  * first if needed) - tap = one, long-press = range fill. "Select all" /
  * "Select all unread" / "Select all read" act over the currently-listed nodes
  * for whole-folder selection.
+ *
+ * List-mode direct-select (1.21.0): list rows additionally carry a leading
+ * checkbox control that selects WITHOUT first entering select mode (tapping the
+ * row body still opens the item either way). Selecting the first row through it
+ * turns select mode on so the bulk-action bar appears; it reuses the same
+ * `selected`/`toggleOne` state as every other selection path. Card view is
+ * unchanged - it keeps the selectMode-gated overlay tap.
  *
  * Infinite scroll + sticky navigation (1.8.0): the manual "Load More" button is
  * replaced by an IntersectionObserver sentinel that appends the next cursor page
@@ -59,6 +67,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     MatDividerModule,
     CoverImageDirective,
     FolderRollupBadgeComponent,
+    StarToggleComponent,
     ContinueRowComponent,
   ],
   template: `
@@ -252,6 +261,16 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
             <mat-icon>{{ hideEmptyFolders() ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
             Hide empty folders
           </button>
+          <!-- Favorites-only (1.21.0): another additive filter axis (a toggle), composing
+               with the read-state and hide-empty filters + keyset paging server-side. -->
+          <span class="menu-caption">Favorites</span>
+          <button mat-menu-item role="menuitemcheckbox"
+                  [class.selected-option]="favoritesOnly()"
+                  [attr.aria-checked]="favoritesOnly()"
+                  (click)="toggleFavoritesOnly($event)">
+            <mat-icon>{{ favoritesOnly() ? 'star' : 'star_border' }}</mat-icon>
+            Favorites only
+          </button>
         </mat-menu>
         <button mat-stroked-button class="select-toggle" (click)="toggleSelectMode()">
           <mat-icon>checklist</mat-icon> Select
@@ -383,6 +402,19 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
          [style.--list-columns]="listColumns()">
       @for (node of nodes(); track node.id) {
         <div class="node-wrap" [class.selected]="isSelected(node)">
+          <!-- List-mode direct-select (1.21.0): a dedicated leading control so a row
+               can be selected WITHOUT first entering select mode - tapping the row
+               body still opens the item (selectMode still gates that). Selecting the
+               first item this way turns select mode on so the bulk-action bar
+               appears; card view keeps its existing selectMode-only overlay. -->
+          @if (viewMode() === 'list') {
+            <button type="button" class="row-select" role="checkbox"
+                    [attr.aria-checked]="isSelected(node)"
+                    [attr.aria-label]="(isSelected(node) ? 'Deselect ' : 'Select ') + node.displayName"
+                    (click)="onRowSelectClick($event, node)">
+              <mat-icon>{{ isSelected(node) ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
+            </button>
+          }
           <a class="node-card" [routerLink]="selectMode() ? null : getNodeLink(node)"
              (click)="onCardClick($event, node)"
              (pointerdown)="onCardPointerDown($event, node)"
@@ -394,6 +426,11 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                 <img appCover [src]="node.coverUrl" alt="" loading="lazy">
               }
               <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
+
+              <!-- Favorite star (1.21.0): an overlay toggle in the cover corner, on both
+                   card and list rows. Its own component styles keep this out of the
+                   near-budget inline CSS below. -->
+              <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
 
               <!-- Card mode: read/selection markers overlay the cover. List mode renders
                    the same markers to the RIGHT of the row instead (1.17.0), see below. -->
@@ -533,7 +570,15 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
         column-gap: 16px;
       }
     }
-    .nodes.list .node-wrap { min-width: 0; }
+    .nodes.list .node-wrap { min-width: 0; display: flex; align-items: center; gap: 4px; }
+    .nodes.list .node-wrap .node-card { flex: 1 1 auto; min-width: 0; }
+    .row-select {
+      flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px;
+      background: transparent; color: #8a8a99; cursor: pointer;
+    }
+    .row-select mat-icon { font-size: 20px; width: 20px; height: 20px; }
+    .row-select[aria-checked="true"] { color: #7c4dff; }
     .nodes.list .node-card {
       display: flex; align-items: center; gap: 12px;
       padding: 6px; border-radius: 8px; background: rgba(255,255,255,0.03);
@@ -772,13 +817,22 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    */
   readonly hideEmptyFolders = signal(false);
 
-  /** True when ANY browse filter narrows the listing (read-state or hide-empty). */
-  readonly filterActive = computed(() => this.readStateFilter() !== 'all' || this.hideEmptyFolders());
+  /**
+   * Favorites-only filter (1.21.0): a SEPARATE, additive filter axis that keeps only
+   * nodes the user has starred. Composes WITH the read-state and hide-empty filters
+   * (all can be active at once), applied server-side so it works across keyset pages. A
+   * transient view control, not a persisted preference; 'off' sends no param.
+   */
+  readonly favoritesOnly = signal(false);
+
+  /** True when ANY browse filter narrows the listing (read-state, hide-empty, favorites). */
+  readonly filterActive = computed(() =>
+    this.readStateFilter() !== 'all' || this.hideEmptyFolders() || this.favoritesOnly());
 
   /** Toolbar button label: "Filter" when inactive, else the active read-state option's label. */
   readonly readStateLabel = computed(() =>
     this.readStateFilter() === 'all'
-      ? (this.hideEmptyFolders() ? 'Filtered' : 'Filter')
+      ? (this.hideEmptyFolders() || this.favoritesOnly() ? 'Filtered' : 'Filter')
       : this.readStateOptions.find((o) => o.value === this.readStateFilter())?.label ?? 'Filter');
 
   /** Measured height of the sticky top bar: the jump rail's sticky offset. */
@@ -1320,17 +1374,33 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * Toggle the favorites-only filter (1.21.0): reload from the top. Like the other
+   * filters this narrows the listing, so the A-Z jump rail is hidden while it is active.
+   * `$event` is swallowed so the menu stays open for further toggling. Not persisted.
+   */
+  toggleFavoritesOnly(event?: Event): void {
+    event?.stopPropagation();
+    this.favoritesOnly.update((v) => !v);
+    this.resetList();
+    this.loadNodes();
+    if (this.shouldShowJumpRail()) this.loadJumpIndex(this.libraryId());
+    else this.jumpBuckets.set([]);
+    this.scrollToTop('auto');
+  }
+
+  /**
    * Whether the A-Z jump rail applies: it is a library-root name-sort (ascending)
    * navigation aid whose bucket cursors assume the full, unfiltered A->Z listing, so it
-   * is meaningless in a subfolder, under another sort/direction, or while a read-state
-   * filter is narrowing the listing.
+   * is meaningless in a subfolder, under another sort/direction, or while a read-state,
+   * hide-empty, or favorites filter is narrowing the listing.
    */
   private shouldShowJumpRail(): boolean {
     return !this.parentId()
       && this.sort() === 'name'
       && this.sortDirection() === 'asc'
       && this.readStateFilter() === 'all'
-      && !this.hideEmptyFolders();
+      && !this.hideEmptyFolders()
+      && !this.favoritesOnly();
   }
 
   getNodeLink(node: CatalogNodeDto): string[] {
@@ -1508,6 +1578,22 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       this.selectRange(this.anchorIndex()!, index);
       return;
     }
+    this.toggleOne(node, index);
+  }
+
+  /**
+   * List-mode direct-select control (1.21.0): tapping/activating the leading row
+   * checkbox selects without requiring select mode first. Selecting the first item
+   * turns select mode on so the bulk-action bar appears; deselecting back to zero
+   * does NOT turn it back off (mirrors the explicit Select/Done toggle - only
+   * "Done" or clearing the selection exits select mode).
+   */
+  onRowSelectClick(event: Event, node: CatalogNodeDto): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const index = this.nodes().findIndex((n) => n.id === node.id);
+    if (index === -1) return;
+    if (!this.selectMode()) this.selectMode.set(true);
     this.toggleOne(node, index);
   }
 
@@ -1748,7 +1834,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const initial = this.cursor === null;
     const gen = ++this.loadGen;
     this.loadingMore.set(true);
-    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders()).subscribe({
+    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), null, this.favoritesOnly()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         if (gen !== this.loadGen) return;
         this.nodes.update((current) => isAppend ? [...current, ...response.items] : [...response.items]);
@@ -1785,7 +1871,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const container = this.scrollParent();
     const prevHeight = this.scrollHeightOf(container);
     this.loadingPrevious.set(true);
-    this.api.browseLibrary(libId, this.parentId(), null, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), before).subscribe({
+    this.api.browseLibrary(libId, this.parentId(), null, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), before, this.favoritesOnly()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         if (gen !== this.loadGen) { this.loadingPrevious.set(false); return; }
         if (response.items.length > 0) {

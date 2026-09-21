@@ -457,6 +457,22 @@ public sealed class ReaderPreferencesEntity
     /// </summary>
     public int ListColumns { get; set; }
 
+    /// <summary>
+    /// Per-user opt-in for the Home "Favorites" row (1.21.0). Off by default so a
+    /// fresh install / rows written before this column existed never surface the row.
+    /// The favorites core affordances (star toggle everywhere) are always present;
+    /// only this prominence surface is opt-in.
+    /// </summary>
+    public bool ShowFavoritesHomeRow { get; set; }
+
+    /// <summary>
+    /// Per-user opt-in for favorites prominence in search (1.21.0). Off by default.
+    /// When on, favorited results get a star badge AND are boosted to the top of the
+    /// result list; when off, favorited results render exactly like any other (no
+    /// badge, no boost).
+    /// </summary>
+    public bool FavoritesSearchProminence { get; set; }
+
     public UserEntity? User { get; set; }
 }
 
@@ -496,6 +512,33 @@ public sealed class BookmarkEntity
     public DateTimeOffset CreatedAt { get; set; }
 
     public UserEntity? User { get; set; }
+}
+
+/// <summary>
+/// Per-user "star" favorite for a catalog node (1.21.0). A favorite is explicit
+/// user curation — distinct from in-reader bookmarks (per-page markers) and from
+/// Continue-reading (recency). Works uniformly for archives and folders because the
+/// catalog is a single node id space with a <see cref="CatalogNodeEntity.Kind"/>
+/// discriminator (0=folder, 1=archive), so no polymorphic FK is needed.
+///
+/// Semantics (owner-approved design 2026-09-20):
+/// - Per-user: each user curates their own set. Uniqueness is (UserId, CatalogNodeId).
+/// - No cascade / rollup: a favorite points at the exact node; favoriting a folder
+///   does not favorite its descendants.
+/// - FK cascade-deletes with the catalog node so a rescan/remove cannot orphan a
+///   favorite (and with the user so account deletion cleans up).
+/// </summary>
+public sealed class FavoriteEntity
+{
+    public long Id { get; set; }
+    public long UserId { get; set; }
+    public long CatalogNodeId { get; set; }
+
+    /// <summary>When the favorite was created; drives the recently-favorited ordering.</summary>
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public UserEntity? User { get; set; }
+    public CatalogNodeEntity? Node { get; set; }
 }
 
 /// <summary>
@@ -698,7 +741,45 @@ public sealed class UserEntity
     public ICollection<ReadingProgressEntity> ReadingProgress { get; set; } = [];
     public ICollection<PrivateLibraryEntity> PrivateLibraries { get; set; } = [];
     public ICollection<HomeExcludedLibraryEntity> HomeExcludedLibraries { get; set; } = [];
+    public ICollection<FavoriteEntity> Favorites { get; set; } = [];
     public ReaderPreferencesEntity? Preferences { get; set; }
+}
+
+/// <summary>
+/// Server-wide application settings. A single-row ("singleton") table: exactly
+/// one row exists, addressed by the fixed key <see cref="SingletonId"/>. This is
+/// deliberately general-purpose so later admin-wide settings can be added as
+/// columns without a new table; the first consumer is the opt-in Update Checker
+/// (1.21.0).
+///
+/// Update Checker fields hold: whether the check is enabled (OFF by default —
+/// the check makes the one sanctioned outbound call only when enabled), the
+/// timestamp of the last completed check (drives the 24h cadence gate), and the
+/// last latest version string learned from GitHub (cached so the admin page can
+/// render a result without re-fetching on every load).
+/// </summary>
+public sealed class AppSettingsEntity
+{
+    /// <summary>The fixed primary key of the one and only settings row.</summary>
+    public const long SingletonId = 1;
+
+    /// <summary>Always <see cref="SingletonId"/>. Not database-generated.</summary>
+    public long Id { get; set; } = SingletonId;
+
+    /// <summary>
+    /// Opt-in flag for the Update Checker. Defaults to false so a fresh install
+    /// never makes the outbound GitHub call until an admin turns it on.
+    /// </summary>
+    public bool UpdateCheckEnabled { get; set; }
+
+    /// <summary>UTC time of the last completed update check, or null if never.</summary>
+    public DateTimeOffset? UpdateLastCheckedAt { get; set; }
+
+    /// <summary>
+    /// The latest release version last learned from GitHub (no leading "v"), or
+    /// null if never fetched. Cached so the admin page can render immediately.
+    /// </summary>
+    public string? UpdateLastKnownLatestVersion { get; set; }
 }
 
 /// <summary>

@@ -164,6 +164,79 @@
         }
       }
     },
+    "/api/v1/operations/update-check": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "parameters": [
+          {
+            "name": "force",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/operations/update-check/settings": {
+      "put": {
+        "tags": [
+          "Operations"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateCheckSettingsRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateCheckSettingsRequest"
+                  }
+                ]
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateCheckSettingsRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/operations/restore": {
       "post": {
         "tags": [
@@ -1225,6 +1298,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "favoritesOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
@@ -1290,6 +1371,82 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/favorite": {
+      "post": {
+        "tags": [
+          "Catalog"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Catalog"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/favorites": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 50
             }
           }
         ],
@@ -2364,6 +2521,12 @@
               "string"
             ],
             "format": "int32"
+          },
+          "showFavoritesHomeRow": {
+            "type": "boolean"
+          },
+          "favoritesSearchProminence": {
+            "type": "boolean"
           }
         }
       },
@@ -2465,6 +2628,17 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "UpdateCheckSettingsRequest": {
+        "required": [
+          "enabled"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
           }
         }
       },

@@ -47,7 +47,11 @@ describe('SearchComponent', () => {
       nextCursor: null,
       hasMore: false,
     };
-    const apiSpy = { search: vi.fn().mockReturnValue(of(response)) };
+    const apiSpy = {
+      search: vi.fn().mockReturnValue(of(response)),
+      // Search now loads the favorites-prominence preference on init (1.21.0).
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+    };
     TestBed.configureTestingModule({
       imports: [SearchComponent],
       providers: [
@@ -120,7 +124,11 @@ describe('SearchComponent kind badge (1.12.0)', () => {
 
   function setup(items: CatalogNodeDto[]): void {
     const response: SearchResultsDto = { query: 'q', items, totalCount: items.length, nextCursor: null, hasMore: false };
-    const apiSpy = { search: vi.fn().mockReturnValue(of(response)) };
+    const apiSpy = {
+      search: vi.fn().mockReturnValue(of(response)),
+      // Search now loads the favorites-prominence preference on init (1.21.0).
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+    };
     TestBed.configureTestingModule({
       imports: [SearchComponent],
       providers: [
@@ -185,5 +193,65 @@ describe('SearchComponent kind badge (1.12.0)', () => {
     const badges = fixture.nativeElement.querySelectorAll('.kind-badge') as NodeListOf<HTMLElement>;
     expect(badges.length).toBe(2);
     expect(Array.from(badges).map((b) => b.getAttribute('aria-label'))).toEqual(['Folder', 'Archive']);
+  });
+});
+
+/**
+ * Favorites search prominence (1.21.0): the per-user opt-in. When ON, favorited
+ * results get the star (badge + interactive toggle) AND are boosted to the top; when
+ * OFF, results render normally with no star and no reordering.
+ */
+describe('SearchComponent favorites prominence (1.21.0)', () => {
+  let fixture: ComponentFixture<SearchComponent>;
+
+  function setupWith(prominence: boolean, items: CatalogNodeDto[]): void {
+    const response: SearchResultsDto = { query: 'q', items, totalCount: items.length, nextCursor: null, hasMore: false };
+    const apiSpy = {
+      search: vi.fn().mockReturnValue(of(response)),
+      getLibraryPreferences: vi.fn().mockReturnValue(
+        of({ viewMode: 'card', density: 'comfortable', sort: 'name', favoritesSearchProminence: prominence }),
+      ),
+      setFavorite: vi.fn().mockReturnValue(of(undefined)),
+    };
+    TestBed.configureTestingModule({
+      imports: [SearchComponent],
+      providers: [provideRouter([]), provideNoopAnimations(), { provide: ApiService, useValue: apiSpy }],
+    });
+    fixture = TestBed.createComponent(SearchComponent);
+    fixture.detectChanges();
+  }
+
+  function runSearch(query: string): void {
+    fixture.componentInstance.query = query;
+    fixture.componentInstance.onSearch();
+    vi.advanceTimersByTime(300);
+    fixture.detectChanges();
+  }
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+
+  it('boosts favorited results to the top and shows the star when prominence is ON', () => {
+    setupWith(true, [
+      makeNode({ id: 'plain', displayName: 'Plain', isFavorite: false }),
+      makeNode({ id: 'fav', displayName: 'Favorited', isFavorite: true }),
+    ]);
+    runSearch('x');
+
+    // Favorited result is boosted ahead of the earlier-listed plain one.
+    expect(fixture.componentInstance.results().map((n) => n.id)).toEqual(['fav', 'plain']);
+    // The star toggle renders on results when prominence is on.
+    expect(fixture.nativeElement.querySelector('app-star-toggle')).not.toBeNull();
+  });
+
+  it('renders normally (no star, no reordering) when prominence is OFF', () => {
+    setupWith(false, [
+      makeNode({ id: 'plain', displayName: 'Plain', isFavorite: false }),
+      makeNode({ id: 'fav', displayName: 'Favorited', isFavorite: true }),
+    ]);
+    runSearch('x');
+
+    expect(fixture.componentInstance.results().map((n) => n.id)).toEqual(['plain', 'fav']);
+    expect(fixture.nativeElement.querySelector('app-star-toggle')).toBeNull();
   });
 });

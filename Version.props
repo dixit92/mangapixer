@@ -281,8 +281,19 @@
          toolbar's card-size slider labelled as page-wide with the New-chapters filter tied to its
          heading. Additive API only (one query parameter, one DTO field), no migration -> MINOR per
          SemVer 2.0.0. Bugfixes ship as 1.20.x. -->
+    <!-- 1.21.0 - additive MINOR over 1.20.0 (post-1.20.0 cycle). Four lanes / two
+         waves: an opt-in Update Checker/Notifier (new general-purpose server settings
+         store + migration AddAppSettings; the first sanctioned outbound call - one GET
+         to the GitHub Releases API, off by default, admin opt-in), per-user Favorites
+         (star any catalog node; new favorites table + migration AddFavorites; sidebar
+         entry, opt-in home row + search prominence, favorites-only browse filter;
+         incognito-safe), reader keyboard shortcuts (page mode / downscale filter /
+         rendering), and list-mode direct tap-to-select. Additive API only (new
+         endpoints, optional DTO fields, query params, per-user prefs); two additive
+         migrations; worker protocol unchanged (2) -> MINOR per SemVer 2.0.0. Bugfixes
+         ship as 1.21.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <MangaPixerVersionMinor>20</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>21</MangaPixerVersionMinor>
     <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
