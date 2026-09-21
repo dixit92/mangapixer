@@ -1,6 +1,6 @@
 {
   "name": "com.lifepixer.mangapixer.web",
-  "version": "1.20.0",
+  "version": "1.21.0",
   "description": "MangaPixer Angular web reader",
   "private": true,
   "scripts": {

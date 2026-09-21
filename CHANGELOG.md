@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-09-21
+
+### Added
+
+- **Favorites.** Star any archive, folder, or subfolder to mark it a favorite. Favorites get a dedicated entry above your libraries in the sidebar and their own view (most recently favorited first), a star toggle on browse cards and rows, in the reader (favoriting the open chapter), and in search results, and a "favorites only" filter in browse. Two per-user options (off by default) let you also surface a Favorites row on the home page and give favorites prominence in search (a badge and a boost to the top of results). Favorites are per user and respect private/incognito libraries.
+- **Update checker (opt-in).** Administrators can turn on a check that tells you when a newer MangaPixer release is available, shown in the admin page and app footer. It is off by default and makes a single request to the public GitHub Releases API with no identifying information or telemetry; it is the only outbound third-party call the server makes, and only when you enable it.
+- **Reader keyboard shortcuts** for switching single/double page mode, cycling the downscale filter (Sharp / Balanced / Soft), and toggling Rendering (Smooth / Enhance). The reader help overlay lists the full set.
+
+### Changed
+
+- In list view you can now select an item directly with a per-row checkbox without first entering selection mode; tapping the row itself still opens the item.
+
 ## [1.20.0] - 2026-09-18
 
 ### Added
