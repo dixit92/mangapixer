@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.21.1] - 2026-09-21
+
+### Fixed
+
+- Webtoon pages no longer become extremely pixelated under Auto page quality. The reader now sizes each page's downloaded image from that page's own dimensions, so an unusually tall strip is fetched at full resolution instead of being shrunk to fit a shorter neighbour and then stretched back up on screen.
+
 ## [1.21.0] - 2026-09-21
 
 ### Added

@@ -292,9 +292,16 @@
          endpoints, optional DTO fields, query params, per-user prefs); two additive
          migrations; worker protocol unchanged (2) -> MINOR per SemVer 2.0.0. Bugfixes
          ship as 1.21.x. -->
+    <!-- 1.21.1 - PATCH over 1.21.0 (2026-09-21), web-only, no API/schema change.
+         Fixes extreme webtoon pixelation under Auto page quality: the reader now
+         computes the display-sized variant bucket (?maxDim) from EACH page's own
+         true aspect ratio instead of a single per-chapter representative aspect, so
+         a webtoon strip taller than its neighbours correctly falls back to the
+         full-size transcode instead of having its width crushed into a height-capped
+         bucket and upscaled on display. Owner-reported after the 1.21.0 deploy. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
     <MangaPixerVersionMinor>21</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

@@ -1196,7 +1196,17 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   //
   // Net effect: rotating the device or changing the fit mode re-targets the NEXT
   // pages, never the one being read. A chapter change clears the cache.
-  private variantTarget = 0;
+  /**
+   * The layout-box inputs to `targetMaxDim`, captured at the moment something
+   * that can change the box happens (see `refreshVariantTarget`). Everything
+   * EXCEPT the page's own aspect ratio, which varies per page (that's the
+   * point of the per-page fix below) and so is looked up from the entry
+   * itself when a URL is actually built, not carried in this snapshot.
+   */
+  private variantParams: {
+    viewportW: number; viewportH: number; dpr: number; fit: VariantFitMode;
+    paired: boolean; webtoonWidthPct: number; full: boolean;
+  } = { viewportW: 0, viewportH: 0, dpr: 1, fit: 'screen', paired: false, webtoonWidthPct: 100, full: false };
   private readonly pageUrlCache = new Map<string, string>();
 
   pageUrlFor(entry: ManifestPageEntry | undefined): string {
@@ -1204,21 +1214,37 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     const cached = this.pageUrlCache.get(entry.entryKey);
     if (cached !== undefined) return cached;
     const base = `/api/v1/items/${this.itemId()}/pages/${encodeURIComponent(entry.entryKey)}`;
-    const url = withMaxDim(base, this.variantTarget, this.prefs.downscaleFilter());
+    const p = this.variantParams;
+    // Per-page true aspect (manifest width/height), NOT a chapter-wide
+    // representative — a webtoon strip's pages vary wildly in height, and
+    // capping a tall page's longest edge (its height) to a bucket sized for a
+    // shorter page starves its width, which the browser then upscales back
+    // out -> visible pixelation. Each page's own aspect keeps the bucket (or
+    // the `0` full-size fallback for a page taller than the top rung covers)
+    // honest for that page specifically.
+    const pageAspect = entry.width > 0 && entry.height > 0 ? entry.height / entry.width : 0;
+    const maxDim = p.full ? 0 : targetMaxDim(
+      p.viewportW, p.viewportH, p.dpr, p.fit, p.paired, p.webtoonWidthPct, pageAspect,
+    );
+    const url = withMaxDim(base, maxDim, this.prefs.downscaleFilter());
     this.pageUrlCache.set(entry.entryKey, url);
     return url;
   }
 
   /**
-   * Re-measure the variant bucket for pages loaded from now on. Called wherever
-   * the page's layout box can change: viewport resize / orientation, fit mode,
-   * view (single vs paired vs webtoon), the webtoon width slider, and once the
-   * manifest lands (which is when the page aspect ratio becomes known).
+   * Re-measure the variant layout box for pages loaded from now on. Called
+   * wherever that box can change: viewport resize / orientation, fit mode,
+   * view (single vs paired vs webtoon), and the webtoon width slider. The
+   * per-page aspect ratio is looked up separately, in `pageUrlFor`, once the
+   * manifest lands — it is not part of this snapshot.
    *
    * "Page quality: Full" short-circuits to 0, i.e. no `maxDim` param at all.
    */
   refreshVariantTarget(): void {
-    if (this.prefs.pageQuality() === 'full') { this.variantTarget = 0; return; }
+    if (this.prefs.pageQuality() === 'full') {
+      this.variantParams = { ...this.variantParams, full: true };
+      return;
+    }
     const el = this.viewport()?.nativeElement;
     const viewportW = el?.clientWidth || window.innerWidth || 0;
     const viewportH = el?.clientHeight || window.innerHeight || 0;
@@ -1226,22 +1252,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     const webtoon = this.view() === 'webtoon';
     const fit: VariantFitMode = webtoon ? 'webtoon' : this.fitMode();
     const paired = !webtoon && this.effectiveView() === 'spread';
-    this.variantTarget = targetMaxDim(
-      viewportW, viewportH, dpr, fit, paired, this.webtoonWidthPct(), this.representativeAspect(),
-    );
-  }
-
-  /**
-   * Page height / width for the fit modes whose box is unbounded on one axis
-   * (fit-width, webtoon). Taken from the FIRST page with usable manifest
-   * dimensions rather than per page, so every page of a chapter lands on the same
-   * bucket and the URLs stay uniform (and cacheable). 0 when unknown.
-   */
-  private representativeAspect(): number {
-    for (const p of this.pages()) {
-      if (p.width > 0 && p.height > 0) return p.height / p.width;
-    }
-    return 0;
+    this.variantParams = {
+      viewportW, viewportH, dpr, fit, paired, webtoonWidthPct: this.webtoonWidthPct(), full: false,
+    };
   }
 
   /**
