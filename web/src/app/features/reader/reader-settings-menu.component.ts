@@ -249,6 +249,7 @@ export class ReaderSettingsMenuComponent {
   readonly upscalerOptions = UPSCALER_OPTIONS;
   readonly pageQualityOptions = PAGE_QUALITY_OPTIONS;
   readonly downscaleFilterOptions = DOWNSCALE_FILTER_OPTIONS;
+  readonly filterOptionHint = filterOptionHint;
 
   /** The reader's current view: webtoon swaps the transition menu for tap-to-scroll. */
   readonly view = input<ReaderView>('paged');
@@ -282,7 +283,7 @@ export class ReaderSettingsMenuComponent {
   /** One short line under the Downscale filter group: why it's disabled, or what the current pick does. */
   readonly filterHint = computed<string>(() => {
     if (this.filterDisabled()) return 'Applies to Auto page quality';
-    return filterOptionHint(this.prefs.downscaleFilter());
+    return this.filterOptionHint(this.prefs.downscaleFilter());
   });
 
   choose(mode: PageAnimation): void {
@@ -610,6 +611,7 @@ export class ReaderOptionsSheetComponent {
   readonly upscalerOptions = UPSCALER_OPTIONS;
   readonly pageQualityOptions = PAGE_QUALITY_OPTIONS;
   readonly downscaleFilterOptions = DOWNSCALE_FILTER_OPTIONS;
+  readonly filterOptionHint = filterOptionHint;
 
   /** Same rule as the desktop menu: no usable WebGPU, or the webtoon view. */
   readonly enhanceDisabled = computed<boolean>(
@@ -626,7 +628,7 @@ export class ReaderOptionsSheetComponent {
 
   readonly filterHint = computed<string>(() => {
     if (this.filterDisabled()) return 'Applies to Auto page quality';
-    return filterOptionHint(this.prefs.downscaleFilter());
+    return this.filterOptionHint(this.prefs.downscaleFilter());
   });
 
   pickUpscaler(upscaler: Upscaler): void {

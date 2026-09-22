@@ -47,8 +47,8 @@ export type PageQuality = 'auto' | 'full';
  */
 export type Upscaler = 'smooth' | 'enhance';
 
-// DownscaleFilter exported from downscale-filters.ts (single source of truth)
-export { DownscaleFilter };
+// DownscaleFilter re-exported from downscale-filters.ts (single source of truth)
+export type { DownscaleFilter };
 
 /**
  * Per-DEVICE reader preferences kept in `localStorage` (never a backend/EF

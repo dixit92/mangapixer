@@ -1,4 +1,4 @@
-import { DownscaleFilter } from '@app/core/reading/downscale-filters';
+import { DownscaleFilter } from '../../core/reading/downscale-filters';
 
 /**
  * Display-sized page variant targeting (1.19.0, Lane B "SCALE-CLIENT").
@@ -136,7 +136,7 @@ export function targetMaxDim(
 }
 
 // DownscaleFilter re-exported from downscale-filters.ts (single source of truth)
-export { DownscaleFilter };
+export type { DownscaleFilter };
 
 /**
  * Append `?maxDim=<n>` (and, when a filter is given, `&filter=<f>`) to a page
