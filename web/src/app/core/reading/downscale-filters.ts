@@ -52,7 +52,7 @@ export const DOWNSCALE_FILTER_OPTIONS = DOWNSCALE_FILTERS.map((value) => ({
   value,
   label: DOWNSCALE_FILTER_METADATA[value].label,
   icon: DOWNSCALE_FILTER_METADATA[value].icon,
-})) as const;
+})) as readonly { readonly value: DownscaleFilter; readonly label: string; readonly icon: string }[];
 
 /** Get the tooltip hint for a filter option. */
 export function filterOptionHint(value: DownscaleFilter): string {
