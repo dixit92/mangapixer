@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DOWNSCALE_FILTERS, filterOptionHint } from './downscale-filters';
+import { DOWNSCALE_FILTERS, DOWNSCALE_FILTER_OPTIONS, filterOptionHint } from './downscale-filters';
 
 describe('Downscale Filter Vocabulary', () => {
   it('should pin the tuple to exactly [sharp, balanced, soft]', () => {
@@ -8,6 +8,10 @@ describe('Downscale Filter Vocabulary', () => {
 
   it('should have exactly three filters', () => {
     expect(DOWNSCALE_FILTERS).toHaveLength(3);
+  });
+
+  it('DOWNSCALE_FILTER_OPTIONS values should match DOWNSCALE_FILTERS', () => {
+    expect(DOWNSCALE_FILTER_OPTIONS.map(o => o.value)).toEqual(DOWNSCALE_FILTERS);
   });
 
   it('should provide hints for all filters', () => {
