@@ -11,7 +11,29 @@
 
 The hardening is the same in both: read-only container filesystem, a `tmpfs` for `/tmp`, `no-new-privileges`, and bounded container logs.
 
-An Unraid Community Applications template is planned but does not exist yet. For now you run the Compose file directly, so the host needs `docker compose` (on Unraid that usually comes from a Compose plugin).
+A Community Applications template is available and is the recommended installation method. See **Install from the template** below. Alternatively, you can run the Compose file directly (the traditional route), which requires `docker compose` on the host (usually a Compose plugin on Unraid).
+
+## Install from the template
+
+The easiest way is to add the template URL to Unraid's Community Applications:
+
+1. Open the Unraid **Docker** tab.
+2. Click **Add Container** → **Template URL**.
+3. Paste: `https://raw.githubusercontent.com/dixit92/mangapixer/main/deploy/unraid/mangapixer.xml`
+4. Click **Load**.
+5. The **MangaPixer** template appears. Fill in:
+   - **PUID** and **PGID**: Check your Unraid user's ID with `ls -ln /mnt/user/appdata`. Defaults are `99` (`nobody`) and `100` (`users`).
+   - **Media paths**: Edit the `/mnt/user/Manga` and `/mnt/user/Comics` example paths to point at your actual shares, or remove them if you don't need them. Each path is mounted read-only inside the container.
+6. Click **Apply**.
+7. The container starts. Once it is running, visit `http://<unraid-ip>:6266` and create the first admin on the welcome screen.
+
+The template URL points to the `main` branch release version. To use the very latest unreleased build, replace the URL with `...feature/unraid-ca-template` and rebuild from the clone (`docker compose -f deploy/compose.unraid.yaml -f deploy/compose.build.yaml up -d --build`), or pull `ghcr.io/dixit92/mangapixer:latest` by setting `MANGAPIXER_VERSION=latest` in the container environment.
+
+If the Community Applications template is not yet published, you can still add it by URL (step 3 above); the same URL works. Once accepted into Community Applications, it will appear in the template list without needing the URL.
+
+## Manual Compose route (traditional alternative)
+
+If you prefer not to use the template, you can run the Compose file directly:
 
 ## Step 1: get the Compose file and choose a version
 

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Container version="2">
+  <Name>mangapixer</Name>
+  <Repository>ghcr.io/dixit92/mangapixer</Repository>
+  <Registry>https://ghcr.io</Registry>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/dixit92/mangapixer</Support>
+  <Project>https://github.com/dixit92/mangapixer</Project>
+  <Overview>MangaPixer is a folder-native comic/manga server and Angular web reader. It organizes your manga and comics collection by folder structure, features a fast browser-based reader, user accounts, cover thumbnails, and collection-wide search — all running in a single container.</Overview>
+  <Category>MediaServer:Books</Category>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/dixit92/mangapixer/main/deploy/unraid/mangapixer.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/dixit92/mangapixer/main/web/src/assets/icons/icon-512.png</Icon>
+  <Image>ghcr.io/dixit92/mangapixer:latest</Image>
+  <Changes>
+    &#x26;bull; See https://github.com/dixit92/mangapixer/releases for release notes.
+  </Changes>
+  <Networking>
+    <Mode>bridge</Mode>
+    <Publish>
+      <Port>
+        <HostPort>6266</HostPort>
+        <ContainerPort>8080</ContainerPort>
+        <Protocol>tcp</Protocol>
+      </Port>
+    </Publish>
+  </Networking>
+  <Environment>
+    <Variable>
+      <Name>PUID</Name>
+      <Value>99</Value>
+      <Description>User ID for appdata ownership (see Unraid user list).</Description>
+      <Mode></Mode>
+    </Variable>
+    <Variable>
+      <Name>PGID</Name>
+      <Value>100</Value>
+      <Description>Group ID for appdata ownership (see Unraid user list).</Description>
+      <Mode></Mode>
+    </Variable>
+    <Variable>
+      <Name>ASPNETCORE_URLS</Name>
+      <Value>http://+:8080</Value>
+      <Mode></Mode>
+    </Variable>
+    <Variable>
+      <Name>DOTNET_RUNNING_IN_CONTAINER</Name>
+      <Value>true</Value>
+      <Mode></Mode>
+    </Variable>
+    <Variable>
+      <Name>DOTNET_CLI_TELEMETRY_OPTOUT</Name>
+      <Value>true</Value>
+      <Mode></Mode>
+    </Variable>
+    <Variable>
+      <Name>MangaPixer__Storage__DataRoot</Name>
+      <Value>/config/data</Value>
+      <Description>Database and backups (required).</Description>
+      <Mode></Mode>
+    </Variable>
+    <Variable>
+      <Name>MangaPixer__Storage__CacheRoot</Name>
+      <Value>/config/cache</Value>
+      <Description>Thumbnail and page image cache (disposable).</Description>
+      <Mode></Mode>
+    </Variable>
+    <Variable>
+      <Name>MangaPixer__Storage__ScratchRoot</Name>
+      <Value>/config/scratch</Value>
+      <Description>Temporary work folders (disposable).</Description>
+      <Mode></Mode>
+    </Variable>
+  </Environment>
+  <Volumes>
+    <Volume>
+      <HostDir>/mnt/user/appdata/MangaPixer</HostDir>
+      <ContainerDir>/config</ContainerDir>
+      <Mode>rw</Mode>
+    </Volume>
+    <Volume>
+      <HostDir>/mnt/user/Manga</HostDir>
+      <ContainerDir>/media/manga</ContainerDir>
+      <Mode>ro</Mode>
+      <Description>Example: manga/comics share (adjust path, add more, or remove if not needed).</Description>
+    </Volume>
+    <Volume>
+      <HostDir>/mnt/user/Comics</HostDir>
+      <ContainerDir>/media/comics</ContainerDir>
+      <Mode>ro</Mode>
+      <Description>Example: another media share (adjust path, add more, or remove if not needed).</Description>
+    </Volume>
+  </Volumes>
+  <ExtraParams>--read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --security-opt=no-new-privileges:true</ExtraParams>
+  <PostArgs>--log-driver local --log-opt max-size=20m --log-opt max-file=5</PostArgs>
+  <Restart>unless-stopped</Restart>
+</Container>
