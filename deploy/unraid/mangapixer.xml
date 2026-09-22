@@ -14,85 +14,18 @@
   <Icon>https://raw.githubusercontent.com/dixit92/mangapixer/main/web/src/assets/icons/icon-512.png</Icon>
   <Image>ghcr.io/dixit92/mangapixer:latest</Image>
   <Changes>
-    &#x26;bull; See https://github.com/dixit92/mangapixer/releases for release notes.
+### 2026-09-22
+- See https://github.com/dixit92/mangapixer/releases for release notes.
   </Changes>
-  <Networking>
-    <Mode>bridge</Mode>
-    <Publish>
-      <Port>
-        <HostPort>6266</HostPort>
-        <ContainerPort>8080</ContainerPort>
-        <Protocol>tcp</Protocol>
-      </Port>
-    </Publish>
-  </Networking>
-  <Environment>
-    <Variable>
-      <Name>PUID</Name>
-      <Value>99</Value>
-      <Description>User ID for appdata ownership (see Unraid user list).</Description>
-      <Mode></Mode>
-    </Variable>
-    <Variable>
-      <Name>PGID</Name>
-      <Value>100</Value>
-      <Description>Group ID for appdata ownership (see Unraid user list).</Description>
-      <Mode></Mode>
-    </Variable>
-    <Variable>
-      <Name>ASPNETCORE_URLS</Name>
-      <Value>http://+:8080</Value>
-      <Mode></Mode>
-    </Variable>
-    <Variable>
-      <Name>DOTNET_RUNNING_IN_CONTAINER</Name>
-      <Value>true</Value>
-      <Mode></Mode>
-    </Variable>
-    <Variable>
-      <Name>DOTNET_CLI_TELEMETRY_OPTOUT</Name>
-      <Value>true</Value>
-      <Mode></Mode>
-    </Variable>
-    <Variable>
-      <Name>MangaPixer__Storage__DataRoot</Name>
-      <Value>/config/data</Value>
-      <Description>Database and backups (required).</Description>
-      <Mode></Mode>
-    </Variable>
-    <Variable>
-      <Name>MangaPixer__Storage__CacheRoot</Name>
-      <Value>/config/cache</Value>
-      <Description>Thumbnail and page image cache (disposable).</Description>
-      <Mode></Mode>
-    </Variable>
-    <Variable>
-      <Name>MangaPixer__Storage__ScratchRoot</Name>
-      <Value>/config/scratch</Value>
-      <Description>Temporary work folders (disposable).</Description>
-      <Mode></Mode>
-    </Variable>
-  </Environment>
-  <Volumes>
-    <Volume>
-      <HostDir>/mnt/user/appdata/MangaPixer</HostDir>
-      <ContainerDir>/config</ContainerDir>
-      <Mode>rw</Mode>
-    </Volume>
-    <Volume>
-      <HostDir>/mnt/user/Manga</HostDir>
-      <ContainerDir>/media/manga</ContainerDir>
-      <Mode>ro</Mode>
-      <Description>Example: manga/comics share (adjust path, add more, or remove if not needed).</Description>
-    </Volume>
-    <Volume>
-      <HostDir>/mnt/user/Comics</HostDir>
-      <ContainerDir>/media/comics</ContainerDir>
-      <Mode>ro</Mode>
-      <Description>Example: another media share (adjust path, add more, or remove if not needed).</Description>
-    </Volume>
-  </Volumes>
-  <ExtraParams>--read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --security-opt=no-new-privileges:true</ExtraParams>
-  <PostArgs>--log-driver local --log-opt max-size=20m --log-opt max-file=5</PostArgs>
+  <Config Name="Port: Web UI" Target="6266" Default="6266" Mode="tcp" Description="Container Port: 8080" Type="Port" Display="always" Required="true"/>
+  <Config Name="Appdata" Target="/config" Default="/mnt/user/appdata/MangaPixer" Mode="rw" Description="State (database, cache, scratch). Mounted from /mnt/user/appdata/MangaPixer on the host." Type="Path" Display="always" Required="true"/>
+  <Config Name="Media" Target="/media" Default="" Mode="ro" Description="Read-only media library root. Add individual shares under /media/&lt;name&gt; by changing the host path (e.g., /mnt/user/Manga) here, or add more Paths. The library picker in the web UI starts at /media." Type="Path" Display="always" Required="true"/>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID for appdata ownership. Set to your Unraid user's UID (check with ls -ln /mnt/user/appdata)." Type="Variable" Display="always" Required="false"/>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID for appdata ownership. Set to your Unraid user's GID (check with ls -ln /mnt/user/appdata)." Type="Variable" Display="always" Required="false"/>
+  <Config Name="Data Root" Target="MangaPixer__Storage__DataRoot" Default="/config/data" Mode="" Description="Database and backups location (relative to /config)." Type="Variable" Display="advanced" Required="false"/>
+  <Config Name="Cache Root" Target="MangaPixer__Storage__CacheRoot" Default="/config/cache" Mode="" Description="Thumbnail and page image cache (disposable, relative to /config)." Type="Variable" Display="advanced" Required="false"/>
+  <Config Name="Scratch Root" Target="MangaPixer__Storage__ScratchRoot" Default="/config/scratch" Mode="" Description="Temporary work folders (disposable, relative to /config)." Type="Variable" Display="advanced" Required="false"/>
+  <ExtraParams>--log-driver local --log-opt max-size=20m --log-opt max-file=5 --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --security-opt=no-new-privileges:true</ExtraParams>
+  <PostArgs></PostArgs>
   <Restart>unless-stopped</Restart>
 </Container>
