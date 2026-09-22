@@ -14,6 +14,25 @@ public sealed class WorkerPoolOptions
     public int MaxConcurrentJobs { get; set; } = 2;
 
     /// <summary>
+    /// How long a worker process may sit idle before the pool shuts it down
+    /// gracefully. Default: 3 minutes. <see cref="TimeSpan.Zero"/> (or negative)
+    /// disables idle retirement, which restores the pre-1.22.0 behaviour of
+    /// keeping every started worker until the server stops. Each idle worker
+    /// holds ~170-190 MB RSS; a replacement is spawned on demand (a cold spawn
+    /// adds a short handshake to the first request after an idle period).
+    /// Override via MangaPixer:Media:WorkerIdleTimeoutSeconds.
+    /// </summary>
+    public TimeSpan WorkerIdleTimeout { get; set; } = TimeSpan.FromMinutes(3);
+
+    /// <summary>
+    /// Number of worker processes kept alive regardless of idle time. Default: 0,
+    /// so a quiet server holds no worker at all. Clamped to
+    /// <see cref="MaxConcurrentJobs"/>. Override via
+    /// MangaPixer:Media:MinWarmWorkers.
+    /// </summary>
+    public int MinWarmWorkers { get; set; }
+
+    /// <summary>
     /// Worker startup handshake timeout. Default: 15 seconds (no media access).
     /// </summary>
     public TimeSpan StartupHandshakeTimeout { get; set; } = TimeSpan.FromSeconds(15);

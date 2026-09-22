@@ -184,6 +184,11 @@ public sealed partial class Program
             var cacheBudget = ReadByteBudget(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPixer:Storage:CacheBudgetBytes"));
             var scratchBudget = ReadByteBudget(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPixer:Storage:ScratchBudgetBytes"));
             var maxConcurrentJobs = ReadPositiveInt(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPixer:Media:MaxConcurrentJobs"));
+            // Idle worker retirement (1.22.0). 0 is meaningful for both keys:
+            // an idle timeout of 0 disables retirement, a warm floor of 0 lets
+            // a quiet server run with no worker process at all.
+            var workerIdleTimeoutSeconds = ReadNonNegativeInt(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPixer:Media:WorkerIdleTimeoutSeconds"));
+            var minWarmWorkers = ReadNonNegativeInt(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPixer:Media:MinWarmWorkers"));
             builder.Services.AddMangaPixerMedia(options =>
             {
                 options.ScratchRoot = scratchRoot;
@@ -192,6 +197,8 @@ public sealed partial class Program
                 if (cacheBudget is > 0) options.CacheBudgetBytes = cacheBudget.Value;
                 if (scratchBudget is > 0) options.ScratchBudgetBytes = scratchBudget.Value;
                 if (maxConcurrentJobs is > 0) options.MaxConcurrentJobs = maxConcurrentJobs.Value;
+                if (workerIdleTimeoutSeconds is { } idleSeconds) options.WorkerIdleTimeout = TimeSpan.FromSeconds(idleSeconds);
+                if (minWarmWorkers is { } warm) options.MinWarmWorkers = warm;
             });
 
             // Startup configuration logging. Logs existence and
@@ -558,6 +565,17 @@ public sealed partial class Program
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         return int.TryParse(value.Trim(), out var n) && n > 0 ? n : null;
+    }
+
+    /// <summary>
+    /// Reads an optional integer that may be zero. Returns null when
+    /// unset/invalid/negative so the caller keeps the WorkerPoolOptions default.
+    /// </summary>
+    private static int? ReadNonNegativeInt(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return int.TryParse(value.Trim(), System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture, out var n) && n >= 0 ? n : null;
     }
 }
 
