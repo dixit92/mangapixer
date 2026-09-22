@@ -9,6 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import {
   ReaderPreferencesService, PageAnimation, PageQuality, Upscaler, DownscaleFilter,
 } from '../../core/reading/reader-preferences.service';
+import { DOWNSCALE_FILTER_OPTIONS, filterOptionHint } from '../../core/reading/downscale-filters';
 import { WebtoonNavPreferencesService, WebtoonTapStep } from './webtoon-nav.service';
 import { UpscaleSupportService } from './upscale.directive';
 
@@ -85,19 +86,8 @@ export const PAGE_QUALITY_OPTIONS: readonly ReaderOption<PageQuality>[] = [
   { value: 'full', label: 'Full', icon: 'high_quality' },
 ];
 
-/**
- * Downscale resampling filter choices (1.20.0). Only takes effect for a sized
- * (`?maxDim=`) request under Page quality: Auto — a Full-quality / `original`
- * fit request never downscales, so the group is shown disabled there (see
- * `ReaderSettingsMenuComponent.filterDisabled`). Vocabulary mirrors the server:
- * `sharp` = Lanczos (crisp lines, can moire on screentones), `balanced` =
- * Mitchell (the default), `soft` = area average (smoothest screentones).
- */
-export const DOWNSCALE_FILTER_OPTIONS: readonly ReaderOption<DownscaleFilter>[] = [
-  { value: 'sharp', label: 'Sharp', icon: 'deblur' },
-  { value: 'balanced', label: 'Balanced', icon: 'texture' },
-  { value: 'soft', label: 'Soft', icon: 'blur_on' },
-];
+// DOWNSCALE_FILTER_OPTIONS re-exported from downscale-filters.ts (single source of truth)
+export { DOWNSCALE_FILTER_OPTIONS };
 
 export const DIRECTION_OPTIONS: readonly ReaderOption<ReadingDirection>[] = [
   { value: 'ltr', label: 'Left to right', icon: 'format_textdirection_l_to_r' },
@@ -292,17 +282,8 @@ export class ReaderSettingsMenuComponent {
   /** One short line under the Downscale filter group: why it's disabled, or what the current pick does. */
   readonly filterHint = computed<string>(() => {
     if (this.filterDisabled()) return 'Applies to Auto page quality';
-    return this.filterOptionHint(this.prefs.downscaleFilter());
+    return filterOptionHint(this.prefs.downscaleFilter());
   });
-
-  /** Per-option tooltip text (also feeds `filterHint` for the currently selected option). */
-  filterOptionHint(value: DownscaleFilter): string {
-    switch (value) {
-      case 'sharp': return 'Crisp lines, may moire on screentones';
-      case 'balanced': return 'Balanced (default)';
-      case 'soft': return 'Smoothest screentones';
-    }
-  }
 
   choose(mode: PageAnimation): void {
     this.prefs.setPageAnimation(mode);
@@ -645,16 +626,8 @@ export class ReaderOptionsSheetComponent {
 
   readonly filterHint = computed<string>(() => {
     if (this.filterDisabled()) return 'Applies to Auto page quality';
-    return this.filterOptionHint(this.prefs.downscaleFilter());
+    return filterOptionHint(this.prefs.downscaleFilter());
   });
-
-  filterOptionHint(value: DownscaleFilter): string {
-    switch (value) {
-      case 'sharp': return 'Crisp lines, may moire on screentones';
-      case 'balanced': return 'Balanced (default)';
-      case 'soft': return 'Smoothest screentones';
-    }
-  }
 
   pickUpscaler(upscaler: Upscaler): void {
     if (upscaler === 'enhance' && this.enhanceDisabled()) return;
