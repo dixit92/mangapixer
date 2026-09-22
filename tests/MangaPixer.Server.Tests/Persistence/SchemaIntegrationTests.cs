@@ -321,4 +321,37 @@ public sealed class SchemaIntegrationTests : IDisposable
         // so we verify that priority is at least considered
         Assert.Equal(2, executionOrder.Count);
     }
+
+    [Fact]
+    public async Task LibraryEntity_Icon_PersistsAndClears()
+    {
+        await using var db = new MangaPixerDbContext(_options);
+        await db.Database.EnsureCreatedAsync();
+        await DatabaseInitialization.ConfigureDatabaseAsync(db);
+
+        var library = new LibraryEntity
+        {
+            PublicId = "lib-icon",
+            DisplayName = "Icon Library",
+            RootPath = "/tmp/test-icon",
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        db.Libraries.Add(library);
+        await db.SaveChangesAsync();
+        Assert.Null(library.Icon);
+
+        library.Icon = "menu_book";
+        await db.SaveChangesAsync();
+
+        await using var reload = new MangaPixerDbContext(_options);
+        var reloaded = await reload.Libraries.FirstAsync(l => l.PublicId == "lib-icon");
+        Assert.Equal("menu_book", reloaded.Icon);
+
+        reloaded.Icon = null;
+        await reload.SaveChangesAsync();
+
+        await using var reload2 = new MangaPixerDbContext(_options);
+        var cleared = await reload2.Libraries.FirstAsync(l => l.PublicId == "lib-icon");
+        Assert.Null(cleared.Icon);
+    }
 }

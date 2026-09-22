@@ -29,7 +29,7 @@ describe('LibraryBrowseComponent breadcrumbs', () => {
     folderName = 'Current Folder',
   ) {
     const prefs: LibraryViewPreferencesDto = { viewMode: 'grid', density: 'comfortable', sort: 'name' };
-    const libs: LibraryDto[] = [{ id: libraryId, name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }];
+    const libs: LibraryDto[] = [{ id: libraryId, name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }];
     const emptyPage: PageResponse<CatalogNodeDto> = { items: [], totalCount: 0, nextCursor: null, hasMore: false };
     const currentNode = {
       id: parentId ?? 'x', parentId: 'p', libraryId, kind: 'Folder', displayName: folderName,
@@ -156,7 +156,7 @@ describe('LibraryBrowseComponent jump rail', () => {
       .flush({ viewMode: 'grid', density: 'comfortable', sort: 'name' });
     // getLibraries (for library name)
     httpMock.match((req) => req.url.endsWith('/libraries'))[0]
-      .flush([{ id: 'lib1', name: 'Test', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }]);
+      .flush([{ id: 'lib1', name: 'Test', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }]);
     // browseLibrary
     httpMock.match((req) => req.url.includes('/libraries/lib1/browse'))[0]
       .flush({ items: [], totalCount: 0, nextCursor: null, hasMore: false });
@@ -274,7 +274,7 @@ function comp_jump(fixture: ComponentFixture<LibraryBrowseComponent>, label: str
 describe('LibraryBrowseComponent card view', () => {
   function setup(prefs: Partial<LibraryViewPreferencesDto>) {
     const fullPrefs = { viewMode: 'card', density: 'comfortable', sort: 'name', ...prefs } as LibraryViewPreferencesDto;
-    const libs: LibraryDto[] = [{ id: 'lib1', name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }];
+    const libs: LibraryDto[] = [{ id: 'lib1', name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }];
     const emptyPage: PageResponse<CatalogNodeDto> = { items: [], totalCount: 0, nextCursor: null, hasMore: false };
     const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
 
@@ -380,7 +380,7 @@ describe('LibraryBrowseComponent card view', () => {
 describe('LibraryBrowseComponent list columns', () => {
   function setup(prefs: Partial<LibraryViewPreferencesDto>) {
     const fullPrefs = { viewMode: 'list', density: 'comfortable', sort: 'name', ...prefs } as LibraryViewPreferencesDto;
-    const libs: LibraryDto[] = [{ id: 'lib1', name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }];
+    const libs: LibraryDto[] = [{ id: 'lib1', name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }];
     const emptyPage: PageResponse<CatalogNodeDto> = { items: [], totalCount: 0, nextCursor: null, hasMore: false };
     const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
 
@@ -475,7 +475,7 @@ describe('LibraryBrowseComponent mark unread', () => {
     const apiSpy = {
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
-      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
       getNode: vi.fn().mockReturnValue(of({} as CatalogNodeDto)),
@@ -570,7 +570,7 @@ describe('LibraryBrowseComponent range multi-select', () => {
     const apiSpy = {
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
-      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
       getNode: vi.fn().mockReturnValue(of({} as CatalogNodeDto)),
@@ -812,7 +812,7 @@ describe('LibraryBrowseComponent stale read-status refresh (1.7.1)', () => {
     const getProgress = vi.fn();
     const apiSpy = {
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
-      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
       getReadMark,
@@ -922,7 +922,7 @@ describe('LibraryBrowseComponent continue-row refresh (1.7.3)', () => {
       : vi.fn().mockReturnValue(of(initialPage));
     const apiSpy = {
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
-      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary,
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
       getReadMark: vi.fn().mockReturnValue(of({ itemId: '', isRead: false })),
@@ -1082,7 +1082,7 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
     const apiSpy = {
       getLibraryPreferences: vi.fn().mockReturnValue(of(prefs)),
       setLibraryPreferences,
-      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary,
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
       getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: opts.buckets ?? [] })),
@@ -1528,7 +1528,7 @@ describe('LibraryBrowseComponent view menu selected highlight (1.8.1)', () => {
     const apiSpy = {
       getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
-      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
       getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
@@ -1687,7 +1687,7 @@ describe('LibraryBrowseComponent "Recently updated" sort (1.12.0)', () => {
     const apiSpy = {
       getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
       setLibraryPreferences,
-      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary,
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
       getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
@@ -1863,7 +1863,7 @@ describe('LibraryBrowseComponent browse visual polish (1.17.0)', () => {
     const apiSpy = {
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode, density: 'comfortable', sort: 'name', direction: 'asc' })),
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
-      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
       getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
@@ -1968,7 +1968,7 @@ describe('LibraryBrowseComponent list-mode direct select (1.21.0)', () => {
     const apiSpy = {
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode, density: 'comfortable', sort: 'name', direction: 'asc' })),
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
-      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null }])),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
       getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),

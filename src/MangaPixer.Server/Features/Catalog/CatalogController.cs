@@ -88,6 +88,7 @@ public sealed class CatalogController : ControllerBase
             ItemCount = itemCounts.TryGetValue(l.Id, out var count) ? count : 0,
             LastScanCompleted = l.LastScanCompleted,
             DefaultReaderMode = (ReaderMode?)l.DefaultReaderMode,
+            Icon = l.Icon,
         }).ToList();
 
         return Ok(dtos);
@@ -127,6 +128,7 @@ public sealed class CatalogController : ControllerBase
             ItemCount = itemCount,
             LastScanCompleted = library.LastScanCompleted,
             DefaultReaderMode = (ReaderMode?)library.DefaultReaderMode,
+            Icon = library.Icon,
         });
     }
 

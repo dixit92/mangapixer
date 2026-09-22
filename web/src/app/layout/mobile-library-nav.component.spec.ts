@@ -16,7 +16,7 @@ import { LibraryDto } from '../core/api/api-types';
 describe('MobileLibraryNavComponent', () => {
   function create() {
     const libs: LibraryDto[] = [
-      { id: 'L1', name: 'Alpha', isScanning: false, itemCount: 3, lastScanCompleted: null, defaultReaderMode: null },
+      { id: 'L1', name: 'Alpha', isScanning: false, itemCount: 3, lastScanCompleted: null, defaultReaderMode: null, icon: null },
     ];
     const apiSpy = { getLibraries: vi.fn().mockReturnValue(of(libs)) };
 

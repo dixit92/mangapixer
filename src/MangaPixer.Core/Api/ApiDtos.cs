@@ -424,6 +424,12 @@ public sealed record LibraryDto
     /// folder.
     /// </summary>
     public ReaderMode? DefaultReaderMode { get; init; }
+
+    /// <summary>
+    /// Admin-picked icon name from <see cref="LibraryIcons.Allowed"/>, or
+    /// null for the client-derived default (a name-hashed monogram/glyph).
+    /// </summary>
+    public string? Icon { get; init; }
 }
 
 /// <summary>
@@ -552,6 +558,16 @@ public sealed record UpdateLibraryRequest
 public sealed record SetReaderModeRequest
 {
     public required ReaderMode ReaderMode { get; init; }
+}
+
+/// <summary>
+/// Request to set a library's icon. <see cref="Icon"/> must be a name from
+/// <see cref="LibraryIcons.Allowed"/>, or null to clear it back to the
+/// client-derived default.
+/// </summary>
+public sealed record SetLibraryIconRequest
+{
+    public string? Icon { get; init; }
 }
 
 /// <summary>

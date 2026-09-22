@@ -9,6 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../core/api/api.service';
 import { LibraryDto } from '../core/api/api-types';
 import { readerModeGlyph } from './reader-mode-glyph';
+import { LibraryIconComponent } from './library-icon/library-icon.component';
 
 /**
  * App-shell library navigator (1.5.0). Extracted out of `home.component`, where
@@ -41,7 +42,7 @@ import { readerModeGlyph } from './reader-mode-glyph';
 @Component({
   selector: 'app-library-sidebar',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule, MatTooltipModule],
+  imports: [CommonModule, RouterLink, MatIconModule, MatTooltipModule, LibraryIconComponent],
   template: `
     <nav class="sidebar" [class.collapsed]="collapsed() && !pageMode()" [class.page-mode]="pageMode()" aria-label="Libraries">
       @if (!pageMode()) {
@@ -73,7 +74,7 @@ import { readerModeGlyph } from './reader-mode-glyph';
            [class.active]="activeLibraryId() === lib.id"
            [attr.aria-current]="activeLibraryId() === lib.id ? 'page' : null"
            [matTooltip]="collapsed() ? lib.name : ''" matTooltipPosition="right">
-          <mat-icon>folder</mat-icon>
+          <app-library-icon [name]="lib.name" [icon]="lib.icon" [size]="20" />
           <span class="nav-label">{{ lib.name }}</span>
           @if (glyph(lib); as g) {
             <mat-icon class="nav-dir" [matTooltip]="g.label" [attr.aria-label]="'Reading direction: ' + g.label">{{ g.icon }}</mat-icon>
