@@ -23,6 +23,11 @@ services:
       - mangapixer-scratch:/scratch
       # Media mounts are supplied through compose.override.yaml (ignored)
       # Source media is mounted read-only to enforce the read-only invariant
+      # Optional: keep rotating DB backups on another disk. Add a writable
+      # bind (owned by 1000:1000), then pick "Custom folder" /backups in
+      # Administration > Backup settings, or pin it with (under environment:)
+      #   MangaPixer__Backups__Location: "/backups"
+      # - /path/to/archive/mangapixer-backups:/backups
     restart: unless-stopped
     logging:
       driver: local
