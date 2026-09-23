@@ -39,10 +39,14 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "mangapixer-http-" + Guid.NewGuid().ToString("N")[..8]);
     private readonly IReadOnlyDictionary<string, string?>? _extraConfiguration;
+    private readonly bool _rateLimitDisabled;
 
     public string DataRoot => Path.Combine(_tempRoot, "data");
     public string CacheRoot => Path.Combine(_tempRoot, "cache");
     public string ScratchRoot => Path.Combine(_tempRoot, "scratch");
+
+    /// <summary>The per-factory temp folder (parent of the three roots); tests may create siblings in it.</summary>
+    public string TempRoot => _tempRoot;
 
     /// <summary>
     /// xUnit's <c>IClassFixture&lt;T&gt;</c> requires the fixture type to
@@ -53,7 +57,7 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
     /// classes) and as an <c>IClassFixture</c> (e.g. SearchHttpTests,
     /// CatalogHttpTests) without breaking either usage.
     /// </summary>
-    public MangaPixerWebApplicationFactory() : this(null)
+    public MangaPixerWebApplicationFactory() : this(null, rateLimitDisabled: true)
     {
     }
 
@@ -67,11 +71,15 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
     /// contamination that comes with process-global state.
     /// </summary>
     public static MangaPixerWebApplicationFactory WithExtraConfiguration(
-        IReadOnlyDictionary<string, string?> extraConfiguration) => new(extraConfiguration);
+        IReadOnlyDictionary<string, string?> extraConfiguration,
+        bool rateLimitDisabled = true) => new(extraConfiguration, rateLimitDisabled);
 
-    private MangaPixerWebApplicationFactory(IReadOnlyDictionary<string, string?>? extraConfiguration)
+    private MangaPixerWebApplicationFactory(
+        IReadOnlyDictionary<string, string?>? extraConfiguration,
+        bool rateLimitDisabled)
     {
         _extraConfiguration = extraConfiguration;
+        _rateLimitDisabled = rateLimitDisabled;
 
         Directory.CreateDirectory(DataRoot);
         Directory.CreateDirectory(CacheRoot);
@@ -97,7 +105,7 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
         CacheRoot: CacheRoot,
         ScratchRoot: ScratchRoot,
         WorkerExecutablePath: "",
-        RateLimitDisabled: true,
+        RateLimitDisabled: _rateLimitDisabled,
         ExtraConfiguration: _extraConfiguration);
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

@@ -334,8 +334,7 @@ public sealed class OperationsController : ControllerBase
         var idClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
         UserEntity? user = null;
         if (idClaim is not null && long.TryParse(idClaim.Value, out var userId))
-            user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
-                .FirstOrDefaultAsync(_userManager.Users, u => u.Id == userId, ct);
+            user = await _backupSettingsService.FindUserAsync(userId, ct);
 
         if (user is null || !await _userManager.CheckPasswordAsync(user, password))
         {

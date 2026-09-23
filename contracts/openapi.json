@@ -96,38 +96,6 @@
         }
       }
     },
-    "/api/v1/operations/backup": {
-      "post": {
-        "tags": [
-          "Operations"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BackupRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BackupRequest"
-              }
-            },
-            "application/*\u002Bjson": {
-              "schema": {
-                "$ref": "#/components/schemas/BackupRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/v1/operations/backups": {
       "get": {
         "tags": [
@@ -157,6 +125,68 @@
         "tags": [
           "Operations"
         ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/operations/backups/settings": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Operations"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateBackupSettingsRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateBackupSettingsRequest"
+                  }
+                ]
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateBackupSettingsRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK"
@@ -2458,10 +2488,16 @@
           }
         }
       },
-      "BackupRequest": {
+      "BackupLocationUpdate": {
         "type": "object",
         "properties": {
-          "path": {
+          "mode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customLocation": {
             "type": [
               "null",
               "string"
@@ -2681,6 +2717,57 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "UpdateBackupSettingsRequest": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "intervalHours": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?(?:[eE][\u002B-]?\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "retentionCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "location": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BackupLocationUpdate"
+              }
+            ]
+          },
+          "currentPassword": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "validateOnly": {
+            "type": "boolean"
+          },
+          "adoptExistingMarker": {
+            "type": "boolean"
           }
         }
       },

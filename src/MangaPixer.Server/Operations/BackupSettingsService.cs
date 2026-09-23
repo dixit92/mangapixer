@@ -64,6 +64,11 @@ public sealed class BackupSettingsService
 
     public BackupSettingsDto GetSettings() => ToDto(_settings.Current);
 
+    /// <summary>The signed-in user, for the current-password re-authentication.</summary>
+    public Task<Persistence.Entities.UserEntity?> FindUserAsync(long userId, CancellationToken ct = default) =>
+        Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+            .FirstOrDefaultAsync(_db.Users, u => u.Id == userId, ct);
+
     public BackupSettingsDto ToDto(EffectiveBackupSettings s) => new()
     {
         Enabled = s.Enabled,
