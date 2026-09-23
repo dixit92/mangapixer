@@ -38,6 +38,11 @@ Set them to the owner of your host folders so the files on the host belong to yo
 |---|---|---|
 | `ASPNETCORE_URLS` | `http://+:8080` (set in the image) | Address and port the server listens on inside the container. |
 
+| `MangaPixer:Network:KnownProxies` (`MangaPixer__Network__KnownProxies`) | not set | Extra reverse-proxy IP addresses to trust, comma-separated (for example `203.0.113.7`). |
+| `MangaPixer:Network:KnownNetworks` (`MangaPixer__Network__KnownNetworks`) | not set | Extra reverse-proxy networks to trust, as comma-separated CIDR ranges (for example `203.0.113.0/24`). |
+
+The server always trusts proxies on loopback and the private IPv4 ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`); the two keys above add to that list, they do not replace it. Only set them if your reverse proxy connects from some other address. See [Reverse proxy and HTTPS](reverse-proxy-and-https.md#what-the-server-sees-behind-a-proxy).
+
 Leave `ASPNETCORE_URLS` alone in Docker. The image's health check calls `http://localhost:8080/health`. To use a different port, change the host side of the port mapping instead (see [Install with Docker](install-docker.md#reaching-the-server-from-other-devices)). The server speaks plain HTTP only. For HTTPS, see [Reverse proxy and HTTPS](reverse-proxy-and-https.md).
 
 ## Storage
@@ -49,7 +54,7 @@ Leave `ASPNETCORE_URLS` alone in Docker. The image's health check calls `http://
 | `MangaPixer:Storage:ScratchRoot` (`MangaPixer__Storage__ScratchRoot`) | `/scratch` in the image; otherwise `scratch` next to the binary | Temporary work folders for opening archives and for the YACReader import. Disposable. |
 | `MangaPixer:Storage:MediaRoot` (`MangaPixer__Storage__MediaRoot`) | `/media` | The only folder tree the admin **Browse…** picker can show when you register a library. It does not restrict what you can type into **Root Path** by hand. |
 | `MangaPixer:Storage:CacheBudgetBytes` (`MangaPixer__Storage__CacheBudgetBytes`) | `1073741824` (1 GiB) | Maximum size of the page cache, in bytes. The least recently used pages are evicted after a write pushes the cache over budget, and a full pass also runs once a day. |
-| `MangaPixer:Storage:ScratchBudgetBytes` (`MangaPixer__Storage__ScratchBudgetBytes`) | `1073741824` (1 GiB) | Size limit for temporary work folders, in bytes. Only solid RAR/7z archives need much scratch space. |
+| `MangaPixer:Storage:ScratchBudgetBytes` (`MangaPixer__Storage__ScratchBudgetBytes`) | `1073741824` (1 GiB) | Size limit for temporary work folders, in bytes. Pages are written here briefly while they are extracted, and the YACReader import unpacks its upload here. |
 
 Budgets are plain byte counts: `268435456` is 256 MiB, `4294967296` is 4 GiB. Relative paths are resolved against the server's working directory. You cannot register a library whose folder is inside a storage root or contains one.
 
@@ -91,14 +96,14 @@ The schedule, retention and location can also be changed in the **Backup setting
 | `MangaPixer:Security:RateLimit:Window` (`MangaPixer__Security__RateLimit__Window`) | `00:05:00` | Length of the counting window, as `hh:mm:ss`. |
 | `MangaPixer:Security:RateLimit:Disabled` (`MangaPixer__Security__RateLimit__Disabled`) | `false` | Turns the limiter off. Only for testing. |
 
-The counters are held in memory and reset when the server restarts. Separately, an account locks for 15 minutes after 5 wrong passwords; that is not configurable. Behind a reverse proxy every client appears to come from the proxy's IP address, so the per-IP limit is shared by everyone (see [Reverse proxy and HTTPS](reverse-proxy-and-https.md#what-the-server-sees-behind-a-proxy)).
+The counters are held in memory and reset when the server restarts. Separately, an account locks for 15 minutes after 5 wrong passwords; that is not configurable. Behind a reverse proxy the limit counts each client's real address, as long as the proxy is trusted and sends `X-Forwarded-For` (see [Reverse proxy and HTTPS](reverse-proxy-and-https.md#what-the-server-sees-behind-a-proxy)).
 
 ## Logging
 
 The log level is **not** set in configuration. It is controlled at runtime by an admin and goes back to `Information` every time the server restarts. The `Logging:LogLevel` entries in `appsettings.json` do not change the server's log output.
 
-- **In the web UI:** **MangaPixer Administration** > **Diagnostics** > **Log Level**. Choose `Verbose`, `Debug`, `Information`, `Warning`, `Error` or `Fatal`. The change applies immediately.
-- **With the API** (admin only): `GET /api/v1/operations/logging` returns the current level. `PUT /api/v1/operations/logging` changes it. The API can also raise the level for a single area, `Scanning`, `Media` or `Reading`, without flooding the log with everything else:
+- **In the web UI:** the **Debug Logging** card in **MangaPixer Administration**. **Global level** accepts `Verbose`, `Debug`, `Information`, `Warning`, `Error` or `Fatal`. Below it you can raise the level for a single area (**Scanning**, **Media** or **Reading**) without flooding the log with everything else; **Inherited from Global** makes an area follow the global level again. Changes apply immediately.
+- **With the API** (admin only): `GET /api/v1/operations/logging` returns the current levels and `PUT /api/v1/operations/logging` changes them. For a single area:
 
   ```json
   { "categories": [ { "name": "Scanning", "level": "Debug" } ] }
@@ -110,11 +115,19 @@ Framework noise (`Microsoft.AspNetCore`, `Microsoft.EntityFrameworkCore`) stays 
 
 Logs go to the container output and to files in `<DataRoot>/logs` (`mangapixer-<date>.log`, one file per day, a new file after 20 MB, 7 files kept). See [Troubleshooting](troubleshooting.md#logs) for what the logs contain and deliberately leave out.
 
+## Settings stored in the app
+
+A few server-wide settings are changed by an admin in **MangaPixer Administration** rather than in configuration, and are saved in the database:
+
+- **Backup settings**: schedule, retention and location (configuration values above take precedence).
+- **Update Checker**: off by default. When an admin ticks **Check for updates**, the server asks the GitHub Releases API for MangaPixer's latest release at most once a day (or when you select **Check now**) and shows **Update available** or **Up to date** in the admin page. The request carries no instance identifier, user data, paths or telemetry; it is the only call MangaPixer makes to the internet, and only while this setting is on.
+- **Library icons and reading directions**, set per library on the **Libraries** card.
+
 ## Fixed behavior
 
 These are built in and have no setting:
 
-- Sign-in sessions last 7 days from when you sign in.
+- Sign-in sessions last 7 days from your last activity.
 - Passwords need at least 8 characters, including a lowercase letter.
 - Expired sessions are cleaned up every hour. The cache-size pass runs daily.
 - Libraries are only scanned when an admin starts a scan.

@@ -7,7 +7,14 @@ curl http://127.0.0.1:8080/health          # Docker default port
 curl http://localhost:6266/health          # Unraid default port
 ```
 
-A running server answers `Healthy`. `/health/ready` returns the same. Both only confirm that the web server is up; they do not test the database or the archive worker. For those, look at the logs.
+A running server answers `Healthy`. The two endpoints check different things:
+
+| Endpoint | Checks | Answers |
+|---|---|---|
+| `/health` | The web server is up | `Healthy` |
+| `/health/ready` | The database can be opened and queried, and backups are working | `Healthy`; `Degraded` (still HTTP 200) if the [backup location is unavailable](#backups-stopped-backup-location-unavailable) or the last successful backup is overdue; `Unhealthy` (HTTP 503) if the database is not usable |
+
+Neither tests the archive helper processes; for those, look at the logs.
 
 The container's own health check calls `/health` every 30 seconds. Check it with:
 
@@ -45,16 +52,16 @@ Values of that kind are written as `[redacted]`. What you do see are internal ID
 
 To connect a log line to an item, use the item's ID. It is the last part of the reader's address (`/reader/<item-id>`), and it is also in the library view's links.
 
-**More detail.** In **MangaPixer Administration** > **Diagnostics**, set **Log Level** to `Debug`. The change is immediate and resets to `Information` when the server restarts. To turn up only one area (`Scanning`, `Media` or `Reading`), use the API described in [Configuration](configuration.md#logging).
+**More detail.** In the **Debug Logging** card of **MangaPixer Administration**, set **Global level** to `Debug`, or raise only one area (**Scanning**, **Media** or **Reading**). The change is immediate and resets to `Information` when the server restarts. See [Configuration](configuration.md#logging).
 
 ## I can't sign in
 
-- **"Too many login attempts. Please try again later."** Too many failed attempts for that username (5) or from your address (10) in 5 minutes. Wait a few minutes. Behind a reverse proxy, all users share one address; see [Reverse proxy and HTTPS](reverse-proxy-and-https.md#what-the-server-sees-behind-a-proxy).
+- **"Too many login attempts. Please try again later."** Too many failed attempts for that username (5) or from your address (10) in 5 minutes. Wait a few minutes. If everyone behind your reverse proxy gets this at once, the proxy is probably not sending `X-Forwarded-For`, so all users share its address; see [Reverse proxy and HTTPS](reverse-proxy-and-https.md#what-the-server-sees-behind-a-proxy).
 - **"Account is temporarily locked due to too many failed attempts."** The account had 5 wrong passwords. Wait 15 minutes.
 - **"This account has been disabled."** An admin disabled the account.
 - **Forgotten password:** another admin can use **Reset password** on your row in the **Users** list. There is no command-line reset. If the only admin account is lost, restore a database backup from a time when you still knew the password ([Backup and restore](backup-and-restore.md#restoring-a-backup)).
 - **The setup screen doesn't appear on a new install:** it only appears while the server has no accounts. If you mounted an existing data folder, sign in with an account from that database instead.
-- **You are signed out after a week:** sessions last 7 days. Changing your password also signs out all of your sessions.
+- **You are signed out after a week away:** a session ends after 7 days without activity. Changing your password also signs out all of your sessions, and an admin changing your role or resetting your password does the same.
 
 ## A scan does not pick up files
 
@@ -88,7 +95,7 @@ If a share was unmounted during a scan, don't worry about losing progress: a sca
 | "The source file is no longer available." | The file was moved or deleted since the last scan. Rescan. |
 | "The page could not be prepared in time; please retry." | Usually a drive spinning up, or a very large page. Try again. |
 
-`.cb7`/`.7z` archives and other *solid* archives are listed with a page count but cannot be read yet, and they show no cover. Repack them as `.cbz`.
+`.cb7`/`.7z` archives and other *solid* archives are listed in the library, but they are marked as unreadable when they are analyzed: they have no page count and no cover, and opening one shows "Solid archives are not yet supported for reading." Repack them as `.cbz`.
 
 ## Thumbnails are missing
 
@@ -100,6 +107,16 @@ Covers are generated in the background, so give them time after a large scan. Th
 4. Check the logs for worker errors. At start-up you should see `Worker process ready` and `Worker pool started`.
 
 Thumbnails live in `<data root>/thumbnails`. It is safe to delete that folder; the start-up pass rebuilds it.
+
+## Backups stopped: "Backup location unavailable"
+
+If you keep backups in a [custom folder](backup-and-restore.md#choosing-where-backups-are-kept) and that folder disappears (for example a network share that was not mounted when the server started), MangaPixer stops taking backups instead of quietly writing them to the data folder. You will see:
+
+- a red **Backup location unavailable** banner on the **Backup settings** card,
+- `Degraded` from `/health/ready`,
+- an entry in the audit trail.
+
+Make the folder available again (mount the share, or fix the bind mount in your container). The server notices on its own and backups resume. Before and after an upgrade or a restore, its safety snapshots are still written to the data folder, so those stay protected in the meantime. To keep backups in the data folder instead, choose **Default** in **Backup settings**.
 
 ## Permission errors (PUID / PGID)
 
