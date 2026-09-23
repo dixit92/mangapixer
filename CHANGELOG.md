@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.22.1] - 2026-09-23
+
 ### Changed
 
 - The Unraid template now mounts its media share at `/media/manga` and explains how to add more shares side by side (for example `/media/comics`). Mounting one share inside another could make Docker create a folder inside your media.
