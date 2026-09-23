@@ -10,17 +10,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Library icons.** Administrators can give each library its own icon from a curated set (Admin > Libraries). The icon replaces the generic folder glyph in the sidebar, the mobile library list, the home page, and the libraries page. A library without a chosen icon gets a distinct default derived from its name, so libraries are easier to tell apart out of the box. New admin endpoint `PUT /api/v1/admin/libraries/{id}/icon` and an optional `icon` field on libraries.
 - **Analytics for administrators.** A new Analytics section on the admin page shows library, content, processing and engagement totals, plus a per-user table (including your own account) with last sign-in, last reading activity, and counts of chapters completed, in progress, bookmarks and favorites. It shows counts and times only, never titles, file names or paths, and reading in a library a user marked Private is left out of that user's counts. New admin-only endpoints `GET /api/v1/admin/analytics/overview` and `GET /api/v1/admin/analytics/users`.
+- **Backup settings in the admin page.** A new Backup settings card turns scheduled backups on or off and sets the interval and how many snapshots to keep, without editing configuration or restarting. Values set in configuration still win and are shown as managed by configuration. New admin endpoints `GET` and `PUT /api/v1/operations/backups/settings`.
+- **Custom backup location.** Rotating backups can be kept in a folder of your choice (for example an archive disk or a NAS share) instead of the data folder, set in the Backup settings card (your current password is required) or with `MangaPixer:Backups:Location`. The server checks the folder before saving: it must be absolute and writable, its parent must exist, and it may not overlap the data, cache or scratch folders, your media or library folders, or system folders. If the folder later becomes unavailable (for example an unmounted share), backups pause and say so loudly (a banner in the admin page, the audit trail, and a Degraded `/health/ready`) instead of quietly filling the data disk. `MangaPixer:Backups:AllowLocationChange=false` locks the location. Pre-migration and pre-restore safety snapshots always stay in the data folder.
 - **Unraid template.** `deploy/unraid/mangapixer.xml` is an Unraid container template with the same hardened settings as the Unraid Compose file; `docs/install-unraid.md` explains how to install it until it is listed in Community Applications.
 
 ### Changed
 
 - **Lower idle memory.** The helper processes that open archives now shut down after sitting unused for a while (3 minutes by default) instead of running for as long as the server does, and the server no longer starts a second helper that it never used. A quiet server now uses roughly half the memory it did. The next page or scan starts a fresh helper, which adds about a fifth of a second to that first request. Tune with `MangaPixer:Media:WorkerIdleTimeoutSeconds` (`0` restores the old behaviour) and `MangaPixer:Media:MinWarmWorkers`.
+- Pre-migration and pre-restore safety snapshots are now pruned: the newest 3 of each kind are kept. After a restart the backup schedule continues from the newest snapshot, so frequent restarts no longer each take a backup and push older daily snapshots out.
 - The server now uses the .NET workstation garbage collector, which keeps its idle memory lower with no measured throughput cost (set `DOTNET_gcServer=1` to go back).
+
+### Removed
+
+- `POST /api/v1/operations/backup`, which wrote a database copy to any server path supplied in the request. Nothing in MangaPixer used it; use **Back up now** or the custom backup location instead. Strictly this removes an API route; it is listed here and under Security because it was an unsafe, unused endpoint.
 
 ### Fixed
 
 - The Rendering "Enhance" upscaler now frees all of its GPU memory: previously only part of it was released when the page size changed, and none of it when you left the reader or turned Enhance off.
 - Stopping the server (or an idle helper process) no longer waits five seconds and then force-kills each helper; helpers now exit promptly when asked to.
+
+### Security
+
+- Removed the unused `POST /api/v1/operations/backup` endpoint (see Removed): with an administrator session it could write a full database copy, including password hashes, to an arbitrary location, including source media folders or a network share on Windows.
+- Backup failures no longer write absolute folder paths into the server log.
 
 ## [1.21.1] - 2026-09-21
 
