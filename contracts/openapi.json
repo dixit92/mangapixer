@@ -1695,6 +1695,30 @@
         }
       }
     },
+    "/api/v1/admin/analytics/overview": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/analytics/users": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/libraries/browse": {
       "get": {
         "tags": [
@@ -2871,6 +2895,9 @@
     },
     {
       "name": "Auth"
+    },
+    {
+      "name": "Analytics"
     },
     {
       "name": "Admin"

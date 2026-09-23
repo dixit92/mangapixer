@@ -121,6 +121,12 @@ public static class HostingServicesExtensions
         // this only adds read/write access on top.
         services.AddScoped<com.lifepixer.mangapixer.Server.Features.Admin.AuditService>();
 
+        // Admin analytics read surface (1.22.0 lane E): on-demand aggregation
+        // over library/content/engagement counts, reusing DiagnosticsService
+        // (registered separately via AddScoped<DiagnosticsService>() in
+        // Program.cs) where it overlaps.
+        services.AddScoped<com.lifepixer.mangapixer.Server.Features.Analytics.AnalyticsService>();
+
         // Hosted services — order matters for startup recovery, which runs
         // before the worker pool starts dispatching. The thumbnail backfill
         // runs after the worker pool so it can dispatch generation jobs.
