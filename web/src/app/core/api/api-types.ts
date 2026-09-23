@@ -739,3 +739,63 @@ export interface UpdateCheckStatusDto {
 export interface UpdateCheckSettingsRequest {
   enabled: boolean;
 }
+
+/**
+ * Backup settings (1.22.0). Mirrors `BackupSettingsDto` on the server. Every
+ * field carries its source; `configuration`-sourced fields are read-only in the
+ * UI. The default location is never sent as a path (`locationKind: 'default'`
+ * means "inside the data folder"); `customLocation` is what an admin or
+ * operator typed.
+ */
+export type BackupSettingSource = 'default' | 'settings' | 'configuration';
+export type BackupLocationStatus = 'ok' | 'unavailable' | 'invalid' | 'unknown';
+
+export interface BackupSettingsDto {
+  enabled: boolean;
+  enabledSource: BackupSettingSource;
+  intervalHours: number;
+  intervalHoursSource: BackupSettingSource;
+  retentionCount: number;
+  retentionCountSource: BackupSettingSource;
+  locationKind: 'default' | 'custom';
+  locationSource: BackupSettingSource;
+  customLocation: string | null;
+  locationChangeAllowed: boolean;
+  locationStatus: BackupLocationStatus;
+  platform: 'linux' | 'windows' | null;
+}
+
+/**
+ * Partial update (`UpdateBackupSettingsRequest`); omitted fields stay unchanged.
+ * `currentPassword` is required whenever `location` is present (also for
+ * `validateOnly`, the "Test" action).
+ */
+export interface UpdateBackupSettingsRequest {
+  enabled?: boolean;
+  intervalHours?: number;
+  retentionCount?: number;
+  location?: { mode: 'default' | 'custom'; customLocation?: string };
+  currentPassword?: string;
+  validateOnly?: boolean;
+  adoptExistingMarker?: boolean;
+}
+
+/** Result of a backup settings PUT (`BackupSettingsUpdateResultDto`). */
+export interface BackupSettingsUpdateResultDto {
+  settings: BackupSettingsDto;
+  validateOnly: boolean;
+  willCreate: boolean;
+  locationChanged: boolean;
+  warnings: string[];
+}
+
+/**
+ * 1.22.0 additions to the rotating backup status (interface merge, so the
+ * original declaration above stays untouched): the location KIND and health,
+ * never the location itself.
+ */
+export interface RotatingBackupStatusDto {
+  locationKind?: 'default' | 'custom';
+  locationStatus?: BackupLocationStatus;
+  lastFailureCode?: string | null;
+}

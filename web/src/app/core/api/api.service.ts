@@ -63,6 +63,9 @@ import {
   SystemInfoDto,
   UpdateCheckSettingsRequest,
   UpdateCheckStatusDto,
+  BackupSettingsDto,
+  BackupSettingsUpdateResultDto,
+  UpdateBackupSettingsRequest,
   UpdateLibraryRequest,
   UpdateLogLevelRequest,
   UpdateProgressRequest,
@@ -497,6 +500,19 @@ export class ApiService {
     const form = new FormData();
     form.append('file', file, file.name);
     return this.post<RestoreStageResponseDto>('/operations/restore', form);
+  }
+
+  /** Effective backup settings with their sources (admin, 1.22.0). */
+  getBackupSettings(): Observable<BackupSettingsDto> {
+    return this.get<BackupSettingsDto>('/operations/backups/settings');
+  }
+
+  /**
+   * Updates the backup settings (partial). A request with `location` needs the
+   * admin's `currentPassword`; `validateOnly` runs every check and saves nothing.
+   */
+  updateBackupSettings(request: UpdateBackupSettingsRequest): Observable<BackupSettingsUpdateResultDto> {
+    return this.put<BackupSettingsUpdateResultDto>('/operations/backups/settings', request);
   }
 
   /** Update Checker status (admin). Pass force=true for the "Check now" action. */
