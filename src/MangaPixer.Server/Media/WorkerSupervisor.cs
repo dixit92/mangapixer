@@ -34,6 +34,7 @@ public sealed class WorkerSupervisor : IAsyncDisposable
     private int _consecutiveStartupFailures;
     private bool _isRunning;
     private bool _isReady;
+    private volatile bool _stopRequested;
 
     /// <summary>
     /// Fired when a worker message is received on stdout.
@@ -103,8 +104,13 @@ public sealed class WorkerSupervisor : IAsyncDisposable
                 startInfo.ArgumentList.Add(arg);
         }
 
-        _process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-        _process.Exited += (_, _) => OnProcessExited(_process.ExitCode);
+        // Capture the process locally: KillAsync disposes and nulls _process,
+        // and the Exited event can run after that on a thread-pool thread
+        // (routine now that idle workers are retired at runtime, 1.22.0).
+        var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+        process.Exited += (_, _) => OnProcessExited(TryGetExitCode(process));
+        _process = process;
+        _stopRequested = false;
 
         _logger?.LogDebug(LogEvents.Worker.SupervisorProcessStarting, "Starting worker process");
         if (!_process.Start())
@@ -222,21 +228,34 @@ public sealed class WorkerSupervisor : IAsyncDisposable
     /// Sends a shutdown message and waits for the worker to exit gracefully.
     /// After the cancellation grace period, force-kills the process.
     /// </summary>
-    public async Task StopAsync(CancellationToken ct = default)
+    public Task StopAsync(CancellationToken ct = default) => StopAsync("server_shutdown", ct);
+
+    /// <summary>
+    /// Graceful stop with an explicit <see cref="WorkerShutdown.Reason"/>
+    /// (e.g. "idle_timeout" for idle retirement). The resulting exit is
+    /// expected, so it is not logged as an unexpected exit.
+    /// </summary>
+    public async Task StopAsync(string reason, CancellationToken ct = default)
     {
         if (!_isRunning || _process is null)
             return;
 
-        _logger?.LogDebug(LogEvents.Worker.SupervisorGracefulStop, "Stopping worker process (pid {Pid}) gracefully (grace {GraceMs}ms)",
-            _process.Id, _options.CancellationGracePeriod.TotalMilliseconds);
+        _stopRequested = true;
+        _logger?.LogDebug(LogEvents.Worker.SupervisorGracefulStop, "Stopping worker process (pid {Pid}) gracefully (reason {Reason}, grace {GraceMs}ms)",
+            _process.Id, reason, _options.CancellationGracePeriod.TotalMilliseconds);
 
         // Send shutdown message
         try
         {
             var shutdown = WorkerProtocolFraming.CreateEnvelope("shutdown", "shutdown",
-                new WorkerShutdown { Reason = "server_shutdown" });
+                new WorkerShutdown { Reason = reason });
             await SendMessageAsync(shutdown, CancellationToken.None);
         }
+        catch { /* best effort */ }
+
+        // Then close stdin: EOF also ends the worker's read loop, so the stop
+        // stays graceful even if the shutdown message is not acted on.
+        try { _stdin?.Close(); }
         catch { /* best effort */ }
 
         // Wait for exit with cancellation grace
@@ -341,8 +360,17 @@ public sealed class WorkerSupervisor : IAsyncDisposable
     {
         _isRunning = false;
         _isReady = false;
-        _logger?.LogWarning(LogEvents.Worker.SupervisorProcessExited, "Worker process exited unexpectedly with code {ExitCode}", exitCode);
+        if (_stopRequested)
+            _logger?.LogDebug(LogEvents.Worker.SupervisorProcessExited, "Worker process exited after stop request with code {ExitCode}", exitCode);
+        else
+            _logger?.LogWarning(LogEvents.Worker.SupervisorProcessExited, "Worker process exited unexpectedly with code {ExitCode}", exitCode);
         OnWorkerExited?.Invoke(exitCode);
+    }
+
+    private static int TryGetExitCode(Process process)
+    {
+        try { return process.ExitCode; }
+        catch (InvalidOperationException) { return -1; }
     }
 
     private TimeSpan GetBackoffDelay(int failureCount)

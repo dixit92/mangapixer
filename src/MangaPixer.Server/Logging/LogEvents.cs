@@ -169,6 +169,8 @@ public static class LogEvents
         public const int JobTimedOut = 4024;
         public const int JobProcessingFailed = 4026;
         public const int PersistAfterJobFailed = 4027;
+        public const int WorkerRetiredIdle = 4028;
+        public const int WorkerRetireFailed = 4029;
 
         public const int HostedPoolStarted = 4031;
         public const int PoolStartFailed = 4032;

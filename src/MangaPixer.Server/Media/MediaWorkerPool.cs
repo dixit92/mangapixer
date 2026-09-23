@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 /// JobScheduler to available workers. Handles worker lifecycle:
 /// - Start workers on demand
 /// - Restart crashed workers with backoff
+/// - Retire workers that stay idle past WorkerIdleTimeout (1.22.0), keeping MinWarmWorkers
 /// - Stop workers on server shutdown
 /// - Enforce at most MaxConcurrentJobs active jobs
 ///
@@ -37,6 +38,8 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     private int _failedSinceSummary;
     private bool _isStarted;
     private bool _isShuttingDown;
+    private int _nextWorkerId;
+    private Task? _retirementLoop;
 
     /// <summary>
     /// Count of <see cref="AcquireSlotAsync"/> calls (reader demand: on-demand
@@ -81,20 +84,130 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     }
 
     /// <summary>
-    /// Starts the worker pool. Initializes scratch root and pre-starts workers.
+    /// Starts the worker pool. Initializes scratch root, pre-starts workers and,
+    /// when <see cref="WorkerPoolOptions.WorkerIdleTimeout"/> is positive, starts
+    /// the idle-retirement sweep.
     /// </summary>
     public async Task StartAsync(CancellationToken ct = default)
     {
         if (_isStarted)
             return;
 
-        _logger.LogInformation(LogEvents.Worker.PoolStarting, "Starting worker pool (max concurrent jobs: {Max})", _options.MaxConcurrentJobs);
+        _logger.LogInformation(LogEvents.Worker.PoolStarting, "Starting worker pool (max concurrent jobs: {Max}, idle timeout {IdleTimeoutSeconds}s, min warm {MinWarm})",
+            _options.MaxConcurrentJobs, _options.WorkerIdleTimeout.TotalSeconds, MinWarmWorkers);
         _scratchManager.Initialize();
         _isStarted = true;
 
-        // Pre-start one background worker
-        await StartWorkerAsync(ct);
+        // Pre-start at least one worker even when MinWarmWorkers is 0: it proves
+        // the worker launches (a broken install surfaces at boot, not on the
+        // first page) and serves the startup scan that usually follows. Without
+        // a warm floor it retires like any other worker once the pool goes quiet.
+        var prestart = Math.Max(1, MinWarmWorkers);
+        for (var i = 0; i < prestart; i++)
+            await StartWorkerAsync(ct);
         _logger.LogInformation(LogEvents.Worker.PoolStarted, "Worker pool started with {Count} worker(s)", WorkerCount);
+
+        if (_options.WorkerIdleTimeout > TimeSpan.Zero)
+            _retirementLoop = Task.Run(() => RetirementLoopAsync(_readCts.Token), CancellationToken.None);
+    }
+
+    /// <summary>
+    /// <see cref="WorkerPoolOptions.MinWarmWorkers"/> clamped to
+    /// [0, <see cref="WorkerPoolOptions.MaxConcurrentJobs"/>].
+    /// </summary>
+    private int MinWarmWorkers => Math.Clamp(_options.MinWarmWorkers, 0, Math.Max(1, _options.MaxConcurrentJobs));
+
+    /// <summary>
+    /// Periodically retires idle workers until the pool stops. Runs on the
+    /// pool's lifetime token, which <see cref="StopAsync"/> cancels and then
+    /// awaits, so a retirement in progress finishes before shutdown stops the
+    /// remaining workers.
+    /// </summary>
+    private async Task RetirementLoopAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(WorkerRetirementPolicy.SweepInterval(_options.WorkerIdleTimeout));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                try
+                {
+                    await RetireIdleWorkersAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(LogEvents.Worker.WorkerRetireFailed, ex, "Idle worker retirement failed: {Error}", ex.GetType().Name);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    /// <summary>
+    /// Retires every worker the <see cref="WorkerRetirementPolicy"/> selects.
+    /// Selection and removal happen atomically under <see cref="_poolLock"/>,
+    /// the same lock every slot claim takes, so a selected worker is idle at
+    /// removal and can no longer be claimed afterwards: dispatch and reader
+    /// demand simply see a smaller pool and start a fresh worker if they need
+    /// one. The process is then stopped gracefully (shutdown message, grace
+    /// period, kill) outside the lock. Returns the number retired.
+    /// </summary>
+    internal async Task<int> RetireIdleWorkersAsync()
+    {
+        if (_isShuttingDown || _options.WorkerIdleTimeout <= TimeSpan.Zero)
+            return 0;
+
+        List<WorkerSlot> retiring;
+        int remaining;
+        var now = Environment.TickCount64;
+        lock (_poolLock)
+        {
+            var snapshot = _workers.Select(w => new WorkerIdleState(w.Id, w.IsBusy, w.IdleSinceMs)).ToList();
+            var ids = WorkerRetirementPolicy.SelectForRetirement(snapshot, now, _options.WorkerIdleTimeout, MinWarmWorkers);
+            if (ids.Count == 0)
+                return 0;
+            retiring = _workers.Where(w => ids.Contains(w.Id)).ToList();
+            foreach (var slot in retiring)
+            {
+                slot.IsRetiring = true;
+                _workers.Remove(slot);
+            }
+            remaining = _workers.Count;
+        }
+
+        foreach (var slot in retiring)
+        {
+            _logger.LogInformation(LogEvents.Worker.WorkerRetiredIdle, "Retiring worker {Id} after {IdleSeconds:F0}s idle; pool now {Count}/{Max}",
+                slot.Id, (now - slot.IdleSinceMs) / 1000.0, remaining, _options.MaxConcurrentJobs);
+            try
+            {
+                await slot.Supervisor.StopAsync("idle_timeout");
+                await slot.Supervisor.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(LogEvents.Worker.WorkerRetireFailed, ex, "Error retiring worker {Id}: {Error}", slot.Id, ex.GetType().Name);
+            }
+        }
+        return retiring.Count;
+    }
+
+    /// <summary>
+    /// Marks a claimed slot free again under <see cref="_poolLock"/>. When
+    /// <paramref name="didWork"/> is true the slot's idle clock restarts; a
+    /// slot claimed and released without running anything (empty queue race)
+    /// keeps its original idle time so polling can never keep a worker alive.
+    /// </summary>
+    private void ReleaseSlot(WorkerSlot slot, bool didWork = true)
+    {
+        lock (_poolLock)
+        {
+            slot.IsBusy = false;
+            if (didWork)
+                slot.IdleSinceMs = Environment.TickCount64;
+        }
     }
 
     /// <summary>
@@ -153,6 +266,23 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             if (slot is not null)
                 slot.IsBusy = true;
             return slot;
+        }
+    }
+
+    /// <summary>
+    /// Re-checks the reservation rule for a slot that was claimed at creation
+    /// by background dispatch. Releases it (without restarting its idle clock)
+    /// and returns false when keeping it would exceed
+    /// <see cref="EffectiveBackgroundCap"/>.
+    /// </summary>
+    private bool KeepBackgroundClaim(WorkerSlot slot)
+    {
+        lock (_poolLock)
+        {
+            if (_workers.Count(w => w.IsBusy) <= EffectiveBackgroundCap())
+                return true;
+            slot.IsBusy = false;
+            return false;
         }
     }
 
@@ -227,6 +357,16 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         if (_isShuttingDown)
             return false;
 
+        // Nothing queued: do not claim (which would reset a slot's idle clock)
+        // and above all do not start a worker. Before 1.22.0 an empty-queue
+        // poll with every existing worker busy on a reader extract started an
+        // extra worker for nothing, which then idled forever.
+        if (_scheduler.PendingCount == 0)
+        {
+            LogThroughputSummaryIfPending();
+            return false;
+        }
+
         var slot = TryClaimBackgroundSlot();
         if (slot is null)
         {
@@ -237,7 +377,9 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                     WorkerCount, _options.MaxConcurrentJobs);
                 try
                 {
-                    await StartWorkerAsync(ct);
+                    // Claimed at creation: the reservation above already
+                    // proved busy workers stay under the background cap.
+                    slot = await StartWorkerAsync(ct, claim: true);
                 }
                 catch (Exception ex)
                 {
@@ -248,7 +390,14 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                 {
                     ReleaseWorkerStartReservation();
                 }
-                slot = TryClaimBackgroundSlot();
+
+                // A reader may have started waiting while the worker spawned;
+                // if so, hand the new worker to it (reservation rule) instead.
+                if (!KeepBackgroundClaim(slot))
+                {
+                    SignalDispatch();
+                    return false;
+                }
             }
         }
 
@@ -265,7 +414,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         var job = _scheduler.Dequeue();
         if (job is null)
         {
-            slot.IsBusy = false;
+            ReleaseSlot(slot, didWork: false);
             SignalDispatch();
             _logger.LogDebug(LogEvents.Worker.PoolIdleSlotReleased, "Slot {Slot} reserved but queue is empty; releasing slot", slot.Id);
             LogThroughputSummaryIfPending();
@@ -425,7 +574,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
         finally
         {
-            slot.IsBusy = false;
+            ReleaseSlot(slot);
             SignalDispatch();
         }
     }
@@ -457,15 +606,12 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 
                 if (TryReserveWorkerStart(_options.MaxConcurrentJobs))
                 {
-                    try { await StartWorkerAsync(ct); }
+                    // The started worker joins the pool already claimed for this
+                    // reader, so neither background dispatch nor idle retirement
+                    // can take it first.
+                    try { return await StartWorkerAsync(ct, claim: true); }
                     catch (Exception ex) { _logger.LogWarning(LogEvents.Worker.ExtractWorkerStartFailed, ex, "Failed to start worker for extract: {Error}", ex.GetType().Name); }
                     finally { ReleaseWorkerStartReservation(); }
-
-                    lock (_poolLock)
-                    {
-                        slot = _workers.FirstOrDefault(w => !w.IsBusy);
-                        if (slot is not null) { slot.IsBusy = true; return slot; }
-                    }
                 }
 
                 if (DateTime.UtcNow >= deadline)
@@ -493,6 +639,15 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         _logger.LogInformation(LogEvents.Worker.PoolStopping, "Stopping worker pool ({Count} workers)", WorkerCount);
         _isShuttingDown = true;
         try { _readCts.Cancel(); } catch (ObjectDisposedException) { }
+
+        // Let an in-progress retirement finish stopping its worker (bounded by
+        // the supervisor's grace period) before the remaining workers stop.
+        if (_retirementLoop is { } retirementLoop)
+        {
+            try { await retirementLoop.WaitAsync(_options.CancellationGracePeriod + TimeSpan.FromSeconds(1), ct); }
+            catch (Exception) { /* best effort */ }
+            _retirementLoop = null;
+        }
 
         List<WorkerSlot> workers;
         lock (_poolLock)
@@ -567,7 +722,12 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     /// </summary>
     public int SchedulerPendingCount => _scheduler.PendingCount;
 
-    private async Task StartWorkerAsync(CancellationToken ct)
+    /// <summary>
+    /// Starts one worker process and adds it to the pool. With
+    /// <paramref name="claim"/> the slot is added already busy (atomically, under
+    /// the pool lock) and owned by the caller, who must release it.
+    /// </summary>
+    private async Task<WorkerSlot> StartWorkerAsync(CancellationToken ct, bool claim = false)
     {
         var supervisor = CreateSupervisor();
         _logger.LogDebug(LogEvents.Worker.WorkerProcessStartAttempt, "Starting worker process (attempt {Count}/{Max})", _workers.Count + 1, _options.MaxConcurrentJobs);
@@ -578,13 +738,18 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 
             var slot = new WorkerSlot
             {
-                Id = _workers.Count,
+                Id = Interlocked.Increment(ref _nextWorkerId) - 1,
                 Supervisor = supervisor,
+                IdleSinceMs = Environment.TickCount64,
+                IsBusy = claim,
             };
 
-            // Set up crash handler
+            // Set up crash handler. A retired worker is already out of the
+            // pool and its exit is expected, so it is not reported as a crash.
             supervisor.OnWorkerExited += exitCode =>
             {
+                if (slot.IsRetiring)
+                    return;
                 _logger.LogWarning(LogEvents.Worker.WorkerExited, "Worker {Id} exited with code {ExitCode}", slot.Id, exitCode);
                 lock (_poolLock)
                 {
@@ -605,6 +770,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             // loop, or competing readers would drop responses (a fast reply to job N
             // could be consumed by job N-1's orphaned loop and lost).
             slot.ReadLoop = Task.Run(() => supervisor.ReadMessagesAsync(_readCts.Token), _readCts.Token);
+            return slot;
         }
         catch (Exception ex)
         {
@@ -812,7 +978,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
         finally
         {
-            slot.IsBusy = false;
+            ReleaseSlot(slot);
             // Scratch workspace is cleaned up by the using statement
         }
 
@@ -956,6 +1122,12 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         public required WorkerSupervisor Supervisor { get; init; }
         public bool IsBusy { get; set; }
         public Task? ReadLoop { get; set; }
+
+        /// <summary>Monotonic time (ms) the slot last finished work; guarded by the pool lock.</summary>
+        public long IdleSinceMs { get; set; }
+
+        /// <summary>Set once, under the pool lock, when the slot is removed for idle retirement.</summary>
+        public bool IsRetiring { get; set; }
     }
 }
 

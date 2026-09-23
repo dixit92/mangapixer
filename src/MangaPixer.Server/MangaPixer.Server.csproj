@@ -3,6 +3,13 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <!-- Workstation GC (concurrent stays on). The Web SDK defaults to Server GC,
+         whose large gen0 budget let an idle server keep ~20 MiB more post-burst
+         garbage (measured 1.22.0: idle RSS 248 vs 227 MiB, same burst throughput
+         and page latency). A self-hosted reader server runs few concurrent
+         requests and does its image work in the worker process, so it gains
+         nothing from per-core GC heaps. Override with DOTNET_gcServer=1. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
   </PropertyGroup>
 
   <ItemGroup>
