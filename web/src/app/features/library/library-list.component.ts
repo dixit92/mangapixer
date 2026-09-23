@@ -2,11 +2,11 @@ import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
-import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 
 import { ApiService } from '../../core/api/api.service';
 import { LibraryDto } from '../../core/api/api-types';
+import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
 
 /**
  * Library list component. Shows all libraries the user can access.
@@ -14,7 +14,7 @@ import { LibraryDto } from '../../core/api/api-types';
 @Component({
   selector: 'app-library-list',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatCardModule, MatIconModule, MatChipsModule],
+  imports: [CommonModule, RouterLink, MatCardModule, MatChipsModule, LibraryIconComponent],
   template: `
     <h2>Libraries</h2>
     @if (loading()) {
@@ -26,7 +26,7 @@ import { LibraryDto } from '../../core/api/api-types';
         @for (lib of libraries(); track lib.id) {
           <mat-card [routerLink]="['/libraries', lib.id]" class="library-card">
             <mat-card-content>
-              <mat-icon>folder</mat-icon>
+              <app-library-icon [name]="lib.name" [icon]="lib.icon" [size]="48" />
               <h3>{{ lib.name }}</h3>
               @if (lib.itemCount !== null) {
                 <p>{{ lib.itemCount }} items</p>
@@ -49,7 +49,6 @@ import { LibraryDto } from '../../core/api/api-types';
       gap: 16px;
     }
     .library-card { cursor: pointer; }
-    mat-icon { font-size: 48px; width: 48px; height: 48px; color: #666; }
     h3 { margin: 8px 0 4px 0; }
     p { margin: 0; color: #666; font-size: 14px; }
   `],

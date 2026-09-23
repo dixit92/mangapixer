@@ -205,6 +205,13 @@ export interface LibraryDto {
   lastScanCompleted: string | null;
   /** Global default reader mode for the library (1.2.0), or null to inherit. */
   defaultReaderMode: ReaderMode | null;
+  /** Admin-picked icon name (1.22.0), or null for the client-derived default. */
+  icon: string | null;
+}
+
+/** Request to set a library's icon (1.22.0). Null clears back to the default. */
+export interface SetLibraryIconRequest {
+  icon: string | null;
 }
 
 /** Resolved effective default reader mode for an item (1.2.0). */
@@ -731,4 +738,116 @@ export interface UpdateCheckStatusDto {
 /** Request to change the Update Checker opt-in (`UpdateCheckSettingsRequest`). */
 export interface UpdateCheckSettingsRequest {
   enabled: boolean;
+}
+
+// --- Admin analytics (1.22.0 lane E) ---
+
+/**
+ * Instance-wide analytics overview (`AnalyticsOverviewDto`). Counts and a
+ * generation timestamp only — on-demand aggregation, no rollup table.
+ */
+export interface AnalyticsOverviewDto {
+  generatedAt: string;
+
+  libraryCount: number;
+  totalNodeCount: number;
+  archiveNodeCount: number;
+  folderNodeCount: number;
+  tombstonedNodeCount: number;
+  analyzedItemCount: number;
+  pendingItemCount: number;
+  failedItemCount: number;
+
+  userCount: number;
+  activeUserCount: number;
+  adminCount: number;
+  pendingActivationCount: number;
+
+  readingProgressCount: number;
+  completedItemCount: number;
+  inProgressItemCount: number;
+  bookmarkCount: number;
+  favoriteCount: number;
+  activeSessionCount: number;
+}
+
+/**
+ * One row of the per-user analytics table (`AnalyticsUserRowDto`). Counts and
+ * timestamps only — never item names or paths. Reading activity in a library
+ * the user marked Private is excluded from their own counts (owner decision
+ * 2026-09-22, privacy-conservative default).
+ */
+export interface AnalyticsUserRowDto {
+  id: string;
+  username: string;
+  isAdmin: boolean;
+  isActive: boolean;
+  isPendingActivation: boolean;
+  lastLoginAt: string | null;
+
+  chaptersCompleted: number;
+  chaptersInProgress: number;
+  bookmarkCount: number;
+  favoriteCount: number;
+  lastReadingActivityAt: string | null;
+}
+
+/**
+ * Backup settings (1.22.0). Mirrors `BackupSettingsDto` on the server. Every
+ * field carries its source; `configuration`-sourced fields are read-only in the
+ * UI. The default location is never sent as a path (`locationKind: 'default'`
+ * means "inside the data folder"); `customLocation` is what an admin or
+ * operator typed.
+ */
+export type BackupSettingSource = 'default' | 'settings' | 'configuration';
+export type BackupLocationStatus = 'ok' | 'unavailable' | 'invalid' | 'unknown';
+
+export interface BackupSettingsDto {
+  enabled: boolean;
+  enabledSource: BackupSettingSource;
+  intervalHours: number;
+  intervalHoursSource: BackupSettingSource;
+  retentionCount: number;
+  retentionCountSource: BackupSettingSource;
+  locationKind: 'default' | 'custom';
+  locationSource: BackupSettingSource;
+  customLocation: string | null;
+  locationChangeAllowed: boolean;
+  locationStatus: BackupLocationStatus;
+  platform: 'linux' | 'windows' | null;
+}
+
+/**
+ * Partial update (`UpdateBackupSettingsRequest`); omitted fields stay unchanged.
+ * `currentPassword` is required whenever `location` is present (also for
+ * `validateOnly`, the "Test" action).
+ */
+export interface UpdateBackupSettingsRequest {
+  enabled?: boolean;
+  intervalHours?: number;
+  retentionCount?: number;
+  location?: { mode: 'default' | 'custom'; customLocation?: string };
+  currentPassword?: string;
+  validateOnly?: boolean;
+  adoptExistingMarker?: boolean;
+}
+
+/** Result of a backup settings PUT (`BackupSettingsUpdateResultDto`). */
+export interface BackupSettingsUpdateResultDto {
+  settings: BackupSettingsDto;
+  validateOnly: boolean;
+  willCreate: boolean;
+  locationChanged: boolean;
+  warnings: string[];
+}
+
+/**
+ * 1.22.0 additions to the rotating backup status (interface merge, so the
+ * original declaration above stays untouched): the location KIND and health,
+ * never the location itself.
+ */
+export interface RotatingBackupStatusDto {
+  locationKind?: 'default' | 'custom';
+  locationStatus?: BackupLocationStatus;
+  lastFailureCode?: string | null;
 }

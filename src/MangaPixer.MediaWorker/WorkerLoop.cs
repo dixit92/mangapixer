@@ -80,6 +80,13 @@ public sealed class WorkerLoop
                 continue;
             }
 
+            // Graceful shutdown ends the loop (and so the process). Handled
+            // here, not in HandleMessageAsync: a `return` there only ended that
+            // one message, so the worker went back to reading stdin and had to
+            // be force-killed after the server's grace period.
+            if (envelope.Type == "shutdown")
+                break;
+
             try
             {
                 await HandleMessageAsync(envelope);
@@ -118,11 +125,6 @@ public sealed class WorkerLoop
                     var ack = WorkerProtocolFraming.CreateEnvelope("cancelled", envelope.CorrelationId, new { });
                     await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, ack, _shutdownToken);
                     break;
-                }
-            case "shutdown":
-                {
-                    // Graceful shutdown — exit the loop
-                    return;
                 }
             default:
                 _stderr.WriteLine($"Unknown message type: {envelope.Type}");

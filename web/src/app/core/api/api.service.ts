@@ -8,6 +8,8 @@ import {
   ActivateAccountRequest,
   AddBookmarkRequest,
   AddBookmarkResult,
+  AnalyticsOverviewDto,
+  AnalyticsUserRowDto,
   ApiError,
   AdminUserDto,
   AuthUserDto,
@@ -63,6 +65,9 @@ import {
   SystemInfoDto,
   UpdateCheckSettingsRequest,
   UpdateCheckStatusDto,
+  BackupSettingsDto,
+  BackupSettingsUpdateResultDto,
+  UpdateBackupSettingsRequest,
   UpdateLibraryRequest,
   UpdateLogLevelRequest,
   UpdateProgressRequest,
@@ -382,6 +387,11 @@ export class ApiService {
     return this.delete<void>(`/admin/folders/${nodeId}/reader-default`);
   }
 
+  // Library icon (1.22.0) — admin-picked icon name, or null to clear back to the default.
+  setLibraryIcon(libraryId: string, icon: string | null): Observable<LibraryDto> {
+    return this.put<LibraryDto>(`/admin/libraries/${libraryId}/icon`, { icon });
+  }
+
   triggerScan(libraryId: string): Observable<ScanTriggeredDto> {
     return this.post<ScanTriggeredDto>(`/admin/libraries/${libraryId}/scan`, {});
   }
@@ -494,6 +504,19 @@ export class ApiService {
     return this.post<RestoreStageResponseDto>('/operations/restore', form);
   }
 
+  /** Effective backup settings with their sources (admin, 1.22.0). */
+  getBackupSettings(): Observable<BackupSettingsDto> {
+    return this.get<BackupSettingsDto>('/operations/backups/settings');
+  }
+
+  /**
+   * Updates the backup settings (partial). A request with `location` needs the
+   * admin's `currentPassword`; `validateOnly` runs every check and saves nothing.
+   */
+  updateBackupSettings(request: UpdateBackupSettingsRequest): Observable<BackupSettingsUpdateResultDto> {
+    return this.put<BackupSettingsUpdateResultDto>('/operations/backups/settings', request);
+  }
+
   /** Update Checker status (admin). Pass force=true for the "Check now" action. */
   getUpdateCheck(force = false): Observable<UpdateCheckStatusDto> {
     const params = force ? new HttpParams().set('force', 'true') : undefined;
@@ -505,6 +528,16 @@ export class ApiService {
     return this.put<UpdateCheckStatusDto>(
       '/operations/update-check/settings',
       { enabled } as UpdateCheckSettingsRequest);
+  }
+
+  /** Admin analytics overview: library/content/processing/engagement counts. */
+  getAnalyticsOverview(): Observable<AnalyticsOverviewDto> {
+    return this.get<AnalyticsOverviewDto>('/admin/analytics/overview');
+  }
+
+  /** Admin analytics per-user table (the admin's own row included). */
+  getAnalyticsUsers(): Observable<AnalyticsUserRowDto[]> {
+    return this.get<AnalyticsUserRowDto[]>('/admin/analytics/users');
   }
 
   /** One page of the administrative audit trail (newest first). */

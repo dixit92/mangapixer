@@ -4,24 +4,61 @@
 
 The server snapshots its database on a schedule. You do not need to set anything up.
 
-- **When:** 2 minutes after every start, then every 24 hours.
-- **Where:** `<data root>/backups`. That is `/data/backups` with the Docker setup and `/mnt/user/appdata/MangaPixer/data/backups` on Unraid.
+- **When:** 2 minutes after the server starts, then every 24 hours. After a restart the schedule continues from the newest snapshot, so frequent restarts do not each take a backup.
+- **Where:** `<data root>/backups` by default. That is `/data/backups` with the Docker setup and `/mnt/user/appdata/MangaPixer/data/backups` on Unraid. You can move them to another disk or a network share (see [Choosing where backups are kept](#choosing-where-backups-are-kept)).
 - **Name:** `rotating-<UTC date>-<UTC time>.db`, for example `rotating-20260915-024123.db`.
-- **Retention:** the newest 7 are kept, and older `rotating-*` files are deleted.
+- **Retention:** the newest 7 are kept, and older ones are deleted. Only files with exactly this generated name are ever deleted; anything else in the folder is left alone.
 - **Safe while running:** each snapshot is a consistent, self-contained copy of the database. It is safe to take while people are reading, and safe to copy off the machine at any time.
 
-In **MangaPixer Administration** > **Diagnostics** > **Database Backups** you see the schedule ("Every 24 h · keeping last 7"), when the last backup succeeded and how many are on disk. **Back up now** takes one immediately; it is a normal rotating backup and counts toward the 7.
+In **MangaPixer Administration** > **Backups** you see the schedule ("Every 24 h · keeping last 7"), when the last backup succeeded and how many are on disk. **Back up now** takes one immediately; it is a normal rotating backup and counts toward the 7.
 
-To change the interval, retention, or turn the schedule off, see [Configuration](configuration.md#backups).
+### Backup settings
 
-The server also takes two kinds of one-off snapshot, which are **never deleted automatically**:
+The **Backup settings** card in **MangaPixer Administration** changes the schedule without editing any file or restarting:
+
+- **Scheduled backups** on or off. **Back up now** keeps working when the schedule is off.
+- **Frequency**: every 6 or 12 hours, daily, every 2 days, weekly, or a custom number of hours (1 to 720).
+- **Keep the newest** 1 to 100 snapshots. Lowering the number deletes nothing when you save; the card tells you how many of the oldest snapshots the next backup will remove.
+- **Location**: the default folder, or a custom folder (below).
+
+A setting that is also set in the server configuration (see [Configuration](configuration.md#backups)) is shown with **Managed by server configuration** and cannot be changed in the card. The configuration always wins, field by field.
+
+### Choosing where backups are kept
+
+Backups are an emergency copy, so it often makes sense to keep them on a different disk than the database: an archive disk, a second drive, or a network share. Pick **Custom folder** in the **Backup settings** card and enter an absolute path:
+
+- **Docker / Unraid:** the container can only write where you give it a bind mount. Add one first, for example `/mnt/user/archive/mangapixer-backups:/backups`, then enter `/backups`. The folder must be writable by the container user (`PUID`/`PGID` on Unraid, `1000:1000` by default); the server does not change its ownership.
+- **Windows:** any local or network folder, for example `D:\MangaPixer-backups` or `\\nas\archive\mangapixer`. Prefer a `\\server\share` path over a mapped drive letter: mapped drives belong to one sign-in and may not be connected when MangaPixer starts.
+
+Before it saves, the server checks the folder: it must be absolute, its parent folder must already exist (only the last folder is created for you), it must be writable, and it must not be inside, or contain, the data, cache, scratch or media folders, any library folder, or the program folder. System and temporary folders (for example `/tmp`, `/etc`, `C:\Windows`, a drive root) are refused. Links are followed, so a symbolic link cannot point the backups into a library. Use **Test** to run all checks without saving. Both **Test** and **Save** ask for your current password, because this setting decides where a full copy of the database is written; wrong passwords count toward the sign-in rate limit, and every change is recorded in the audit trail.
+
+The server writes a small `.mangapixer-backups.json` marker file into the folder. It is how the server recognises the folder later; do not delete it. If another MangaPixer server already uses the folder, saving is refused so two servers never delete each other's snapshots; after a reinstall you can take the folder over through the API (`adoptExistingMarker`).
+
+Changing the location does not move or delete anything: existing snapshots stay where they are and are no longer listed or pruned. Take a backup right after the change (the card offers **Back up now**) so the new folder has one. Switching back to the default folder picks up the snapshots that are still there.
+
+Anyone who can write to the backup folder can place a file there that shows up in the restore list. Every restore is validated, but use a folder only you can write to.
+
+### If the backup location is unavailable
+
+When a custom folder is missing, its marker file is gone (for example a share that is not mounted), or it now overlaps a protected folder, MangaPixer does **not** fall back to the data disk. Instead:
+
+- scheduled backups are skipped and **Back up now** reports that the location is unavailable;
+- the **Backup settings** card shows a red **Backup location unavailable** banner and the restore list says so;
+- `/health/ready` reports `Degraded` (still HTTP 200, so Docker does not restart the container). It also reports `Degraded` when the last successful backup is older than twice the interval;
+- the audit trail records when the location became unavailable and when it came back.
+
+Once the folder is back, the next backup works again.
+
+### Safety snapshots
+
+The server also takes two kinds of one-off snapshot. They always stay in `<data root>/backups`, even when rotating backups go to a custom folder, so an upgrade or a restore never depends on a network share:
 
 | File | Taken |
 |---|---|
 | `pre-migration-<timestamp>.db` | Before an upgrade changes the database schema. |
 | `pre-restore-<timestamp>.db` | Right before a restore is staged, so you can undo it. |
 
-Delete old ones yourself when you no longer need them.
+The newest 3 of each kind are kept; older ones of the same kind are deleted after a new one is taken successfully.
 
 ## What a backup contains
 

@@ -123,6 +123,7 @@ Leading punctuation, brackets and spaces are skipped, so `(Title)` and `-Title-`
 - **Scan now** (the circular-arrow icon) on a library's row scans that library.
 - **Scan all libraries** scans every library. Libraries that are already scanning are skipped.
 - **Cancel** stops a running scan.
+- The palette icon opens an **icon picker** so you can give a library a distinct glyph instead of a name-derived default badge.
 
 After a scan, new archives are analyzed in the background. Their page counts and covers fill in over the next moments.
 

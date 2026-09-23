@@ -75,6 +75,29 @@ public sealed class WorkerProcessFixture : IDisposable
     }
 
     /// <summary>
+    /// A ZIP holding one large random-noise JPEG, so an extract to WebP keeps
+    /// the worker busy for a noticeable time (hundreds of ms). Used to prove a
+    /// busy worker is never retired mid-job. Random noise defeats both JPEG
+    /// and WebP compression shortcuts; the fixed seed keeps it deterministic.
+    /// </summary>
+    public string CreateSlowImageZip(string name = "slow.zip", int size = 2400)
+    {
+        using var img = new ImageMagick.MagickImage(ImageMagick.MagickColors.Gray, (uint)size, (uint)size);
+        ImageMagick.MagickNET.SetRandomSeed(42);
+        img.AddNoise(ImageMagick.NoiseType.Random);
+        img.Format = ImageMagick.MagickFormat.Jpeg;
+        img.Quality = 90;
+        var jpeg = img.ToByteArray();
+
+        var zipPath = Path.Combine(FixtureDir, name);
+        using var zip = System.IO.Compression.ZipFile.Open(zipPath, System.IO.Compression.ZipArchiveMode.Create);
+        var entry = zip.CreateEntry("page001.jpg", System.IO.Compression.CompressionLevel.NoCompression);
+        using var s = entry.Open();
+        s.Write(jpeg);
+        return zipPath;
+    }
+
+    /// <summary>
     /// A ZIP whose entries are STORED out of natural order (the cover last, a
     /// two-digit page before single-digit ones) — mimicking real CBZs that append
     /// the cover last. The worker must re-order to natural reading order.

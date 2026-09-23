@@ -263,3 +263,46 @@ describe('ApiService scan-all libraries (1.8.0)', () => {
     req.flush({ startedCount: 2, skippedCount: 1, scanRunIds: ['run-a', 'run-b'] });
   });
 });
+
+describe('ApiService backup settings (1.22.0)', () => {
+  let api: ApiService;
+  let httpMock: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    api = TestBed.inject(ApiService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => httpMock.verify());
+
+  it('fetches the effective backup settings', () => {
+    api.getBackupSettings().subscribe((dto) => {
+      expect(dto.locationKind).toBe('default');
+      expect(dto.retentionCountSource).toBe('configuration');
+    });
+
+    const req = httpMock.expectOne('/api/v1/operations/backups/settings');
+    expect(req.request.method).toBe('GET');
+    req.flush({ locationKind: 'default', retentionCountSource: 'configuration' });
+  });
+
+  it('PUTs a partial update with the password for a location change', () => {
+    api.updateBackupSettings({
+      location: { mode: 'custom', customLocation: '/backups' },
+      currentPassword: 'secret',
+      validateOnly: true,
+    }).subscribe((res) => expect(res.willCreate).toBe(true));
+
+    const req = httpMock.expectOne('/api/v1/operations/backups/settings');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({
+      location: { mode: 'custom', customLocation: '/backups' },
+      currentPassword: 'secret',
+      validateOnly: true,
+    });
+    req.flush({ settings: {}, validateOnly: true, willCreate: true, locationChanged: true, warnings: [] });
+  });
+});

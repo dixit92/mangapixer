@@ -8,6 +8,7 @@ using com.lifepixer.mangapixer.Server.Features.Reading;
 using com.lifepixer.mangapixer.Server.Scanning;
 using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using System.IO;
 
@@ -74,30 +75,26 @@ public static class HostingServicesExtensions
         services.AddScoped<JobRecoveryService>();
 
         // Rotating DB backups — scheduled online snapshots (VACUUM INTO) with
-        // retention-based pruning. Interval/retention are admin-configurable
-        // via MangaPixer:Backups:*; backups land in <dataRoot>/backups, the
-        // same folder as pre-migration backups (which are never pruned).
+        // retention-based pruning. Backup settings (1.22.0) resolve per field
+        // from configuration (MangaPixer:Backups:*), then the admin UI's
+        // AppSettings row, then the defaults; the rotating folder is
+        // <dataRoot>/backups or a validated custom location. Pre-migration and
+        // pre-restore safety snapshots always stay in <dataRoot>/backups.
+        services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton(sp =>
         {
             var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
-            var dataRoot = config["MangaPixer:Storage:DataRoot"];
-            var backupsDir = Path.Combine(
-                string.IsNullOrWhiteSpace(dataRoot)
-                    ? Path.Combine(AppContext.BaseDirectory, "data")
-                    : dataRoot,
-                "backups");
-
-            var options = new RotatingBackupOptions { BackupDirectory = backupsDir };
-            if (double.TryParse(config["MangaPixer:Backups:IntervalHours"],
-                    System.Globalization.CultureInfo.InvariantCulture, out var hours) && hours > 0)
-                options.Interval = TimeSpan.FromHours(hours);
-            if (int.TryParse(config["MangaPixer:Backups:RetentionCount"], out var retention) && retention > 0)
-                options.RetentionCount = retention;
-            if (bool.TryParse(config["MangaPixer:Backups:Enabled"], out var enabled))
-                options.Enabled = enabled;
-            return options;
+            return RotatingBackupOptions.FromConfiguration(
+                config, BackupSettingsResolver.SafetyDirectoryFor(config["MangaPixer:Storage:DataRoot"]));
         });
+        services.AddSingleton<BackupSettingsResolver>();
+        services.AddSingleton<IBackupLocationFileSystem, PhysicalBackupLocationFileSystem>();
+        services.AddSingleton(sp => new BackupLocationValidator(
+            sp.GetRequiredService<IBackupLocationFileSystem>(),
+            OperatingSystem.IsWindows() ? BackupPathFlavor.Windows : BackupPathFlavor.Unix));
         services.AddSingleton<RotatingBackupState>();
+        services.AddScoped<BackupLocationService>();
+        services.AddScoped<BackupSettingsService>();
         services.AddScoped<RotatingBackupService>();
 
         // DB backup import/restore (1.7.0). Admin-only upload + validate +
@@ -120,6 +117,12 @@ public static class HostingServicesExtensions
         // that backs the audit-trail UI. The audit_events store predates this;
         // this only adds read/write access on top.
         services.AddScoped<com.lifepixer.mangapixer.Server.Features.Admin.AuditService>();
+
+        // Admin analytics read surface (1.22.0 lane E): on-demand aggregation
+        // over library/content/engagement counts, reusing DiagnosticsService
+        // (registered separately via AddScoped<DiagnosticsService>() in
+        // Program.cs) where it overlaps.
+        services.AddScoped<com.lifepixer.mangapixer.Server.Features.Analytics.AnalyticsService>();
 
         // Hosted services — order matters for startup recovery, which runs
         // before the worker pool starts dispatching. The thumbnail backfill

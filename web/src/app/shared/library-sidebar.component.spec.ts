@@ -23,8 +23,8 @@ class BlankComponent {}
  */
 describe('LibrarySidebarComponent', () => {
   const libs: LibraryDto[] = [
-    { id: 'L1', name: 'Alpha', isScanning: false, itemCount: 3, lastScanCompleted: null, defaultReaderMode: 'PagedRtl' },
-    { id: 'L2', name: 'Beta', isScanning: false, itemCount: 5, lastScanCompleted: null, defaultReaderMode: null },
+    { id: 'L1', name: 'Alpha', isScanning: false, itemCount: 3, lastScanCompleted: null, defaultReaderMode: 'PagedRtl', icon: null },
+    { id: 'L2', name: 'Beta', isScanning: false, itemCount: 5, lastScanCompleted: null, defaultReaderMode: null, icon: null },
   ];
 
   function create() {
@@ -129,7 +129,7 @@ describe('LibrarySidebarComponent', () => {
 
   it('renders large item counts without altering the count column markup (overflow fix)', async () => {
     const bigLibs: LibraryDto[] = [
-      { id: 'L1', name: 'A Library With A Fairly Long Name', isScanning: false, itemCount: 8715, lastScanCompleted: null, defaultReaderMode: null },
+      { id: 'L1', name: 'A Library With A Fairly Long Name', isScanning: false, itemCount: 8715, lastScanCompleted: null, defaultReaderMode: null, icon: null },
     ];
     const apiSpy = { getLibraries: vi.fn().mockReturnValue(of(bigLibs)) };
     TestBed.configureTestingModule({

@@ -21,6 +21,7 @@ import {
   RecentChapterStack,
 } from '../../core/api/api-types';
 import { readerModeGlyph } from '../../shared/reader-mode-glyph';
+import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
 
 /**
  * Home page. The library **sidebar was promoted to the app shell**
@@ -72,6 +73,7 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
     MatMenuModule,
     MatTooltipModule,
     CoverImageDirective,
+    LibraryIconComponent,
   ],
   template: `
     <div class="home" [style.--card-size]="cardSize() + 'px'">
@@ -256,7 +258,7 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
             @for (lib of libraries(); track lib.id) {
               <mat-card [routerLink]="['/libraries', lib.id, 'browse']" class="library-card">
                 <mat-card-content>
-                  <mat-icon class="lib-icon">folder</mat-icon>
+                  <app-library-icon [name]="lib.name" [icon]="lib.icon" [size]="40" />
                   @if (glyph(lib); as g) {
                     <span class="card-dir" [matTooltip]="g.label"
                           [attr.aria-label]="'Reading direction: ' + g.label">
@@ -392,7 +394,6 @@ import { readerModeGlyph } from '../../shared/reader-mode-glyph';
       display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;
     }
     .library-card { cursor: pointer; position: relative; }
-    .lib-icon { font-size: 40px; width: 40px; height: 40px; color: #888; }
     /* Reading-direction indicator: a subtle glyph in the card's top-right
        corner. The direction name is carried by the tooltip and aria-label. */
     .card-dir {

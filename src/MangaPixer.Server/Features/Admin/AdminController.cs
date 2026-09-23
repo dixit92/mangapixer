@@ -195,6 +195,24 @@ public sealed class AdminController : ControllerBase
         return Ok(ToLibraryDto(library));
     }
 
+    // --- Library icon (1.22.0) ---
+    // Admin-picked icon name from the curated allowlist; null clears back to the
+    // client-derived default. See LibraryIcons (Core) for the allowlist.
+
+    [HttpPut("libraries/{id}/icon")]
+    public async Task<IActionResult> SetLibraryIcon(string id, [FromBody] SetLibraryIconRequest request, CancellationToken ct)
+    {
+        var library = await _db.Libraries.FirstOrDefaultAsync(l => l.PublicId == id, ct);
+        if (library is null) return NotFound();
+
+        if (!LibraryIcons.IsValid(request.Icon))
+            return BadRequest(new ApiError { Error = "invalid_icon", Message = "Icon must be one of the allowlisted names, or null." });
+
+        library.Icon = request.Icon;
+        await _db.SaveChangesAsync(ct);
+        return Ok(ToLibraryDto(library));
+    }
+
     [HttpPut("folders/{nodeId}/reader-default")]
     public async Task<IActionResult> SetFolderReaderDefault(string nodeId, [FromBody] SetReaderModeRequest request, CancellationToken ct)
     {
@@ -994,6 +1012,7 @@ public sealed class AdminController : ControllerBase
         ItemCount = itemCount,
         LastScanCompleted = library.LastScanCompleted,
         DefaultReaderMode = (ReaderMode?)library.DefaultReaderMode,
+        Icon = library.Icon,
     };
 
     private static string ScanStatusToString(int status) => status switch

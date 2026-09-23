@@ -103,6 +103,10 @@ public sealed partial class Program
             ["MangaPixer:Storage:ScratchRoot"] = scratchRoot,
             ["Media:WorkerExecutablePath"] = workerExe,
         });
+        // A test-only override's extra keys also reach DI-resolved consumers
+        // (e.g. MangaPixer:Backups:*), not just the pre-Build() reads below.
+        if (storageOverride?.ExtraConfiguration is { Count: > 0 } extraConfiguration)
+            builder.Configuration.AddInMemoryCollection(extraConfiguration);
 
         // Serilog bootstrap — plain text console for both container and dev.
         // The default level is controlled by a LoggingLevelSwitch so an admin
@@ -172,7 +176,10 @@ public sealed partial class Program
                 .AddCheck("self",
                     () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("MangaPixer server is running"),
                     tags: new[] { "live" })
-                .AddCheck<DatabaseReadinessHealthCheck>("database", tags: new[] { "ready" });
+                .AddCheck<DatabaseReadinessHealthCheck>("database", tags: new[] { "ready" })
+                // Degraded (still HTTP 200) while the backup location is
+                // unavailable or the last backup is overdue (1.22.0).
+                .AddCheck<com.lifepixer.mangapixer.Server.Operations.BackupsHealthCheck>("backups", tags: new[] { "ready" });
 
             // Auth + database (registers DbContext, Identity, cookie auth, auth services)
             builder.Services.AddMangaPixerAuth(databasePath, storageOverride?.RateLimitDisabled);
@@ -184,6 +191,11 @@ public sealed partial class Program
             var cacheBudget = ReadByteBudget(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPixer:Storage:CacheBudgetBytes"));
             var scratchBudget = ReadByteBudget(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPixer:Storage:ScratchBudgetBytes"));
             var maxConcurrentJobs = ReadPositiveInt(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPixer:Media:MaxConcurrentJobs"));
+            // Idle worker retirement (1.22.0). 0 is meaningful for both keys:
+            // an idle timeout of 0 disables retirement, a warm floor of 0 lets
+            // a quiet server run with no worker process at all.
+            var workerIdleTimeoutSeconds = ReadNonNegativeInt(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPixer:Media:WorkerIdleTimeoutSeconds"));
+            var minWarmWorkers = ReadNonNegativeInt(ResolveConfigValue(builder.Configuration, storageOverride, "MangaPixer:Media:MinWarmWorkers"));
             builder.Services.AddMangaPixerMedia(options =>
             {
                 options.ScratchRoot = scratchRoot;
@@ -192,6 +204,8 @@ public sealed partial class Program
                 if (cacheBudget is > 0) options.CacheBudgetBytes = cacheBudget.Value;
                 if (scratchBudget is > 0) options.ScratchBudgetBytes = scratchBudget.Value;
                 if (maxConcurrentJobs is > 0) options.MaxConcurrentJobs = maxConcurrentJobs.Value;
+                if (workerIdleTimeoutSeconds is { } idleSeconds) options.WorkerIdleTimeout = TimeSpan.FromSeconds(idleSeconds);
+                if (minWarmWorkers is { } warm) options.MinWarmWorkers = warm;
             });
 
             // Startup configuration logging. Logs existence and
@@ -558,6 +572,17 @@ public sealed partial class Program
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         return int.TryParse(value.Trim(), out var n) && n > 0 ? n : null;
+    }
+
+    /// <summary>
+    /// Reads an optional integer that may be zero. Returns null when
+    /// unset/invalid/negative so the caller keeps the WorkerPoolOptions default.
+    /// </summary>
+    private static int? ReadNonNegativeInt(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return int.TryParse(value.Trim(), System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture, out var n) && n >= 0 ? n : null;
     }
 }
 

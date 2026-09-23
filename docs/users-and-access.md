@@ -55,6 +55,12 @@ The link uses the address you used to open the admin page. If you run behind a r
 
 User IDs come from `GET /api/v1/admin/users`. For how to call the admin API from a script, see [Backup and restore](backup-and-restore.md#calling-the-admin-api-from-a-script).
 
+## Analytics
+
+**MangaPixer Administration** shows an **Analytics** section: instance-wide totals (libraries, content, analysis backlog, users, engagement) and a per-user table (role, active/pending status, last login, chapters completed/in progress, bookmarks, favorites, last reading activity). It is admin-only, computed on demand (no data is pre-aggregated or stored beyond what already exists), and refreshes when you open it or select **Refresh**.
+
+What admins can see: counts and timestamps only. What admins cannot see, here or anywhere else in Analytics: chapter/item **titles**, **file or folder names**, or **paths** — the same privacy rule that applies to every other admin surface (backups, audit trail, diagnostics). A user's reading activity in a library **they** have marked Private (see below) is left out of that user's own counts, even though this page is otherwise visible only to admins.
+
 ## Private libraries and Incognito
 
 These two features work together to keep some libraries out of sight. For example, you can keep a library off the home screen when you show someone your tablet.

@@ -32,6 +32,10 @@ import {
 import { libraryPathCopy } from './library-path-copy';
 import { DebugLogCardComponent } from './debug-log-card.component';
 import { UpdateCheckCardComponent } from './update-check-card.component';
+import { BackupSettingsCardComponent } from './backup-settings-card.component';
+import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
+import { LibraryIconPickerComponent } from './library-icon-picker/library-icon-picker.component';
+import { AnalyticsCardComponent } from './analytics-card/analytics-card.component';
 
 /**
  * Admin component. Shows library and user administration.
@@ -48,6 +52,8 @@ import { UpdateCheckCardComponent } from './update-check-card.component';
     CommonModule,
     DebugLogCardComponent,
     UpdateCheckCardComponent,
+    AnalyticsCardComponent,
+    BackupSettingsCardComponent,
     FormsModule,
     MatCardModule,
     MatButtonModule,
@@ -59,6 +65,8 @@ import { UpdateCheckCardComponent } from './update-check-card.component';
     MatTooltipModule,
     MatProgressSpinnerModule,
     MatSelectModule,
+    LibraryIconComponent,
+    LibraryIconPickerComponent,
   ],
   template: `
     <h2>Administration</h2>
@@ -88,7 +96,7 @@ import { UpdateCheckCardComponent } from './update-check-card.component';
           <mat-list>
             @for (lib of libraries(); track lib.id) {
               <mat-list-item>
-                <mat-icon matListItemIcon>folder</mat-icon>
+                <span matListItemIcon><app-library-icon [name]="lib.name" [icon]="lib.icon" [size]="24" /></span>
                 <div matListItemTitle>{{ lib.name }}</div>
                 <div matListItemLine>
                   @if (lib.itemCount !== null) { {{ lib.itemCount }} items }
@@ -134,6 +142,10 @@ import { UpdateCheckCardComponent } from './update-check-card.component';
                       <mat-icon>refresh</mat-icon>
                     </button>
                   }
+                  <button mat-icon-button type="button" (click)="openIconPicker(lib)"
+                          matTooltip="Change icon" aria-label="Change icon">
+                    <mat-icon>palette</mat-icon>
+                  </button>
                   <button mat-icon-button type="button" (click)="openRename(lib)"
                           matTooltip="Rename library" aria-label="Rename library">
                     <mat-icon>edit</mat-icon>
@@ -146,6 +158,13 @@ import { UpdateCheckCardComponent } from './update-check-card.component';
                   </button>
                 </span>
               </mat-list-item>
+
+              @if (iconPickerLibId() === lib.id) {
+                <div class="lib-panel">
+                  <app-library-icon-picker [name]="lib.name" [current]="lib.icon"
+                    (picked)="setLibraryIcon(lib, $event)" (cancelled)="closeLibPanels()" />
+                </div>
+              }
 
               @if (renamePanelLibId() === lib.id) {
                 <div class="lib-panel">
@@ -418,7 +437,7 @@ import { UpdateCheckCardComponent } from './update-check-card.component';
         } @else if (backupStatus(); as status) {
           <p class="backup-info">
             @if (!status.enabled) {
-              Scheduled backups are disabled by configuration.
+              Scheduled backups are disabled.
             } @else {
               Every {{ intervalLabel() }} · keeping last {{ status.retentionCount }}
             }
@@ -446,7 +465,7 @@ import { UpdateCheckCardComponent } from './update-check-card.component';
         @if (backupFilesLoading()) {
           <p>Loading snapshots…</p>
         } @else if (backupFiles().length === 0) {
-          <p class="backup-info">No snapshots on disk yet. Take a backup first.</p>
+          <p class="backup-info">{{ backupStatus()?.locationStatus === 'unavailable' ? 'Backup location unavailable.' : 'No snapshots on disk yet. Take a backup first.' }}</p>
         } @else {
           <mat-list class="snapshot-list">
             @for (f of backupFiles(); track f.fileName) {
@@ -481,6 +500,7 @@ import { UpdateCheckCardComponent } from './update-check-card.component';
         }
       </mat-card-content>
     </mat-card>
+    <app-backup-settings-card [snapshotCount]="backupFiles().length" (changed)="refreshBackups()" />
 
     <!-- Audit trail (1.18.0): read side of the previously write-only audit store. -->
     <mat-card>
@@ -525,6 +545,9 @@ import { UpdateCheckCardComponent } from './update-check-card.component';
 
     <!-- Update Checker (opt-in, off by default) -->
     <app-update-check-card />
+
+    <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->
+    <app-analytics-card />
   `,
   styles: [`
     mat-card { margin-bottom: 16px; }
@@ -671,6 +694,9 @@ export class AdminComponent implements OnInit, OnDestroy {
   readonly renameDraft = signal('');
   readonly deletePanelLibId = signal<string | null>(null);
   readonly libActionBusy = signal<Set<string>>(new Set());
+
+  // Library icon picker (1.22.0): inline panel, mirrors the rename/delete pattern.
+  readonly iconPickerLibId = signal<string | null>(null);
 
   // YACReader import (1.2.0): per-library detection + a small inline import panel.
   readonly yacDetect = signal<Map<string, YacReaderDetectDto>>(new Map());
@@ -832,20 +858,42 @@ export class AdminComponent implements OnInit, OnDestroy {
   /** Open the inline rename panel for a library (closes the delete panel). */
   openRename(lib: LibraryDto): void {
     this.deletePanelLibId.set(null);
+    this.iconPickerLibId.set(null);
     this.renameDraft.set(lib.name);
     this.renamePanelLibId.set(lib.id);
   }
 
-  /** Open the inline delete-confirm panel for a library (closes the rename panel). */
+  /** Open the inline delete-confirm panel for a library (closes the other panels). */
   openDelete(lib: LibraryDto): void {
     this.renamePanelLibId.set(null);
+    this.iconPickerLibId.set(null);
     this.deletePanelLibId.set(lib.id);
   }
 
-  /** Close both inline library panels. */
+  /** Open the inline icon picker for a library (closes the other panels). */
+  openIconPicker(lib: LibraryDto): void {
+    this.renamePanelLibId.set(null);
+    this.deletePanelLibId.set(null);
+    this.iconPickerLibId.set(lib.id);
+  }
+
+  /** Close all inline library panels. */
   closeLibPanels(): void {
     this.renamePanelLibId.set(null);
     this.deletePanelLibId.set(null);
+    this.iconPickerLibId.set(null);
+  }
+
+  /** Set (or clear, when icon is null) the library's admin-picked icon. */
+  setLibraryIcon(lib: LibraryDto, icon: string | null): void {
+    this.api.setLibraryIcon(lib.id, icon).subscribe({
+      next: (updated) => {
+        this.libraries.update(libs => libs.map(l => l.id === lib.id ? updated : l));
+        this.closeLibPanels();
+        this.snackBar.open(`Icon updated for "${lib.name}"`, 'Close', { duration: 2500 });
+      },
+      error: (err) => this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 4000 }),
+    });
   }
 
   private setLibBusy(id: string, busy: boolean): void {
@@ -1339,6 +1387,9 @@ export class AdminComponent implements OnInit, OnDestroy {
   }
 
   // --- Rotating database backups (1.2.0) ---
+
+  /** Reloads the Backups status + snapshot list (after a backup settings change). */
+  refreshBackups(): void { this.loadBackupStatus(); this.loadBackupFiles(); }
 
   private loadBackupStatus(): void {
     this.api.getRotatingBackupStatus().subscribe({

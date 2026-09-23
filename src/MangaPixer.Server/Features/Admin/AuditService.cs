@@ -167,6 +167,10 @@ public static class AuditActions
     public const string UserPasswordReset = "user.password.reset";
     public const string BackupRestoreStaged = "backup.restore.stage";
     public const string LoggingChanged = "logging.change";
+    public const string BackupSettingsChanged = "backup.settings.change";
+    public const string BackupLocationChanged = "backup.location.change";
+    public const string BackupLocationUnavailable = "backup.location.unavailable";
+    public const string BackupLocationAvailable = "backup.location.available";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>

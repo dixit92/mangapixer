@@ -11,21 +11,47 @@
 
 The hardening is the same in both: read-only container filesystem, a `tmpfs` for `/tmp`, `no-new-privileges`, and bounded container logs.
 
-An Unraid Community Applications template is planned but does not exist yet. For now you run the Compose file directly, so the host needs `docker compose` (on Unraid that usually comes from a Compose plugin).
+Until it is listed in Community Applications, you can install it manually using the template URL below. Alternatively, you can run the Compose file directly (the traditional route), which requires `docker compose` on the host (usually a Compose plugin on Unraid).
 
-## Step 1: get the Compose file and choose a version
+## Install from the template
+
+From the Unraid terminal, download the template file and add it to the local template directory:
+
+```bash
+wget -O /boot/config/plugins/dockerMan/templates-user/my-MangaPixer.xml \
+  https://raw.githubusercontent.com/dixit92/mangapixer/main/deploy/unraid/mangapixer.xml
+```
+
+Then:
+
+1. Open the Unraid **Docker** tab.
+2. Click **Add Container**.
+3. In the **Template** dropdown, choose **MangaPixer**.
+4. Fill in:
+   - **PUID** and **PGID**: Check your Unraid user's ID with `ls -ln /mnt/user/appdata`. Defaults are `99` (`nobody`) and `100` (`users`).
+   - **Media**: Edit or add your media share paths. The template provides one `/media` mount point (read-only). Adjust the host path to point at your actual share, or add more by clicking "Add another Path" and editing each one.
+5. Click **Apply**.
+6. The container starts. Once it is running, visit `http://<unraid-ip>:6266` and create the first admin on the welcome screen.
+
+The template file pulls the latest released image from GHCR. Once the Community Applications template is accepted, it will appear in the standard template list without needing the manual download step.
+
+## Manual Compose route (traditional alternative)
+
+If you prefer not to use the template, you can run the Compose file directly:
+
+### Step 1: get the Compose file and choose a version
 
 Copy `deploy/compose.unraid.yaml` from the repository to a folder on the server, for example `/mnt/user/appdata/MangaPixer-compose/`, or clone the repository there. The file pulls `ghcr.io/dixit92/mangapixer:<version>` when the container starts, so nothing needs to be built or copied by hand.
 
 Set `MANGAPIXER_VERSION` to the release you want (see the [Releases page](https://github.com/dixit92/mangapixer/releases)). If it is unset, the file falls back to `latest`, which moves with every release.
 
 ```sh
-export MANGAPIXER_VERSION=1.21.1
+export MANGAPIXER_VERSION=1.22.0
 ```
 
 To run an unreleased build instead, clone the repository on the server and add `deploy/compose.build.yaml` to the `-f` list in step 4; Compose then builds the image from the clone. `pwsh ./scripts/Package-Release.ps1` on another machine still produces a loadable `.tar` if you prefer to build elsewhere and `docker load` it.
 
-## Step 2: set PUID and PGID
+### Step 2: set PUID and PGID
 
 The container starts as root, sets the owner of `/config` and its `data`, `cache` and `scratch` subfolders to `PUID:PGID` on **every start**, and then runs the server as that user. Set these two variables to the user and group that should own the appdata folder on the host. Check the numbers with:
 
@@ -35,7 +61,7 @@ ls -ln /mnt/user/appdata
 
 Many Unraid systems use `99` (`nobody`) and `100` (`users`) for shares. If you leave the variables unset, the defaults are `1000`/`1000`.
 
-## Step 3: add your media shares
+### Step 3: add your media shares
 
 The media lines in `compose.unraid.yaml` are commented-out examples. Rather than editing the tracked file, put your real paths in an override file next to it, `compose.unraid.override.yaml`:
 
@@ -56,7 +82,7 @@ services:
 
 You do not need a media-root variable for the mounts to work. You pick each library's folder in the web UI, and the picker's starting folder is controlled by [`MangaPixer__Storage__MediaRoot`](configuration.md#storage) (default `/media`).
 
-## Step 4: start the container
+### Step 4: start the container
 
 From the folder that holds both files:
 
@@ -74,7 +100,7 @@ curl http://localhost:6266/health
 
 It answers `Healthy`. If port 6266 is already taken, change the left-hand number of the port mapping. The server always listens on 8080 inside the container.
 
-## Step 5: first-run setup and libraries
+### Step 5: first-run setup and libraries
 
 Open `http://<unraid-ip>:6266`. There is no default account. Create the first admin on the **Welcome to MangaPixer** screen, then register and scan your libraries. Use root paths like `/media/manga`. The steps are the same as [steps 5 and 6 of the Docker guide](install-docker.md#step-5-create-the-admin-account).
 
@@ -95,6 +121,8 @@ Port 6266 is published on every interface, but the server itself only speaks pla
 ```
 
 Your normal appdata backup covers all of it. The `data/backups/rotating-*.db` files are consistent snapshots taken by the server, so they are safe to restore from even if your appdata backup ran while the container was up. See [Backup and restore](backup-and-restore.md).
+
+To keep the rotating snapshots off the cache pool, for example on an archive share on the array, add a path mapping such as `/mnt/user/archive/mangapixer-backups` to `/backups` (read/write, owned by your `PUID`:`PGID`), then choose **Custom folder** `/backups` in **Administration** > **Backup settings**. If the share is not available, backups pause and the admin page shows **Backup location unavailable**; they never fall back to appdata. The pre-migration and pre-restore snapshots stay in `data/backups`.
 
 If you want the page cache off the array, mount another path and point `MangaPixer__Storage__CacheRoot` at it (see [Configuration](configuration.md#storage)).
 

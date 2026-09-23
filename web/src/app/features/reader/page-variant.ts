@@ -1,3 +1,5 @@
+import { DownscaleFilter } from '../../core/reading/downscale-filters';
+
 /**
  * Display-sized page variant targeting (1.19.0, Lane B "SCALE-CLIENT").
  *
@@ -133,17 +135,8 @@ export function targetMaxDim(
   return needed > topBucket ? 0 : topBucket;
 }
 
-/**
- * Downscale resampling filter (1.20.0, Lane B "FILTER-CLIENT"). Only meaningful
- * when the server is actually downscaling a page (i.e. `maxDim` produces a sized
- * bucket) — a full-size transcode never resamples, so the parameter is never
- * sent alongside `maxDim=0`/no `maxDim` at all. Mirrors the server vocabulary:
- *  - `sharp`    — Lanczos (the 1.19.x behaviour): crisp lines, can moire on
- *                 screentones.
- *  - `balanced` — Mitchell, the new default: a middle ground.
- *  - `soft`     — area average: kills screentone moire, slightly softer lines.
- */
-export type DownscaleFilter = 'sharp' | 'balanced' | 'soft';
+// DownscaleFilter re-exported from downscale-filters.ts (single source of truth)
+export type { DownscaleFilter };
 
 /**
  * Append `?maxDim=<n>` (and, when a filter is given, `&filter=<f>`) to a page

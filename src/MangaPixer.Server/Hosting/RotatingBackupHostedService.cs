@@ -8,72 +8,139 @@ using Microsoft.Extensions.Logging;
 
 /// <summary>
 /// Scheduled rotating database backups. Takes a consistent online snapshot
-/// (VACUUM INTO) every configured interval (default daily) and prunes the
+/// (VACUUM INTO) every effective interval (default daily) and prunes the
 /// oldest rotating snapshots beyond the retention count (default 7).
-/// Pre-migration backups are never pruned (see RotatingBackupService).
-/// Failures are logged as warnings and do not crash the host.
+///
+/// A loop on the registered <see cref="TimeProvider"/>, not a fixed timer:
+/// every iteration re-reads the effective settings, and a settings change
+/// (<see cref="BackupSettingsResolver.ChangeToken"/>) wakes it, so enabling,
+/// disabling, or changing the interval / location applies without a restart.
+/// Next due = max(start + initial delay, last attempt + interval); the last
+/// attempt is seeded from the newest snapshot name so frequent restarts do not
+/// each take a backup and rotate out the daily history.
+/// Failures are logged (type / code only) and never crash the host.
 /// </summary>
-public sealed class RotatingBackupHostedService : IHostedService, IAsyncDisposable
+public sealed class RotatingBackupHostedService : BackgroundService
 {
+    /// <summary>Let startup recovery finish before the first backup.</summary>
+    public static readonly TimeSpan InitialDelay = TimeSpan.FromMinutes(2);
+
     private readonly IServiceProvider _services;
-    private readonly RotatingBackupOptions _options;
+    private readonly BackupSettingsResolver _settings;
+    private readonly RotatingBackupState _state;
+    private readonly TimeProvider _time;
     private readonly ILogger<RotatingBackupHostedService> _logger;
-    private Timer? _timer;
 
     public RotatingBackupHostedService(
         IServiceProvider services,
-        RotatingBackupOptions options,
+        BackupSettingsResolver settings,
+        RotatingBackupState state,
+        TimeProvider time,
         ILogger<RotatingBackupHostedService> logger)
     {
         _services = services;
-        _options = options;
+        _settings = settings;
+        _state = state;
+        _time = time;
         _logger = logger;
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    /// <summary>Next scheduled run for the given start, last attempt, and interval.</summary>
+    public static DateTimeOffset NextDue(DateTimeOffset startedUtc, DateTimeOffset? lastAttemptUtc, TimeSpan interval)
     {
-        if (!_options.Enabled)
+        var earliest = startedUtc + InitialDelay;
+        if (lastAttemptUtc is not { } last)
+            return earliest;
+        var due = last + interval;
+        return due > earliest ? due : earliest;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var started = _time.GetUtcNow();
+        _state.SchedulerStartedUtc = started;
+
+        foreach (var key in _settings.Configuration.InvalidKeys)
+            _logger.LogWarning(LogEvents.Backup.BackupConfigInvalid,
+                "Ignoring invalid backup configuration value for {Key}", key);
+
+        DateTimeOffset? seeded = null;
+        try
         {
-            _logger.LogInformation(LogEvents.Backup.RotatingDisabled, "Rotating database backups are disabled by configuration.");
-            return Task.CompletedTask;
+            await _settings.ReloadAsync(stoppingToken);
+            // Startup location check so the status is right before the first run.
+            using var scope = _services.CreateScope();
+            var location = scope.ServiceProvider.GetRequiredService<BackupLocationService>();
+            var check = await location.CheckAsync(stoppingToken, startup: true);
+            if (check.IsValid && check.NormalizedLocation is not null)
+                seeded = RotatingBackupService.NewestSnapshotTimestamp(check.NormalizedLocation);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(LogEvents.Backup.ScheduledRotatingError,
+                "Backup settings could not be loaded at startup: {Error}", ex.GetType().Name);
         }
 
-        // First run shortly after startup (let startup recovery finish), then
-        // on the configured interval.
-        _timer = new Timer(_ => RunSafe(), null,
-            TimeSpan.FromMinutes(2), _options.Interval);
-        return Task.CompletedTask;
-    }
+        if (!_settings.Current.Enabled)
+            _logger.LogInformation(LogEvents.Backup.RotatingDisabled, "Scheduled rotating database backups are disabled.");
 
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        _timer?.Change(Timeout.Infinite, Timeout.Infinite);
-        return Task.CompletedTask;
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        _timer?.Dispose();
-        return ValueTask.CompletedTask;
-    }
-
-    private void RunSafe()
-    {
-        // Timer callbacks must never throw unhandled into the host.
-        _ = Task.Run(async () =>
+        while (!stoppingToken.IsCancellationRequested)
         {
-            try
+            var changed = _settings.ChangeToken;
+            var settings = _settings.Current;
+
+            var lastAttempt = Max(seeded, _state.LastAttemptUtc);
+            var wait = settings.Enabled
+                ? NextDue(started, lastAttempt, settings.Interval) - _time.GetUtcNow()
+                : Timeout.InfiniteTimeSpan;
+
+            if (wait == Timeout.InfiniteTimeSpan || wait > TimeSpan.Zero)
             {
-                using var scope = _services.CreateScope();
-                var rotating = scope.ServiceProvider.GetRequiredService<RotatingBackupService>();
-                var outcome = await rotating.RunAsync();
-                if (!outcome.Succeeded)
-                    _logger.LogWarning(LogEvents.Backup.ScheduledRotatingFailed, "Scheduled rotating backup failed (retained {Count}).", outcome.RetainedCount);
+                using var linked = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, changed);
+                try
+                {
+                    await Task.Delay(wait, _time, linked.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    if (stoppingToken.IsCancellationRequested)
+                        return;
+                    continue; // settings changed: recompute
+                }
+                if (_settings.ChangeToken != changed)
+                    continue;
             }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(LogEvents.Backup.ScheduledRotatingError, ex, "Scheduled rotating backup failed: {Error}", ex.GetType().Name);
-            }
-        });
+
+            await RunOnceAsync(stoppingToken);
+            seeded = _time.GetUtcNow();
+        }
     }
+
+    private async Task RunOnceAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _services.CreateScope();
+            var rotating = scope.ServiceProvider.GetRequiredService<RotatingBackupService>();
+            var outcome = await rotating.RunAsync(ct);
+            if (!outcome.Succeeded)
+                _logger.LogWarning(LogEvents.Backup.ScheduledRotatingFailed,
+                    "Scheduled rotating backup failed: {Code} (retained {Count}).", outcome.FailureCode ?? "backup_failed", outcome.RetainedCount);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            // Type only: an exception message can carry an absolute path.
+            _logger.LogWarning(LogEvents.Backup.ScheduledRotatingError, "Scheduled rotating backup failed: {Error}", ex.GetType().Name);
+        }
+    }
+
+    private static DateTimeOffset? Max(DateTimeOffset? a, DateTimeOffset? b) =>
+        a is null ? b : b is null ? a : (a > b ? a : b);
 }

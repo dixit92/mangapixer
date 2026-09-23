@@ -21,6 +21,23 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<long>("Id")
                         .HasColumnType("INTEGER");
 
+                    b.Property<double?>("BackupIntervalHours")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("BackupLocation")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BackupLocationMarkerId")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("BackupRetentionCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("BackupsEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("UpdateCheckEnabled")
                         .HasColumnType("INTEGER");
 
@@ -485,6 +502,10 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Icon")
+                        .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
                     b.Property<long?>("LastScanCompleted")

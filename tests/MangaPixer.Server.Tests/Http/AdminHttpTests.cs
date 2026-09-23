@@ -235,6 +235,113 @@ public sealed class AdminHttpTests : IDisposable
     }
 
     [Fact]
+    public async Task SetLibraryIcon_WithAllowlistedName_RoundTrips()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var regResponse = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Icon Test",
+            RootPath = _libRoot,
+        });
+        var created = await regResponse.Content.ReadFromJsonAsync<LibraryDto>();
+        Assert.Null(created!.Icon);
+
+        var setResponse = await client.PutAsJsonAsync(
+            $"/api/v1/admin/libraries/{created.Id}/icon",
+            new SetLibraryIconRequest { Icon = "auto_stories" });
+        setResponse.EnsureSuccessStatusCode();
+        var updated = await setResponse.Content.ReadFromJsonAsync<LibraryDto>();
+        Assert.Equal("auto_stories", updated!.Icon);
+
+        var getResponse = await client.GetAsync($"/api/v1/admin/libraries/{created.Id}");
+        var fetched = await getResponse.Content.ReadFromJsonAsync<LibraryDto>();
+        Assert.Equal("auto_stories", fetched!.Icon);
+    }
+
+    [Fact]
+    public async Task SetLibraryIcon_ThenClear_ReturnsNull()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var regResponse = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Icon Clear Test",
+            RootPath = _libRoot,
+        });
+        var created = await regResponse.Content.ReadFromJsonAsync<LibraryDto>();
+
+        var setResponse = await client.PutAsJsonAsync(
+            $"/api/v1/admin/libraries/{created!.Id}/icon",
+            new SetLibraryIconRequest { Icon = "star" });
+        setResponse.EnsureSuccessStatusCode();
+
+        var clearResponse = await client.PutAsJsonAsync(
+            $"/api/v1/admin/libraries/{created.Id}/icon",
+            new SetLibraryIconRequest { Icon = null });
+        clearResponse.EnsureSuccessStatusCode();
+        var cleared = await clearResponse.Content.ReadFromJsonAsync<LibraryDto>();
+        Assert.Null(cleared!.Icon);
+    }
+
+    [Fact]
+    public async Task SetLibraryIcon_WithInvalidName_Returns400()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var regResponse = await client.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Icon Invalid Test",
+            RootPath = _libRoot,
+        });
+        var created = await regResponse.Content.ReadFromJsonAsync<LibraryDto>();
+
+        var setResponse = await client.PutAsJsonAsync(
+            $"/api/v1/admin/libraries/{created!.Id}/icon",
+            new SetLibraryIconRequest { Icon = "not_a_real_icon" });
+        Assert.Equal(HttpStatusCode.BadRequest, setResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetLibraryIcon_NonExistentLibrary_Returns404()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var setResponse = await client.PutAsJsonAsync(
+            "/api/v1/admin/libraries/does-not-exist/icon",
+            new SetLibraryIconRequest { Icon = "star" });
+        Assert.Equal(HttpStatusCode.NotFound, setResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetLibraryIcon_AsNonAdmin_Returns403()
+    {
+        var adminClient = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var regResponse = await adminClient.PostAsJsonAsync("/api/v1/admin/libraries", new RegisterLibraryRequest
+        {
+            DisplayName = "Icon Auth Test",
+            RootPath = _libRoot,
+        });
+        var created = await regResponse.Content.ReadFromJsonAsync<LibraryDto>();
+
+        var createUserResponse = await adminClient.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest
+        {
+            Username = "iconreader",
+            Password = "ReaderPass123!",
+            IsAdmin = false,
+        });
+        createUserResponse.EnsureSuccessStatusCode();
+
+        var readerClient = await LoginAndChangePasswordAsync("iconreader", "ReaderPass123!", "ReaderNewPass123!");
+
+        var setResponse = await readerClient.PutAsJsonAsync(
+            $"/api/v1/admin/libraries/{created!.Id}/icon",
+            new SetLibraryIconRequest { Icon = "star" });
+        Assert.Equal(HttpStatusCode.Forbidden, setResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task DeleteLibrary_Returns204()
     {
         var client = await _factory.LoginAsAdminWithChangedPasswordAsync();

@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import { DownscaleFilter, DOWNSCALE_FILTERS } from './downscale-filters';
 
 /**
  * Page-turn transition for the PAGED / DOUBLE-SPREAD reader (1.9.0). This is a
@@ -46,18 +47,8 @@ export type PageQuality = 'auto' | 'full';
  */
 export type Upscaler = 'smooth' | 'enhance';
 
-/**
- * Which resampling filter the server uses when it downscales a page (1.20.0,
- * "Downscale filter"). Only takes effect when `pageQuality` is `auto` AND the
- * request lands on a sized bucket (`maxDim` — see `page-variant.ts`); Full page
- * quality and `original` fit never downscale, so the filter has nothing to act
- * on there.
- *  - `sharp`    — Lanczos, the 1.19.x behaviour: crisp lines, can moire on
- *                 screentones.
- *  - `balanced` — Mitchell. The default: a middle ground between the other two.
- *  - `soft`     — area average: kills screentone moire, slightly softer lines.
- */
-export type DownscaleFilter = 'sharp' | 'balanced' | 'soft';
+// DownscaleFilter re-exported from downscale-filters.ts (single source of truth)
+export type { DownscaleFilter };
 
 /**
  * Per-DEVICE reader preferences kept in `localStorage` (never a backend/EF
@@ -173,7 +164,7 @@ export class ReaderPreferencesService {
   private loadDownscaleFilter(): DownscaleFilter {
     try {
       const raw = localStorage.getItem(ReaderPreferencesService.DownscaleFilterKey);
-      if (raw === 'sharp' || raw === 'balanced' || raw === 'soft') return raw;
+      if ((DOWNSCALE_FILTERS as readonly string[]).includes(raw ?? '')) return raw as DownscaleFilter;
     } catch {
       /* storage unavailable — fall through to the default */
     }

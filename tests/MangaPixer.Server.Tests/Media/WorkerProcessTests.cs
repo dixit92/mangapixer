@@ -279,10 +279,37 @@ public sealed class WorkerProcessTests : IClassFixture<WorkerProcessFixture>, IA
         sup.OnWorkerExited += code => exitTcs.TrySetResult(code);
 
         // Use StopAsync which sends shutdown and waits with grace period
+        var sw = Stopwatch.StartNew();
         await sup.StopAsync();
+        sw.Stop();
 
-        // The worker should have exited gracefully
+        // The worker should have exited gracefully: well inside the 5s grace
+        // period, not force-killed at its end (IsRunning alone cannot tell the
+        // two apart - a kill also clears it).
         Assert.False(sup.IsRunning);
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(3),
+            $"StopAsync took {sw.Elapsed}; the worker was force-killed instead of exiting gracefully");
+    }
+
+    // Test 4b: the protocol "shutdown" message alone (stdin left open) ends
+    // the worker process. Before 1.22.0 the worker only returned from the
+    // message handler and went back to reading stdin, so every graceful stop
+    // (server shutdown, and now idle retirement) ended in a force-kill.
+    [Fact]
+    public async Task ShutdownMessage_WithStdinOpen_EndsTheWorkerProcess()
+    {
+        var sup = CreateSupervisor();
+        await sup.StartAsync();
+
+        var exitTcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        sup.OnWorkerExited += code => exitTcs.TrySetResult(code);
+
+        await sup.SendMessageAsync(WorkerProtocolFraming.CreateEnvelope("shutdown", "shutdown",
+            new WorkerShutdown { Reason = "test" }));
+
+        var completed = await Task.WhenAny(exitTcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.Same(exitTcs.Task, completed);
+        Assert.Equal(0, await exitTcs.Task);
     }
 
     // Test 5: MediaWorkerPool does not fail jobs when no slot is free (D12)

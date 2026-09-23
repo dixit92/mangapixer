@@ -44,6 +44,13 @@ public sealed class LibraryEntity
     /// </summary>
     public int? DefaultReaderMode { get; set; }
 
+    /// <summary>
+    /// Admin-picked icon name from the curated allowlist (see LibraryIcons in
+    /// Core), or null for the client-derived default. Validated server-side
+    /// before being stored.
+    /// </summary>
+    public string? Icon { get; set; }
+
     public ICollection<LibraryGrantEntity> Grants { get; set; } = [];
     public ICollection<CatalogNodeEntity> Nodes { get; set; } = [];
 }
@@ -780,6 +787,32 @@ public sealed class AppSettingsEntity
     /// null if never fetched. Cached so the admin page can render immediately.
     /// </summary>
     public string? UpdateLastKnownLatestVersion { get; set; }
+
+    // Backup settings (1.22.0). Every column is nullable: null means "not set
+    // in the admin UI", so the value falls through to server configuration
+    // and then to the built-in default (see BackupSettingsResolver).
+
+    /// <summary>Scheduled rotating backups on/off, or null for config/default.</summary>
+    public bool? BackupsEnabled { get; set; }
+
+    /// <summary>Hours between scheduled backups, or null for config/default.</summary>
+    public double? BackupIntervalHours { get; set; }
+
+    /// <summary>Rotating snapshots kept, or null for config/default.</summary>
+    public int? BackupRetentionCount { get; set; }
+
+    /// <summary>
+    /// Admin-entered absolute directory for rotating backups, or null for the
+    /// default (the backups folder inside the data root).
+    /// </summary>
+    public string? BackupLocation { get; set; }
+
+    /// <summary>
+    /// Random id written into the marker file of a custom backup location, so
+    /// an unmounted or foreign folder is detected before every run. Local only:
+    /// it never leaves the machine.
+    /// </summary>
+    public string? BackupLocationMarkerId { get; set; }
 }
 
 /// <summary>

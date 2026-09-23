@@ -10,7 +10,9 @@ import { AdminComponent } from './admin.component';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import {
+  AnalyticsOverviewDto,
   AuditTrailPageDto,
+  BackupSettingsDto,
   DirectoryListingDto,
   LibraryDto,
   LogLevelDto,
@@ -46,6 +48,19 @@ describe('AdminComponent directory browser row', () => {
       enabled: false, currentVersion: '1.19.0', latestVersion: null,
       updateAvailable: false, lastChecked: null,
     };
+    const analyticsOverview: AnalyticsOverviewDto = {
+      generatedAt: '2026-09-23T00:00:00Z',
+      libraryCount: 0, totalNodeCount: 0, archiveNodeCount: 0, folderNodeCount: 0,
+      tombstonedNodeCount: 0, analyzedItemCount: 0, pendingItemCount: 0, failedItemCount: 0,
+      userCount: 0, activeUserCount: 0, adminCount: 0, pendingActivationCount: 0,
+      readingProgressCount: 0, completedItemCount: 0, inProgressItemCount: 0,
+      bookmarkCount: 0, favoriteCount: 0, activeSessionCount: 0,
+    };
+    const backupSettings: BackupSettingsDto = {
+      enabled: true, enabledSource: 'default', intervalHours: 24, intervalHoursSource: 'default',
+      retentionCount: 5, retentionCountSource: 'default', locationKind: 'default', locationSource: 'default',
+      customLocation: null, locationChangeAllowed: true, locationStatus: 'ok', platform: null,
+    };
     const libs: LibraryDto[] = [];
     const listing: DirectoryListingDto = {
       available: true, root: null, current: '/library-root', parent: null, entries: [entry],
@@ -61,6 +76,9 @@ describe('AdminComponent directory browser row', () => {
       browseLibraryPaths: vi.fn().mockReturnValue(of(listing)),
       getLoggingLevel: vi.fn().mockReturnValue(of(logLevel)),
       getUpdateCheck: vi.fn().mockReturnValue(of(updateStatus)),
+      getAnalyticsOverview: vi.fn().mockReturnValue(of(analyticsOverview)),
+      getAnalyticsUsers: vi.fn().mockReturnValue(of([])),
+      getBackupSettings: vi.fn().mockReturnValue(of(backupSettings)),
     };
     const authSpy = { currentUser: () => null, isAdmin: () => true };
 

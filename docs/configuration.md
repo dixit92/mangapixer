@@ -60,6 +60,8 @@ The Unraid Compose file sets the three roots to `/config/data`, `/config/cache` 
 | Key (environment variable) | Default | Meaning |
 |---|---|---|
 | `MangaPixer:Media:MaxConcurrentJobs` (`MangaPixer__Media__MaxConcurrentJobs`) | `2` | How many archive jobs (analysis, page extraction, thumbnails) run at once. When it is more than 1 and someone is waiting for a page, one slot is held back for them. Use `1` on a low-memory NAS. |
+| `MangaPixer:Media:WorkerIdleTimeoutSeconds` (`MangaPixer__Media__WorkerIdleTimeoutSeconds`) | `180` | How many seconds a helper process that opens archives may sit unused before the server shuts it down. Each one holds roughly 100-200 MB of memory, so a quiet server gives that back. The next page or scan starts a fresh one, which adds about a fifth of a second to that first request. `0` keeps helpers running until the server stops, as before version 1.22.0. |
+| `MangaPixer:Media:MinWarmWorkers` (`MangaPixer__Media__MinWarmWorkers`) | `0` | How many helper processes stay running however long the server is idle. `0` lets a quiet server run with none. Set `1` if you prefer the first page after a quiet spell to open without the start-up delay and can spare the memory. It never goes above `MaxConcurrentJobs`. |
 | `MangaPixer:Media:ThumbnailBackfill:BatchSize` (`MangaPixer__Media__ThumbnailBackfill__BatchSize`) | `200` | How many items the background thumbnail pass loads at a time. |
 | `MangaPixer:Media:ThumbnailBackfill:BackoffMs` (`MangaPixer__Media__ThumbnailBackfill__BackoffMs`) | `200` | How long, in milliseconds, the thumbnail pass waits between checks while the server is busy with readers or analysis. |
 | `MangaPixer:Media:PageVariants:MaxDimensions` (`MangaPixer__Media__PageVariants__MaxDimensions`) | `1080,1440,2160` | Page sizes the reader may ask for, as longest edge in pixels, written smallest first and separated by commas. A request is rounded up to the next size on this list, so a few sizes cover every screen. Pages are never enlarged: a page already smaller than the requested size is sent as it is. At most six sizes; each extra size is another cached copy of every page you read. |
@@ -73,10 +75,12 @@ The Unraid Compose file sets the three roots to `/config/data`, `/config/cache` 
 |---|---|---|
 | `MangaPixer:Backups:Enabled` (`MangaPixer__Backups__Enabled`) | `true` | Turns the scheduled database backups on or off. **Back up now** keeps working either way. |
 | `MangaPixer:Backups:IntervalHours` (`MangaPixer__Backups__IntervalHours`) | `24` | Hours between scheduled backups. Decimals are allowed (`0.5` = 30 minutes). The first backup runs 2 minutes after the server starts. |
-| `MangaPixer:Backups:RetentionCount` (`MangaPixer__Backups__RetentionCount`) | `7` | How many `rotating-*.db` snapshots to keep. Older ones are deleted. Pre-migration and pre-restore snapshots are never deleted. |
+| `MangaPixer:Backups:RetentionCount` (`MangaPixer__Backups__RetentionCount`) | `7` | How many `rotating-*.db` snapshots to keep. Older ones are deleted. Pre-migration and pre-restore snapshots are kept separately (the newest 3 of each). |
+| `MangaPixer:Backups:Location` (`MangaPixer__Backups__Location`) | not set (`<DataRoot>/backups`) | Absolute folder for the rotating backups, for example `/backups` next to a bind mount. It must pass the same checks as a folder chosen in the web app. If it fails them, backups stop (they never fall back to the data folder) and `/health/ready` reports `Degraded`. |
+| `MangaPixer:Backups:AllowLocationChange` (`MangaPixer__Backups__AllowLocationChange`) | `true` | `false` locks the backup location in the web app, even when no `Location` is set. |
 | `MangaPixer:Backups:MaxRestoreUploadBytes` (`MangaPixer__Backups__MaxRestoreUploadBytes`) | `536870912` (512 MiB) | Largest backup file you can upload for a restore. The web server also caps uploads at 128 MiB, so in practice the limit is 128 MiB, or this value if it is lower. |
 
-Backups are written to `<DataRoot>/backups`. You cannot change that folder. See [Backup and restore](backup-and-restore.md).
+The schedule, retention and location can also be changed in the **Backup settings** card in the web app. Each setting is resolved on its own: a value in this configuration wins (the web app shows it as **Managed by server configuration**), then the value saved in the web app, then the default. A value that cannot be read (for example `IntervalHours: daily`) is ignored with a warning in the log. Pre-migration and pre-restore snapshots always stay in `<DataRoot>/backups`. See [Backup and restore](backup-and-restore.md#choosing-where-backups-are-kept).
 
 ## Sign-in protection
 
