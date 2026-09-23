@@ -739,3 +739,55 @@ export interface UpdateCheckStatusDto {
 export interface UpdateCheckSettingsRequest {
   enabled: boolean;
 }
+
+// --- Admin analytics (1.22.0 lane E) ---
+
+/**
+ * Instance-wide analytics overview (`AnalyticsOverviewDto`). Counts and a
+ * generation timestamp only — on-demand aggregation, no rollup table.
+ */
+export interface AnalyticsOverviewDto {
+  generatedAt: string;
+
+  libraryCount: number;
+  totalNodeCount: number;
+  archiveNodeCount: number;
+  folderNodeCount: number;
+  tombstonedNodeCount: number;
+  analyzedItemCount: number;
+  pendingItemCount: number;
+  failedItemCount: number;
+
+  userCount: number;
+  activeUserCount: number;
+  adminCount: number;
+  pendingActivationCount: number;
+
+  readingProgressCount: number;
+  completedItemCount: number;
+  inProgressItemCount: number;
+  bookmarkCount: number;
+  favoriteCount: number;
+  activeSessionCount: number;
+}
+
+/**
+ * One row of the per-user analytics table (`AnalyticsUserRowDto`). Counts and
+ * timestamps only — never item names or paths. Reading activity in a library
+ * the user marked Private is excluded from their own counts (owner decision
+ * 2026-09-22, privacy-conservative default).
+ */
+export interface AnalyticsUserRowDto {
+  id: string;
+  username: string;
+  isAdmin: boolean;
+  isActive: boolean;
+  isPendingActivation: boolean;
+  lastLoginAt: string | null;
+
+  chaptersCompleted: number;
+  chaptersInProgress: number;
+  bookmarkCount: number;
+  favoriteCount: number;
+  lastReadingActivityAt: string | null;
+}

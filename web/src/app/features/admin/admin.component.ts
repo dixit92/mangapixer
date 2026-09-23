@@ -34,6 +34,7 @@ import { DebugLogCardComponent } from './debug-log-card.component';
 import { UpdateCheckCardComponent } from './update-check-card.component';
 import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
 import { LibraryIconPickerComponent } from './library-icon-picker/library-icon-picker.component';
+import { AnalyticsCardComponent } from './analytics-card/analytics-card.component';
 
 /**
  * Admin component. Shows library and user administration.
@@ -50,6 +51,7 @@ import { LibraryIconPickerComponent } from './library-icon-picker/library-icon-p
     CommonModule,
     DebugLogCardComponent,
     UpdateCheckCardComponent,
+    AnalyticsCardComponent,
     FormsModule,
     MatCardModule,
     MatButtonModule,
@@ -540,6 +542,9 @@ import { LibraryIconPickerComponent } from './library-icon-picker/library-icon-p
 
     <!-- Update Checker (opt-in, off by default) -->
     <app-update-check-card />
+
+    <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->
+    <app-analytics-card />
   `,
   styles: [`
     mat-card { margin-bottom: 16px; }
