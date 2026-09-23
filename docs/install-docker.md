@@ -143,7 +143,7 @@ The server always listens on port 8080 inside the container. To use a different 
    docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d
    ```
 
-Your volumes are kept. On start-up the server upgrades the database schema if the new version needs it. **Before it changes an existing database it writes a snapshot** called `pre-migration-<UTC timestamp>.db` to `/data/backups`. If that snapshot fails, the server refuses to start rather than risk your data. Automatic backup rotation never deletes these snapshots; only the newest 3 pre-migration snapshots are kept.
+Your volumes are kept. On start-up the server upgrades the database schema if the new version needs it. **Before it changes an existing database it writes a snapshot** called `pre-migration-<UTC timestamp>.db` to `/data/backups`. If that snapshot fails, the server refuses to start rather than risk your data. These snapshots are separate from the daily backups: the server keeps the newest 3 of them and deletes older ones only after a new one has been written successfully.
 
 Each version is its own image tag, so the previous image stays on disk. Once the new version is running, you can remove old ones with `docker image rm ghcr.io/dixit92/mangapixer:<old-version>`.
 

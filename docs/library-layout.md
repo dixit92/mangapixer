@@ -103,7 +103,13 @@ The **Filter** button holds:
 - **Show:** **All**, **Reading**, **Read** or **Unread**. For folders, the filter looks at every archive below them.
 - **Hide empty folders:** hides folders with no archive anywhere below them.
 
+- **Favorites only:** shows only the folders and archives you starred.
+
 Filters apply to the current view only and are not saved.
+
+### Selecting items
+
+Choose **Select** to pick several items for a bulk action, such as marking them read or (for admins) setting a reading direction. In **List** view you can also tick the checkbox on any row directly, without choosing **Select** first; tapping the row itself still opens it. See [Read and unread](reader.md#read-and-unread) for the selection shortcuts.
 
 ### Jump navigation
 
@@ -115,6 +121,16 @@ At the library root, sorted by Name ascending with no filter active, a **jump ra
 - **Other** for everything else.
 
 Leading punctuation, brackets and spaces are skipped, so `(Title)` and `-Title-` file under `T`. Each chip shows how many entries it holds. Selecting it scrolls to the first one.
+
+## Favorites
+
+Star any folder or archive to keep it within easy reach. The star appears on cards and rows in the library view, on search results, and in the reader toolbar (for the chapter you are reading).
+
+- **Favorites** in the sidebar, above your libraries, lists everything you starred, most recently starred first.
+- **Favorites only** in the **Filter** menu narrows any library view to your starred items.
+- Two options in **Settings** > **Favorites**, both off by default: a **Favorites** row on the home page, and highlighting starred results in search (a star badge, and they move to the top).
+
+Favorites belong to your account and follow you to every device. They respect Private libraries: while Incognito is on, favorites in your Private libraries are hidden too.
 
 ## Rescans, moves and deletions
 

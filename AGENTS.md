@@ -118,7 +118,7 @@ Every release is cut on `dev` and then **`main` is fast-forwarded / merged to th
 
 Order, all maintainer-gated (agents do NOT do these autonomously):
 
-1. Bump `Version.props` (and match `web/package.json`) to `<version>`, stamp the CHANGELOG `[<version>]` section, and refresh version-referencing docs (README and `docs/` install examples such as `MANGAPIXER_VERSION=` and the `MangaPixer-<version>-windows-x64.msi` filenames). Do not restate the version as prose where a live source already shows it — the README version badge tracks the latest release, so there is no manual "current version" line to update. Commit on `dev`.
+1. Bump `Version.props` (and match `web/package.json`) to `<version>`, stamp the CHANGELOG `[<version>]` section, and refresh version-referencing docs (README and `docs/` install examples such as `MANGAPIXER_VERSION=` and the `MangaPixer-<version>-windows-x64.msi` filenames). Do not restate the version as prose where a live source already shows it — the README version badge tracks the latest release, so there is no manual "current version" line to update. If `Directory.Packages.props` or `web/package-lock.json` changed since the last release, refresh the affected sections of `THIRD-PARTY-NOTICES.md` (section 7 lists the commands) so every shipped package, and any upstream work it derives from, is attributed. Commit on `dev`.
 2. Tag `v<version>` on that commit.
 3. **Merge `dev` into `main`** (`git checkout main && git merge --no-ff dev`), so `main` contains the release commit and tag. `main` is the "last released" trunk; `dev` is the version-agnostic integration trunk that runs ahead.
 4. Build/deploy the tagged image as needed.

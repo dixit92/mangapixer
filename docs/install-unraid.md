@@ -1,21 +1,24 @@
 # Install on Unraid
 
-`deploy/compose.unraid.yaml` is a self-contained Compose file for Unraid. It is an alternative to [the canonical Docker setup](install-docker.md), not a layer on top of it. The differences:
+There are two ways to run MangaPixer on Unraid:
+
+- **The Unraid template** (`deploy/unraid/mangapixer.xml`): install it from the Docker tab like any other Unraid app. This is the simplest route.
+- **The Unraid Compose file** (`deploy/compose.unraid.yaml`): for people who manage their containers with Compose.
+
+Both use the same image and the same layout, which differs from [the canonical Docker setup](install-docker.md) like this:
 
 | | Canonical (`compose.yaml`) | Unraid (`compose.unraid.yaml`) |
 |---|---|---|
 | State | Three named Docker volumes | One host folder, `/mnt/user/appdata/MangaPixer`, mounted at `/config` |
 | File ownership | UID/GID 1000 by default | `PUID`/`PGID` so files belong to your Unraid user |
 | Port | `127.0.0.1:8080` (loopback only) | `6266`, published on **all** interfaces, so the app is reachable from your LAN |
-| Image | Pulled from GHCR (or built from a clone with the build overlay) | Pulled from GHCR; building on Unraid is optional |
+| Image | Pulled from GHCR (or built from a clone with the build overlay) | Pulled from GHCR |
 
-The hardening is the same in both: read-only container filesystem, a `tmpfs` for `/tmp`, `no-new-privileges`, and bounded container logs.
-
-Until it is listed in Community Applications, you can install it manually using the template URL below. Alternatively, you can run the Compose file directly (the traditional route), which requires `docker compose` on the host (usually a Compose plugin on Unraid).
+The hardening is the same everywhere: read-only container filesystem, a `tmpfs` for `/tmp`, `no-new-privileges`, and bounded container logs.
 
 ## Install from the template
 
-From the Unraid terminal, download the template file and add it to the local template directory:
+MangaPixer is not listed in Community Applications yet. Until it is, add the template by hand. From the Unraid terminal, download it into your user templates folder:
 
 ```bash
 wget -O /boot/config/plugins/dockerMan/templates-user/my-MangaPixer.xml \
@@ -29,15 +32,17 @@ Then:
 3. In the **Template** dropdown, choose **MangaPixer**.
 4. Fill in:
    - **PUID** and **PGID**: Check your Unraid user's ID with `ls -ln /mnt/user/appdata`. Defaults are `99` (`nobody`) and `100` (`users`).
-   - **Media**: Edit or add your media share paths. The template provides one `/media` mount point (read-only). Adjust the host path to point at your actual share, or add more by clicking "Add another Path" and editing each one.
+   - **Media**: set the host path to your comics or manga share (for example `/mnt/user/Manga`); it is mounted read-only at `/media/manga`. For another share, select **Add another Path** and use a sibling container path such as `/media/comics`, also read-only. Never mount one share inside another (for example one at `/media` and another at `/media/comics`): Docker would have to create a folder inside your first share.
 5. Click **Apply**.
-6. The container starts. Once it is running, visit `http://<unraid-ip>:6266` and create the first admin on the welcome screen.
+6. The container starts. Once it is running, visit `http://<unraid-ip>:6266` and create the first admin on the welcome screen. Then register your libraries with root paths such as `/media/manga`, as in [step 6 of the Docker guide](install-docker.md#step-6-add-a-library).
 
-The template file pulls the latest released image from GHCR. Once the Community Applications template is accepted, it will appear in the standard template list without needing the manual download step.
+The template runs the `latest` image, so it follows each release. To upgrade, use Unraid's update action for the container on the Docker tab (**apply update** when Unraid reports one, or **Force update**). Database upgrades take a safety snapshot first, as described in [Install with Docker](install-docker.md#upgrading).
 
-## Manual Compose route (traditional alternative)
+Once MangaPixer is listed in Community Applications, you will be able to install it from the **Apps** tab without the download step.
 
-If you prefer not to use the template, you can run the Compose file directly:
+## Install with Compose
+
+This route needs `docker compose` on the Unraid host (usually from a Compose plugin).
 
 ### Step 1: get the Compose file and choose a version
 
@@ -126,6 +131,6 @@ To keep the rotating snapshots off the cache pool, for example on an archive sha
 
 If you want the page cache off the array, mount another path and point `MangaPixer__Storage__CacheRoot` at it (see [Configuration](configuration.md#storage)).
 
-## Upgrading
+## Upgrading a Compose install
 
 Set `MANGAPIXER_VERSION` to the new version, run the same command with `pull` instead of `up -d`, then `up -d` again. Compose recreates the container with the new image, and `/config` is kept. Database schema upgrades take a `pre-migration-*.db` snapshot first, as described in [Install with Docker](install-docker.md#upgrading).

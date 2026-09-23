@@ -19,7 +19,7 @@ There are two roles, shown as **Admin** and **Reader** in the user list.
 |---|---|---|
 | Read libraries | Only the libraries an admin has granted | Every library |
 | Own settings, password, reading progress | Yes | Yes |
-| **MangaPixer Administration** (libraries, scans, users, backups, log level, YACReader import) | No | Yes |
+| **MangaPixer Administration** (libraries and their icons, scans, users, backups, analytics, audit trail, update checker, log level, YACReader import) | No | Yes |
 | Set reading direction for libraries and folders | No | Yes |
 
 Admins open the admin page from the account menu (**MangaPixer Administration**). The server always keeps at least one active admin: it refuses to disable or demote the last one.
@@ -34,7 +34,7 @@ In **MangaPixer Administration** > **Users** > **Create New User**:
    - **Enter a password** to create the account with a temporary password. At first sign-in they must set a new one on the **Set a new password** screen before they can do anything else.
 3. Tick **Admin role** only for people who should administer the server.
 
-Activation links cannot be reissued. If one expires unused, the username stays taken. Create the account again under another name, or with a temporary password instead. Until the account is activated, sign-in attempts get the normal "Invalid username or password." message.
+If a link expires or gets lost before it is used, select **Reissue activation link** on that user's row to get a fresh one (only for accounts that have not been activated yet). Until the account is activated, sign-in attempts get the normal "Invalid username or password." message.
 
 The link uses the address you used to open the admin page. If you run behind a reverse proxy, check that the link points at your public address; see [Reverse proxy and HTTPS](reverse-proxy-and-https.md#activation-links).
 
@@ -49,9 +49,9 @@ The link uses the address you used to open the admin page. If you run behind a r
 | Reset a forgotten password | **Reset password** (the key icon) on the user's row. A temporary password appears in a message for 10 seconds; copy it and pass it on. The user must choose a new password at next sign-in, and all their sessions are signed out. |
 | Change your own password | **Settings** > **Account Settings** > **Change Password**. This signs out every session, including the one you are using, so sign in again afterwards. |
 | Disable or re-enable an account | API only: `POST /api/v1/admin/users/<id>/update` with `{"isActive": false}` or `true`. Disabling signs the user out everywhere. |
-| Make someone an admin, or remove admin | API only: the same endpoint with `{"isAdmin": true}` or `false`. The change applies the next time they sign in. To apply it immediately, also sign them out (next row). |
+| Make someone an admin, or remove admin | API only: the same endpoint with `{"isAdmin": true}` or `false`. The user is signed out of every session, so the new role applies as soon as they sign back in. |
 | Sign a user out everywhere | API only: `DELETE /api/v1/admin/users/<id>/sessions`. |
-| Delete an account | Not available. Disable it instead. |
+| Delete an account | **Delete user** (the bin icon) on the user's row, then confirm. This removes the account together with its reading progress, read marks, bookmarks, favorites, settings, library access and sessions. Your files are not touched. The last active admin cannot be deleted. |
 
 User IDs come from `GET /api/v1/admin/users`. For how to call the admin API from a script, see [Backup and restore](backup-and-restore.md#calling-the-admin-api-from-a-script).
 
@@ -59,7 +59,9 @@ User IDs come from `GET /api/v1/admin/users`. For how to call the admin API from
 
 **MangaPixer Administration** shows an **Analytics** section: instance-wide totals (libraries, content, analysis backlog, users, engagement) and a per-user table (role, active/pending status, last login, chapters completed/in progress, bookmarks, favorites, last reading activity). It is admin-only, computed on demand (no data is pre-aggregated or stored beyond what already exists), and refreshes when you open it or select **Refresh**.
 
-What admins can see: counts and timestamps only. What admins cannot see, here or anywhere else in Analytics: chapter/item **titles**, **file or folder names**, or **paths** — the same privacy rule that applies to every other admin surface (backups, audit trail, diagnostics). A user's reading activity in a library **they** have marked Private (see below) is left out of that user's own counts, even though this page is otherwise visible only to admins.
+Admins see counts and timestamps only, never chapter or item **titles**, **file or folder names**, or **paths**. The same rule applies to every other admin page (backups, audit trail, diagnostics).
+
+Reading in a library a user marked **Private** (see below) is left out of that user's row. The totals at the top still include it, so the rows do not always add up to the totals.
 
 ## Private libraries and Incognito
 
@@ -85,12 +87,15 @@ Settings saved to **your account** follow you to every device:
   - **Private Libraries**
   - **New Chapters**: how many **Days** count as new (default 30, 1–365) and which libraries contribute to the home row (**Show new chapters from**)
   - **Items per load** (**Performance** card): 25, 50 (default), 100 or 200
-- **Library view:** view mode, sort, sort order and card size.
+  - **Favorites**: **Show a "Favorites" row on the home page** and **Highlight favorited results in search**, both off by default
+- **Library view:** view mode, sort, sort order, card size and list columns.
+- **Favorites** themselves (see [Library layout](library-layout.md#favorites)).
 
 Settings saved **in the current browser only**:
 
 - Reader layout (Auto / Single / Double / offset cover)
 - Page transition
+- Page quality, downscale filter and rendering (see [Image quality](reader.md#image-quality))
 - Vertical-mode page width and **Tap to scroll** step
 - Whether the reader help has been shown
 - Whether the library sidebar is collapsed
@@ -100,7 +105,7 @@ See [Reader](reader.md) for what each reader setting does.
 
 ## Sessions and security
 
-- **Sign-in lasts 7 days** from when you sign in, even if you stay active. After that you are asked to sign in again. Closing the browser does not sign you out. **Logout** in the account menu does.
+- **Sign-in lasts 7 days from your last activity.** While you keep using MangaPixer it stays signed in; after 7 days without using it you are asked to sign in again. Closing the browser does not sign you out. **Logout** in the account menu does, and ends that session on the server too.
 - Password changes, password resets and disabling an account end all of that user's sessions.
 - **Cookies:** the sign-in cookie (`.MangaPixer.Auth`) and the request-protection cookie (`.MangaPixer.Csrf`) are `HttpOnly` and `SameSite=Strict`. Scripts on a page cannot read them, and other sites cannot use them.
 - **Request protection:** every change (anything except a plain read) must carry a token from `GET /api/v1/auth/csrf` in the `X-MangaPixer-Csrf` header. The web app handles this for you. Scripts must do it themselves.
