@@ -1894,6 +1894,48 @@
         }
       }
     },
+    "/api/v1/admin/libraries/{id}/icon": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLibraryIconRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLibraryIconRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLibraryIconRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/folders/{nodeId}/reader-default": {
       "put": {
         "tags": [
@@ -2584,6 +2626,17 @@
         "type": "object",
         "properties": {
           "fileName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "SetLibraryIconRequest": {
+        "type": "object",
+        "properties": {
+          "icon": {
             "type": [
               "null",
               "string"

@@ -44,6 +44,13 @@ public sealed class LibraryEntity
     /// </summary>
     public int? DefaultReaderMode { get; set; }
 
+    /// <summary>
+    /// Admin-picked icon name from the curated allowlist (see LibraryIcons in
+    /// Core), or null for the client-derived default. Validated server-side
+    /// before being stored.
+    /// </summary>
+    public string? Icon { get; set; }
+
     public ICollection<LibraryGrantEntity> Grants { get; set; } = [];
     public ICollection<CatalogNodeEntity> Nodes { get; set; } = [];
 }

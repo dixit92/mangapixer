@@ -382,6 +382,11 @@ export class ApiService {
     return this.delete<void>(`/admin/folders/${nodeId}/reader-default`);
   }
 
+  // Library icon (1.22.0) — admin-picked icon name, or null to clear back to the default.
+  setLibraryIcon(libraryId: string, icon: string | null): Observable<LibraryDto> {
+    return this.put<LibraryDto>(`/admin/libraries/${libraryId}/icon`, { icon });
+  }
+
   triggerScan(libraryId: string): Observable<ScanTriggeredDto> {
     return this.post<ScanTriggeredDto>(`/admin/libraries/${libraryId}/scan`, {});
   }

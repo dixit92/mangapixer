@@ -9,6 +9,7 @@ using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using System.Linq;
 using Xunit;
 
 /// <summary>
@@ -68,6 +69,23 @@ public sealed class NaturalSortBackfillMigrationTests : IDisposable
         {
             await db.GetService<IMigrator>().MigrateAsync(PreviousMigration);
             await DatabaseInitialization.ConfigureDatabaseAsync(db);
+
+            // The current model maps LibraryEntity.Icon (1.22.0, post-dates
+            // PreviousMigration), so EF's INSERT for the seed row below references
+            // that column — add it here, same rationale as the favorites table
+            // above (no bearing on the sort-key ordering under test). Some tests
+            // below go on to migrate all the way to latest, which would otherwise
+            // try to apply the real AddLibraryIcon migration a second time and fail
+            // with a duplicate column; look its ID up dynamically (robust to the
+            // integrator re-sequencing migrations at merge) and mark it as already
+            // applied in the EF migrations history table.
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"libraries\" ADD COLUMN \"Icon\" TEXT NULL;");
+            var addIconMigrationId = db.GetService<IMigrationsAssembly>().Migrations.Keys
+                .Single(id => id.EndsWith("_AddLibraryIcon", StringComparison.Ordinal));
+            await db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ({0}, {1})",
+                addIconMigrationId, "10.0.12");
 
             var library = new LibraryEntity
             {

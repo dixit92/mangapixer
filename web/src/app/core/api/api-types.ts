@@ -205,6 +205,13 @@ export interface LibraryDto {
   lastScanCompleted: string | null;
   /** Global default reader mode for the library (1.2.0), or null to inherit. */
   defaultReaderMode: ReaderMode | null;
+  /** Admin-picked icon name (1.22.0), or null for the client-derived default. */
+  icon: string | null;
+}
+
+/** Request to set a library's icon (1.22.0). Null clears back to the default. */
+export interface SetLibraryIconRequest {
+  icon: string | null;
 }
 
 /** Resolved effective default reader mode for an item (1.2.0). */
