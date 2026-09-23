@@ -8,6 +8,8 @@ import {
   ActivateAccountRequest,
   AddBookmarkRequest,
   AddBookmarkResult,
+  AnalyticsOverviewDto,
+  AnalyticsUserRowDto,
   ApiError,
   AdminUserDto,
   AuthUserDto,
@@ -510,6 +512,16 @@ export class ApiService {
     return this.put<UpdateCheckStatusDto>(
       '/operations/update-check/settings',
       { enabled } as UpdateCheckSettingsRequest);
+  }
+
+  /** Admin analytics overview: library/content/processing/engagement counts. */
+  getAnalyticsOverview(): Observable<AnalyticsOverviewDto> {
+    return this.get<AnalyticsOverviewDto>('/admin/analytics/overview');
+  }
+
+  /** Admin analytics per-user table (the admin's own row included). */
+  getAnalyticsUsers(): Observable<AnalyticsUserRowDto[]> {
+    return this.get<AnalyticsUserRowDto[]>('/admin/analytics/users');
   }
 
   /** One page of the administrative audit trail (newest first). */
