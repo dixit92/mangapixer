@@ -233,6 +233,13 @@ public static class DatabaseInitialization
             if (!await backupAsync(backupPath))
                 throw new InvalidOperationException(
                     "Pre-migration backup failed; aborting migrate to protect existing data.");
+
+            // Keep the newest few pre-migration snapshots (only after this one succeeded).
+            var pruned = com.lifepixer.mangapixer.Server.Operations.SafetySnapshotPruner.PrunePreMigration(
+                Path.GetDirectoryName(backupPath)!);
+            if (pruned > 0)
+                logger?.LogInformation(LogEvents.Backup.SafetySnapshotsPruned,
+                    "Pruned {Count} old {Kind} safety snapshot(s)", pruned, "pre-migration");
         }
         else if (pending.Count > 0)
         {

@@ -61,7 +61,7 @@ public sealed class DbRestoreService
     private readonly BackupService _backup;
     private readonly DbRestoreOptions _options;
     private readonly string _dataRoot;
-    private readonly string _backupsDir;
+    private readonly BackupSettingsResolver _backupSettings;
     private readonly ILogger<DbRestoreService>? _logger;
 
     public DbRestoreService(
@@ -69,7 +69,7 @@ public sealed class DbRestoreService
         BackupService backup,
         DbRestoreOptions options,
         AppRootOptions appRoot,
-        RotatingBackupOptions rotatingOptions,
+        BackupSettingsResolver backupSettings,
         ILogger<DbRestoreService>? logger = null)
     {
         _db = db;
@@ -78,7 +78,7 @@ public sealed class DbRestoreService
         _dataRoot = string.IsNullOrWhiteSpace(appRoot.DataRoot)
             ? Path.Combine(AppContext.BaseDirectory, "data")
             : appRoot.DataRoot;
-        _backupsDir = rotatingOptions.BackupDirectory;
+        _backupSettings = backupSettings;
         _logger = logger;
     }
 
@@ -143,9 +143,13 @@ public sealed class DbRestoreService
         }
 
         // 3. Pre-restore snapshot of the CURRENT DB (rollback point). Reuse the
-        //    online VACUUM INTO backup — safe while the server is running.
+        //    online VACUUM INTO backup — safe while the server is running. It
+        //    always lands in the LOCAL safety folder (<dataRoot>/backups), never
+        //    in a custom rotating location: restore is the incident-recovery
+        //    path and must not depend on an archive share being reachable.
+        var safetyDir = _backupSettings.Current.SafetyDirectory;
         var preRestoreName = $"pre-restore-{DateTime.UtcNow:yyyyMMdd-HHmmss}.db";
-        var preRestorePath = Path.Combine(_backupsDir, preRestoreName);
+        var preRestorePath = Path.Combine(safetyDir, preRestoreName);
         var backupResult = await _backup.BackupAsync(preRestorePath, ct);
         if (!backupResult.Succeeded)
         {
@@ -155,6 +159,12 @@ public sealed class DbRestoreService
             return RestoreStageResult.Failed("pre_restore_failed",
                 "Pre-restore snapshot of the current database failed; restore aborted to protect existing data.");
         }
+
+        // Keep the newest few pre-restore snapshots (only after this one succeeded).
+        var pruned = SafetySnapshotPruner.PrunePreRestore(safetyDir);
+        if (pruned > 0)
+            _logger?.LogInformation(LogEvents.Backup.SafetySnapshotsPruned,
+                "Pruned {Count} old {Kind} safety snapshot(s)", pruned, "pre-restore");
 
         // 4. Write the marker. Carries generated file names (never absolute
         //    paths) + the requesting admin, so the startup apply step can
@@ -199,8 +209,10 @@ public sealed class DbRestoreService
             !string.Equals(fileName, Path.GetFileName(fileName), StringComparison.Ordinal))
             return RestoreStageResult.Failed("invalid_backup_name", "Invalid backup file name.");
 
-        var backupsFull = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_backupsDir));
-        var candidate = Path.GetFullPath(Path.Combine(_backupsDir, fileName));
+        // Resolved inside the EFFECTIVE rotating directory (default or custom).
+        var backupsDir = _backupSettings.Current.RotatingDirectory;
+        var backupsFull = Path.TrimEndingDirectorySeparator(Path.GetFullPath(backupsDir));
+        var candidate = Path.GetFullPath(Path.Combine(backupsDir, fileName));
         if (!candidate.StartsWith(backupsFull + Path.DirectorySeparatorChar, StringComparison.Ordinal))
             return RestoreStageResult.Failed("invalid_backup_name", "Backup file is outside the backups directory.");
 

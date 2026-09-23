@@ -1,7 +1,10 @@
 namespace com.lifepixer.mangapixer.Server.Operations;
 
 using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Serilog.Events;
 
@@ -15,10 +18,12 @@ using Serilog.Events;
 public sealed class OperationsController : ControllerBase
 {
     private readonly DiagnosticsService _diagnostics;
-    private readonly BackupService _backup;
     private readonly RotatingBackupService _rotating;
-    private readonly RotatingBackupOptions _rotatingOptions;
+    private readonly BackupSettingsResolver _backupSettings;
+    private readonly BackupSettingsService _backupSettingsService;
     private readonly RotatingBackupState _rotatingState;
+    private readonly UserManager<UserEntity> _userManager;
+    private readonly LoginRateLimiter _rateLimiter;
     private readonly LogLevelSettingsService _logLevel;
     private readonly DbRestoreService _dbRestore;
     private readonly DbRestoreOptions _dbRestoreOptions;
@@ -28,10 +33,12 @@ public sealed class OperationsController : ControllerBase
 
     public OperationsController(
         DiagnosticsService diagnostics,
-        BackupService backup,
         RotatingBackupService rotating,
-        RotatingBackupOptions rotatingOptions,
+        BackupSettingsResolver backupSettings,
+        BackupSettingsService backupSettingsService,
         RotatingBackupState rotatingState,
+        UserManager<UserEntity> userManager,
+        LoginRateLimiter rateLimiter,
         LogLevelSettingsService logLevel,
         DbRestoreService dbRestore,
         DbRestoreOptions dbRestoreOptions,
@@ -40,10 +47,12 @@ public sealed class OperationsController : ControllerBase
         ILogger<OperationsController> logger)
     {
         _diagnostics = diagnostics;
-        _backup = backup;
         _rotating = rotating;
-        _rotatingOptions = rotatingOptions;
+        _backupSettings = backupSettings;
+        _backupSettingsService = backupSettingsService;
         _rotatingState = rotatingState;
+        _userManager = userManager;
+        _rateLimiter = rateLimiter;
         _logLevel = logLevel;
         _dbRestore = dbRestore;
         _dbRestoreOptions = dbRestoreOptions;
@@ -171,18 +180,10 @@ public sealed class OperationsController : ControllerBase
         });
     }
 
-    [HttpPost("backup")]
-    public async Task<IActionResult> Backup([FromBody] BackupRequest request, CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(request?.Path))
-            return BadRequest(new ApiError { Error = "invalid_request", Message = "Backup path is required." });
-
-        var result = await _backup.BackupAsync(request.Path, ct);
-        if (!result.Succeeded)
-            return BadRequest(new ApiError { Error = "backup_failed", Message = result.Error ?? "Backup failed" });
-
-        return Ok(new { path = result.Path });
-    }
+    // The former POST /api/v1/operations/backup {path} (an unvalidated,
+    // caller-supplied server write path that echoed the absolute path) was
+    // removed in 1.22.0. Backups are written only to the validated rotating
+    // location (see the backup settings endpoints) or the local safety folder.
 
     /// <summary>
     /// Status of the scheduled rotating backups: configuration, last
@@ -205,9 +206,9 @@ public sealed class OperationsController : ControllerBase
     [HttpGet("backups/files")]
     public IActionResult ListRotatingBackups()
     {
-        IReadOnlyList<RotatingBackupFileInfo> files;
-        try { files = _rotating.ListBackups(_rotatingOptions.BackupDirectory); }
-        catch (IOException) { files = Array.Empty<RotatingBackupFileInfo>(); }
+        var files = LocationReadable()
+            ? _rotating.ListBackups(_backupSettings.Current.RotatingDirectory)
+            : Array.Empty<RotatingBackupFileInfo>();
 
         var items = files
             .Select(f => new RotatingBackupFileDto
@@ -230,6 +231,8 @@ public sealed class OperationsController : ControllerBase
     public async Task<IActionResult> RunRotatingBackup(CancellationToken ct)
     {
         var outcome = await _rotating.RunAsync(ct);
+        if (outcome.FailureCode is BackupLocationCodes.Unavailable or BackupLocationCodes.Invalid)
+            return BadRequest(new ApiError { Error = "backup_location_unavailable", Message = "The backup location is unavailable." });
         if (!outcome.Succeeded)
             return BadRequest(new ApiError { Error = "backup_failed", Message = "Rotating backup failed." });
 
@@ -238,21 +241,109 @@ public sealed class OperationsController : ControllerBase
 
     private RotatingBackupStatusDto BuildRotatingStatusDto()
     {
-        int retained;
-        try { retained = _rotating.CountBackups(_rotatingOptions.BackupDirectory); }
-        catch (IOException) { retained = 0; }
+        var settings = _backupSettings.Current;
+        var retained = LocationReadable() ? _rotating.CountBackups(settings.RotatingDirectory) : 0;
 
         return new RotatingBackupStatusDto
         {
-            Enabled = _rotatingOptions.Enabled,
-            IntervalHours = _rotatingOptions.Interval.TotalHours,
-            RetentionCount = _rotatingOptions.RetentionCount,
+            Enabled = settings.Enabled,
+            IntervalHours = settings.IntervalHours,
+            RetentionCount = settings.RetentionCount,
             LastAttemptUtc = _rotatingState.LastAttemptUtc,
             LastSuccessUtc = _rotatingState.LastSuccessUtc,
             LastFailureUtc = _rotatingState.LastFailureUtc,
             LastBackupFileName = _rotatingState.LastBackupFileName,
             RetainedCount = retained,
+            LocationKind = settings.LocationKind,
+            LocationStatus = _rotatingState.LocationStatus,
+            LastFailureCode = _rotatingState.LastFailureCode,
         };
+    }
+
+    /// <summary>A custom location that failed its last check is not read from.</summary>
+    private bool LocationReadable() =>
+        !_backupSettings.Current.IsCustom ||
+        _rotatingState.LocationStatus is BackupLocationStatuses.Ok or BackupLocationStatuses.Unknown;
+
+    /// <summary>
+    /// Effective backup settings (1.22.0): enabled / interval / retention /
+    /// location, each with its source. The default location is described, never
+    /// emitted as a path. Admin-only.
+    /// </summary>
+    [HttpGet("backups/settings")]
+    public IActionResult GetBackupSettings() => Ok(_backupSettingsService.GetSettings());
+
+    /// <summary>
+    /// Updates the backup settings (partial). Configuration-managed fields are
+    /// refused with 409. Any request that includes <c>location</c> (including
+    /// <c>validateOnly</c>) requires the caller's current password; a wrong
+    /// password counts against the login rate limiter. Every location change
+    /// (success or failure) is audited. Existing snapshots are never moved or
+    /// deleted by a settings change. Admin-only.
+    /// </summary>
+    [HttpPut("backups/settings")]
+    public async Task<IActionResult> UpdateBackupSettings([FromBody] UpdateBackupSettingsRequest? request, CancellationToken ct)
+    {
+        if (request is null)
+            return BadRequest(new ApiError { Error = "invalid_request", Message = "Request body is required." });
+
+        var actor = User.Identity?.Name ?? "unknown";
+
+        var rejected = _backupSettingsService.CheckRequest(request);
+        if (rejected is not null)
+        {
+            await _backupSettingsService.AuditAsync(request, actor, success: false, ct);
+            return StatusCode(rejected.StatusCode, new ApiError { Error = rejected.ErrorCode!, Message = rejected.Message! });
+        }
+
+        if (request.Location is not null)
+        {
+            var reauth = await ReauthenticateAsync(request.CurrentPassword, actor, ct);
+            if (reauth is not null)
+            {
+                await _backupSettingsService.AuditAsync(request, actor, success: false, ct);
+                return reauth;
+            }
+        }
+
+        var outcome = await _backupSettingsService.ApplyAsync(request, actor, ct);
+        if (!outcome.Succeeded)
+            return StatusCode(outcome.StatusCode, new ApiError { Error = outcome.ErrorCode!, Message = outcome.Message! });
+        return Ok(outcome.Result);
+    }
+
+    /// <summary>
+    /// Current-password re-authentication for the security-sensitive location
+    /// field. Uses the login rate limiter (keyed by client IP + user name), so a
+    /// stolen admin cookie cannot brute-force the password through this route.
+    /// Does not trip the account lockout. Returns null on success.
+    /// </summary>
+    private async Task<IActionResult?> ReauthenticateAsync(string? password, string actor, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(password))
+            return BadRequest(new ApiError { Error = "current_password_required", Message = "Your current password is required to change the backup location." });
+
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        if (!_rateLimiter.AllowAttempt(ip, actor))
+        {
+            var retryAfter = _rateLimiter.GetRetryAfter(ip, actor);
+            Response.Headers["Retry-After"] = ((int?)retryAfter?.TotalSeconds ?? 60).ToString();
+            return StatusCode(429, new ApiError { Error = "rate_limited", Message = "Too many attempts. Please try again later." });
+        }
+
+        var idClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        UserEntity? user = null;
+        if (idClaim is not null && long.TryParse(idClaim.Value, out var userId))
+            user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                .FirstOrDefaultAsync(_userManager.Users, u => u.Id == userId, ct);
+
+        if (user is null || !await _userManager.CheckPasswordAsync(user, password))
+        {
+            _rateLimiter.RecordFailure(ip, actor);
+            return StatusCode(403, new ApiError { Error = "reauthentication_failed", Message = "The current password is incorrect." });
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -362,11 +453,6 @@ public sealed class OperationsController : ControllerBase
             actor, targetUserId: null, correlationId: null, ct);
 }
 
-public sealed record BackupRequest
-{
-    public string? Path { get; init; }
-}
-
 /// <summary>One on-disk rotating snapshot, exposed for the restore picker.</summary>
 public sealed record RotatingBackupFileDto
 {
@@ -397,6 +483,15 @@ public sealed record RotatingBackupStatusDto
     public required DateTimeOffset? LastFailureUtc { get; init; }
     public required string? LastBackupFileName { get; init; }
     public required int RetainedCount { get; init; }
+
+    /// <summary><c>default</c> | <c>custom</c> (1.22.0; never the location itself).</summary>
+    public string LocationKind { get; init; } = EffectiveBackupSettings.KindDefault;
+
+    /// <summary><c>ok</c> | <c>unavailable</c> | <c>invalid</c> | <c>unknown</c>.</summary>
+    public string LocationStatus { get; init; } = BackupLocationStatuses.Unknown;
+
+    /// <summary><c>location_unavailable</c> | <c>location_invalid</c> | <c>backup_failed</c> | null.</summary>
+    public string? LastFailureCode { get; init; }
 }
 
 public sealed record LogLevelDto
