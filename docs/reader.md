@@ -12,11 +12,13 @@ On desktop and tablet, the toolbar at the top holds:
 
 - **Back to folder**.
 - The page counter (`12 / 40`, or `12-13 / 40` while a double page is showing).
+- **Favorite** (the star): adds the open chapter to your [favorites](library-layout.md#favorites).
 - **Previous chapter** / **Next chapter**. Their tooltips name the neighboring archive. They are disabled at either end of the folder.
 - **Reading mode**.
 - **Image fit**, or the **Page width** slider in vertical mode.
 - The reading-direction toggle.
 - **Page transition**, or **Tap to scroll** in vertical mode.
+- **Rendering** (the magic-wand icon): the picture-quality options described in [Image quality](#image-quality).
 - **Reading help** (`?`).
 - **Fullscreen**.
 
@@ -28,7 +30,7 @@ The bottom bar has a **page slider**: tap to jump, or drag to scrub, with a bubb
 
 In Safari, **Fullscreen** switches the reader to its own immersive in-page mode instead of Safari's fullscreen: Safari's fullscreen would leave a system close button and the status bar sitting over the page, and the page has no way to hide either. Immersive mode hides the reader's own toolbar and bars the same way fullscreen does elsewhere, without any of that.
 
-For a chrome-free reader with no Safari bars at all, add MangaPixer to the Home Screen (**Share** > **Add to Home Screen**). The installed app opens straight into the reader's own UI, with an opaque black status bar instead of Safari's.
+For a reader with no Safari bars at all, add MangaPixer to the Home Screen (**Share** > **Add to Home Screen**). The installed app has no browser bars and an opaque black status bar. The same goes for an app installed from Chrome on Android. In an installed app, the reader opens in immersive mode, with its own bars hidden; tap the center of the page to bring them back.
 
 ### On phones
 
@@ -38,6 +40,7 @@ On screens narrower than 600 px, the toolbar keeps only **Next chapter**, **Full
 - **Image fit**
 - **Reading direction**
 - **Page transition**
+- **Rendering**, **Page quality** and **Downscale filter** (see [Image quality](#image-quality))
 - In vertical mode, **Page width** and **Tap to scroll** replace the paged-only groups.
 - **Previous chapter**, **Next chapter** and **Reading help**.
 
@@ -76,6 +79,38 @@ Details:
 The fit resets to **Fit screen** each time you open the reader.
 
 In vertical mode, **Image fit** is replaced by a **Page width** slider from 15% to 100% of the screen width. The default is 70%, and your browser remembers the setting. Pages in the strip sit edge to edge, with no gap.
+
+## Image quality
+
+Scanned pages rarely match your screen pixel for pixel, so every page is either shrunk or enlarged before you see it. Manga and comics are mostly line art and screentones (fine dot patterns), and both suffer when a browser resizes them with its default method: lines go soft and screentones can shimmer into moire patterns. The **Rendering** menu (magic-wand icon; on phones, in **Reader options**) holds three settings that control this. All three are remembered by this browser, not your account.
+
+**Page quality**
+
+- **Auto** (default): the reader works out how large each page will actually appear on your screen, including its pixel density, and asks the server for a copy at about that size. The server shrinks the page once, with a high-quality filter, and caches the result. Pages load faster and look cleaner than when the browser shrinks a full-size scan.
+- **Full**: always download the original page. Use this if you zoom in a lot, or want the exact source pixels.
+
+The server never enlarges a page: if your screen needs more pixels than the scan has, you get the original. Animated pages are always sent as they are.
+
+**Downscale filter** (Auto page quality only)
+
+How the server shrinks a page:
+
+| Filter | Look | Good for |
+|---|---|---|
+| **Sharp** | Crispest lines; may show moire on screentones | Clean digital releases with little screentone |
+| **Balanced** (default) | A middle ground between the other two | Most scans |
+| **Soft** | Smoothest screentones; lines slightly softer | Heavily screentoned print scans |
+
+Press `s` to cycle through the filters while reading. With **Full** page quality nothing is shrunk, so the filter is greyed out ("Applies to Auto page quality").
+
+**Rendering**
+
+- **Smooth** (default): the browser's normal image scaling.
+- **Enhance**: when a page is shown *larger* than its original resolution, it is redrawn on your device's graphics chip with Anime4K, an upscaler designed for anime and line art, to keep lines sharp. Pages that are not being enlarged are left alone, and nothing is sent to the server.
+
+Enhance needs a browser with WebGPU. The Rendering button's tooltip says whether WebGPU is ready, and without it Enhance is greyed out ("Enhance needs WebGPU"). It works in single and double page modes; in vertical mode it is greyed out ("Enhance is for paged views"). Press `e` to switch between Smooth and Enhance. Enhance uses the graphics chip, so it can use more battery on phones and tablets.
+
+Enhance is built on [Anime4K](https://github.com/bloc97/Anime4K) by bloc97, through the [anime4k-webgpu](https://github.com/Anime4KWebBoost/Anime4K-WebGPU) port. See [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
 
 ## Reading direction
 
@@ -116,11 +151,14 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
 | `←` / `→` | Previous / next page (swapped in right-to-left). At the end or start of a chapter, moves to the next or previous chapter. |
 | `Home` / `End` | First / last page |
 | `f` | Toggle fullscreen |
+| `d` | Switch between single and double page |
+| `s` | Cycle the downscale filter: Sharp, Balanced, Soft |
+| `e` | Switch Rendering between Smooth and Enhance (when Enhance is available) |
 | `m` | Show / hide the controls |
 | `Esc` | Close help. Otherwise exit fullscreen, or go back to the folder if not in fullscreen. |
 | `?` | Show / hide the help overlay |
 
-- In vertical mode only `m`, `?` and `Esc` (to close help) apply. Scroll with the mouse wheel, trackpad or the usual scroll keys.
+- In vertical mode only `m`, `s`, `?` and `Esc` (to close help) apply. Scroll with the mouse wheel, trackpad or the usual scroll keys.
 - Shortcuts are ignored while you type in a text field.
 - When the page slider has keyboard focus, the arrow keys step one page and `Home` / `End` jump to the ends.
 

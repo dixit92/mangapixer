@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.22.1] - 2026-09-23
+
+### Changed
+
+- The Unraid template now mounts its media share at `/media/manga` and explains how to add more shares side by side (for example `/media/comics`). Mounting one share inside another could make Docker create a folder inside your media.
+- Documentation brought up to date with the current release, and a new [How MangaPixer works](docs/how-it-works.md) page explains the parts that run, where data is stored, what happens when you scan and read, memory use and privacy. Notable corrections: the server does honour `X-Forwarded-*` headers from trusted proxies (secure cookies, per-client sign-in limits, `https://` activation links; the nginx example now sends them, and `MangaPixer:Network:KnownProxies` / `KnownNetworks` are documented), sessions last 7 days from your last activity, and user deletion and activation-link reissue are available. The reader guide now covers Page quality, Downscale filter and Enhance.
+
+### Fixed
+
+- `THIRD-PARTY-NOTICES.md` now attributes Anime4K (bloc97, MIT), which the Enhance option is built on, and the `anime4k-webgpu` package; the web runtime inventory is refreshed for the current dependencies.
+
 ## [1.22.0] - 2026-09-23
 
 ### Added

@@ -22,7 +22,11 @@ No. An admin starts every scan with **Scan now** or **Scan all libraries**. See 
 
 ### Does it use ComicInfo.xml or fetch metadata online?
 
-No. Names come from your folders and files. The server makes no calls to metadata services and has no telemetry or analytics. The web app's fonts and icons are bundled, so it works on a network with no internet access.
+No. Names come from your folders and files. The server makes no calls to metadata services and has no telemetry. The web app's fonts and icons are bundled, so it works on a network with no internet access.
+
+### Does it contact the internet at all?
+
+Only if an admin turns on the **Update Checker**, which is off by default. It then asks GitHub at most once a day whether a newer MangaPixer release exists, without sending anything about your server or users. See [Configuration](configuration.md#settings-stored-in-the-app).
 
 ### If I rename or move a series folder, do I lose my progress?
 
@@ -55,12 +59,21 @@ Cache and scratch do not need to be copied.
 
 ### How much disk space does it need?
 
-- **Database:** grows with the number of archives and users. <0.5 GB for 10,000+ tracked archives
+- **Database:** grows with the number of archives and users. Expect a few hundred MB for tens of thousands of archives.
 - **Thumbnails:** one small WebP per archive, in the data root.
+- **Backups:** by default the newest 7 daily database copies, each about the size of the database. You can keep fewer, or move them to another disk (see [Backup and restore](backup-and-restore.md#choosing-where-backups-are-kept)).
 - **Page cache:** capped at 1 GiB by default.
-- **Scratch:** up to 1 GiB, and only used heavily by solid archives.
+- **Scratch:** capped at 1 GiB; it only holds files for a moment while pages are extracted.
 
 The cache and scratch limits are configurable (see [Configuration](configuration.md#storage)).
+
+### How much memory does it use?
+
+When nobody is reading, the server itself typically uses around 150-300 MB. Opening archives is done by separate helper processes, each around 100-200 MB while it works; they start when needed and shut down after 3 minutes without work, so an idle server runs none. A reader waiting on a page always gets priority over background work. On a small NAS you can limit the helpers to one with `MangaPixer__Media__MaxConcurrentJobs=1`. See [Configuration](configuration.md#media-processing) and [How MangaPixer works](how-it-works.md).
+
+### Why SQLite? Do I need a database server?
+
+No database server is needed. MangaPixer keeps everything in one SQLite file, `mangapixer.db`, in its data folder. A home library has a handful of users and a single server, which is exactly what SQLite is good at: nothing extra to install, secure or upgrade, and a backup is a copy of one file. The server takes consistent backups for you while it runs.
 
 ### Can I run it without Docker?
 

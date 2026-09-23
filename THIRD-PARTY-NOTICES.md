@@ -23,7 +23,7 @@ from tool output (not written by hand):
 | NuGet, all | `dotnet list MangaPixer.slnx package --include-transitive --format json` | 104 package versions (103 IDs; `System.Security.Cryptography.Pkcs` resolves at two versions) |
 | NuGet, shipped | `"type": "package"` entries in the `*.deps.json` of a Release `dotnet publish` of `MangaPixer.Server` + `MangaPixer.MediaWorker` (what `deploy/Dockerfile` copies) | 79 |
 | NuGet, build/test only | all minus shipped | 25 |
-| npm, runtime | `npm --prefix web ls --omit=dev --all` (`--prod` is a deprecated alias) | 19 |
+| npm, runtime | `npm --prefix web ls --omit=dev --all` (`--prod` is a deprecated alias); refreshed for 1.22.1 | 20 |
 | npm, all | `npm --prefix web ls --all` | 880 unique name@version (959 installed paths) |
 | npm, build/test only | all minus runtime | 861 |
 
@@ -246,32 +246,36 @@ shared framework.
 - `xunit.runner.visualstudio` - 3.1.0 - Apache-2.0 - https://github.com/xunit/visualstudio.xunit
 - `xunit` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
 
-## 3. Web runtime packages - npm (19)
+## 3. Web runtime packages - npm (20)
 
-This is the production dependency tree of `web/`. Packages marked *(bundled)* are
-compiled into the shipped SPA; they are the ones Angular lists in its extracted
-`3rdpartylicenses.txt`. The rest are in the production tree but tree-shaken out
-of the bundle, or used only at compile time.
+This is the production dependency tree of `web/` (refreshed for 1.22.1 from
+`npm ls --omit=dev --all`; the rest of this file keeps the 1.12.0 basis described
+above). Packages marked *(bundled)* are compiled into the shipped SPA; they are the
+ones Angular lists in its extracted `3rdpartylicenses.txt`. The rest are in the
+production tree but tree-shaken out of the bundle, or used only at compile time.
+`anime4k-webgpu` is bundled as a separate chunk that the browser downloads only
+when a reader turns on Rendering: Enhance.
 
-- `@angular/animations` - 22.1.5 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/cdk` - 22.1.5 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/common` - 22.1.5 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/compiler` - 22.1.5 - MIT - https://github.com/angular/angular
-- `@angular/core` - 22.1.5 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/forms` - 22.1.5 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/material` - 22.1.5 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/platform-browser` - 22.1.5 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/platform-browser-dynamic` - 22.1.5 - MIT - https://github.com/angular/angular
-- `@angular/router` - 22.1.5 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/animations` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/cdk` - 22.1.6 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/common` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/compiler` - 22.1.6 - MIT - https://github.com/angular/angular
+- `@angular/core` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/forms` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/material` - 22.1.6 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/platform-browser` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/router` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
 - `@fontsource/roboto` - 5.3.0 - OFL-1.1 - https://github.com/fontsource/font-files *(bundled)*
 - `@standard-schema/spec` - 1.1.0 - MIT - https://github.com/standard-schema/standard-schema
+- `@webgpu/types` - 0.1.72 - BSD-3-Clause - https://github.com/gpuweb/types
+- `anime4k-webgpu` - 1.0.0 - MIT - https://github.com/Anime4KWebBoost/Anime4K-WebGPU *(bundled)*
 - `entities` - 8.0.0 - BSD-2-Clause - https://github.com/fb55/entities
 - `material-icons` - 1.13.14 - Apache-2.0 - https://github.com/marella/material-icons *(bundled)*
 - `parse5` - 8.0.1 - MIT - https://github.com/inikulin/parse5
 - `rxjs` - 7.8.2 - Apache-2.0 - https://github.com/reactivex/rxjs *(bundled)*
 - `tslib` - 2.8.1 - 0BSD - https://github.com/microsoft/tslib *(bundled)*
 - `zod` - 4.4.3 - MIT - https://github.com/colinhacks/zod
-- `zone.js` - 0.15.1 - MIT - https://github.com/angular/angular *(bundled)*
+- `zone.js` - 0.16.3 - MIT - https://github.com/angular/angular *(bundled)*
 
 Copyright notices for these packages (from their LICENSE files):
 
@@ -281,6 +285,44 @@ Copyright notices for these packages (from their LICENSE files):
 - Copyright (c) Microsoft Corporation - `tslib` (0BSD); `rxjs` is Apache-2.0 with no NOTICE file
 - Copyright (c) 2013-2019 Ivan Nikulin - `parse5` (MIT); Copyright (c) Felix Böhm - `entities` (BSD-2-Clause)
 - Copyright (c) 2025 Colin McDonnell - `zod` (MIT); Copyright (c) 2024 Colin McDonnell - `@standard-schema/spec` (MIT)
+- `@webgpu/types` (BSD-3-Clause): TypeScript type definitions for WebGPU from the W3C GPU for the Web group
+  (https://github.com/gpuweb/types); used at compile time only, nothing from it ships in the bundle.
+- `anime4k-webgpu` (MIT): by the Anime4KWebBoost Team (per the package metadata). Its `LICENSE.md`, as
+  published upstream, carries the copyright line `Copyright (c) 2012-2023 Scott Chacon and others`, which
+  appears to be boilerplate from an unrelated project; MangaPixer reproduces the license text as published
+  (it is in the image's `3rdpartylicenses.txt`). The package is a WebGPU port of Anime4K by bloc97 - see
+  "Upstream works" below.
+
+### Upstream works
+
+The Rendering: Enhance option uses `anime4k-webgpu`, a WebGPU implementation of
+**Anime4K** (https://github.com/bloc97/Anime4K), a set of real-time upscaling and
+restoration shaders for anime and line art. Its shader algorithms and trained
+network weights come from Anime4K, which is distributed under the following license:
+
+```text
+MIT License
+
+Copyright (c) 2019 bloc97
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ### Fonts and icons
 
