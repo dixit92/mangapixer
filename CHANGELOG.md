@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Library icons.** Administrators can give each library its own icon from a curated set (Admin > Libraries). The icon replaces the generic folder glyph in the sidebar, the mobile library list, the home page, and the libraries page. A library without a chosen icon gets a distinct default derived from its name, so libraries are easier to tell apart out of the box. New admin endpoint `PUT /api/v1/admin/libraries/{id}/icon` and an optional `icon` field on libraries.
+- **Analytics for administrators.** A new Analytics section on the admin page shows library, content, processing and engagement totals, plus a per-user table (including your own account) with last sign-in, last reading activity, and counts of chapters completed, in progress, bookmarks and favorites. It shows counts and times only, never titles, file names or paths, and reading in a library a user marked Private is left out of that user's counts. New admin-only endpoints `GET /api/v1/admin/analytics/overview` and `GET /api/v1/admin/analytics/users`.
+- **Unraid template.** `deploy/unraid/mangapixer.xml` is an Unraid container template with the same hardened settings as the Unraid Compose file; `docs/install-unraid.md` explains how to install it until it is listed in Community Applications.
+
+### Changed
+
+- **Lower idle memory.** The helper processes that open archives now shut down after sitting unused for a while (3 minutes by default) instead of running for as long as the server does, and the server no longer starts a second helper that it never used. A quiet server now uses roughly half the memory it did. The next page or scan starts a fresh helper, which adds about a fifth of a second to that first request. Tune with `MangaPixer:Media:WorkerIdleTimeoutSeconds` (`0` restores the old behaviour) and `MangaPixer:Media:MinWarmWorkers`.
+- The server now uses the .NET workstation garbage collector, which keeps its idle memory lower with no measured throughput cost (set `DOTNET_gcServer=1` to go back).
+
+### Fixed
+
+- The Rendering "Enhance" upscaler now frees all of its GPU memory: previously only part of it was released when the page size changed, and none of it when you left the reader or turned Enhance off.
+- Stopping the server (or an idle helper process) no longer waits five seconds and then force-kills each helper; helpers now exit promptly when asked to.
+
 ## [1.21.1] - 2026-09-21
 
 ### Fixed
