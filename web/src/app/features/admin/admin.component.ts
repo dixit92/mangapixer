@@ -32,6 +32,7 @@ import {
 import { libraryPathCopy } from './library-path-copy';
 import { DebugLogCardComponent } from './debug-log-card.component';
 import { UpdateCheckCardComponent } from './update-check-card.component';
+import { BackupSettingsCardComponent } from './backup-settings-card.component';
 import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
 import { LibraryIconPickerComponent } from './library-icon-picker/library-icon-picker.component';
 import { AnalyticsCardComponent } from './analytics-card/analytics-card.component';
@@ -52,6 +53,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
     DebugLogCardComponent,
     UpdateCheckCardComponent,
     AnalyticsCardComponent,
+    BackupSettingsCardComponent,
     FormsModule,
     MatCardModule,
     MatButtonModule,
@@ -435,7 +437,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
         } @else if (backupStatus(); as status) {
           <p class="backup-info">
             @if (!status.enabled) {
-              Scheduled backups are disabled by configuration.
+              Scheduled backups are disabled.
             } @else {
               Every {{ intervalLabel() }} · keeping last {{ status.retentionCount }}
             }
@@ -463,7 +465,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
         @if (backupFilesLoading()) {
           <p>Loading snapshots…</p>
         } @else if (backupFiles().length === 0) {
-          <p class="backup-info">No snapshots on disk yet. Take a backup first.</p>
+          <p class="backup-info">{{ backupStatus()?.locationStatus === 'unavailable' ? 'Backup location unavailable.' : 'No snapshots on disk yet. Take a backup first.' }}</p>
         } @else {
           <mat-list class="snapshot-list">
             @for (f of backupFiles(); track f.fileName) {
@@ -498,6 +500,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
         }
       </mat-card-content>
     </mat-card>
+    <app-backup-settings-card [snapshotCount]="backupFiles().length" (changed)="refreshBackups()" />
 
     <!-- Audit trail (1.18.0): read side of the previously write-only audit store. -->
     <mat-card>
@@ -1384,6 +1387,9 @@ export class AdminComponent implements OnInit, OnDestroy {
   }
 
   // --- Rotating database backups (1.2.0) ---
+
+  /** Reloads the Backups status + snapshot list (after a backup settings change). */
+  refreshBackups(): void { this.loadBackupStatus(); this.loadBackupFiles(); }
 
   private loadBackupStatus(): void {
     this.api.getRotatingBackupStatus().subscribe({

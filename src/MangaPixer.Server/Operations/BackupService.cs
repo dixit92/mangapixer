@@ -13,7 +13,9 @@ using System.IO;
 ///
 /// Rules:
 /// - Backup uses SQLite's online backup API (VACUUM INTO) for a consistent snapshot.
-/// - Backup file is written to a user-specified path (not in source media).
+/// - Backup file is written to a server-chosen path: the rotating backup
+///   directory (validated, never source media) or the local safety folder.
+///   No caller-supplied path is ever accepted over HTTP.
 /// - Private config/key set is included only if explicitly requested.
 /// - Verification checks the backup file is a valid SQLite database.
 /// - Restore-to-new-target requires explicit confirmation guards.
@@ -38,15 +40,17 @@ public sealed class BackupService
     public async Task<BackupResult> BackupAsync(string backupPath, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(backupPath))
-            return BackupResult.Failed("Backup path is required.");
-
-        // Ensure the directory exists
-        var dir = Path.GetDirectoryName(backupPath);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
+            return BackupResult.Failed("backup_path_required");
 
         try
         {
+            // Ensure the directory exists. Inside the try: an IOException here
+            // carries the absolute path in its message, which must never reach
+            // a log or an HTTP body (privacy invariant).
+            var dir = Path.GetDirectoryName(backupPath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+
             // Use VACUUM INTO for a consistent online backup
             // This creates a new database file with all data, without blocking
             _logger?.LogDebug(LogEvents.Backup.BackupStarting, "Database backup starting (VACUUM INTO)");
@@ -59,7 +63,7 @@ public sealed class BackupService
             if (!await VerifyBackupAsync(backupPath, ct))
             {
                 _logger?.LogError(LogEvents.Backup.BackupVerificationFailed, "Database backup failed verification");
-                return BackupResult.Failed("Backup verification failed.");
+                return BackupResult.Failed("backup_verification_failed");
             }
 
             // Outcome + size only — never the backup path (privacy invariant)
@@ -69,8 +73,9 @@ public sealed class BackupService
         }
         catch (Exception ex)
         {
-            _logger?.LogError(LogEvents.Backup.BackupFailed, ex, "Backup failed: {Error}", ex.GetType().Name);
-            return BackupResult.Failed(ex.Message);
+            // Exception type only: IO / SQLite messages can embed the target path.
+            _logger?.LogError(LogEvents.Backup.BackupFailed, "Backup failed: {Error}", ex.GetType().Name);
+            return BackupResult.Failed("backup_failed_" + ex.GetType().Name);
         }
     }
 
@@ -193,6 +198,7 @@ public sealed record BackupResult
 {
     public required bool Succeeded { get; init; }
     public required string? Path { get; init; }
+    /// <summary>A short failure code (never an exception message, which may carry a path).</summary>
     public required string? Error { get; init; }
 
     public static BackupResult Success(string path) =>

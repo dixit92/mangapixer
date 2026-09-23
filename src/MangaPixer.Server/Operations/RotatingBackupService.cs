@@ -3,41 +3,41 @@ namespace com.lifepixer.mangapixer.Server.Operations;
 using com.lifepixer.mangapixer.Server.Logging;
 
 using com.lifepixer.mangapixer.Server.Persistence;
+using System.Globalization;
 using System.IO;
+using System.Text.RegularExpressions;
 
-/// <summary>
-/// Configuration for the scheduled rotating database backups.
-/// Interval and retention are admin-configurable via configuration
-/// (MangaPixer:Backups:IntervalHours / RetentionCount / Enabled); defaults are
-/// daily with the last 7 snapshots retained.
-/// </summary>
-public sealed class RotatingBackupOptions
+/// <summary>Location health of the rotating backups, as reported to the UI and readiness check.</summary>
+public static class BackupLocationStatuses
 {
-    public bool Enabled { get; set; } = true;
-
-    public TimeSpan Interval { get; set; } = TimeSpan.FromHours(24);
-
-    public int RetentionCount { get; set; } = 7;
-
-    /// <summary>
-    /// Directory that holds rotating and pre-migration backups. Defaults to
-    /// the "backups" folder under the private data root — the same folder the
-    /// migration orchestrator writes pre-migration backups into.
-    /// </summary>
-    public string BackupDirectory { get; set; } = string.Empty;
+    public const string Ok = "ok";
+    public const string Unavailable = "unavailable";
+    public const string Invalid = "invalid";
+    public const string Unknown = "unknown";
 }
 
 /// <summary>
 /// Singleton status + concurrency guard for rotating backups. Survives across
 /// requests so the operations API can report the last scheduled or manual run.
-/// Only counts, timestamps, and generated file names are recorded — never paths.
+/// Only counts, timestamps, codes, and generated file names are recorded — never paths.
 /// </summary>
 public sealed class RotatingBackupState
 {
+    private readonly object _gate = new();
+
     public DateTimeOffset? LastAttemptUtc { get; private set; }
     public DateTimeOffset? LastSuccessUtc { get; private set; }
     public DateTimeOffset? LastFailureUtc { get; private set; }
     public string? LastBackupFileName { get; private set; }
+
+    /// <summary><c>location_unavailable</c>, <c>location_invalid</c>, <c>backup_failed</c>, or null.</summary>
+    public string? LastFailureCode { get; private set; }
+
+    /// <summary>One of <see cref="BackupLocationStatuses"/>.</summary>
+    public string LocationStatus { get; private set; } = BackupLocationStatuses.Unknown;
+
+    /// <summary>When the scheduler started (drives the readiness staleness check).</summary>
+    public DateTimeOffset? SchedulerStartedUtc { get; set; }
 
     /// <summary>
     /// Serializes backup runs between the scheduled timer and manual triggers
@@ -47,49 +47,78 @@ public sealed class RotatingBackupState
 
     public void RecordSuccess(DateTimeOffset atUtc, string fileName)
     {
-        LastAttemptUtc = atUtc;
-        LastSuccessUtc = atUtc;
-        LastFailureUtc = null;
-        LastBackupFileName = fileName;
+        lock (_gate)
+        {
+            LastAttemptUtc = atUtc;
+            LastSuccessUtc = atUtc;
+            LastFailureUtc = null;
+            LastFailureCode = null;
+            LastBackupFileName = fileName;
+        }
     }
 
-    public void RecordFailure(DateTimeOffset atUtc)
+    public void RecordFailure(DateTimeOffset atUtc, string code = "backup_failed")
     {
-        LastAttemptUtc = atUtc;
-        LastFailureUtc = atUtc;
+        lock (_gate)
+        {
+            LastAttemptUtc = atUtc;
+            LastFailureUtc = atUtc;
+            LastFailureCode = code;
+        }
+    }
+
+    /// <summary>Sets the location status and returns the previous one (for transition audits).</summary>
+    public string SetLocationStatus(string status)
+    {
+        lock (_gate)
+        {
+            var previous = LocationStatus;
+            LocationStatus = status;
+            return previous;
+        }
     }
 }
 
 /// <summary>
 /// Rotating scheduled backups: writes a consistent online snapshot
-/// (via <see cref="BackupService"/>, VACUUM INTO) into the backups folder and
-/// prunes the oldest rotating snapshots beyond the retention count.
+/// (via <see cref="BackupService"/>, VACUUM INTO) into the effective rotating
+/// directory (default <c>&lt;dataRoot&gt;/backups</c>, or an admin/operator
+/// custom location) and prunes the oldest rotating snapshots beyond retention.
 ///
-/// Rotation policy: only files matching the "rotating-*.db" prefix are ever
-/// pruned. Pre-migration backups ("pre-migration-*.db") live in the same
-/// folder and are never touched by rotation.
+/// A custom location is re-checked before every run and is never created at
+/// run time: a missing folder or marker skips the run loudly (no fallback to
+/// the data disk). Rotation only ever lists / prunes files matching the strict
+/// generated name <see cref="FileNamePattern"/>, never anything else a shared
+/// archival folder might contain.
 /// </summary>
-public sealed class RotatingBackupService
+public sealed partial class RotatingBackupService
 {
     public const string FileNamePrefix = "rotating-";
 
-    private readonly MangaPixerDbContext _db;
+    /// <summary>Generated rotating snapshot names: <c>rotating-yyyyMMdd-HHmmss[-xxxx].db</c>.</summary>
+    [GeneratedRegex(@"^rotating-(\d{8}-\d{6})(-[0-9a-f]{4})?\.db$", RegexOptions.CultureInvariant)]
+    public static partial Regex FileNamePattern();
+
     private readonly BackupService _backup;
-    private readonly RotatingBackupOptions _options;
+    private readonly BackupSettingsResolver _settings;
     private readonly RotatingBackupState _state;
+    private readonly BackupLocationService? _location;
+    private readonly TimeProvider _time;
     private readonly ILogger<RotatingBackupService>? _logger;
 
     public RotatingBackupService(
-        MangaPixerDbContext db,
         BackupService backup,
-        RotatingBackupOptions options,
+        BackupSettingsResolver settings,
         RotatingBackupState state,
+        BackupLocationService? location = null,
+        TimeProvider? time = null,
         ILogger<RotatingBackupService>? logger = null)
     {
-        _db = db;
         _backup = backup;
-        _options = options;
+        _settings = settings;
         _state = state;
+        _location = location;
+        _time = time ?? TimeProvider.System;
         _logger = logger;
     }
 
@@ -113,10 +142,46 @@ public sealed class RotatingBackupService
 
     private async Task<RotatingBackupOutcome> RunCoreAsync(CancellationToken ct)
     {
-        var dir = _options.BackupDirectory;
-        Directory.CreateDirectory(dir);
+        var settings = _settings.Current;
+        string dir;
+        if (settings.IsCustom)
+        {
+            // Fail loud: never create or fall back for a custom location.
+            var check = _location is null
+                ? null
+                : await _location.CheckAsync(ct);
+            if (check is null || !check.IsValid || check.NormalizedLocation is null)
+            {
+                var code = check?.ErrorCode == BackupLocationCodes.Invalid
+                    ? BackupLocationCodes.Invalid
+                    : BackupLocationCodes.Unavailable;
+                _state.RecordFailure(_time.GetUtcNow(), code);
+                _logger?.LogWarning(LogEvents.Backup.RotatingLocationUnavailable,
+                    "Rotating backup skipped: {Code} (location kind {Kind})", code, settings.LocationKind);
+                return new RotatingBackupOutcome { Succeeded = false, FileName = null, RetainedCount = 0, FailureCode = code };
+            }
+            dir = check.NormalizedLocation;
+        }
+        else
+        {
+            dir = settings.RotatingDirectory;
+            try
+            {
+                Directory.CreateDirectory(dir);
+            }
+            catch (Exception ex)
+            {
+                _state.RecordFailure(_time.GetUtcNow());
+                _logger?.LogWarning(LogEvents.Backup.RotatingRunFailed,
+                    "Rotating database backup failed: {Error}", ex.GetType().Name);
+                return new RotatingBackupOutcome { Succeeded = false, FileName = null, RetainedCount = 0, FailureCode = "backup_failed" };
+            }
+            if (_location is not null)
+                await _location.CheckAsync(ct);
+        }
 
-        var fileName = $"{FileNamePrefix}{DateTime.UtcNow:yyyyMMdd-HHmmss}.db";
+        var now = _time.GetUtcNow().UtcDateTime;
+        var fileName = $"{FileNamePrefix}{now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.db";
         var path = Path.Combine(dir, fileName);
         // Same-second collision (a manual trigger racing the scheduled run, or a very
         // fast DB): append a short suffix and re-derive the path. Both fileName AND
@@ -124,7 +189,7 @@ public sealed class RotatingBackupService
         // refuses a pre-existing target, so this branch must terminate).
         while (File.Exists(path))
         {
-            fileName = $"{FileNamePrefix}{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid().ToString("N")[..4]}.db";
+            fileName = $"{FileNamePrefix}{now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}-{Guid.NewGuid().ToString("N")[..4]}.db";
             path = Path.Combine(dir, fileName);
         }
 
@@ -132,46 +197,42 @@ public sealed class RotatingBackupService
 
         if (!result.Succeeded)
         {
-            _state.RecordFailure(DateTimeOffset.UtcNow);
+            _state.RecordFailure(_time.GetUtcNow());
             _logger?.LogWarning(LogEvents.Backup.RotatingRunFailed, "Rotating database backup failed: {Error}", result.Error ?? "unknown");
-            return new RotatingBackupOutcome { Succeeded = false, FileName = fileName, RetainedCount = CountBackups(dir) };
+            return new RotatingBackupOutcome { Succeeded = false, FileName = fileName, RetainedCount = CountBackups(dir), FailureCode = "backup_failed" };
         }
 
-        _state.RecordSuccess(DateTimeOffset.UtcNow, fileName);
-        var pruned = Prune(dir);
+        _state.RecordSuccess(_time.GetUtcNow(), fileName);
+        var pruned = Prune(dir, settings.RetentionCount);
         _logger?.LogInformation(
-            LogEvents.Backup.RotatingRunCompleted, "Rotating backup completed ({FileName}, retained {Count}); pruning removed {Pruned} old snapshot(s).",
-            fileName, CountBackups(dir), pruned);
+            LogEvents.Backup.RotatingRunCompleted, "Rotating backup completed ({FileName}, retained {Count}, location kind {Kind}); pruning removed {Pruned} old snapshot(s).",
+            fileName, CountBackups(dir), settings.LocationKind, pruned);
 
         return new RotatingBackupOutcome { Succeeded = true, FileName = fileName, RetainedCount = CountBackups(dir) };
     }
 
     /// <summary>
-    /// Deletes the oldest rotating-*.db snapshots beyond the retention count.
+    /// Deletes the oldest generated rotating snapshots beyond the retention count.
     /// File names embed a UTC timestamp, so ordinal name order is chronological.
-    /// Never touches files outside the rotating- prefix (pre-migration-* and
-    /// anything else in the folder is left alone).
+    /// Never touches a file that does not match <see cref="FileNamePattern"/>
+    /// (pre-migration-*, pre-restore-*, the marker, anything an archival share holds).
     /// </summary>
-    public int Prune(string directory)
-    {
-        var keep = Math.Max(1, _options.RetentionCount);
-        var files = Directory.EnumerateFiles(directory, FileNamePrefix + "*.db")
-            .OrderByDescending(p => Path.GetFileName(p), StringComparer.Ordinal)
-            .ToList();
+    public int Prune(string directory) => Prune(directory, _settings.Current.RetentionCount);
 
+    private static int Prune(string directory, int retentionCount)
+    {
+        var keep = Math.Max(1, retentionCount);
         var deleted = 0;
-        foreach (var old in files.Skip(keep))
+        foreach (var old in EnumerateGenerated(directory).Skip(keep))
         {
-            try { File.Delete(old); deleted++; }
+            try { File.Delete(old.FullName); deleted++; }
             catch (IOException) { /* in use — retried on the next run */ }
+            catch (UnauthorizedAccessException) { }
         }
         return deleted;
     }
 
-    public int CountBackups(string directory) =>
-        Directory.Exists(directory)
-            ? Directory.EnumerateFiles(directory, FileNamePrefix + "*.db").Count()
-            : 0;
+    public int CountBackups(string directory) => EnumerateGenerated(directory).Count();
 
     /// <summary>
     /// Enumerates the on-disk rotating snapshots newest-first, exposing only the
@@ -180,14 +241,8 @@ public sealed class RotatingBackupService
     /// a UTC timestamp, so ordinal name order is chronological; sorting on the
     /// name (not the mtime) keeps the list stable and matches the pruning order.
     /// </summary>
-    public IReadOnlyList<RotatingBackupFileInfo> ListBackups(string directory)
-    {
-        if (!Directory.Exists(directory))
-            return Array.Empty<RotatingBackupFileInfo>();
-
-        return Directory.EnumerateFiles(directory, FileNamePrefix + "*.db")
-            .Select(p => new FileInfo(p))
-            .OrderByDescending(fi => fi.Name, StringComparer.Ordinal)
+    public IReadOnlyList<RotatingBackupFileInfo> ListBackups(string directory) =>
+        EnumerateGenerated(directory)
             .Select(fi => new RotatingBackupFileInfo
             {
                 FileName = fi.Name,
@@ -195,6 +250,43 @@ public sealed class RotatingBackupService
                 TimestampUtc = new DateTimeOffset(fi.LastWriteTimeUtc, TimeSpan.Zero),
             })
             .ToList();
+
+    /// <summary>
+    /// The UTC timestamp embedded in the newest generated snapshot name, or
+    /// null. Seeds the scheduler so frequent restarts do not each produce a
+    /// backup and silently rotate out the daily history.
+    /// </summary>
+    public static DateTimeOffset? NewestSnapshotTimestamp(string directory)
+    {
+        var newest = EnumerateGenerated(directory).FirstOrDefault();
+        return newest is null ? null : ParseTimestamp(newest.Name);
+    }
+
+    public static DateTimeOffset? ParseTimestamp(string fileName)
+    {
+        var match = FileNamePattern().Match(fileName);
+        if (!match.Success)
+            return null;
+        return DateTime.TryParseExact(match.Groups[1].Value, "yyyyMMdd-HHmmss", CultureInfo.InvariantCulture,
+                DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var parsed)
+            ? new DateTimeOffset(parsed, TimeSpan.Zero)
+            : null;
+    }
+
+    private static List<FileInfo> EnumerateGenerated(string directory)
+    {
+        try
+        {
+            if (!Directory.Exists(directory))
+                return new List<FileInfo>();
+            return new DirectoryInfo(directory)
+                .EnumerateFiles(FileNamePrefix + "*.db")
+                .Where(fi => FileNamePattern().IsMatch(fi.Name))
+                .OrderByDescending(fi => fi.Name, StringComparer.Ordinal)
+                .ToList();
+        }
+        catch (IOException) { return new List<FileInfo>(); }
+        catch (UnauthorizedAccessException) { return new List<FileInfo>(); }
     }
 }
 
@@ -218,4 +310,52 @@ public sealed record RotatingBackupOutcome
     public required bool Succeeded { get; init; }
     public required string? FileName { get; init; }
     public required int RetainedCount { get; init; }
+
+    /// <summary><c>location_unavailable</c>, <c>location_invalid</c>, <c>backup_failed</c>, or null on success.</summary>
+    public string? FailureCode { get; init; }
+}
+
+/// <summary>
+/// Retention for the local safety snapshots in <c>&lt;dataRoot&gt;/backups</c>:
+/// keeps the newest <see cref="KeepPerKind"/> of each kind, pruning only after
+/// a new snapshot of the SAME kind succeeded, and only files matching the
+/// strict generated name of that kind.
+/// </summary>
+public static partial class SafetySnapshotPruner
+{
+    public const int KeepPerKind = 3;
+
+    [GeneratedRegex(@"^pre-migration-\d{8}-\d{6}\.db$", RegexOptions.CultureInvariant)]
+    public static partial Regex PreMigrationPattern();
+
+    [GeneratedRegex(@"^pre-restore-\d{8}-\d{6}\.db$", RegexOptions.CultureInvariant)]
+    public static partial Regex PreRestorePattern();
+
+    public static int PrunePreMigration(string directory) => Prune(directory, "pre-migration-*.db", PreMigrationPattern());
+
+    public static int PrunePreRestore(string directory) => Prune(directory, "pre-restore-*.db", PreRestorePattern());
+
+    private static int Prune(string directory, string glob, Regex pattern)
+    {
+        try
+        {
+            if (!Directory.Exists(directory))
+                return 0;
+            var deleted = 0;
+            var old = new DirectoryInfo(directory).EnumerateFiles(glob)
+                .Where(fi => pattern.IsMatch(fi.Name))
+                .OrderByDescending(fi => fi.Name, StringComparer.Ordinal)
+                .Skip(KeepPerKind)
+                .ToList();
+            foreach (var file in old)
+            {
+                try { file.Delete(); deleted++; }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+            return deleted;
+        }
+        catch (IOException) { return 0; }
+        catch (UnauthorizedAccessException) { return 0; }
+    }
 }

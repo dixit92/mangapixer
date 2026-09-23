@@ -68,12 +68,11 @@ public sealed class DbRestoreServiceTests : IDisposable
         await db.SaveChangesAsync();
 
         var backup = new BackupService(db);
-        var rotatingOptions = new RotatingBackupOptions { BackupDirectory = _backupsDir };
         var restore = new DbRestoreService(
             db, backup,
             new DbRestoreOptions { MaxUploadBytes = 1024 * 1024 },
             new AppRootOptions { DataRoot = _dataRoot },
-            rotatingOptions);
+            new BackupSettingsResolver(new RotatingBackupOptions { SafetyBackupDirectory = _backupsDir }));
         return (db, backup, restore);
     }
 

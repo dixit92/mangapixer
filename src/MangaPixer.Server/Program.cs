@@ -103,6 +103,10 @@ public sealed partial class Program
             ["MangaPixer:Storage:ScratchRoot"] = scratchRoot,
             ["Media:WorkerExecutablePath"] = workerExe,
         });
+        // A test-only override's extra keys also reach DI-resolved consumers
+        // (e.g. MangaPixer:Backups:*), not just the pre-Build() reads below.
+        if (storageOverride?.ExtraConfiguration is { Count: > 0 } extraConfiguration)
+            builder.Configuration.AddInMemoryCollection(extraConfiguration);
 
         // Serilog bootstrap — plain text console for both container and dev.
         // The default level is controlled by a LoggingLevelSwitch so an admin
@@ -172,7 +176,10 @@ public sealed partial class Program
                 .AddCheck("self",
                     () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("MangaPixer server is running"),
                     tags: new[] { "live" })
-                .AddCheck<DatabaseReadinessHealthCheck>("database", tags: new[] { "ready" });
+                .AddCheck<DatabaseReadinessHealthCheck>("database", tags: new[] { "ready" })
+                // Degraded (still HTTP 200) while the backup location is
+                // unavailable or the last backup is overdue (1.22.0).
+                .AddCheck<com.lifepixer.mangapixer.Server.Operations.BackupsHealthCheck>("backups", tags: new[] { "ready" });
 
             // Auth + database (registers DbContext, Identity, cookie auth, auth services)
             builder.Services.AddMangaPixerAuth(databasePath, storageOverride?.RateLimitDisabled);

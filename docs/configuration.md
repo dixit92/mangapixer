@@ -75,10 +75,12 @@ The Unraid Compose file sets the three roots to `/config/data`, `/config/cache` 
 |---|---|---|
 | `MangaPixer:Backups:Enabled` (`MangaPixer__Backups__Enabled`) | `true` | Turns the scheduled database backups on or off. **Back up now** keeps working either way. |
 | `MangaPixer:Backups:IntervalHours` (`MangaPixer__Backups__IntervalHours`) | `24` | Hours between scheduled backups. Decimals are allowed (`0.5` = 30 minutes). The first backup runs 2 minutes after the server starts. |
-| `MangaPixer:Backups:RetentionCount` (`MangaPixer__Backups__RetentionCount`) | `7` | How many `rotating-*.db` snapshots to keep. Older ones are deleted. Pre-migration and pre-restore snapshots are never deleted. |
+| `MangaPixer:Backups:RetentionCount` (`MangaPixer__Backups__RetentionCount`) | `7` | How many `rotating-*.db` snapshots to keep. Older ones are deleted. Pre-migration and pre-restore snapshots are kept separately (the newest 3 of each). |
+| `MangaPixer:Backups:Location` (`MangaPixer__Backups__Location`) | not set (`<DataRoot>/backups`) | Absolute folder for the rotating backups, for example `/backups` next to a bind mount. It must pass the same checks as a folder chosen in the web app. If it fails them, backups stop (they never fall back to the data folder) and `/health/ready` reports `Degraded`. |
+| `MangaPixer:Backups:AllowLocationChange` (`MangaPixer__Backups__AllowLocationChange`) | `true` | `false` locks the backup location in the web app, even when no `Location` is set. |
 | `MangaPixer:Backups:MaxRestoreUploadBytes` (`MangaPixer__Backups__MaxRestoreUploadBytes`) | `536870912` (512 MiB) | Largest backup file you can upload for a restore. The web server also caps uploads at 128 MiB, so in practice the limit is 128 MiB, or this value if it is lower. |
 
-Backups are written to `<DataRoot>/backups`. You cannot change that folder. See [Backup and restore](backup-and-restore.md).
+The schedule, retention and location can also be changed in the **Backup settings** card in the web app. Each setting is resolved on its own: a value in this configuration wins (the web app shows it as **Managed by server configuration**), then the value saved in the web app, then the default. A value that cannot be read (for example `IntervalHours: daily`) is ignored with a warning in the log. Pre-migration and pre-restore snapshots always stay in `<DataRoot>/backups`. See [Backup and restore](backup-and-restore.md#choosing-where-backups-are-kept).
 
 ## Sign-in protection
 

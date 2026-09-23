@@ -12,6 +12,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import {
   AnalyticsOverviewDto,
   AuditTrailPageDto,
+  BackupSettingsDto,
   DirectoryListingDto,
   LibraryDto,
   LogLevelDto,
@@ -55,6 +56,11 @@ describe('AdminComponent directory browser row', () => {
       readingProgressCount: 0, completedItemCount: 0, inProgressItemCount: 0,
       bookmarkCount: 0, favoriteCount: 0, activeSessionCount: 0,
     };
+    const backupSettings: BackupSettingsDto = {
+      enabled: true, enabledSource: 'default', intervalHours: 24, intervalHoursSource: 'default',
+      retentionCount: 5, retentionCountSource: 'default', locationKind: 'default', locationSource: 'default',
+      customLocation: null, locationChangeAllowed: true, locationStatus: 'ok', platform: null,
+    };
     const libs: LibraryDto[] = [];
     const listing: DirectoryListingDto = {
       available: true, root: null, current: '/library-root', parent: null, entries: [entry],
@@ -72,6 +78,7 @@ describe('AdminComponent directory browser row', () => {
       getUpdateCheck: vi.fn().mockReturnValue(of(updateStatus)),
       getAnalyticsOverview: vi.fn().mockReturnValue(of(analyticsOverview)),
       getAnalyticsUsers: vi.fn().mockReturnValue(of([])),
+      getBackupSettings: vi.fn().mockReturnValue(of(backupSettings)),
     };
     const authSpy = { currentUser: () => null, isAdmin: () => true };
 

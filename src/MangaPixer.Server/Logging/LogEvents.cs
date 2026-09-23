@@ -270,9 +270,14 @@ public static class LogEvents
 
         public const int RotatingRunFailed = 6010;
         public const int RotatingRunCompleted = 6011;
+        public const int BackupLocationMarkerInitialized = 6012;
+        public const int RotatingLocationUnavailable = 6013;
+        public const int RotatingLocationRecovered = 6014;
         public const int RotatingDisabled = 6015;
         public const int ScheduledRotatingFailed = 6016;
         public const int ScheduledRotatingError = 6017;
+        public const int BackupSettingsChanged = 6018;
+        public const int BackupConfigInvalid = 6019;
 
         public const int MaintenanceFailed = 6020;
 
@@ -284,6 +289,7 @@ public static class LogEvents
         public const int RestoreApplied = 6034;
         public const int RestoreApplyFailed = 6035;
         public const int RestoreRolledBack = 6036;
+        public const int SafetySnapshotsPruned = 6037;
     }
 
     /// <summary>Admin actions on users and server configuration.</summary>

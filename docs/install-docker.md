@@ -143,7 +143,7 @@ The server always listens on port 8080 inside the container. To use a different 
    docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d
    ```
 
-Your volumes are kept. On start-up the server upgrades the database schema if the new version needs it. **Before it changes an existing database it writes a snapshot** called `pre-migration-<UTC timestamp>.db` to `/data/backups`. If that snapshot fails, the server refuses to start rather than risk your data. Automatic backup rotation never deletes these snapshots.
+Your volumes are kept. On start-up the server upgrades the database schema if the new version needs it. **Before it changes an existing database it writes a snapshot** called `pre-migration-<UTC timestamp>.db` to `/data/backups`. If that snapshot fails, the server refuses to start rather than risk your data. Automatic backup rotation never deletes these snapshots; only the newest 3 pre-migration snapshots are kept.
 
 Each version is its own image tag, so the previous image stays on disk. Once the new version is running, you can remove old ones with `docker image rm ghcr.io/dixit92/mangapixer:<old-version>`.
 
@@ -160,6 +160,8 @@ The build is fully containerized (no .NET or Node.js needed on the host); the fi
 ## Where backups land
 
 The server writes its own database snapshots to `/data/backups` in the `mangapixer-data` volume: a rotating one every 24 hours (newest 7 kept) plus one-off snapshots before schema upgrades and restores. What they contain, how to copy them out, how to restore one and how to change the schedule are all in [Backup and restore](backup-and-restore.md).
+
+To keep the rotating snapshots on another disk, add a writable bind for them, for example `- /srv/archive/mangapixer-backups:/backups` under `volumes:` (owned by `1000:1000`), then choose **Custom folder** `/backups` in **Administration** > **Backup settings**. `deploy/compose.yaml` has a commented example. The pre-migration and pre-restore snapshots stay in `/data/backups`.
 
 ## Stopping and removing
 

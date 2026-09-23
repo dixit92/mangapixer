@@ -105,7 +105,7 @@ Program files and your data are kept apart. Uninstalling or upgrading never touc
 └── worker\                                    MangaPixer.MediaWorker.exe
 ```
 
-Back up `%LOCALAPPDATA%\MangaPixer\data`, or at least its `backups` folder, which always holds a recent consistent snapshot. See [Backup and restore](backup-and-restore.md); the API and manual restore steps work the same on Windows.
+Back up `%LOCALAPPDATA%\MangaPixer\data`, or at least its `backups` folder, which always holds a recent consistent snapshot. To keep the rotating snapshots on another drive or a NAS, choose **Custom folder** in **Administration** > **Backup settings**, for example `D:\MangaPixer-backups` or `\\nas\archive\mangapixer`. Use a `\\server\share` path rather than a mapped drive letter: mapped drives belong to one Windows sign-in and may not be connected yet when the tray starts the server. See [Backup and restore](backup-and-restore.md); the API and manual restore steps work the same on Windows.
 
 The sign-in keys are encrypted with Windows Data Protection (DPAPI), which ties them to your Windows user account. If you copy the data folder to another PC or another user, the database and all reading progress come along, but the keys cannot be decrypted there: the server creates new ones and everyone signs in again. Nothing else is lost.
 

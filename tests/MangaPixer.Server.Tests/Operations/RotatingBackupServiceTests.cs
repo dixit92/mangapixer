@@ -52,9 +52,8 @@ public sealed class RotatingBackupServiceTests : IDisposable
         await db.SaveChangesAsync();
 
         var service = new RotatingBackupService(
-            db,
             new BackupService(db),
-            new RotatingBackupOptions { BackupDirectory = _backupsDir, RetentionCount = retentionCount },
+            new BackupSettingsResolver(new RotatingBackupOptions { SafetyBackupDirectory = _backupsDir, RetentionCount = retentionCount }),
             new RotatingBackupState());
         return (db, service);
     }
@@ -87,7 +86,7 @@ public sealed class RotatingBackupServiceTests : IDisposable
             // chronological — five distinct names, oldest first.
             for (var day = 1; day <= 5; day++)
             {
-                var name = $"{RotatingBackupService.FileNamePrefix}2026090{day}000000.db";
+                var name = $"{RotatingBackupService.FileNamePrefix}2026090{day}-000000.db";
                 await File.WriteAllTextAsync(Path.Combine(_backupsDir, name), "snapshot");
             }
 
@@ -96,9 +95,9 @@ public sealed class RotatingBackupServiceTests : IDisposable
             Assert.Equal(2, deleted);
             var remaining = Directory.EnumerateFiles(_backupsDir, "*.db").Select(Path.GetFileName).ToList();
             Assert.Equal(3, remaining.Count);
-            Assert.Contains("rotating-20260905000000.db", remaining);
-            Assert.Contains("rotating-20260904000000.db", remaining);
-            Assert.Contains("rotating-20260903000000.db", remaining);
+            Assert.Contains("rotating-20260905-000000.db", remaining);
+            Assert.Contains("rotating-20260904-000000.db", remaining);
+            Assert.Contains("rotating-20260903-000000.db", remaining);
         }
         finally { await db.DisposeAsync(); }
     }
@@ -113,7 +112,7 @@ public sealed class RotatingBackupServiceTests : IDisposable
             await File.WriteAllTextAsync(preMigration, "protected");
             for (var day = 1; day <= 4; day++)
             {
-                var name = $"{RotatingBackupService.FileNamePrefix}2026090{day}000000.db";
+                var name = $"{RotatingBackupService.FileNamePrefix}2026090{day}-000000.db";
                 await File.WriteAllTextAsync(Path.Combine(_backupsDir, name), "snapshot");
             }
 
@@ -132,15 +131,19 @@ public sealed class RotatingBackupServiceTests : IDisposable
         var (db, service) = await SetupAsync(retentionCount: 1);
         try
         {
-            await File.WriteAllTextAsync(Path.Combine(_backupsDir, "rotating-20260901000000.db"), "a");
-            await File.WriteAllTextAsync(Path.Combine(_backupsDir, "rotating-20260902000000.db"), "b");
+            await File.WriteAllTextAsync(Path.Combine(_backupsDir, "rotating-20260901-000000.db"), "a");
+            await File.WriteAllTextAsync(Path.Combine(_backupsDir, "rotating-20260902-000000.db"), "b");
             await File.WriteAllTextAsync(Path.Combine(_backupsDir, "unrelated.db"), "keep me");
+            // Not a GENERATED rotating name: an archival share may hold such a
+            // file, and the strict name regex must leave it alone.
+            await File.WriteAllTextAsync(Path.Combine(_backupsDir, "rotating-old-manual.db"), "keep me too");
 
             service.Prune(_backupsDir);
 
             Assert.True(File.Exists(Path.Combine(_backupsDir, "unrelated.db")));
-            Assert.False(File.Exists(Path.Combine(_backupsDir, "rotating-20260901000000.db")));
-            Assert.True(File.Exists(Path.Combine(_backupsDir, "rotating-20260902000000.db")));
+            Assert.True(File.Exists(Path.Combine(_backupsDir, "rotating-old-manual.db")));
+            Assert.False(File.Exists(Path.Combine(_backupsDir, "rotating-20260901-000000.db")));
+            Assert.True(File.Exists(Path.Combine(_backupsDir, "rotating-20260902-000000.db")));
         }
         finally { await db.DisposeAsync(); }
     }
@@ -224,9 +227,8 @@ public sealed class RotatingBackupServiceTests : IDisposable
     public void ListBackups_MissingDirectory_ReturnsEmpty()
     {
         var service = new RotatingBackupService(
-            new MangaPixerDbContext(_options),
             new BackupService(new MangaPixerDbContext(_options)),
-            new RotatingBackupOptions { BackupDirectory = _backupsDir },
+            new BackupSettingsResolver(new RotatingBackupOptions { SafetyBackupDirectory = _backupsDir }),
             new RotatingBackupState());
 
         var files = service.ListBackups(Path.Combine(_tempDir, "does-not-exist"));

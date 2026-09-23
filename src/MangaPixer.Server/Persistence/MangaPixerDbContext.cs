@@ -105,6 +105,8 @@ public sealed class MangaPixerDbContext : DbContext
             // Single-row table: the key is the fixed SingletonId, never generated.
             e.Property(x => x.Id).ValueGeneratedNever();
             e.Property(x => x.UpdateLastKnownLatestVersion).HasMaxLength(64);
+            e.Property(x => x.BackupLocation).HasMaxLength(1024);
+            e.Property(x => x.BackupLocationMarkerId).HasMaxLength(32);
         });
     }
 

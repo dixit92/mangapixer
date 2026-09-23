@@ -57,6 +57,13 @@ services:
       # Each library's folder is picked in the admin UI. The folder picker
       # starts at /media; to start it elsewhere, set (under environment:)
       #   MangaPixer__Storage__MediaRoot: "/media/manga"
+      #
+      # --- Optional: backups on the array / an archive share (read-write) ---
+      # Rotating DB backups default to /config/data/backups. To keep them on
+      # another share, add a bind owned by PUID:PGID and pick "Custom folder"
+      # /backups in Administration > Backup settings, or pin it with
+      # (under environment:)  MangaPixer__Backups__Location: "/backups"
+      # - /mnt/user/archive/mangapixer-backups:/backups
     restart: unless-stopped
     logging:
       driver: local
