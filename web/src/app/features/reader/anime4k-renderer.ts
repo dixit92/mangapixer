@@ -13,18 +13,23 @@
  * Angular build's generated `3rdpartylicenses.txt` like every other npm
  * dependency — no vendored source, so `THIRD-PARTY-NOTICES.md` is untouched.
  *
- * Preset: `ModeA` — Anime4K's "Restore + Upscale (CNN)" chain at the *M* (medium)
- * size, the cheapest preset in the family that visibly cleans line art rather
- * than just resampling it. The heavier VL/UL/GAN variants exist in the package
- * but cost several times the GPU work for a difference that a manga page, read
- * statically rather than at 60 fps, does not repay. `ModeA` also ends with a
- * downscale to the exact target box, so the pipeline output drops straight onto
- * the canvas at display resolution whatever the 2x CNN produced.
+ * Preset: `ModeA` - Anime4K's "Restore + Upscale (CNN)" chain, which in
+ * `anime4k-webgpu` 1.0.0 is the HEAVY *VL* chain, not the M (medium) one
+ * (verified in the package's `ModeA` constructor): `ClampHighlights` ->
+ * `CNNVL` restore at native size -> `CNNx2VL` (when the target is > 1.2x
+ * native) -> then, by scale `s`, a `Downscale` to the target box (1.2 < s < 2),
+ * or a `Downscale` to half the target followed by `CNNx2M` (2.4 < s < 4), or a
+ * further `CNNx2M` (s >= 4). For 2 <= s <= 2.4 the chain ends at 2x native. The
+ * output is therefore close to, but not always exactly, the target box; the
+ * blit below samples it linearly onto the canvas at display resolution either
+ * way. That is a few dozen full-size `rgba16float` intermediate textures per
+ * pipeline, which is why every one of them is tracked and destroyed (see
+ * `gpu-device.ts` and `RenderState` below).
  *
  * Scope: paged / double-spread pages only. The webtoon (continuous scroll) view
- * is out of scope this cycle — it can have dozens of simultaneously-live images,
- * and one GPU pipeline per visible strip page is a very different resource
- * problem from "the one or two pages on screen".
+ * is out of scope - it can have dozens of simultaneously-live images, and one
+ * GPU pipeline per visible strip page is a very different resource problem
+ * from "the one or two pages on screen".
  *
  * Everything is best-effort: every entry point resolves to a boolean and never
  * throws, because the fallback ("let the browser paint the <img> as it always
@@ -32,6 +37,8 @@
  */
 
 import { ModeA } from 'anime4k-webgpu';
+
+import { TrackingDevice, acquireDevice, onDeviceLost, trackingDevice } from './gpu-device';
 
 /**
  * Blit shader: draws the pipeline's output texture over the canvas with a single
@@ -80,54 +87,47 @@ export interface UpscaleRequest {
   readonly targetHeight: number;
 }
 
-/**
- * One reusable GPU context. Creating an Anime4K pipeline allocates a long chain
- * of intermediate textures, so we keep exactly ONE alive and reuse it while the
- * source and target dimensions are unchanged — which, within a chapter, is the
- * normal case (pages of a scan share a size). A dimension change tears the old
- * one down first so GPU memory does not grow with the page count.
- */
-interface RenderState {
+/** Per-device objects: cheap, no GPU memory to destroy, rebuilt on a new device. */
+interface DeviceState {
   device: GPUDevice;
   canvasFormat: GPUTextureFormat;
   blit: GPURenderPipeline;
   sampler: GPUSampler;
-  // Cached per source/target size.
+}
+
+/**
+ * One reusable size-keyed pipeline. Creating an Anime4K pipeline allocates a
+ * long chain of intermediate textures, so we keep exactly ONE alive and reuse it
+ * while the source and target dimensions are unchanged - which, within a
+ * chapter, is the normal case (pages of a scan share a size). Everything it
+ * allocated (the input texture AND every texture/buffer `ModeA` created) went
+ * through `resources`, so a dimension change, `releaseUpscaler()` or a lost
+ * device destroys all of it and GPU memory does not grow with the page count.
+ */
+interface RenderState {
   key: string;
+  resources: TrackingDevice;
   inputTexture: GPUTexture;
   pipeline: { pass(encoder: GPUCommandEncoder): void; getOutputTexture(): GPUTexture };
   bindGroup: GPUBindGroup;
 }
 
+let deviceState: DeviceState | null = null;
 let state: RenderState | null = null;
-let devicePromise: Promise<GPUDevice | null> | null = null;
+/** Renders run one at a time, so no render can use a state another one disposed. */
+let queue: Promise<unknown> = Promise.resolve();
 
-/** Acquire (once) a WebGPU device, or null when the platform cannot give us one. */
-async function acquireDevice(): Promise<GPUDevice | null> {
-  if (devicePromise) return devicePromise;
-  devicePromise = (async () => {
-    try {
-      const gpu = (navigator as Navigator & { gpu?: GPU }).gpu;
-      if (!gpu) return null;
-      const adapter = await gpu.requestAdapter();
-      if (!adapter) return null;
-      const device = await adapter.requestDevice();
-      // A lost device (driver reset, tab backgrounded on some platforms) must not
-      // strand every later page on a dead pipeline: drop everything and let the
-      // next request rebuild from scratch.
-      device.lost.then(() => { state = null; devicePromise = null; }).catch(() => { /* ignore */ });
-      return device;
-    } catch {
-      return null;
-    }
-  })();
-  return devicePromise;
-}
+onDeviceLost((device) => {
+  if (deviceState?.device !== device) return;
+  disposeCached();
+  deviceState = null;
+});
 
 function disposeCached(): void {
-  if (!state) return;
-  try { state.inputTexture.destroy(); } catch { /* already gone */ }
-  state = { ...state, key: '', inputTexture: null as unknown as GPUTexture } as RenderState;
+  const old = state;
+  // Unpublish BEFORE destroying so nothing can pick up a destroyed resource.
+  state = null;
+  old?.resources.dispose();
 }
 
 /**
@@ -137,7 +137,16 @@ function disposeCached(): void {
  *          caller should fall back to the plain `<img>` (no WebGPU, device
  *          acquisition failed, a shader/pipeline error, …). Never throws.
  */
-export async function renderUpscaled(req: UpscaleRequest): Promise<boolean> {
+export function renderUpscaled(req: UpscaleRequest): Promise<boolean> {
+  // Two pages of a spread (possibly of different sizes, so different keys) must
+  // not interleave across the awaits below: the second would dispose the
+  // pipeline the first is about to use.
+  const run = queue.then(() => renderNow(req));
+  queue = run.catch(() => false);
+  return run;
+}
+
+async function renderNow(req: UpscaleRequest): Promise<boolean> {
   const { source, canvas } = req;
   const nativeWidth = source.naturalWidth;
   const nativeHeight = source.naturalHeight;
@@ -155,9 +164,10 @@ export async function renderUpscaled(req: UpscaleRequest): Promise<boolean> {
     const gpu = (navigator as Navigator & { gpu?: GPU }).gpu;
     const canvasFormat = gpu?.getPreferredCanvasFormat?.() ?? 'bgra8unorm';
 
-    if (!state || state.device !== device) {
+    if (!deviceState || deviceState.device !== device) {
+      disposeCached();
       const module = device.createShaderModule({ code: blitWGSL, label: 'mp-upscale-blit' });
-      state = {
+      deviceState = {
         device,
         canvasFormat,
         blit: device.createRenderPipeline({
@@ -168,51 +178,60 @@ export async function renderUpscaled(req: UpscaleRequest): Promise<boolean> {
           primitive: { topology: 'triangle-list' },
         }),
         sampler: device.createSampler({ magFilter: 'linear', minFilter: 'linear' }),
-        key: '',
-        inputTexture: null as unknown as GPUTexture,
-        pipeline: null as unknown as RenderState['pipeline'],
-        bindGroup: null as unknown as GPUBindGroup,
       };
     }
+    const shared = deviceState;
 
     const key = `${nativeWidth}x${nativeHeight}->${targetWidth}x${targetHeight}`;
-    if (state.key !== key) {
+    if (state?.key !== key) {
       disposeCached();
-      const inputTexture = device.createTexture({
-        label: 'mp-upscale-src',
-        size: [nativeWidth, nativeHeight, 1],
-        format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-      });
-      const pipeline = new ModeA({
-        device,
-        inputTexture,
-        nativeDimensions: { width: nativeWidth, height: nativeHeight },
-        targetDimensions: { width: targetWidth, height: targetHeight },
-      });
-      state = {
-        ...state,
-        key,
-        inputTexture,
-        pipeline,
-        bindGroup: device.createBindGroup({
-          layout: state.blit.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: state.sampler },
-            { binding: 1, resource: pipeline.getOutputTexture().createView() },
-          ],
-        }),
-      };
+      const resources = trackingDevice(device);
+      try {
+        const inputTexture = resources.device.createTexture({
+          label: 'mp-upscale-src',
+          size: [nativeWidth, nativeHeight, 1],
+          format: 'rgba8unorm',
+          usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+        const pipeline = new ModeA({
+          device: resources.device,
+          inputTexture,
+          nativeDimensions: { width: nativeWidth, height: nativeHeight },
+          targetDimensions: { width: targetWidth, height: targetHeight },
+        });
+        state = {
+          key,
+          resources,
+          inputTexture,
+          pipeline,
+          bindGroup: device.createBindGroup({
+            layout: shared.blit.getBindGroupLayout(0),
+            entries: [
+              { binding: 0, resource: shared.sampler },
+              { binding: 1, resource: pipeline.getOutputTexture().createView() },
+            ],
+          }),
+        };
+      } catch (err) {
+        // A half-built chain (e.g. out of memory on texture 30 of 40) still owns
+        // everything it allocated so far.
+        resources.dispose();
+        throw err;
+      }
     }
+    const current = state;
 
     // `copyExternalImageToTexture` accepts an HTMLImageElement, but only a fully
     // decoded one; an ImageBitmap is the portable way to guarantee that and keeps
     // the decode off the main thread.
     const bitmap = await createImageBitmap(source);
     try {
+      // Released (reader closed / Enhance off) or device lost while decoding:
+      // the textures are destroyed, so do not touch them.
+      if (state !== current || deviceState !== shared) return false;
       device.queue.copyExternalImageToTexture(
         { source: bitmap },
-        { texture: state.inputTexture },
+        { texture: current.inputTexture },
         [nativeWidth, nativeHeight],
       );
     } finally {
@@ -224,7 +243,7 @@ export async function renderUpscaled(req: UpscaleRequest): Promise<boolean> {
     context.configure({ device, format: canvasFormat, alphaMode: 'opaque' });
 
     const encoder = device.createCommandEncoder({ label: 'mp-upscale' });
-    state.pipeline.pass(encoder);
+    current.pipeline.pass(encoder);
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
         view: context.getCurrentTexture().createView(),
@@ -233,10 +252,12 @@ export async function renderUpscaled(req: UpscaleRequest): Promise<boolean> {
         storeOp: 'store',
       }],
     });
-    pass.setPipeline(state.blit);
-    pass.setBindGroup(0, state.bindGroup);
+    pass.setPipeline(shared.blit);
+    pass.setBindGroup(0, current.bindGroup);
     pass.draw(3);
     pass.end();
+    // Destroying a texture after this submit is safe: WebGPU defers the free
+    // until the submitted work that uses it has finished.
     device.queue.submit([encoder.finish()]);
     await device.queue.onSubmittedWorkDone();
     return true;
@@ -247,8 +268,14 @@ export async function renderUpscaled(req: UpscaleRequest): Promise<boolean> {
   }
 }
 
-/** Drop every cached GPU object (reader torn down / option switched off). */
+/**
+ * Destroy every GPU texture and buffer the renderer owns and drop the cached
+ * pipeline objects (reader torn down / Enhance switched off; called by
+ * `upscale.directive.ts` once no Enhance overlay is live). The device itself
+ * stays with `gpu-device.ts` for the app session: re-acquiring it is cheap but
+ * not free, and it holds no page-sized memory. The next render rebuilds lazily.
+ */
 export function releaseUpscaler(): void {
   disposeCached();
-  state = null;
+  deviceState = null;
 }

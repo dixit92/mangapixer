@@ -27,9 +27,18 @@ import {
  *    underneath is what the reader sees — i.e. exactly today's behaviour.
  *
  * Scope: paged and double-spread pages. The webtoon (vertical scroll) view is
- * deliberately NOT covered this cycle: it keeps dozens of images live at once, so
- * one GPU pipeline per visible strip page is a different resource problem that
- * deserves its own design.
+ * deliberately NOT covered: it keeps dozens of images live at once, and every
+ * strip page has its own size, so the renderer's single size-keyed pipeline
+ * would be rebuilt on almost every page. That needs the banded design of the
+ * "Webtoon Enhance" feature, not this directive.
+ *
+ * GPU memory: the renderer keeps one Anime4K pipeline (hundreds of MB for a
+ * large page) alive between pages. This directive is the only thing that knows
+ * when no Enhance overlay is live any more (reader closed, view switched to
+ * webtoon, preference turned off), so it owns the `releaseUpscaler()` call: once
+ * the last live overlay has been gone for `upscaleReleaseDelayMs`, every GPU
+ * texture and buffer is destroyed. The delay absorbs page turns, which re-create
+ * the `<img>` (and so this directive) on every turn.
  *
  * Feature detection: with no `navigator.gpu`, or when adapter/device acquisition
  * fails, the directive is a silent no-op and `UpscaleSupportService` reports the
@@ -43,6 +52,29 @@ import {
 
 /** Below this display/native scale the page is not being upscaled — do nothing. */
 const upscaleThreshold = 1.02;
+
+/** How long no Enhance overlay may be live before the renderer's GPU memory is released. */
+export const upscaleReleaseDelayMs = 1500;
+
+/** The lazy renderer module, once some overlay has loaded it (never loaded here just to release). */
+let renderer: typeof import('./anime4k-renderer') | null = null;
+/** Directives whose preference is on: each may be showing (or about to show) GPU output. */
+const liveOverlays = new Set<object>();
+let releaseTimer: ReturnType<typeof setTimeout> | null = null;
+
+function retainUpscaler(owner: object): void {
+  liveOverlays.add(owner);
+  if (releaseTimer !== null) { clearTimeout(releaseTimer); releaseTimer = null; }
+}
+
+function relinquishUpscaler(owner: object): void {
+  if (!liveOverlays.delete(owner) || liveOverlays.size > 0 || !renderer) return;
+  if (releaseTimer !== null) clearTimeout(releaseTimer);
+  releaseTimer = setTimeout(() => {
+    releaseTimer = null;
+    if (liveOverlays.size === 0) renderer?.releaseUpscaler();
+  }, upscaleReleaseDelayMs);
+}
 
 /** Is a WebGPU entry point even present on this platform? Cheap + synchronous. */
 export function hasWebGpu(): boolean {
@@ -123,7 +155,12 @@ export class UpscaleDirective implements OnDestroy {
     // React to the preference flipping while a page is on screen.
     effect(() => {
       const on = this.appUpscale();
-      if (!on) { this.hide(); return; }
+      if (!on) {
+        this.hide();
+        this.zone.runOutsideAngular(() => relinquishUpscaler(this));
+        return;
+      }
+      retainUpscaler(this);
       this.schedule();
     });
     // The painted rect changes with fit mode, rotation, window resize and the
@@ -142,8 +179,14 @@ export class UpscaleDirective implements OnDestroy {
     this.observer = null;
     if (this.frame !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.frame);
     this.frame = null;
-    this.canvas?.remove();
+    if (this.canvas) {
+      // WebKit keeps a detached canvas's backing store until it is resized.
+      this.canvas.width = 0;
+      this.canvas.height = 0;
+      this.canvas.remove();
+    }
     this.canvas = null;
+    this.zone.runOutsideAngular(() => relinquishUpscaler(this));
   }
 
   /** Coalesce the (load / resize / preference) triggers into one render a frame. */
@@ -231,9 +274,9 @@ export class UpscaleDirective implements OnDestroy {
 
     const token = ++this.token;
     try {
-      const { renderUpscaled } = await import('./anime4k-renderer');
+      renderer = await import('./anime4k-renderer');
       if (this.destroyed || token !== this.token) return;
-      const ok = await renderUpscaled({ source: img, canvas, targetWidth, targetHeight });
+      const ok = await renderer.renderUpscaled({ source: img, canvas, targetWidth, targetHeight });
       if (this.destroyed || token !== this.token) return;
       if (!ok) { canvas.style.display = 'none'; return; }
       canvas.style.left = `${rect.left}px`;
