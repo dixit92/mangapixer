@@ -299,9 +299,20 @@
          a webtoon strip taller than its neighbours correctly falls back to the
          full-size transcode instead of having its width crushed into a height-capped
          bucket and upscaled on display. Owner-reported after the 1.21.0 deploy. -->
+    <!-- 1.22.0 - additive MINOR over 1.21.1 ("Icons, Idle Memory and Admin Insights" cycle,
+         2026-09-23). Admin-picked library icons (optional LibraryDto.Icon, admin PUT
+         libraries/{id}/icon, migration AddLibraryIcon); admin analytics (admin-only overview +
+         per-user counts, no titles/paths, Private-library activity excluded); backup settings in the
+         admin UI and a validated custom backup location (password re-auth, fail loud when
+         unavailable, safety-snapshot pruning, migration AddBackupSettings); idle media-worker
+         retirement + workstation server GC (idle memory roughly halved); an Unraid container
+         template; Enhance GPU memory fully released; graceful worker shutdown. Removes the unused,
+         unvalidated POST operations/backup {path} endpoint as a security fix (documented under
+         Removed + Security; kept MINOR by owner decision - no client used it). Worker protocol
+         unchanged (2). Bugfixes ship as 1.22.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <MangaPixerVersionMinor>21</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
+    <MangaPixerVersionMinor>22</MangaPixerVersionMinor>
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
