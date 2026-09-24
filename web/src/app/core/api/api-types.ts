@@ -168,6 +168,8 @@ export interface UserPreferencesDto {
    * on the last page which always start from page 1. Optional for older servers.
    */
   alwaysOpenReadFromStart?: boolean;
+  /** Theme preference: "dark" (server default), "light" or "system". Optional so older fixtures keep compiling. */
+  theme?: string;
 }
 
 export interface ContinueReadingEntry {
@@ -319,6 +321,8 @@ export interface YacReaderImportRequest {
   libraryId: string;
   targetUserId: string;
   overwrite?: boolean;
+  /** Snapshot progress before applying (server default true). */
+  snapshot?: boolean;
 }
 
 export interface YacReaderImportItemDto {

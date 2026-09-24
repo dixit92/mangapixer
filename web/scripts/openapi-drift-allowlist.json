@@ -1,0 +1,16 @@
+{
+  "_comment": "Intentional differences between contracts/openapi.json and web/src/app/core/api/api-types.ts. Every entry needs a reason. Keys: ignoredSchemas (schema name -> reason), aliases (schema name -> TS name), ignoredProperties ('Schema.property' -> reason).",
+  "ignoredSchemas": {
+    "IFormFile": "Multipart upload placeholder; the web client sends FormData, not a typed body.",
+    "ReaderMode": "The spec models the enum as an integer; the client uses the string-union form ('PagedLtr' ...) the server's JSON converter emits. Value sets are not compared.",
+    "BackupLocationUpdate": "The client types this inline as UpdateBackupSettingsRequest.location instead of a named interface.",
+    "SetReaderModeRequest": "The client sends { readerMode } inline from api.service.ts; no named type exists."
+  },
+  "aliases": {
+    "HomeLibraryVisibilityDto": "HomeLibraryVisibility"
+  },
+  "ignoredProperties": {
+    "YacReaderImportRequest.yacDbPath": "Deliberately absent: the server detects the YACReader database itself, so the client never sends a path (no-paths-over-the-wire rule).",
+    "UpdateBackupSettingsRequest.location": "Inline object type on the client (see BackupLocationUpdate above); the spec models it as a nullable $ref."
+  }
+}
