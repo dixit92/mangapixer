@@ -525,6 +525,27 @@ export interface ItemManifest {
   pages: ManifestPageEntry[];
   isSolid: boolean;
   hasAnimatedPages: boolean;
+  /**
+   * Shared per-archive double-page pairing (1.23.0): sorted forced spread-start page
+   * indices. Null/absent when none is saved for this content version (the reader then
+   * uses its device cover setting); `[]` is an explicit "no shifts".
+   */
+  spreadStarts?: number[] | null;
+}
+
+/** PUT /items/{itemId}/spread-layout body (1.23.0). */
+export interface SetSpreadLayoutRequest {
+  /** The manifest content version the pairing was made against (409 stale_content on mismatch). */
+  expectedContentVersion: number;
+  spreadStarts: number[];
+}
+
+/** The saved shared pairing returned by the spread-layout write (1.23.0). */
+export interface SpreadLayoutDto {
+  itemId: string;
+  contentVersion: number;
+  spreadStarts: number[];
+  updatedAt: string;
 }
 
 export type ItemReadinessState =

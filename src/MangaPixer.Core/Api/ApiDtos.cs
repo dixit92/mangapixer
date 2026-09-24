@@ -249,6 +249,36 @@ public sealed record UpdateProgressRequest
 }
 
 /// <summary>
+/// Request body for <c>PUT /api/v1/items/{itemId}/spread-layout</c> (1.23.0): replace the
+/// archive's shared double-page pairing. <see cref="SpreadStarts"/> must be sorted
+/// ascending, unique, each within [1, PageCount-1], and at most PageCount entries; an
+/// empty list is a valid explicit "no shifts" (overrides the reader's device fallback).
+/// </summary>
+public sealed record SetSpreadLayoutRequest
+{
+    /// <summary>
+    /// Content version the client rendered the pairing against (the manifest's).
+    /// A mismatch is rejected with 409 <c>stale_content</c>, like progress updates.
+    /// </summary>
+    public required long ExpectedContentVersion { get; init; }
+
+    /// <summary>Forced spread-start page indices (zero-based).</summary>
+    public required IReadOnlyList<int> SpreadStarts { get; init; }
+}
+
+/// <summary>
+/// The saved double-page pairing for one archive (1.23.0), as returned by the
+/// spread-layout write. Readers receive the same data as <c>ItemManifest.SpreadStarts</c>.
+/// </summary>
+public sealed record SpreadLayoutDto
+{
+    public required string ItemId { get; init; }
+    public required long ContentVersion { get; init; }
+    public required IReadOnlyList<int> SpreadStarts { get; init; }
+    public required DateTimeOffset UpdatedAt { get; init; }
+}
+
+/// <summary>
 /// API DTO for user preferences.
 /// </summary>
 public sealed record UserPreferencesDto

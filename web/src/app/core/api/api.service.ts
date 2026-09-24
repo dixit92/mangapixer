@@ -34,6 +34,8 @@ import {
   CsrfTokenDto,
   DirectoryListingDto,
   ItemManifest,
+  SetSpreadLayoutRequest,
+  SpreadLayoutDto,
   ItemReadiness,
   JumpIndexDto,
   LibraryDto,
@@ -558,6 +560,11 @@ export class ApiService {
 
   getManifest(itemId: string): Observable<ItemManifest> {
     return this.get<ItemManifest>(`/items/${itemId}/manifest`);
+  }
+
+  /** Replace the archive's shared double-page pairing (1.23.0); read back via the manifest. */
+  setSpreadLayout(itemId: string, request: SetSpreadLayoutRequest): Observable<SpreadLayoutDto> {
+    return this.put<SpreadLayoutDto>(`/items/${itemId}/spread-layout`, request);
   }
 
   getReadiness(itemId: string): Observable<ItemReadiness> {
