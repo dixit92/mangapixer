@@ -171,6 +171,7 @@ public static class AuditActions
     public const string BackupLocationChanged = "backup.location.change";
     public const string BackupLocationUnavailable = "backup.location.unavailable";
     public const string BackupLocationAvailable = "backup.location.available";
+    public const string BackupSnapshotsMoved = "backup.snapshots.move";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>

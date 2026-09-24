@@ -34,7 +34,9 @@ Before it saves, the server checks the folder: it must be absolute, its parent f
 
 The server writes a small `.mangapixer-backups.json` marker file into the folder. It is how the server recognises the folder later; do not delete it. If another MangaPixer server already uses the folder, saving is refused so two servers never delete each other's snapshots; after a reinstall you can take the folder over through the API (`adoptExistingMarker`).
 
-Changing the location does not move or delete anything: existing snapshots stay where they are and are no longer listed or pruned. Take a backup right after the change (the card offers **Back up now**) so the new folder has one. Switching back to the default folder picks up the snapshots that are still there.
+When you change the location and the current folder holds rotating snapshots, the card offers **Move existing snapshots (N files, X MB)**, checked by default. The server then moves them in the background while the card shows the progress; settings are saved straight away and backups keep running. Each snapshot is copied to the new folder, checked (size and SHA-256), and only then removed from the old one, so a failure or a restart never loses a snapshot. Only `rotating-*.db` snapshots move: the marker, the safety snapshots and any other file stay. A file of the same name that is already in the new folder is never overwritten; if it is identical, the old copy is removed, otherwise both are kept. When the move is done, the normal **Keep the newest** limit applies in the new folder. Any snapshot that could not be moved is listed with the reason and stays in the old folder.
+
+If you clear the box, nothing is moved or deleted: existing snapshots stay where they are and are no longer listed or pruned. Take a backup right after the change (the card offers **Back up now**) so the new folder has one. Switching back to the default folder picks up the snapshots that are still there.
 
 Anyone who can write to the backup folder can place a file there that shows up in the restore list. Every restore is validated, but use a folder only you can write to.
 
@@ -51,7 +53,7 @@ Once the folder is back, the next backup works again.
 
 ### Safety snapshots
 
-The server also takes two kinds of one-off snapshot. They always stay in `<data root>/backups`, even when rotating backups go to a custom folder, so an upgrade or a restore never depends on a network share:
+The server also takes two kinds of one-off snapshot. They always stay in `<data root>/backups`, even when rotating backups go to a custom folder, and are never moved with them, so an upgrade or a restore never depends on a network share that might not be mounted at that moment:
 
 | File | Taken |
 |---|---|

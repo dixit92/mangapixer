@@ -194,6 +194,18 @@
         }
       }
     },
+    "/api/v1/operations/backups/move": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/operations/update-check": {
       "get": {
         "tags": [
@@ -2861,6 +2873,9 @@
             "type": "boolean"
           },
           "adoptExistingMarker": {
+            "type": "boolean"
+          },
+          "moveExistingSnapshots": {
             "type": "boolean"
           }
         }

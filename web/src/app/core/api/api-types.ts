@@ -840,6 +840,9 @@ export interface BackupSettingsDto {
   locationChangeAllowed: boolean;
   locationStatus: BackupLocationStatus;
   platform: 'linux' | 'windows' | null;
+  /** Rotating snapshots in the current location (1.23.0): what a move would take. */
+  rotatingSnapshotCount?: number;
+  rotatingSnapshotBytes?: number;
 }
 
 /**
@@ -855,6 +858,8 @@ export interface UpdateBackupSettingsRequest {
   currentPassword?: string;
   validateOnly?: boolean;
   adoptExistingMarker?: boolean;
+  /** On a location change, move the existing rotating snapshots too (1.23.0). */
+  moveExistingSnapshots?: boolean;
 }
 
 /** Result of a backup settings PUT (`BackupSettingsUpdateResultDto`). */
@@ -863,7 +868,39 @@ export interface BackupSettingsUpdateResultDto {
   validateOnly: boolean;
   willCreate: boolean;
   locationChanged: boolean;
+  /** A background move of the existing snapshots started (1.23.0). */
+  snapshotMoveStarted?: boolean;
   warnings: string[];
+}
+
+/**
+ * Background move of the existing rotating snapshots after a location change
+ * (1.23.0, `GET /operations/backups/move`). In memory on the server: `idle`
+ * after a restart. File names only, never a folder.
+ */
+export type BackupSnapshotMoveState = 'idle' | 'running' | 'completed' | 'cancelled';
+
+export interface BackupSnapshotMoveIssueDto {
+  fileName: string;
+  /** `name_conflict` | `verify_failed` | `copy_failed` | `source_delete_failed` | `cancelled`. */
+  code: string;
+  /** `previous`: still in the previous location; `both`: in both locations. */
+  location: 'previous' | 'both';
+}
+
+export interface BackupSnapshotMoveStatusDto {
+  state: BackupSnapshotMoveState;
+  fromKind: 'default' | 'custom' | null;
+  toKind: 'default' | 'custom' | null;
+  totalFiles: number;
+  filesDone: number;
+  totalBytes: number;
+  bytesDone: number;
+  movedCount: number;
+  prunedCount: number;
+  startedUtc: string | null;
+  finishedUtc: string | null;
+  issues: BackupSnapshotMoveIssueDto[];
 }
 
 /**

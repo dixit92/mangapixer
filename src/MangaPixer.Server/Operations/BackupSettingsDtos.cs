@@ -29,6 +29,15 @@ public sealed record BackupSettingsDto
 
     /// <summary><c>linux</c> | <c>windows</c> | null; drives the UI's path idiom.</summary>
     public required string? Platform { get; init; }
+
+    /// <summary>
+    /// Rotating snapshots in the current location (0 when it cannot be read):
+    /// what "Move existing snapshots" would move on a location change (1.23.0).
+    /// </summary>
+    public int RotatingSnapshotCount { get; init; }
+
+    /// <summary>Total size in bytes of <see cref="RotatingSnapshotCount"/> snapshots.</summary>
+    public long RotatingSnapshotBytes { get; init; }
 }
 
 /// <summary>New backup location: <c>mode</c> = <c>default</c> | <c>custom</c>.</summary>
@@ -57,6 +66,13 @@ public sealed record UpdateBackupSettingsRequest
 
     /// <summary>Take over a folder whose marker belongs to another instance (e.g. after a reinstall).</summary>
     public bool AdoptExistingMarker { get; init; }
+
+    /// <summary>
+    /// On a location change, move the rotating snapshots of the previous
+    /// location to the new one in the background (1.23.0). False (the API
+    /// default) leaves them where they are, unmanaged.
+    /// </summary>
+    public bool MoveExistingSnapshots { get; init; }
 }
 
 /// <summary>Result of a backup settings PUT.</summary>
@@ -68,9 +84,57 @@ public sealed record BackupSettingsUpdateResultDto
     /// <summary>The custom folder did not exist and is (or would be) created.</summary>
     public required bool WillCreate { get; init; }
 
-    /// <summary>The location changed: snapshots in the previous location stay there, unmanaged.</summary>
+    /// <summary>
+    /// The location changed. Unless <see cref="SnapshotMoveStarted"/>, the
+    /// snapshots in the previous location stay there, unmanaged.
+    /// </summary>
     public required bool LocationChanged { get; init; }
+
+    /// <summary>A background move of the existing snapshots started (poll <c>GET backups/move</c>).</summary>
+    public bool SnapshotMoveStarted { get; init; }
 
     /// <summary>Advisory codes, e.g. <c>low_free_space</c>.</summary>
     public required IReadOnlyList<string> Warnings { get; init; }
+}
+
+/// <summary>
+/// Progress and result of the background move of existing rotating snapshots
+/// (<c>GET /api/v1/operations/backups/move</c>, 1.23.0). In memory only:
+/// <c>idle</c> after a restart. Generated file names only, never a folder.
+/// </summary>
+public sealed record BackupSnapshotMoveStatusDto
+{
+    /// <summary><c>idle</c> | <c>running</c> | <c>completed</c> | <c>cancelled</c>.</summary>
+    public required string State { get; init; }
+
+    /// <summary><c>default</c> | <c>custom</c> | null (never the folder itself).</summary>
+    public required string? FromKind { get; init; }
+    public required string? ToKind { get; init; }
+    public required int TotalFiles { get; init; }
+    public required int FilesDone { get; init; }
+    public required long TotalBytes { get; init; }
+    public required long BytesDone { get; init; }
+
+    /// <summary>Snapshots now in the new location (moved, or an identical copy was already there).</summary>
+    public required int MovedCount { get; init; }
+
+    /// <summary>Snapshots deleted by the retention applied in the new location after the move.</summary>
+    public required int PrunedCount { get; init; }
+    public required DateTimeOffset? StartedUtc { get; init; }
+    public required DateTimeOffset? FinishedUtc { get; init; }
+
+    /// <summary>Snapshots that were not moved (or not cleanly), and where they are now.</summary>
+    public required IReadOnlyList<BackupSnapshotMoveIssueDto> Issues { get; init; }
+}
+
+/// <summary>One snapshot the move could not finish cleanly.</summary>
+public sealed record BackupSnapshotMoveIssueDto
+{
+    public required string FileName { get; init; }
+
+    /// <summary><c>name_conflict</c> | <c>verify_failed</c> | <c>copy_failed</c> | <c>source_delete_failed</c> | <c>cancelled</c>.</summary>
+    public required string Code { get; init; }
+
+    /// <summary><c>previous</c> (still in the previous location) | <c>both</c> (in both locations).</summary>
+    public required string Location { get; init; }
 }

@@ -79,6 +79,7 @@ describe('AdminComponent directory browser row', () => {
       getAnalyticsOverview: vi.fn().mockReturnValue(of(analyticsOverview)),
       getAnalyticsUsers: vi.fn().mockReturnValue(of([])),
       getBackupSettings: vi.fn().mockReturnValue(of(backupSettings)),
+      getBackupSnapshotMove: vi.fn().mockReturnValue(of({ state: 'idle', fromKind: null, toKind: null, totalFiles: 0, filesDone: 0, totalBytes: 0, bytesDone: 0, movedCount: 0, prunedCount: 0, startedUtc: null, finishedUtc: null, issues: [] })),
     };
     const authSpy = { currentUser: () => null, isAdmin: () => true };
 

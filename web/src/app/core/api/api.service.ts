@@ -69,6 +69,7 @@ import {
   UpdateCheckStatusDto,
   BackupSettingsDto,
   BackupSettingsUpdateResultDto,
+  BackupSnapshotMoveStatusDto,
   UpdateBackupSettingsRequest,
   UpdateLibraryRequest,
   UpdateLogLevelRequest,
@@ -517,6 +518,11 @@ export class ApiService {
    */
   updateBackupSettings(request: UpdateBackupSettingsRequest): Observable<BackupSettingsUpdateResultDto> {
     return this.put<BackupSettingsUpdateResultDto>('/operations/backups/settings', request);
+  }
+
+  /** Progress / result of the background snapshot move after a location change (admin, 1.23.0). */
+  getBackupSnapshotMove(): Observable<BackupSnapshotMoveStatusDto> {
+    return this.get<BackupSnapshotMoveStatusDto>('/operations/backups/move');
   }
 
   /** Update Checker status (admin). Pass force=true for the "Check now" action. */
