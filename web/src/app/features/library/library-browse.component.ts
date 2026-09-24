@@ -427,10 +427,13 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               }
               <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
 
-              <!-- Favorite star (1.21.0): an overlay toggle in the cover corner, on both
-                   card and list rows. Its own component styles keep this out of the
-                   near-budget inline CSS below. -->
-              <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
+              <!-- Favorite star (1.21.0): an overlay toggle in the cover corner of a
+                   CARD. List rows put it in the trailing row-markers group instead
+                   (1.22.2): the 32px overlay hid most of the 46px list thumbnail. Its own
+                   component styles keep this out of the near-budget inline CSS below. -->
+              @if (viewMode() !== 'list') {
+                <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
+              }
 
               <!-- Card mode: read/selection markers overlay the cover. List mode renders
                    the same markers to the RIGHT of the row instead (1.17.0), see below. -->
@@ -457,9 +460,11 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               </div>
             </div>
             <!-- List mode (1.17.0): markers trail the row so the small thumbnail stays
-                 unobstructed. Same template as the card overlay, so the two never drift. -->
+                 unobstructed. Same template as the card overlay, so the two never drift.
+                 The favorite star leads the group (1.22.2) at its full touch size. -->
             @if (viewMode() === 'list') {
               <div class="row-markers">
+                <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" />
                 <ng-container *ngTemplateOutlet="markers; context: { $implicit: node }" />
               </div>
             }

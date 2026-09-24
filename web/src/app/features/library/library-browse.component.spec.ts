@@ -1927,6 +1927,24 @@ describe('LibraryBrowseComponent browse visual polish (1.17.0)', () => {
     expect(rows[1].querySelector('.badge.read')).toBeNull();
   });
 
+  it('list mode: the favorite star sits in row-markers, not over the thumbnail (1.22.2)', () => {
+    const { el } = setup('list', [node('a'), node('b')]);
+    expect(el.querySelector('.cover app-star-toggle')).toBeNull();
+    const stars = el.querySelectorAll('.row-markers app-star-toggle');
+    expect(stars).toHaveLength(2);
+    // Full-size, in-flow toggle: neither the cover overlay nor the compact variant.
+    expect(stars[0].classList.contains('overlay')).toBe(false);
+    expect(stars[0].classList.contains('compact')).toBe(false);
+  });
+
+  it('card mode: the favorite star stays a compact overlay on the cover', () => {
+    const { el } = setup('card', [node('a')]);
+    const star = el.querySelector('.cover app-star-toggle');
+    expect(star).not.toBeNull();
+    expect(star!.classList.contains('overlay')).toBe(true);
+    expect(el.querySelector('.row-markers app-star-toggle')).toBeNull();
+  });
+
   it('list mode: the selection check sits in row-markers, and reflects selection', () => {
     const { fixture, comp, el } = setup('list', [node('a'), node('b')]);
     expect(el.querySelector('.check')).toBeNull(); // selection mode unchanged: off by default
