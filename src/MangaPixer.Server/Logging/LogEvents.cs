@@ -133,6 +133,15 @@ public static class LogEvents
         public const int ScanMoveAmbiguous = 3022;
         public const int ScanMovesApplied = 3023;
         public const int ScanPhaseTimings = 3024;
+
+        // 1.23.0 scheduled scans
+        public const int ScheduledScanStarted = 3025;
+        public const int ScheduledScanSkippedRootUnavailable = 3026;
+        public const int ScheduledScanRootAvailableAgain = 3027;
+        public const int ScheduledScanUnrecognisedSchedule = 3028;
+        public const int ScheduledScanEvaluationFailed = 3029;
+        public const int ScheduledScanDisabled = 3030;
+        public const int ScheduledScanFinished = 3031;
     }
 
     /// <summary>Worker pool, supervisor, scheduler, scratch, persistence, and page delivery.</summary>

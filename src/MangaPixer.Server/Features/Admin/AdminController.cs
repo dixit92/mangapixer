@@ -30,9 +30,9 @@ public sealed class AdminController : ControllerBase
 {
     private readonly LibraryRegistrationService _registration;
     private readonly FilesystemBrowseService _browse;
-    private readonly ScanLeaseService _leaseService;
     private readonly LibraryMaintenanceService _maintenance;
-    private readonly LibraryScanPolicy _scanPolicy;
+    private readonly LibraryScanLauncher _scanLauncher;
+    private readonly LibraryScanScheduler _scanScheduler;
     private readonly ScanRunRegistry _scanRunRegistry;
     private readonly UserManager<UserEntity> _userManager;
     private readonly LastAdminProtectionService _lastAdminProtection;
@@ -41,15 +41,14 @@ public sealed class AdminController : ControllerBase
     private readonly MangaPixerDbContext _db;
     private readonly AuditService _audit;
     private readonly ILogger<AdminController> _logger;
-    private readonly ILoggerFactory _loggerFactory;
     private readonly IServiceScopeFactory _scopeFactory;
 
     public AdminController(
         LibraryRegistrationService registration,
         FilesystemBrowseService browse,
-        ScanLeaseService leaseService,
         LibraryMaintenanceService maintenance,
-        LibraryScanPolicy scanPolicy,
+        LibraryScanLauncher scanLauncher,
+        LibraryScanScheduler scanScheduler,
         ScanRunRegistry scanRunRegistry,
         UserManager<UserEntity> userManager,
         LastAdminProtectionService lastAdminProtection,
@@ -58,14 +57,13 @@ public sealed class AdminController : ControllerBase
         MangaPixerDbContext db,
         AuditService audit,
         ILogger<AdminController> logger,
-        ILoggerFactory loggerFactory,
         IServiceScopeFactory scopeFactory)
     {
         _registration = registration;
         _browse = browse;
-        _leaseService = leaseService;
         _maintenance = maintenance;
-        _scanPolicy = scanPolicy;
+        _scanLauncher = scanLauncher;
+        _scanScheduler = scanScheduler;
         _scanRunRegistry = scanRunRegistry;
         _userManager = userManager;
         _lastAdminProtection = lastAdminProtection;
@@ -74,7 +72,6 @@ public sealed class AdminController : ControllerBase
         _db = db;
         _audit = audit;
         _logger = logger;
-        _loggerFactory = loggerFactory;
         _scopeFactory = scopeFactory;
     }
 
@@ -213,6 +210,25 @@ public sealed class AdminController : ControllerBase
         return Ok(ToLibraryDto(library));
     }
 
+    // --- Library scan schedule (1.23.0) ---
+    // Admin-picked automatic scan preset; null clears back to the default
+    // (daily). See LibraryScanSchedules (Core) for the tokens and
+    // LibraryScanScheduler for how due libraries are scanned.
+
+    [HttpPut("libraries/{id}/scan-schedule")]
+    public async Task<IActionResult> SetLibraryScanSchedule(string id, [FromBody] SetLibraryScanScheduleRequest request, CancellationToken ct)
+    {
+        var library = await _db.Libraries.FirstOrDefaultAsync(l => l.PublicId == id, ct);
+        if (library is null) return NotFound();
+
+        if (!LibraryScanSchedules.IsValid(request.ScanSchedule))
+            return BadRequest(new ApiError { Error = "invalid_scan_schedule", Message = "ScanSchedule must be one of off, 1h, 6h, 1d, 7d, or null." });
+
+        library.ScanSchedule = request.ScanSchedule;
+        await _db.SaveChangesAsync(ct);
+        return Ok(ToLibraryDto(library));
+    }
+
     [HttpPut("folders/{nodeId}/reader-default")]
     public async Task<IActionResult> SetFolderReaderDefault(string nodeId, [FromBody] SetReaderModeRequest request, CancellationToken ct)
     {
@@ -257,11 +273,11 @@ public sealed class AdminController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var lease = await StartScanAsync(library, userId.Value, ct);
-        if (lease is null)
+        var launch = await _scanLauncher.StartAsync(library, $"server:{userId}", ct);
+        if (launch is null)
             return Conflict(new ApiError { Error = "scan_in_progress", Message = "A scan is already running for this library." });
 
-        return Accepted(new ScanTriggeredDto { ScanRunId = OpaqueId.Encode(lease.Id) });
+        return Accepted(new ScanTriggeredDto { ScanRunId = OpaqueId.Encode(launch.Run.Id) });
     }
 
     /// <summary>
@@ -269,8 +285,8 @@ public sealed class AdminController : ControllerBase
     /// already scanning are skipped (per-library guard) rather than failing the
     /// whole batch; the response reports how many started vs. skipped. Each
     /// started scan runs on the same background path as <see cref="TriggerScan"/>
-    /// (lease + <see cref="ScanRunRegistry"/> + maintenance), so cancel/history
-    /// semantics are identical to a per-library scan.
+    /// (<see cref="LibraryScanLauncher"/>: lease + <see cref="ScanRunRegistry"/> +
+    /// maintenance), so cancel/history semantics are identical to a per-library scan.
     /// </summary>
     [HttpPost("libraries/scan-all")]
     public async Task<IActionResult> ScanAllLibraries(CancellationToken ct)
@@ -284,9 +300,9 @@ public sealed class AdminController : ControllerBase
         var skipped = 0;
         foreach (var library in libraries)
         {
-            var lease = await StartScanAsync(library, userId.Value, ct);
-            if (lease is not null)
-                started.Add(OpaqueId.Encode(lease.Id));
+            var launch = await _scanLauncher.StartAsync(library, $"server:{userId}", ct);
+            if (launch is not null)
+                started.Add(OpaqueId.Encode(launch.Run.Id));
             else
                 skipped++;
         }
@@ -300,216 +316,6 @@ public sealed class AdminController : ControllerBase
             SkippedCount = skipped,
             ScanRunIds = started,
         });
-    }
-
-    /// <summary>
-    /// Acquires a scan lease for a library and launches the background scan on
-    /// the same path used by both per-library <see cref="TriggerScan"/> and
-    /// <see cref="ScanAllLibraries"/>. Returns the acquired lease, or null when
-    /// a scan is already running for that library (per-library guard). The HTTP
-    /// request returns immediately; the scan runs on a background task with a
-    /// dedicated DI scope so scoped services (DbContext, etc.) outlive the
-    /// request scope.
-    /// </summary>
-    private async Task<ScanRunEntity?> StartScanAsync(LibraryEntity library, long userId, CancellationToken ct)
-    {
-        var lease = await _leaseService.AcquireLeaseAsync(library.Id, $"server:{userId}", TimeSpan.FromMinutes(30), ct);
-        if (lease is null)
-            return null;
-
-        // Register a cancellation token so CancelScan can cooperatively
-        // cancel the background scan (audit defect D34).
-        var scanCt = _scanRunRegistry.Register(lease.Id);
-
-        // Run scan on a background task — the HTTP request returns 202 immediately.
-        // Use a dedicated DI scope so scoped services (DbContext, etc.) are not
-        // disposed when the controller's request scope ends.
-        var libraryId = library.Id;
-        var libraryRootPath = library.RootPath;
-        var leaseId = lease.Id;
-        var scanRevision = lease.ScanRevision;
-        var leaseOwner = lease.LeaseOwner ?? "server";
-
-        _ = Task.Run(async () =>
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var scopedDb = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
-            var scopedMaintenance = scope.ServiceProvider.GetRequiredService<LibraryMaintenanceService>();
-            var scopedLeaseService = scope.ServiceProvider.GetRequiredService<ScanLeaseService>();
-            var scopedJobScheduler = scope.ServiceProvider.GetRequiredService<JobScheduler>();
-            try
-            {
-                await scopedMaintenance.EnterMaintenanceAsync(libraryId);
-                var fs = new ReadOnlyLibraryFileSystem(libraryRootPath);
-                var coordinator = new LibraryScanCoordinator(
-                    scopedDb, fs, _scanPolicy, libraryId, scanRevision, leaseOwner,
-                    _loggerFactory.CreateLogger<LibraryScanCoordinator>());
-                var result = await coordinator.ScanAsync(scanCt);
-
-                // Persist scan counters to ScanRunEntity (audit defect D8).
-                // Previously TriggerScan logged result.NodesAdded but never
-                // wrote counts to the ScanRun, so GET /scans reported zeros.
-                var scanRun = await scopedDb.ScanRuns.FirstOrDefaultAsync(s => s.Id == leaseId, scanCt);
-                if (scanRun is not null)
-                {
-                    scanRun.NodesObserved = result.NodesObserved;
-                    scanRun.NodesAdded = result.NodesAdded;
-                    scanRun.NodesUpdated = result.NodesUpdated;
-                    scanRun.NodesTombstoned = result.NodesTombstoned;
-                    scanRun.Status = result.Success ? 2 : 3;
-                    scanRun.CompletedAt = DateTimeOffset.UtcNow;
-                    await scopedDb.SaveChangesAsync(scanCt);
-                }
-
-                await scopedLeaseService.ReleaseLeaseAsync(leaseId, result.Success, result.Error);
-                await scopedMaintenance.ExitMaintenanceAsync(libraryId);
-                _logger.LogInformation(LogEvents.Scanning.AdminScanCompleted, "Scan completed for library {LibraryId}: {Added} added, {Tombstoned} tombstoned",
-                    libraryId, result.NodesAdded, result.NodesTombstoned);
-
-                // Enqueue analysis for pending archive items after a successful
-                // scan (audit defect D33). Previously items were only analyzed
-                // when a reader opened them, so page counts never appeared
-                // after a scan.
-                if (result.Success)
-                {
-                    await EnqueueAnalysisForPendingItemsAsync(scopedDb, scopedJobScheduler, libraryId, scanCt);
-
-                    // Post-scan thumbnail backfill (post-1.2.0): kick a continuous
-                    // backfill for this library to catch ready-but-missing or
-                    // stale (content-version-bumped) thumbnails. Newly-scanned
-                    // items are AnalysisState==1 (pending), so the backfill query
-                    // won't touch them until analyzed — at which point
-                    // analysis-time generation already made their thumbnail
-                    // (idempotent skip, no double-generate). Fire-and-forget;
-                    // the runner throttles itself against reader demand.
-                    var postScanLibraryId = libraryId;
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            using var thumbScope = _scopeFactory.CreateScope();
-                            var thumbService = thumbScope.ServiceProvider.GetRequiredService<ThumbnailGenerationService>();
-                            await thumbService.RunContinuousBackfillAsync(postScanLibraryId, CancellationToken.None);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(LogEvents.Worker.ThumbnailGenerationFailed, ex, "Post-scan thumbnail backfill failed (library {LibraryId}): {Error}", postScanLibraryId, ex.GetType().Name);
-                        }
-                    }, CancellationToken.None);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // Scan was cancelled via CancelScan (audit defect D34).
-                // Use CancelScanAsync (status=cancelled, guarded on still-running)
-                // rather than ReleaseLeaseAsync(success:false), which would derive
-                // status purely from the boolean and mark a user-cancelled scan as
-                // "failed". The Status==1 guard also leaves an already-completed
-                // scan (whose only cancelled step was the post-scan analysis
-                // enqueue) as "completed" instead of downgrading it.
-                await scopedLeaseService.CancelScanAsync(leaseId);
-                await scopedMaintenance.ExitMaintenanceAsync(libraryId);
-                _logger.LogInformation(LogEvents.Scanning.AdminScanCancelled, "Scan cancelled for library {LibraryId}", libraryId);
-            }
-            catch (Exception ex)
-            {
-                var scanRun = await scopedDb.ScanRuns.FirstOrDefaultAsync(s => s.Id == leaseId);
-                if (scanRun is not null)
-                {
-                    scanRun.Status = 3; // failed
-                    scanRun.SanitizedError = ex.GetType().Name;
-                    scanRun.CompletedAt = DateTimeOffset.UtcNow;
-                    await scopedDb.SaveChangesAsync();
-                }
-                await scopedLeaseService.ReleaseLeaseAsync(leaseId, false, ex.GetType().Name);
-                await scopedMaintenance.ExitMaintenanceAsync(libraryId);
-                _logger.LogWarning(LogEvents.Scanning.AdminScanFailed, "Scan failed for library {LibraryId}: {Error}", libraryId, ex.GetType().Name);
-            }
-            finally
-            {
-                _scanRunRegistry.Complete(leaseId);
-            }
-        }, CancellationToken.None);
-
-        return lease;
-    }
-
-    /// <summary>
-    /// Enqueues analysis jobs for archive items in a library that are in the
-    /// pending analysis state (audit defect D33). Bounded to parallelism 2
-    /// to avoid flooding the worker pool.
-    /// </summary>
-    private async Task EnqueueAnalysisForPendingItemsAsync(
-        MangaPixerDbContext db,
-        JobScheduler scheduler,
-        long libraryId,
-        CancellationToken ct)
-    {
-        try
-        {
-            var pendingItems = await db.CatalogNodes
-                .Where(n => n.LibraryId == libraryId && n.Kind == 1 && n.Availability != 5)
-                .Join(db.ArchiveItems.Where(a => a.AnalysisState == 1),
-                      n => n.Id, a => a.NodeId,
-                      (n, a) => new { Node = n, Item = a })
-                .ToListAsync(ct);
-
-            if (pendingItems.Count == 0)
-                return;
-
-            _logger.LogInformation(LogEvents.Scanning.AnalysisEnqueueBatch, "Enqueuing analysis for {Count} pending items in library {LibraryId}",
-                pendingItems.Count, libraryId);
-
-            // Enqueue at Background priority — scan-triggered analysis is not
-            // interactive and should not block reader-triggered analysis.
-            foreach (var entry in pendingItems)
-            {
-                ct.ThrowIfCancellationRequested();
-                try
-                {
-                    // Resolve the source path via the library root + relative path.
-                    // The scheduler stores this for the worker; the path is never
-                    // echoed in any API response.
-                    var library = await db.Libraries.FirstAsync(l => l.Id == entry.Node.LibraryId, ct);
-                    var sourcePath = Path.Combine(library.RootPath, entry.Node.RelativePath);
-                    var fileInfo = new FileInfo(sourcePath);
-                    if (!fileInfo.Exists)
-                        continue;
-
-                    // Fire-and-forget: EnqueueAsync returns a Task that only
-                    // completes when the job is *analyzed*. Awaiting it here would
-                    // serialize the whole loop on each job's completion (and block
-                    // the background scan on the very first job). We only need the
-                    // job queued; the pool drains the queue at its own pace. Observe
-                    // the task so a faulted job does not raise UnobservedTaskException.
-                    _ = scheduler.EnqueueAsync(
-                        itemId: entry.Node.Id,
-                        contentVersion: entry.Item.ContentVersion,
-                        operation: JobOperation.Analyze,
-                        priority: JobPriority.Background,
-                        archivePath: sourcePath,
-                        expectedLastWriteTicks: fileInfo.LastWriteTimeUtc.Ticks,
-                        expectedByteLength: fileInfo.Length,
-                        callerToken: CancellationToken.None)
-                        .ContinueWith(static t => { _ = t.Exception; },
-                            CancellationToken.None,
-                            TaskContinuationOptions.OnlyOnFaulted,
-                            TaskScheduler.Default);
-                }
-                catch (OperationCanceledException) { throw; }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(LogEvents.Scanning.AnalysisEnqueueItemFailed, "Failed to enqueue analysis for item {ItemId}: {Error}",
-                        entry.Node.Id, ex.GetType().Name);
-                }
-            }
-        }
-        catch (OperationCanceledException) { throw; }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(LogEvents.Scanning.AnalysisEnqueueFailed, "Post-scan analysis enqueue failed for library {LibraryId}: {Error}",
-                libraryId, ex.GetType().Name);
-        }
     }
 
     [HttpPost("scans/{scanRunId}/cancel")]
@@ -1004,7 +810,7 @@ public sealed class AdminController : ControllerBase
         return id;
     }
 
-    private static LibraryDto ToLibraryDto(LibraryEntity library, int? itemCount = null, bool? isScanning = null) => new()
+    private LibraryDto ToLibraryDto(LibraryEntity library, int? itemCount = null, bool? isScanning = null) => new()
     {
         Id = library.PublicId,
         Name = library.DisplayName,
@@ -1013,6 +819,8 @@ public sealed class AdminController : ControllerBase
         LastScanCompleted = library.LastScanCompleted,
         DefaultReaderMode = (ReaderMode?)library.DefaultReaderMode,
         Icon = library.Icon,
+        ScanSchedule = LibraryScanSchedules.Resolve(library.ScanSchedule),
+        NextScheduledScanAt = _scanScheduler.EstimateNextScan(library.ScanSchedule, library.LastScanCompleted),
     };
 
     private static string ScanStatusToString(int status) => status switch
