@@ -2,7 +2,7 @@
 
 There are two ways to run MangaPixer on Unraid:
 
-- **The Unraid template** (`deploy/unraid/mangapixer.xml`): install it from the Docker tab like any other Unraid app. This is the simplest route.
+- **The Unraid template**, listed in Community Applications: install it from the **Apps** tab like any other Unraid app. This is the simplest route.
 - **The Unraid Compose file** (`deploy/compose.unraid.yaml`): for people who manage their containers with Compose.
 
 Both use the same image and the same layout, which differs from [the canonical Docker setup](install-docker.md) like this:
@@ -18,27 +18,30 @@ The hardening is the same everywhere: read-only container filesystem, a `tmpfs` 
 
 ## Install from the template
 
-MangaPixer is not listed in Community Applications yet. Until it is, add the template by hand. From the Unraid terminal, download it into your user templates folder:
+MangaPixer is listed in Community Applications. Open the Unraid **Apps** tab, search for **MangaPixer**, and click **Install**. Unraid opens the container settings. Then:
 
-```bash
-wget -O /boot/config/plugins/dockerMan/templates-user/my-MangaPixer.xml \
-  https://raw.githubusercontent.com/dixit92/mangapixer/main/deploy/unraid/mangapixer.xml
-```
-
-Then:
-
-1. Open the Unraid **Docker** tab.
-2. Click **Add Container**.
-3. In the **Template** dropdown, choose **MangaPixer**.
-4. Fill in:
+1. Check the **Name** (`mangapixer`) and the **Web UI Port** (`6266`); change the port if something else already uses it.
+2. **Appdata** (`/config`): the default is `/mnt/user/appdata/MangaPixer`. The database, backups, thumbnails and page cache live here; back this folder up.
+3. Fill in:
    - **PUID** and **PGID**: Check your Unraid user's ID with `ls -ln /mnt/user/appdata`. Defaults are `99` (`nobody`) and `100` (`users`).
    - **Media**: set the host path to your comics or manga share (for example `/mnt/user/Manga`); it is mounted read-only at `/media/manga`. For another share, select **Add another Path** and use a sibling container path such as `/media/comics`, also read-only. Never mount one share inside another (for example one at `/media` and another at `/media/comics`): Docker would have to create a folder inside your first share.
-5. Click **Apply**.
-6. The container starts. Once it is running, visit `http://<unraid-ip>:6266` and create the first admin on the welcome screen. Then register your libraries with root paths such as `/media/manga`, as in [step 6 of the Docker guide](install-docker.md#step-6-add-a-library).
+4. Click **Apply**.
+5. The container starts. Once it is running, visit `http://<unraid-ip>:6266` and create the first admin on the welcome screen. Then register your libraries with root paths such as `/media/manga`, as in [step 6 of the Docker guide](install-docker.md#step-6-add-a-library).
 
 The template runs the `latest` image, so it follows each release. To upgrade, use Unraid's update action for the container on the Docker tab (**apply update** when Unraid reports one, or **Force update**). Database upgrades take a safety snapshot first, as described in [Install with Docker](install-docker.md#upgrading).
 
-Once MangaPixer is listed in Community Applications, you will be able to install it from the **Apps** tab without the download step.
+### Without Community Applications
+
+If you do not use the Apps tab, add the same template by hand. From the Unraid terminal, download it into your user templates folder:
+
+```bash
+wget -O /boot/config/plugins/dockerMan/templates-user/my-MangaPixer.xml \
+  https://raw.githubusercontent.com/dixit92/unraid-templates/main/templates/mangapixer.xml
+```
+
+Then open the **Docker** tab, click **Add Container**, choose **MangaPixer** in the **Template** dropdown, and continue from step 1 above.
+
+The template now lives only in the [dixit92/unraid-templates](https://github.com/dixit92/unraid-templates) repository. Earlier releases shipped a copy at `deploy/unraid/mangapixer.xml` in this repository; that copy is gone. A container you installed from it keeps working and keeps following `latest`; nothing needs to change.
 
 ## Install with Compose
 
