@@ -172,7 +172,7 @@ Conventions for the Unraid config:
 
 The `entrypoint.sh` is shared by both configs. It chowns whichever state directories exist (`/data`, `/cache`, `/scratch`, and/or `/config` and its subfolders) to `PUID:PGID`, then drops privileges via `gosu`. Default behavior when `PUID`/`PGID` are unset is unchanged from the original 1000:1000 image user, so the canonical volume-based config and smoke tests are unaffected.
 
-A Unraid Community Applications template (XML) is a separate post-MVP packaging task - it references a published registry image, not a build context, and only makes sense once `Package-Release.ps1` is producing version-tagged images.
+The app is listed in Unraid Community Applications from the `dixit92/unraid-templates` repository; the template references the published registry image, not a build context (see `docs/install-unraid.md`).
 
 ## Privacy
 

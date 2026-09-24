@@ -36,6 +36,17 @@ updates:
     groups:
       npm-minor-patch:
         update-types: [minor, patch]
+    ignore:
+      # Toolchain majors are taken together in a toolchain-maintenance cycle,
+      # not by individual bumps. @types/node tracks the Node 24 LTS runtime.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      - dependency-name: vitest
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   # Actions used by .github/workflows.
   - package-ecosystem: github-actions
