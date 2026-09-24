@@ -316,9 +316,15 @@
          template mounts its media share at /media/manga (side-by-side shares, never nested);
          docs/ readability and accuracy pass plus a new How MangaPixer works page; Ko-fi
          FUNDING.yml. -->
+    <!-- 1.22.2 - PATCH over 1.22.1 (2026-09-24), web and docs only; no server, API, schema or
+         worker change. Reader: page-turn keyframes fill backwards (no held transform) and the
+         Enhance canvas is premultiplied with an opaque blit, fixing a black page after a Slide
+         tap turn on WebKit (iPad). Browse: the list-view favorite star moves off the thumbnail
+         into the row markers. Unraid: install from Community Applications; the duplicate
+         deploy/unraid/mangapixer.xml is removed (dixit92/unraid-templates is its only home). -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
     <MangaPixerVersionMinor>22</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
+    <MangaPixerVersionPatch>2</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

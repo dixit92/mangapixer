@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.22.2] - 2026-09-24
+
 ### Changed
 
 - **Unraid: install from Community Applications.** MangaPixer is now listed in the Unraid **Apps** tab. [Install on Unraid](docs/install-unraid.md) starts there, and the manual route downloads the same template from [dixit92/unraid-templates](https://github.com/dixit92/unraid-templates), which is now its only home. The duplicate copy at `deploy/unraid/mangapixer.xml` is removed; containers installed from it keep working.
