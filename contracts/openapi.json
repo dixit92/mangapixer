@@ -1100,6 +1100,48 @@
         }
       }
     },
+    "/api/v1/items/{itemId}/spread-layout": {
+      "put": {
+        "tags": [
+          "SpreadLayout"
+        ],
+        "parameters": [
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSpreadLayoutRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSpreadLayoutRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSpreadLayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/import/yacreader/detect": {
       "get": {
         "tags": [
@@ -2729,6 +2771,34 @@
           }
         }
       },
+      "SetSpreadLayoutRequest": {
+        "required": [
+          "expectedContentVersion",
+          "spreadStarts"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedContentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "spreadStarts": {
+            "type": "array",
+            "items": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        }
+      },
       "SetupRequest": {
         "required": [
           "username",
@@ -2967,6 +3037,9 @@
     },
     {
       "name": "Reading"
+    },
+    {
+      "name": "SpreadLayout"
     },
     {
       "name": "YacReaderImport"
