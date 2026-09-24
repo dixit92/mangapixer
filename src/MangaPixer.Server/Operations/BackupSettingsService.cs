@@ -24,7 +24,8 @@ public sealed record BackupSettingsUpdateOutcome
 /// live through <see cref="BackupSettingsResolver"/>. Configuration-managed
 /// fields are refused (409). The current-password re-authentication for a
 /// location change happens in the controller, before <see cref="ApplyAsync"/>.
-/// Nothing here moves or deletes an existing snapshot.
+/// A location change moves the existing rotating snapshots only when the
+/// request asks for it, as a background <see cref="BackupSnapshotMoveService"/> job.
 /// </summary>
 public sealed class BackupSettingsService
 {
@@ -40,6 +41,7 @@ public sealed class BackupSettingsService
     private readonly RotatingBackupState _state;
     private readonly AuditService _audit;
     private readonly TimeProvider _time;
+    private readonly BackupSnapshotMoveService? _mover;
     private readonly ILogger<BackupSettingsService>? _logger;
 
     public BackupSettingsService(
@@ -50,7 +52,8 @@ public sealed class BackupSettingsService
         RotatingBackupState state,
         AuditService audit,
         TimeProvider time,
-        ILogger<BackupSettingsService>? logger = null)
+        ILogger<BackupSettingsService>? logger = null,
+        BackupSnapshotMoveService? mover = null)
     {
         _db = db;
         _settings = settings;
@@ -60,6 +63,7 @@ public sealed class BackupSettingsService
         _audit = audit;
         _time = time;
         _logger = logger;
+        _mover = mover;
     }
 
     public BackupSettingsDto GetSettings() => ToDto(_settings.Current);
@@ -69,7 +73,16 @@ public sealed class BackupSettingsService
         Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
             .FirstOrDefaultAsync(_db.Users, u => u.Id == userId, ct);
 
-    public BackupSettingsDto ToDto(EffectiveBackupSettings s) => new()
+    public BackupSettingsDto ToDto(EffectiveBackupSettings s)
+    {
+        // A custom location that failed its last check is not read from.
+        var readable = !s.IsCustom ||
+            _state.LocationStatus is BackupLocationStatuses.Ok or BackupLocationStatuses.Unknown;
+        var (count, bytes) = readable ? BackupSnapshotMover.Summarize(s.RotatingDirectory) : (0, 0L);
+        return ToDto(s, count, bytes);
+    }
+
+    private BackupSettingsDto ToDto(EffectiveBackupSettings s, int snapshotCount, long snapshotBytes) => new()
     {
         Enabled = s.Enabled,
         EnabledSource = s.EnabledSource,
@@ -83,6 +96,8 @@ public sealed class BackupSettingsService
         LocationChangeAllowed = s.LocationChangeAllowed,
         LocationStatus = _state.LocationStatus,
         Platform = OperatingSystem.IsWindows() ? "windows" : OperatingSystem.IsLinux() ? "linux" : null,
+        RotatingSnapshotCount = snapshotCount,
+        RotatingSnapshotBytes = snapshotBytes,
     };
 
     /// <summary>
@@ -116,6 +131,9 @@ public sealed class BackupSettingsService
         {
             if (!s.LocationChangeAllowed)
                 return Managed("location");
+            if (_mover?.IsRunning == true)
+                return BackupSettingsUpdateOutcome.Error(409, "snapshot_move_in_progress",
+                    "Existing snapshots are still being moved. Change the location again when the move has finished.");
             if (location.Mode is not (EffectiveBackupSettings.KindDefault or EffectiveBackupSettings.KindCustom))
                 return BackupSettingsUpdateOutcome.Error(400, BackupLocationCodes.Invalid,
                     "The location mode must be 'default' or 'custom'.");
@@ -210,6 +228,8 @@ public sealed class BackupSettingsService
         await AuditAsync(request, actor, success: true, ct);
 
         var after = _settings.Current;
+        var moveStarted = locationChanged && request.MoveExistingSnapshots && _mover is not null &&
+            _mover.TryStart(before.RotatingDirectory, after.RotatingDirectory, actor);
         _logger?.LogInformation(LogEvents.Backup.BackupSettingsChanged,
             "Backup settings changed by {Actor}: enabled {Enabled}, interval {IntervalHours} h, retention {Retention}, location kind {Kind}",
             actor ?? "unknown", after.Enabled, after.IntervalHours, after.RetentionCount, after.LocationKind);
@@ -222,6 +242,7 @@ public sealed class BackupSettingsService
                 ValidateOnly = false,
                 WillCreate = validation?.WillCreate ?? false,
                 LocationChanged = locationChanged,
+                SnapshotMoveStarted = moveStarted,
                 Warnings = validation?.Warnings ?? Array.Empty<string>(),
             },
         };

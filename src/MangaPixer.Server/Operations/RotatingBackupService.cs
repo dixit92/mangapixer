@@ -180,6 +180,10 @@ public sealed partial class RotatingBackupService
                 await _location.CheckAsync(ct);
         }
 
+        // Leftovers of an interrupted snapshot move (never a valid snapshot name).
+        // Safe here: the run gate is held, so no move is mid-copy.
+        BackupSnapshotMover.DeleteStaleTemps(dir);
+
         var now = _time.GetUtcNow().UtcDateTime;
         var fileName = $"{FileNamePrefix}{now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.db";
         var path = Path.Combine(dir, fileName);
@@ -219,7 +223,7 @@ public sealed partial class RotatingBackupService
     /// </summary>
     public int Prune(string directory) => Prune(directory, _settings.Current.RetentionCount);
 
-    private static int Prune(string directory, int retentionCount)
+    internal static int Prune(string directory, int retentionCount)
     {
         var keep = Math.Max(1, retentionCount);
         var deleted = 0;
@@ -273,7 +277,8 @@ public sealed partial class RotatingBackupService
             : null;
     }
 
-    private static List<FileInfo> EnumerateGenerated(string directory)
+    /// <summary>Generated rotating snapshots in <paramref name="directory"/>, newest first (strict name match).</summary>
+    internal static List<FileInfo> EnumerateGenerated(string directory)
     {
         try
         {

@@ -93,6 +93,7 @@ public static class HostingServicesExtensions
             sp.GetRequiredService<IBackupLocationFileSystem>(),
             OperatingSystem.IsWindows() ? BackupPathFlavor.Windows : BackupPathFlavor.Unix));
         services.AddSingleton<RotatingBackupState>();
+        services.AddSingleton<BackupSnapshotMoveService>();
         services.AddScoped<BackupLocationService>();
         services.AddScoped<BackupSettingsService>();
         services.AddScoped<RotatingBackupService>();

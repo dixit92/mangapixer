@@ -290,6 +290,11 @@ public static class LogEvents
         public const int RestoreApplyFailed = 6035;
         public const int RestoreRolledBack = 6036;
         public const int SafetySnapshotsPruned = 6037;
+
+        // 1.23.0 move existing rotating snapshots on a location change
+        public const int SnapshotMoveStarted = 6040;
+        public const int SnapshotMoveCompleted = 6041;
+        public const int SnapshotMoveFailed = 6042;
     }
 
     /// <summary>Admin actions on users and server configuration.</summary>

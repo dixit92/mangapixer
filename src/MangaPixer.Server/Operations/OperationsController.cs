@@ -22,6 +22,7 @@ public sealed class OperationsController : ControllerBase
     private readonly BackupSettingsResolver _backupSettings;
     private readonly BackupSettingsService _backupSettingsService;
     private readonly RotatingBackupState _rotatingState;
+    private readonly BackupSnapshotMoveService _snapshotMove;
     private readonly UserManager<UserEntity> _userManager;
     private readonly LoginRateLimiter _rateLimiter;
     private readonly LogLevelSettingsService _logLevel;
@@ -37,6 +38,7 @@ public sealed class OperationsController : ControllerBase
         BackupSettingsResolver backupSettings,
         BackupSettingsService backupSettingsService,
         RotatingBackupState rotatingState,
+        BackupSnapshotMoveService snapshotMove,
         UserManager<UserEntity> userManager,
         LoginRateLimiter rateLimiter,
         LogLevelSettingsService logLevel,
@@ -51,6 +53,7 @@ public sealed class OperationsController : ControllerBase
         _backupSettings = backupSettings;
         _backupSettingsService = backupSettingsService;
         _rotatingState = rotatingState;
+        _snapshotMove = snapshotMove;
         _userManager = userManager;
         _rateLimiter = rateLimiter;
         _logLevel = logLevel;
@@ -278,8 +281,9 @@ public sealed class OperationsController : ControllerBase
     /// refused with 409. Any request that includes <c>location</c> (including
     /// <c>validateOnly</c>) requires the caller's current password; a wrong
     /// password counts against the login rate limiter. Every location change
-    /// (success or failure) is audited. Existing snapshots are never moved or
-    /// deleted by a settings change. Admin-only.
+    /// (success or failure) is audited. Existing snapshots are moved only when
+    /// <c>moveExistingSnapshots</c> is set, as a background job (see
+    /// <c>GET backups/move</c>); otherwise they stay where they are. Admin-only.
     /// </summary>
     [HttpPut("backups/settings")]
     public async Task<IActionResult> UpdateBackupSettings([FromBody] UpdateBackupSettingsRequest? request, CancellationToken ct)
@@ -311,6 +315,16 @@ public sealed class OperationsController : ControllerBase
             return StatusCode(outcome.StatusCode, new ApiError { Error = outcome.ErrorCode!, Message = outcome.Message! });
         return Ok(outcome.Result);
     }
+
+    /// <summary>
+    /// Progress and result of the background move of the existing rotating
+    /// snapshots after a location change (1.23.0): files and bytes done, and
+    /// the snapshots that stayed in the previous location. Generated file
+    /// names only, never a folder. In memory: <c>idle</c> after a restart.
+    /// Admin-only.
+    /// </summary>
+    [HttpGet("backups/move")]
+    public IActionResult GetBackupSnapshotMove() => Ok(_snapshotMove.GetStatus());
 
     /// <summary>
     /// Current-password re-authentication for the security-sensitive location
