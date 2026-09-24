@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 
 import { releaseUpscaler, renderUpscaled } from './anime4k-renderer';
 import {
-  FakeGpuDevice, fakeCanvas, fakeImage, installNavigatorGpu, removeNavigatorGpu, stubWebGpuGlobals,
+  FakeCanvasContext, FakeGpuDevice, fakeCanvas, fakeImage, installNavigatorGpu, removeNavigatorGpu, stubWebGpuGlobals,
 } from './fake-webgpu.testing';
 import { resetGpuDeviceForTests } from './gpu-device';
 
@@ -147,6 +147,20 @@ describe('anime4k-renderer GPU disposal', () => {
     };
     expect(await render(600, 900, 1050, 1575)).toBe(false);
     expect(live(d)).toBe(0);
+  });
+
+  it('presents through a premultiplied canvas with alpha forced to 1, so a dropped frame shows the <img>', async () => {
+    // WebKit can drop a WebGPU canvas's presented frame when the compositing
+    // layers around it change (iPad, Slide page turn). An 'opaque' canvas then
+    // paints a black box over the page; a premultiplied one is transparent, and
+    // the blit writing alpha 1 keeps every presented frame looking identical.
+    const canvas = fakeCanvas();
+    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas, targetWidth: 1400, targetHeight: 2100 })).toBe(true);
+    const { configs } = canvas.getContext('webgpu') as unknown as FakeCanvasContext;
+    expect(configs.length).toBeGreaterThan(0);
+    expect(configs.every((c) => c.alphaMode === 'premultiplied')).toBe(true);
+    const blit = devices[0].shaderCode.find((code) => code.includes('fn fs('));
+    expect(blit).toContain('.rgb, 1.0)');
   });
 
   it('returns false without WebGPU and allocates nothing', async () => {

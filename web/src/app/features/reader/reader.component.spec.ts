@@ -2127,6 +2127,20 @@ describe('ReaderComponent page-turn ghost (1.11.0)', () => {
   }
   const go = (c: ReaderComponent, n: number) => (c as unknown as { goToPage: (n: number) => void }).goToPage(n);
 
+  it('page-turn keyframes fill backwards only, so no transform is held after the turn (1.22.2)', () => {
+    // A held translate3d kept the page on its own compositing layer under the
+    // Enhance canvas; on iPad that could leave the canvas black after a tap turn.
+    // The compiled component styles (the unit-test build does not attach them to
+    // the DOM); emulated encapsulation prefixes keyframe names with a scope id.
+    const css = (ReaderComponent as unknown as { ɵcmp: { styles: string[] } }).ɵcmp.styles.join('\n');
+    const rules = css.match(/animation:\s*\S*mp-(?:slide|reveal)-from-[a-z]+[^;}]*/g) ?? [];
+    expect(rules.length).toBe(4);
+    for (const rule of rules) {
+      expect(rule).toMatch(/\bbackwards\b/);
+      expect(rule).not.toMatch(/\b(?:both|forwards)\b/);
+    }
+  });
+
   it('Slide: holds the outgoing page for the 220ms transition, then drops it', () => {
     const c = create('slide');
     go(c, 3);

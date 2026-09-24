@@ -71,9 +71,11 @@ fn vs(@builtin(vertex_index) idx: u32) -> VSOut {
 @group(0) @binding(0) var samp: sampler;
 @group(0) @binding(1) var tex: texture_2d<f32>;
 
+// Alpha is forced to 1: the canvas is 'premultiplied' (see configure below), so
+// every presented pixel must be fully opaque to look exactly as before.
 @fragment
 fn fs(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
-  return textureSample(tex, samp, uv);
+  return vec4<f32>(textureSample(tex, samp, uv).rgb, 1.0);
 }
 `;
 
@@ -240,7 +242,11 @@ async function renderNow(req: UpscaleRequest): Promise<boolean> {
 
     if (canvas.width !== targetWidth) canvas.width = targetWidth;
     if (canvas.height !== targetHeight) canvas.height = targetHeight;
-    context.configure({ device, format: canvasFormat, alphaMode: 'opaque' });
+    // 'premultiplied', not 'opaque': the blit writes alpha 1, so a presented
+    // frame looks identical, but a frame the compositor drops (WebKit, seen on
+    // iPad after a Slide page turn) is transparent and the <img> underneath
+    // shows through. With 'opaque' it painted a black page-shaped box.
+    context.configure({ device, format: canvasFormat, alphaMode: 'premultiplied' });
 
     const encoder = device.createCommandEncoder({ label: 'mp-upscale' });
     current.pipeline.pass(encoder);

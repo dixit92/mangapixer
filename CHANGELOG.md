@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Unraid: install from Community Applications.** MangaPixer is now listed in the Unraid **Apps** tab. [Install on Unraid](docs/install-unraid.md) starts there, and the manual route downloads the same template from [dixit92/unraid-templates](https://github.com/dixit92/unraid-templates), which is now its only home. The duplicate copy at `deploy/unraid/mangapixer.xml` is removed; containers installed from it keep working.
+
+### Fixed
+
+- **Enhance on iPhone and iPad:** with the **Slide** page transition, tapping to the next page could sometimes leave a black box where the page should be, until you turned the page again. Slide no longer holds its final position after the turn, and if Safari ever drops an Enhance frame, the normal page now shows through instead of black.
+- **List view:** the favorite star no longer covers the thumbnail. In list view it now sits at the end of the row, next to the read and selection markers, at full touch size; card view is unchanged.
+
 ## [1.22.1] - 2026-09-23
 
 ### Changed
