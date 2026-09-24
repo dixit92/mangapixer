@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Double page: fix the pairing anywhere in an archive, for everyone.** When extra pages (credits, colour pages) leave a two-page spread split across the wrong pair, pick the other double-page mode, press the new `o` key, or press `d`, step to the next page and press `d` again. The pairing shifts from the spread on screen onward and is saved on the server for that archive, so every user who can read it sees the same pairing; a changed file starts over. The mode "Double page (offset cover)" is now **Double page (shifted)**, and the highlighted mode follows the spread on screen. Archives nobody has adjusted keep using this browser's cover-alone setting. See [Fixing double-page pairing](docs/reader.md#fixing-double-page-pairing).
+
+### Fixed
+
+- **Double page:** switching modes after the first wide page did nothing, and the `d` key silently reset the cover offset. Both now work as described above.
+- **Vertical mode:** the page strip can now be focused with the keyboard (arrow and Page keys scroll it, `Enter` shows or hides the controls). Tapping and scrolling are unchanged.
+
 ## [1.22.2] - 2026-09-24
 
 ### Changed

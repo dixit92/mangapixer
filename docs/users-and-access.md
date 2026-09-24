@@ -91,9 +91,11 @@ Settings saved to **your account** follow you to every device:
 - **Library view:** view mode, sort, sort order, card size and list columns.
 - **Favorites** themselves (see [Library layout](library-layout.md#favorites)).
 
+Saved **per archive, for everyone** who can read it: the double-page pairing (see [Fixing double-page pairing](reader.md#fixing-double-page-pairing)).
+
 Settings saved **in the current browser only**:
 
-- Reader layout (Auto / Single / Double / offset cover)
+- Reader layout (Auto / Single / Double / Double shifted), and the cover-alone default for archives nobody has adjusted
 - Page transition
 - Page quality, downscale filter and rendering (see [Image quality](reader.md#image-quality))
 - Vertical-mode page width and **Tap to scroll** step
