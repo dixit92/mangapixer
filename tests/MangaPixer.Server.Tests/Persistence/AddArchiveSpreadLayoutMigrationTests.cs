@@ -49,16 +49,32 @@ public sealed class AddArchiveSpreadLayoutMigrationTests : IDisposable
             // so the current model matches the pre-migration schema for them exactly.
             db.Libraries.Add(new LibraryEntity
             {
-                Id = 1, PublicId = "lib1", DisplayName = "Lib", RootPath = "/synthetic/lib", CreatedAt = DateTimeOffset.UtcNow,
+                Id = 1,
+                PublicId = "lib1",
+                DisplayName = "Lib",
+                RootPath = "/synthetic/lib",
+                CreatedAt = DateTimeOffset.UtcNow,
             });
             db.CatalogNodes.Add(new CatalogNodeEntity
             {
-                Id = 7, PublicId = "node7", LibraryId = 1, Kind = 1, DisplayName = "vol01.cbz",
-                RelativePath = "vol01.cbz", PathKey = "vol01.cbz", SortKey = "vol01", CreatedAt = DateTimeOffset.UtcNow,
+                Id = 7,
+                PublicId = "node7",
+                LibraryId = 1,
+                Kind = 1,
+                DisplayName = "vol01.cbz",
+                RelativePath = "vol01.cbz",
+                PathKey = "vol01.cbz",
+                SortKey = "vol01",
+                CreatedAt = DateTimeOffset.UtcNow,
             });
             db.ArchiveItems.Add(new ArchiveItemEntity
             {
-                NodeId = 7, ByteLength = 1024, ModificationTicks = 1, ContentVersion = 3, AnalysisState = 0, PageCount = 12,
+                NodeId = 7,
+                ByteLength = 1024,
+                ModificationTicks = 1,
+                ContentVersion = 3,
+                AnalysisState = 0,
+                PageCount = 12,
             });
             await db.SaveChangesAsync();
         }
