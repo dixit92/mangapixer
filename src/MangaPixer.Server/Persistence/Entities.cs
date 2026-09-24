@@ -549,6 +549,33 @@ public sealed class FavoriteEntity
 }
 
 /// <summary>
+/// Saved double-page pairing for one archive (1.23.0). A property of the FILE,
+/// not of a user: one row per archive node, shared by everyone who can read it.
+/// - <see cref="SpreadStartsJson"/> is a compact JSON int array of forced
+///   spread-start page indices (sorted, unique, each in [1, PageCount-1]); an
+///   empty array is an explicit "no shifts" that overrides the device fallback.
+/// - <see cref="ContentVersion"/> stamps the archive version the layout was made
+///   against. A row whose stamp differs from the archive's current
+///   <see cref="ArchiveItemEntity.ContentVersion"/> is ignored (and lazily deleted):
+///   a changed file resets the pairing.
+/// - Kept off the scan-hot <see cref="ArchiveItemEntity"/>; FK cascade-deletes
+///   with the catalog node.
+/// </summary>
+public sealed class ArchiveSpreadLayoutEntity
+{
+    /// <summary>Same as CatalogNodeEntity.Id (1:1).</summary>
+    public long NodeId { get; set; }
+
+    public long ContentVersion { get; set; }
+
+    public string SpreadStartsJson { get; set; } = "[]";
+
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    public CatalogNodeEntity? Node { get; set; }
+}
+
+/// <summary>
 /// Background job (scan, analysis, hash, etc.).
 /// </summary>
 public sealed class JobEntity

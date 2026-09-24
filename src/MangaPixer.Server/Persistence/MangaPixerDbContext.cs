@@ -63,6 +63,7 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<FolderReaderDefaultEntity> FolderReaderDefaults => Set<FolderReaderDefaultEntity>();
     public DbSet<BookmarkEntity> Bookmarks => Set<BookmarkEntity>();
     public DbSet<FavoriteEntity> Favorites => Set<FavoriteEntity>();
+    public DbSet<ArchiveSpreadLayoutEntity> ArchiveSpreadLayouts => Set<ArchiveSpreadLayoutEntity>();
     public DbSet<JobEntity> Jobs => Set<JobEntity>();
     public DbSet<ScanRunEntity> ScanRuns => Set<ScanRunEntity>();
     public DbSet<ScanObservationEntity> ScanObservations => Set<ScanObservationEntity>();
@@ -90,6 +91,7 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureFolderReaderDefaults(modelBuilder);
         ConfigureBookmarks(modelBuilder);
         ConfigureFavorites(modelBuilder);
+        ConfigureArchiveSpreadLayouts(modelBuilder);
         ConfigureJobs(modelBuilder);
         ConfigureCacheEntries(modelBuilder);
         ConfigureAuditEvents(modelBuilder);
@@ -386,6 +388,24 @@ public sealed class MangaPixerDbContext : DbContext
             e.HasOne(x => x.Node)
                 .WithMany()
                 .HasForeignKey(x => x.CatalogNodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    private static void ConfigureArchiveSpreadLayouts(ModelBuilder mb)
+    {
+        mb.Entity<ArchiveSpreadLayoutEntity>(e =>
+        {
+            e.ToTable("archive_spread_layouts");
+            // One shared layout per archive node (1:1, not per user).
+            e.HasKey(x => x.NodeId);
+            e.Property(x => x.NodeId).ValueGeneratedNever();
+            e.Property(x => x.SpreadStartsJson).IsRequired();
+
+            // Cascade with the catalog node so a removed archive cannot orphan its layout.
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }
