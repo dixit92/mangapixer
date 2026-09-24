@@ -9,6 +9,7 @@ using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Linq;
 using Xunit;
 
@@ -61,8 +62,8 @@ public sealed class NaturalSortBackfillMigrationTests : IDisposable
         db.Database.ExecuteSqlRawAsync(
             "INSERT INTO catalog_nodes (Id, PublicId, LibraryId, ParentId, Kind, DisplayName, RelativePath, PathKey, " +
             "SortKey, Availability, LastSeenScanRevision, CreatedAt) " +
-            "VALUES ({0}, {1}, 1, {2}, {3}, {4}, {5}, {5}, {6}, 0, 0, {7})",
-            id, OpaqueId.Encode(publicId), parentId, (int)kind, displayName, relativePath,
+            "VALUES ({0}, {1}, 1, NULLIF({2}, 0), {3}, {4}, {5}, {5}, {6}, 0, 0, {7})",
+            id, OpaqueId.Encode(publicId), parentId ?? 0L, (int)kind, displayName, relativePath,
             LegacySortKey(kind, displayName), createdAt);
 
     /// <summary>
@@ -84,17 +85,17 @@ public sealed class NaturalSortBackfillMigrationTests : IDisposable
             // the current EF model: the model grows a column with nearly every release, and
             // an EF INSERT would reference columns this old schema does not have yet. Only
             // the NOT NULL columns of that schema are listed; nullable ones stay NULL.
-            var now = DateTimeOffset.UtcNow.ToBinary();
+            var now = new DateTimeOffsetToBinaryConverter().ConvertToProviderTyped(DateTimeOffset.UtcNow);
 
             await db.Database.ExecuteSqlRawAsync(
-                "INSERT INTO libraries (Id, PublicId, DisplayName, RootPath, State, CatalogRevision, CreatedAt) " +
-                "VALUES (1, {0}, 'Legacy Library', '/private/legacy', 'active', 0, {1})",
+                "INSERT INTO libraries (Id, PublicId, DisplayName, RootPath, State, CaseComparisonPolicy, CatalogRevision, CreatedAt) " +
+                "VALUES (1, {0}, 'Legacy Library', '/private/legacy', 'active', 'ordinal', 0, {1})",
                 OpaqueId.Encode(1), now);
 
             await db.Database.ExecuteSqlRawAsync(
                 "INSERT INTO users (Id, PublicId, UserName, NormalizedUserName, IsActive, IsAdmin, PasswordHash, " +
-                "SecurityStamp, ForcePasswordChange, IsPendingActivation, LockoutEnabled, CreatedAt) " +
-                "VALUES (1, {0}, 'admin', 'ADMIN', 1, 1, 'hash', {1}, 0, 0, 0, {2})",
+                "SecurityStamp, ForcePasswordChange, IsPendingActivation, LockoutEnabled, AccessFailedCount, ActivationTokenConsumed, CreatedAt) " +
+                "VALUES (1, {0}, 'admin', 'ADMIN', 1, 1, 'hash', {1}, 0, 0, 0, 0, 0, {2})",
                 OpaqueId.Encode(2), Guid.NewGuid().ToString("N"), now);
 
             await InsertLegacyNodeAsync(db, 1, 10, null, CatalogNodeKind.Folder, "Series", "Series", now);
