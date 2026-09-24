@@ -65,7 +65,7 @@ To connect a log line to an item, use the item's ID. It is the last part of the 
 
 ## A scan does not pick up files
 
-1. **Did you start a scan?** Scans never run on their own, including right after you register a library. Select **Scan now** on the library's row.
+1. **Has the library been scanned since the files arrived?** Libraries are rescanned on their **Auto-scan** schedule (daily by default), so new files can take up to that long to appear; **Last scan** and **Next scan (approx.)** under the library's row show where it stands. Select **Scan now** to pick them up straight away. If **Auto-scan** is **Off**, or automatic scans are turned off for the server (`MangaPixer:Scanning:Scheduler:Enabled`), only **Scan now** scans the library. See [Automatic scans](library-layout.md#automatic-scans).
 2. **Is the file a supported archive?** Only `.cbz`, `.zip`, `.cbr`, `.rar`, `.cb7` and `.7z` are picked up. Folders of loose images, PDFs and EPUBs are ignored. See [Library layout](library-layout.md#supported-archive-formats).
 3. **Can the container see the file?** List the folder from inside the container:
 

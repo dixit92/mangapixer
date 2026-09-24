@@ -460,6 +460,22 @@ public sealed record LibraryDto
     /// null for the client-derived default (a name-hashed monogram/glyph).
     /// </summary>
     public string? Icon { get; init; }
+
+    /// <summary>
+    /// Effective automatic scan schedule (1.23.0), one of
+    /// <see cref="LibraryScanSchedules.Allowed"/> (a library with no stored
+    /// schedule reports the daily default). Admin library responses only; null
+    /// elsewhere.
+    /// </summary>
+    public string? ScanSchedule { get; init; }
+
+    /// <summary>
+    /// Approximate time of the next automatic scan (1.23.0); a time in the past
+    /// means the scan is due and starts at the next scheduler pass. Null when
+    /// the schedule is off, the scheduler is disabled, or outside admin
+    /// library responses.
+    /// </summary>
+    public DateTimeOffset? NextScheduledScanAt { get; init; }
 }
 
 /// <summary>
@@ -598,6 +614,15 @@ public sealed record SetReaderModeRequest
 public sealed record SetLibraryIconRequest
 {
     public string? Icon { get; init; }
+}
+
+/// <summary>
+/// Sets a library's automatic scan schedule (1.23.0): one of
+/// <see cref="LibraryScanSchedules.Allowed"/>, or null for the default (daily).
+/// </summary>
+public sealed record SetLibraryScanScheduleRequest
+{
+    public string? ScanSchedule { get; init; }
 }
 
 /// <summary>

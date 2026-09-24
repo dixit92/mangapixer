@@ -50,7 +50,7 @@ A scan compares your folders with the catalog:
 3. Moved or renamed archives are recognized by a fingerprint of their contents, so they keep their reading progress (details in [Library layout](library-layout.md#rescans-moves-and-deletions)).
 4. **Analysis** then runs in the background: a helper opens each new archive, lists its pages in natural order, and records whether it can be read. Covers are made from the first page and stored as small WebP files.
 
-A scan never runs on its own; an admin starts it. If a scan finds that almost every file has vanished, for example because a network share is not mounted, it deletes nothing.
+Each library is rescanned on its own schedule (daily by default; hourly, every 6 hours, weekly or off per library), and an admin can start a scan at any time. See [Automatic scans](library-layout.md#automatic-scans). If a scan finds that almost every file has vanished, for example because a network share is not mounted, it deletes nothing.
 
 ## What happens when you read a page
 
@@ -77,6 +77,7 @@ Background work that runs without anyone asking:
 
 | Work | When |
 |---|---|
+| Library scans | Per library on its **Auto-scan** schedule (daily by default), one library at a time, starting 3 minutes after start-up |
 | Analysis of new or changed archives | After a scan, and at start-up for anything left unfinished |
 | Missing covers | A pass at every start-up |
 | Database backup | 2 minutes after start-up, then on your schedule (daily by default) |

@@ -35,6 +35,7 @@ import { UpdateCheckCardComponent } from './update-check-card.component';
 import { BackupSettingsCardComponent } from './backup-settings-card.component';
 import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
 import { LibraryIconPickerComponent } from './library-icon-picker/library-icon-picker.component';
+import { LibraryScanScheduleComponent } from './library-scan-schedule/library-scan-schedule.component';
 import { AnalyticsCardComponent } from './analytics-card/analytics-card.component';
 
 /**
@@ -67,6 +68,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
     MatSelectModule,
     LibraryIconComponent,
     LibraryIconPickerComponent,
+    LibraryScanScheduleComponent,
   ],
   template: `
     <h2>Administration</h2>
@@ -158,6 +160,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
                   </button>
                 </span>
               </mat-list-item>
+              <app-library-scan-schedule [library]="lib" />
 
               @if (iconPickerLibId() === lib.id) {
                 <div class="lib-panel">

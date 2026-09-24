@@ -31,6 +31,12 @@ public static class HostingServicesExtensions
         services.AddScoped<LibraryMaintenanceService>();
         services.AddSingleton<LibraryScanPolicy>();
         services.AddSingleton<ScanRunRegistry>();
+        // Scan launch path shared by the admin scan endpoints and the scan
+        // scheduler (1.23.0); the scheduler evaluates per-library schedules.
+        services.AddScoped<LibraryScanLauncher>();
+        services.AddSingleton(sp => LibraryScanSchedulerOptions.FromConfiguration(
+            sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()));
+        services.AddSingleton<LibraryScanScheduler>();
         services.AddSingleton<AppRootOptions>(sp =>
         {
             var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
@@ -134,6 +140,9 @@ public static class HostingServicesExtensions
         services.AddHostedService<ThumbnailBackfillHostedService>();
         services.AddHostedService<MaintenanceHostedService>();
         services.AddHostedService<RotatingBackupHostedService>();
+        // Automatic per-library scans (1.23.0): after startup recovery, with its
+        // own startup grace period so boot does not trigger a scan burst.
+        services.AddHostedService<LibraryScanSchedulerHostedService>();
 
         return services;
     }

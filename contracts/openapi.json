@@ -2044,6 +2044,48 @@
         }
       }
     },
+    "/api/v1/admin/libraries/{id}/scan-schedule": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLibraryScanScheduleRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLibraryScanScheduleRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLibraryScanScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/folders/{nodeId}/reader-default": {
       "put": {
         "tags": [
@@ -2751,6 +2793,17 @@
         "type": "object",
         "properties": {
           "icon": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "SetLibraryScanScheduleRequest": {
+        "type": "object",
+        "properties": {
+          "scanSchedule": {
             "type": [
               "null",
               "string"

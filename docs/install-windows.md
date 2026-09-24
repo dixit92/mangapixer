@@ -55,7 +55,7 @@ Closing the browser does nothing to the server. Only **Stop Server**, **Exit** o
 
 Open MangaPixer from the tray. There is **no default username or password.** The **Welcome to MangaPixer** screen asks you to create the administrator account; the rules are the same as in [the Docker guide](install-docker.md#step-5-create-the-admin-account).
 
-Then add a library: open the account menu, choose **MangaPixer Administration**, and under **Register New Library** enter a **Display Name** and the **Library Folder Path** as a Windows path, for example `D:\Manga` or `\\nas\comics\Manga`. Select **Register**, then **Scan now** on the new library's row. The server never scans on its own.
+Then add a library: open the account menu, choose **MangaPixer Administration**, and under **Register New Library** enter a **Display Name** and the **Library Folder Path** as a Windows path, for example `D:\Manga` or `\\nas\comics\Manga`. Select **Register**, then **Scan now** on the new library's row. After that the library is rescanned automatically once a day; change this with **Auto-scan** under the library's row.
 
 Notes for Windows paths:
 
