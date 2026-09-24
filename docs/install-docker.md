@@ -70,11 +70,11 @@ pwsh ./scripts/Get-MangaPixerVersion.ps1
 Then set it in your shell. Set it again in every new shell before you run `docker compose`, or Compose looks for an image under the fallback tag.
 
 ```sh
-export MANGAPIXER_VERSION=1.22.1          # bash / zsh
+export MANGAPIXER_VERSION=1.22.2          # bash / zsh
 ```
 
 ```powershell
-$env:MANGAPIXER_VERSION = "1.22.1"         # PowerShell
+$env:MANGAPIXER_VERSION = "1.22.2"         # PowerShell
 ```
 
 ## Step 4: start

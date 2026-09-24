@@ -758,11 +758,15 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
        categorically distinct motions. 1.11.0: the wipe now runs over the outgoing
        page - see .spread-row.outgoing - and uses the same decelerating curve as
        Slide, so it lands softly instead of the symmetric ease's abrupt finish;
-       .3s kept. Durations are mirrored in TS by PageTurnMs.) */
-    .spread-row img.anim-slide.from-right  { animation: mp-slide-from-right  .22s cubic-bezier(.22,.61,.36,1) both; }
-    .spread-row img.anim-slide.from-left   { animation: mp-slide-from-left   .22s cubic-bezier(.22,.61,.36,1) both; }
-    .spread-row img.anim-reveal.from-right { animation: mp-reveal-from-right .3s cubic-bezier(.22,.61,.36,1) both; }
-    .spread-row img.anim-reveal.from-left  { animation: mp-reveal-from-left  .3s cubic-bezier(.22,.61,.36,1) both; }
+       .3s kept. Durations are mirrored in TS by PageTurnMs.)
+       Fill mode is 'backwards', not 'both' (1.22.2): each keyframe ends at the
+       element's own style, so nothing needs holding afterwards, and a held
+       translate3d kept the page on its own compositing layer under the Enhance
+       canvas - on iPad (WebKit) that could leave the canvas black after a tap turn. */
+    .spread-row img.anim-slide.from-right  { animation: mp-slide-from-right  .22s cubic-bezier(.22,.61,.36,1) backwards; }
+    .spread-row img.anim-slide.from-left   { animation: mp-slide-from-left   .22s cubic-bezier(.22,.61,.36,1) backwards; }
+    .spread-row img.anim-reveal.from-right { animation: mp-reveal-from-right .3s cubic-bezier(.22,.61,.36,1) backwards; }
+    .spread-row img.anim-reveal.from-left  { animation: mp-reveal-from-left  .3s cubic-bezier(.22,.61,.36,1) backwards; }
     @keyframes mp-slide-from-right {
       from { transform: translate3d(22%, 0, 0); opacity: 0.35; }
       to   { transform: translate3d(0, 0, 0);   opacity: 1; }
