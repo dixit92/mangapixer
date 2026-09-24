@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **iPhone and iPad: full-screen reading hint.** In a Safari tab, Fullscreen can only hide MangaPixer's own bars; the Home Screen app is the true full-screen experience. A short, dismissible hint now shows the Share, **Add to Home Screen**, Add steps the first time you open the reader on a device and whenever you tap Fullscreen in a browser tab. **Not now** hides it until the page is reloaded and **Don't show again** remembers the choice on that device. It never shows in the installed app or on other devices.
+
+### Changed
+
+- **Admin Analytics:** a caption under the overview tiles now explains that the totals include every user's activity, including Private libraries, while the per-user table leaves out each user's Private-library reading.
+
 ## [1.22.2] - 2026-09-24
 
 ### Changed
