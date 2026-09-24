@@ -50,6 +50,8 @@ export class FakeGpuDevice {
   readonly textures: FakeTexture[] = [];
   readonly buffers: FakeBuffer[] = [];
   submits = 0;
+  /** WGSL source of every shader module created on this device, in order. */
+  readonly shaderCode: string[] = [];
   private loseDevice!: (info: GPUDeviceLostInfo) => void;
   readonly lost = new Promise<GPUDeviceLostInfo>((resolve) => { this.loseDevice = resolve; });
 
@@ -125,7 +127,7 @@ export class FakeGpuDevice {
   }
 
   // Objects with no GPU memory to own: shader modules, layouts, pipelines, samplers.
-  createShaderModule() { return {}; }
+  createShaderModule(desc: GPUShaderModuleDescriptor) { this.shaderCode.push(desc.code); return {}; }
   createBindGroupLayout() { return {}; }
   createPipelineLayout() { return {}; }
   createSampler() { return {}; }
@@ -164,10 +166,15 @@ export function removeNavigatorGpu(): void {
   delete (navigator as unknown as { gpu?: unknown }).gpu;
 }
 
+/** The `webgpu` context of a `fakeCanvas()`, with every `configure()` call recorded. */
+export interface FakeCanvasContext { readonly configs: GPUCanvasConfiguration[] }
+
 /** A canvas stand-in whose `webgpu` context draws into an untracked swap-chain texture. */
 export function fakeCanvas(): HTMLCanvasElement {
+  const configs: GPUCanvasConfiguration[] = [];
   const context = {
-    configure: () => undefined,
+    configs,
+    configure: (config: GPUCanvasConfiguration) => { configs.push(config); },
     unconfigure: () => undefined,
     getCurrentTexture: () => new FakeTexture('swapchain', [1, 1, 1]),
   };
