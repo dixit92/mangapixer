@@ -2,6 +2,8 @@ import { Component, inject, signal, OnInit } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { ApiService } from './core/api/api.service';
+import { InstallHintComponent } from './shared/install-hint/install-hint.component';
+import { InstallHintService } from './shared/install-hint/install-hint.service';
 
 /**
  * App shell. Renders the routed outlet plus a small footer showing the product
@@ -14,9 +16,13 @@ import { ApiService } from './core/api/api.service';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, CommonModule],
+  imports: [RouterOutlet, CommonModule, InstallHintComponent],
   template: `
     <router-outlet></router-outlet>
+    <!-- Lazy: the hint's chunk is only fetched the first time it is raised (iPhone/iPad only). -->
+    @defer (when installHint.visible()) {
+      <app-install-hint />
+    }
     @if (version()) {
       <footer class="app-footer" aria-label="Application version">
         MangaPixer {{ version() }}
@@ -40,6 +46,7 @@ import { ApiService } from './core/api/api.service';
 })
 export class AppComponent implements OnInit {
   private readonly api = inject(ApiService);
+  protected readonly installHint = inject(InstallHintService);
   readonly version = signal<string | null>(null);
 
   ngOnInit(): void {

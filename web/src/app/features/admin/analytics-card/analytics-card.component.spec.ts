@@ -75,6 +75,14 @@ describe('AnalyticsCardComponent', () => {
 
   afterEach(() => httpMock?.verify());
 
+  it('explains, directly under the tiles, that totals include Private libraries but the table does not', () => {
+    const el = createLoaded().nativeElement as HTMLElement;
+    const caption = el.querySelector('.tiles + .scope-note') as HTMLElement;
+    expect(caption.textContent).toContain('Totals include every user');
+    expect(caption.textContent).toContain('Private libraries');
+    expect(caption.textContent).toContain('the table below');
+  });
+
   it('loads overview tiles and the user table on init', () => {
     const fixture = createLoaded();
     const c = fixture.componentInstance;
