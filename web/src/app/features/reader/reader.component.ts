@@ -30,6 +30,7 @@ import {
   WebtoonNavPreferencesService, webtoonTapZone, webtoonScrollTarget, prefersReducedMotion,
 } from './webtoon-nav.service';
 import { isApplePlatformTouch, isStandaloneDisplay } from './platform';
+import { InstallHintService } from '../../shared/install-hint/install-hint.service';
 import {
   groupSpreads, fallbackSpreadStarts, normalizeSpreadStarts, isShiftedSpread, shiftSpreadAt, ensureSpreadStart,
 } from './spread-layout';
@@ -828,6 +829,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   readonly webtoonNav = inject(WebtoonNavPreferencesService);
   // WebGPU readiness for the 'e' Rendering shortcut — same gate the settings menu uses.
   private readonly upscaleSupport = inject(UpscaleSupportService);
+  private readonly installHint = inject(InstallHintService);
   readonly fitOptions = FIT_OPTIONS;
 
   /**
@@ -1640,7 +1642,11 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     if (this.helpVisible()) this.revealChrome(); // keep the toolbar up behind the overlay
   }
 
-  closeHelp(): void { this.helpVisible.set(false); }
+  closeHelp(): void {
+    this.helpVisible.set(false);
+    // The first-open install hint waits for the help overlay (a no-op after its first call).
+    this.installHint.onReaderOpened();
+  }
 
   /**
    * Toolbar bookmark toggle (1.17.0): add or remove a bookmark on the current
@@ -1827,6 +1833,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // opens the reader, then remember it (localStorage, per-device) so it never
     // auto-shows again. The '?' button still reopens it manually any time.
     this.maybeAutoShowHelp();
+    // iPhone/iPad in a browser tab: first-open "Add to Home Screen" hint (1.23.0). When the
+    // help overlay auto-showed, closeHelp() raises it instead, so the two never stack.
+    if (!this.helpVisible()) this.installHint.onReaderOpened();
     this.prefetchAround(index);
     if (this.view() === 'webtoon') {
       // Warm the first few pages ahead on entry (before any scroll fires).
@@ -2448,6 +2457,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   }
 
   toggleFullscreen(): void {
+    if (!this.isFullscreen()) this.installHint.onFullscreenRequested();
     if (this.useInPageImmersive) {
       // Either Safari's own Fullscreen API paints a persistent system close
       // button over the page and keeps the status bar showing (iOS/iPadOS), or
