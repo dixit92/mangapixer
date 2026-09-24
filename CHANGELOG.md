@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Backup settings: move existing snapshots when the location changes.** Changing where rotating backups are kept now offers **Move existing snapshots (N files, X MB)**, checked by default. The snapshots are moved in the background with progress on the card: each one is copied, checked (size and SHA-256) and only then removed from the old folder, never overwriting a file already there, and the **Keep the newest** limit then applies in the new folder. Any snapshot that could not be moved is listed and stays where it was. Clear the box to keep the previous behaviour (snapshots stay behind, unmanaged). API: `moveExistingSnapshots` on `PUT /api/v1/operations/backups/settings`, progress at `GET /api/v1/operations/backups/move`.
+- The **Backup settings** card now explains that pre-migration and pre-restore safety snapshots always stay in the data folder (the newest 3 of each), so an upgrade or restore never depends on a custom folder that might be unavailable.
+
 ## [1.22.2] - 2026-09-24
 
 ### Changed
