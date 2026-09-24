@@ -37,6 +37,7 @@ import {
   ItemReadiness,
   JumpIndexDto,
   LibraryDto,
+  LibraryScanSchedule,
   LogCategoryOverride,
   LogLevelDto,
   PrivateLibrariesDto,
@@ -57,6 +58,7 @@ import {
   ScanRunDto,
   ScanTriggeredDto,
   ScanAllResultDto,
+  SetLibraryScanScheduleRequest,
   SetPrivateLibrariesRequest,
   ThumbnailRegenerateResponse,
   SearchResultsDto,
@@ -390,6 +392,12 @@ export class ApiService {
   // Library icon (1.22.0) — admin-picked icon name, or null to clear back to the default.
   setLibraryIcon(libraryId: string, icon: string | null): Observable<LibraryDto> {
     return this.put<LibraryDto>(`/admin/libraries/${libraryId}/icon`, { icon });
+  }
+
+  // Library scan schedule (1.23.0) — automatic scan preset, or null to clear back to the daily default.
+  setLibraryScanSchedule(libraryId: string, scanSchedule: LibraryScanSchedule | null): Observable<LibraryDto> {
+    const body: SetLibraryScanScheduleRequest = { scanSchedule };
+    return this.put<LibraryDto>(`/admin/libraries/${libraryId}/scan-schedule`, body);
   }
 
   triggerScan(libraryId: string): Observable<ScanTriggeredDto> {

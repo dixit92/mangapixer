@@ -209,11 +209,30 @@ export interface LibraryDto {
   defaultReaderMode: ReaderMode | null;
   /** Admin-picked icon name (1.22.0), or null for the client-derived default. */
   icon: string | null;
+  /**
+   * Effective automatic scan schedule (1.23.0): one of `LIBRARY_SCAN_SCHEDULES`.
+   * Admin library responses only; absent/null from the catalog listing.
+   */
+  scanSchedule?: LibraryScanSchedule | null;
+  /**
+   * Approximate next automatic scan (1.23.0); a past time means due at the next
+   * scheduler pass. Null when off / scheduler disabled; admin responses only.
+   */
+  nextScheduledScanAt?: string | null;
 }
 
 /** Request to set a library's icon (1.22.0). Null clears back to the default. */
 export interface SetLibraryIconRequest {
   icon: string | null;
+}
+
+/** Automatic scan schedule presets (1.23.0), mirroring `LibraryScanSchedules` on the server. */
+export const LIBRARY_SCAN_SCHEDULES = ['off', '1h', '6h', '1d', '7d'] as const;
+export type LibraryScanSchedule = (typeof LIBRARY_SCAN_SCHEDULES)[number];
+
+/** Request to set a library's automatic scan schedule (1.23.0). Null clears back to the daily default. */
+export interface SetLibraryScanScheduleRequest {
+  scanSchedule: LibraryScanSchedule | null;
 }
 
 /** Resolved effective default reader mode for an item (1.2.0). */
