@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Automatic library scans.** Each library is now rescanned on a schedule, **daily by default**, so new chapters appear without anyone pressing **Scan now**. Under each library in **MangaPixer Administration** > **Libraries**, **Auto-scan** offers **Off**, **Hourly**, **Every 6 hours**, **Daily** and **Weekly**, with the **Last scan** and an approximate **Next scan** beside it. The interval counts from the last completed scan, manual or automatic. Scans wait 3 minutes after start-up, run one library at a time and never alongside another scan, and a library whose folder is unreachable is skipped (logged once) until it comes back. `MangaPixer:Scanning:Scheduler:Enabled=false` turns automatic scans off for the whole server. See [Automatic scans](docs/library-layout.md#automatic-scans).
+
 ## [1.22.2] - 2026-09-24
 
 ### Changed

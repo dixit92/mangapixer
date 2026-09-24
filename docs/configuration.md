@@ -74,6 +74,16 @@ The Unraid Compose file sets the three roots to `/config/data`, `/config/cache` 
 | `MangaPixer:Media:PageVariants:DefaultFilter` (`MangaPixer__Media__PageVariants__DefaultFilter`) | `balanced` | How pages are resized when the reader does not choose: `sharp`, `balanced` or `soft`. `sharp` keeps line art crispest but can make screentone dots shimmer on a high-resolution screen; `soft` smooths them away at the cost of some crispness; `balanced` sits in between. Readers can override this per request, so this only sets the starting point. An unrecognised value stops the server at startup rather than being ignored. |
 | `Media:WorkerExecutablePath` (`Media__WorkerExecutablePath`) | Set in the image; otherwise found automatically | Location of the helper process that opens archives. Leave it as it is. Note there is no `MangaPixer` prefix on this key. |
 
+## Scanning
+
+| Key (environment variable) | Default | Meaning |
+|---|---|---|
+| `MangaPixer:Scanning:Scheduler:Enabled` (`MangaPixer__Scanning__Scheduler__Enabled`) | `true` | Turns automatic library scans on or off for the whole server. When off, libraries are only scanned when an admin starts a scan, and each library's **Auto-scan** setting is kept for when you turn it back on. |
+| `MangaPixer:Scanning:Scheduler:StartupDelaySeconds` (`MangaPixer__Scanning__Scheduler__StartupDelaySeconds`) | `180` | Seconds after start-up before the first check for due libraries, so a restart does not start scans straight away. |
+| `MangaPixer:Scanning:Scheduler:TickSeconds` (`MangaPixer__Scanning__Scheduler__TickSeconds`) | `60` | Seconds between checks for due libraries. |
+
+How often each library is scanned is set per library in the web app (**Auto-scan**: Off, Hourly, Every 6 hours, Daily or Weekly; daily by default). A value that cannot be read is ignored and the default is used. See [Automatic scans](library-layout.md#automatic-scans).
+
 ## Backups
 
 | Key (environment variable) | Default | Meaning |
@@ -121,7 +131,7 @@ A few server-wide settings are changed by an admin in **MangaPixer Administratio
 
 - **Backup settings**: schedule, retention and location (configuration values above take precedence).
 - **Update Checker**: off by default. When an admin ticks **Check for updates**, the server asks the GitHub Releases API for MangaPixer's latest release at most once a day (or when you select **Check now**) and shows **Update available** or **Up to date** in the admin page. The request carries no instance identifier, user data, paths or telemetry; it is the only call MangaPixer makes to the internet, and only while this setting is on.
-- **Library icons and reading directions**, set per library on the **Libraries** card.
+- **Library icons, reading directions and automatic scan schedules**, set per library on the **Libraries** card.
 
 ## Fixed behavior
 
@@ -130,5 +140,5 @@ These are built in and have no setting:
 - Sign-in sessions last 7 days from your last activity.
 - Passwords need at least 8 characters, including a lowercase letter.
 - Expired sessions are cleaned up every hour. The cache-size pass runs daily.
-- Libraries are only scanned when an admin starts a scan.
+- Automatic scans run one library at a time and never alongside another scan.
 - Archive-processing time limits (for example 120 seconds to open an archive on a drive that is spinning up).

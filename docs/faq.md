@@ -18,7 +18,7 @@ Numerically. Name sort compares runs of digits as numbers, so `Chapter 2` comes 
 
 ### Does it notice new files automatically?
 
-No. An admin starts every scan with **Scan now** or **Scan all libraries**. See [Library layout](library-layout.md#rescans-moves-and-deletions).
+Yes, on a schedule. Every library is rescanned once a day by default; an admin can change that per library to hourly, every 6 hours, weekly or off, and can still start a scan at any time with **Scan now** or **Scan all libraries**. There is no file watcher, so new files appear at the next scan. See [Automatic scans](library-layout.md#automatic-scans).
 
 ### Does it use ComicInfo.xml or fetch metadata online?
 
