@@ -322,9 +322,19 @@
          tap turn on WebKit (iPad). Browse: the list-view favorite star moves off the thumbnail
          into the row markers. Unraid: install from Community Applications; the duplicate
          deploy/unraid/mangapixer.xml is removed (dixit92/unraid-templates is its only home). -->
+    <!-- 1.23.0 - additive MINOR over 1.22.2 ("Shifted Pairing, Scheduled Scan and Backup Move" cycle,
+         2026-09-24). Double page: pairing correctable anywhere in an archive ("Double page
+         (shifted)", o key, d re-anchors), saved per archive on the server and shared by every
+         reader (ItemManifest.SpreadStarts, PUT items/{id}/spread-layout, migration
+         AddArchiveSpreadLayout; stamped with the archive's ContentVersion so a changed file resets
+         it). Per-library automatic scans on the existing ScanSchedule column (default daily; admin
+         PUT libraries/{id}/scan-schedule). Backup location change can move existing rotating
+         snapshots (copy + SHA-256 verify + delete) with the safety-snapshot placement explained.
+         iPhone/iPad add-to-home-screen hint; analytics totals caption; a real OpenAPI drift check.
+         Worker protocol unchanged (2). Bugfixes ship as 1.23.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <MangaPixerVersionMinor>22</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>2</MangaPixerVersionPatch>
+    <MangaPixerVersionMinor>23</MangaPixerVersionMinor>
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
