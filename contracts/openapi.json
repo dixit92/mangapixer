@@ -194,6 +194,18 @@
         }
       }
     },
+    "/api/v1/operations/backups/move": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/operations/update-check": {
       "get": {
         "tags": [
@@ -1100,6 +1112,48 @@
         }
       }
     },
+    "/api/v1/items/{itemId}/spread-layout": {
+      "put": {
+        "tags": [
+          "SpreadLayout"
+        ],
+        "parameters": [
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSpreadLayoutRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSpreadLayoutRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSpreadLayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/import/yacreader/detect": {
       "get": {
         "tags": [
@@ -1990,6 +2044,48 @@
         }
       }
     },
+    "/api/v1/admin/libraries/{id}/scan-schedule": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLibraryScanScheduleRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLibraryScanScheduleRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLibraryScanScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/folders/{nodeId}/reader-default": {
       "put": {
         "tags": [
@@ -2704,6 +2800,17 @@
           }
         }
       },
+      "SetLibraryScanScheduleRequest": {
+        "type": "object",
+        "properties": {
+          "scanSchedule": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "SetPrivateLibrariesRequest": {
         "required": [
           "libraryIds"
@@ -2726,6 +2833,34 @@
         "properties": {
           "readerMode": {
             "$ref": "#/components/schemas/ReaderMode"
+          }
+        }
+      },
+      "SetSpreadLayoutRequest": {
+        "required": [
+          "expectedContentVersion",
+          "spreadStarts"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedContentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "spreadStarts": {
+            "type": "array",
+            "items": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
           }
         }
       },
@@ -2791,6 +2926,9 @@
             "type": "boolean"
           },
           "adoptExistingMarker": {
+            "type": "boolean"
+          },
+          "moveExistingSnapshots": {
             "type": "boolean"
           }
         }
@@ -2967,6 +3105,9 @@
     },
     {
       "name": "Reading"
+    },
+    {
+      "name": "SpreadLayout"
     },
     {
       "name": "YacReaderImport"

@@ -11,6 +11,7 @@
       4. dotnet build (Release)
       5. dotnet test (all .NET suites: unit, service-with-DB, HTTP, process)
       6. npm ci               (web/, when npm is on PATH)
+      6b. npm run api:check   (web/, contract vs api-types.ts drift)
       7. npm run lint         (web/)
       8. npm run build        (web/, Angular production build)
       9. npm run test:ci      (web/, Vitest unit suite via Angular CLI, single run)
@@ -113,6 +114,10 @@ if ($npmAvailable) {
     Invoke-Stage "npm ci" {
         npm --prefix web ci --no-audit --no-fund 2>&1 | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
+    }
+    Invoke-Stage "OpenAPI drift check" {
+        npm --prefix web run api:check 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "OpenAPI drift check failed" }
     }
     Invoke-Stage "npm lint" {
         npm --prefix web run lint 2>&1 | Out-Host

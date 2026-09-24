@@ -9,6 +9,7 @@ using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Linq;
 using Xunit;
 
@@ -55,10 +56,20 @@ public sealed class NaturalSortBackfillMigrationTests : IDisposable
 
     private static MangaPixerDbContext NewContext(DbContextOptions<MangaPixerDbContext> options) => new(options);
 
+    private static Task<int> InsertLegacyNodeAsync(
+        MangaPixerDbContext db, long id, long publicId, long? parentId, CatalogNodeKind kind,
+        string displayName, string relativePath, long createdAt) =>
+        db.Database.ExecuteSqlRawAsync(
+            "INSERT INTO catalog_nodes (Id, PublicId, LibraryId, ParentId, Kind, DisplayName, RelativePath, PathKey, " +
+            "SortKey, Availability, LastSeenScanRevision, CreatedAt) " +
+            "VALUES ({0}, {1}, 1, NULLIF({2}, 0), {3}, {4}, {5}, {5}, {6}, 0, 0, {7})",
+            id, OpaqueId.Encode(publicId), parentId ?? 0L, (int)kind, displayName, relativePath,
+            LegacySortKey(kind, displayName), createdAt);
+
     /// <summary>
     /// Builds the schema as an older build left it (migrated up to, but not past, the
-    /// migration before the backfill) and seeds a library, a user and a chapter list
-    /// whose sort keys are in the old raw format.
+    /// migration before the backfill) and seeds (raw SQL, frozen schema) a library, a
+    /// user and a chapter list whose sort keys are in the old raw format.
     /// </summary>
     private async Task<(long userId, long libraryId, long seriesId, string[] chapterNames)> SeedLegacyDatabaseAsync()
     {
@@ -70,81 +81,33 @@ public sealed class NaturalSortBackfillMigrationTests : IDisposable
             await db.GetService<IMigrator>().MigrateAsync(PreviousMigration);
             await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
-            // The current model maps LibraryEntity.Icon (1.22.0, post-dates
-            // PreviousMigration), so EF's INSERT for the seed row below references
-            // that column — add it here, same rationale as the favorites table
-            // above (no bearing on the sort-key ordering under test). Some tests
-            // below go on to migrate all the way to latest, which would otherwise
-            // try to apply the real AddLibraryIcon migration a second time and fail
-            // with a duplicate column; look its ID up dynamically (robust to the
-            // integrator re-sequencing migrations at merge) and mark it as already
-            // applied in the EF migrations history table.
+            // Seed with raw SQL against the FROZEN schema at PreviousMigration, never through
+            // the current EF model: the model grows a column with nearly every release, and
+            // an EF INSERT would reference columns this old schema does not have yet. Only
+            // the NOT NULL columns of that schema are listed; nullable ones stay NULL.
+            var now = new DateTimeOffsetToBinaryConverter().ConvertToProviderTyped(DateTimeOffset.UtcNow);
+
             await db.Database.ExecuteSqlRawAsync(
-                "ALTER TABLE \"libraries\" ADD COLUMN \"Icon\" TEXT NULL;");
-            var addIconMigrationId = db.GetService<IMigrationsAssembly>().Migrations.Keys
-                .Single(id => id.EndsWith("_AddLibraryIcon", StringComparison.Ordinal));
+                "INSERT INTO libraries (Id, PublicId, DisplayName, RootPath, State, CaseComparisonPolicy, CatalogRevision, CreatedAt) " +
+                "VALUES (1, {0}, 'Legacy Library', '/private/legacy', 'active', 'ordinal', 0, {1})",
+                OpaqueId.Encode(1), now);
+
             await db.Database.ExecuteSqlRawAsync(
-                "INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ({0}, {1})",
-                addIconMigrationId, "10.0.12");
+                "INSERT INTO users (Id, PublicId, UserName, NormalizedUserName, IsActive, IsAdmin, PasswordHash, " +
+                "SecurityStamp, ForcePasswordChange, IsPendingActivation, LockoutEnabled, AccessFailedCount, ActivationTokenConsumed, CreatedAt) " +
+                "VALUES (1, {0}, 'admin', 'ADMIN', 1, 1, 'hash', {1}, 0, 0, 0, 0, 0, {2})",
+                OpaqueId.Encode(2), Guid.NewGuid().ToString("N"), now);
 
-            var library = new LibraryEntity
-            {
-                PublicId = OpaqueId.Encode(1),
-                DisplayName = "Legacy Library",
-                RootPath = "/private/legacy",
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
-            db.Libraries.Add(library);
-
-            var user = new UserEntity
-            {
-                PublicId = OpaqueId.Encode(2),
-                UserName = "admin",
-                NormalizedUserName = "ADMIN",
-                IsActive = true,
-                IsAdmin = true,
-                PasswordHash = "hash",
-                SecurityStamp = Guid.NewGuid().ToString("N"),
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
-            db.Users.Add(user);
-            await db.SaveChangesAsync();
-
-            var series = new CatalogNodeEntity
-            {
-                PublicId = OpaqueId.Encode(10),
-                LibraryId = library.Id,
-                Kind = (int)CatalogNodeKind.Folder,
-                DisplayName = "Series",
-                RelativePath = "Series",
-                PathKey = "Series",
-                SortKey = LegacySortKey(CatalogNodeKind.Folder, "Series"),
-                Availability = 0,
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
-            db.CatalogNodes.Add(series);
-            await db.SaveChangesAsync();
+            await InsertLegacyNodeAsync(db, 1, 10, null, CatalogNodeKind.Folder, "Series", "Series", now);
 
             var id = 100L;
+            var nodeId = 2L;
             foreach (var name in chapterNames)
             {
-                db.CatalogNodes.Add(new CatalogNodeEntity
-                {
-                    PublicId = OpaqueId.Encode(id++),
-                    LibraryId = library.Id,
-                    ParentId = series.Id,
-                    Kind = (int)CatalogNodeKind.Archive,
-                    DisplayName = name,
-                    RelativePath = $"Series/{name}",
-                    PathKey = $"Series/{name}",
-                    SortKey = LegacySortKey(CatalogNodeKind.Archive, name),
-                    Availability = 0,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                });
+                await InsertLegacyNodeAsync(db, nodeId++, id++, 1, CatalogNodeKind.Archive, name, $"Series/{name}", now);
             }
-            await db.SaveChangesAsync();
 
-            return (user.Id, library.Id, series.Id, chapterNames);
+            return (1L, 1L, 1L, chapterNames);
         }
     }
 

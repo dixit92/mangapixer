@@ -95,16 +95,17 @@ export const DIRECTION_OPTIONS: readonly ReaderOption<ReadingDirection>[] = [
 ];
 
 /**
- * Layout choices as ONE radio group. 'spread' / 'spread-cover' are the two
- * double-page pairing modes (see `ReaderComponent.chooseSpread`); 'webtoon' is a
+ * Layout choices as ONE radio group. 'spread' / 'spread-shifted' are the two
+ * double-page pairings (see `ReaderComponent.chooseSpread`; since 1.23.0 they
+ * reflect and re-pair the CURRENT spread, saved per archive); 'webtoon' is a
  * per-item override, never a persisted device preference.
  */
-export type LayoutChoice = ViewPref | 'spread-cover' | 'webtoon';
+export type LayoutChoice = ViewPref | 'spread-shifted' | 'webtoon';
 export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
   { value: 'auto', label: 'Auto', icon: 'screen_rotation' },
   { value: 'paged', label: 'Single page', icon: 'crop_portrait' },
   { value: 'spread', label: 'Double page', icon: 'import_contacts' },
-  { value: 'spread-cover', label: 'Double, cover alone', icon: 'auto_stories' },
+  { value: 'spread-shifted', label: 'Double, shifted', icon: 'auto_stories' },
   { value: 'webtoon', label: 'Vertical', icon: 'view_day' },
 ];
 
@@ -321,7 +322,8 @@ export class ReaderSettingsMenuComponent {
 export interface ReaderOptionsHost {
   readonly view: Signal<ReaderView>;
   readonly viewPref: Signal<ViewPref | null>;
-  readonly coverIsStandalone: Signal<boolean>;
+  /** Is the spread on screen paired on the shifted parity (1.23.0)? */
+  readonly spreadShifted: Signal<boolean>;
   /** Narrow portrait screen: a chosen double page renders as single pages (1.11.0). */
   readonly narrowPortrait: Signal<boolean>;
   readonly fitMode: Signal<FitMode>;
@@ -332,7 +334,7 @@ export interface ReaderOptionsHost {
   readonly prevNeighbor: Signal<{ displayName: string } | null>;
   readonly nextNeighbor: Signal<{ displayName: string } | null>;
   chooseView(pref: ViewPref | 'webtoon'): void;
-  chooseSpread(coverStandalone: boolean): void;
+  chooseSpread(shifted: boolean): void;
   setFitMode(mode: FitMode): void;
   setDirection(direction: ReadingDirection): void;
   setWebtoonWidth(pct: number): void;
@@ -650,14 +652,14 @@ export class ReaderOptionsSheetComponent {
   activeLayout(): LayoutChoice {
     if (this.host.view() === 'webtoon') return 'webtoon';
     if (this.host.viewPref() === 'auto') return 'auto';
-    if (this.host.view() === 'spread') return this.host.coverIsStandalone() ? 'spread-cover' : 'spread';
+    if (this.host.view() === 'spread') return this.host.spreadShifted() ? 'spread-shifted' : 'spread';
     return 'paged';
   }
 
   pickLayout(choice: LayoutChoice): void {
     switch (choice) {
       case 'spread': this.host.chooseSpread(false); break;
-      case 'spread-cover': this.host.chooseSpread(true); break;
+      case 'spread-shifted': this.host.chooseSpread(true); break;
       default: this.host.chooseView(choice);
     }
   }

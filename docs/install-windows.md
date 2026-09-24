@@ -25,8 +25,8 @@ The wizard shows the license, lets you change the install folder, installs, and 
 To install without the wizard, for example from a script:
 
 ```powershell
-msiexec /i MangaPixer-1.22.2-windows-x64.msi /qn                 # silent, defaults
-msiexec /i MangaPixer-1.22.2-windows-x64.msi /qn RUNATSIGNIN=0   # silent, without start at sign-in
+msiexec /i MangaPixer-1.23.0-windows-x64.msi /qn                 # silent, defaults
+msiexec /i MangaPixer-1.23.0-windows-x64.msi /qn RUNATSIGNIN=0   # silent, without start at sign-in
 ```
 
 | Destination folder | Last page |
@@ -55,7 +55,7 @@ Closing the browser does nothing to the server. Only **Stop Server**, **Exit** o
 
 Open MangaPixer from the tray. There is **no default username or password.** The **Welcome to MangaPixer** screen asks you to create the administrator account; the rules are the same as in [the Docker guide](install-docker.md#step-5-create-the-admin-account).
 
-Then add a library: open the account menu, choose **MangaPixer Administration**, and under **Register New Library** enter a **Display Name** and the **Library Folder Path** as a Windows path, for example `D:\Manga` or `\\nas\comics\Manga`. Select **Register**, then **Scan now** on the new library's row. The server never scans on its own.
+Then add a library: open the account menu, choose **MangaPixer Administration**, and under **Register New Library** enter a **Display Name** and the **Library Folder Path** as a Windows path, for example `D:\Manga` or `\\nas\comics\Manga`. Select **Register**, then **Scan now** on the new library's row. After that the library is rescanned automatically once a day; change this with **Auto-scan** under the library's row.
 
 Notes for Windows paths:
 
@@ -121,7 +121,7 @@ To move the data somewhere else, set the storage variables from the [configurati
 - **Upgrade:** run the newer installer. It replaces the previous version in place, keeps your **Start at sign-in** choice as you last set it, and leaves the data folder alone. Exit the tray app first if it is running. On the next start the server upgrades the database schema if the new version needs it, after writing a `pre-migration-*.db` snapshot to `data\backups`.
 - **Reinstall the same version:** allowed; the installer repairs the program files.
 - **Downgrade:** refused with a message. Uninstall the newer version first, then run the older installer. Your data stays, but a database that a newer version already upgraded may not open in an older one; restore the matching `pre-migration-*.db` snapshot in that case.
-- **Uninstall:** Windows Settings > Apps > **MangaPixer** > Uninstall, or `msiexec /x MangaPixer-1.22.2-windows-x64.msi /qn`. This removes the program folder, the Start menu shortcut and the start-at-sign-in entry. **Your data in `%LOCALAPPDATA%\MangaPixer` is kept.** Delete that folder yourself if you want everything gone.
+- **Uninstall:** Windows Settings > Apps > **MangaPixer** > Uninstall, or `msiexec /x MangaPixer-1.23.0-windows-x64.msi /qn`. This removes the program folder, the Start menu shortcut and the start-at-sign-in entry. **Your data in `%LOCALAPPDATA%\MangaPixer` is kept.** Delete that folder yourself if you want everything gone.
 
 ## Building the installer yourself
 

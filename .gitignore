@@ -95,17 +95,8 @@ e2e-results/
 # Local demo media mount (not part of the app)
 .sample-media/
 
-# Personal deployment script and image artifacts (machine-specific, not tracked)
-scripts/Deploy-Unraid.ps1
+# Image artifacts (release tarballs)
 *.tar
-
-# Personal Unraid dev-environment provisioning (machine-specific, not tracked)
-scripts/Provision-UnraidDev.ps1
-deploy/Dockerfile.dev
-deploy/entrypoint-dev.sh
-
-# Unraid host connection details (credentials, machine-specific, not tracked)
-.claude/unraid-docker.md
 
 # Owner-local Claude Code instructions (loaded automatically, not tracked)
 CLAUDE.local.md

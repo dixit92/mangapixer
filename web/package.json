@@ -1,6 +1,6 @@
 {
   "name": "com.lifepixer.mangapixer.web",
-  "version": "1.22.2",
+  "version": "1.23.0",
   "description": "MangaPixer Angular web reader",
   "private": true,
   "scripts": {
@@ -33,11 +33,12 @@
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^22.1.8",
+    "@angular/build": "^22.1.8",
     "@angular/cli": "^22.1.8",
     "@angular/compiler-cli": "^22.1.6",
     "@playwright/test": "^1.49.0",
     "@types/node": "^24.0.0",
-    "angular-eslint": "^19.0.0",
+    "angular-eslint": "^22.5.0",
     "eslint": "^9.15.0",
     "jsdom": "^30.0.1",
     "typescript": "~6.0.0",

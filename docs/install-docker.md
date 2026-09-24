@@ -70,11 +70,11 @@ pwsh ./scripts/Get-MangaPixerVersion.ps1
 Then set it in your shell. Set it again in every new shell before you run `docker compose`, or Compose looks for an image under the fallback tag.
 
 ```sh
-export MANGAPIXER_VERSION=1.22.2          # bash / zsh
+export MANGAPIXER_VERSION=1.23.0          # bash / zsh
 ```
 
 ```powershell
-$env:MANGAPIXER_VERSION = "1.22.2"         # PowerShell
+$env:MANGAPIXER_VERSION = "1.23.0"         # PowerShell
 ```
 
 ## Step 4: start
@@ -111,7 +111,7 @@ The setup screen only works while the server has no users. After the first accou
 1. Open the account menu and choose **MangaPixer Administration**.
 2. In the **Libraries** card, under **Register New Library**, enter a **Display Name** and a **Root Path (server-side mount)**, for example `/media/comics`. **Browse…** lets you pick a folder under `/media` instead of typing it.
 3. Select **Register**.
-4. Select the **Scan now** button (the circular-arrow icon) on the new library's row. Registering a library does not scan it, and the server never scans on its own; you start every scan. See [Library layout](library-layout.md#rescans-moves-and-deletions).
+4. Select the **Scan now** button (the circular-arrow icon) on the new library's row. Registering a library does not scan it straight away; without **Scan now** the first automatic scan starts within a few minutes, and after that the library is rescanned daily (change this with **Auto-scan** under the library's row). See [Library layout](library-layout.md#automatic-scans).
 
 ![The Libraries card on the Administration page: an existing library row with its Direction menu and action icons, and the Register New Library form with Display Name, Root Path, Browse and Register](../assets/screenshots/docs-admin-libraries.png)
 

@@ -20,19 +20,19 @@ from tool output (not written by hand):
 
 | Ecosystem | Source | Count |
 |---|---|---|
-| NuGet, all | `dotnet list MangaPixer.slnx package --include-transitive --format json` | 104 package versions (103 IDs; `System.Security.Cryptography.Pkcs` resolves at two versions) |
-| NuGet, shipped | `"type": "package"` entries in the `*.deps.json` of a Release `dotnet publish` of `MangaPixer.Server` + `MangaPixer.MediaWorker` (what `deploy/Dockerfile` copies) | 79 |
-| NuGet, build/test only | all minus shipped | 25 |
+| NuGet, all | `dotnet list MangaPixer.slnx package --include-transitive --format json`; refreshed for 1.23.0 | 91 package versions |
+| NuGet, shipped | `"type": "package"` entries in the `*.deps.json` of a Release `dotnet publish` of `MangaPixer.Server` + `MangaPixer.MediaWorker` (what `deploy/Dockerfile` copies); refreshed for 1.23.0 | 69 |
+| NuGet, build/test only | all minus shipped; refreshed for 1.23.0 | 22 |
 | npm, runtime | `npm --prefix web ls --omit=dev --all` (`--prod` is a deprecated alias); refreshed for 1.22.1 | 20 |
-| npm, all | `npm --prefix web ls --all` | 880 unique name@version (959 installed paths) |
-| npm, build/test only | all minus runtime | 861 |
+| npm, all | `npm --prefix web ls --all` | 880 unique name@version at 1.12.0 (the build/test list below was updated for 1.23.0 from `web/package-lock.json`) |
+| npm, build/test only | all minus runtime; updated for 1.23.0 (Windows x64 platform binaries) | 835 |
 
 License values come from each package's own metadata: the `<license>` element
 of the `.nuspec` in the NuGet cache, and the `license` field of
 `web/node_modules/<pkg>/package.json`. Container facts were read from the
 1.12.0 release image with `dpkg-query`.
 
-## 1. .NET packages - shipped (79)
+## 1. .NET packages - shipped (69)
 
 These are in the Release publish output of the server and/or the media worker.
 The ASP.NET Core and .NET runtime assemblies themselves come from the base image
@@ -42,42 +42,42 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 
 - `Magick.NET-Q8-AnyCPU` - 14.17.1 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
 - `Magick.NET.Core` - 14.17.1 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
-- `Microsoft.AspNetCore.Identity.EntityFrameworkCore` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.AspNetCore.OpenApi` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Data.Sqlite.Core` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore.Abstractions` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore.Relational` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore.Sqlite.Core` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore.Sqlite` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.Abstractions` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.Binder` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.CommandLine` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.EnvironmentVariables` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.FileExtensions` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.Json` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.UserSecrets` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.DependencyInjection.Abstractions` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.DependencyInjection` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.DependencyModel` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Diagnostics.Abstractions` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Diagnostics` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.FileProviders.Abstractions` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.FileProviders.Physical` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.FileSystemGlobbing` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Hosting.Abstractions` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Hosting` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.Abstractions` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.Configuration` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.Console` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.Debug` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.EventLog` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.EventSource` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Options.ConfigurationExtensions` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Options` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Primitives` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.Identity.EntityFrameworkCore` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.OpenApi` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Data.Sqlite.Core` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Relational` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Sqlite.Core` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Sqlite` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.Binder` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.CommandLine` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.EnvironmentVariables` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.FileExtensions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.Json` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.UserSecrets` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.DependencyInjection.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.DependencyInjection` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.DependencyModel` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Diagnostics.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Diagnostics` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.FileProviders.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.FileProviders.Physical` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.FileSystemGlobbing` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Hosting.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Hosting` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.Configuration` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.Console` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.Debug` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.EventLog` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.EventSource` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Options.ConfigurationExtensions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Options` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Primitives` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.OpenApi` - 2.12.2 - MIT - https://github.com/microsoft/OpenAPI.NET
 - `Serilog.Extensions.Hosting` - 10.0.0 - Apache-2.0 - https://github.com/serilog/serilog-extensions-hosting
 - `Serilog.Extensions.Logging` - 10.0.0 - Apache-2.0 - https://github.com/serilog/serilog-extensions-logging
@@ -90,41 +90,31 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 - `SQLitePCLRaw.config.e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
 - `SQLitePCLRaw.core` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
 - `SQLitePCLRaw.provider.e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
-- `System.Diagnostics.EventLog` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
+- `System.Diagnostics.EventLog` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 
-### 1b. Shipped only through `Microsoft.EntityFrameworkCore.Design` (28)
+### 1b. Shipped only through `Microsoft.EntityFrameworkCore.Design` (18)
 
 Design-time EF Core tooling and its dependency tree: `Microsoft.EntityFrameworkCore.Design` is a development dependency, yet the publish output contains it and everything it pulls in. All of it is MIT. This set
 is computed from the dependency graph in the published `MangaPixer.Server.deps.json`.
 
 - `Humanizer.Core` - 2.14.1 - MIT - https://github.com/Humanizr/Humanizer
-- `Microsoft.Build.Framework` - 17.14.28 - MIT - https://github.com/dotnet/msbuild
-- `Microsoft.Build.Tasks.Core` - 17.14.28 - MIT - https://github.com/dotnet/msbuild
-- `Microsoft.Build.Utilities.Core` - 17.14.28 - MIT - https://github.com/dotnet/msbuild
-- `Microsoft.Build` - 17.7.2 - MIT - https://github.com/dotnet/msbuild
-- `Microsoft.CodeAnalysis.Common` - 4.14.0 - MIT - https://github.com/dotnet/roslyn
-- `Microsoft.CodeAnalysis.CSharp.Workspaces` - 4.14.0 - MIT - https://github.com/dotnet/roslyn
-- `Microsoft.CodeAnalysis.CSharp` - 4.14.0 - MIT - https://github.com/dotnet/roslyn
-- `Microsoft.CodeAnalysis.Workspaces.Common` - 4.14.0 - MIT - https://github.com/dotnet/roslyn
-- `Microsoft.CodeAnalysis.Workspaces.MSBuild` - 4.14.0 - MIT - https://github.com/dotnet/roslyn
-- `Microsoft.EntityFrameworkCore.Design` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.NET.StringTools` - 17.14.28 - MIT - https://github.com/dotnet/msbuild
+- `Microsoft.Build.Framework` - 18.0.2 - MIT - https://github.com/dotnet/msbuild
+- `Microsoft.CodeAnalysis.Common` - 5.0.0 - MIT - https://github.com/dotnet/roslyn
+- `Microsoft.CodeAnalysis.CSharp.Workspaces` - 5.0.0 - MIT - https://github.com/dotnet/roslyn
+- `Microsoft.CodeAnalysis.CSharp` - 5.0.0 - MIT - https://github.com/dotnet/roslyn
+- `Microsoft.CodeAnalysis.Workspaces.Common` - 5.0.0 - MIT - https://github.com/dotnet/roslyn
+- `Microsoft.CodeAnalysis.Workspaces.MSBuild` - 5.0.0 - MIT - https://github.com/dotnet/roslyn
+- `Microsoft.EntityFrameworkCore.Design` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.VisualStudio.SolutionPersistence` - 1.0.52 - MIT - https://github.com/microsoft/vs-solutionpersistence
 - `Mono.TextTemplating` - 3.0.0 - MIT - https://github.com/mono/t4
-- `Newtonsoft.Json` - 13.0.3 - MIT - https://github.com/JamesNK/Newtonsoft.Json
-- `System.CodeDom` - 9.0.0 - MIT - https://github.com/dotnet/runtime
+- `Newtonsoft.Json` - 13.0.4 - MIT - https://github.com/JamesNK/Newtonsoft.Json
+- `System.CodeDom` - 6.0.0 - MIT - https://github.com/dotnet/runtime
 - `System.Composition.AttributedModel` - 9.0.0 - MIT - https://github.com/dotnet/runtime
 - `System.Composition.Convention` - 9.0.0 - MIT - https://github.com/dotnet/runtime
 - `System.Composition.Hosting` - 9.0.0 - MIT - https://github.com/dotnet/runtime
 - `System.Composition.Runtime` - 9.0.0 - MIT - https://github.com/dotnet/runtime
 - `System.Composition.TypedParts` - 9.0.0 - MIT - https://github.com/dotnet/runtime
 - `System.Composition` - 9.0.0 - MIT - https://github.com/dotnet/runtime
-- `System.Configuration.ConfigurationManager` - 9.0.0 - MIT - https://github.com/dotnet/runtime
-- `System.Formats.Nrbf` - 9.0.0 - MIT - https://github.com/dotnet/runtime
-- `System.Reflection.MetadataLoadContext` - 7.0.0 - MIT - https://github.com/dotnet/runtime
-- `System.Resources.Extensions` - 9.0.0 - MIT - https://github.com/dotnet/runtime
-- `System.Security.Cryptography.ProtectedData` - 9.0.0 - MIT - https://github.com/dotnet/runtime
-- `System.Security.Permissions` - 9.0.0 - MIT - https://github.com/dotnet/runtime
-- `System.Windows.Extensions` - 9.0.0 - MIT - https://github.com/dotnet/runtime
 
 ### 1c. ImageMagick and the native libraries inside Magick.NET
 
@@ -181,7 +171,7 @@ The MIT and BSD licenses ask that the copyright notice travel with copies. These
 come from each package's nuspec `<copyright>` element. If a nuspec had none, the
 upstream LICENSE applies, as noted.
 
-- `Microsoft.AspNetCore.Identity.EntityFrameworkCore`, `Microsoft.AspNetCore.OpenApi`, `Microsoft.Build.Framework`, `Microsoft.Build.Tasks.Core`, `Microsoft.Build.Utilities.Core`, `Microsoft.Build`, `Microsoft.CodeAnalysis.Common`, `Microsoft.CodeAnalysis.CSharp.Workspaces`, `Microsoft.CodeAnalysis.CSharp`, `Microsoft.CodeAnalysis.Workspaces.Common`, `Microsoft.CodeAnalysis.Workspaces.MSBuild`, `Microsoft.Data.Sqlite.Core`, `Microsoft.EntityFrameworkCore.Abstractions`, `Microsoft.EntityFrameworkCore.Design`, `Microsoft.EntityFrameworkCore.Relational`, `Microsoft.EntityFrameworkCore.Sqlite.Core`, `Microsoft.EntityFrameworkCore.Sqlite`, `Microsoft.EntityFrameworkCore`, `Microsoft.Extensions.Configuration.Abstractions`, `Microsoft.Extensions.Configuration.Binder`, `Microsoft.Extensions.Configuration.CommandLine`, `Microsoft.Extensions.Configuration.EnvironmentVariables`, `Microsoft.Extensions.Configuration.FileExtensions`, `Microsoft.Extensions.Configuration.Json`, `Microsoft.Extensions.Configuration.UserSecrets`, `Microsoft.Extensions.Configuration`, `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.DependencyModel`, `Microsoft.Extensions.Diagnostics.Abstractions`, `Microsoft.Extensions.Diagnostics`, `Microsoft.Extensions.FileProviders.Abstractions`, `Microsoft.Extensions.FileProviders.Physical`, `Microsoft.Extensions.FileSystemGlobbing`, `Microsoft.Extensions.Hosting.Abstractions`, `Microsoft.Extensions.Hosting`, `Microsoft.Extensions.Logging.Abstractions`, `Microsoft.Extensions.Logging.Configuration`, `Microsoft.Extensions.Logging.Console`, `Microsoft.Extensions.Logging.Debug`, `Microsoft.Extensions.Logging.EventLog`, `Microsoft.Extensions.Logging.EventSource`, `Microsoft.Extensions.Logging`, `Microsoft.Extensions.Options.ConfigurationExtensions`, `Microsoft.Extensions.Options`, `Microsoft.Extensions.Primitives`, `Microsoft.NET.StringTools`, `Microsoft.OpenApi`, `System.CodeDom`, `System.Composition.AttributedModel`, `System.Composition.Convention`, `System.Composition.Hosting`, `System.Composition.Runtime`, `System.Composition.TypedParts`, `System.Composition`, `System.Configuration.ConfigurationManager`, `System.Diagnostics.EventLog`, `System.Formats.Nrbf`, `System.Reflection.MetadataLoadContext`, `System.Resources.Extensions`, `System.Security.Cryptography.ProtectedData`, `System.Security.Permissions`, `System.Windows.Extensions`  
+- `Microsoft.AspNetCore.Identity.EntityFrameworkCore`, `Microsoft.AspNetCore.OpenApi`, `Microsoft.Build.Framework`, `Microsoft.CodeAnalysis.Common`, `Microsoft.CodeAnalysis.CSharp`, `Microsoft.CodeAnalysis.CSharp.Workspaces`, `Microsoft.CodeAnalysis.Workspaces.Common`, `Microsoft.CodeAnalysis.Workspaces.MSBuild`, `Microsoft.Data.Sqlite.Core`, `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Abstractions`, `Microsoft.EntityFrameworkCore.Design`, `Microsoft.EntityFrameworkCore.Relational`, `Microsoft.EntityFrameworkCore.Sqlite`, `Microsoft.EntityFrameworkCore.Sqlite.Core`, `Microsoft.Extensions.Configuration`, `Microsoft.Extensions.Configuration.Abstractions`, `Microsoft.Extensions.Configuration.Binder`, `Microsoft.Extensions.Configuration.CommandLine`, `Microsoft.Extensions.Configuration.EnvironmentVariables`, `Microsoft.Extensions.Configuration.FileExtensions`, `Microsoft.Extensions.Configuration.Json`, `Microsoft.Extensions.Configuration.UserSecrets`, `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.DependencyModel`, `Microsoft.Extensions.Diagnostics`, `Microsoft.Extensions.Diagnostics.Abstractions`, `Microsoft.Extensions.FileProviders.Abstractions`, `Microsoft.Extensions.FileProviders.Physical`, `Microsoft.Extensions.FileSystemGlobbing`, `Microsoft.Extensions.Hosting`, `Microsoft.Extensions.Hosting.Abstractions`, `Microsoft.Extensions.Logging`, `Microsoft.Extensions.Logging.Abstractions`, `Microsoft.Extensions.Logging.Configuration`, `Microsoft.Extensions.Logging.Console`, `Microsoft.Extensions.Logging.Debug`, `Microsoft.Extensions.Logging.EventLog`, `Microsoft.Extensions.Logging.EventSource`, `Microsoft.Extensions.Options`, `Microsoft.Extensions.Options.ConfigurationExtensions`, `Microsoft.Extensions.Primitives`, `Microsoft.OpenApi`, `Microsoft.VisualStudio.SolutionPersistence`, `System.CodeDom`, `System.Composition`, `System.Composition.AttributedModel`, `System.Composition.Convention`, `System.Composition.Hosting`, `System.Composition.Runtime`, `System.Composition.TypedParts`, `System.Diagnostics.EventLog`  
   © Microsoft Corporation. All rights reserved.
 - `SQLite`, `SQLitePCLRaw.bundle_e_sqlite3`, `SQLitePCLRaw.config.e_sqlite3`  
   Copyright 2014-2026 SourceGear, LLC
@@ -212,7 +202,7 @@ The Apache-2.0 packages (Magick.NET, Serilog, SQLitePCLRaw) do not include a sep
 `NOTICE` file in their NuGet packages. Magick.NET's `Notice.txt` is the
 third-party notice described in 1c.
 
-## 2. .NET packages - build and test only (25)
+## 2. .NET packages - build and test only (22)
 
 These are resolved for the test projects, or as analyzers and build tooling. None
 of them is in the publish output. Some `Microsoft.Extensions.*` and
@@ -220,37 +210,34 @@ of them is in the publish output. Some `Microsoft.Extensions.*` and
 resolves them as packages. At runtime, the server uses the copies in the ASP.NET Core
 shared framework.
 
-- `Microsoft.AspNetCore.Cryptography.Internal` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.AspNetCore.Cryptography.KeyDerivation` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.AspNetCore.Mvc.Testing` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.AspNetCore.TestHost` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.Cryptography.Internal` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.Cryptography.KeyDerivation` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.Mvc.Testing` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.TestHost` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.CodeAnalysis.Analyzers` - 3.11.0 - MIT - https://github.com/dotnet/roslyn-analyzers
-- `Microsoft.CodeCoverage` - 17.14.0 - MIT - https://github.com/microsoft/vstest
-- `Microsoft.EntityFrameworkCore.Analyzers` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Caching.Abstractions` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Caching.Memory` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Identity.Core` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Identity.Stores` - 10.0.0 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.NET.Test.Sdk` - 17.14.0 - MIT - https://github.com/microsoft/vstest
-- `Microsoft.TestPlatform.ObjectModel` - 17.14.0 - MIT - https://github.com/microsoft/vstest
-- `Microsoft.TestPlatform.TestHost` - 17.14.0 - MIT - https://github.com/microsoft/vstest
-- `System.Security.Cryptography.Pkcs` - 10.0.11 - MIT - https://github.com/dotnet/dotnet
-- `System.Security.Cryptography.Pkcs` - 9.0.0 - MIT - https://github.com/dotnet/runtime
-- `System.Security.Cryptography.Xml` - 10.0.11 - MIT - https://github.com/dotnet/dotnet
 - `xunit.abstractions` - 2.0.3 - Apache-2.0 (the nuspec has only a licenseUrl, which points at upstream xUnit's Apache-2.0 license) - https://github.com/xunit/xunit
+- `Microsoft.CodeCoverage` - 18.10.1 - MIT - https://github.com/microsoft/vstest
+- `Microsoft.EntityFrameworkCore.Analyzers` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Caching.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Caching.Memory` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Identity.Core` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Identity.Stores` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.NET.Test.Sdk` - 18.10.1 - MIT - https://github.com/microsoft/vstest
+- `Microsoft.TestPlatform.ObjectModel` - 18.10.1 - MIT - https://github.com/microsoft/vstest
+- `Microsoft.TestPlatform.TestHost` - 18.10.1 - MIT - https://github.com/microsoft/vstest
 - `xunit.analyzers` - 1.18.0 - Apache-2.0 - https://github.com/xunit/xunit.analyzers
 - `xunit.assert` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
 - `xunit.core` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
 - `xunit.extensibility.core` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
 - `xunit.extensibility.execution` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
-- `xunit.runner.visualstudio` - 3.1.0 - Apache-2.0 - https://github.com/xunit/visualstudio.xunit
 - `xunit` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
+- `xunit.runner.visualstudio` - 4.0.0 - Apache-2.0 - https://github.com/xunit/visualstudio.xunit
 
 ## 3. Web runtime packages - npm (20)
 
 This is the production dependency tree of `web/` (refreshed for 1.22.1 from
-`npm ls --omit=dev --all`; the rest of this file keeps the 1.12.0 basis described
-above). Packages marked *(bundled)* are compiled into the shipped SPA; they are the
+`npm ls --omit=dev --all`, and unchanged in 1.23.0; sections 1, 2 and 4 were refreshed
+for 1.23.0; the rest of this file keeps the 1.12.0 basis described above). Packages marked *(bundled)* are compiled into the shipped SPA; they are the
 ones Angular lists in its extracted `3rdpartylicenses.txt`. The rest are in the
 production tree but tree-shaken out of the bundle, or used only at compile time.
 `anime4k-webgpu` is bundled as a separate chunk that the browser downloads only
@@ -337,7 +324,7 @@ SOFTWARE.
   https://github.com/marella/material-icons. The icon fonts ship as
   `.woff`/`.woff2` in the SPA.
 
-## 4. Web build and test packages - npm (861)
+## 4. Web build and test packages - npm (835)
 
 These are dev dependencies and their transitive trees: the Angular CLI and build
 toolchain, TypeScript, ESLint, Vitest, jsdom and Playwright. None is in the shipped
@@ -346,24 +333,21 @@ binaries such as `lightningcss-*`, `@esbuild/*` and `@rollup/*` differ on other
 operating systems, including the Linux image build stage.
 
 - `@ampproject/remapping` - 2.3.0 - Apache-2.0 - https://github.com/ampproject/remapping
-- `@angular-devkit/architect` - 0.1902.27 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/architect` - 0.2201.7 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/build-angular` - 22.1.7 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/build-webpack` - 0.2201.7 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/core` - 19.2.27 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/core` - 22.1.7 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/schematics` - 19.2.27 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/schematics` - 22.1.7 - MIT - https://github.com/angular/angular-cli
-- `@angular-eslint/builder` - 19.8.1 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/bundled-angular-compiler` - 19.8.1 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/eslint-plugin` - 19.8.1 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/eslint-plugin-template` - 19.8.1 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/schematics` - 19.8.1 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/template-parser` - 19.8.1 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/utils` - 19.8.1 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular/build` - 22.1.7 - MIT - https://github.com/angular/angular-cli
-- `@angular/cli` - 22.1.7 - MIT - https://github.com/angular/angular-cli
-- `@angular/compiler-cli` - 22.1.5 - MIT - https://github.com/angular/angular
+- `@angular-devkit/architect` - 0.2201.8 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/build-angular` - 22.1.8 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/build-webpack` - 0.2201.8 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/core` - 22.1.8 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/schematics` - 22.1.8 - MIT - https://github.com/angular/angular-cli
+- `@angular-eslint/builder` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/bundled-angular-compiler` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/eslint-plugin` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/eslint-plugin-template` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/schematics` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/template-parser` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/utils` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular/build` - 22.1.8 - MIT - https://github.com/angular/angular-cli
+- `@angular/cli` - 22.1.8 - MIT - https://github.com/angular/angular-cli
+- `@angular/compiler-cli` - 22.1.6 - MIT - https://github.com/angular/angular
 - `@asamuzakjp/css-color` - 6.0.7 - MIT - https://github.com/asamuzaK/cssColor
 - `@asamuzakjp/dom-selector` - 8.3.2 - MIT - https://github.com/asamuzaK/domSelector
 - `@babel/code-frame` - 7.29.7 - MIT - https://github.com/babel/babel
@@ -548,7 +532,7 @@ operating systems, including the Linux image build stage.
 - `@msgpackr-extract/msgpackr-extract-win32-x64` - 3.0.4 - MIT - https://github.com/kriszyp/msgpackr-extract
 - `@napi-rs/nice` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
 - `@napi-rs/nice-win32-x64-msvc` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
-- `@ngtools/webpack` - 22.1.7 - MIT - https://github.com/angular/angular-cli
+- `@ngtools/webpack` - 22.1.8 - MIT - https://github.com/angular/angular-cli
 - `@noble/hashes` - 1.4.0 - MIT - https://github.com/paulmillr/noble-hashes
 - `@oxc-parser/binding-win32-x64-msvc` - 0.142.0 - MIT - https://github.com/oxc-project/oxc
 - `@oxc-project/types` - 0.139.0 - MIT - https://github.com/oxc-project/oxc
@@ -572,13 +556,14 @@ operating systems, including the Linux image build stage.
 - `@rolldown/binding-win32-x64-msvc` - 1.1.5 - MIT - https://github.com/rolldown/rolldown
 - `@rolldown/binding-win32-x64-msvc` - 1.2.0 - MIT - https://github.com/rolldown/rolldown
 - `@rolldown/pluginutils` - 1.0.1 - MIT - https://github.com/rolldown/plugins
-- `@schematics/angular` - 22.1.7 - MIT - https://github.com/angular/angular-cli
+- `@schematics/angular` - 22.1.8 - MIT - https://github.com/angular/angular-cli
 - `@types/body-parser` - 1.19.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/bonjour` - 3.5.13 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/chai` - 5.2.3 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/connect` - 3.4.38 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/connect-history-api-fallback` - 1.5.4 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/deep-eql` - 4.0.2 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
+- `@types/esrecurse` - 4.3.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/estree` - 1.0.9 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/express` - 4.17.25 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/express-serve-static-core` - 4.19.9 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -641,16 +626,14 @@ operating systems, including the Linux image build stage.
 - `adjust-sourcemap-loader` - 4.0.0 - MIT - https://github.com/bholloway/adjust-sourcemap-loader
 - `agent-base` - 9.0.0 - MIT - https://github.com/TooTallNate/proxy-agents
 - `ajv` - 6.15.0 - MIT - https://github.com/ajv-validator/ajv
-- `ajv` - 8.18.0 - MIT - https://github.com/ajv-validator/ajv
 - `ajv` - 8.20.0 - MIT - https://github.com/ajv-validator/ajv
 - `ajv-formats` - 2.1.1 - MIT - https://github.com/ajv-validator/ajv-formats
 - `ajv-formats` - 3.0.1 - MIT - https://github.com/ajv-validator/ajv-formats
 - `ajv-keywords` - 5.1.0 - MIT - https://github.com/epoberezkin/ajv-keywords
-- `angular-eslint` - 19.8.1 - MIT - https://github.com/angular-eslint/angular-eslint
+- `angular-eslint` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `ansi-colors` - 4.1.3 - MIT - https://github.com/doowb/ansi-colors
 - `ansi-escapes` - 7.3.0 - MIT - https://github.com/sindresorhus/ansi-escapes
 - `ansi-html-community` - 0.0.8 - Apache-2.0 - https://github.com/mahdyar/ansi-html-community
-- `ansi-regex` - 5.0.1 - MIT - https://github.com/chalk/ansi-regex
 - `ansi-regex` - 6.3.0 - MIT - https://github.com/chalk/ansi-regex
 - `ansi-styles` - 4.3.0 - MIT - https://github.com/chalk/ansi-styles
 - `ansi-styles` - 6.2.3 - MIT - https://github.com/chalk/ansi-styles
@@ -666,15 +649,13 @@ operating systems, including the Linux image build stage.
 - `babel-plugin-polyfill-corejs3` - 1.0.0 - MIT - https://github.com/babel/babel-polyfills
 - `balanced-match` - 1.0.2 - MIT - https://github.com/juliangruber/balanced-match
 - `balanced-match` - 4.0.4 - MIT - https://github.com/juliangruber/balanced-match
-- `base64-js` - 1.5.1 - MIT - https://github.com/beatgammit/base64-js
 - `baseline-browser-mapping` - 2.11.21 - Apache-2.0 - https://github.com/web-platform-dx/baseline-browser-mapping
 - `batch` - 0.6.1 - MIT - https://github.com/visionmedia/batch
 - `beasties` - 0.4.3 - Apache-2.0 - https://github.com/danielroe/beasties
 - `bidi-js` - 1.1.0 - MIT - https://github.com/lojjic/bidi-js
 - `big.js` - 5.2.2 - MIT - https://github.com/MikeMcl/big.js
 - `binary-extensions` - 2.3.0 - MIT - https://github.com/sindresorhus/binary-extensions
-- `bl` - 4.1.0 - MIT - https://github.com/rvagg/bl
-- `body-parser` - 1.20.6 - MIT - https://github.com/expressjs/body-parser
+- `body-parser` - 1.20.8 - MIT - https://github.com/expressjs/body-parser
 - `body-parser` - 2.3.0 - MIT - https://github.com/expressjs/body-parser
 - `bonjour-service` - 1.4.4 - MIT - https://github.com/onlxltd/bonjour-service
 - `boolbase` - 1.0.0 - ISC - https://github.com/fb55/boolbase
@@ -682,7 +663,6 @@ operating systems, including the Linux image build stage.
 - `brace-expansion` - 5.0.9 - MIT - https://github.com/juliangruber/brace-expansion
 - `braces` - 3.0.3 - MIT - https://github.com/micromatch/braces
 - `browserslist` - 4.28.9 - MIT - https://github.com/browserslist/browserslist
-- `buffer` - 5.7.1 - MIT - https://github.com/feross/buffer
 - `buffer-from` - 1.1.2 - MIT - https://github.com/LinusU/buffer-from
 - `bundle-name` - 4.1.0 - MIT - https://github.com/sindresorhus/bundle-name
 - `bytes` - 3.1.2 - MIT - https://github.com/visionmedia/bytes.js
@@ -698,21 +678,18 @@ operating systems, including the Linux image build stage.
 - `chokidar` - 3.6.0 - MIT - https://github.com/paulmillr/chokidar
 - `chokidar` - 5.0.0 - MIT - https://github.com/paulmillr/chokidar
 - `chrome-trace-event` - 1.0.4 - MIT - https://github.com/samccone/chrome-trace-event
-- `cli-cursor` - 3.1.0 - MIT - https://github.com/sindresorhus/cli-cursor
 - `cli-cursor` - 5.0.0 - MIT - https://github.com/sindresorhus/cli-cursor
-- `cli-spinners` - 2.9.2 - MIT - https://github.com/sindresorhus/cli-spinners
 - `cli-spinners` - 3.4.0 - MIT - https://github.com/sindresorhus/cli-spinners
 - `cli-truncate` - 6.1.1 - MIT - https://github.com/sindresorhus/cli-truncate
 - `cli-width` - 4.1.0 - ISC - https://github.com/knownasilya/cli-width
 - `cliui` - 9.0.1 - ISC - https://github.com/yargs/cliui
-- `clone` - 1.0.4 - MIT - https://github.com/pvorb/node-clone
 - `clone-deep` - 4.0.1 - MIT - https://github.com/jonschlinkert/clone-deep
 - `color-convert` - 2.0.1 - MIT - https://github.com/Qix-/color-convert
 - `color-name` - 1.1.4 - MIT - https://github.com/colorjs/color-name
 - `colorette` - 2.0.20 - MIT - https://github.com/jorgebucaran/colorette
 - `commander` - 2.20.3 - MIT - https://github.com/tj/commander.js
 - `compressible` - 2.0.18 - MIT - https://github.com/jshttp/compressible
-- `compression` - 1.8.1 - MIT - https://github.com/expressjs/compression
+- `compression` - 1.8.2 - MIT - https://github.com/expressjs/compression
 - `concat-map` - 0.0.1 - MIT - https://github.com/substack/node-concat-map
 - `connect-history-api-fallback` - 2.0.0 - MIT - https://github.com/bripkens/connect-history-api-fallback
 - `content-disposition` - 0.5.4 - MIT - https://github.com/jshttp/content-disposition
@@ -744,7 +721,6 @@ operating systems, including the Linux image build stage.
 - `deep-is` - 0.1.4 - MIT - https://github.com/thlorenz/deep-is
 - `default-browser` - 5.5.1 - MIT - https://github.com/sindresorhus/default-browser
 - `default-browser-id` - 5.0.1 - MIT - https://github.com/sindresorhus/default-browser-id
-- `defaults` - 1.0.4 - MIT - https://github.com/sindresorhus/node-defaults
 - `define-lazy-prop` - 3.0.0 - MIT - https://github.com/sindresorhus/define-lazy-prop
 - `depd` - 1.1.2 - MIT - https://github.com/dougwilson/nodejs-depd
 - `depd` - 2.0.0 - MIT - https://github.com/dougwilson/nodejs-depd
@@ -782,6 +758,7 @@ operating systems, including the Linux image build stage.
 - `eslint` - 9.39.5 - MIT - https://github.com/eslint/eslint
 - `eslint-scope` - 5.1.1 - BSD-2-Clause - https://github.com/eslint/eslint-scope
 - `eslint-scope` - 8.4.0 - BSD-2-Clause - https://github.com/eslint/js
+- `eslint-scope` - 9.1.2 - BSD-2-Clause - https://github.com/eslint/js
 - `eslint-visitor-keys` - 3.4.3 - Apache-2.0 - https://github.com/eslint/eslint-visitor-keys
 - `eslint-visitor-keys` - 4.2.1 - Apache-2.0 - https://github.com/eslint/js
 - `eslint-visitor-keys` - 5.0.1 - Apache-2.0 - https://github.com/eslint/js
@@ -858,9 +835,8 @@ operating systems, including the Linux image build stage.
 - `iconv-lite` - 0.6.3 - MIT - https://github.com/ashtuchkin/iconv-lite
 - `iconv-lite` - 0.7.3 - MIT - https://github.com/pillarjs/iconv-lite
 - `icss-utils` - 5.1.0 - ISC - https://github.com/css-modules/icss-utils
-- `ieee754` - 1.2.1 - BSD-3-Clause - https://github.com/feross/ieee754
 - `ignore` - 5.3.2 - MIT - https://github.com/kaelzhang/node-ignore
-- `ignore` - 7.0.5 - MIT - https://github.com/kaelzhang/node-ignore
+- `ignore` - 7.0.8 - MIT - https://github.com/kaelzhang/node-ignore
 - `immutable` - 5.1.9 - MIT - https://github.com/immutable-js/immutable-js
 - `import-fresh` - 3.3.1 - MIT - https://github.com/sindresorhus/import-fresh
 - `import-meta-resolve` - 4.2.0 - MIT - https://github.com/wooorm/import-meta-resolve
@@ -877,7 +853,6 @@ operating systems, including the Linux image build stage.
 - `is-glob` - 4.0.3 - MIT - https://github.com/micromatch/is-glob
 - `is-in-ssh` - 1.0.0 - MIT - https://github.com/sindresorhus/is-in-ssh
 - `is-inside-container` - 1.0.0 - MIT - https://github.com/sindresorhus/is-inside-container
-- `is-interactive` - 1.0.0 - MIT - https://github.com/sindresorhus/is-interactive
 - `is-interactive` - 2.0.0 - MIT - https://github.com/sindresorhus/is-interactive
 - `is-network-error` - 1.3.2 - MIT - https://github.com/sindresorhus/is-network-error
 - `is-number` - 7.0.0 - MIT - https://github.com/jonschlinkert/is-number
@@ -886,7 +861,6 @@ operating systems, including the Linux image build stage.
 - `is-plain-object` - 2.0.4 - MIT - https://github.com/jonschlinkert/is-plain-object
 - `is-potential-custom-element-name` - 1.0.1 - MIT - https://github.com/mathiasbynens/is-potential-custom-element-name
 - `is-promise` - 4.0.0 - MIT - https://github.com/then/is-promise
-- `is-unicode-supported` - 0.1.0 - MIT - https://github.com/sindresorhus/is-unicode-supported
 - `is-unicode-supported` - 2.1.0 - MIT - https://github.com/sindresorhus/is-unicode-supported
 - `is-what` - 4.1.16 - MIT - https://github.com/mesqueeb/is-what
 - `is-wsl` - 3.1.1 - MIT - https://github.com/sindresorhus/is-wsl
@@ -929,12 +903,10 @@ operating systems, including the Linux image build stage.
 - `locate-path` - 6.0.0 - MIT - https://github.com/sindresorhus/locate-path
 - `lodash.debounce` - 4.0.8 - MIT - https://github.com/lodash/lodash
 - `lodash.merge` - 4.6.2 - MIT - https://github.com/lodash/lodash
-- `log-symbols` - 4.1.0 - MIT - https://github.com/sindresorhus/log-symbols
 - `log-symbols` - 7.0.1 - MIT - https://github.com/sindresorhus/log-symbols
 - `log-update` - 8.0.0 - MIT - https://github.com/sindresorhus/log-update
 - `lru-cache` - 11.5.2 - BlueOak-1.0.0 - https://github.com/isaacs/node-lru-cache
 - `lru-cache` - 5.1.1 - ISC - https://github.com/isaacs/node-lru-cache
-- `magic-string` - 0.30.17 - MIT - https://github.com/rich-harris/magic-string
 - `magic-string` - 0.30.21 - MIT - https://github.com/Rich-Harris/magic-string
 - `magic-string` - 1.0.0 - MIT - https://github.com/Rich-Harris/magic-string
 - `make-dir` - 5.1.0 - MIT - https://github.com/sindresorhus/make-dir
@@ -953,7 +925,6 @@ operating systems, including the Linux image build stage.
 - `mime-db` - 1.54.0 - MIT - https://github.com/jshttp/mime-db
 - `mime-types` - 2.1.35 - MIT - https://github.com/jshttp/mime-types
 - `mime-types` - 3.0.2 - MIT - https://github.com/jshttp/mime-types
-- `mimic-fn` - 2.1.0 - MIT - https://github.com/sindresorhus/mimic-fn
 - `mimic-function` - 5.0.1 - MIT - https://github.com/sindresorhus/mimic-function
 - `mini-css-extract-plugin` - 2.10.2 - MIT - https://github.com/webpack/mini-css-extract-plugin
 - `minimalistic-assert` - 1.0.1 - ISC - https://github.com/calvinmetcalf/minimalistic-assert
@@ -989,12 +960,10 @@ operating systems, including the Linux image build stage.
 - `on-finished` - 2.4.1 - MIT - https://github.com/jshttp/on-finished
 - `on-headers` - 1.1.0 - MIT - https://github.com/jshttp/on-headers
 - `once` - 1.4.0 - ISC - https://github.com/isaacs/once
-- `onetime` - 5.1.2 - MIT - https://github.com/sindresorhus/onetime
 - `onetime` - 7.0.0 - MIT - https://github.com/sindresorhus/onetime
 - `open` - 10.2.0 - MIT - https://github.com/sindresorhus/open
 - `open` - 11.0.0 - MIT - https://github.com/sindresorhus/open
 - `optionator` - 0.9.4 - MIT - https://github.com/gkz/optionator
-- `ora` - 5.4.1 - MIT - https://github.com/sindresorhus/ora
 - `ora` - 9.4.1 - MIT - https://github.com/sindresorhus/ora
 - `ordered-binary` - 1.6.1 - MIT - https://github.com/kriszyp/ordered-binary
 - `oxc-parser` - 0.142.0 - MIT - https://github.com/oxc-project/oxc
@@ -1014,7 +983,6 @@ operating systems, including the Linux image build stage.
 - `pathe` - 2.0.3 - MIT - https://github.com/unjs/pathe
 - `picocolors` - 1.1.1 - ISC - https://github.com/alexeyraspopov/picocolors
 - `picomatch` - 2.3.2 - MIT - https://github.com/micromatch/picomatch
-- `picomatch` - 4.0.4 - MIT - https://github.com/micromatch/picomatch
 - `picomatch` - 4.0.5 - MIT - https://github.com/micromatch/picomatch
 - `piscina` - 5.2.0 - MIT - https://github.com/piscinajs/piscina
 - `pkce-challenge` - 5.0.1 - MIT - https://github.com/crouchcd/pkce-challenge
@@ -1063,14 +1031,12 @@ operating systems, including the Linux image build stage.
 - `requires-port` - 1.0.0 - MIT - https://github.com/unshiftio/requires-port
 - `resolve-from` - 4.0.0 - MIT - https://github.com/sindresorhus/resolve-from
 - `resolve-url-loader` - 5.0.0 - MIT - https://github.com/bholloway/resolve-url-loader
-- `restore-cursor` - 3.1.0 - MIT - https://github.com/sindresorhus/restore-cursor
 - `restore-cursor` - 5.1.0 - MIT - https://github.com/sindresorhus/restore-cursor
 - `retry` - 0.13.1 - MIT - https://github.com/tim-kos/node-retry
 - `rolldown` - 1.1.5 - MIT - https://github.com/rolldown/rolldown
 - `rolldown` - 1.2.0 - MIT - https://github.com/rolldown/rolldown
 - `router` - 2.2.0 - MIT - https://github.com/pillarjs/router
 - `run-applescript` - 7.1.0 - MIT - https://github.com/sindresorhus/run-applescript
-- `rxjs` - 7.8.1 - Apache-2.0 - https://github.com/reactivex/rxjs
 - `safe-buffer` - 5.1.2 - MIT - https://github.com/feross/safe-buffer
 - `safe-buffer` - 5.2.1 - MIT - https://github.com/feross/safe-buffer
 - `safer-buffer` - 2.1.2 - MIT - https://github.com/ChALkeR/safer-buffer
@@ -1082,7 +1048,6 @@ operating systems, including the Linux image build stage.
 - `select-hose` - 2.0.0 - MIT - https://github.com/indutny/select-hose
 - `selfsigned` - 5.5.0 - MIT - https://github.com/jfromaniello/selfsigned
 - `semver` - 6.3.1 - ISC - https://github.com/npm/node-semver
-- `semver` - 7.7.2 - ISC - https://github.com/npm/node-semver
 - `semver` - 7.8.5 - ISC - https://github.com/npm/node-semver
 - `send` - 0.19.2 - MIT - https://github.com/pillarjs/send
 - `send` - 1.2.1 - MIT - https://github.com/pillarjs/send
@@ -1100,12 +1065,10 @@ operating systems, including the Linux image build stage.
 - `side-channel-map` - 1.0.1 - MIT - https://github.com/ljharb/side-channel-map
 - `side-channel-weakmap` - 1.0.2 - MIT - https://github.com/ljharb/side-channel-weakmap
 - `siginfo` - 2.0.0 - ISC - https://github.com/emilbayes/siginfo
-- `signal-exit` - 3.0.7 - ISC - https://github.com/tapjs/signal-exit
 - `signal-exit` - 4.1.0 - ISC - https://github.com/tapjs/signal-exit
 - `slice-ansi` - 9.0.0 - MIT - https://github.com/chalk/slice-ansi
 - `sockjs` - 0.3.24 - MIT - https://github.com/sockjs/sockjs-node
 - `source-map` - 0.6.1 - BSD-3-Clause - https://github.com/mozilla/source-map
-- `source-map` - 0.7.4 - BSD-3-Clause - https://github.com/mozilla/source-map
 - `source-map` - 0.7.6 - BSD-3-Clause - https://github.com/mozilla/source-map
 - `source-map-js` - 1.2.1 - BSD-3-Clause - https://github.com/7rulnik/source-map-js
 - `source-map-loader` - 5.0.0 - MIT - https://github.com/webpack-contrib/source-map-loader
@@ -1122,7 +1085,6 @@ operating systems, including the Linux image build stage.
 - `string_decoder` - 1.3.0 - MIT - https://github.com/nodejs/string_decoder
 - `string-width` - 7.2.0 - MIT - https://github.com/sindresorhus/string-width
 - `string-width` - 8.2.2 - MIT - https://github.com/sindresorhus/string-width
-- `strip-ansi` - 6.0.1 - MIT - https://github.com/chalk/strip-ansi
 - `strip-ansi` - 7.2.0 - MIT - https://github.com/chalk/strip-ansi
 - `strip-json-comments` - 3.1.1 - MIT - https://github.com/sindresorhus/strip-json-comments
 - `supports-color` - 7.2.0 - MIT - https://github.com/chalk/supports-color
@@ -1172,7 +1134,6 @@ operating systems, including the Linux image build stage.
 - `w3c-xmlserializer` - 5.0.0 - MIT - https://github.com/jsdom/w3c-xmlserializer
 - `watchpack` - 2.5.2 - MIT - https://github.com/webpack/watchpack
 - `wbuf` - 1.7.3 - MIT - https://github.com/indutny/wbuf
-- `wcwidth` - 1.0.1 - MIT - https://github.com/timoxley/wcwidth
 - `weak-lru-cache` - 1.2.2 - MIT - https://github.com/kriszyp/weak-lru-cache
 - `webidl-conversions` - 8.0.1 - BSD-2-Clause - https://github.com/jsdom/webidl-conversions
 - `webpack` - 5.109.2 - MIT - https://github.com/webpack/webpack

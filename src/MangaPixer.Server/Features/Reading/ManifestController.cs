@@ -29,6 +29,7 @@ public sealed class ManifestController : ControllerBase
     private readonly MediaWorkerPool _workerPool;
     private readonly JobScheduler _jobScheduler;
     private readonly LibraryAuthorizationService _libraryAuth;
+    private readonly SpreadLayoutService _spreadLayouts;
     private readonly ILogger<ManifestController> _logger;
 
     public ManifestController(
@@ -36,12 +37,14 @@ public sealed class ManifestController : ControllerBase
         MediaWorkerPool workerPool,
         JobScheduler jobScheduler,
         LibraryAuthorizationService libraryAuth,
+        SpreadLayoutService spreadLayouts,
         ILogger<ManifestController> logger)
     {
         _db = db;
         _workerPool = workerPool;
         _jobScheduler = jobScheduler;
         _libraryAuth = libraryAuth;
+        _spreadLayouts = spreadLayouts;
         _logger = logger;
     }
 
@@ -93,7 +96,12 @@ public sealed class ManifestController : ControllerBase
             });
         }
 
-        var manifest = BuildManifest(itemId, archiveItem);
+        // 1.23.0: the archive's shared double-page pairing, if one is saved for this
+        // content version (a stale one is dropped and reads as null).
+        var spreadStarts = await _spreadLayouts.GetCurrentAsync(
+            node.Id, archiveItem.ContentVersion, archiveItem.PageCount ?? 0, ct);
+
+        var manifest = BuildManifest(itemId, archiveItem) with { SpreadStarts = spreadStarts };
         return Ok(manifest);
     }
 

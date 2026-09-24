@@ -225,6 +225,7 @@ public sealed partial class Program
             builder.Services.AddScoped<CatalogBrowseService>();
             builder.Services.AddScoped<ReadingStateService>();
             builder.Services.AddScoped<FavoritesService>();
+            builder.Services.AddScoped<SpreadLayoutService>();
             builder.Services.AddScoped<CatalogIdResolver>();
             builder.Services.AddScoped<ReaderModeResolver>();
             // Jump-index endpoint, kept separate from CatalogBrowseService.

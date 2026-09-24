@@ -133,6 +133,15 @@ public static class LogEvents
         public const int ScanMoveAmbiguous = 3022;
         public const int ScanMovesApplied = 3023;
         public const int ScanPhaseTimings = 3024;
+
+        // 1.23.0 scheduled scans
+        public const int ScheduledScanStarted = 3025;
+        public const int ScheduledScanSkippedRootUnavailable = 3026;
+        public const int ScheduledScanRootAvailableAgain = 3027;
+        public const int ScheduledScanUnrecognisedSchedule = 3028;
+        public const int ScheduledScanEvaluationFailed = 3029;
+        public const int ScheduledScanDisabled = 3030;
+        public const int ScheduledScanFinished = 3031;
     }
 
     /// <summary>Worker pool, supervisor, scheduler, scratch, persistence, and page delivery.</summary>
@@ -290,6 +299,11 @@ public static class LogEvents
         public const int RestoreApplyFailed = 6035;
         public const int RestoreRolledBack = 6036;
         public const int SafetySnapshotsPruned = 6037;
+
+        // 1.23.0 move existing rotating snapshots on a location change
+        public const int SnapshotMoveStarted = 6040;
+        public const int SnapshotMoveCompleted = 6041;
+        public const int SnapshotMoveFailed = 6042;
     }
 
     /// <summary>Admin actions on users and server configuration.</summary>

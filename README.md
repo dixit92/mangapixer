@@ -53,7 +53,7 @@ You need Docker with Compose v2. The Compose file pulls the published image from
 3. From that folder, pull and start the version you want (see [Releases](https://github.com/dixit92/mangapixer/releases)):
 
    ```bash
-   export MANGAPIXER_VERSION=1.22.2
+   export MANGAPIXER_VERSION=1.23.0
    docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d
    ```
 
@@ -110,7 +110,7 @@ The port is published on loopback only; put a [reverse proxy](docs/reverse-proxy
 **Administration and operations**
 
 - Add, rename and remove libraries from the web UI, using a folder picker confined to the media root. Removing a library deletes only MangaPixer's own metadata and thumbnails; your files are untouched.
-- Scans run per library or across all libraries, and can be canceled. Scans are manual: there is no scheduled rescan or filesystem watching yet.
+- Scans run per library or across all libraries, and can be canceled. Each library is also rescanned automatically on its own schedule (daily by default; hourly, every 6 hours, weekly or off). There is no filesystem watching yet.
 - Persistent thumbnails that survive restarts and cache clears. A background backfill fills them in and yields to active readers. Thumbnails can be regenerated per library.
 - Automatic rotating database backups (daily, 7 kept by default) and on-demand backups. A validated backup can be uploaded for restore; it is applied atomically on the next restart, with rollback if that fails (see [Backup and restore](docs/backup-and-restore.md)).
 - Runtime log-level control (global and per subsystem) and a diagnostics export.

@@ -6,4 +6,4 @@ Project instructions for all contributors and agents live in [AGENTS.md](AGENTS.
 
 ## Docker testing environment
 
-Use local Docker for container testing: `deploy/compose.yaml` (plus `deploy/compose.dev.yaml` where needed) is the default test environment. See the container-based build and live review instance sections in AGENTS.md.
+Build and test in containers as described in the container-based build sections of AGENTS.md; `deploy/compose.yaml` (plus `deploy/compose.dev.yaml` where needed) is the reference container layout. If the Docker daemon is remote or shared, bind mounts will not see your working tree: stream it in (`tar ... | docker cp`, or a build context) instead. Name every container and image you create with a unique prefix and remove only your own.

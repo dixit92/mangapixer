@@ -30,6 +30,10 @@ import {
   WebtoonNavPreferencesService, webtoonTapZone, webtoonScrollTarget, prefersReducedMotion,
 } from './webtoon-nav.service';
 import { isApplePlatformTouch, isStandaloneDisplay } from './platform';
+import { InstallHintService } from '../../shared/install-hint/install-hint.service';
+import {
+  groupSpreads, fallbackSpreadStarts, normalizeSpreadStarts, isShiftedSpread, shiftSpreadAt, ensureSpreadStart,
+} from './spread-layout';
 
 type ReaderPhase = 'preparing' | 'ready' | 'error';
 // ReaderView / ViewPref (the per-device paged-layout preference; see the note on
@@ -56,12 +60,19 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
  *  4. Every control carries a tooltip AND an aria-label (tooltip is supplementary
  *     so touch devices are not left without an affordance).
  *  5. Double-page reading has two modes (2026-09-08): "Double page" pairs from the
- *     first page (0-1, 2-3…) and "Double page (offset cover)" keeps the cover
- *     standalone then pairs (1-2, 3-4…). Which a comic needs can't be inferred, so
- *     it's an explicit reader choice; see `coverIsStandalone` / `setSpread`.
+ *     first page (0-1, 2-3…) and "Double page (shifted)" (1.23.0; was "offset
+ *     cover") keeps the cover standalone then pairs (1-2, 3-4…). Which a comic needs
+ *     can't be inferred, so it's an explicit reader choice.
  *     A wide (landscape) page — typically a pre-stitched two-page spread — is never
  *     paired; it renders solo, full width, in both double modes (see `isWide` /
- *     `computeSpreads`). This also tends to self-correct the pairing cadence.
+ *     `computeSpreads`) and restarts the pairing cadence.
+ *     1.23.0 shifted pairing: the pairing is a property of the ARCHIVE, saved on the
+ *     server and shared by everyone who reads it (`spreadLayout`, forced spread-start
+ *     indices; rules in spread-layout.ts). The two entries now mean "pairing at the
+ *     CURRENT spread": the highlighted one follows the spread on screen, picking the
+ *     other (or `o`) re-pairs from that spread onward, and `d` into double page makes
+ *     the page being read start a spread. The device cover setting
+ *     (`coverIsStandalone`) is only the fallback for an archive with no saved layout.
  *  6. Immersive chrome (2026-09-08): immersion is fullscreen-only. In fullscreen the
  *     toolbar overlays the page and, with the bottom nav, auto-hides after ~3s idle;
  *     reveal by moving the mouse into the TOP hot-zone, tapping the centre zone
@@ -194,14 +205,17 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                     [class.selected-option]="viewPref() === 'paged' && view() !== 'webtoon'"
                     [attr.aria-checked]="viewPref() === 'paged' && view() !== 'webtoon'">
               <mat-icon>crop_portrait</mat-icon> Single page</button>
+            <!-- The two double-page entries reflect the CURRENT spread (1.23.0):
+                 "(shifted)" when its pairing runs on the other parity of its run
+                 of pages; picking the other one re-pairs from this spread on. -->
             <button mat-menu-item role="menuitemradio" (click)="chooseSpread(false)"
-                    [class.selected-option]="viewPref() === 'spread' && !coverIsStandalone() && view() !== 'webtoon'"
-                    [attr.aria-checked]="viewPref() === 'spread' && !coverIsStandalone() && view() !== 'webtoon'">
+                    [class.selected-option]="viewPref() === 'spread' && !spreadShifted() && view() !== 'webtoon'"
+                    [attr.aria-checked]="viewPref() === 'spread' && !spreadShifted() && view() !== 'webtoon'">
               <mat-icon>import_contacts</mat-icon> Double page</button>
             <button mat-menu-item role="menuitemradio" (click)="chooseSpread(true)"
-                    [class.selected-option]="viewPref() === 'spread' && coverIsStandalone() && view() !== 'webtoon'"
-                    [attr.aria-checked]="viewPref() === 'spread' && coverIsStandalone() && view() !== 'webtoon'">
-              <mat-icon>auto_stories</mat-icon> Double page (offset cover)</button>
+                    [class.selected-option]="viewPref() === 'spread' && spreadShifted() && view() !== 'webtoon'"
+                    [attr.aria-checked]="viewPref() === 'spread' && spreadShifted() && view() !== 'webtoon'">
+              <mat-icon>auto_stories</mat-icon> Double page (shifted)</button>
             <button mat-menu-item role="menuitemradio" (click)="chooseView('webtoon')"
                     [class.selected-option]="view() === 'webtoon'"
                     [attr.aria-checked]="view() === 'webtoon'">
@@ -294,10 +308,15 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
              thirds (onWebtoonTap) and a horizontal swipe steps a screen (the shared
              pointer tracking, see onReaderPointerDown). touch-action keeps the
              vertical pan + pinch native and claims only horizontal drags, and only
-             while the feature is on and the page is not pinch-zoomed. -->
+             while the feature is on and the page is not pinch-zoomed.
+             Keyboard (1.23.0 a11y): the scroller is focusable (tabindex 0, never
+             focused programmatically) so arrow / Page keys scroll it natively, and
+             Enter on it is the keyboard twin of the centre tap (show / hide the
+             controls). Tap and scroll behaviour are unchanged. -->
         <div class="reader-viewport webtoon" #scroller (scroll)="onWebtoonScroll()"
-             [style.touch-action]="webtoonTouchAction()"
-             (pointerdown)="onReaderPointerDown($event)" (click)="onWebtoonTap($event)">
+             [style.touch-action]="webtoonTouchAction()" tabindex="0"
+             (pointerdown)="onReaderPointerDown($event)" (click)="onWebtoonTap($event)"
+             (keydown.enter)="onWebtoonEnter($event)">
           @for (entry of pages(); track entry.entryKey) {
             <img class="webtoon-page" [src]="pageUrlFor(entry)" loading="lazy"
                  [style.width.%]="webtoonWidthPct()"
@@ -481,8 +500,9 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                   <li>Double page shows in landscape or on a wider screen; this narrow portrait
                     screen shows one page at a time.</li>
                 }
-                <li><kbd>D</kbd> single / double page · <kbd>E</kbd> Rendering: Smooth / Enhance
-                  (needs WebGPU)</li>
+                <li><kbd>D</kbd> single / double page · <kbd>O</kbd> shift the double-page pairing
+                  from this spread (saved for this archive, for everyone) · <kbd>E</kbd> Rendering:
+                  Smooth / Enhance (needs WebGPU)</li>
               } @else if (webtoonNav.tapZonesEnabled()) {
                 <li>Scroll freely, or <b>tap</b> the lower part of the page to move forward a screen
                   ({{ webtoonNav.tapStep() }}%), the upper part to go back, the centre to show / hide
@@ -809,6 +829,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   readonly webtoonNav = inject(WebtoonNavPreferencesService);
   // WebGPU readiness for the 'e' Rendering shortcut — same gate the settings menu uses.
   private readonly upscaleSupport = inject(UpscaleSupportService);
+  private readonly installHint = inject(InstallHintService);
   readonly fitOptions = FIT_OPTIONS;
 
   /**
@@ -870,7 +891,16 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   // shown alone and pages pair 1-2, 3-4… (right for a typical standalone cover);
   // when false, pairing starts at 0-1, 2-3… No reliable way to infer which a
   // given comic wants, so it's a reader-side toggle (two menu modes). Default on.
+  // Since 1.23.0 this device setting is only the FALLBACK for an archive with no
+  // saved `spreadLayout`; picking a double-page entry on the first spread updates it.
   readonly coverIsStandalone = signal(this.loadCoverStandalone());
+  /**
+   * The archive's saved, shared double-page pairing (1.23.0): forced spread-start
+   * indices from the manifest, or null when none is saved (then the device fallback
+   * above applies). Edited optimistically here and saved to the server (see
+   * `applySpreadStarts`); every rule lives in spread-layout.ts.
+   */
+  readonly spreadLayout = signal<number[] | null>(null);
   readonly webtoonWidthPct = signal<number>(this.loadWebtoonWidth()); // webtoon page-width preference
   // Per-device default page mode (1.2.x). Highlighted in the reading-mode menu; a
   // non-null value overrides the server-resolved layout on every chapter open.
@@ -1053,7 +1083,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   readonly viewIcon = computed(() =>
     this.view() === 'webtoon' ? 'view_day'
-      : this.view() === 'spread' ? (this.coverIsStandalone() ? 'auto_stories' : 'import_contacts')
+      : this.view() === 'spread' ? (this.spreadShifted() ? 'auto_stories' : 'import_contacts')
       : 'crop_portrait');
 
   /**
@@ -1122,9 +1152,30 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   /** Grouping of page indices into spreads (double-page view). */
   readonly spreads = computed<number[][]>(() => this.computeSpreads());
 
+  /** The forced spread starts in effect: the archive's saved layout, else the device fallback. */
+  private readonly activeSpreadStarts = computed<number[]>(() =>
+    this.spreadLayout() ?? fallbackSpreadStarts(this.pageCount(), (i) => this.isWide(i), this.coverIsStandalone()));
+
+  /** The spread holding the current page (its indices), in double-page grouping. */
+  private readonly currentSpread = computed<number[]>(() =>
+    this.spreads().find((s) => s.includes(this.currentPage())) ?? [this.currentPage()]);
+
+  /**
+   * Is the spread on screen paired on the shifted parity of its run of pages? Drives
+   * which double-page entry is highlighted (1.23.0: per current spread, not global).
+   */
+  readonly spreadShifted = computed<boolean>(() =>
+    isShiftedSpread(this.pageCount(), (i) => this.isWide(i), this.currentSpread()));
+
 
   private contentVersion = 0;
   private revision = 0;
+  // Shared pairing save (1.23.0): debounce timer, the latest unsent layout, and
+  // whether a request is on the wire (see flushSpreadSave).
+  private spreadSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingSpreadSave: { itemId: string; contentVersion: number; starts: number[] } | null = null;
+  private spreadSaveInFlight = false;
+  private static readonly SpreadSaveDebounceMs = 400;
   private pollAttempts = 0;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private webtoonSaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1282,6 +1333,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.onVisualViewportChange();
     this.route.paramMap.subscribe((params) => {
       const id = params.get('itemId') ?? '';
+      // Send any unsaved pairing for the chapter being left, then forget it: the
+      // next chapter's layout (or none) arrives with its manifest.
+      this.flushSpreadSave();
+      this.spreadLayout.set(null);
       this.itemId.set(id);
       this.pollAttempts = 0;
       // Reset the page-prefetch cache for the new chapter (URLs are per-item).
@@ -1379,6 +1434,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     if (this.commitTimer) clearTimeout(this.commitTimer);
     if (this.outgoingTimer) clearTimeout(this.outgoingTimer);
     this.clearHideTimer();
+    this.flushSpreadSave();
     this.saveProgress();
     // 1.7.1: tell the retained browse view this item's read/progress state may
     // have changed, so it can patch the card in place on the next reattach
@@ -1477,21 +1533,25 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       case 'f': this.toggleFullscreen(); break;
       case 'Escape': this.isFullscreen() ? this.toggleFullscreen() : this.goBack(); break;
       case 'd': this.toggleDoublePage(); break;
+      case 'o': this.toggleSpreadShift(); break;
       case 'e': this.toggleRendering(); break;
     }
   }
 
   /**
-   * 'd': single <-> double page, calling the exact same handlers the menu's
-   * "Single page" (`chooseView`) / "Double page" (`chooseSpread`, cover-alone
-   * offset left at its current/default false) radios call - so it persists
-   * per-device identically and, in narrow portrait, surfaces the same "shows in
-   * landscape" toast `chooseSpread` already gives that pick. Reads the current
-   * `view()` (not `viewPref`) so it flips relative to what 'auto' resolved to.
+   * 'd': single <-> double page, persisted per-device like the menu's "Single page"
+   * / "Double page" radios (`chooseView`), with the same narrow-portrait toast.
+   * Reads the current `view()` (not `viewPref`) so it flips relative to what 'auto'
+   * resolved to. 1.23.0: it KEEPS the archive's saved pairing (it used to reset the
+   * offset), and entering double page makes the page being read start a spread -
+   * the owner's fix flow: at a mis-paired spread press `d`, step to the next page,
+   * press `d` again, and pairing starts there (see `enterSpreadHere`).
    */
   private toggleDoublePage(): void {
     if (this.view() === 'spread') { this.chooseView('paged'); return; }
-    this.chooseSpread(false);
+    this.chooseView('spread');
+    this.enterSpreadHere();
+    this.noteNarrowSpread();
   }
 
   /**
@@ -1582,7 +1642,11 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     if (this.helpVisible()) this.revealChrome(); // keep the toolbar up behind the overlay
   }
 
-  closeHelp(): void { this.helpVisible.set(false); }
+  closeHelp(): void {
+    this.helpVisible.set(false);
+    // The first-open install hint waits for the help overlay (a no-op after its first call).
+    this.installHint.onReaderOpened();
+  }
 
   /**
    * Toolbar bookmark toggle (1.17.0): add or remove a bookmark on the current
@@ -1718,6 +1782,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private onManifestReady(manifest: ItemManifest): void {
     this.pages.set(manifest.pages);
     this.contentVersion = manifest.contentVersion;
+    this.spreadLayout.set(normalizeSpreadStarts(manifest.spreadStarts, manifest.pages.length));
     // The page aspect ratio is only knowable once the manifest is in; re-target
     // before the first <img> resolves its src.
     this.refreshVariantTarget();
@@ -1768,6 +1833,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // opens the reader, then remember it (localStorage, per-device) so it never
     // auto-shows again. The '?' button still reopens it manually any time.
     this.maybeAutoShowHelp();
+    // iPhone/iPad in a browser tab: first-open "Add to Home Screen" hint (1.23.0). When the
+    // help overlay auto-showed, closeHelp() raises it instead, so the two never stack.
+    if (!this.helpVisible()) this.installHint.onReaderOpened();
     this.prefetchAround(index);
     if (this.view() === 'webtoon') {
       // Warm the first few pages ahead on entry (before any scroll fires).
@@ -2389,6 +2457,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   }
 
   toggleFullscreen(): void {
+    if (!this.isFullscreen()) this.installHint.onFullscreenRequested();
     if (this.useInPageImmersive) {
       // Either Safari's own Fullscreen API paints a persistent system close
       // button over the page and keeps the status bar showing (iOS/iPadOS), or
@@ -2482,10 +2551,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   }
 
   /**
-   * Enter double-page view with a chosen pairing offset. `offset` true keeps the
-   * cover (page 0) standalone then pairs 1-2, 3-4…; false pairs from 0-1, 2-3….
-   * Changing the offset re-derives spreads() (which reads coverIsStandalone), so
-   * the current screen re-pairs in place without a reload.
+   * Enter double-page view with a chosen DEVICE cover offset. `offset` true keeps
+   * the cover (page 0) standalone then pairs 1-2, 3-4…; false pairs from 0-1, 2-3….
+   * Since 1.23.0 this is only the fallback for an archive with no saved layout (the
+   * menu goes through `chooseSpread`); spreads() re-derives in place either way.
    */
   setSpread(offset: boolean): void {
     this.coverIsStandalone.set(offset);
@@ -2504,6 +2573,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
    * bleeding across libraries.
    */
   chooseView(pref: ViewPref | 'webtoon'): void {
+    // Leaving double page lands on the spread's FIRST page, so `d` twice without
+    // moving never forces a new spread start (see enterSpreadHere).
+    if (pref !== 'spread') this.anchorToSpreadStart();
     if (pref === 'webtoon') { this.setView('webtoon'); return; }
     this.viewPref.set(pref);
     this.saveViewPref(pref);
@@ -2511,18 +2583,112 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     else this.setView(pref);
   }
 
-  chooseSpread(offset: boolean): void {
-    this.coverIsStandalone.set(offset);
-    this.saveCoverStandalone(offset);
+  /**
+   * A double-page menu entry (1.23.0 semantics): "Double page" (`shifted` false) or
+   * "Double page (shifted)". From single page it enters double page with the page
+   * being read starting a spread (like `d`). Then, if the spread on screen is not on
+   * the picked parity, it re-pairs from this spread onward (`toggleSpreadShift`) -
+   * unless entering had to force the page to start a spread: that rule wins (the
+   * alternative would be to show the page alone), and the highlight then tells the
+   * truth. On the archive's first spread the pick also records the device cover
+   * fallback, as the old offset did.
+   */
+  chooseSpread(shifted: boolean): void {
+    const fromSingle = this.view() !== 'spread';
     this.chooseView('spread');
-    // The pick is honoured (persisted, highlighted) but this
-    // screen renders single pages; say so once, at the moment of choice, so the
-    // unchanged page is not mistaken for a broken setting. The phone sheet
-    // carries the same note inline (a snackbar would land under it), so only the
-    // desktop menu path toasts.
+    const forcedStart = fromSingle && this.enterSpreadHere();
+    if (!forcedStart && this.pageCount() > 0 && this.spreadShifted() !== shifted) this.toggleSpreadShift();
+    if (this.currentSpread().includes(0) && !this.isWide(0)) {
+      this.coverIsStandalone.set(shifted);
+      this.saveCoverStandalone(shifted);
+    }
+    this.noteNarrowSpread();
+  }
+
+  /**
+   * The pick is honoured (persisted, highlighted) but a narrow portrait screen
+   * renders single pages; say so once, at the moment of choice, so the unchanged
+   * page is not mistaken for a broken setting. The phone sheet carries the same
+   * note inline (a snackbar would land under it), so only the desktop path toasts.
+   */
+  private noteNarrowSpread(): void {
     if (this.narrowPortrait() && !this.optionsOpen()) {
       this.snackBar.open('Double page shows in landscape or on a wider screen.', '', { duration: 2500 });
     }
+  }
+
+  // --- Shared per-archive pairing (1.23.0) ---
+
+  /**
+   * `o` / picking the other double-page entry: flip the pairing parity from the
+   * spread on screen onward (to the next wide page). Saved for the archive, for
+   * everyone. No-op outside double page; a wide page or a lone page between two
+   * wide ones has nothing to re-pair, which is said rather than silently ignored.
+   */
+  toggleSpreadShift(): void {
+    if (this.view() !== 'spread' || this.pageCount() === 0) return;
+    const shift = shiftSpreadAt(this.pageCount(), (i) => this.isWide(i), this.activeSpreadStarts(), this.currentPage());
+    if (!shift) {
+      this.snackBar.open('Nothing to re-pair on this page.', '', { duration: 2000 });
+      return;
+    }
+    this.applySpreadStarts(shift.starts);
+    // Show the re-paired spread from its first page. The entries already on screen
+    // keep their <img> (tracked by entry key), so no loading spinner is raised. On a
+    // narrow portrait screen (double page chosen, single pages shown) the page being
+    // read stays put; the new pairing shows once double page returns.
+    if (this.effectiveView() === 'spread') this.currentPage.set(shift.anchor);
+  }
+
+  /**
+   * Entering double page: the page being read must start a spread. Adds a forced
+   * start when it would not already; returns whether it had to.
+   */
+  private enterSpreadHere(): boolean {
+    const next = ensureSpreadStart(this.pageCount(), (i) => this.isWide(i), this.activeSpreadStarts(), this.currentPage());
+    if (next) this.applySpreadStarts(next);
+    return next !== null;
+  }
+
+  /** Before leaving double page, move to the first page of the spread on screen. */
+  private anchorToSpreadStart(): void {
+    if (this.effectiveView() !== 'spread' || this.pageCount() === 0) return;
+    const first = this.currentSpread()[0];
+    if (first !== this.currentPage()) this.currentPage.set(first);
+  }
+
+  /** Optimistic local update, then a debounced save to the server. */
+  private applySpreadStarts(starts: number[]): void {
+    this.spreadLayout.set(starts);
+    this.pendingSpreadSave = { itemId: this.itemId(), contentVersion: this.contentVersion, starts };
+    if (this.spreadSaveTimer) clearTimeout(this.spreadSaveTimer);
+    this.spreadSaveTimer = setTimeout(() => this.flushSpreadSave(), ReaderComponent.SpreadSaveDebounceMs);
+  }
+
+  /**
+   * Send the latest pending layout. Rapid toggles coalesce: one request in flight at
+   * a time, and whatever is pending when it settles goes next. The pending entry
+   * carries its own item id / content version, so a save flushed on a chapter change
+   * still targets the chapter it was made in. A failure keeps the local layout for
+   * this session and says so, non-blocking.
+   */
+  private flushSpreadSave(): void {
+    if (this.spreadSaveTimer) { clearTimeout(this.spreadSaveTimer); this.spreadSaveTimer = null; }
+    if (this.spreadSaveInFlight || !this.pendingSpreadSave) return;
+    const { itemId, contentVersion, starts } = this.pendingSpreadSave;
+    this.pendingSpreadSave = null;
+    this.spreadSaveInFlight = true;
+    this.api.setSpreadLayout(itemId, { expectedContentVersion: contentVersion, spreadStarts: starts }).subscribe({
+      next: () => { this.spreadSaveInFlight = false; this.flushSpreadSave(); },
+      error: () => {
+        this.spreadSaveInFlight = false;
+        if (!this.destroyed) {
+          this.snackBar.open('Could not save the page pairing. It still applies until you leave this chapter.',
+            'Dismiss', { duration: 4000 });
+        }
+        this.flushSpreadSave();
+      },
+    });
   }
 
   // --- Webtoon scroll tracking ---
@@ -2594,6 +2760,16 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     const zone = webtoonTapZone(rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5);
     if (zone === 'toggle') { this.toggleChrome(); return; }
     this.scrollWebtoonBy(zone === 'forward' ? 1 : -1);
+  }
+
+  /**
+   * Enter on the focused webtoon scroller toggles the chrome, like a centre tap.
+   * Only when the scroller ITSELF has focus: Enter on an end-of-chapter button
+   * bubbles here too and must stay that button's alone.
+   */
+  onWebtoonEnter(e: Event): void {
+    if (e.target !== e.currentTarget) return;
+    this.toggleChrome();
   }
 
   /**
@@ -2678,8 +2854,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   }
 
   /**
-   * Group page indices into double-spread pairs. A standalone cover (page 0) and
-   * an odd trailing page each occupy a spread alone; everything else is paired.
+   * Group page indices into double-spread pairs. A page forced to start a spread
+   * (the standalone-cover offset is page 1 forced) and an odd trailing page leave
+   * the page before / themselves alone; everything else is paired.
    * Indices are ascending within a pair — the template's `.rtl-flow` handles
    * right-to-left placement, so navigation can step whole groups either way.
    *
@@ -2690,18 +2867,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
    * portrait partner), which is expected.
    */
   private computeSpreads(): number[][] {
-    const n = this.pageCount();
-    if (n === 0) return [];
-    const groups: number[][] = [];
-    let i = 0;
-    // Offset: keep a (non-wide) cover standalone. A wide cover is solo regardless,
-    // handled by the loop below.
-    if (this.coverIsStandalone() && !this.isWide(0)) { groups.push([0]); i = 1; }
-    while (i < n) {
-      if (this.isWide(i)) { groups.push([i]); i += 1; continue; }
-      if (i + 1 < n && !this.isWide(i + 1)) { groups.push([i, i + 1]); i += 2; }
-      else { groups.push([i]); i += 1; }
-    }
-    return groups;
+    // 1.23.0: the forced spread starts (saved per archive, else the device cover
+    // fallback, which reproduces the old offset exactly) drive the grouping.
+    return groupSpreads(this.pageCount(), (i) => this.isWide(i), new Set(this.activeSpreadStarts()));
   }
 }

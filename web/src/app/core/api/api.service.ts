@@ -34,9 +34,12 @@ import {
   CsrfTokenDto,
   DirectoryListingDto,
   ItemManifest,
+  SetSpreadLayoutRequest,
+  SpreadLayoutDto,
   ItemReadiness,
   JumpIndexDto,
   LibraryDto,
+  LibraryScanSchedule,
   LogCategoryOverride,
   LogLevelDto,
   PrivateLibrariesDto,
@@ -57,6 +60,7 @@ import {
   ScanRunDto,
   ScanTriggeredDto,
   ScanAllResultDto,
+  SetLibraryScanScheduleRequest,
   SetPrivateLibrariesRequest,
   ThumbnailRegenerateResponse,
   SearchResultsDto,
@@ -67,6 +71,7 @@ import {
   UpdateCheckStatusDto,
   BackupSettingsDto,
   BackupSettingsUpdateResultDto,
+  BackupSnapshotMoveStatusDto,
   UpdateBackupSettingsRequest,
   UpdateLibraryRequest,
   UpdateLogLevelRequest,
@@ -392,6 +397,12 @@ export class ApiService {
     return this.put<LibraryDto>(`/admin/libraries/${libraryId}/icon`, { icon });
   }
 
+  // Library scan schedule (1.23.0) — automatic scan preset, or null to clear back to the daily default.
+  setLibraryScanSchedule(libraryId: string, scanSchedule: LibraryScanSchedule | null): Observable<LibraryDto> {
+    const body: SetLibraryScanScheduleRequest = { scanSchedule };
+    return this.put<LibraryDto>(`/admin/libraries/${libraryId}/scan-schedule`, body);
+  }
+
   triggerScan(libraryId: string): Observable<ScanTriggeredDto> {
     return this.post<ScanTriggeredDto>(`/admin/libraries/${libraryId}/scan`, {});
   }
@@ -517,6 +528,11 @@ export class ApiService {
     return this.put<BackupSettingsUpdateResultDto>('/operations/backups/settings', request);
   }
 
+  /** Progress / result of the background snapshot move after a location change (admin, 1.23.0). */
+  getBackupSnapshotMove(): Observable<BackupSnapshotMoveStatusDto> {
+    return this.get<BackupSnapshotMoveStatusDto>('/operations/backups/move');
+  }
+
   /** Update Checker status (admin). Pass force=true for the "Check now" action. */
   getUpdateCheck(force = false): Observable<UpdateCheckStatusDto> {
     const params = force ? new HttpParams().set('force', 'true') : undefined;
@@ -558,6 +574,11 @@ export class ApiService {
 
   getManifest(itemId: string): Observable<ItemManifest> {
     return this.get<ItemManifest>(`/items/${itemId}/manifest`);
+  }
+
+  /** Replace the archive's shared double-page pairing (1.23.0); read back via the manifest. */
+  setSpreadLayout(itemId: string, request: SetSpreadLayoutRequest): Observable<SpreadLayoutDto> {
+    return this.put<SpreadLayoutDto>(`/items/${itemId}/spread-layout`, request);
   }
 
   getReadiness(itemId: string): Observable<ItemReadiness> {

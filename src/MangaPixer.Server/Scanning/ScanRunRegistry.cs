@@ -57,4 +57,10 @@ public sealed class ScanRunRegistry
     /// Returns true if a scan run is currently registered (active).
     /// </summary>
     public bool IsRunning(long scanRunId) => _runs.ContainsKey(scanRunId);
+
+    /// <summary>
+    /// True while any scan started in this process is still running. The scan
+    /// scheduler (1.23.0) never starts a scan while this is true.
+    /// </summary>
+    public bool AnyRunning => !_runs.IsEmpty;
 }

@@ -168,6 +168,8 @@ export interface UserPreferencesDto {
    * on the last page which always start from page 1. Optional for older servers.
    */
   alwaysOpenReadFromStart?: boolean;
+  /** Theme preference: "dark" (server default), "light" or "system". Optional so older fixtures keep compiling. */
+  theme?: string;
 }
 
 export interface ContinueReadingEntry {
@@ -207,11 +209,30 @@ export interface LibraryDto {
   defaultReaderMode: ReaderMode | null;
   /** Admin-picked icon name (1.22.0), or null for the client-derived default. */
   icon: string | null;
+  /**
+   * Effective automatic scan schedule (1.23.0): one of `LIBRARY_SCAN_SCHEDULES`.
+   * Admin library responses only; absent/null from the catalog listing.
+   */
+  scanSchedule?: LibraryScanSchedule | null;
+  /**
+   * Approximate next automatic scan (1.23.0); a past time means due at the next
+   * scheduler pass. Null when off / scheduler disabled; admin responses only.
+   */
+  nextScheduledScanAt?: string | null;
 }
 
 /** Request to set a library's icon (1.22.0). Null clears back to the default. */
 export interface SetLibraryIconRequest {
   icon: string | null;
+}
+
+/** Automatic scan schedule presets (1.23.0), mirroring `LibraryScanSchedules` on the server. */
+export const LIBRARY_SCAN_SCHEDULES = ['off', '1h', '6h', '1d', '7d'] as const;
+export type LibraryScanSchedule = (typeof LIBRARY_SCAN_SCHEDULES)[number];
+
+/** Request to set a library's automatic scan schedule (1.23.0). Null clears back to the daily default. */
+export interface SetLibraryScanScheduleRequest {
+  scanSchedule: LibraryScanSchedule | null;
 }
 
 /** Resolved effective default reader mode for an item (1.2.0). */
@@ -319,6 +340,8 @@ export interface YacReaderImportRequest {
   libraryId: string;
   targetUserId: string;
   overwrite?: boolean;
+  /** Snapshot progress before applying (server default true). */
+  snapshot?: boolean;
 }
 
 export interface YacReaderImportItemDto {
@@ -521,6 +544,27 @@ export interface ItemManifest {
   pages: ManifestPageEntry[];
   isSolid: boolean;
   hasAnimatedPages: boolean;
+  /**
+   * Shared per-archive double-page pairing (1.23.0): sorted forced spread-start page
+   * indices. Null/absent when none is saved for this content version (the reader then
+   * uses its device cover setting); `[]` is an explicit "no shifts".
+   */
+  spreadStarts?: number[] | null;
+}
+
+/** PUT /items/{itemId}/spread-layout body (1.23.0). */
+export interface SetSpreadLayoutRequest {
+  /** The manifest content version the pairing was made against (409 stale_content on mismatch). */
+  expectedContentVersion: number;
+  spreadStarts: number[];
+}
+
+/** The saved shared pairing returned by the spread-layout write (1.23.0). */
+export interface SpreadLayoutDto {
+  itemId: string;
+  contentVersion: number;
+  spreadStarts: number[];
+  updatedAt: string;
 }
 
 export type ItemReadinessState =
@@ -815,6 +859,9 @@ export interface BackupSettingsDto {
   locationChangeAllowed: boolean;
   locationStatus: BackupLocationStatus;
   platform: 'linux' | 'windows' | null;
+  /** Rotating snapshots in the current location (1.23.0): what a move would take. */
+  rotatingSnapshotCount?: number;
+  rotatingSnapshotBytes?: number;
 }
 
 /**
@@ -830,6 +877,8 @@ export interface UpdateBackupSettingsRequest {
   currentPassword?: string;
   validateOnly?: boolean;
   adoptExistingMarker?: boolean;
+  /** On a location change, move the existing rotating snapshots too (1.23.0). */
+  moveExistingSnapshots?: boolean;
 }
 
 /** Result of a backup settings PUT (`BackupSettingsUpdateResultDto`). */
@@ -838,7 +887,39 @@ export interface BackupSettingsUpdateResultDto {
   validateOnly: boolean;
   willCreate: boolean;
   locationChanged: boolean;
+  /** A background move of the existing snapshots started (1.23.0). */
+  snapshotMoveStarted?: boolean;
   warnings: string[];
+}
+
+/**
+ * Background move of the existing rotating snapshots after a location change
+ * (1.23.0, `GET /operations/backups/move`). In memory on the server: `idle`
+ * after a restart. File names only, never a folder.
+ */
+export type BackupSnapshotMoveState = 'idle' | 'running' | 'completed' | 'cancelled';
+
+export interface BackupSnapshotMoveIssueDto {
+  fileName: string;
+  /** `name_conflict` | `verify_failed` | `copy_failed` | `source_delete_failed` | `cancelled`. */
+  code: string;
+  /** `previous`: still in the previous location; `both`: in both locations. */
+  location: 'previous' | 'both';
+}
+
+export interface BackupSnapshotMoveStatusDto {
+  state: BackupSnapshotMoveState;
+  fromKind: 'default' | 'custom' | null;
+  toKind: 'default' | 'custom' | null;
+  totalFiles: number;
+  filesDone: number;
+  totalBytes: number;
+  bytesDone: number;
+  movedCount: number;
+  prunedCount: number;
+  startedUtc: string | null;
+  finishedUtc: string | null;
+  issues: BackupSnapshotMoveIssueDto[];
 }
 
 /**

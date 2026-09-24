@@ -114,6 +114,26 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.ToTable("archive_items", (string)null);
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchiveSpreadLayoutEntity", b =>
+                {
+                    b.Property<long>("NodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ContentVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SpreadStartsJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("NodeId");
+
+                    b.ToTable("archive_spread_layouts", (string)null);
+                });
+
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.AuditEventEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -1032,6 +1052,17 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Node")
                         .WithOne("ArchiveItem")
                         .HasForeignKey("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchiveItemEntity", "NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Node");
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchiveSpreadLayoutEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Node")
+                        .WithMany()
+                        .HasForeignKey("NodeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

@@ -57,15 +57,30 @@ Choose a mode from **Reading mode** (on phones: **Layout**):
 | **Auto (orientation)** | Auto | Double page in landscape, single page in portrait. Switches live when you rotate the device or resize the window. |
 | **Single page** | Single page | One page at a time. |
 | **Double page** | Double page | Two pages side by side: 1-2, 3-4, … |
-| **Double page (offset cover)** | Double, cover alone | The cover shows alone, then 2-3, 4-5, … Use this when a two-page spread is split across the wrong pair. |
+| **Double page (shifted)** | Double, shifted | Pairing moved by one page: the cover shows alone, then 2-3, 4-5, … Use this when a two-page spread is split across the wrong pair. |
 | **Vertical (webtoon)** | Vertical | One continuous vertical strip you scroll through. |
 
 Details:
 
 - **Wide pages are never paired.** A page at least 1.2 times wider than it is tall (usually a scanned spread) is shown alone at full width in both double modes, and pairing restarts after it.
 - **Narrow portrait screens show single pages.** If you pick a double mode on a narrow portrait screen (under 600 px wide), pages still show one at a time. Double page returns when you rotate to landscape or widen the window.
-- **Your layout choice is remembered by this browser** (Auto, Single, Double, or Double with offset cover). It applies to every chapter you open on that device, and is not saved to your account.
+- **Your layout choice is remembered by this browser** (Auto, Single or Double). It applies to every chapter you open on that device, and is not saved to your account. The double-page pairing is saved differently: see [Fixing double-page pairing](#fixing-double-page-pairing).
 - **Choosing Vertical from the menu lasts for the current chapter only.** To make a series always open in vertical mode, an admin sets its reading direction to **Vertical** (see [Reading direction](#reading-direction)).
+
+### Fixing double-page pairing
+
+Scanned releases often insert extra pages (credits, colour pages), so from some point on the pages pair up wrongly: the left half of a spread ends up next to the right half of the previous one. You can fix this anywhere in an archive:
+
+- **Pick the other double-page mode.** The highlighted entry, **Double page** or **Double page (shifted)**, shows how the spread on screen is paired. Picking the other one shifts the pairing by one page from this spread on, up to the next wide page. On the first page this is the classic "cover alone" setting.
+- **Press `o`.** The same as picking the other mode.
+- **Or use `d`.** At a wrongly paired spread, press `d` for single page, go to the next page, and press `d` again: the pairing now starts at that page.
+
+Things to know:
+
+- **The pairing is saved for the archive, for everyone.** It is stored on the server as a property of the file, so every user who can read the archive sees the same pairing, and anyone who can read it can change it.
+- **A changed file starts over.** If the archive is replaced or modified, its saved pairing is dropped.
+- **Archives you have not adjusted** use the setting you last picked on the first page of an archive (cover alone or not), remembered by this browser.
+- If the pairing cannot be saved (for example, you are offline), it still applies until you leave the chapter, and the reader says so.
 
 ## Image fit
 
@@ -151,7 +166,8 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
 | `←` / `→` | Previous / next page (swapped in right-to-left). At the end or start of a chapter, moves to the next or previous chapter. |
 | `Home` / `End` | First / last page |
 | `f` | Toggle fullscreen |
-| `d` | Switch between single and double page |
+| `d` | Switch between single and double page. Keeps the archive's pairing; switching to double page makes the page you are on start a spread. |
+| `o` | Double page: shift the pairing by one page from the current spread (saved for the archive, see [Fixing double-page pairing](#fixing-double-page-pairing)) |
 | `s` | Cycle the downscale filter: Sharp, Balanced, Soft |
 | `e` | Switch Rendering between Smooth and Enhance (when Enhance is available) |
 | `m` | Show / hide the controls |

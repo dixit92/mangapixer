@@ -82,9 +82,10 @@ const COLUMNS: SortableColumn[] = [
           </div>
 
           <p class="scope-note">
-            Counts and timestamps only. Never chapter/item titles or paths. Reading done
-            in a library a user marked Private is excluded from that user's own counts.
+            Totals include every user's activity, including Private libraries; the table below
+            leaves out each user's Private-library reading.
           </p>
+          <p class="scope-note">Counts and timestamps only. Never chapter/item titles or paths.</p>
 
           <div class="table-scroll">
             <table aria-label="Per-user analytics">
@@ -144,12 +145,12 @@ const COLUMNS: SortableColumn[] = [
     mat-card { margin-bottom: 16px; }
     .muted { color: #999; font-size: 14px; }
     .error { color: #f44336; font-size: 14px; margin: 8px 0; }
-    .scope-note { color: #999; font-size: 13px; margin: 8px 0 12px; }
+    .scope-note { color: #999; font-size: 13px; margin: 0 0 8px; }
     .tiles {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
       gap: 8px;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
     .tile {
       display: flex;
@@ -160,7 +161,7 @@ const COLUMNS: SortableColumn[] = [
     }
     .tile-value { font-size: 20px; font-weight: 600; line-height: 1.2; }
     .tile-label { font-size: 12px; color: #999; }
-    .table-scroll { overflow-x: auto; margin-bottom: 12px; }
+    .table-scroll { overflow-x: auto; margin: 4px 0 12px; }
     table { border-collapse: collapse; width: 100%; font-size: 13px; }
     th, td { padding: 6px 10px; text-align: left; white-space: nowrap; }
     thead th { border-bottom: 1px solid rgba(255, 255, 255, 0.12); }

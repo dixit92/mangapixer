@@ -50,6 +50,15 @@ public sealed record ItemManifest
     /// Whether any pages are animated.
     /// </summary>
     public bool HasAnimatedPages { get; init; }
+
+    /// <summary>
+    /// Saved double-page pairing for this archive (1.23.0), shared by every user who
+    /// can read it: the sorted, unique forced spread-start page indices (each in
+    /// [1, PageCount-1]). <c>null</c> when no layout is saved for the current
+    /// <see cref="ContentVersion"/> (the reader then falls back to its device cover
+    /// setting); an empty list is an explicit "no shifts". Additive: older clients ignore it.
+    /// </summary>
+    public IReadOnlyList<int>? SpreadStarts { get; init; }
 }
 
 /// <summary>

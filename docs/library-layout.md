@@ -134,14 +134,23 @@ Favorites belong to your account and follow you to every device. They respect Pr
 
 ## Rescans, moves and deletions
 
-**Scans only run when an admin starts one.** There is no schedule, no scan at start-up and no file watcher. Registering a library does not scan it either. In **MangaPixer Administration** > **Libraries**:
+**Each library is rescanned automatically on a schedule, daily by default.** There is no file watcher. In **MangaPixer Administration** > **Libraries**:
 
+- **Auto-scan**, under each library's row, sets how often that library is rescanned: **Off**, **Hourly**, **Every 6 hours**, **Daily** (the default) or **Weekly**. Next to it, **Last scan** shows when the library was last scanned and **Next scan (approx.)** when the next automatic scan is expected. See [Automatic scans](#automatic-scans).
 - **Scan now** (the circular-arrow icon) on a library's row scans that library.
 - **Scan all libraries** scans every library. Libraries that are already scanning are skipped.
 - **Cancel** stops a running scan.
 - The palette icon opens an **icon picker** so you can give a library a distinct glyph instead of a name-derived default badge.
 
 After a scan, new archives are analyzed in the background. Their page counts and covers fill in over the next moments.
+
+### Automatic scans
+
+- A library is due once its interval has passed since its **last completed scan**, whether you started that scan or the schedule did. So **Scan now** also pushes the next automatic scan back. A library that has never been scanned is due straight away, so a newly registered library is scanned within a few minutes unless you set it to **Off** first.
+- Nothing is scanned in the first 3 minutes after the server starts. After that, the server checks every minute and scans due libraries **one at a time**. It waits while any scan is running, including one you started.
+- A library whose folder is unreachable (for example an unmounted share) is skipped until the folder is back. The log records this once, not every minute. If an automatic scan fails, it is retried after an hour at the earliest (or after one interval, for hourly scans).
+- **Next scan (approx.)** is an estimate: the scan starts at the first check after that time, and later if another scan is running. "Shortly" means the library is already due.
+- To switch automatic scans off for the whole server, set `MangaPixer:Scanning:Scheduler:Enabled` to `false` (see [Configuration](configuration.md#scanning)). Each library's setting is kept.
 
 **What a rescan does:**
 

@@ -106,7 +106,27 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
         ScratchRoot: ScratchRoot,
         WorkerExecutablePath: "",
         RateLimitDisabled: _rateLimitDisabled,
-        ExtraConfiguration: _extraConfiguration);
+        ExtraConfiguration: WithTestDefaults(_extraConfiguration));
+
+    /// <summary>
+    /// Test-host defaults layered under any per-instance overrides. The scan
+    /// scheduler (1.23.0) is off so a long-lived fixture never has an automatic
+    /// scan race the scans a test triggers itself; tests of the scheduler turn
+    /// it back on via <see cref="WithExtraConfiguration"/>.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string?> WithTestDefaults(IReadOnlyDictionary<string, string?>? extra)
+    {
+        var merged = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["MangaPixer:Scanning:Scheduler:Enabled"] = "false",
+        };
+        if (extra is not null)
+        {
+            foreach (var (key, value) in extra)
+                merged[key] = value;
+        }
+        return merged;
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
