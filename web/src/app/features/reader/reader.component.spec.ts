@@ -1800,7 +1800,7 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
 
     expect(items(panel).length).toBe(5);
     for (const item of items(panel)) expect(item.getAttribute('role')).toBe('menuitemradio');
-    const on = itemByLabel(panel, 'Double page (offset cover)');
+    const on = itemByLabel(panel, 'Double page (shifted)');
     expect(on.classList.contains('selected-option')).toBe(true);
     expect(on.getAttribute('aria-checked')).toBe('true');
     expect(on.querySelector('mat-icon')?.textContent?.trim()).toBe('auto_stories');
@@ -2933,5 +2933,228 @@ describe('ReaderComponent downscale filter requests (1.20.0)', () => {
     prefs.setDownscaleFilter('sharp');
     fixture.detectChanges(); // flushes pageQualityEffect
     expect(c.pageUrlFor(c.pages()[0])).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=sharp');
+  });
+});
+
+/**
+ * 1.23.0 shifted pairing, through the reader's public surface: the archive's saved
+ * layout from the manifest, the `o` key and the double-page menu entries re-pairing
+ * the CURRENT spread, `d` keeping the layout and making the page being read start a
+ * spread, and the debounced / coalesced save to PUT /items/{id}/spread-layout.
+ * The pairing rules themselves are covered as page sequences in spread-layout.spec.ts.
+ */
+describe('ReaderComponent shifted double-page pairing (1.23.0)', () => {
+  const LayoutUrl = '/api/v1/items/item-1/spread-layout';
+
+  function create(pageCount = 10, wide: number[] = []) {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    const pages = makePages(pageCount);
+    for (const w of wide) pages[w] = { ...pages[w], width: 2000, height: 1200 };
+    c.itemId.set('item-1');
+    c.pages.set(pages);
+    c.view.set('spread');
+    c.phase.set('ready');
+    c.nextNeighbor.set(null);
+    (c as unknown as { contentVersion: number }).contentVersion = 7;
+    const snack = vi.spyOn((c as unknown as { snackBar: MatSnackBar }).snackBar, 'open')
+      .mockImplementation(() => ({}) as never);
+    return { c, snack, http: TestBed.inject(HttpTestingController) };
+  }
+  function press(c: ReaderComponent, key: string): void {
+    c.onKeyDown({ key, target: document.createElement('div') } as unknown as KeyboardEvent);
+  }
+  function screen(c: ReaderComponent): string[] {
+    return c.currentSpreadEntries().map((e) => e.entryKey);
+  }
+
+  beforeEach(() => { localStorage.clear(); vi.useFakeTimers(); });
+  afterEach(() => vi.useRealTimers());
+
+  it('a saved layout from the manifest overrides the device cover fallback; none keeps the fallback', () => {
+    const { c } = create(6);
+    c.coverIsStandalone.set(true);
+    expect(c.spreads()).toEqual([[0], [1, 2], [3, 4], [5]]); // fallback: offset cover
+    c.spreadLayout.set([]); // explicit "no shifts" saved for this archive
+    expect(c.spreads()).toEqual([[0, 1], [2, 3], [4, 5]]);
+    c.spreadLayout.set([3]);
+    expect(c.spreads()).toEqual([[0, 1], [2], [3, 4], [5]]);
+  });
+
+  it('loads spreadStarts from the manifest (normalized) and resets it on a chapter without one', () => {
+    const { c, http } = create();
+    const ready = (c as unknown as { onManifestReady: (m: unknown) => void }).onManifestReady.bind(c);
+    ready({ itemId: 'item-1', contentVersion: 7, manifestVersion: 1, archiveFormat: 'Zip', pageCount: 10,
+      pages: makePages(10), isSolid: false, hasAnimatedPages: false, spreadStarts: [6, 2, 99] });
+    expect(c.spreadLayout()).toEqual([2, 6]);
+    ready({ itemId: 'item-1', contentVersion: 7, manifestVersion: 1, archiveFormat: 'Zip', pageCount: 10,
+      pages: makePages(10), isSolid: false, hasAnimatedPages: false });
+    expect(c.spreadLayout()).toBeNull();
+    http.match('/api/v1/reading/progress/item-1').forEach((r) => r.flush({ pageIndex: 0, revision: 0 }));
+  });
+
+  it('the highlighted entry follows the current spread, not a global flag', () => {
+    const { c } = create(12, [4]);
+    c.coverIsStandalone.set(true); // [0],[1,2],[3],[W4],[5,6],[7,8],[9,10],[11]
+    c.currentPage.set(0);
+    expect(c.spreadShifted()).toBe(true);
+    expect(c.viewIcon()).toBe('auto_stories');
+    c.currentPage.set(5); // after the wide page the cover offset no longer applies
+    expect(c.spreadShifted()).toBe(false);
+    expect(c.viewIcon()).toBe('import_contacts');
+  });
+
+  it("'o' fixes pairing after a wide page, saves it for the archive, and 'o' again undoes it", () => {
+    const { c, http } = create(12, [4]);
+    c.coverIsStandalone.set(false); // [0,1],[2,3],[W4],[5,6],[7,8],[9,10],[11]
+    c.currentPage.set(7);
+    expect(screen(c)).toEqual(['p7', 'p8']);
+
+    press(c, 'o');
+    expect(c.spreads()).toEqual([[0, 1], [2, 3], [4], [5, 6], [7], [8, 9], [10, 11]]);
+    expect(screen(c)).toEqual(['p7']);
+    expect(c.spreadShifted()).toBe(true);
+    vi.advanceTimersByTime(400);
+    const put = http.expectOne(LayoutUrl);
+    expect(put.request.method).toBe('PUT');
+    expect(put.request.body).toEqual({ expectedContentVersion: 7, spreadStarts: [8] });
+    put.flush({ itemId: 'item-1', contentVersion: 7, spreadStarts: [8], updatedAt: '2026-09-24T00:00:00Z' });
+
+    press(c, 'O');
+    expect(c.spreads()).toEqual([[0, 1], [2, 3], [4], [5, 6], [7, 8], [9, 10], [11]]);
+    expect(c.spreadShifted()).toBe(false);
+    vi.advanceTimersByTime(400);
+    expect(http.expectOne(LayoutUrl).request.body.spreadStarts).toEqual([]);
+  });
+
+  it('rapid toggles coalesce into one save of the final layout', () => {
+    const { c, http } = create();
+    c.coverIsStandalone.set(false);
+    c.currentPage.set(2);
+    press(c, 'o');
+    press(c, 'o');
+    press(c, 'o');
+    vi.advanceTimersByTime(400);
+    const reqs = http.match(LayoutUrl);
+    expect(reqs.length).toBe(1);
+    expect(reqs[0].request.body.spreadStarts).toEqual([3]);
+  });
+
+  it("'o' is a no-op outside double page, and says so on a wide page", () => {
+    const { c, http, snack } = create(6, [2]);
+    c.view.set('paged');
+    press(c, 'o');
+    expect(c.spreadLayout()).toBeNull();
+
+    c.view.set('spread');
+    c.currentPage.set(2); // the wide page
+    press(c, 'o');
+    expect(c.spreadLayout()).toBeNull();
+    expect(String(snack.mock.calls.at(-1)?.[0])).toContain('Nothing to re-pair');
+    vi.advanceTimersByTime(400);
+    http.expectNone(LayoutUrl);
+  });
+
+  it("the owner's d-next-d flow: at a mis-paired spread, d, next page, d -> pairing starts there", () => {
+    const { c, http } = create(10);
+    c.coverIsStandalone.set(false); // [0,1],[2,3],[4,5],... but 5 belongs with 6
+    c.currentPage.set(4);
+    expect(screen(c)).toEqual(['p4', 'p5']);
+
+    press(c, 'd');
+    expect(c.view()).toBe('paged');
+    press(c, 'ArrowRight');
+    expect(c.currentPage()).toBe(5);
+    press(c, 'd');
+
+    expect(c.view()).toBe('spread');
+    expect(screen(c)).toEqual(['p5', 'p6']);
+    expect(c.spreads()).toEqual([[0, 1], [2, 3], [4], [5, 6], [7, 8], [9]]);
+    vi.advanceTimersByTime(400);
+    expect(http.expectOne(LayoutUrl).request.body.spreadStarts).toEqual([5]);
+  });
+
+  it("'d' keeps the saved layout, and d twice without moving changes nothing (even from a pair's second page)", () => {
+    const { c, http } = create(10);
+    c.spreadLayout.set([3]); // [0,1],[2],[3,4],[5,6],...
+    c.currentPage.set(6); // resumed on the LAST index of [5,6]
+    press(c, 'd');
+    expect(c.currentPage()).toBe(5); // single page lands on the spread's first page
+    press(c, 'd');
+    expect(c.spreadLayout()).toEqual([3]);
+    expect(screen(c)).toEqual(['p5', 'p6']);
+    vi.advanceTimersByTime(400);
+    http.expectNone(LayoutUrl);
+  });
+
+  it('picking "Double page (shifted)" mid-archive re-pairs from the current spread; the device fallback is untouched', () => {
+    const { c, http } = create(10);
+    c.coverIsStandalone.set(false);
+    c.viewPref.set('spread');
+    c.currentPage.set(4);
+    c.chooseSpread(true);
+    expect(c.spreadShifted()).toBe(true);
+    expect(c.spreads()).toEqual([[0, 1], [2, 3], [4], [5, 6], [7, 8], [9]]);
+    expect(c.coverIsStandalone()).toBe(false);
+    // Picking the already-highlighted entry changes nothing.
+    c.chooseSpread(true);
+    vi.advanceTimersByTime(400);
+    expect(http.match(LayoutUrl).map((r) => r.request.body.spreadStarts)).toEqual([[5]]);
+  });
+
+  it('picking an entry on the first spread is the old cover offset and also sets the device fallback', () => {
+    const { c, http } = create(6);
+    c.coverIsStandalone.set(true);
+    c.currentPage.set(0);
+    c.chooseSpread(false);
+    expect(c.spreads()).toEqual([[0, 1], [2, 3], [4, 5]]);
+    expect(c.coverIsStandalone()).toBe(false);
+    expect(localStorage.getItem('mangapixer-reader-cover-standalone')).toBe('0');
+    vi.advanceTimersByTime(400);
+    // Saved per archive as an explicit empty set, overriding any device fallback.
+    expect(http.expectOne(LayoutUrl).request.body.spreadStarts).toEqual([]);
+  });
+
+  it('picking a double-page entry from single page makes the page being read start a spread (that rule wins)', () => {
+    const { c } = create(10);
+    c.coverIsStandalone.set(false);
+    c.view.set('paged');
+    c.currentPage.set(5);
+    c.chooseSpread(false);
+    expect(c.view()).toBe('spread');
+    expect(screen(c)).toEqual(['p5', 'p6']);
+    // 5-6 runs on the other parity of this run of pages, and the highlight says so.
+    expect(c.spreadShifted()).toBe(true);
+  });
+
+  it('from single page on the cover, "Double page (shifted)" is the old offset', () => {
+    const { c } = create(6);
+    c.coverIsStandalone.set(false);
+    c.view.set('paged');
+    c.currentPage.set(0);
+    c.chooseSpread(true);
+    expect(c.spreads()).toEqual([[0], [1, 2], [3, 4], [5]]);
+    expect(c.spreadShifted()).toBe(true);
+    expect(c.coverIsStandalone()).toBe(true);
+  });
+
+  it('a failed save keeps the local layout for the session and shows a non-blocking notice', () => {
+    const { c, http, snack } = create();
+    c.coverIsStandalone.set(false);
+    c.currentPage.set(2);
+    press(c, 'o');
+    vi.advanceTimersByTime(400);
+    http.expectOne(LayoutUrl).flush({ error: 'stale_content' }, { status: 409, statusText: 'Conflict' });
+    expect(c.spreadLayout()).toEqual([3]);
+    expect(String(snack.mock.calls.at(-1)?.[0])).toContain('Could not save the page pairing');
+  });
+
+  it('an unsent change is flushed when the reader closes, for the chapter it was made in', () => {
+    const { c, http } = create();
+    c.coverIsStandalone.set(false);
+    c.currentPage.set(2);
+    press(c, 'o');
+    c.ngOnDestroy();
+    expect(http.expectOne(LayoutUrl).request.body).toEqual({ expectedContentVersion: 7, spreadStarts: [3] });
   });
 });

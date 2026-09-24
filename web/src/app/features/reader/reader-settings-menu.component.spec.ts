@@ -277,15 +277,15 @@ describe('ReaderSettingsMenuComponent', () => {
  */
 describe('ReaderOptionsSheetComponent', () => {
   function makeHost(overrides: Partial<{
-    view: ReaderView; viewPref: ViewPref | null; cover: boolean; fit: FitMode; dir: ReadingDirection;
+    view: ReaderView; viewPref: ViewPref | null; shifted: boolean; fit: FitMode; dir: ReadingDirection;
     prev: boolean; next: boolean; narrow: boolean;
   }> = {}) {
-    const o = { view: 'paged' as ReaderView, viewPref: null as ViewPref | null, cover: true, fit: 'screen' as FitMode,
+    const o = { view: 'paged' as ReaderView, viewPref: null as ViewPref | null, shifted: true, fit: 'screen' as FitMode,
       dir: 'ltr' as ReadingDirection, prev: false, next: true, narrow: false, ...overrides };
     const host: ReaderOptionsHost = {
       view: signal(o.view),
       viewPref: signal(o.viewPref),
-      coverIsStandalone: signal(o.cover),
+      spreadShifted: signal(o.shifted),
       narrowPortrait: signal(o.narrow),
       fitMode: signal(o.fit),
       direction: signal(o.dir),
@@ -346,11 +346,11 @@ describe('ReaderOptionsSheetComponent', () => {
     expect(checked('reader-options-transition')[0].textContent).toContain('Slide');
   });
 
-  it('activeLayout is the EFFECTIVE layout: auto pref wins, spread splits by cover offset, webtoon by view', () => {
+  it('activeLayout is the EFFECTIVE layout: auto pref wins, spread splits by the current spread shift, webtoon by view', () => {
     expect(create(makeHost({ view: 'paged', viewPref: 'auto' })).c.activeLayout()).toBe('auto');
     expect(create(makeHost({ view: 'spread', viewPref: 'auto' })).c.activeLayout()).toBe('auto');
-    expect(create(makeHost({ view: 'spread', viewPref: 'spread', cover: true })).c.activeLayout()).toBe('spread-cover');
-    expect(create(makeHost({ view: 'spread', viewPref: null, cover: false })).c.activeLayout()).toBe('spread');
+    expect(create(makeHost({ view: 'spread', viewPref: 'spread', shifted: true })).c.activeLayout()).toBe('spread-shifted');
+    expect(create(makeHost({ view: 'spread', viewPref: null, shifted: false })).c.activeLayout()).toBe('spread');
     expect(create(makeHost({ view: 'paged', viewPref: null })).c.activeLayout()).toBe('paged');
     expect(create(makeHost({ view: 'webtoon', viewPref: 'spread' })).c.activeLayout()).toBe('webtoon');
   });
@@ -363,7 +363,7 @@ describe('ReaderOptionsSheetComponent', () => {
     expect(host.chooseView).toHaveBeenLastCalledWith('paged');
     chip('reader-options-layout', 'Double page').click();
     expect(host.chooseSpread).toHaveBeenLastCalledWith(false);
-    chip('reader-options-layout', 'Double, cover alone').click();
+    chip('reader-options-layout', 'Double, shifted').click();
     expect(host.chooseSpread).toHaveBeenLastCalledWith(true);
     chip('reader-options-layout', 'Vertical').click();
     expect(host.chooseView).toHaveBeenLastCalledWith('webtoon');
@@ -409,8 +409,8 @@ describe('ReaderOptionsSheetComponent', () => {
   });
 
   it('double page on a narrow portrait screen keeps the chip checked and explains the single-page render inline (1.11.0)', () => {
-    const { el, checked } = create(makeHost({ view: 'spread', viewPref: 'spread', cover: true, narrow: true }));
-    expect(checked('reader-options-layout')[0].textContent).toContain('Double, cover alone');
+    const { el, checked } = create(makeHost({ view: 'spread', viewPref: 'spread', shifted: true, narrow: true }));
+    expect(checked('reader-options-layout')[0].textContent).toContain('Double, shifted');
     expect(el.querySelector('.note')?.textContent).toContain('one page at a time');
     // No note when the screen is not narrow-portrait, or the layout is not double page.
     expect(create(makeHost({ view: 'spread', viewPref: 'spread', narrow: false })).el.querySelector('.note')).toBeNull();
