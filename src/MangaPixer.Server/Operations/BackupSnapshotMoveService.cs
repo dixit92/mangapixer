@@ -499,8 +499,6 @@ public sealed class BackupSnapshotMoveService
         int moved, issues, pruned;
         lock (_gate)
         {
-            _jobState = cancelled ? BackupSnapshotMoveStates.Cancelled : BackupSnapshotMoveStates.Completed;
-            _finishedUtc = _time.GetUtcNow();
             moved = _movedCount;
             issues = _issues.Count;
             pruned = _prunedCount;
@@ -514,7 +512,15 @@ public sealed class BackupSnapshotMoveService
                 "Backup snapshot move finished with issues: {Moved} moved, {Issues} kept in the previous location, cancelled {Cancelled}",
                 moved, issues, cancelled);
 
+        // Audit before the state leaves "running", so a caller that sees the
+        // final state also sees the audit row.
         await AuditAsync(issues == 0 && !cancelled, actor);
+
+        lock (_gate)
+        {
+            _jobState = cancelled ? BackupSnapshotMoveStates.Cancelled : BackupSnapshotMoveStates.Completed;
+            _finishedUtc = _time.GetUtcNow();
+        }
     }
 
     private async Task ApplyRetentionAsync(string destination, CancellationToken ct)
