@@ -2541,10 +2541,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   }
 
   /**
-   * Enter double-page view with a chosen pairing offset. `offset` true keeps the
-   * cover (page 0) standalone then pairs 1-2, 3-4…; false pairs from 0-1, 2-3….
-   * Changing the offset re-derives spreads() (which reads coverIsStandalone), so
-   * the current screen re-pairs in place without a reload.
+   * Enter double-page view with a chosen DEVICE cover offset. `offset` true keeps
+   * the cover (page 0) standalone then pairs 1-2, 3-4…; false pairs from 0-1, 2-3….
+   * Since 1.23.0 this is only the fallback for an archive with no saved layout (the
+   * menu goes through `chooseSpread`); spreads() re-derives in place either way.
    */
   setSpread(offset: boolean): void {
     this.coverIsStandalone.set(offset);
@@ -2624,8 +2624,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     }
     this.applySpreadStarts(shift.starts);
     // Show the re-paired spread from its first page. The entries already on screen
-    // keep their <img> (tracked by entry key), so no loading spinner is raised.
-    this.currentPage.set(shift.anchor);
+    // keep their <img> (tracked by entry key), so no loading spinner is raised. On a
+    // narrow portrait screen (double page chosen, single pages shown) the page being
+    // read stays put; the new pairing shows once double page returns.
+    if (this.effectiveView() === 'spread') this.currentPage.set(shift.anchor);
   }
 
   /**
