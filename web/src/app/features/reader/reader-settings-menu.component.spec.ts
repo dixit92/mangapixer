@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { signal } from '@angular/core';
+import { WritableSignal, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatBottomSheetRef, MAT_BOTTOM_SHEET_DATA } from '@angular/material/bottom-sheet';
@@ -163,14 +163,33 @@ describe('ReaderSettingsMenuComponent', () => {
         expect(localStorage.getItem(ReaderPreferencesService.EnhanceQualityKey)).toBe('max');
       });
 
-      it('hints what each choice costs, and that the vertical view always uses Balanced', () => {
-        const { fixture, c, prefs } = create();
+      it('hints what each choice costs', () => {
+        const { c, prefs } = create();
         expect(c.qualityHint()).toBe('Lighter on GPU memory and battery');
         prefs.setEnhanceQuality('max');
         expect(c.qualityHint()).toContain('more GPU memory and battery');
+      });
+
+      it('is hidden in the vertical view (always Balanced there); the stored choice is untouched', () => {
+        const { fixture, c, prefs } = create();
+        c.support.support.set('ready');
+        prefs.setEnhanceQuality('max');
         fixture.componentRef.setInput('view', 'webtoon');
         fixture.detectChanges();
-        expect(c.qualityHint()).toBe('Vertical view always uses Balanced');
+        expect(c.showEnhanceQuality()).toBe(false);
+        const panel = openRendering(fixture).panel;
+        expect(qualityItems(panel)).toEqual([]);
+        expect(panel.querySelector('[role="group"][aria-label="Enhance quality"]')).toBeNull();
+        expect(panel.textContent).not.toContain('Enhance quality');
+        expect(panel.textContent).not.toContain('Max quality');
+        // Rendering and Page quality are still offered in vertical.
+        expect(panel.querySelector('[role="group"][aria-label="Rendering"]')).not.toBeNull();
+        expect(panel.querySelector('[role="group"][aria-label="Page quality"]')).not.toBeNull();
+        expect(prefs.enhanceQuality()).toBe('max');
+        // Back in a paged view the group returns (with the stored choice).
+        fixture.componentRef.setInput('view', 'spread');
+        fixture.detectChanges();
+        expect(c.showEnhanceQuality()).toBe(true);
       });
     });
 
@@ -571,10 +590,22 @@ describe('ReaderOptionsSheetComponent', () => {
       expect(checked('reader-options-enhance-quality')[0].textContent).toContain('Max quality');
     });
 
-    it('the Enhance quality hint says the vertical view always uses Balanced', () => {
-      const { c } = create(makeHost({ view: 'webtoon' }));
-      TestBed.inject(ReaderPreferencesService).setEnhanceQuality('max');
-      expect(c.qualityHint()).toBe('Vertical view always uses Balanced');
+    it('hides the Enhance quality group in the vertical view and shows it again in paged', () => {
+      const { fixture, c, el, host, chips, checked } = create(makeHost({ view: 'webtoon' }));
+      const prefs = TestBed.inject(ReaderPreferencesService);
+      c.support.support.set('ready');
+      prefs.setEnhanceQuality('max');
+      fixture.detectChanges();
+      expect(el.querySelector('#reader-options-enhance-quality')).toBeNull();
+      expect(el.querySelector('[aria-labelledby="reader-options-enhance-quality"]')).toBeNull();
+      expect(el.textContent).not.toContain('Max quality');
+      expect(chips('reader-options-rendering').length).toBe(2);
+      expect(chips('reader-options-quality').length).toBeGreaterThan(0);
+      expect(prefs.enhanceQuality()).toBe('max');
+      (host.view as WritableSignal<ReaderView>).set('paged');
+      fixture.detectChanges();
+      expect(chips('reader-options-enhance-quality').length).toBe(2);
+      expect(checked('reader-options-enhance-quality')[0].textContent).toContain('Max quality');
     });
   });
 
