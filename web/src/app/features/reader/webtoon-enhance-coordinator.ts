@@ -190,7 +190,13 @@ export class WebtoonEnhanceCoordinator {
   /** The img fired `load`: first decode, or a new `src` (Page quality switch). */
   loaded(img: HTMLImageElement): void {
     const page = this.pages.get(img);
-    if (!page || !this.active || !page.near) return;
+    if (!page || !this.active) return;
+    if (!page.near) {
+      // A page settling above the near ones can move them without resizing them
+      // (a manifest page with no reserved aspect ratio): re-place the containers.
+      this.scheduleLayout();
+      return;
+    }
     this.buildPage(page);
     this.schedulePump();
   }
@@ -404,8 +410,10 @@ export class WebtoonEnhanceCoordinator {
   private acquire(band: BandState): PoolEntry | null {
     const own = this.ownedEntry(band);
     if (own) return own;
+    const limit = this.poolLimit();
+    this.trimPool(limit);
     let entry = this.pool.find((e) => e.state === 'free') ?? null;
-    if (!entry && this.pool.length < this.poolLimit()) {
+    if (!entry && this.pool.length < limit) {
       entry = { canvas: this.createCanvas(), state: 'free', page: null, index: -1, generation: -1, rendered: false, lastVisible: 0 };
       this.pool.push(entry);
     }
@@ -424,6 +432,17 @@ export class WebtoonEnhanceCoordinator {
     entry.state = 'live';
     entry.canvas.style.display = 'none';
     return entry;
+  }
+
+  /** The bound shrank (wider slider, rotation): drop free, then least recently visible, canvases above it. */
+  private trimPool(limit: number): void {
+    while (this.pool.length > limit) {
+      const victim = this.pool.find((e) => e.state === 'free')
+        ?? this.pool.filter((e) => e.state === 'recyclable').sort((a, b) => a.lastVisible - b.lastVisible)[0];
+      if (!victim) return; // everything left is live
+      this.releaseEntry(victim);
+      this.pool = this.pool.filter((e) => e !== victim);
+    }
   }
 
   private createCanvas(): HTMLCanvasElement {
@@ -446,8 +465,12 @@ export class WebtoonEnhanceCoordinator {
     // Later bands paint over earlier ones where the seam rows overlap.
     c.style.zIndex = String(plan.index);
     if (c.parentElement !== page.container) page.container.appendChild(c);
+    if (c.style.display === 'block') return;
     c.style.display = 'block';
-    c.style.opacity = '1';
+    // Fade in from the next frame (a same-frame opacity change would not animate).
+    if (c.style.transition === 'none' || typeof requestAnimationFrame !== 'function') { c.style.opacity = '1'; return; }
+    c.style.opacity = '0';
+    requestAnimationFrame(() => { if (c.style.display === 'block') c.style.opacity = '1'; });
   }
 
   private makeRecyclable(entry: PoolEntry, hide: boolean, now = performance.now()): void {
@@ -621,9 +644,11 @@ export class WebtoonEnhanceCoordinator {
    */
   private layout(): void {
     if (!this.active) return;
-    this.pausedUntil = Math.max(this.pausedUntil, performance.now() + resizeDebounceMs);
     const near = [...this.pages.values()].filter((p) => p.near);
     const boxes = near.map((p) => readGeometry(p.img));
+    if (near.some((p, i) => !sameGeometry(p.geometry, boxes[i]))) {
+      this.pausedUntil = Math.max(this.pausedUntil, performance.now() + resizeDebounceMs);
+    }
     near.forEach((page, i) => {
       page.geometry = boxes[i];
       const gate = page.nativeWidth > 0 && webtoonEnhanceGate(boxes[i].width, devicePixelRatioOr1(), page.nativeWidth);
@@ -684,6 +709,10 @@ function pct(rows: number, total: number): string {
 
 function readGeometry(img: HTMLImageElement): Geometry {
   return { left: img.offsetLeft, top: img.offsetTop, width: img.offsetWidth, height: img.offsetHeight };
+}
+
+function sameGeometry(a: Geometry | null, b: Geometry): boolean {
+  return !!a && a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height;
 }
 
 function applyGeometry(el: HTMLElement, g: Geometry): void {

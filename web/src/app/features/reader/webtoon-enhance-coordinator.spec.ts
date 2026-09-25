@@ -413,6 +413,48 @@ describe('WebtoonEnhanceCoordinator', () => {
     expect(canvases().length).toBe(0);
   });
 
+  it('an enhanced band fades in from the next frame', async () => {
+    c.setEnabled(true);
+    await showBands(0, [0]);
+    pending.shift()!.resolve(ok());
+    await flush();
+    const canvas = canvases()[0];
+    expect(canvas.style.display).toBe('block');
+    expect(canvas.style.opacity).toBe('0');
+    expect(canvas.style.transition).toContain('opacity');
+    await flush(16);
+    expect(canvas.style.opacity).toBe('1');
+  });
+
+  it('a page settling ABOVE the near ones re-places their containers without a render', async () => {
+    c.setEnabled(true);
+    pageIO().fire([imgs[1]], true); // only page 1 is near: its container is the layer's first child
+    bandIO().fire([sentinelsOf(0)[0]], true);
+    await flush();
+    await resolveNext();
+    const container = scroller.querySelector('.mp-enhance-layer')!.children[0] as HTMLElement;
+    expect(container.style.top).toBe('1600px');
+    define(imgs[1], { offsetTop: 1700 }); // page 0 (not near) finished loading 100 px taller
+    c.loaded(imgs[0]);
+    await flush(16);
+    expect(container.style.top).toBe('1700px');
+    expect(renderer.renderBand).toHaveBeenCalledTimes(1);
+  });
+
+  it('a smaller pool bound (wider slider) trims surplus canvases on the next band', async () => {
+    c.setEnabled(true);
+    pageIO().fire([imgs[0]], true);
+    for (let b = 0; b < 3; b++) { bandIO().fire([sentinelsOf(0)[b]], true); await flush(); await resolveNext(); }
+    for (let b = 0; b < 3; b++) bandIO().fire([sentinelsOf(0)[b]], false);
+    expect(c.canvasCount).toBe(3);
+    define(imgs[0], { offsetWidth: 800, offsetHeight: 3200 }); // band 1024 CSS px: bound 2
+    FakeRO.all[0].fire();
+    await flush(16);
+    bandIO().fire([sentinelsOf(0)[3]], true);
+    await flush(resizeDebounceMs + 5);
+    expect(c.canvasCount).toBe(2);
+  });
+
   it('a new src (Page quality switch) invalidates the page\'s canvases: the band renders again', async () => {
     c.setEnabled(true);
     await showBands(0, [0]);
