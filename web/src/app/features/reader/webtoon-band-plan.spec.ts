@@ -160,6 +160,7 @@ describe('estimateBytes reproduces the design tables', () => {
     ['Android DPR 3', 915, 412, 11, [133, 187], [183, 237]],
     ['iPad Air 13" M4 portrait', 1366, 1024, 7, [113, 148], [163, 197]],
     ['iPad Air 13" M4 landscape', 1024, 1366, 5, [103, 128], [153, 178]],
+    ['iPad Air 13" M4 portrait, 70% slider', 1366, 716.8, 9, [123, 167], [173, 217]],
   ] as const)('%s', (_label, vh, cssW, bands, m, vl) => {
     const em = estimateBytes({ nativeWidth: 800, bandRows: 384, chain: 'm', viewportCssHeight: vh, cssWidth: cssW });
     const ev = estimateBytes({ nativeWidth: 800, bandRows: 384, chain: 'vl', viewportCssHeight: vh, cssWidth: cssW });
