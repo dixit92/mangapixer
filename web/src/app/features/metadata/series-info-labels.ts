@@ -92,7 +92,7 @@ export function metaLine(info: SeriesInfoDto): string {
   const status = info.originStatus ? STATUS_LABELS[info.originStatus] : '';
   if (status && info.originVolumes) parts.push(`${status}, ${info.originVolumes} vol${info.originVolumes === 1 ? '' : 's'}`);
   else if (status) parts.push(status);
-  else if (info.originVolumes) parts.push(`${info.originVolumes} vols`);
+  else if (info.originVolumes) parts.push(`${info.originVolumes} vol${info.originVolumes === 1 ? '' : 's'}`);
   if (info.webtoon === true) parts.push('Webtoon');
   return parts.join(' · ');
 }
