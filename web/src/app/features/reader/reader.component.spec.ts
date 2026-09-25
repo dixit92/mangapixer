@@ -16,7 +16,10 @@ import { ReaderOptionsSheetComponent } from './reader-settings-menu.component';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import { WebtoonNavPreferencesService } from './webtoon-nav.service';
-import { UpscaleSupportService } from './upscale.directive';
+import { UpscaleDirective, UpscaleSupportService } from './upscale.directive';
+import { WebtoonEnhanceHostDirective, WebtoonUpscaleDirective } from './webtoon-upscale.directive';
+import { WebtoonEnhanceCoordinator } from './webtoon-enhance-coordinator';
+import { By } from '@angular/platform-browser';
 import { ManifestPageEntry, CatalogNodeDto, ItemReadiness } from '../../core/api/api-types';
 
 function makePages(n: number): ManifestPageEntry[] {
@@ -532,6 +535,64 @@ describe('ReaderComponent controls rendering', () => {
     c.setFitMode('original');
     fixture.detectChanges();
     expect(img().classList.contains('original')).toBe(true);
+  });
+});
+
+/**
+ * 1.24.0 webtoon Enhance wiring, through the real reader template: the webtoon
+ * scroller hosts the coordinator (`WebtoonEnhanceHostDirective`) and every strip
+ * img registers with it (`WebtoonUpscaleDirective`); the host input is the single
+ * Rendering preference (`upscaleActive()`), and the paged-only `UpscaleDirective`
+ * never sits on a webtoon img.
+ */
+describe('ReaderComponent webtoon Enhance wiring (1.24.0)', () => {
+  function renderView(view: 'webtoon' | 'paged') {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    localStorage.clear();
+    const fixture = TestBed.createComponent(ReaderComponent);
+    fixture.detectChanges(); // ngOnInit
+    const c = fixture.componentInstance;
+    c.pages.set(makePages(4));
+    c.view.set(view);
+    c.phase.set('ready');
+    fixture.detectChanges();
+    return { fixture, c };
+  }
+
+  it('the webtoon scroller hosts the coordinator and every strip page carries the img directive', () => {
+    const { fixture } = renderView('webtoon');
+    const host = fixture.debugElement.query(By.directive(WebtoonEnhanceHostDirective));
+    expect(host).toBeTruthy();
+    expect((host.nativeElement as HTMLElement).classList.contains('webtoon')).toBe(true);
+    const pages = fixture.debugElement.queryAll(By.css('.webtoon-page'));
+    expect(pages.length).toBe(4);
+    const shared = host.injector.get(WebtoonEnhanceCoordinator);
+    for (const p of pages) {
+      expect(p.injector.get(WebtoonUpscaleDirective, null)).toBeTruthy();
+      expect(p.injector.get(WebtoonEnhanceCoordinator)).toBe(shared);
+      expect(p.injector.get(UpscaleDirective, null)).toBeNull(); // paged directive stays paged-only
+    }
+  });
+
+  it('the host input follows the Rendering preference (upscaleActive)', () => {
+    const { fixture, c } = renderView('webtoon');
+    const dir = () => fixture.debugElement.query(By.directive(WebtoonEnhanceHostDirective)).injector.get(WebtoonEnhanceHostDirective);
+    expect(dir().appWebtoonEnhanceHost()).toBe(false);
+    c.prefs.setUpscaler('enhance');
+    fixture.detectChanges();
+    expect(c.upscaleActive()).toBe(true);
+    expect(dir().appWebtoonEnhanceHost()).toBe(true);
+  });
+
+  it('switching to paged tears the webtoon host down (coordinator destroyed) and the paged directive returns', () => {
+    const { fixture, c } = renderView('webtoon');
+    const coordinator = fixture.debugElement.query(By.directive(WebtoonEnhanceHostDirective)).injector.get(WebtoonEnhanceCoordinator);
+    const destroy = vi.spyOn(coordinator, 'destroy');
+    c.view.set('paged');
+    fixture.detectChanges();
+    expect(destroy).toHaveBeenCalledTimes(1);
+    expect(fixture.debugElement.query(By.directive(WebtoonEnhanceHostDirective))).toBeNull();
+    expect(fixture.debugElement.query(By.directive(UpscaleDirective))).toBeTruthy();
   });
 });
 
@@ -2332,7 +2393,8 @@ describe('ReaderComponent onKeyDown case-insensitive single-letter shortcuts', (
  * `ReaderPreferencesService.setUpscaler`) so persistence never diverges from a
  * mouse/touch pick. 's' is the odd one out: it must keep working in webtoon
  * (the Downscale filter sizes every page request, not just paged/spread), so
- * onKeyDown handles it above the webtoon early-return, unlike 'd'/'e'.
+ * onKeyDown handles it above the webtoon early-return, unlike 'd'. Since 1.24.0
+ * 'e' is handled there too (webtoon Enhance).
  */
 describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filter / rendering)', () => {
   function create(view: 'paged' | 'spread' | 'webtoon' = 'paged') {
@@ -2404,9 +2466,18 @@ describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filt
     expect(c.prefs.upscaler()).toBe('smooth');
   });
 
-  it("'e' does nothing in webtoon even with WebGPU ready (Enhance is paged/spread-only)", () => {
+  it("'e' toggles Rendering in webtoon too (1.24.0 webtoon Enhance), above the native-scroll guard", () => {
     const c = create('webtoon');
     TestBed.inject(UpscaleSupportService).support.set('ready');
+    c.onKeyDown(press('e'));
+    expect(c.prefs.upscaler()).toBe('enhance');
+    c.onKeyDown(press('E'));
+    expect(c.prefs.upscaler()).toBe('smooth');
+  });
+
+  it("'e' in webtoon still never enables Enhance without WebGPU", () => {
+    const c = create('webtoon');
+    TestBed.inject(UpscaleSupportService).support.set('unavailable');
     c.onKeyDown(press('e'));
     expect(c.prefs.upscaler()).toBe('smooth');
   });

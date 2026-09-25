@@ -26,6 +26,7 @@ import { BookmarksPanelComponent, BookmarksPanelHost } from './bookmarks-panel.c
 import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode, BookmarkDto } from '../../core/api/api-types';
 import { targetMaxDim, withMaxDim, VariantFitMode } from './page-variant';
 import { UpscaleDirective, UpscaleSupportService } from './upscale.directive';
+import { WebtoonEnhanceHostDirective, WebtoonUpscaleDirective } from './webtoon-upscale.directive';
 import {
   WebtoonNavPreferencesService, webtoonTapZone, webtoonScrollTarget, prefersReducedMotion,
 } from './webtoon-nav.service';
@@ -133,6 +134,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     MatSnackBarModule,
     ReaderSettingsMenuComponent,
     UpscaleDirective,
+    WebtoonEnhanceHostDirective,
+    WebtoonUpscaleDirective,
     StarToggleComponent,
   ],
   template: `
@@ -312,13 +315,16 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
              Keyboard (1.23.0 a11y): the scroller is focusable (tabindex 0, never
              focused programmatically) so arrow / Page keys scroll it natively, and
              Enter on it is the keyboard twin of the centre tap (show / hide the
-             controls). Tap and scroll behaviour are unchanged. -->
+             controls). Tap and scroll behaviour are unchanged.
+             Enhance (1.24.0): the host directive lays banded Anime4K canvases
+             over the strip (webtoon-enhance-coordinator.ts); the imgs register. -->
         <div class="reader-viewport webtoon" #scroller (scroll)="onWebtoonScroll()"
+             [appWebtoonEnhanceHost]="upscaleActive()"
              [style.touch-action]="webtoonTouchAction()" tabindex="0"
              (pointerdown)="onReaderPointerDown($event)" (click)="onWebtoonTap($event)"
              (keydown.enter)="onWebtoonEnter($event)">
           @for (entry of pages(); track entry.entryKey) {
-            <img class="webtoon-page" [src]="pageUrlFor(entry)" loading="lazy"
+            <img class="webtoon-page" appWebtoonUpscale [src]="pageUrlFor(entry)" loading="lazy"
                  [style.width.%]="webtoonWidthPct()"
                  [style.aspect-ratio]="aspectRatioFor(entry)"
                  [attr.data-index]="$index" alt="Page {{ $index + 1 }}" />
@@ -501,8 +507,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                     screen shows one page at a time.</li>
                 }
                 <li><kbd>D</kbd> single / double page · <kbd>O</kbd> shift the double-page pairing
-                  from this spread (saved for this archive, for everyone) · <kbd>E</kbd> Rendering:
-                  Smooth / Enhance (needs WebGPU)</li>
+                  from this spread (saved for this archive, for everyone)</li>
               } @else if (webtoonNav.tapZonesEnabled()) {
                 <li>Scroll freely, or <b>tap</b> the lower part of the page to move forward a screen
                   ({{ webtoonNav.tapStep() }}%), the upper part to go back, the centre to show / hide
@@ -514,7 +519,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 where you land{{ direction() === 'rtl' ? '. It runs right to left, like the pages' : '' }}.
                 @if (isFullscreen()) { Tap the centre to bring it back when it is hidden. }</li>
               <li><kbd>M</kbd> show / hide the controls · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> exit ·
-                <kbd>?</kbd> this help · <kbd>S</kbd> cycle Downscale filter</li>
+                <kbd>?</kbd> this help · <kbd>S</kbd> cycle Downscale filter · <kbd>E</kbd> Rendering:
+                Smooth / Enhance (needs WebGPU)</li>
               @if (useInPageImmersive) {
                 <li><b>Fullscreen</b> goes immersive here (hides the reader's own bars) instead of
                   the browser's fullscreen - on iPhone/iPad, and in this app installed to the home
@@ -1098,11 +1104,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.view() === 'spread' && this.narrowPortrait() ? 'paged' : this.view());
 
   /**
-   * Is the GPU line-art upscaler on for the pages currently rendered? The
-   * preference is device-wide, but the `UpscaleDirective` only sits on the
-   * paged / double-spread `<img>`s (webtoon is out of scope for 1.19.0), so this
-   * is simply the preference — the webtoon template never reads it. The directive
-   * itself is a no-op without WebGPU and when the page is not being upscaled.
+   * Is the GPU line-art upscaler on for the pages currently rendered? Simply the
+   * device-wide preference: the paged / double-spread `<img>`s read it through
+   * `UpscaleDirective`, the webtoon scroller through `WebtoonEnhanceHostDirective`
+   * (1.24.0). Both are no-ops without WebGPU and when a page is not upscaled.
    */
   readonly upscaleActive = computed<boolean>(() => this.prefs.upscaler() === 'enhance');
 
@@ -1511,6 +1516,20 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   onKeyDown(event: KeyboardEvent): void {
     const target = event.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+    // A key an open overlay (Reading mode / Image fit / settings MatMenu, the phone
+    // options bottom sheet) already consumed must not ALSO act here: MatMenu and
+    // MatBottomSheet preventDefault() Escape (and MatMenu Up/Down/Home/End) before
+    // it bubbles to window, but menuOpen() is already reset by then, so without
+    // this the Escape that closes a menu also left the reader. Left/Right and
+    // typeahead letters are NOT prevented by MatMenu, so any key whose target sits
+    // inside an overlay pane is ignored too (no page turn from inside a menu).
+    if (event.defaultPrevented) return;
+    if (typeof target.closest === 'function' && target.closest('.cdk-overlay-container')) return;
+    // And while a menu / sheet is open but focus has not moved into it yet (a key
+    // pressed right as it opens still targets the trigger): menuOpen() is set
+    // synchronously on open, so it closes that gap (it is only unusable for the
+    // closing Escape, which is handled by defaultPrevented above).
+    if (this.menuOpen()) return;
     if (this.phase() !== 'ready') return;
     // Single-letter shortcuts are case-folded so Shift/CapsLock (event.key 'M'/'F')
     // still match the uppercase <kbd> the Help overlay shows; multi-char key names
@@ -1523,6 +1542,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // pageUrlFor), unlike page-mode/rendering below, so it must act before the
     // webtoon early-return, same as 'm'.
     if (key === 's') { this.cycleDownscaleFilter(); return; }
+    // Rendering applies to webtoon too since 1.24.0 (banded Enhance), so like 's'
+    // it acts before the webtoon early-return.
+    if (key === 'e') { this.toggleRendering(); return; }
     if (this.view() === 'webtoon') return; // native scroll drives webtoon
 
     switch (key) {
@@ -1534,7 +1556,6 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       case 'Escape': this.isFullscreen() ? this.toggleFullscreen() : this.goBack(); break;
       case 'd': this.toggleDoublePage(); break;
       case 'o': this.toggleSpreadShift(); break;
-      case 'e': this.toggleRendering(); break;
     }
   }
 
@@ -1573,8 +1594,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   /**
    * 'e': toggles Rendering between Smooth and Enhance (Anime4K), via the same
    * `ReaderPreferencesService.setUpscaler` the menu uses. Guarded exactly like
-   * `ReaderSettingsMenuComponent.enhanceDisabled` (WebGPU not ready) - webtoon is
-   * already excluded above this point in onKeyDown, so it need not be rechecked.
+   * `ReaderSettingsMenuComponent.enhanceDisabled` (WebGPU not ready). Works in
+   * every view, webtoon included (1.24.0).
    */
   private toggleRendering(): void {
     if (this.upscaleSupport.support() !== 'ready') return;
