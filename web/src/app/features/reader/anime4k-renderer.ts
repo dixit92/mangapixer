@@ -13,12 +13,13 @@
  * Angular build's generated `3rdpartylicenses.txt` like every other npm
  * dependency — no vendored source, so `THIRD-PARTY-NOTICES.md` is untouched.
  *
- * Preset: `ModeA` - Anime4K's "Restore + Upscale (CNN)" chain, which in
- * `anime4k-webgpu` 1.0.0 is the HEAVY *VL* chain, not the M (medium) one
- * (verified in the package's `ModeA` constructor): `ClampHighlights` ->
- * `CNNVL` restore at native size -> `CNNx2VL` (when the target is > 1.2x
- * native) -> then, by scale `s`, a `Downscale` to the target box (1.2 < s < 2),
- * or a `Downscale` to half the target followed by `CNNx2M` (2.4 < s < 4), or a
+ * Chain (1.24.0): `anime4k-chains.ts` builds the `ModeA` shape with either the
+ * light M family (`ClampHighlights` -> `CNNM` -> `CNNx2M`, the DEFAULT) or the
+ * package's own `ModeA`, which in `anime4k-webgpu` 1.0.0 is the HEAVY *VL* chain
+ * (`CNNVL` -> `CNNx2VL`; the paged "Max quality" choice). Both follow `ModeA`'s
+ * geometry: restore at native size -> x2 (when the target is > 1.2x native) ->
+ * then, by scale `s`, a `Downscale` to the target box (1.2 < s < 2), or a
+ * `Downscale` to half the target followed by `CNNx2M` (2.4 < s < 4), or a
  * further `CNNx2M` (s >= 4). For 2 <= s <= 2.4 the chain ends at 2x native. The
  * output is therefore close to, but not always exactly, the target box; the
  * blit below samples it linearly onto the canvas at display resolution either
@@ -26,19 +27,19 @@
  * pipeline, which is why every one of them is tracked and destroyed (see
  * `gpu-device.ts` and `RenderState` below).
  *
- * Scope: paged / double-spread pages only. The webtoon (continuous scroll) view
- * is out of scope - it can have dozens of simultaneously-live images, and one
- * GPU pipeline per visible strip page is a very different resource problem
- * from "the one or two pages on screen".
+ * Scope: paged / double-spread pages. The webtoon (continuous scroll) view has
+ * its own banded renderer, `anime4k-tile-renderer.ts`, because one pipeline per
+ * visible strip page of its own size is a very different resource problem from
+ * "the one or two pages on screen". Both share the device (`gpu-device.ts`).
  *
  * Everything is best-effort: every entry point resolves to a boolean and never
  * throws, because the fallback ("let the browser paint the <img> as it always
  * did") is always correct.
  */
 
-import { ModeA } from 'anime4k-webgpu';
-
+import { buildPagedChain } from './anime4k-chains';
 import { TrackingDevice, acquireDevice, onDeviceLost, trackingDevice } from './gpu-device';
+import type { EnhanceChain } from './webtoon-band-plan';
 
 /**
  * Blit shader: draws the pipeline's output texture over the canvas with a single
@@ -87,6 +88,8 @@ export interface UpscaleRequest {
   /** Target size in DEVICE pixels (the img's CSS box times devicePixelRatio). */
   readonly targetWidth: number;
   readonly targetHeight: number;
+  /** Anime4K chain family: `m` (default, light) or `vl` (paged "Max quality"). */
+  readonly chain?: EnhanceChain;
 }
 
 /** Per-device objects: cheap, no GPU memory to destroy, rebuilt on a new device. */
@@ -102,7 +105,7 @@ interface DeviceState {
  * long chain of intermediate textures, so we keep exactly ONE alive and reuse it
  * while the source and target dimensions are unchanged - which, within a
  * chapter, is the normal case (pages of a scan share a size). Everything it
- * allocated (the input texture AND every texture/buffer `ModeA` created) went
+ * allocated (the input texture AND every texture/buffer the chain created) went
  * through `resources`, so a dimension change, `releaseUpscaler()` or a lost
  * device destroys all of it and GPU memory does not grow with the page count.
  */
@@ -184,7 +187,8 @@ async function renderNow(req: UpscaleRequest): Promise<boolean> {
     }
     const shared = deviceState;
 
-    const key = `${nativeWidth}x${nativeHeight}->${targetWidth}x${targetHeight}`;
+    const chain: EnhanceChain = req.chain ?? 'm';
+    const key = `${chain}:${nativeWidth}x${nativeHeight}->${targetWidth}x${targetHeight}`;
     if (state?.key !== key) {
       disposeCached();
       const resources = trackingDevice(device);
@@ -195,7 +199,7 @@ async function renderNow(req: UpscaleRequest): Promise<boolean> {
           format: 'rgba8unorm',
           usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
         });
-        const pipeline = new ModeA({
+        const pipeline = buildPagedChain(chain, {
           device: resources.device,
           inputTexture,
           nativeDimensions: { width: nativeWidth, height: nativeHeight },

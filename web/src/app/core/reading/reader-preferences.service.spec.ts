@@ -84,6 +84,27 @@ describe('ReaderPreferencesService', () => {
     });
   });
 
+  /** 1.24.0 Enhance quality: M ("Balanced") by default, VL as the opt-in "Max quality". */
+  describe('enhance quality', () => {
+    it('defaults to balanced (the light M chain)', () => {
+      expect(new ReaderPreferencesService().enhanceQuality()).toBe('balanced');
+    });
+
+    it('persists and reloads the choice', () => {
+      const a = new ReaderPreferencesService();
+      a.setEnhanceQuality('max');
+      expect(localStorage.getItem(ReaderPreferencesService.EnhanceQualityKey)).toBe('max');
+      expect(new ReaderPreferencesService().enhanceQuality()).toBe('max');
+      a.setEnhanceQuality('balanced');
+      expect(new ReaderPreferencesService().enhanceQuality()).toBe('balanced');
+    });
+
+    it('falls back to balanced for an unrecognised stored value', () => {
+      localStorage.setItem(ReaderPreferencesService.EnhanceQualityKey, 'vl');
+      expect(new ReaderPreferencesService().enhanceQuality()).toBe('balanced');
+    });
+  });
+
   /**
    * 1.20.0 "Downscale filter": which resampling filter the server uses when it
    * downscales a page. Same storage contract as the other 1.19.0 preferences

@@ -1,6 +1,9 @@
 import {
-  Directive, ElementRef, Injectable, NgZone, OnDestroy, effect, inject, input, signal,
+  Directive, ElementRef, Injectable, NgZone, OnDestroy, computed, effect, inject, input, signal,
 } from '@angular/core';
+
+import { EnhanceQuality, ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
+import type { EnhanceChain } from './webtoon-band-plan';
 
 /**
  * Display upscaling ("Rendering: Enhance", 1.19.0).
@@ -27,10 +30,12 @@ import {
  *    underneath is what the reader sees — i.e. exactly today's behaviour.
  *
  * Scope: paged and double-spread pages. The webtoon (vertical scroll) view is
- * deliberately NOT covered: it keeps dozens of images live at once, and every
- * strip page has its own size, so the renderer's single size-keyed pipeline
- * would be rebuilt on almost every page. That needs the banded design of the
- * "Webtoon Enhance" feature, not this directive.
+ * covered by `webtoon-upscale.directive.ts` instead (1.24.0): it keeps dozens of
+ * images live at once and every strip page has its own size, so it renders fixed
+ * bands through its own tile renderer rather than one pipeline per page.
+ *
+ * Chain: the paged views honour the Enhance quality preference - the light M
+ * chain ("Balanced", the default) or the heavy VL chain ("Max quality").
  *
  * GPU memory: the renderer keeps one Anime4K pipeline (hundreds of MB for a
  * large page) alive between pages. This directive is the only thing that knows
@@ -85,6 +90,24 @@ export function hasWebGpu(): boolean {
   }
 }
 
+/** The Anime4K chain the PAGED views run for an Enhance quality choice. */
+export function pagedChainFor(quality: EnhanceQuality): EnhanceChain {
+  return quality === 'max' ? 'vl' : 'm';
+}
+
+/** Rolling window for the median render-time readout. */
+const timingWindow = 15;
+/** Taps on the Rendering status line, within `statsTapWindowMs`, that toggle the timing readout. */
+export const statsTapCount = 5;
+const statsTapWindowMs = 3000;
+
+function median(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
 /** What the settings UI shows about GPU upscaling availability. */
 export type UpscaleSupport = 'checking' | 'ready' | 'unavailable';
 
@@ -97,8 +120,29 @@ export type UpscaleSupport = 'checking' | 'ready' | 'unavailable';
  */
 @Injectable({ providedIn: 'root' })
 export class UpscaleSupportService {
+  static readonly StatsKey = 'mangapixer-reader-gpu-stats';
+
   readonly support = signal<UpscaleSupport>('checking');
   private probed = false;
+
+  /**
+   * Webtoon Enhance paused for this app session after a second GPU reset within
+   * a minute (1.24.0); the plain `<img>`s show and the status line says so.
+   */
+  readonly webtoonPaused = signal(false);
+
+  /**
+   * Device-verification readout (1.24.0), OFF by default: the median ms per paged
+   * page / webtoon band, appended to the status line. Toggled per device by
+   * tapping the Rendering status line `statsTapCount` times; nothing leaves the
+   * device.
+   */
+  readonly statsVisible = signal(this.loadStats());
+  private readonly pageTimes = signal<readonly number[]>([]);
+  private readonly bandTimes = signal<readonly number[]>([]);
+  readonly pageMs = computed(() => median(this.pageTimes()));
+  readonly bandMs = computed(() => median(this.bandTimes()));
+  private taps: number[] = [];
 
   constructor() {
     this.probe();
@@ -106,10 +150,50 @@ export class UpscaleSupportService {
 
   /** A short human-readable status for a tooltip/hint. */
   statusText(): string {
+    let text: string;
     switch (this.support()) {
-      case 'ready': return 'GPU: WebGPU ready';
+      case 'ready': text = 'GPU: WebGPU ready'; break;
       case 'unavailable': return 'GPU: WebGPU unavailable';
       default: return 'GPU: checking WebGPU…';
+    }
+    if (this.webtoonPaused()) text += ' - Enhance paused (GPU reset)';
+    if (this.statsVisible()) {
+      const page = this.pageMs();
+      const band = this.bandMs();
+      if (page !== null) text += ` - ${Math.round(page)} ms/page`;
+      if (band !== null) text += ` - ${Math.round(band)} ms/band`;
+      if (page === null && band === null) text += ' - no renders yet';
+    }
+    return text;
+  }
+
+  /** Record one finished render (paged page or webtoon band) for the median readout. */
+  recordTiming(kind: 'page' | 'band', ms: number): void {
+    if (!Number.isFinite(ms) || ms < 0) return;
+    const target = kind === 'page' ? this.pageTimes : this.bandTimes;
+    target.update((values) => [...values, ms].slice(-timingWindow));
+  }
+
+  /** One tap on the status line; the `statsTapCount`-th tap within 3 s toggles the readout. */
+  tapStats(now = Date.now()): void {
+    this.taps = [...this.taps.filter((t) => now - t < statsTapWindowMs), now];
+    if (this.taps.length < statsTapCount) return;
+    this.taps = [];
+    const on = !this.statsVisible();
+    this.statsVisible.set(on);
+    try {
+      if (on) localStorage.setItem(UpscaleSupportService.StatsKey, '1');
+      else localStorage.removeItem(UpscaleSupportService.StatsKey);
+    } catch {
+      /* storage unavailable - session-only */
+    }
+  }
+
+  private loadStats(): boolean {
+    try {
+      return localStorage.getItem(UpscaleSupportService.StatsKey) === '1';
+    } catch {
+      return false;
     }
   }
 
@@ -140,6 +224,8 @@ export class UpscaleSupportService {
 export class UpscaleDirective implements OnDestroy {
   private readonly host = inject<ElementRef<HTMLImageElement>>(ElementRef);
   private readonly zone = inject(NgZone);
+  private readonly prefs = inject(ReaderPreferencesService);
+  private readonly support = inject(UpscaleSupportService);
 
   /** True when the reader's "Rendering" preference is `enhance`. */
   readonly appUpscale = input(false);
@@ -155,6 +241,7 @@ export class UpscaleDirective implements OnDestroy {
     // React to the preference flipping while a page is on screen.
     effect(() => {
       const on = this.appUpscale();
+      this.prefs.enhanceQuality(); // a Balanced <-> Max quality switch re-renders too
       if (!on) {
         this.hide();
         this.zone.runOutsideAngular(() => relinquishUpscaler(this));
@@ -276,9 +363,12 @@ export class UpscaleDirective implements OnDestroy {
     try {
       renderer = await import('./anime4k-renderer');
       if (this.destroyed || token !== this.token) return;
-      const ok = await renderer.renderUpscaled({ source: img, canvas, targetWidth, targetHeight });
+      const chain = pagedChainFor(this.prefs.enhanceQuality());
+      const started = performance.now();
+      const ok = await renderer.renderUpscaled({ source: img, canvas, targetWidth, targetHeight, chain });
       if (this.destroyed || token !== this.token) return;
       if (!ok) { canvas.style.display = 'none'; return; }
+      this.support.recordTiming('page', performance.now() - started);
       canvas.style.left = `${rect.left}px`;
       canvas.style.top = `${rect.top}px`;
       canvas.style.width = `${rect.width}px`;

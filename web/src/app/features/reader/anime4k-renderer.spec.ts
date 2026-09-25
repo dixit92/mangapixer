@@ -5,6 +5,7 @@ import {
   FakeCanvasContext, FakeGpuDevice, fakeCanvas, fakeImage, installNavigatorGpu, removeNavigatorGpu, stubWebGpuGlobals,
 } from './fake-webgpu.testing';
 import { resetGpuDeviceForTests } from './gpu-device';
+import type { EnhanceChain } from './webtoon-band-plan';
 
 /**
  * GPU memory ownership of the paged Enhance renderer (Phase 0 of the Webtoon
@@ -17,8 +18,10 @@ import { resetGpuDeviceForTests } from './gpu-device';
 describe('anime4k-renderer GPU disposal', () => {
   let devices: FakeGpuDevice[];
 
-  function render(nw: number, nh: number, tw: number, th: number): Promise<boolean> {
-    return renderUpscaled({ source: fakeImage(nw, nh), canvas: fakeCanvas(), targetWidth: tw, targetHeight: th });
+  // These disposal tests predate 1.24.0 and exercise the heavy VL chain (paged
+  // "Max quality"); the M default is covered in its own describe below.
+  function render(nw: number, nh: number, tw: number, th: number, chain: EnhanceChain = 'vl'): Promise<boolean> {
+    return renderUpscaled({ source: fakeImage(nw, nh), canvas: fakeCanvas(), targetWidth: tw, targetHeight: th, chain });
   }
 
   const live = (d: FakeGpuDevice) =>
@@ -168,5 +171,75 @@ describe('anime4k-renderer GPU disposal', () => {
     resetGpuDeviceForTests();
     expect(await render(800, 1200, 1400, 2100)).toBe(false);
     expect(devices.length).toBe(0);
+  });
+});
+
+/**
+ * 1.24.0 owner decision: paged Enhance defaults to the light M chain
+ * (`ClampHighlights` -> `CNNM` -> `CNNx2M`, built by `anime4k-chains.ts`), with
+ * the package's VL `ModeA` kept as the "Max quality" choice. Counts are what the
+ * REAL `anime4k-webgpu` classes allocate against the fake device.
+ */
+describe('anime4k-renderer chain choice (M default, VL max quality)', () => {
+  let devices: FakeGpuDevice[];
+
+  const textureBytes = (d: FakeGpuDevice) =>
+    d.textures.filter((t) => !t.destroyed && t.label !== 'swapchain').reduce((sum, t) => sum + t.width * t.height * 8, 0);
+
+  beforeEach(() => {
+    stubWebGpuGlobals(vi.stubGlobal);
+    vi.stubGlobal('createImageBitmap', () => Promise.resolve({ close: () => undefined }));
+    devices = [];
+    installNavigatorGpu(() => { const d = new FakeGpuDevice(); devices.push(d); return d; });
+    resetGpuDeviceForTests();
+    releaseUpscaler();
+  });
+
+  afterEach(() => {
+    expect(devices.flatMap((d) => d.violations)).toEqual([]);
+    releaseUpscaler();
+    resetGpuDeviceForTests();
+    removeNavigatorGpu();
+    vi.unstubAllGlobals();
+  });
+
+  function render(chain: EnhanceChain | undefined, tw = 1400, th = 2100): Promise<boolean> {
+    return renderUpscaled({ source: fakeImage(800, 1200), canvas: fakeCanvas(), targetWidth: tw, targetHeight: th, chain });
+  }
+
+  it('no chain means M: input + Clamp 3 + CNNM 9 + CNNx2M 10 + Downscale 1 = 24 textures', async () => {
+    expect(await render(undefined)).toBe(true);
+    expect(devices[0].textures.length).toBe(24);
+  });
+
+  it('M allocates well under the VL chain for the same page (the reason it is the default)', async () => {
+    await render('m');
+    const m = textureBytes(devices[0]);
+    releaseUpscaler();
+    await render('vl');
+    const vl = textureBytes(devices[0]);
+    expect(m).toBeGreaterThan(0);
+    expect(m / vl).toBeLessThan(0.7);
+  });
+
+  it('switching chain at the same page size is a key change: every old resource is destroyed once', async () => {
+    await render('m');
+    const [d] = devices;
+    const first = [...d.textures, ...d.buffers];
+    expect(await render('vl')).toBe(true);
+    expect(first.every((r) => r.destroyCalls === 1)).toBe(true);
+    const n = d.textures.length;
+    expect(await render('vl')).toBe(true); // same chain + size: reused
+    expect(d.textures.length).toBe(n);
+  });
+
+  it('M follows ModeA geometry: s 3 adds Downscale-to-half + a second CNNx2M, s 4.5 a second CNNx2M', async () => {
+    await render('m', 2400, 3600); // s = 3
+    // input 1 + Clamp 3 + CNNM 9 + CNNx2M 10 + Downscale 1 + CNNx2M 10
+    expect(devices[0].textures.length).toBe(34);
+    releaseUpscaler();
+    const before = devices[0].textures.length;
+    await render('m', 3600, 5400); // s = 4.5: no Downscale
+    expect(devices[0].textures.length - before).toBe(33);
   });
 });

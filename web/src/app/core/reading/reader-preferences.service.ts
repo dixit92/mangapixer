@@ -47,6 +47,18 @@ export type PageQuality = 'auto' | 'full';
  */
 export type Upscaler = 'smooth' | 'enhance';
 
+/**
+ * Which Anime4K network Enhance runs (1.24.0, owner decision 2026-09-25):
+ *  - `balanced` - the default: the light M chain (`CNNM` + `CNNx2M`). Roughly
+ *    40% less GPU memory and several times less GPU work than `max`, so it suits
+ *    phones and tablets and saves battery.
+ *  - `max` - "Max quality": the heavy VL chain (`CNNVL` + `CNNx2VL`), which is
+ *    what paged Enhance used from 1.19.0 to 1.23.x.
+ * Only the PAGED / double-page views honour `max`; the vertical (webtoon) view
+ * always runs `balanced`, because it keeps many bands alive while scrolling.
+ */
+export type EnhanceQuality = 'balanced' | 'max';
+
 // DownscaleFilter re-exported from downscale-filters.ts (single source of truth)
 export type { DownscaleFilter };
 
@@ -97,6 +109,7 @@ export class ReaderPreferencesService {
   static readonly PageQualityKey = 'mangapixer-reader-page-quality';
   static readonly UpscalerKey = 'mangapixer-reader-upscaler';
   static readonly DownscaleFilterKey = 'mangapixer-reader-downscale-filter';
+  static readonly EnhanceQualityKey = 'mangapixer-reader-enhance-quality';
 
   /** Display-sized page requests are the default: less bandwidth, sharper pages. */
   static readonly DefaultPageQuality: PageQuality = 'auto';
@@ -104,6 +117,8 @@ export class ReaderPreferencesService {
   static readonly DefaultUpscaler: Upscaler = 'smooth';
   /** Mitchell is the new server default: a middle ground between Sharp and Soft. */
   static readonly DefaultDownscaleFilter: DownscaleFilter = 'balanced';
+  /** 1.24.0: the light M chain by default; VL is the opt-in "Max quality". */
+  static readonly DefaultEnhanceQuality: EnhanceQuality = 'balanced';
 
   /** How many pixels to request per page; see `PageQuality`. */
   readonly pageQuality = signal<PageQuality>(this.loadPageQuality());
@@ -113,6 +128,9 @@ export class ReaderPreferencesService {
 
   /** Which resampling filter a sized-down page request asks for; see `DownscaleFilter`. */
   readonly downscaleFilter = signal<DownscaleFilter>(this.loadDownscaleFilter());
+
+  /** Which Anime4K network Enhance runs; see `EnhanceQuality`. */
+  readonly enhanceQuality = signal<EnhanceQuality>(this.loadEnhanceQuality());
 
   setPageQuality(quality: PageQuality): void {
     this.pageQuality.set(quality);
@@ -139,6 +157,25 @@ export class ReaderPreferencesService {
     } catch {
       /* storage unavailable (private mode) — keep the in-memory value */
     }
+  }
+
+  setEnhanceQuality(quality: EnhanceQuality): void {
+    this.enhanceQuality.set(quality);
+    try {
+      localStorage.setItem(ReaderPreferencesService.EnhanceQualityKey, quality);
+    } catch {
+      /* storage unavailable (private mode) — keep the in-memory value */
+    }
+  }
+
+  private loadEnhanceQuality(): EnhanceQuality {
+    try {
+      const raw = localStorage.getItem(ReaderPreferencesService.EnhanceQualityKey);
+      if (raw === 'balanced' || raw === 'max') return raw;
+    } catch {
+      /* storage unavailable — fall through to the default */
+    }
+    return ReaderPreferencesService.DefaultEnhanceQuality;
   }
 
   private loadPageQuality(): PageQuality {
