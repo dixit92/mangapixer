@@ -9,13 +9,14 @@ import { Observable, forkJoin } from 'rxjs';
 
 import { CatalogNodeDto, MetadataPrecedence } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
+import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
 import { PRECEDENCE_LABELS } from './series-info-labels';
 
 /**
  * Browse selection-bar "Series" menu for admins (1.24.0), mirroring the reading-
  * direction action: mark the selected nodes "Don't match" (or clear it), and set /
- * clear the source precedence on the selected FOLDERS. Lane B2 adds "Identify" here
- * for a single selected node.
+ * clear the source precedence on the selected FOLDERS, and (lane B2) "Identify..." when
+ * exactly one node is selected.
  */
 @Component({
   selector: 'app-series-selection-actions',
@@ -29,6 +30,10 @@ import { PRECEDENCE_LABELS } from './series-info-labels';
       <mat-icon>info_outline</mat-icon><span class="lbl">Series</span>
     </button>
     <mat-menu #seriesMenu="matMenu">
+      <button mat-menu-item [disabled]="selectedNodes().length !== 1" (click)="identify()" data-testid="bulk-identify">
+        <mat-icon>travel_explore</mat-icon> Identify…
+      </button>
+      <mat-divider />
       <button mat-menu-item (click)="dontMatch(true)" data-testid="bulk-dont-match">
         <mat-icon>block</mat-icon> Don't match
       </button>
@@ -64,6 +69,7 @@ import { PRECEDENCE_LABELS } from './series-info-labels';
 export class SeriesSelectionActionsComponent {
   private readonly api = inject(MetadataApiService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly identifyDialog = inject(IdentifyDialogService);
 
   /** Every node currently listed. */
   readonly nodes = input.required<CatalogNodeDto[]>();
@@ -78,6 +84,12 @@ export class SeriesSelectionActionsComponent {
 
   readonly selectedNodes = computed(() => this.nodes().filter((n) => this.selected().has(n.id)));
   readonly selectedFolders = computed(() => this.selectedNodes().filter((n) => n.kind === 'Folder'));
+
+  /** Opens the identify dialog for the single selected node (the dialog explains a disabled state). */
+  identify(): void {
+    const nodes = this.selectedNodes();
+    if (nodes.length === 1) void this.identifyDialog.open(nodes[0].id);
+  }
 
   dontMatch(on: boolean): void {
     const nodes = this.selectedNodes();

@@ -6,9 +6,14 @@ import { catchError } from 'rxjs/operators';
 import {
   ApiError,
   FolderMetadataPrecedenceDto,
+  IdentifyContextDto,
+  IdentifyPreviewDto,
+  IdentifyPreviewRequest,
+  IdentifySearchResultDto,
   LinkSeriesRequest,
   MetadataPrecedence,
   MetadataPurgeResultDto,
+  MetadataRefreshResultDto,
   MetadataSettingsDto,
   NodeSeriesLinkChangeDto,
   SeriesInfoDto,
@@ -22,8 +27,10 @@ import {
  * prefix, cookie session (`withCredentials`), the XSRF interceptor adds the header,
  * errors are mapped to `ApiError`.
  *
- * Lane B1 has NO network features: the admin calls here only manage links to records
- * that already exist, precedence, and the two toggles. Lane B2 adds identify calls.
+ * Lane B1's calls manage links, precedence and the two toggles with no network. Lane B2
+ * adds the identify calls: the SERVER makes every provider request (gated, admin-only);
+ * the browser only ever talks to MangaPixer, and candidate images come back through
+ * MangaPixer by short-lived token.
  */
 @Injectable({ providedIn: 'root' })
 export class MetadataApiService {
@@ -77,6 +84,36 @@ export class MetadataApiService {
 
   clearDontMatch(nodeId: string): Observable<NodeSeriesLinkChangeDto> {
     return this.delete<NodeSeriesLinkChangeDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/dont-match`);
+  }
+
+  // --- Admin: identify (lane B2) ---
+
+  /** Availability, suggestions, ComicInfo hint and budget for the identify dialog. No network. */
+  getIdentifyContext(nodeId: string): Observable<IdentifyContextDto> {
+    return this.get<IdentifyContextDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/identify`);
+  }
+
+  /** Sends `query` (exactly what the admin confirmed) to the provider, via the server. */
+  search(nodeId: string, query: string, page = 1): Observable<IdentifySearchResultDto> {
+    return this.post<IdentifySearchResultDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/search`, { query, page });
+  }
+
+  /** A pasted URL / `mu:` shortcode; the server parses it locally and sends only the id. */
+  lookup(nodeId: string, reference: string): Observable<IdentifyPreviewDto> {
+    return this.post<IdentifyPreviewDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/lookup`, { reference });
+  }
+
+  preview(nodeId: string, request: IdentifyPreviewRequest): Observable<IdentifyPreviewDto> {
+    return this.post<IdentifyPreviewDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/preview`, request);
+  }
+
+  refresh(nodeId: string): Observable<MetadataRefreshResultDto> {
+    return this.post<MetadataRefreshResultDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/refresh`, {});
+  }
+
+  /** Same-origin URL of a candidate image (served by MangaPixer; the browser never contacts a provider). */
+  candidateImageUrl(token: string): string {
+    return `${this.baseUrl}/admin/metadata/candidates/${encodeURIComponent(token)}/image`;
   }
 
   // --- Admin: folder precedence ---

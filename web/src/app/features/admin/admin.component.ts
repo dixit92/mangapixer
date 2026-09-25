@@ -32,6 +32,7 @@ import {
 import { libraryPathCopy } from './library-path-copy';
 import { DebugLogCardComponent } from './debug-log-card.component';
 import { UpdateCheckCardComponent } from './update-check-card.component';
+import { MetadataSettingsCardComponent } from './metadata-settings-card/metadata-settings-card.component';
 import { BackupSettingsCardComponent } from './backup-settings-card.component';
 import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
 import { LibraryIconPickerComponent } from './library-icon-picker/library-icon-picker.component';
@@ -53,6 +54,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
     CommonModule,
     DebugLogCardComponent,
     UpdateCheckCardComponent,
+    MetadataSettingsCardComponent,
     AnalyticsCardComponent,
     BackupSettingsCardComponent,
     FormsModule,
@@ -548,6 +550,9 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
 
     <!-- Update Checker (opt-in, off by default) -->
     <app-update-check-card />
+
+    <!-- Series metadata (1.24.0 lane B2): consent-gated web fetch, budget, per-library toggles -->
+    <app-metadata-settings-card />
 
     <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->
     <app-analytics-card />
