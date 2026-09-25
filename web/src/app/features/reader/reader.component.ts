@@ -1525,6 +1525,11 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // inside an overlay pane is ignored too (no page turn from inside a menu).
     if (event.defaultPrevented) return;
     if (typeof target.closest === 'function' && target.closest('.cdk-overlay-container')) return;
+    // And while a menu / sheet is open but focus has not moved into it yet (a key
+    // pressed right as it opens still targets the trigger): menuOpen() is set
+    // synchronously on open, so it closes that gap (it is only unusable for the
+    // closing Escape, which is handled by defaultPrevented above).
+    if (this.menuOpen()) return;
     if (this.phase() !== 'ready') return;
     // Single-letter shortcuts are case-folded so Shift/CapsLock (event.key 'M'/'F')
     // still match the uppercase <kbd> the Help overlay shows; multi-char key names

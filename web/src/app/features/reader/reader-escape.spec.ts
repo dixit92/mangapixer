@@ -158,6 +158,21 @@ describe('ReaderComponent Escape / keys consumed by an open menu (1.24.0)', () =
     expect(goBack).not.toHaveBeenCalled();
   });
 
+  it('a key pressed while a menu is opening (focus still on its trigger) is ignored too', () => {
+    const { reader, goBack } = setup();
+    reader.menuOpen.set(true); // (menuOpened) fires synchronously; focus moves in later
+    const trigger = document.createElement('button');
+    document.body.appendChild(trigger);
+    trigger.dispatchEvent(keydown('ArrowRight', 39));
+    trigger.dispatchEvent(keydown('Escape', 27));
+    expect(reader.currentPage()).toBe(1);
+    expect(goBack).not.toHaveBeenCalled();
+    reader.menuOpen.set(false);
+    trigger.dispatchEvent(keydown('ArrowRight', 39));
+    expect(reader.currentPage()).toBe(2);
+    trigger.remove();
+  });
+
   it('without an overlay, Escape and arrows still work as before', () => {
     const { reader, goBack } = setup();
     document.body.dispatchEvent(keydown('ArrowRight', 39));
