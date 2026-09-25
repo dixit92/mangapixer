@@ -364,6 +364,15 @@ public static class LogEvents
         public const int SettingsChanged = 9022;
         public const int Purged = 9023;
 
-        // 9100-9199 reserved for the network gateway / providers (lane B2).
+        // Network gateway / providers (B2, 9100-9199). Ids, operation, status and
+        // elapsed ms only - never query text, titles, URLs or bodies.
+        public const int GatewayRefused = 9100;
+        public const int ProviderCall = 9101;
+        public const int ProviderCallFailed = 9102;
+        public const int BackoffStarted = 9103;
+        public const int RecordStored = 9104;
+        public const int ImageStored = 9105;
+        public const int ImageRejected = 9106;
+        public const int ImageStoreFailed = 9107;
     }
 }

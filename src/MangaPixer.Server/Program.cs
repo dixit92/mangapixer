@@ -236,13 +236,12 @@ public sealed partial class Program
             builder.Services.AddScoped<RecentChaptersService>();
 
             // Series metadata (1.24.0, lane B1): read-time series-info resolver, admin
-            // settings/link services and the provider registry, which is EMPTY here -
-            // no provider, no HttpClient, no outbound call. The network half (gateway,
-            // MangaUpdates provider, named clients) is lane B2's.
+            // settings/link services and the provider registry.
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.MetadataSettingsService>();
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.MetadataLinkService>();
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.SeriesInfoResolver>();
             builder.Services.AddSingleton<com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MetadataProviderRegistry>();
+            AddMetadataNetwork(builder.Services, dataRoot);
 
             // Operations services
             builder.Services.AddScoped<BackupService>();
@@ -568,6 +567,60 @@ public sealed partial class Program
     /// so the caller keeps the WorkerPoolOptions default. Accepts a plain byte
     /// count (e.g. 268435456) — deployments can compute from MiB/GiB as needed.
     /// </summary>
+    /// <summary>
+    /// The metadata network half (1.24.0, lane B2; network surface approved at
+    /// gate G1b). Exactly two named clients - the MangaUpdates API and its image
+    /// CDN - each behind a <see cref="Features.Metadata.HostAllowlistHandler"/>
+    /// that allows only its own host, on a primary handler that never follows a
+    /// redirect and never keeps cookies; 10 s timeout; generic User-Agent with no
+    /// version, contact or browser-UA fallback. The provider is resolved ONLY by
+    /// <see cref="Features.Metadata.MetadataGateway"/> (config kill switch, global +
+    /// consent, library switch, persisted backoff, daily budget, token buckets).
+    /// Nothing calls it except admin identify actions.
+    /// </summary>
+    private static void AddMetadataNetwork(IServiceCollection services, string dataRoot)
+    {
+        services.AddMemoryCache();
+        services.AddSingleton<Features.Metadata.MetadataRateLimitOptions>();
+        services.AddSingleton<Features.Metadata.MetadataGatewayState>();
+        services.AddScoped<Features.Metadata.MetadataBudget>();
+        services.AddScoped<Features.Metadata.MetadataBackoff>();
+        services.AddScoped<Features.Metadata.MetadataGateway>();
+        services.AddScoped<Features.Metadata.MetadataIdentifyService>();
+        services.AddSingleton<Features.Metadata.Providers.IMetadataProvider, Features.Metadata.Providers.MangaUpdates.MangaUpdatesProvider>();
+
+        // Posters live in the data root, served only through a node's access check.
+        services.AddSingleton(sp => new Features.Metadata.MetadataImageStore(
+            Path.Combine(dataRoot, "metadata-images"),
+            sp.GetService<ILogger<Features.Metadata.MetadataImageStore>>()));
+        services.AddSingleton<Features.Metadata.IMetadataRecordRemovedHandler>(
+            sp => sp.GetRequiredService<Features.Metadata.MetadataImageStore>());
+
+        AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaUpdatesApiClient, Features.Metadata.MetadataHttp.MangaUpdatesApiHost, "application/json");
+        AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaUpdatesImageClient, Features.Metadata.MetadataHttp.MangaUpdatesImageHost, "image/*");
+    }
+
+    private static void AddMetadataClient(IServiceCollection services, string name, string host, string accept)
+    {
+        services.AddHttpClient(name, client =>
+            {
+                client.Timeout = Features.Metadata.MetadataHttp.Timeout;
+                client.DefaultRequestHeaders.UserAgent.ParseAdd(Features.Metadata.MetadataHttp.UserAgent);
+                client.DefaultRequestHeaders.Accept.ParseAdd(accept);
+            })
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false,
+                UseProxy = true,
+                AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate,
+            })
+            .AddHttpMessageHandler(() => new Features.Metadata.HostAllowlistHandler(host))
+            // The factory's default request logging writes full URIs (image URLs);
+            // the gateway logs ids, operation, status and timing instead.
+            .RemoveAllLoggers();
+    }
+
     private static long? ReadByteBudget(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
