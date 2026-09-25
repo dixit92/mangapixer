@@ -131,8 +131,6 @@ public sealed class MetadataSettingsService
     {
         if (request.DailyBudget is { } budget && (budget < 1 || budget > MaxDailyBudget))
             return "invalid_daily_budget";
-        if (request.FetchEnabled == true && request.AcceptedConsentVersion != MetadataConsent.CurrentVersion)
-            return "consent_required";
 
         var row = await _db.AppSettings.FirstOrDefaultAsync(s => s.Id == AppSettingsEntity.SingletonId, ct);
         if (row is null)
@@ -141,21 +139,32 @@ public sealed class MetadataSettingsService
             _db.AppSettings.Add(row);
         }
 
+        // Turning the web switch on needs the CURRENT consent version - unless it is
+        // already on with that consent (a client re-sending its whole state, e.g. to
+        // change the budget, must not be forced to re-consent).
+        var consentGiven = request.AcceptedConsentVersion == MetadataConsent.CurrentVersion;
+        var alreadyConsented = row.MetadataEnabled && row.MetadataConsentVersion == MetadataConsent.CurrentVersion;
+        if (request.FetchEnabled == true && !consentGiven && !alreadyConsented)
+            return "consent_required";
+
         var audits = new List<string>();
         if (request.ShowSeriesInfo is { } show && show == row.MetadataSeriesInfoHidden)
         {
             row.MetadataSeriesInfoHidden = !show;
             audits.Add(show ? AuditActions.MetadataShowEnable : AuditActions.MetadataShowDisable);
         }
-        if (request.FetchEnabled is { } fetch && fetch != row.MetadataEnabled)
+        if (request.FetchEnabled == true && !alreadyConsented)
         {
-            row.MetadataEnabled = fetch;
-            if (fetch)
-            {
-                row.MetadataConsentVersion = MetadataConsent.CurrentVersion;
-                row.MetadataConsentAt = _time.GetUtcNow();
-            }
-            audits.Add(fetch ? AuditActions.MetadataSettingsEnable : AuditActions.MetadataSettingsDisable);
+            // Off -> on, or on with a stale consent version (a network-surface change re-prompts).
+            row.MetadataEnabled = true;
+            row.MetadataConsentVersion = MetadataConsent.CurrentVersion;
+            row.MetadataConsentAt = _time.GetUtcNow();
+            audits.Add(AuditActions.MetadataSettingsEnable);
+        }
+        else if (request.FetchEnabled == false && row.MetadataEnabled)
+        {
+            row.MetadataEnabled = false;
+            audits.Add(AuditActions.MetadataSettingsDisable);
         }
         if (request.ResetDailyBudget && row.MetadataDailyBudget is not null)
         {

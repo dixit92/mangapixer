@@ -65,6 +65,30 @@ public sealed class MetadataSettingsAndComicInfoTests
 
         var audit = await t.Db.AuditEvents.SingleAsync(a => a.Action == AuditActions.MetadataSettingsEnable);
         Assert.Equal("consent_v1", audit.Result);
+
+        // Already on with the current consent: re-sending the state (to change the budget)
+        // needs no consent again and records no second enable.
+        Assert.Null(await settings.UpdateAsync(new UpdateMetadataSettingsRequest { FetchEnabled = true, DailyBudget = 100 }, "admin"));
+        Assert.Equal(100, (await settings.GetAsync()).DailyBudget);
+        Assert.Equal(1, await t.Db.AuditEvents.CountAsync(a => a.Action == AuditActions.MetadataSettingsEnable));
+
+        // Off again; turning it back on needs consent again.
+        Assert.Null(await settings.UpdateAsync(new UpdateMetadataSettingsRequest { FetchEnabled = false }, "admin"));
+        Assert.False((await settings.GetAsync()).FetchEnabled);
+        Assert.Equal("consent_required", await settings.UpdateAsync(new UpdateMetadataSettingsRequest { FetchEnabled = true }, "admin"));
+    }
+
+    [Fact]
+    public async Task StaleConsent_IsRePrompted_WhenTheSwitchIsOn()
+    {
+        await using var t = await MetadataTestDb.CreateAsync();
+        t.Db.AppSettings.Add(new AppSettingsEntity { MetadataEnabled = true, MetadataConsentVersion = MetadataConsent.CurrentVersion - 1 });
+        await t.Db.SaveChangesAsync();
+        var settings = t.Settings();
+
+        Assert.Equal("consent_required", await settings.UpdateAsync(new UpdateMetadataSettingsRequest { FetchEnabled = true }, "admin"));
+        Assert.Null(await settings.UpdateAsync(new UpdateMetadataSettingsRequest { FetchEnabled = true, AcceptedConsentVersion = MetadataConsent.CurrentVersion }, "admin"));
+        Assert.Equal(MetadataConsent.CurrentVersion, (await settings.GetAsync()).AcceptedConsentVersion);
     }
 
     [Fact]

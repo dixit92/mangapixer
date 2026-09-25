@@ -231,14 +231,15 @@ public sealed class ComicInfoProcessTests : IClassFixture<WorkerProcessFixture>
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var readLoop = supervisor.ReadMessagesAsync(cts.Token);
 
-        var request = WorkerProtocolFraming.CreateEnvelope("comicinfo", "old-peer", new ComicInfoRequest
+        var current = WorkerProtocolFraming.CreateEnvelope("comicinfo", "old-peer", new ComicInfoRequest
         {
             JobId = "old-peer",
             ArchivePath = "/nonexistent",
             ExpectedLastWriteTicks = 0,
             ExpectedByteLength = 0,
             Deadline = DateTimeOffset.UtcNow.AddSeconds(10),
-        }) with { ProtocolVersion = 2 };
+        });
+        var request = current with { ProtocolVersion = 2 };
         await supervisor.SendMessageAsync(request);
 
         var reply = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(15));
