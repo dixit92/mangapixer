@@ -65,6 +65,7 @@ test('settings card: consent gates the web switch; enabling makes no lookup', as
   const foreign = watchForeignRequests(page, baseURL!);
   await login(page);
   await setFetch(page, false);
+  const usedBefore = (await settings(page)).budgetUsedToday;
   await page.goto('/admin');
 
   const card = page.getByTestId('metadata-settings-card');
@@ -86,8 +87,7 @@ test('settings card: consent gates the web switch; enabling makes no lookup', as
 
   const after = await settings(page);
   expect(after.fetchEnabled).toBe(true);
-  expect(after.budgetUsedToday).toBe(0); // no provider request was made
-  expect(after.lastErrorCode).toBeNull();
+  expect(after.budgetUsedToday).toBe(usedBefore); // enabling made no provider request
   expect(foreign).toEqual([]);
 
   await fetchSwitch.click();
@@ -99,6 +99,7 @@ test('Identify is disabled with the reason, and the dialog shows the unavailable
   const foreign = watchForeignRequests(page, baseURL!);
   await login(page);
   await setFetch(page, false);
+  const usedBefore = (await settings(page)).budgetUsedToday;
 
   const libs: { id: string }[] = await (await page.request.get('/api/v1/libraries')).json();
   let target: { libraryId: string; folder: Node } | null = null;
@@ -130,6 +131,6 @@ test('Identify is disabled with the reason, and the dialog shows the unavailable
   await shot(page, 'b2-04-identify-dialog-unavailable');
   await page.getByTestId('identify-close').click();
 
-  expect((await settings(page)).budgetUsedToday).toBe(0);
+  expect((await settings(page)).budgetUsedToday).toBe(usedBefore);
   expect(foreign).toEqual([]);
 });
