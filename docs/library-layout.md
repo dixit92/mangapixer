@@ -10,7 +10,7 @@ A library is one folder you register as an admin. Inside it:
 - Every **supported archive** becomes a readable item. Selecting it opens the [reader](reader.md).
 - Everything else (loose images, text files, PDFs) is ignored.
 
-Names come straight from the file system. An archive's name is its full file name, extension included (`Chapter 001.cbz`). Embedded metadata such as `ComicInfo.xml` is not read.
+Names come straight from the file system. An archive's name is its full file name, extension included (`Chapter 001.cbz`). Embedded `ComicInfo.xml` never renames anything; it feeds the [series information](series-information.md) panel instead.
 
 There is no special "series" or "chapter" type. By convention a series is a folder and a chapter or volume is an archive inside it, at any depth:
 

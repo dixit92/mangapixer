@@ -163,9 +163,10 @@ public sealed class SeriesInfoResolver
                 ProviderName = _providers.DisplayNameFor(record.Provider),
                 SiteUrl = record.SiteUrl,
                 FetchedAt = record.FetchedAt,
-                // The poster is lane B2's (image store + series-info/image endpoint).
-                HasImage = false,
-                ImageUrl = null,
+                // The poster (lane B2) is served from MangaPixer, through THIS node's
+                // access check; the version in the URL makes it cacheable forever.
+                HasImage = record.ImageState == 1,
+                ImageUrl = record.ImageState == 1 ? ImageUrlFor(node.PublicId, record) : null,
             },
             ComicInfo = ci is null ? null : new SeriesInfoComicInfoDto
             {
@@ -186,6 +187,34 @@ public sealed class SeriesInfoResolver
             Items = includeItems && ci is not null ? ci.Items : [],
         };
     }
+
+    /// <summary>
+    /// The web record that applies to <paramref name="node"/> (lane B2: poster
+    /// endpoint, Refresh): the nearest confirmed/auto link walking self -> ancestors,
+    /// or null at a Don't match or when there is none. Same walk as <see cref="ResolveAsync"/>.
+    /// </summary>
+    public async Task<MetadataRecordEntity?> ResolveWebRecordAsync(CatalogNodeEntity node, CancellationToken ct = default)
+    {
+        var chain = await WalkChainAsync(node, ct);
+        var chainIds = chain.Select(c => c.Id).ToList();
+        var links = await _db.NodeSeriesLinks.AsNoTracking()
+            .Where(l => chainIds.Contains(l.NodeId) && l.State != (int)SeriesLinkState.NeedsReview)
+            .ToListAsync(ct);
+        foreach (var entry in chain)
+        {
+            var link = links.FirstOrDefault(l => l.NodeId == entry.Id);
+            if (link is null)
+                continue;
+            if (link.State == (int)SeriesLinkState.DontMatch || link.RecordId is not { } recordId)
+                return null;
+            return await _db.MetadataRecords.AsNoTracking().FirstOrDefaultAsync(r => r.Id == recordId, ct);
+        }
+        return null;
+    }
+
+    /// <summary>The node-scoped, versioned poster URL (lane B2).</summary>
+    public static string ImageUrlFor(string nodePublicId, MetadataRecordEntity record) =>
+        $"/api/v1/nodes/{Uri.EscapeDataString(nodePublicId)}/series-info/image?v={Uri.EscapeDataString(record.PublicId)}-{record.ImageVersion}";
 
     private static SeriesInfoDto Empty(CatalogNodeEntity node, string libraryPublicId) => new()
     {

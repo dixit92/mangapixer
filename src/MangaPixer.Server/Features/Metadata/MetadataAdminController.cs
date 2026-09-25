@@ -11,6 +11,12 @@ using Microsoft.AspNetCore.Mvc;
 /// Every change is audited with ids only. Lane B2 adds its identify endpoints in
 /// its own controller and extends <c>PUT nodes/{id}/link</c> to fetch-and-store.
 /// </summary>
+/// <remarks>
+/// Lane B2: <c>PUT nodes/{id}/link</c> now goes through
+/// <see cref="MetadataIdentifyService.LinkAsync"/> - a record that is not stored
+/// yet is fetched through the gateway (gated, may answer 409/429/503) before the
+/// link is written; a stored record still links with no network call.
+/// </remarks>
 [ApiController]
 [Route("api/v1/admin/metadata")]
 [Authorize(Policy = "Admin")]
@@ -18,11 +24,13 @@ public sealed class MetadataAdminController : ControllerBase
 {
     private readonly MetadataSettingsService _settings;
     private readonly MetadataLinkService _links;
+    private readonly MetadataIdentifyService _identify;
 
-    public MetadataAdminController(MetadataSettingsService settings, MetadataLinkService links)
+    public MetadataAdminController(MetadataSettingsService settings, MetadataLinkService links, MetadataIdentifyService identify)
     {
         _settings = settings;
         _links = links;
+        _identify = identify;
     }
 
     private string? Actor => User.Identity?.Name;
@@ -79,10 +87,20 @@ public sealed class MetadataAdminController : ControllerBase
     [HttpPut("nodes/{nodeId}/link")]
     [ProducesResponseType<NodeSeriesLinkChangeDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status429TooManyRequests)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> Link(string nodeId, [FromBody] LinkSeriesRequest request, CancellationToken ct)
     {
-        var (code, change) = await _links.LinkAsync(nodeId, request, Actor, ct);
-        return code == MetadataLinkResultCode.Ok ? Ok(change) : ToResult(code);
+        try
+        {
+            var (code, change) = await _identify.LinkAsync(nodeId, request, Actor, ct);
+            return code == MetadataLinkResultCode.Ok ? Ok(change) : ToResult(code);
+        }
+        catch (MetadataGatewayException ex)
+        {
+            return MetadataIdentifyController.Error(this, ex);
+        }
     }
 
     /// <summary>Removes the node's own link row (a confirmed link or a Don't match); inheritance resumes.</summary>

@@ -1,0 +1,223 @@
+{
+ "total_hits": 61,
+ "page": 1,
+ "per_page": 5,
+ "results": [
+  {
+   "record": {
+    "series_id": 51239621230,
+    "title": "Berserk",
+    "url": "https://www.mangaupdates.com/series/njeqwry/berserk",
+    "description": "From Dark Horse:  \nHis name is Guts, the Black Swordsman, a feared warrior spoken of only in whispers. Bearer of a gigantic sword, an iron hand, and the scars of countless battles and tortures, his flesh is also indelibly marked with The Brand, an unholy symbol that draws the forces of darkness to h",
+    "image": {
+     "url": {
+      "original": "https://cdn.mangaupdates.com/image/i501230.png",
+      "thumb": "https://cdn.mangaupdates.com/image/thumb/i501230.png"
+     },
+     "height": 400,
+     "width": 284
+    },
+    "type": "Manga",
+    "year": "1989",
+    "bayesian_rating": 8.98,
+    "genres": [
+     {
+      "genre": "Action"
+     },
+     {
+      "genre": "Adventure"
+     },
+     {
+      "genre": "Fantasy"
+     },
+     {
+      "genre": "Horror"
+     },
+     {
+      "genre": "Mature"
+     },
+     {
+      "genre": "Psychological"
+     },
+     {
+      "genre": "Seinen"
+     },
+     {
+      "genre": "Supernatural"
+     },
+     {
+      "genre": "Tragedy"
+     }
+    ],
+    "last_updated": {
+     "timestamp": 1787905283,
+     "as_rfc3339": "2026-08-28T01:21:23-07:00",
+     "as_string": "August 28th, 2026 1:21am PDT"
+    }
+   },
+   "hit_title": "Berserk"
+  },
+  {
+   "record": {
+    "series_id": 24874346495,
+    "title": "Berserk Princess",
+    "url": "https://www.mangaupdates.com/series/bfdjklb/berserk-princess",
+    "description": "Under the guise of marriage, Cheryn returns to the imperial capital to set her revenge plan in motion. However, she soon discovers that her fiancé, whom she has been betrothed to since childhood, is having an affair with her sister, Leila. Seizing this opportunity, Cheryn unilaterally breaks off the",
+    "image": {
+     "url": {
+      "original": "https://cdn.mangaupdates.com/image/i472075.jpg",
+      "thumb": "https://cdn.mangaupdates.com/image/thumb/i472075.jpg"
+     },
+     "height": 400,
+     "width": 300
+    },
+    "type": "Manhua",
+    "year": "2023",
+    "bayesian_rating": 0,
+    "genres": [
+     {
+      "genre": "Drama"
+     },
+     {
+      "genre": "Historical"
+     },
+     {
+      "genre": "Romance"
+     },
+     {
+      "genre": "Shoujo"
+     }
+    ],
+    "last_updated": {
+     "timestamp": 1783840721,
+     "as_rfc3339": "2026-07-12T00:18:41-07:00",
+     "as_string": "July 12th, 2026 12:18am PDT"
+    }
+   },
+   "hit_title": "Berserk Princess"
+  },
+  {
+   "record": {
+    "series_id": 47096579692,
+    "title": "Kuang Bao Ni Xi",
+    "url": "https://www.mangaupdates.com/series/lmw35gs/kuang-bao-ni-xi",
+    "description": "[Original Webtoon](https://www.iqiyi.com/manhua/detail_18yzrbm22t.html)",
+    "image": {
+     "url": {
+      "original": "https://cdn.mangaupdates.com/image/i360708.jpg",
+      "thumb": "https://cdn.mangaupdates.com/image/thumb/i360708.jpg"
+     },
+     "height": 213,
+     "width": 160
+    },
+    "type": "Manhua",
+    "year": "2021",
+    "bayesian_rating": null,
+    "genres": [
+     {
+      "genre": "Action"
+     },
+     {
+      "genre": "Adventure"
+     },
+     {
+      "genre": "Drama"
+     },
+     {
+      "genre": "Fantasy"
+     },
+     {
+      "genre": "Shounen"
+     }
+    ],
+    "last_updated": {
+     "timestamp": 1717099938,
+     "as_rfc3339": "2024-05-30T13:12:18-07:00",
+     "as_string": "May 30th, 2024 1:12pm PDT"
+    }
+   },
+   "hit_title": "Berserk Counterattack"
+  },
+  {
+   "record": {
+    "series_id": 8339817000,
+    "title": "Berserk Gaiden",
+    "url": "https://www.mangaupdates.com/series/3txb7zc/berserk-gaiden",
+    "description": "A joke comic that mostly gives insight into the 1997 anime production and Miuras' life. The main characters are Miura and Puck, who is mainly there mainly to mess with Miura.\n\nThe Chapters and where they were published:  \n1. 「ベルセルク外伝　真夜中の聖戦 」Young Animal Issue 24 1997  \n2. 「ベルセルク外伝２　奪われしパンドラの箱」 Youn",
+    "image": {
+     "url": {
+      "original": "https://cdn.mangaupdates.com/image/i415416.jpg",
+      "thumb": "https://cdn.mangaupdates.com/image/thumb/i415416.jpg"
+     },
+     "height": 157,
+     "width": 160
+    },
+    "type": "Manga",
+    "year": "1997",
+    "bayesian_rating": 6.23,
+    "genres": [
+     {
+      "genre": "Comedy"
+     },
+     {
+      "genre": "Fantasy"
+     },
+     {
+      "genre": "Seinen"
+     },
+     {
+      "genre": "Slice of Life"
+     }
+    ],
+    "last_updated": {
+     "timestamp": 1736655041,
+     "as_rfc3339": "2025-01-11T20:10:41-08:00",
+     "as_string": "January 11th, 2025 8:10pm PST"
+    }
+   },
+   "hit_title": "Berserk Gaiden"
+  },
+  {
+   "record": {
+    "series_id": 17437724264,
+    "title": "Bousou Honnou Melancholia",
+    "url": "https://www.mangaupdates.com/series/80dyy5k/bousou-honnou-melancholia",
+    "description": "From AQUA Scans: \n\nCornered by delinquents, Katanabe Shino was just waiting for her end...  until Tachibana-kun, her bad-tempered classmate, saves her. She then decides to give him a not so chaste \"thank you gift\".",
+    "image": {
+     "url": {
+      "original": "https://cdn.mangaupdates.com/image/i154399.jpg",
+      "thumb": "https://cdn.mangaupdates.com/image/thumb/i154399.jpg"
+     },
+     "height": 250,
+     "width": 159
+    },
+    "type": "Manga",
+    "year": "2012",
+    "bayesian_rating": 5.56,
+    "genres": [
+     {
+      "genre": "Comedy"
+     },
+     {
+      "genre": "Romance"
+     },
+     {
+      "genre": "School Life"
+     },
+     {
+      "genre": "Shoujo"
+     },
+     {
+      "genre": "Smut"
+     }
+    ],
+    "last_updated": {
+     "timestamp": 1625327022,
+     "as_rfc3339": "2021-07-03T08:43:42-07:00",
+     "as_string": "July 3rd, 2021 8:43am PDT"
+    }
+   },
+   "hit_title": "Berserk Instinct Melancholia"
+  }
+ ]
+}

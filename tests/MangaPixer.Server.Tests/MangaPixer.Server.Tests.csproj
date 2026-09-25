@@ -17,4 +17,9 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Recorded MangaUpdates API responses (1.24.0); replayed by a fake handler, never the network. -->
+    <EmbeddedResource Include="Features\Metadata\Fixtures\MangaUpdates\*.json" LogicalName="MangaUpdates.%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>

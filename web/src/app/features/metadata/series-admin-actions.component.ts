@@ -9,12 +9,14 @@ import { Observable } from 'rxjs';
 
 import { MetadataPrecedence, SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
+import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
 
 /**
  * Admin menu for one node's series metadata (1.24.0), shared by the overlay and the
  * series page. Acts on the node that was asked about (`info.nodeId`):
- * - Identify... - DISABLED slot reserved for lane B2 (web lookup). B2 enables it; no
- *   network code exists in B1.
+ * - Identify... (lane B2) - opens the identify dialog. Enabled when the web switches
+ *   allow it for this node's library (checked when the menu opens, no network); when
+ *   not, the item says why. Refresh re-fetches the web record that applies.
  * - Don't match / Clear Don't match - the node is not one series; nothing is inherited.
  * - Unlink - removes the node's own web link (inheritance resumes).
  * - Source precedence (folders): inherit / web first / ComicInfo first.
@@ -26,16 +28,24 @@ import { MetadataApiService } from './metadata-api.service';
   imports: [MatButtonModule, MatIconModule, MatMenuModule, MatDividerModule, MatTooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <button mat-stroked-button type="button" [matMenuTriggerFor]="adminMenu" [disabled]="busy()"
+    <button mat-stroked-button type="button" [matMenuTriggerFor]="adminMenu" [disabled]="busy()" (menuOpened)="checkIdentify()"
             aria-label="Series admin actions" data-testid="series-admin-menu">
       <mat-icon>admin_panel_settings</mat-icon> Admin
     </button>
     <mat-menu #adminMenu="matMenu">
-      <!-- Lane B2 slot: web identify. Disabled until the network half ships. -->
-      <button mat-menu-item disabled data-slot="identify"
-              matTooltip="Looking series up on the web is not available yet">
-        <mat-icon>travel_explore</mat-icon> Identify…
+      <!-- Lane B2: web identify (the dialog explains a disabled state too). -->
+      <button mat-menu-item data-slot="identify" data-testid="identify" [disabled]="!identifyAvailable()" (click)="identify()">
+        <mat-icon>travel_explore</mat-icon>
+        <span>{{ info().link?.state === 'Confirmed' && !info().link?.inherited ? 'Change match…' : 'Identify…' }}</span>
       </button>
+      @if (identifyReason(); as reason) {
+        <span class="why" data-testid="identify-why">{{ reason }}</span>
+      }
+      @if (info().web) {
+        <button mat-menu-item [disabled]="!identifyAvailable()" (click)="refresh()" data-testid="refresh">
+          <mat-icon>refresh</mat-icon> Refresh from {{ info().web!.providerName }}
+        </button>
+      }
       <mat-divider />
       @if (ownDontMatch()) {
         <button mat-menu-item (click)="clearDontMatch()" data-testid="clear-dont-match">
@@ -70,6 +80,7 @@ import { MetadataApiService } from './metadata-api.service';
   styles: [`
     :host { display: inline-flex; }
     button mat-icon { margin-right: 4px; }
+    .why { display: block; max-width: 240px; padding: 0 16px 6px 56px; font-size: 12px; color: #9a9aa8; }
     .caption {
       display: block; padding: 6px 16px 2px; font-size: 11px; font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.5px; color: #8a8a99;
@@ -79,11 +90,40 @@ import { MetadataApiService } from './metadata-api.service';
 export class SeriesAdminActionsComponent {
   private readonly api = inject(MetadataApiService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly identifyDialog = inject(IdentifyDialogService);
 
   readonly info = input.required<SeriesInfoDto>();
   readonly changed = output<void>();
 
   readonly busy = signal(false);
+
+  /** Whether the web switches allow Identify/Refresh here; null until checked. */
+  readonly identifyAvailable = signal(false);
+  readonly identifyReason = signal<string | null>(null);
+
+  /** Asks the server (no network call) whether web lookups are allowed for this node. */
+  checkIdentify(): void {
+    this.api.getIdentifyContext(this.info().nodeId).subscribe({
+      next: (ctx) => {
+        this.identifyAvailable.set(ctx.fetchAvailable);
+        this.identifyReason.set(ctx.fetchAvailable ? null : ctx.unavailableMessage ?? 'Web lookups are off.');
+      },
+      error: () => {
+        this.identifyAvailable.set(false);
+        this.identifyReason.set('Could not check whether web lookups are on.');
+      },
+    });
+  }
+
+  identify(): void {
+    void this.identifyDialog.open(this.info().nodeId).then((linked) => {
+      if (linked) this.changed.emit();
+    });
+  }
+
+  refresh(): void {
+    this.run(this.api.refresh(this.info().nodeId), 'Series information refreshed');
+  }
 
   /** The node's OWN row (not inherited) is a Don't match. */
   readonly ownDontMatch = computed(() => {

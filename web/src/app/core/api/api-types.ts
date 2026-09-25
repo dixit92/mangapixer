@@ -1141,3 +1141,113 @@ export interface FolderMetadataPrecedenceDto {
   nodeId: string;
   precedence: MetadataPrecedence;
 }
+
+// --- Series metadata identify flow (1.24.0, lane B2; admin-only) ---
+
+export type MatchStrength = 'Weak' | 'Possible' | 'Strong';
+
+export interface IdentifyReferenceDto {
+  provider: string;
+  externalId: string;
+}
+
+export interface IdentifyLocalDto {
+  displayName: string;
+  itemCount: number;
+  comicInfoSeries?: string | null;
+  tallStrips?: boolean | null;
+  yearHint?: number | null;
+}
+
+/** GET /admin/metadata/nodes/{id}/identify - no network. */
+export interface IdentifyContextDto {
+  nodeId: string;
+  nodeKind: CatalogNodeKind;
+  displayName: string;
+  libraryId: string;
+  provider: string;
+  providerName: string;
+  fetchAvailable: boolean;
+  unavailableCode?: string | null;
+  unavailableMessage?: string | null;
+  suggestions?: string[];
+  comicInfoHint?: IdentifyReferenceDto | null;
+  budgetUsedToday: number;
+  dailyBudget: number;
+  backoffUntil?: string | null;
+  currentLink?: NodeSeriesLinkDto | null;
+  local: IdentifyLocalDto;
+}
+
+export interface IdentifySearchRequest {
+  query: string;
+  page?: number;
+}
+
+export interface IdentifyLookupRequest {
+  reference: string;
+}
+
+export interface IdentifyPreviewRequest {
+  provider: string;
+  externalId: string;
+}
+
+export interface IdentifyCandidateDto {
+  externalId: string;
+  title: string;
+  hitTitle?: string | null;
+  providerType?: string | null;
+  origin?: MetadataOrigin | null;
+  format?: MetadataFormat | null;
+  year?: number | null;
+  score: number;
+  strength: MatchStrength;
+  imageToken?: string | null;
+}
+
+export interface IdentifySearchResultDto {
+  provider: string;
+  page: number;
+  totalHits: number;
+  candidates: IdentifyCandidateDto[];
+  budgetUsedToday: number;
+  dailyBudget: number;
+}
+
+export interface IdentifyWarningDto {
+  code: string;
+  message: string;
+}
+
+export interface IdentifyPreviewDto {
+  provider: string;
+  providerName: string;
+  externalId: string;
+  title: string;
+  altTitles?: string[];
+  description?: string | null;
+  providerType?: string | null;
+  origin?: MetadataOrigin | null;
+  format?: MetadataFormat | null;
+  webtoon?: boolean | null;
+  startYear?: number | null;
+  originStatus?: MetadataOriginStatus | null;
+  originVolumes?: number | null;
+  latestChapter?: number | null;
+  creators?: SeriesCreatorDto[];
+  genres?: string[];
+  siteUrl?: string | null;
+  imageToken?: string | null;
+  score: number;
+  strength: MatchStrength;
+  fetchedAt: string;
+  local: IdentifyLocalDto;
+  warnings?: IdentifyWarningDto[];
+}
+
+export interface MetadataRefreshResultDto {
+  state: string;
+  fetchedAt: string;
+  imageUpdated: boolean;
+}
