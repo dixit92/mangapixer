@@ -79,6 +79,11 @@ describe('SeriesInfoOverlayComponent', () => {
     expect(dialogRef.close).toHaveBeenCalled();
   });
 
+  it('shows no series-page button for a multi-series folder (the overlay already lists them)', () => {
+    const { el } = create(seriesInfo({ state: 'Mixed', title: null }));
+    expect(el.querySelector('[data-testid="open-series-page"]')).toBeNull();
+  });
+
   it('shows no series-page button for a node without information', () => {
     const { el } = create(seriesInfo({ state: 'None', title: null }));
     expect(el.querySelector('[data-testid="open-series-page"]')).toBeNull();

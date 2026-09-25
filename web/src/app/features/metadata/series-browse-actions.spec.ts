@@ -57,10 +57,14 @@ describe('SeriesInfoButtonComponent', () => {
     expect(create('error').button()).toBeNull();
   });
 
-  it('is always there for admins, subdued without content', () => {
-    const { button } = create(seriesInfo({ state: 'None' }), true);
-    expect(button()).not.toBeNull();
-    expect(button()!.classList.contains('subdued')).toBe(true);
+  it('is hidden for admins too when the folder has no series information', () => {
+    // Not every folder is a series (author / magazine / Volumes folders); admins reach
+    // Identify, Don't match and precedence from the selection "Series" menu (1.24.0).
+    expect(create(seriesInfo({ state: 'None' }), true).button()).toBeNull();
+    TestBed.resetTestingModule();
+    expect(create(seriesInfo({ state: 'DontMatch' }), true).button()).toBeNull();
+    TestBed.resetTestingModule();
+    expect(create(seriesInfo(), true).button()).not.toBeNull();
   });
 
   it('re-resolves when the browsed folder changes', () => {

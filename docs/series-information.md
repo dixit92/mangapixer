@@ -5,7 +5,7 @@ MangaPixer can show a series summary (title, description, authors, genres, publi
 - **ComicInfo.xml** inside your archives. It is read when an archive is analysed; nothing leaves your server.
 - **MangaUpdates**, only if an admin allows it. An admin *identifies* a folder (or a single archive) with a MangaUpdates series; MangaPixer then fetches that series' details and cover once and stores them on your server.
 
-Folders and archives with information show an **(i)** in the cover's bottom-left corner. It opens a side panel (a bottom sheet on a phone); **Open series page** leads to the full page. Inside a series folder, **Series info** in the top bar opens the same panel.
+Folders and archives with information show an **(i)** in the cover's bottom-left corner. It opens a side panel (a bottom sheet on a phone); **Open series page** leads to the full page. A folder that holds several series (an anthology or an author's folder, for example) lists them in the panel instead, without a series page. Inside a series folder, **Series info** in the top bar opens the same panel.
 
 ## Where the information applies
 

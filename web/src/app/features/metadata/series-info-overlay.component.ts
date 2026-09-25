@@ -72,7 +72,8 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
             <p class="source muted">Mark it "Don't match", or link its items individually.</p>
           }
           <div class="actions">
-            @if (i.state !== 'None' && i.state !== 'DontMatch') {
+            <!-- Not for a multi-series folder (owner, 1.24.0): the overlay already lists its series. -->
+            @if (i.state !== 'None' && i.state !== 'DontMatch' && i.state !== 'Mixed') {
               <button mat-flat-button type="button" (click)="openPage()" data-testid="open-series-page">
                 <mat-icon>open_in_full</mat-icon> Open series page
               </button>
