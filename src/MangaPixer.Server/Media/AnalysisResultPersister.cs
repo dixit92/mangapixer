@@ -4,6 +4,7 @@ using com.lifepixer.mangapixer.Server.Logging;
 
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.WorkerProtocol;
+using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -90,6 +91,7 @@ public sealed class AnalysisResultPersister
             archiveItem.AnalysisState = 3; // unsupported
             archiveItem.AnalysisError = "unsupported_solid";
             archiveItem.LastAnalyzedAt = DateTimeOffset.UtcNow;
+            await StageComicInfoAsync(db, archiveItem, analyzeResult, ct);
             await db.SaveChangesAsync(ct);
             _logger?.LogDebug(LogEvents.Worker.PersistFailureRecorded, "Persisted unsupported_solid for item {ItemId}", nodeId);
             return;
@@ -126,7 +128,23 @@ public sealed class AnalysisResultPersister
         if (!string.IsNullOrEmpty(contentSignature))
             archiveItem.ContentSignature = contentSignature;
 
+        // ComicInfo.xml (1.24.0) read by the worker while the archive was open:
+        // stored in the same save as the pages, stamped with this content version.
+        await StageComicInfoAsync(db, archiveItem, analyzeResult, ct);
+
         await db.SaveChangesAsync(ct);
         _logger?.LogDebug(LogEvents.Worker.PersistCompleted, "Analysis persisted for item {ItemId}: {PageCount} pages", nodeId, analyzeResult.Pages.Count);
+    }
+
+    /// <summary>
+    /// Stages the ComicInfo outcome, when the worker sent one. A null outcome (an
+    /// oversized result resent without it) leaves any existing row alone; the
+    /// ComicInfo backfill picks the item up because its stamp is then stale.
+    /// </summary>
+    private static async Task StageComicInfoAsync(MangaPixerDbContext db, ArchiveItemEntity archiveItem, AnalyzeResult analyzeResult, CancellationToken ct)
+    {
+        if (analyzeResult.ComicInfo is null)
+            return;
+        await ComicInfoPersister.StageAsync(db, archiveItem.NodeId, archiveItem.ContentVersion, analyzeResult.ComicInfo, DateTimeOffset.UtcNow, ct);
     }
 }

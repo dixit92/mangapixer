@@ -38,6 +38,40 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<bool?>("BackupsEnabled")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("MetadataBackoffStep")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("MetadataBackoffUntil")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("MetadataBudgetDayUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MetadataBudgetUsed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("MetadataConsentAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("MetadataConsentVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("MetadataDailyBudget")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("MetadataEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("MetadataLastErrorAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MetadataLastErrorCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("MetadataSeriesInfoHidden")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("UpdateCheckEnabled")
                         .HasColumnType("INTEGER");
 
@@ -331,6 +365,112 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.ToTable("catalog_nodes", (string)null);
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.EmbeddedMetadataEntity", b =>
+                {
+                    b.Property<long>("NodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AgeRating")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AlternateSeries")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ContentVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Count")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CreatorsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Format")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GenresJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Gtin")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Imprint")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LanguageIso")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("MangaDirection")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Month")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Number")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Publisher")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ReadAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Schema")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Series")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SeriesGroup")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StoryArc")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Summary")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TagsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Volume")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("WebUrlsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("NodeId");
+
+                    b.HasIndex("State");
+
+                    b.ToTable("embedded_metadata", (string)null);
+                });
+
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.FavoriteEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -356,6 +496,26 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.HasIndex("UserId", "CreatedAt");
 
                     b.ToTable("favorites", (string)null);
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.FolderMetadataPrecedenceEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("NodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Precedence")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NodeId")
+                        .IsUnique();
+
+                    b.ToTable("folder_metadata_precedence", (string)null);
                 });
 
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.FolderReaderDefaultEntity", b =>
@@ -531,6 +691,15 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<long?>("LastScanCompleted")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("MetadataEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("MetadataPrecedence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("MetadataSeriesInfoHidden")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("PublicId")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -582,6 +751,173 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("library_grants", (string)null);
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataRecordEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AltTitlesJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CategoriesJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatorsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CrossIdsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExtraJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FetchState")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("FetchedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Format")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("GenresJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImageRemoteUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ImageState")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ImageVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double?>("LatestChapter")
+                        .HasColumnType("REAL");
+
+                    b.Property<bool?>("LicensedEn")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Origin")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("OriginStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("OriginVolumes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProviderType")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ProviderUpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PublicId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PublishersJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecordKind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SiteUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SourceKind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("StartYear")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StatusText")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool?>("TranslationComplete")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("Webtoon")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique();
+
+                    b.HasIndex("Provider", "ExternalId")
+                        .IsUnique();
+
+                    b.ToTable("metadata_records", (string)null);
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.NodeSeriesLinkEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("LibraryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("MatchMethod")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double?>("MatchScore")
+                        .HasColumnType("REAL");
+
+                    b.Property<long>("NodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("RecordId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NodeId")
+                        .IsUnique();
+
+                    b.HasIndex("RecordId");
+
+                    b.HasIndex("LibraryId", "State");
+
+                    b.ToTable("node_series_links", (string)null);
                 });
 
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.PageEntryEntity", b =>
@@ -1098,6 +1434,17 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Navigation("Parent");
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.EmbeddedMetadataEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Node")
+                        .WithMany()
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Node");
+                });
+
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.FavoriteEntity", b =>
                 {
                     b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Node")
@@ -1115,6 +1462,17 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Navigation("Node");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.FolderMetadataPrecedenceEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Node")
+                        .WithMany()
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Node");
                 });
 
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.FolderReaderDefaultEntity", b =>
@@ -1167,6 +1525,30 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Navigation("Library");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.NodeSeriesLinkEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.LibraryEntity", null)
+                        .WithMany()
+                        .HasForeignKey("LibraryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Node")
+                        .WithMany()
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataRecordEntity", "Record")
+                        .WithMany()
+                        .HasForeignKey("RecordId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Node");
+
+                    b.Navigation("Record");
                 });
 
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.PageEntryEntity", b =>

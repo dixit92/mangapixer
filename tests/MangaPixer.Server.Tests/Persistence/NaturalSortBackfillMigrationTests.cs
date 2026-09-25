@@ -135,6 +135,20 @@ public sealed class NaturalSortBackfillMigrationTests : IDisposable
                 "\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_favorites\" PRIMARY KEY AUTOINCREMENT, " +
                 "\"UserId\" INTEGER NOT NULL, \"CatalogNodeId\" INTEGER NOT NULL, \"CreatedAt\" INTEGER NOT NULL);");
 
+            // Likewise the series-info card flag (1.24.0) reads the metadata toggles and
+            // tables (AddMetadataFoundations). Minimal empty shims, same reasoning.
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"libraries\" ADD COLUMN \"MetadataSeriesInfoHidden\" INTEGER NOT NULL DEFAULT 0;");
+            await db.Database.ExecuteSqlRawAsync(
+                "CREATE TABLE IF NOT EXISTS \"app_settings\" (\"Id\" INTEGER NOT NULL PRIMARY KEY, " +
+                "\"MetadataSeriesInfoHidden\" INTEGER NOT NULL DEFAULT 0);");
+            await db.Database.ExecuteSqlRawAsync(
+                "CREATE TABLE IF NOT EXISTS \"node_series_links\" (\"Id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, " +
+                "\"NodeId\" INTEGER NOT NULL, \"RecordId\" INTEGER NULL, \"State\" INTEGER NOT NULL);");
+            await db.Database.ExecuteSqlRawAsync(
+                "CREATE TABLE IF NOT EXISTS \"embedded_metadata\" (\"NodeId\" INTEGER NOT NULL PRIMARY KEY, " +
+                "\"State\" INTEGER NOT NULL, \"ContentVersion\" INTEGER NOT NULL);");
+
             var browse = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var page = await browse.BrowseAsync(userId, libraryId, seriesId, cursor: null, pageSize: 50, sort: "name");
 

@@ -139,6 +139,37 @@ public sealed class ArchiveReader : IDisposable
         return ms;
     }
 
+    /// <summary>
+    /// Reads one entry fully into memory, but never more than
+    /// <paramref name="maxBytes"/> bytes: returns null as soon as the decompressed
+    /// stream exceeds the cap, whatever the entry header declared (a lying size
+    /// field cannot turn a small metadata read into a decompression bomb). For
+    /// random-access archives only - callers check <see cref="IsSolid"/> first.
+    /// </summary>
+    public async Task<byte[]?> ReadEntryBoundedAsync(string entryKey, long maxBytes, CancellationToken ct = default)
+    {
+        ObjectDisposedException.ThrowIf(_archive is null, this);
+
+        var entry = _archive.Entries.FirstOrDefault(e => e.Key == entryKey)
+            ?? throw new FileNotFoundException("Entry not found");
+        if (entry.IsDirectory)
+            throw new InvalidOperationException("Cannot read a directory entry");
+
+        using var entryStream = entry.OpenEntryStream();
+        using var ms = new MemoryStream();
+        var buffer = new byte[81920];
+        long total = 0;
+        int read;
+        while ((read = await entryStream.ReadAsync(buffer.AsMemory(0, buffer.Length), ct)) > 0)
+        {
+            total += read;
+            if (total > maxBytes)
+                return null;
+            ms.Write(buffer, 0, read);
+        }
+        return ms.ToArray();
+    }
+
     public void Dispose()
     {
         _archive?.Dispose();

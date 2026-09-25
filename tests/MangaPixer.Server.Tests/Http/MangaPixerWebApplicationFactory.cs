@@ -146,6 +146,14 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
                 d => d.ImplementationType == typeof(ThumbnailBackfillHostedService));
             if (thumbBackfillDescriptor is not null)
                 services.Remove(thumbBackfillDescriptor);
+
+            // Same for the ComicInfo backfill startup kick (1.24.0): it reads archives
+            // through the worker pool, which HTTP tests never start. Its registration
+            // is pinned by MetadataHostingRegistrationTests; the pass by process tests.
+            var comicInfoBackfillDescriptor = services.FirstOrDefault(
+                d => d.ImplementationType == typeof(ComicInfoBackfillHostedService));
+            if (comicInfoBackfillDescriptor is not null)
+                services.Remove(comicInfoBackfillDescriptor);
         });
     }
 

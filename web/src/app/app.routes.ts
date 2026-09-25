@@ -71,6 +71,13 @@ export const routes: Routes = [
           import('./features/admin/debug-log-card.component').then((m) => m.DebugLogCardComponent),
       },
       {
+        // Series page (1.24.0): the canonical home of a series; any node id redirects
+        // to its anchor inside the component.
+        path: 'series/:nodeId',
+        loadComponent: () =>
+          import('./features/metadata/series-page.component').then((m) => m.SeriesPageComponent),
+      },
+      {
         path: 'reader/:itemId',
         loadComponent: () =>
           import('./features/reader/reader.component').then((m) => m.ReaderComponent),

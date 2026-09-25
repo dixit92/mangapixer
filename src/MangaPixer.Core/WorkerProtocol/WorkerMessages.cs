@@ -21,7 +21,14 @@ public static class WorkerProtocolVersion
     // ExtractRequest.ResizeFilter is OPTIONAL and defaults to null, which the
     // worker reads as the pre-1.20.0 Lanczos kernel. An older worker ignores the
     // field; a newer worker receiving no field behaves exactly as 1.19.x did.
-    public const int Current = 2;
+    //
+    // v3 (1.24.0): ComicInfo.xml read - the new `comicinfo` / `comicinfo_result` /
+    // `comicinfo_error` messages and the optional AnalyzeResult.ComicInfo. The
+    // message alone is technically additive (an old worker would answer
+    // `unknown_message_type`), but the bump is deliberate (owner decision 6 of the
+    // metadata design lock): a mismatched server/worker pair must fail loudly at
+    // the handshake instead of silently never reading ComicInfo.
+    public const int Current = 3;
 }
 
 /// <summary>
@@ -131,6 +138,14 @@ public sealed record AnalyzeResult
     /// </summary>
     public required long ObservedLastWriteTicks { get; init; }
     public required long ObservedByteLength { get; init; }
+
+    /// <summary>
+    /// ComicInfo.xml outcome (v3), read while the archive was already open for
+    /// analysis. Null from a worker that did not attempt the read; the server then
+    /// leaves the item to the ComicInfo backfill. A ComicInfo problem never fails
+    /// the analysis itself.
+    /// </summary>
+    public ComicInfoOutcome? ComicInfo { get; init; }
 }
 
 /// <summary>

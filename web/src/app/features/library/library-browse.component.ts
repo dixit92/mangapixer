@@ -16,6 +16,9 @@ import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
 import { ContinueRowComponent } from '../../shared/continue-row/continue-row.component';
+import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
+import { SeriesInfoButtonComponent } from '../metadata/series-info-button.component';
+import { SeriesSelectionActionsComponent } from '../metadata/series-selection-actions.component';
 import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
 
 /**
@@ -69,6 +72,9 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     FolderRollupBadgeComponent,
     StarToggleComponent,
     ContinueRowComponent,
+    InfoToggleComponent,
+    SeriesInfoButtonComponent,
+    SeriesSelectionActionsComponent,
   ],
   template: `
     <!-- Sticky top bar: breadcrumbs + Select normally; the merged action set while
@@ -130,6 +136,10 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                    (change)="onListColumnsChange($event)">
             <mat-icon class="size-icon">view_module</mat-icon>
           </div>
+        }
+        <!-- Series info for the folder being viewed (1.24.0): its own component. -->
+        @if (parentId(); as folderId) {
+          <app-series-info-button [nodeId]="folderId" />
         }
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
                 matTooltip="Change how the library is displayed" aria-label="View options">
@@ -310,6 +320,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                 <button mat-menu-item (click)="bulkSetDirection(opt.value)">{{ opt.label }}</button>
               }
             </mat-menu>
+            <app-series-selection-actions [nodes]="nodes()" [selected]="selected()" [disabled]="busy()" />
           }
         </div>
         <button mat-stroked-button class="done" (click)="toggleSelectMode()">
@@ -433,6 +444,10 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                    component styles keep this out of the near-budget inline CSS below. -->
               @if (viewMode() !== 'list') {
                 <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
+                <!-- Series info (1.24.0): cover bottom-left, only for the node's OWN info. -->
+                @if (node.hasSeriesInfo && !selectMode()) {
+                  <app-info-toggle [nodeId]="node.id" [overlay]="true" />
+                }
               }
 
               <!-- Card mode: read/selection markers overlay the cover. List mode renders
@@ -465,6 +480,9 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
             @if (viewMode() === 'list') {
               <div class="row-markers">
                 <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" />
+                @if (node.hasSeriesInfo && !selectMode()) {
+                  <app-info-toggle [nodeId]="node.id" [compact]="true" />
+                }
                 <ng-container *ngTemplateOutlet="markers; context: { $implicit: node }" />
               </div>
             }

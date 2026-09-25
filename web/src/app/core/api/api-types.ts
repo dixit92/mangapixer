@@ -78,6 +78,13 @@ export interface CatalogNodeDto {
    * Browse only, folders only; null for archives, empty folders, and search results.
    */
   readRollup: FolderReadRollup | null;
+  /**
+   * Whether the node ITSELF has series information (1.24.0): its own web link, its own
+   * ComicInfo.xml, or ComicInfo on the archives inside a folder. Inherited links and
+   * "Don't match" do not count; always false while "Show series information" is off.
+   * Drives the card (i). Optional so older fixtures keep compiling.
+   */
+  hasSeriesInfo?: boolean;
 }
 
 export interface BreadcrumbEntry {
@@ -931,4 +938,206 @@ export interface RotatingBackupStatusDto {
   locationKind?: 'default' | 'custom';
   locationStatus?: BackupLocationStatus;
   lastFailureCode?: string | null;
+}
+
+// --- Series metadata (1.24.0, stage 1) ---------------------------------------------
+// Mirrors MangaPixer.Core/Api/MetadataDtos.cs + Core/Metadata/MetadataVocabulary.cs.
+// Enums arrive as their C# names (JsonStringEnumConverter).
+
+export type SeriesInfoState = 'None' | 'ComicInfo' | 'Web' | 'WebAndComicInfo' | 'Mixed' | 'DontMatch';
+export type MetadataPrecedence = 'WebFirst' | 'ComicInfoFirst';
+export type MetadataPrecedenceSource = 'Default' | 'Library' | 'Folder';
+export type SeriesLinkState = 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch';
+export type MetadataMatchMethod = 'Search' | 'Reference' | 'ComicInfoWebHint' | 'Auto';
+export type MetadataOrigin =
+  | 'Japan' | 'Korea' | 'ChinaTaiwan' | 'EnglishOriginal' | 'Philippines' | 'Indonesia' | 'Thailand'
+  | 'Vietnam' | 'Malaysia' | 'Nordic' | 'French' | 'Spanish' | 'German' | 'Other';
+export type MetadataFormat = 'Comic' | 'Novel' | 'Artbook' | 'Doujinshi' | 'Audio';
+export type MetadataOriginStatus = 'Unknown' | 'Ongoing' | 'Complete' | 'Hiatus' | 'Cancelled';
+export type MetadataFieldSource = 'Web' | 'ComicInfo';
+
+export interface SeriesCreatorDto {
+  name: string;
+  /** writer, artist, author, penciller, inker, colorist, letterer, coverArtist, editor, translator, other. */
+  role: string;
+}
+
+export interface SeriesPublisherDto {
+  name: string;
+  /** original, english, other. */
+  kind: string;
+}
+
+export interface SeriesInfoItemDto {
+  number?: string | null;
+  volume?: number | null;
+  title?: string | null;
+  summary?: string | null;
+  year?: number | null;
+  month?: number | null;
+}
+
+export interface SeriesInfoItemRowDto {
+  nodeId: string;
+  displayName: string;
+  number?: string | null;
+  volume?: number | null;
+  title?: string | null;
+  year?: number | null;
+}
+
+export interface SeriesMixedEntryDto {
+  name: string;
+  count: number;
+}
+
+export interface SeriesInfoWebDto {
+  provider: string;
+  providerName: string;
+  siteUrl?: string | null;
+  fetchedAt: string;
+  /** Poster (lane B2); false/null in stage-1 lane B1. */
+  hasImage?: boolean;
+  imageUrl?: string | null;
+}
+
+export interface SeriesInfoComicInfoDto {
+  itemsWithComicInfo: number;
+  itemsTotal: number;
+  count?: number | null;
+  /** ComicInfo Web URLs on allowlisted hosts only. */
+  webLinks?: string[];
+}
+
+export interface SeriesLinkInfoDto {
+  state: SeriesLinkState;
+  /** The node holding the link row. */
+  nodeId: string;
+  inherited: boolean;
+  linkedAt?: string | null;
+}
+
+/** GET /nodes/{nodeId}/series-info - one DTO for the overlay and the series page. */
+export interface SeriesInfoDto {
+  nodeId: string;
+  nodeKind: CatalogNodeKind;
+  anchorNodeId: string;
+  anchorKind: CatalogNodeKind;
+  anchorDisplayName: string;
+  libraryId: string;
+  state: SeriesInfoState;
+  title?: string | null;
+  altTitles?: string[];
+  description?: string | null;
+  creators?: SeriesCreatorDto[];
+  genres?: string[];
+  origin?: MetadataOrigin | null;
+  format?: MetadataFormat | null;
+  webtoon?: boolean | null;
+  startYear?: number | null;
+  originStatus?: MetadataOriginStatus | null;
+  originVolumes?: number | null;
+  latestChapter?: number | null;
+  statusText?: string | null;
+  licensedEn?: boolean | null;
+  translationComplete?: boolean | null;
+  publishers?: SeriesPublisherDto[];
+  /** Per-field attribution keyed by camelCase field name. */
+  fieldSources?: Partial<Record<string, MetadataFieldSource>>;
+  item?: SeriesInfoItemDto | null;
+  mixedSeries?: SeriesMixedEntryDto[];
+  web?: SeriesInfoWebDto | null;
+  comicInfo?: SeriesInfoComicInfoDto | null;
+  link?: SeriesLinkInfoDto | null;
+  precedence: MetadataPrecedence;
+  precedenceSource: MetadataPrecedenceSource;
+  items?: SeriesInfoItemRowDto[];
+}
+
+export interface MetadataComicInfoStatsDto {
+  archivesRead: number;
+  archivesTotal: number;
+  archivesWithComicInfo: number;
+}
+
+export interface MetadataLibrarySettingsDto {
+  libraryId: string;
+  name: string;
+  fetchEnabled: boolean;
+  showSeriesInfo: boolean;
+  precedence?: MetadataPrecedence | null;
+  linkCount: number;
+}
+
+/** GET/PUT /admin/metadata/settings (the settings card is lane B2's). */
+export interface MetadataSettingsDto {
+  showSeriesInfo: boolean;
+  fetchEnabled: boolean;
+  networkDisabledByConfig: boolean;
+  acceptedConsentVersion?: number | null;
+  currentConsentVersion: number;
+  consentAt?: string | null;
+  dailyBudget: number;
+  defaultDailyBudget: number;
+  budgetUsedToday: number;
+  backoffUntil?: string | null;
+  lastErrorAt?: string | null;
+  lastErrorCode?: string | null;
+  comicInfo: MetadataComicInfoStatsDto;
+  webRecordCount: number;
+  libraries: MetadataLibrarySettingsDto[];
+}
+
+export interface UpdateMetadataSettingsRequest {
+  showSeriesInfo?: boolean | null;
+  fetchEnabled?: boolean | null;
+  acceptedConsentVersion?: number | null;
+  dailyBudget?: number | null;
+  resetDailyBudget?: boolean;
+}
+
+export interface UpdateMetadataLibraryRequest {
+  fetchEnabled?: boolean | null;
+  showSeriesInfo?: boolean | null;
+}
+
+export interface SetMetadataPrecedenceRequest {
+  precedence?: MetadataPrecedence | null;
+}
+
+export interface LinkSeriesRequest {
+  provider: string;
+  externalId: string;
+  matchMethod?: MetadataMatchMethod | null;
+  matchScore?: number | null;
+}
+
+export interface NodeSeriesLinkDto {
+  nodeId: string;
+  state: SeriesLinkState;
+  provider?: string | null;
+  externalId?: string | null;
+  recordId?: string | null;
+  matchMethod?: MetadataMatchMethod | null;
+  updatedAt: string;
+}
+
+export interface NodeSeriesLinkChangeDto {
+  nodeId: string;
+  link?: NodeSeriesLinkDto | null;
+  previous?: NodeSeriesLinkDto | null;
+}
+
+export interface MetadataPurgeRequest {
+  libraryId?: string | null;
+}
+
+export interface MetadataPurgeResultDto {
+  linksRemoved: number;
+  recordsRemoved: number;
+}
+
+export interface FolderMetadataPrecedenceDto {
+  nodeId: string;
+  precedence: MetadataPrecedence;
 }

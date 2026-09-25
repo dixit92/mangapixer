@@ -235,6 +235,15 @@ public sealed partial class Program
             // CatalogBrowseService, which owns the main catalog-browsing surface.
             builder.Services.AddScoped<RecentChaptersService>();
 
+            // Series metadata (1.24.0, lane B1): read-time series-info resolver, admin
+            // settings/link services and the provider registry, which is EMPTY here -
+            // no provider, no HttpClient, no outbound call. The network half (gateway,
+            // MangaUpdates provider, named clients) is lane B2's.
+            builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.MetadataSettingsService>();
+            builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.MetadataLinkService>();
+            builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.SeriesInfoResolver>();
+            builder.Services.AddSingleton<com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MetadataProviderRegistry>();
+
             // Operations services
             builder.Services.AddScoped<BackupService>();
             builder.Services.AddScoped<DiagnosticsService>();

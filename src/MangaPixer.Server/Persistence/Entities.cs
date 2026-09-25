@@ -51,6 +51,28 @@ public sealed class LibraryEntity
     /// </summary>
     public string? Icon { get; set; }
 
+    /// <summary>
+    /// Per-library "Fetch from the web" opt-in (1.24.0 metadata). Off by default so a
+    /// new library never goes online; the network half (lane B2) checks it together
+    /// with <see cref="AppSettingsEntity.MetadataEnabled"/> on every call.
+    /// </summary>
+    public bool MetadataEnabled { get; set; }
+
+    /// <summary>
+    /// Per-library "Show series information" switch, stored inverted (1.24.0): true
+    /// hides ALL series metadata (web and ComicInfo) of this library from every
+    /// surface; the data stays stored. Stored as "hidden" so the column default (0)
+    /// is also the shown state and EF never needs a non-CLR default.
+    /// </summary>
+    public bool MetadataSeriesInfoHidden { get; set; }
+
+    /// <summary>
+    /// Library source-precedence override (<c>MetadataPrecedence</c> int value), or
+    /// null for the default (web first). Overridable per folder subtree via
+    /// <see cref="FolderMetadataPrecedenceEntity"/>.
+    /// </summary>
+    public int? MetadataPrecedence { get; set; }
+
     public ICollection<LibraryGrantEntity> Grants { get; set; } = [];
     public ICollection<CatalogNodeEntity> Nodes { get; set; } = [];
 }
@@ -840,6 +862,233 @@ public sealed class AppSettingsEntity
     /// it never leaves the machine.
     /// </summary>
     public string? BackupLocationMarkerId { get; set; }
+
+    // Series metadata (1.24.0). Created by lane B1's migration; the network
+    // columns are consumed by lane B2's gateway. Nullable tunables follow the
+    // backup columns' pattern: null = not set, the built-in default applies.
+
+    /// <summary>Global "Fetch from the web" switch. Off by default; enabling requires consent.</summary>
+    public bool MetadataEnabled { get; set; }
+
+    /// <summary>
+    /// Global "Show series information" switch, stored inverted: true hides ALL
+    /// series metadata (web and ComicInfo) everywhere; data stays stored.
+    /// </summary>
+    public bool MetadataSeriesInfoHidden { get; set; }
+
+    /// <summary>Consent text version the admin accepted when enabling, or null if never.</summary>
+    public int? MetadataConsentVersion { get; set; }
+    public DateTimeOffset? MetadataConsentAt { get; set; }
+
+    /// <summary>Daily outbound request budget, or null for the default (5000).</summary>
+    public int? MetadataDailyBudget { get; set; }
+
+    /// <summary>UTC day the persisted budget counter belongs to (reset when the day changes).</summary>
+    public DateTimeOffset? MetadataBudgetDayUtc { get; set; }
+    public int MetadataBudgetUsed { get; set; }
+
+    /// <summary>Persisted provider backoff (survives restarts).</summary>
+    public DateTimeOffset? MetadataBackoffUntil { get; set; }
+    public int MetadataBackoffStep { get; set; }
+
+    /// <summary>Last provider error for the settings card status line (a short code, never a message).</summary>
+    public DateTimeOffset? MetadataLastErrorAt { get; set; }
+    public string? MetadataLastErrorCode { get; set; }
+}
+
+/// <summary>
+/// One external series record per provider (1.24.0). Never merged in storage:
+/// ComicInfo and web data are merged per field at READ time, so a precedence
+/// change loses nothing. Keyed by (<see cref="Provider"/>, <see cref="ExternalId"/>)
+/// so a local dump writes the same keys as the online API and existing links
+/// survive a switch between the two. Created when an admin previews or links a
+/// record; deleted (with its image) when the last link to it goes, or on purge.
+/// No column holds a filesystem path.
+/// </summary>
+public sealed class MetadataRecordEntity
+{
+    public long Id { get; set; }
+    public string PublicId { get; set; } = string.Empty;
+
+    /// <summary>Provider slug: <c>mangaupdates</c> now; later anilist, mangadex, comicvine, mangabaka.</summary>
+    public string Provider { get; set; } = string.Empty;
+
+    /// <summary>Provider record id as text (MangaUpdates int64 in decimal).</summary>
+    public string ExternalId { get; set; } = string.Empty;
+
+    /// <summary><c>MetadataSourceKind</c>: 0 online API, 1 local dump. Same key either way.</summary>
+    public int SourceKind { get; set; }
+
+    /// <summary>0 = series (the only kind until stage 3); 1 reserved for volume/issue units.</summary>
+    public int RecordKind { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+    public string? AltTitlesJson { get; set; }
+
+    /// <summary>Plain text, max 16k; Markdown links flattened.</summary>
+    public string? Description { get; set; }
+
+    /// <summary><c>MetadataOrigin</c> (country / region / language of origin), or null.</summary>
+    public int? Origin { get; set; }
+
+    /// <summary><c>MetadataFormat</c> (comic / novel / artbook / doujinshi / audio), or null.</summary>
+    public int? Format { get; set; }
+
+    /// <summary>Tri-state webtoon flag: 1 yes, 0 no, null unknown.</summary>
+    public bool? Webtoon { get; set; }
+
+    /// <summary>The provider's raw type value (for example <c>Manhwa</c>).</summary>
+    public string? ProviderType { get; set; }
+
+    public int? StartYear { get; set; }
+
+    /// <summary><c>MetadataOriginStatus</c>, or null.</summary>
+    public int? OriginStatus { get; set; }
+    public int? OriginVolumes { get; set; }
+    public double? LatestChapter { get; set; }
+    public string? StatusText { get; set; }
+    public bool? LicensedEn { get; set; }
+    public bool? TranslationComplete { get; set; }
+
+    /// <summary><c>[{name, role}]</c>.</summary>
+    public string? CreatorsJson { get; set; }
+    public string? GenresJson { get; set; }
+
+    /// <summary>
+    /// Top ~20 provider categories by votes, <c>[{name, votes}]</c>: input for the
+    /// webtoon flag and stage-2 ranking. Never displayed in stage 1.
+    /// </summary>
+    public string? CategoriesJson { get; set; }
+
+    /// <summary><c>[{name, kind}]</c>, kind in original / english / other.</summary>
+    public string? PublishersJson { get; set; }
+
+    /// <summary><c>{provider: id}</c> cross references (aggregators / dumps).</summary>
+    public string? CrossIdsJson { get; set; }
+
+    /// <summary>Canonical provider page (https, provider host only).</summary>
+    public string? SiteUrl { get; set; }
+
+    /// <summary>Remote poster URL. Never sent to the browser.</summary>
+    public string? ImageRemoteUrl { get; set; }
+
+    /// <summary>0 none, 1 stored, 2 failed.</summary>
+    public int ImageState { get; set; }
+
+    /// <summary>Bumps when the stored image is replaced; part of the immutable image URL.</summary>
+    public int ImageVersion { get; set; }
+
+    public DateTimeOffset? ProviderUpdatedAt { get; set; }
+    public DateTimeOffset FetchedAt { get; set; }
+
+    /// <summary>0 ok, 1 gone (404 on refresh), 2 last refresh failed.</summary>
+    public int FetchState { get; set; }
+
+    /// <summary>Small provider-specific leftovers; never rendered raw.</summary>
+    public string? ExtraJson { get; set; }
+}
+
+/// <summary>
+/// At most one series link per catalog node (1.24.0), folder OR archive. The
+/// resolver walks self -> ancestors (bounded 64) and the nearest row wins; a
+/// <c>DontMatch</c> row stops inheritance. Invariant (enforced in code):
+/// <see cref="RecordId"/> is null iff <see cref="State"/> is DontMatch (stage 2
+/// adds needs_review without a candidate). Cascades with the node and the
+/// library; a record cannot be deleted while a link references it.
+/// </summary>
+public sealed class NodeSeriesLinkEntity
+{
+    public long Id { get; set; }
+    public long NodeId { get; set; }
+
+    /// <summary>Denormalized for per-library purge / review.</summary>
+    public long LibraryId { get; set; }
+
+    /// <summary><c>SeriesLinkState</c>: 0 confirmed, 3 dont_match (1 auto, 2 needs_review reserved).</summary>
+    public int State { get; set; }
+    public long? RecordId { get; set; }
+
+    /// <summary><c>MetadataMatchMethod</c>, or null.</summary>
+    public int? MatchMethod { get; set; }
+
+    /// <summary>Ranking score shown when the candidate was picked (0-1).</summary>
+    public double? MatchScore { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    public CatalogNodeEntity? Node { get; set; }
+    public MetadataRecordEntity? Record { get; set; }
+}
+
+/// <summary>
+/// Embedded metadata read from inside an archive (1.24.0): ComicInfo.xml now,
+/// EPUB OPF / PDF info later (<see cref="Schema"/>). 1:1 with an archive node and
+/// stamped with the content version it was read from; a mismatch means stale and
+/// the backfill re-reads it. Every outcome is stored, including "absent", so each
+/// archive is read once per content version. Values come from the worker already
+/// bounded and sanitized; they are data, never markup, and never logged.
+/// </summary>
+public sealed class EmbeddedMetadataEntity
+{
+    /// <summary>Same as CatalogNodeEntity.Id (1:1).</summary>
+    public long NodeId { get; set; }
+
+    /// <summary>0 = ComicInfo.xml.</summary>
+    public int Schema { get; set; }
+
+    public long ContentVersion { get; set; }
+
+    /// <summary>0 absent, 1 parsed, 2 malformed, 3 too_large, 4 skipped_solid, 5 read_error.</summary>
+    public int State { get; set; }
+
+    public string? Series { get; set; }
+    public string? Title { get; set; }
+    public string? AlternateSeries { get; set; }
+    public string? SeriesGroup { get; set; }
+    public string? StoryArc { get; set; }
+    public string? Number { get; set; }
+    public string? Format { get; set; }
+    public string? AgeRating { get; set; }
+    public string? LanguageIso { get; set; }
+    public int? Volume { get; set; }
+    public int? Count { get; set; }
+    public int? Year { get; set; }
+    public int? Month { get; set; }
+    public string? Summary { get; set; }
+
+    /// <summary><c>[{name, role}]</c>.</summary>
+    public string? CreatorsJson { get; set; }
+    public string? Publisher { get; set; }
+    public string? Imprint { get; set; }
+    public string? GenresJson { get; set; }
+    public string? TagsJson { get; set; }
+    public string? WebUrlsJson { get; set; }
+
+    /// <summary>ComicInfo <c>Manga</c>: 0 No, 1 Yes, 2 YesAndRightToLeft.</summary>
+    public int? MangaDirection { get; set; }
+    public string? Gtin { get; set; }
+    public string? Notes { get; set; }
+
+    public DateTimeOffset ReadAt { get; set; }
+
+    public CatalogNodeEntity? Node { get; set; }
+}
+
+/// <summary>
+/// Per-folder metadata source-precedence override (1.24.0), a 1:1 copy of
+/// <see cref="FolderReaderDefaultEntity"/>: applies to the folder and its subtree;
+/// the nearest row (self first, then ancestors) wins over the library value.
+/// </summary>
+public sealed class FolderMetadataPrecedenceEntity
+{
+    public long Id { get; set; }
+    public long NodeId { get; set; }
+
+    /// <summary><c>MetadataPrecedence</c>: 0 web first, 1 ComicInfo first.</summary>
+    public int Precedence { get; set; }
+
+    public CatalogNodeEntity? Node { get; set; }
 }
 
 /// <summary>
