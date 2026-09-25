@@ -148,6 +148,16 @@ public sealed record CatalogNodeDto
     /// the same per-item signals as <see cref="IsRead"/> / <see cref="ReadingState"/>.
     /// </summary>
     public FolderReadRollup? ReadRollup { get; init; }
+
+    /// <summary>
+    /// Whether the node ITSELF has series information to show (1.24.0): its own
+    /// confirmed web link, its own ComicInfo.xml (archives), or ComicInfo on the
+    /// archives inside it (folders, depth 1-2). Inherited links and "Don't match"
+    /// do not count, and it is always false while "Show series information" is off
+    /// for the node's library. Populated by browse in batched queries (no per-card
+    /// walk); drives the card (i). Defaults false so older clients ignore it.
+    /// </summary>
+    public bool HasSeriesInfo { get; init; }
 }
 
 /// <summary>
