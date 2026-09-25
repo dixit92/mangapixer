@@ -133,8 +133,9 @@ function observeVisibility(el: Element, listener: (visible: boolean) => void): (
     /* STATIC one-cell grid: see the file comment (offsetTop must stay scroller-relative). */
     :host { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; width: 100%; }
     :host > ::ng-deep img { grid-area: 1 / 1; }
-    /* A broken img's alt text / icon would show behind the retry button. */
-    :host(.failed) > ::ng-deep img { color: transparent; }
+    /* A broken img's alt text / "?" icon would show behind the retry button;
+       the box keeps its pinned height (pinBoxHeight). */
+    :host(.failed) > ::ng-deep img { visibility: hidden; }
     .veil {
       grid-area: 1 / 1; justify-self: stretch; align-self: stretch;
       contain: size; overflow: clip; pointer-events: none;
