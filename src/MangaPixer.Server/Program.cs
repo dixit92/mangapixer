@@ -600,9 +600,9 @@ public sealed partial class Program
         AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaUpdatesImageClient, Features.Metadata.MetadataHttp.MangaUpdatesImageHost, "image/*");
     }
 
-    private static void AddMetadataClient(IServiceCollection services, string name, string host, string accept)
+    internal static IHttpClientBuilder AddMetadataClient(IServiceCollection services, string name, string host, string accept)
     {
-        services.AddHttpClient(name, client =>
+        return services.AddHttpClient(name, client =>
             {
                 client.Timeout = Features.Metadata.MetadataHttp.Timeout;
                 client.DefaultRequestHeaders.UserAgent.ParseAdd(Features.Metadata.MetadataHttp.UserAgent);

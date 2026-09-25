@@ -24,8 +24,8 @@ public enum MangaUpdatesReferenceKind
 /// </summary>
 public static class MangaUpdatesReference
 {
-    /// <summary>MangaUpdates series ids are well below this (base36 of 12 chars fits a long).</summary>
-    private const int MaxBase36Length = 12;
+    /// <summary>A positive long is at most 13 base36 digits; overflow is checked while decoding.</summary>
+    private const int MaxBase36Length = 13;
 
     private const string Shortcode = "mu:";
 

@@ -68,16 +68,26 @@ public sealed record IdentifyLocalDto
     public int? YearHint { get; init; }
 }
 
+/// <summary>
+/// A confirmed search. <see cref="ToString"/> never prints the query: framework
+/// trace logging of action arguments must not be able to leak it (privacy rule:
+/// logs never carry search text).
+/// </summary>
 public sealed record IdentifySearchRequest
 {
     public required string Query { get; init; }
     public int Page { get; init; } = 1;
+
+    public override string ToString() => $"IdentifySearchRequest {{ Query = [redacted], Page = {Page} }}";
 }
 
+/// <summary>A pasted reference; like the query, never printed by <see cref="ToString"/> (URLs carry title slugs).</summary>
 public sealed record IdentifyLookupRequest
 {
     /// <summary>A pasted provider URL or shortcode (<c>mu:12345</c>, <c>mu:njeqwry</c>).</summary>
     public required string Reference { get; init; }
+
+    public override string ToString() => "IdentifyLookupRequest { Reference = [redacted] }";
 }
 
 public sealed record IdentifyPreviewRequest

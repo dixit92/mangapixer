@@ -66,7 +66,6 @@ public sealed class MetadataIdentifyController : ControllerBase
     /// <summary>A search/preview candidate's image, by short-lived server-side token (no provider URL comes from the client).</summary>
     [HttpGet("candidates/{token}/image")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CandidateImage(string token, CancellationToken ct)
     {
         try

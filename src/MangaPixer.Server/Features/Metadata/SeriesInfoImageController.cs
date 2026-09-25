@@ -46,7 +46,6 @@ public sealed class SeriesInfoImageController : ControllerBase
     /// </summary>
     [HttpGet("nodes/{nodeId}/series-info/image")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetImage(string nodeId, [FromQuery] string? v, CancellationToken ct)
     {
         var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);

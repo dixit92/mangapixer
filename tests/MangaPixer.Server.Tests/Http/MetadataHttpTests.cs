@@ -275,7 +275,9 @@ public sealed class MetadataHttpTests : IClassFixture<MangaPixerWebApplicationFa
     {
         var admin = await AdminAsync();
 
-        var missing = await admin.PutAsJsonAsync("/api/v1/admin/metadata/nodes/mdPlain/link", new LinkSeriesRequest { Provider = "mangaupdates", ExternalId = "1" });
+        // A provider with no registered implementation cannot fetch: record_not_found.
+        // (An unstored MangaUpdates record is fetched first - lane B2, MetadataIdentifyHttpTests.)
+        var missing = await admin.PutAsJsonAsync("/api/v1/admin/metadata/nodes/mdPlain/link", new LinkSeriesRequest { Provider = "anilist", ExternalId = "1" });
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
         Assert.Equal("record_not_found", (await missing.Content.ReadFromJsonAsync<ApiError>())!.Error);
 
@@ -376,7 +378,7 @@ public sealed class MetadataHttpTests : IClassFixture<MangaPixerWebApplicationFa
     // --- wiring ---
 
     [Fact]
-    public async Task Wiring_ServicesResolve_AndNoProviderIsRegistered()
+    public async Task Wiring_ServicesResolve_AndOnlyMangaUpdatesIsRegistered()
     {
         await SeedAsync();
         using var scope = _factory.Services.CreateScope();
@@ -385,8 +387,12 @@ public sealed class MetadataHttpTests : IClassFixture<MangaPixerWebApplicationFa
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<MetadataLinkService>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<MetadataSettingsService>());
         Assert.NotNull(_factory.Services.GetRequiredService<ComicInfoBackfillService>());
-        // Lane B1 ships no provider: nothing can make an outbound metadata call.
-        Assert.Empty(_factory.Services.GetRequiredService<MetadataProviderRegistry>().All);
-        Assert.Empty(_factory.Services.GetServices<IMetadataProvider>());
+        // Lane B2: exactly one provider, reachable only through the gateway, plus the
+        // poster store registered to delete images with their records.
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<MetadataGateway>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<MetadataIdentifyService>());
+        Assert.Equal(["mangaupdates"], _factory.Services.GetRequiredService<MetadataProviderRegistry>().All.Select(p => p.Id).ToArray());
+        Assert.Single(_factory.Services.GetServices<IMetadataProvider>());
+        Assert.Contains(_factory.Services.GetServices<IMetadataRecordRemovedHandler>(), h => h is MetadataImageStore);
     }
 }

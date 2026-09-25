@@ -257,28 +257,28 @@ public sealed class MetadataGateway
         switch (ex)
         {
             case MetadataHttpStatusException { Status: HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable } limited:
-            {
-                var code = limited.Status == HttpStatusCode.TooManyRequests ? "rate_limited" : "http_503";
-                var until = await _backoff.RecordRateLimitedAsync(limited.RetryAfterDelta, limited.RetryAfterDate, code, ct);
-                return new MetadataGatewayException(StatusCodes.Status503ServiceUnavailable, "provider_backoff",
-                    "The metadata provider is busy. Try again later.", until);
-            }
+                {
+                    var code = limited.Status == HttpStatusCode.TooManyRequests ? "rate_limited" : "http_503";
+                    var until = await _backoff.RecordRateLimitedAsync(limited.RetryAfterDelta, limited.RetryAfterDate, code, ct);
+                    return new MetadataGatewayException(StatusCodes.Status503ServiceUnavailable, "provider_backoff",
+                        "The metadata provider is busy. Try again later.", until);
+                }
             case MetadataHttpStatusException { Status: >= HttpStatusCode.InternalServerError }:
-            {
-                var until = await _backoff.RecordFailureAsync("http_5xx", countsTowardStreak: true, ct);
-                return new MetadataGatewayException(StatusCodes.Status502BadGateway, "provider_error",
-                    "The metadata provider returned an error. Try again later.", until);
-            }
+                {
+                    var until = await _backoff.RecordFailureAsync("http_5xx", countsTowardStreak: true, ct);
+                    return new MetadataGatewayException(StatusCodes.Status502BadGateway, "provider_error",
+                        "The metadata provider returned an error. Try again later.", until);
+                }
             case MetadataHttpStatusException:
                 await _backoff.RecordFailureAsync("http_4xx", countsTowardStreak: false, ct);
                 return new MetadataGatewayException(StatusCodes.Status502BadGateway, "provider_error",
                     "The metadata provider rejected the request.");
             case OperationCanceledException or TimeoutException:
-            {
-                var until = await _backoff.RecordFailureAsync("timeout", countsTowardStreak: true, ct);
-                return new MetadataGatewayException(StatusCodes.Status504GatewayTimeout, "provider_timeout",
-                    "The metadata provider did not answer in time.", until);
-            }
+                {
+                    var until = await _backoff.RecordFailureAsync("timeout", countsTowardStreak: true, ct);
+                    return new MetadataGatewayException(StatusCodes.Status504GatewayTimeout, "provider_timeout",
+                        "The metadata provider did not answer in time.", until);
+                }
             case MetadataHostRefusedException refused:
                 await _backoff.RecordFailureAsync(refused.Code, countsTowardStreak: false, ct);
                 return new MetadataGatewayException(StatusCodes.Status502BadGateway, refused.Code,
@@ -292,12 +292,12 @@ public sealed class MetadataGateway
                 return new MetadataGatewayException(StatusCodes.Status502BadGateway, invalid.Code,
                     "The metadata provider's response could not be read.");
             default:
-            {
-                // Network errors (DNS, connection refused, TLS) count like a 5xx.
-                var until = await _backoff.RecordFailureAsync("network_error", countsTowardStreak: true, ct);
-                return new MetadataGatewayException(StatusCodes.Status502BadGateway, "provider_unreachable",
-                    "The metadata provider could not be reached.", until);
-            }
+                {
+                    // Network errors (DNS, connection refused, TLS) count like a 5xx.
+                    var until = await _backoff.RecordFailureAsync("network_error", countsTowardStreak: true, ct);
+                    return new MetadataGatewayException(StatusCodes.Status502BadGateway, "provider_unreachable",
+                        "The metadata provider could not be reached.", until);
+                }
         }
     }
 
