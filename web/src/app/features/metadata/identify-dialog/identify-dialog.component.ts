@@ -105,8 +105,8 @@ type Step = 'search' | 'preview';
             <ul class="results" data-testid="identify-results">
               @for (c of candidates(); track c.externalId) {
                 <li>
-                  @if (c.imageToken) {
-                    <img class="thumb" [src]="imageUrl(c.imageToken)" alt="" loading="lazy">
+                  @if (c.imageToken && !failedImages().has(c.imageToken)) {
+                    <img class="thumb" [src]="imageUrl(c.imageToken)" alt="" loading="lazy" (error)="imageFailed(c.imageToken)">
                   } @else {
                     <div class="thumb empty"><mat-icon>image_not_supported</mat-icon></div>
                   }
@@ -117,7 +117,7 @@ type Step = 'search' | 'preview';
                     @if (c.format === 'Novel' || c.format === 'Artbook') { <div class="warn small">{{ c.format === 'Novel' ? 'Novel' : 'Artbook' }}, not a comic</div> }
                   </div>
                   <span class="strength" [attr.data-strength]="c.strength">{{ strength(c) }} {{ percent(c.score) }}</span>
-                  <button mat-stroked-button type="button" [disabled]="busy()" (click)="usePreview(ctx.provider, c.externalId, 'Search')">Preview</button>
+                  <button mat-stroked-button type="button" [disabled]="busy()" (click)="usePreview(ctx.provider, c.externalId, 'Search', c)">Preview</button>
                 </li>
               }
             </ul>
@@ -141,7 +141,9 @@ type Step = 'search' | 'preview';
             <section>
               <h3>{{ p.providerName }}</h3>
               <div class="pv">
-                @if (p.imageToken) { <img class="poster" [src]="imageUrl(p.imageToken)" alt=""> }
+                @if (p.imageToken && !failedImages().has(p.imageToken)) {
+                  <img class="poster" [src]="imageUrl(p.imageToken)" alt="" (error)="imageFailed(p.imageToken)">
+                }
                 <div>
                   <div class="c-title">{{ p.title }}</div>
                   @if (p.altTitles?.length) { <div class="muted small">+{{ p.altTitles!.length }} alternative title{{ p.altTitles!.length === 1 ? '' : 's' }}</div> }
@@ -158,7 +160,7 @@ type Step = 'search' | 'preview';
             <p class="warn" [attr.data-warning]="w.code"><mat-icon inline>warning_amber</mat-icon> {{ w.message }}</p>
           }
           <p class="muted small">
-            Match: {{ STRENGTH[p.strength] }} {{ percent(p.score) }} · Applies to
+            Match: {{ STRENGTH[match().strength] }} {{ percent(match().score) }} · Applies to
             {{ ctx.nodeKind === 'Folder' ? 'this folder and everything inside' : 'this item only' }}.
           </p>
           @if (p.siteUrl) {
@@ -238,6 +240,17 @@ export class IdentifyDialogComponent implements OnInit {
   readonly budgetLimit = signal(0);
   readonly preview = signal<IdentifyPreviewDto | null>(null);
   private readonly previewMethod = signal<MetadataMatchMethod>('Search');
+  /** The search result a preview came from: its score (against the confirmed query) is the one shown and stored. */
+  private readonly previewCandidate = signal<IdentifyCandidateDto | null>(null);
+  /** Candidate image tokens whose image did not load (budget, backoff, expired): shown as a placeholder. */
+  readonly failedImages = signal<ReadonlySet<string>>(new Set());
+
+  /** Match strength shown in the preview and stored with the link. */
+  readonly match = computed(() => {
+    const c = this.previewCandidate();
+    const p = this.preview();
+    return c ? { score: c.score, strength: c.strength } : { score: p?.score ?? 0, strength: p?.strength ?? 'Weak' };
+  });
   private readonly lastSubmittedQuery = signal('');
 
   readonly queryValid = computed(() => {
@@ -278,11 +291,15 @@ export class IdentifyDialogComponent implements OnInit {
   runLookup(): void {
     const ref = this.reference().trim();
     if (!ref || this.busy()) return;
-    this.showPreview(this.api.lookup(this.data.nodeId, ref), 'Reference');
+    this.showPreview(this.api.lookup(this.data.nodeId, ref), 'Reference', null);
   }
 
-  usePreview(provider: string, externalId: string, method: MetadataMatchMethod): void {
-    this.showPreview(this.api.preview(this.data.nodeId, { provider, externalId }), method);
+  usePreview(provider: string, externalId: string, method: MetadataMatchMethod, candidate?: IdentifyCandidateDto): void {
+    this.showPreview(this.api.preview(this.data.nodeId, { provider, externalId }), method, candidate ?? null);
+  }
+
+  imageFailed(token: string): void {
+    this.failedImages.set(new Set([...this.failedImages(), token]));
   }
 
   back(): void {
@@ -298,7 +315,7 @@ export class IdentifyDialogComponent implements OnInit {
     this.busy.set(true);
     this.error.set(null);
     this.api
-      .link(this.data.nodeId, { provider: p.provider, externalId: p.externalId, matchMethod: this.previewMethod(), matchScore: p.score })
+      .link(this.data.nodeId, { provider: p.provider, externalId: p.externalId, matchMethod: this.previewMethod(), matchScore: this.match().score })
       .subscribe({
         next: (change) => {
           this.busy.set(false);
@@ -353,13 +370,14 @@ export class IdentifyDialogComponent implements OnInit {
     });
   }
 
-  private showPreview(call: Observable<IdentifyPreviewDto>, method: MetadataMatchMethod): void {
+  private showPreview(call: Observable<IdentifyPreviewDto>, method: MetadataMatchMethod, candidate: IdentifyCandidateDto | null): void {
     this.busy.set(true);
     this.error.set(null);
     call.subscribe({
       next: (p) => {
         this.preview.set(p);
         this.previewMethod.set(method);
+        this.previewCandidate.set(candidate);
         this.step.set('preview');
         this.busy.set(false);
       },

@@ -81,6 +81,7 @@ test('settings card: consent gates the web switch; enabling makes no lookup', as
   await fetchSwitch.click();
   await expect(fetchSwitch).toHaveAttribute('aria-checked', 'true');
   await expect(card.getByTestId('md-consented')).toBeVisible();
+  await expect.poll(async () => (await settings(page)).fetchEnabled).toBe(true);
   await shot(page, 'b2-02-settings-enabled');
 
   const after = await settings(page);
@@ -91,7 +92,7 @@ test('settings card: consent gates the web switch; enabling makes no lookup', as
 
   await fetchSwitch.click();
   await expect(fetchSwitch).toHaveAttribute('aria-checked', 'false');
-  expect((await settings(page)).fetchEnabled).toBe(false);
+  await expect.poll(async () => (await settings(page)).fetchEnabled).toBe(false);
 });
 
 test('Identify is disabled with the reason, and the dialog shows the unavailable state', async ({ page, baseURL }) => {

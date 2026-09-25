@@ -181,6 +181,26 @@ describe('IdentifyDialogComponent', () => {
     expect(api.unlink).toHaveBeenCalledWith('n1');
   });
 
+  it('keeps the search score of the candidate a preview came from', () => {
+    const { c, api } = create();
+    c.runSearch();
+    c.usePreview('mangaupdates', '2', 'Search', results.candidates[1]);
+    expect(c.match()).toEqual({ score: 0.5, strength: 'Weak' });
+    c.link();
+    expect((api.link.mock.calls[0] as unknown[])[1]).toMatchObject({ matchMethod: 'Search', matchScore: 0.5 });
+  });
+
+  it('replaces a thumbnail that fails to load with the placeholder', () => {
+    const { c, el, render } = create();
+    c.runSearch();
+    render();
+    c.imageFailed('tok1');
+    render();
+    const first = el.querySelectorAll('[data-testid="identify-results"] li')[0];
+    expect(first.querySelector('img')).toBeNull();
+    expect(first.querySelector('.thumb.empty')).not.toBeNull();
+  });
+
   it('records Reference as the match method for a pasted link', () => {
     const { c, api } = create();
     c.reference.set('mu:1');
