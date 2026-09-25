@@ -2332,7 +2332,8 @@ describe('ReaderComponent onKeyDown case-insensitive single-letter shortcuts', (
  * `ReaderPreferencesService.setUpscaler`) so persistence never diverges from a
  * mouse/touch pick. 's' is the odd one out: it must keep working in webtoon
  * (the Downscale filter sizes every page request, not just paged/spread), so
- * onKeyDown handles it above the webtoon early-return, unlike 'd'/'e'.
+ * onKeyDown handles it above the webtoon early-return, unlike 'd'. Since 1.24.0
+ * 'e' is handled there too (webtoon Enhance).
  */
 describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filter / rendering)', () => {
   function create(view: 'paged' | 'spread' | 'webtoon' = 'paged') {
@@ -2404,9 +2405,18 @@ describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filt
     expect(c.prefs.upscaler()).toBe('smooth');
   });
 
-  it("'e' does nothing in webtoon even with WebGPU ready (Enhance is paged/spread-only)", () => {
+  it("'e' toggles Rendering in webtoon too (1.24.0 webtoon Enhance), above the native-scroll guard", () => {
     const c = create('webtoon');
     TestBed.inject(UpscaleSupportService).support.set('ready');
+    c.onKeyDown(press('e'));
+    expect(c.prefs.upscaler()).toBe('enhance');
+    c.onKeyDown(press('E'));
+    expect(c.prefs.upscaler()).toBe('smooth');
+  });
+
+  it("'e' in webtoon still never enables Enhance without WebGPU", () => {
+    const c = create('webtoon');
+    TestBed.inject(UpscaleSupportService).support.set('unavailable');
     c.onKeyDown(press('e'));
     expect(c.prefs.upscaler()).toBe('smooth');
   });

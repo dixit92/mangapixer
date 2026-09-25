@@ -26,6 +26,7 @@ import { BookmarksPanelComponent, BookmarksPanelHost } from './bookmarks-panel.c
 import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode, BookmarkDto } from '../../core/api/api-types';
 import { targetMaxDim, withMaxDim, VariantFitMode } from './page-variant';
 import { UpscaleDirective, UpscaleSupportService } from './upscale.directive';
+import { WebtoonEnhanceHostDirective, WebtoonUpscaleDirective } from './webtoon-upscale.directive';
 import {
   WebtoonNavPreferencesService, webtoonTapZone, webtoonScrollTarget, prefersReducedMotion,
 } from './webtoon-nav.service';
@@ -133,6 +134,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     MatSnackBarModule,
     ReaderSettingsMenuComponent,
     UpscaleDirective,
+    WebtoonEnhanceHostDirective,
+    WebtoonUpscaleDirective,
     StarToggleComponent,
   ],
   template: `
@@ -312,13 +315,16 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
              Keyboard (1.23.0 a11y): the scroller is focusable (tabindex 0, never
              focused programmatically) so arrow / Page keys scroll it natively, and
              Enter on it is the keyboard twin of the centre tap (show / hide the
-             controls). Tap and scroll behaviour are unchanged. -->
+             controls). Tap and scroll behaviour are unchanged.
+             Enhance (1.24.0): the host directive lays banded Anime4K canvases
+             over the strip (webtoon-enhance-coordinator.ts); the imgs register. -->
         <div class="reader-viewport webtoon" #scroller (scroll)="onWebtoonScroll()"
+             [appWebtoonEnhanceHost]="upscaleActive()"
              [style.touch-action]="webtoonTouchAction()" tabindex="0"
              (pointerdown)="onReaderPointerDown($event)" (click)="onWebtoonTap($event)"
              (keydown.enter)="onWebtoonEnter($event)">
           @for (entry of pages(); track entry.entryKey) {
-            <img class="webtoon-page" [src]="pageUrlFor(entry)" loading="lazy"
+            <img class="webtoon-page" appWebtoonUpscale [src]="pageUrlFor(entry)" loading="lazy"
                  [style.width.%]="webtoonWidthPct()"
                  [style.aspect-ratio]="aspectRatioFor(entry)"
                  [attr.data-index]="$index" alt="Page {{ $index + 1 }}" />
@@ -1098,11 +1104,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.view() === 'spread' && this.narrowPortrait() ? 'paged' : this.view());
 
   /**
-   * Is the GPU line-art upscaler on for the pages currently rendered? The
-   * preference is device-wide, but the `UpscaleDirective` only sits on the
-   * paged / double-spread `<img>`s (webtoon is out of scope for 1.19.0), so this
-   * is simply the preference — the webtoon template never reads it. The directive
-   * itself is a no-op without WebGPU and when the page is not being upscaled.
+   * Is the GPU line-art upscaler on for the pages currently rendered? Simply the
+   * device-wide preference: the paged / double-spread `<img>`s read it through
+   * `UpscaleDirective`, the webtoon scroller through `WebtoonEnhanceHostDirective`
+   * (1.24.0). Both are no-ops without WebGPU and when a page is not upscaled.
    */
   readonly upscaleActive = computed<boolean>(() => this.prefs.upscaler() === 'enhance');
 
@@ -1532,6 +1537,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // pageUrlFor), unlike page-mode/rendering below, so it must act before the
     // webtoon early-return, same as 'm'.
     if (key === 's') { this.cycleDownscaleFilter(); return; }
+    // Rendering applies to webtoon too since 1.24.0 (banded Enhance), so like 's'
+    // it acts before the webtoon early-return.
+    if (key === 'e') { this.toggleRendering(); return; }
     if (this.view() === 'webtoon') return; // native scroll drives webtoon
 
     switch (key) {
@@ -1543,7 +1551,6 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       case 'Escape': this.isFullscreen() ? this.toggleFullscreen() : this.goBack(); break;
       case 'd': this.toggleDoublePage(); break;
       case 'o': this.toggleSpreadShift(); break;
-      case 'e': this.toggleRendering(); break;
     }
   }
 
@@ -1582,8 +1589,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   /**
    * 'e': toggles Rendering between Smooth and Enhance (Anime4K), via the same
    * `ReaderPreferencesService.setUpscaler` the menu uses. Guarded exactly like
-   * `ReaderSettingsMenuComponent.enhanceDisabled` (WebGPU not ready) - webtoon is
-   * already excluded above this point in onKeyDown, so it need not be rechecked.
+   * `ReaderSettingsMenuComponent.enhanceDisabled` (WebGPU not ready). Works in
+   * every view, webtoon included (1.24.0).
    */
   private toggleRendering(): void {
     if (this.upscaleSupport.support() !== 'ready') return;
