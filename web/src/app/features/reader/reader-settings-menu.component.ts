@@ -79,7 +79,8 @@ export const UPSCALER_OPTIONS: readonly ReaderOption<Upscaler>[] = [
 /**
  * Which Anime4K network Enhance runs (1.24.0): `balanced` is the light M chain
  * (the default everywhere), `max` the heavy VL chain paged Enhance used before.
- * The vertical (webtoon) view always runs Balanced; see `qualityHint`.
+ * The vertical (webtoon) view always runs Balanced, so the group is hidden there
+ * (owner, 1.24.0); the stored choice is untouched and applies again in paged views.
  */
 export const ENHANCE_QUALITY_OPTIONS: readonly ReaderOption<EnhanceQuality>[] = [
   { value: 'balanced', label: 'Balanced', icon: 'balance' },
@@ -87,8 +88,7 @@ export const ENHANCE_QUALITY_OPTIONS: readonly ReaderOption<EnhanceQuality>[] = 
 ];
 
 /** One line under the Enhance quality group (shared by the menu and the phone sheet). */
-export function enhanceQualityHint(quality: EnhanceQuality, view: ReaderView): string {
-  if (quality === 'max' && view === 'webtoon') return 'Vertical view always uses Balanced';
+export function enhanceQualityHint(quality: EnhanceQuality): string {
   return quality === 'max'
     ? 'Sharpest; more GPU memory and battery (single and double page)'
     : 'Lighter on GPU memory and battery';
@@ -216,20 +216,24 @@ export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
         <button type="button" class="menu-hint hint-tap"
                 (click)="$event.stopPropagation(); support.tapStats()">{{ renderingHint() }}</button>
       </div>
-      <div role="group" aria-label="Enhance quality">
-        <div class="menu-group-label">Enhance quality</div>
-        @for (opt of enhanceQualityOptions; track opt.value) {
-          <button mat-menu-item role="menuitemradio"
-                  [disabled]="enhanceDisabled()"
-                  [class.selected-option]="prefs.enhanceQuality() === opt.value"
-                  [attr.aria-checked]="prefs.enhanceQuality() === opt.value"
-                  (click)="chooseEnhanceQuality(opt.value)" [attr.aria-label]="'Enhance quality: ' + opt.label">
-            <mat-icon>{{ opt.icon }}</mat-icon>
-            {{ opt.label }}
-          </button>
-        }
-        <div class="menu-hint">{{ qualityHint() }}</div>
-      </div>
+      <!-- Enhance quality applies to the paged views only: vertical always runs
+           Balanced, so the choice is hidden there (not explained). -->
+      @if (showEnhanceQuality()) {
+        <div role="group" aria-label="Enhance quality">
+          <div class="menu-group-label">Enhance quality</div>
+          @for (opt of enhanceQualityOptions; track opt.value) {
+            <button mat-menu-item role="menuitemradio"
+                    [disabled]="enhanceDisabled()"
+                    [class.selected-option]="prefs.enhanceQuality() === opt.value"
+                    [attr.aria-checked]="prefs.enhanceQuality() === opt.value"
+                    (click)="chooseEnhanceQuality(opt.value)" [attr.aria-label]="'Enhance quality: ' + opt.label">
+              <mat-icon>{{ opt.icon }}</mat-icon>
+              {{ opt.label }}
+            </button>
+          }
+          <div class="menu-hint">{{ qualityHint() }}</div>
+        </div>
+      }
       <div role="group" aria-label="Page quality">
         <div class="menu-group-label">Page quality</div>
         @for (opt of pageQualityOptions; track opt.value) {
@@ -312,7 +316,10 @@ export class ReaderSettingsMenuComponent {
     return this.support.statusText();
   });
 
-  readonly qualityHint = computed<string>(() => enhanceQualityHint(this.prefs.enhanceQuality(), this.view()));
+  /** Enhance quality is a paged-view choice: the vertical view always runs Balanced. */
+  readonly showEnhanceQuality = computed<boolean>(() => this.view() !== 'webtoon');
+
+  readonly qualityHint = computed<string>(() => enhanceQualityHint(this.prefs.enhanceQuality()));
 
   /**
    * The Downscale filter only affects a SIZED (`?maxDim=`) request, which only
@@ -536,21 +543,24 @@ export interface ReaderOptionsHost {
         <!-- Text-styled button: 5 taps toggle the GPU timing readout (off by default). -->
         <button type="button" class="group-hint hint-tap" (click)="support.tapStats()">{{ renderingHint() }}</button>
       </section>
-      <section class="group">
-        <h3 class="group-label" id="reader-options-enhance-quality">Enhance quality</h3>
-        <div class="chips" role="radiogroup" aria-labelledby="reader-options-enhance-quality">
-          @for (opt of enhanceQualityOptions; track opt.value) {
-            <button type="button" class="chip" role="radio"
-                    [disabled]="enhanceDisabled()"
-                    [class.selected]="prefs.enhanceQuality() === opt.value"
-                    [attr.aria-checked]="prefs.enhanceQuality() === opt.value"
-                    (click)="pickEnhanceQuality(opt.value)">
-              <mat-icon aria-hidden="true">{{ opt.icon }}</mat-icon>{{ opt.label }}
-            </button>
-          }
-        </div>
-        <p class="group-hint">{{ qualityHint() }}</p>
-      </section>
+      <!-- Paged views only, as in the desktop menu. -->
+      @if (showEnhanceQuality()) {
+        <section class="group">
+          <h3 class="group-label" id="reader-options-enhance-quality">Enhance quality</h3>
+          <div class="chips" role="radiogroup" aria-labelledby="reader-options-enhance-quality">
+            @for (opt of enhanceQualityOptions; track opt.value) {
+              <button type="button" class="chip" role="radio"
+                      [disabled]="enhanceDisabled()"
+                      [class.selected]="prefs.enhanceQuality() === opt.value"
+                      [attr.aria-checked]="prefs.enhanceQuality() === opt.value"
+                      (click)="pickEnhanceQuality(opt.value)">
+                <mat-icon aria-hidden="true">{{ opt.icon }}</mat-icon>{{ opt.label }}
+              </button>
+            }
+          </div>
+          <p class="group-hint">{{ qualityHint() }}</p>
+        </section>
+      }
       <section class="group">
         <h3 class="group-label" id="reader-options-quality">Page quality</h3>
         <div class="chips" role="radiogroup" aria-labelledby="reader-options-quality">
@@ -686,7 +696,10 @@ export class ReaderOptionsSheetComponent {
     return this.support.statusText();
   });
 
-  readonly qualityHint = computed<string>(() => enhanceQualityHint(this.prefs.enhanceQuality(), this.host.view()));
+  /** Same rule as the desktop menu: hidden in the vertical view. */
+  readonly showEnhanceQuality = computed<boolean>(() => this.host.view() !== 'webtoon');
+
+  readonly qualityHint = computed<string>(() => enhanceQualityHint(this.prefs.enhanceQuality()));
 
   /** Same rule as the desktop menu: only a sized (Auto) request can be filtered. */
   readonly filterDisabled = computed<boolean>(() => this.prefs.pageQuality() === 'full');
