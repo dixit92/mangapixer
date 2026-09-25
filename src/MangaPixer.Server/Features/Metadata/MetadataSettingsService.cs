@@ -133,19 +133,21 @@ public sealed class MetadataSettingsService
             return "invalid_daily_budget";
 
         var row = await _db.AppSettings.FirstOrDefaultAsync(s => s.Id == AppSettingsEntity.SingletonId, ct);
+
+        // Turning the web switch on needs the CURRENT consent version - unless it is
+        // already on with that consent (a client re-sending its whole state, e.g. to
+        // change the budget, must not be forced to re-consent). Validated BEFORE the
+        // row is created, so a rejected request leaves nothing staged on the context.
+        var consentGiven = request.AcceptedConsentVersion == MetadataConsent.CurrentVersion;
+        var alreadyConsented = row is { MetadataEnabled: true } && row.MetadataConsentVersion == MetadataConsent.CurrentVersion;
+        if (request.FetchEnabled == true && !consentGiven && !alreadyConsented)
+            return "consent_required";
+
         if (row is null)
         {
             row = new AppSettingsEntity();
             _db.AppSettings.Add(row);
         }
-
-        // Turning the web switch on needs the CURRENT consent version - unless it is
-        // already on with that consent (a client re-sending its whole state, e.g. to
-        // change the budget, must not be forced to re-consent).
-        var consentGiven = request.AcceptedConsentVersion == MetadataConsent.CurrentVersion;
-        var alreadyConsented = row.MetadataEnabled && row.MetadataConsentVersion == MetadataConsent.CurrentVersion;
-        if (request.FetchEnabled == true && !consentGiven && !alreadyConsented)
-            return "consent_required";
 
         var audits = new List<string>();
         if (request.ShowSeriesInfo is { } show && show == row.MetadataSeriesInfoHidden)
