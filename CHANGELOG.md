@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Enhance in vertical (webtoon) mode.** Rendering: **Enhance** now also sharpens small-source webtoon strips on your device's graphics chip (WebGPU). Each page is enhanced in horizontal bands as you reach it: the plain page shows while you scroll quickly and the enhanced one fades in a moment after you stop. Changing the page width, rotating or zooming never re-renders anything, graphics memory stays bounded however long the chapter is, and only pages shown more than 1.2 times larger than their original width are enhanced. `e` now switches Rendering in vertical mode too. If the graphics chip resets twice within a minute, vertical-mode Enhance pauses and the page shows normally. See [Rendering](docs/reader.md#image-quality).
+- **Enhance quality: Balanced or Max quality.** A new choice under Rendering. **Balanced** (the new default) runs a lighter Anime4K network that uses much less graphics memory and battery; **Max quality** keeps the heavier network Enhance used until now, for single and double page. Vertical mode always uses Balanced.
+
+### Changed
+
+- Rendering: Enhance in single and double page now uses **Balanced** by default; choose **Max quality** for the previous look.
+
 ### Fixed
 
 - **Reader:** pressing `Esc` to close the Reading mode, Image fit or settings menu (or the options sheet on a phone) no longer also leaves the reader or exits full screen; press `Esc` again to leave. Arrow keys and shortcut letters used inside an open menu no longer turn the page or change settings behind it.

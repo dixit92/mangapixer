@@ -507,8 +507,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                     screen shows one page at a time.</li>
                 }
                 <li><kbd>D</kbd> single / double page · <kbd>O</kbd> shift the double-page pairing
-                  from this spread (saved for this archive, for everyone) · <kbd>E</kbd> Rendering:
-                  Smooth / Enhance (needs WebGPU)</li>
+                  from this spread (saved for this archive, for everyone)</li>
               } @else if (webtoonNav.tapZonesEnabled()) {
                 <li>Scroll freely, or <b>tap</b> the lower part of the page to move forward a screen
                   ({{ webtoonNav.tapStep() }}%), the upper part to go back, the centre to show / hide
@@ -520,7 +519,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 where you land{{ direction() === 'rtl' ? '. It runs right to left, like the pages' : '' }}.
                 @if (isFullscreen()) { Tap the centre to bring it back when it is hidden. }</li>
               <li><kbd>M</kbd> show / hide the controls · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> exit ·
-                <kbd>?</kbd> this help · <kbd>S</kbd> cycle Downscale filter</li>
+                <kbd>?</kbd> this help · <kbd>S</kbd> cycle Downscale filter · <kbd>E</kbd> Rendering:
+                Smooth / Enhance (needs WebGPU)</li>
               @if (useInPageImmersive) {
                 <li><b>Fullscreen</b> goes immersive here (hides the reader's own bars) instead of
                   the browser's fullscreen - on iPhone/iPad, and in this app installed to the home
