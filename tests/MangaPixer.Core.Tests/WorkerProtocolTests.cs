@@ -17,10 +17,65 @@ public sealed class WorkerProtocolTests
     };
 
     [Fact]
-    public void WorkerProtocolVersion_IsTwo()
+    public void WorkerProtocolVersion_IsThree()
     {
-        // v2 added on-demand page extraction (extract/extract_result/extract_error).
-        Assert.Equal(2, WorkerProtocolVersion.Current);
+        // v2 added on-demand page extraction (extract/extract_result/extract_error);
+        // v3 (1.24.0) added the ComicInfo read (comicinfo/comicinfo_result/comicinfo_error
+        // and the optional AnalyzeResult.ComicInfo).
+        Assert.Equal(3, WorkerProtocolVersion.Current);
+    }
+
+    [Fact]
+    public void ComicInfoMessages_RoundTrip_WithCamelCase()
+    {
+        var result = new ComicInfoResult
+        {
+            JobId = "ci-1",
+            Outcome = new ComicInfoOutcome
+            {
+                Status = ComicInfoStatus.Parsed,
+                Payload = new ComicInfoPayload
+                {
+                    Series = "Synthetic",
+                    Number = "12.5",
+                    Creators = [new ComicInfoCreator { Name = "A", Role = "writer" }],
+                    Genres = ["Action"],
+                },
+            },
+            ObservedLastWriteTicks = 10,
+            ObservedByteLength = 20,
+        };
+
+        var json = JsonSerializer.Serialize(result, s_options);
+        Assert.Contains("\"observedLastWriteTicks\"", json);
+        var restored = JsonSerializer.Deserialize<ComicInfoResult>(json, s_options)!;
+        Assert.Equal("Synthetic", restored.Outcome.Payload!.Series);
+        Assert.Equal("12.5", restored.Outcome.Payload.Number);
+        Assert.Equal("writer", restored.Outcome.Payload.Creators[0].Role);
+    }
+
+    [Fact]
+    public void AnalyzeResult_WithoutComicInfo_DeserializesAsNull()
+    {
+        // A v3 AnalyzeResult with no ComicInfo field (older shape) still reads.
+        const string json = "{\"jobId\":\"j\",\"archiveFormat\":1,\"isSolid\":false,\"isEncrypted\":false,\"pages\":[],\"totalUncompressedBytes\":0,\"elapsedTime\":\"00:00:01\",\"observedLastWriteTicks\":1,\"observedByteLength\":2}";
+
+        var restored = JsonSerializer.Deserialize<AnalyzeResult>(json, s_options)!;
+
+        Assert.Null(restored.ComicInfo);
+    }
+
+    [Theory]
+    [InlineData(ComicInfoStatus.Absent, 0)]
+    [InlineData(ComicInfoStatus.Parsed, 1)]
+    [InlineData(ComicInfoStatus.Malformed, 2)]
+    [InlineData(ComicInfoStatus.TooLarge, 3)]
+    [InlineData(ComicInfoStatus.SkippedSolid, 4)]
+    [InlineData(ComicInfoStatus.ReadError, 5)]
+    [InlineData("anything-else", 5)]
+    public void ComicInfoStatus_MapsToStoredState(string status, int state)
+    {
+        Assert.Equal(state, ComicInfoStatus.ToState(status));
     }
 
     [Fact]

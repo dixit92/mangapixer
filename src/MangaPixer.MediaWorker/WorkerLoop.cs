@@ -7,6 +7,7 @@ using com.lifepixer.mangapixer.Core.Ordering;
 using com.lifepixer.mangapixer.Core.WorkerProtocol;
 using com.lifepixer.mangapixer.MediaWorker.Archives;
 using com.lifepixer.mangapixer.MediaWorker.Images;
+using com.lifepixer.mangapixer.MediaWorker.Metadata;
 using com.lifepixer.mangapixer.MediaWorker.Protocol;
 
 /// <summary>
@@ -116,6 +117,13 @@ public sealed class WorkerLoop
                     var request = WorkerProtocolFraming.GetPayload<ExtractRequest>(envelope)
                         ?? throw new InvalidDataException("Missing extract request payload");
                     await HandleExtractAsync(envelope.CorrelationId, request);
+                    break;
+                }
+            case "comicinfo":
+                {
+                    var request = WorkerProtocolFraming.GetPayload<ComicInfoRequest>(envelope)
+                        ?? throw new InvalidDataException("Missing comicinfo request payload");
+                    await HandleComicInfoAsync(envelope.CorrelationId, request);
                     break;
                 }
             case "cancel":
@@ -269,6 +277,25 @@ public sealed class WorkerLoop
             }
         }
 
+        // ComicInfo.xml (protocol v3): one extra small entry read while the archive
+        // is already open. A ComicInfo problem never fails the analysis - every
+        // outcome is a status, and an unexpected exception is a read_error.
+        ComicInfoOutcome comicInfo;
+        try
+        {
+            comicInfo = await ComicInfoReader.ReadAsync(
+                reader, enumeration.Entries, enumeration.IsSolid, ComicInfoLimits.MaxXmlBytes, _shutdownToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _stderr.WriteLine($"ComicInfo read failed: {ex.GetType().Name}");
+            comicInfo = new ComicInfoOutcome { Status = ComicInfoStatus.ReadError };
+        }
+
         // Post-validate source stamp
         var postStamp = GetSourceStamp(request.ArchivePath);
         if (postStamp.LastWriteTicks != request.ExpectedLastWriteTicks ||
@@ -291,10 +318,105 @@ public sealed class WorkerLoop
             ElapsedTime = sw.Elapsed,
             ObservedLastWriteTicks = postStamp.LastWriteTicks,
             ObservedByteLength = postStamp.ByteLength,
+            ComicInfo = comicInfo,
         };
 
         var resultEnvelope = WorkerProtocolFraming.CreateEnvelope("analyze_result", correlationId, result);
-        await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, resultEnvelope, _shutdownToken);
+        try
+        {
+            await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, resultEnvelope, _shutdownToken);
+        }
+        catch (InvalidDataException) when (result.ComicInfo?.Payload is not null)
+        {
+            // A huge page list plus a maximal ComicInfo payload can exceed the 1 MiB
+            // message cap. The pages matter more: resend without ComicInfo (the
+            // server then leaves the item to the ComicInfo backfill, which reads it
+            // with the small `comicinfo` message).
+            var withoutComicInfo = WorkerProtocolFraming.CreateEnvelope(
+                "analyze_result", correlationId, result with { ComicInfo = null });
+            await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, withoutComicInfo, _shutdownToken);
+        }
+    }
+
+    /// <summary>
+    /// Reads only an archive's ComicInfo.xml (protocol v3 backfill for archives
+    /// analysed before 1.24.0). Opens the archive read-only, reads the directory,
+    /// inflates at most one capped entry; solid archives are answered
+    /// <c>skipped_solid</c> without decompressing. Same pre/post source-stamp check
+    /// as analysis: a changed source yields an error and nothing is stored.
+    /// </summary>
+    private async Task HandleComicInfoAsync(string correlationId, ComicInfoRequest request)
+    {
+        var preStamp = GetSourceStamp(request.ArchivePath);
+        if (preStamp.LastWriteTicks == 0 && preStamp.ByteLength == 0)
+        {
+            await SendComicInfoErrorAsync(correlationId, "source_missing", "Source file is missing");
+            return;
+        }
+        if (preStamp.LastWriteTicks != request.ExpectedLastWriteTicks ||
+            preStamp.ByteLength != request.ExpectedByteLength)
+        {
+            await SendComicInfoErrorAsync(correlationId, "source_changed", "Source file changed before reading");
+            return;
+        }
+
+        ComicInfoOutcome outcome;
+        try
+        {
+            using var reader = await ArchiveReader.OpenAsync(request.ArchivePath, _shutdownToken);
+            var enumeration = reader.EnumerateEntries();
+            if (enumeration.IsEncrypted || enumeration.Error is not null)
+            {
+                outcome = new ComicInfoOutcome { Status = ComicInfoStatus.ReadError };
+            }
+            else
+            {
+                var maxBytes = request.MaxXmlBytes > 0
+                    ? Math.Min(request.MaxXmlBytes, ComicInfoLimits.MaxXmlBytes)
+                    : ComicInfoLimits.MaxXmlBytes;
+                outcome = await ComicInfoReader.ReadAsync(
+                    reader, enumeration.Entries, enumeration.IsSolid, maxBytes, _shutdownToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return; // shutdown - no response needed
+        }
+        catch (Exception ex)
+        {
+            _stderr.WriteLine($"ComicInfo read failed: {ex.GetType().Name}");
+            outcome = new ComicInfoOutcome { Status = ComicInfoStatus.ReadError };
+        }
+
+        var postStamp = GetSourceStamp(request.ArchivePath);
+        if (postStamp.LastWriteTicks != request.ExpectedLastWriteTicks ||
+            postStamp.ByteLength != request.ExpectedByteLength)
+        {
+            await SendComicInfoErrorAsync(correlationId, "source_changed", "Source file changed while reading");
+            return;
+        }
+
+        var result = new ComicInfoResult
+        {
+            JobId = request.JobId,
+            Outcome = outcome,
+            ObservedLastWriteTicks = postStamp.LastWriteTicks,
+            ObservedByteLength = postStamp.ByteLength,
+        };
+        var envelope = WorkerProtocolFraming.CreateEnvelope("comicinfo_result", correlationId, result);
+        await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, envelope, _shutdownToken);
+    }
+
+    private async Task SendComicInfoErrorAsync(string correlationId, string errorType, string message)
+    {
+        var error = new ComicInfoError
+        {
+            JobId = correlationId,
+            ErrorType = errorType,
+            ErrorMessage = message,
+        };
+        var envelope = WorkerProtocolFraming.CreateEnvelope("comicinfo_error", correlationId, error);
+        await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, envelope, _shutdownToken);
     }
 
     /// <summary>
