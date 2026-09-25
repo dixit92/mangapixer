@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- CI now fails when the shipped sets in `THIRD-PARTY-NOTICES.md` (sections 1 and 3) drift from the published .NET packages or the web runtime dependency tree (`web/scripts/check-notices-drift.mjs`, new `notices` job).
+
 ## [1.23.0] - 2026-09-24
 
 ### Added
