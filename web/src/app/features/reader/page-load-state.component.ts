@@ -111,6 +111,7 @@ function observeVisibility(el: Element, listener: (visible: boolean) => void): (
   selector: 'app-webtoon-page',
   imports: [MatIconModule, PageLoadIndicatorComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.failed]': "state() === 'error'" },
   template: `
     <ng-content />
     @if (state() !== 'loaded') {
@@ -132,6 +133,8 @@ function observeVisibility(el: Element, listener: (visible: boolean) => void): (
     /* STATIC one-cell grid: see the file comment (offsetTop must stay scroller-relative). */
     :host { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; width: 100%; }
     :host > ::ng-deep img { grid-area: 1 / 1; }
+    /* A broken img's alt text / icon would show behind the retry button. */
+    :host(.failed) > ::ng-deep img { color: transparent; }
     .veil {
       grid-area: 1 / 1; justify-self: stretch; align-self: stretch;
       contain: size; overflow: clip; pointer-events: none;
@@ -162,7 +165,7 @@ export class WebtoonPageComponent implements AfterContentInit, OnDestroy {
   private img: HTMLImageElement | null = null;
   private stopObserving: (() => void) | null = null;
   private readonly onLoad = () => this.setState('loaded');
-  private readonly onError = () => this.setState('error');
+  private readonly onError = () => { this.pinBoxHeight(); this.setState('error'); };
 
   ngAfterContentInit(): void {
     const img = this.host.nativeElement.querySelector<HTMLImageElement>(':scope > img');
@@ -194,11 +197,26 @@ export class WebtoonPageComponent implements AfterContentInit, OnDestroy {
 
   private setState(state: PageLoadState): void {
     this.state.set(state);
+    if (state === 'loaded') this.host.nativeElement.style.minHeight = '';
     if (state === 'loading') {
       this.stopObserving ??= observeVisibility(this.host.nativeElement, (v) => this.visible.set(v));
     } else {
       this.unobserve();
     }
+  }
+
+  /**
+   * WebKit lays a BROKEN img out at its alt-text size, ignoring `aspect-ratio`,
+   * so a failed page would collapse (and shift everything below). Pin the box to
+   * the height it had (width x the reserved ratio) until the page loads; the grid
+   * row stretches to the host's min-height and the veil fills it.
+   */
+  private pinBoxHeight(): void {
+    const img = this.img;
+    const m = /^\s*([\d.]+)\s*\/\s*([\d.]+)\s*$/.exec(img?.style.aspectRatio ?? '');
+    if (!img || !m || img.offsetWidth <= 0) return;
+    const ratio = Number(m[1]) / Number(m[2]);
+    if (ratio > 0) this.host.nativeElement.style.minHeight = `${img.offsetWidth / ratio}px`;
   }
 
   private unobserve(): void {

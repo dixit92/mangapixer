@@ -230,6 +230,8 @@ The reader loads ahead so page turns feel instant:
 - **Vertical:** the next 4 pages below your scroll position.
 - Prefetch stays within the current chapter.
 
+While a page is still on its way (for example when the library's drive is spinning up), the reader shows a small spinner where the page will appear, and adds **Loading…** if the page has not arrived after about 3 seconds. In vertical mode each page's space is reserved and shows its own spinner; if a page fails to load, **Page N did not load - Tap to retry** asks for it again.
+
 On the server, the page you are looking at always takes priority over prefetching, and prefetching takes priority over background work such as analyzing new archives. Extracted pages are cached (see the cache budget in [Configuration](configuration.md#storage)), so rereading is fast.
 
 ## Where you resume

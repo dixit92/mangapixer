@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Reader: loading feedback.** While a page is still loading (for example when the library's drive is spinning up), vertical mode now shows a spinner in each page's reserved space instead of plain black, and single and double page show a spinner that is easier to see on the dark background. Both add **Loading…** when a page takes longer than about 3 seconds. A vertical-mode page that fails to load offers **Tap to retry**. See [Loading and prefetch](docs/reader.md#loading-and-prefetch).
 - **Reader:** pressing `Esc` to close the Reading mode, Image fit or settings menu (or the options sheet on a phone) no longer also leaves the reader or exits full screen; press `Esc` again to leave. Arrow keys and shortcut letters used inside an open menu no longer turn the page or change settings behind it.
 
 ## [1.23.0] - 2026-09-24

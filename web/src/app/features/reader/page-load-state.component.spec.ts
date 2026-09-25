@@ -222,6 +222,27 @@ describe('WebtoonPageComponent', () => {
     expect(hosts[1].querySelector('.veil')).toBeNull();
   });
 
+  it('on error pins the box to its reserved aspect-ratio height (WebKit collapses a broken img) until it loads', () => {
+    const { fixture, hosts, imgs } = create();
+    imgs[0].style.aspectRatio = '600 / 2800';
+    vi.spyOn(imgs[0], 'offsetWidth', 'get').mockReturnValue(300);
+    imgs[0].dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    expect(hosts[0].classList.contains('failed')).toBe(true);
+    expect(hosts[0].style.minHeight).toBe('1400px');
+    imgs[0].dispatchEvent(new Event('load'));
+    fixture.detectChanges();
+    expect(hosts[0].classList.contains('failed')).toBe(false);
+    expect(hosts[0].style.minHeight).toBe('');
+  });
+
+  it('without a reserved ratio an error pins nothing', () => {
+    const { fixture, hosts, imgs } = create();
+    imgs[1].dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    expect(hosts[1].style.minHeight).toBe('');
+  });
+
   it('a later load after an error still clears the failed state (e.g. a new src)', () => {
     const { fixture, hosts, imgs } = create();
     imgs[0].dispatchEvent(new Event('error'));
