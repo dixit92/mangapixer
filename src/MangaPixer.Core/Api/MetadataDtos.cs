@@ -17,6 +17,7 @@ public sealed record SeriesInfoDto
 {
     /// <summary>The node that was asked about.</summary>
     public required string NodeId { get; init; }
+    public required CatalogNodeKind NodeKind { get; init; }
 
     /// <summary>
     /// The canonical home of this series: the node holding the link, or the

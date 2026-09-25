@@ -124,6 +124,7 @@ public sealed class SeriesInfoResolver
         return new SeriesInfoDto
         {
             NodeId = node.PublicId,
+            NodeKind = (CatalogNodeKind)node.Kind,
             AnchorNodeId = anchor.PublicId,
             AnchorKind = (CatalogNodeKind)anchor.Kind,
             AnchorDisplayName = anchor.DisplayName,
@@ -189,6 +190,7 @@ public sealed class SeriesInfoResolver
     private static SeriesInfoDto Empty(CatalogNodeEntity node, string libraryPublicId) => new()
     {
         NodeId = node.PublicId,
+        NodeKind = (CatalogNodeKind)node.Kind,
         AnchorNodeId = node.PublicId,
         AnchorKind = (CatalogNodeKind)node.Kind,
         AnchorDisplayName = node.DisplayName,

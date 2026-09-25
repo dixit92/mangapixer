@@ -41,7 +41,6 @@ public sealed class SeriesInfoController : ControllerBase
     /// </summary>
     [HttpGet("nodes/{nodeId}/series-info")]
     [ProducesResponseType<SeriesInfoDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetSeriesInfo(string nodeId, [FromQuery] bool includeItems = false, CancellationToken ct = default)
     {
         var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);

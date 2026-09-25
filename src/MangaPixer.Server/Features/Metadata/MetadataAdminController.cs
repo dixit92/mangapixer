@@ -53,7 +53,6 @@ public sealed class MetadataAdminController : ControllerBase
 
     [HttpPut("libraries/{libraryId}")]
     [ProducesResponseType<MetadataSettingsDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateLibrary(string libraryId, [FromBody] UpdateMetadataLibraryRequest request, CancellationToken ct)
     {
         if (!await _settings.UpdateLibraryAsync(libraryId, request, Actor, ct))
@@ -64,13 +63,11 @@ public sealed class MetadataAdminController : ControllerBase
     [HttpPut("libraries/{libraryId}/precedence")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SetLibraryPrecedence(string libraryId, [FromBody] SetMetadataPrecedenceRequest request, CancellationToken ct)
         => ToResult(await _links.SetLibraryPrecedenceAsync(libraryId, request.Precedence, Actor, ct));
 
     [HttpPost("purge")]
     [ProducesResponseType<MetadataPurgeResultDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Purge([FromBody] MetadataPurgeRequest request, CancellationToken ct)
     {
         var (code, result) = await _links.PurgeAsync(request.LibraryId, Actor, ct);
@@ -82,7 +79,6 @@ public sealed class MetadataAdminController : ControllerBase
     [HttpPut("nodes/{nodeId}/link")]
     [ProducesResponseType<NodeSeriesLinkChangeDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Link(string nodeId, [FromBody] LinkSeriesRequest request, CancellationToken ct)
     {
         var (code, change) = await _links.LinkAsync(nodeId, request, Actor, ct);
@@ -92,7 +88,6 @@ public sealed class MetadataAdminController : ControllerBase
     /// <summary>Removes the node's own link row (a confirmed link or a Don't match); inheritance resumes.</summary>
     [HttpDelete("nodes/{nodeId}/link")]
     [ProducesResponseType<NodeSeriesLinkChangeDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Unlink(string nodeId, CancellationToken ct)
     {
         var (code, change) = await _links.RemoveAsync(nodeId, onlyDontMatch: false, Actor, ct);
@@ -101,7 +96,6 @@ public sealed class MetadataAdminController : ControllerBase
 
     [HttpPut("nodes/{nodeId}/dont-match")]
     [ProducesResponseType<NodeSeriesLinkChangeDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DontMatch(string nodeId, CancellationToken ct)
     {
         var (code, change) = await _links.SetDontMatchAsync(nodeId, Actor, ct);
@@ -111,7 +105,6 @@ public sealed class MetadataAdminController : ControllerBase
     /// <summary>Clears only a Don't match row (a confirmed link is left alone).</summary>
     [HttpDelete("nodes/{nodeId}/dont-match")]
     [ProducesResponseType<NodeSeriesLinkChangeDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ClearDontMatch(string nodeId, CancellationToken ct)
     {
         var (code, change) = await _links.RemoveAsync(nodeId, onlyDontMatch: true, Actor, ct);
@@ -123,7 +116,6 @@ public sealed class MetadataAdminController : ControllerBase
     [HttpPut("folders/{nodeId}/precedence")]
     [ProducesResponseType<FolderMetadataPrecedenceDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SetFolderPrecedence(string nodeId, [FromBody] SetMetadataPrecedenceRequest request, CancellationToken ct)
     {
         if (request.Precedence is not { } precedence)
@@ -136,7 +128,6 @@ public sealed class MetadataAdminController : ControllerBase
 
     [HttpDelete("folders/{nodeId}/precedence")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ClearFolderPrecedence(string nodeId, CancellationToken ct)
         => ToResult(await _links.ClearFolderPrecedenceAsync(nodeId, Actor, ct));
 
