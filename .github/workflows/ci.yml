@@ -11,8 +11,14 @@
 #     Chromium, run the Playwright suite). Kept separate so the fast unit tier is
 #     never gated on container provisioning.
 #
+#   - notices: `web/scripts/check-notices-drift.mjs` compares the shipped sets in
+#     THIRD-PARTY-NOTICES.md (sections 1 and 3) with a Release publish of the server
+#     and worker and `npm ls --omit=dev`. Its own parallel job (publish + npm ci, no
+#     tests), so it fails fast on a Dependabot bump without lengthening `verify`.
+#
 # Required status check names for branch protection: "Verify (Full tier)"
-# (job id: verify) and "E2E (Playwright)" (job id: e2e).
+# (job id: verify) and "E2E (Playwright)" (job id: e2e); "Notices drift" (job id:
+# notices) may be added once it has run green on dev.
 
 name: CI
 
@@ -110,6 +116,42 @@ jobs:
             web/playwright-report/
           if-no-files-found: ignore
           retention-days: 14
+
+  # THIRD-PARTY-NOTICES.md drift check (shipped .NET set + web runtime set). Sections 2
+  # and 4 (build/test sets) are not checked: section 4 is a Windows x64 install whose
+  # platform binaries differ on Linux, and section 2 needs a test-project restore.
+  notices:
+    name: Notices drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET (global.json)
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Publish server and worker (Release)
+        run: |
+          dotnet publish src/MangaPixer.Server/MangaPixer.Server.csproj -c Release -o "$RUNNER_TEMP/publish/server"
+          dotnet publish src/MangaPixer.MediaWorker/MangaPixer.MediaWorker.csproj -c Release -o "$RUNNER_TEMP/publish/worker"
+
+      - name: Install web dependencies
+        run: npm --prefix web ci
+
+      - name: Check THIRD-PARTY-NOTICES.md against the build output
+        run: node web/scripts/check-notices-drift.mjs --publish "$RUNNER_TEMP/publish/server" --publish "$RUNNER_TEMP/publish/worker"
 
   # End-to-end (browser) suite. Runs as its own job — independent of `verify` —
   # so the fast unit tier is not gated on building and provisioning a container.

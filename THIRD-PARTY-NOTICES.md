@@ -1222,3 +1222,10 @@ npm --prefix web ls --all --json
 Licenses: read `<license>` from `~/.nuget/packages/<id>/<version>/<id>.nuspec` and
 `license` from `web/node_modules/<pkg>/package.json`. Refresh this file whenever
 `Directory.Packages.props` or `web/package-lock.json` changes.
+
+CI runs `node web/scripts/check-notices-drift.mjs --publish <tmp>/server --publish <tmp>/worker`
+(the `notices` job in `.github/workflows/ci.yml`). It compares by name and version the shipped
+.NET set (section 1, parts 1a and 1b) with the publish output above and the web runtime set
+(section 3) with `npm ls --omit=dev --all`, prints missing, extra and mismatched packages, and
+fails on any difference. Sections 2 and 4 are not checked: section 4 is a Windows x64 install
+and section 2 needs a restore of the test projects.
