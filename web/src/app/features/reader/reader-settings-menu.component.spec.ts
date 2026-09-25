@@ -607,8 +607,6 @@ describe('ReaderOptionsSheetComponent', () => {
       expect(chips('reader-options-enhance-quality').length).toBe(2);
       expect(checked('reader-options-enhance-quality')[0].textContent).toContain('Max quality');
     });
-
-  });
   });
 
   /**

@@ -609,7 +609,15 @@ describe('ReaderComponent page loading feedback (1.24.0)', () => {
   afterEach(() => vi.useRealTimers());
 
   function renderView(view: 'webtoon' | 'paged') {
-    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    // A full route (snapshot too): the paged test advances fake timers, which
+    // would otherwise flush rxjs's deferred rethrow of the missing snapshot.
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [...baseProviders(), {
+        provide: ActivatedRoute,
+        useValue: { paramMap: of({ get: () => 'item-1' }), snapshot: { queryParamMap: { get: () => null } } },
+      }],
+    });
     localStorage.clear();
     const fixture = TestBed.createComponent(ReaderComponent);
     fixture.detectChanges(); // ngOnInit

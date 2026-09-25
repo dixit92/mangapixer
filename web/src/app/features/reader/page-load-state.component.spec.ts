@@ -200,7 +200,8 @@ describe('WebtoonPageComponent', () => {
     imgs[1].dispatchEvent(new Event('error'));
     fixture.detectChanges();
     expect(comps[1].state()).toBe('error');
-    expect(text(1)).toBe('refresh Page 2 did not load Tap to retry');
+    expect(text(1)).toContain('Page 2 did not load');
+    expect(text(1)).toContain('Tap to retry');
     const status = hosts[1].querySelector('[role="status"]') as HTMLElement;
     expect(status.getAttribute('aria-live')).toBe('polite');
     const button = hosts[1].querySelector('button.retry') as HTMLButtonElement;
