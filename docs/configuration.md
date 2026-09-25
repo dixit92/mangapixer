@@ -130,7 +130,8 @@ Logs go to the container output and to files in `<DataRoot>/logs` (`mangapixer-<
 A few server-wide settings are changed by an admin in **MangaPixer Administration** rather than in configuration, and are saved in the database:
 
 - **Backup settings**: schedule, retention and location (configuration values above take precedence).
-- **Update Checker**: off by default. When an admin ticks **Check for updates**, the server asks the GitHub Releases API for MangaPixer's latest release at most once a day (or when you select **Check now**) and shows **Update available** or **Up to date** in the admin page. The request carries no instance identifier, user data, paths or telemetry; it is the only call MangaPixer makes to the internet, and only while this setting is on.
+- **Update Checker**: off by default. When an admin ticks **Check for updates**, the server asks the GitHub Releases API for MangaPixer's latest release at most once a day (or when you select **Check now**) and shows **Update available** or **Up to date** in the admin page. The request carries no instance identifier, user data, paths or telemetry; apart from web series information (below), it is the only call MangaPixer makes to the internet, and only while this setting is on.
+- **Series metadata**: **Show series information**, **Fetch from the web** (off by default; turning it on needs the consent tick), the **Daily request budget** (5000 by default) and the per-library switches. See [Series information](series-information.md#admin-settings). `Metadata__NetworkDisabled=true` (config key `Metadata:NetworkDisabled`) turns web lookups off regardless of the admin setting, for operators who want certainty; the admin card then says so.
 - **Library icons, reading directions and automatic scan schedules**, set per library on the **Libraries** card.
 
 ## Fixed behavior

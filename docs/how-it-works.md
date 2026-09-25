@@ -84,10 +84,11 @@ Background work that runs without anyone asking:
 | Cleanup of expired sign-ins | Hourly |
 | Page cache trimming | After each write that goes over the limit, and a full pass daily |
 | Update check | Only if an admin turned on the Update Checker: at most once a day |
+| ComicInfo read | In the background for archives analysed before 1.24.0 (new archives are read during analysis); local only |
 
 ## Privacy by design
 
-- **Nothing leaves your network** unless an admin turns on the Update Checker, which asks GitHub whether a newer release exists and sends nothing about your server. There is no telemetry, analytics or remote font or icon loading, and no metadata lookups.
+- **Nothing leaves your network** unless an admin turns on the Update Checker (it asks GitHub whether a newer release exists and sends nothing about your server) or web series information (admins can then look series up on MangaUpdates; only the search text they confirm and record numbers are sent, see [Series information](series-information.md#what-is-sent)). There is no telemetry, analytics or remote font or icon loading, and no automatic metadata lookups.
 - **Logs never contain** file or folder paths, titles, passwords, tokens, cookies or client IP addresses (see [Troubleshooting](troubleshooting.md#logs)).
 - **Admin pages show counts and times, never titles or paths**, including the Analytics section (see [Users and access](users-and-access.md#analytics)).
 - **Your media is never written to.** The server has no code path that writes into a library folder, and the install guides mount media read-only on top of that.
