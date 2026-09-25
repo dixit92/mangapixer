@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 
 import { SeriesInfoDto } from '../../core/api/api-types';
-import { itemLine, metaLine, roleLabel } from './series-info-labels';
+import { creditGroups, itemLine, metaLine } from './series-info-labels';
 
 /**
  * Presentational series summary (1.24.0) shared by the overlay and the series page,
@@ -125,17 +125,10 @@ export class SeriesInfoSummaryComponent {
   readonly facts = computed(() => metaLine(this.info()));
   readonly itemFacts = computed(() => itemLine(this.info().item));
 
-  /** Credits grouped by role label, in first-seen order: "Story: A, B . Art: C". */
+  /** Credits grouped by role label, story first: "Story: A, B . Art: C". */
   readonly credits = computed(() => {
-    const groups = new Map<string, string[]>();
-    for (const c of this.info().creators ?? []) {
-      const label = roleLabel(c.role);
-      const names = groups.get(label) ?? [];
-      if (!names.includes(c.name)) names.push(c.name);
-      groups.set(label, names);
-    }
     const max = this.compact() ? 3 : 20;
-    return [...groups.entries()].map(([label, names]) => ({
+    return creditGroups(this.info().creators).map(({ label, names }) => ({
       label,
       names: names.length > max ? `${names.slice(0, max).join(', ')}, +${names.length - max}` : names.join(', '),
     }));

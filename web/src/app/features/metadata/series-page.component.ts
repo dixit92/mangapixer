@@ -11,7 +11,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { CatalogNodeDto, SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
 import { SeriesAdminActionsComponent } from './series-admin-actions.component';
-import { ageLabel, precedenceLabel, roleLabel } from './series-info-labels';
+import { ageLabel, creditGroups, precedenceLabel } from './series-info-labels';
 import { SeriesInfoSummaryComponent } from './series-info-summary.component';
 
 /**
@@ -114,8 +114,7 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
         </details>
 
         @if (auth.isAdmin()) {
-          <section class="section admin">
-            <h3>Admin</h3>
+          <section class="section admin" aria-label="Series administration">
             <app-series-admin-actions [info]="i" (changed)="load(i.anchorNodeId)" />
           </section>
         }
@@ -190,12 +189,7 @@ export class SeriesPageComponent implements OnInit {
     const i = this.info();
     if (!i) return [];
     const rows: { label: string; value: string }[] = [];
-    const byRole = new Map<string, string[]>();
-    for (const c of i.creators ?? []) {
-      const label = roleLabel(c.role);
-      byRole.set(label, [...(byRole.get(label) ?? []), c.name]);
-    }
-    for (const [label, names] of byRole) rows.push({ label, value: names.join(', ') });
+    for (const { label, names } of creditGroups(i.creators)) rows.push({ label, value: names.join(', ') });
     if ((i.genres ?? []).length > 0) rows.push({ label: 'Genres', value: i.genres!.join(', ') });
     for (const p of i.publishers ?? []) {
       const label = p.kind === 'original' ? 'Original publisher' : p.kind === 'english' ? 'English publisher' : 'Publisher';

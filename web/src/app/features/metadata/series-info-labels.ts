@@ -78,6 +78,26 @@ export function roleLabel(role: string): string {
   return ROLE_LABELS[role] ?? 'Other';
 }
 
+/** Display order of credit groups: story before art, then the finishing roles. */
+const ROLE_ORDER = ['Story', 'Author', 'Art', 'Inks', 'Colors', 'Letters', 'Cover', 'Editor', 'Translation', 'Other'];
+
+/**
+ * Creators grouped by role label ("Story" -> [names]) in a stable display order
+ * (story first), names de-duplicated in first-seen order.
+ */
+export function creditGroups(creators: readonly { name: string; role: string }[] | null | undefined): { label: string; names: string[] }[] {
+  const groups = new Map<string, string[]>();
+  for (const c of creators ?? []) {
+    const label = roleLabel(c.role);
+    const names = groups.get(label) ?? [];
+    if (!names.includes(c.name)) names.push(c.name);
+    groups.set(label, names);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b))
+    .map(([label, names]) => ({ label, names }));
+}
+
 /**
  * The one-line facts under the title: "Japan . Comic . 1989 . Ongoing, 43 vols . Webtoon".
  * Empty parts are skipped.

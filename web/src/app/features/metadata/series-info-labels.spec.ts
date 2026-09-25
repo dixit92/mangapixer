@@ -1,5 +1,5 @@
 import { seriesInfo } from './series-info.testing';
-import { ageLabel, hasSeriesContent, itemLine, metaLine, precedenceLabel, roleLabel } from './series-info-labels';
+import { ageLabel, creditGroups, hasSeriesContent, itemLine, metaLine, precedenceLabel, roleLabel } from './series-info-labels';
 
 /** Pure label helpers for the series-metadata surfaces (1.24.0). */
 describe('series-info-labels', () => {
@@ -40,6 +40,21 @@ describe('series-info-labels', () => {
     expect(hasSeriesContent(seriesInfo({ state: 'None' }))).toBe(false);
     expect(hasSeriesContent(seriesInfo({ state: 'DontMatch' }))).toBe(false);
     expect(hasSeriesContent(null)).toBe(false);
+  });
+
+  it('groups credits story-first, de-duplicating names', () => {
+    const groups = creditGroups([
+      { name: 'Artist A', role: 'penciller' },
+      { name: 'Writer A', role: 'writer' },
+      { name: 'Writer A', role: 'writer' },
+      { name: 'Inker A', role: 'inker' },
+    ]);
+    expect(groups).toEqual([
+      { label: 'Story', names: ['Writer A'] },
+      { label: 'Art', names: ['Artist A'] },
+      { label: 'Inks', names: ['Inker A'] },
+    ]);
+    expect(creditGroups(null)).toEqual([]);
   });
 
   it('labels creator roles', () => {

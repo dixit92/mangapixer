@@ -61,7 +61,10 @@ async function folderId(page: Page, libraryId: string, name: string): Promise<st
 }
 
 async function shot(page: Page, name: string): Promise<void> {
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: false });
+  if (!SHOTS) return;
+  // Let the sheet / dialog open animations settle so the capture is the final state.
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: false });
 }
 
 test('card (i) opens the overlay with the ComicInfo series, then the series page', async ({ page }) => {
