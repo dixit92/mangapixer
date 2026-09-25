@@ -41,7 +41,9 @@ public sealed class AuditService
         string? actorUserName,
         long? targetUserId = null,
         string? correlationId = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        long? targetLibraryId = null,
+        long? targetItemId = null)
     {
         long? actorId = null;
         if (!string.IsNullOrWhiteSpace(actorUserName))
@@ -59,6 +61,8 @@ public sealed class AuditService
             Result = result,
             ActorUserId = actorId,
             TargetUserId = targetUserId,
+            TargetLibraryId = targetLibraryId,
+            TargetItemId = targetItemId,
             Timestamp = DateTimeOffset.UtcNow,
             CorrelationId = correlationId,
         });
@@ -172,6 +176,26 @@ public static class AuditActions
     public const string BackupLocationUnavailable = "backup.location.unavailable";
     public const string BackupLocationAvailable = "backup.location.available";
     public const string BackupSnapshotsMoved = "backup.snapshots.move";
+
+    // Series metadata (1.24.0). Rows carry ids only: TargetLibraryId, and
+    // TargetItemId = the catalog node id. Searches are never audited.
+    public const string MetadataSettingsEnable = "metadata.settings.enable";
+    public const string MetadataSettingsDisable = "metadata.settings.disable";
+    public const string MetadataSettingsChange = "metadata.settings.change";
+    public const string MetadataShowEnable = "metadata.show.enable";
+    public const string MetadataShowDisable = "metadata.show.disable";
+    public const string MetadataLibraryEnable = "metadata.library.enable";
+    public const string MetadataLibraryDisable = "metadata.library.disable";
+    public const string MetadataLibraryShowEnable = "metadata.library.show.enable";
+    public const string MetadataLibraryShowDisable = "metadata.library.show.disable";
+    public const string MetadataLink = "metadata.link";
+    public const string MetadataRelink = "metadata.relink";
+    public const string MetadataUnlink = "metadata.unlink";
+    public const string MetadataDontMatch = "metadata.dont_match";
+    public const string MetadataRefresh = "metadata.refresh";
+    public const string MetadataPrecedenceSet = "metadata.precedence.set";
+    public const string MetadataPrecedenceClear = "metadata.precedence.clear";
+    public const string MetadataPurge = "metadata.purge";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>
