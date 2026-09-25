@@ -27,6 +27,7 @@ import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode, B
 import { targetMaxDim, withMaxDim, VariantFitMode } from './page-variant';
 import { UpscaleDirective, UpscaleSupportService } from './upscale.directive';
 import { WebtoonEnhanceHostDirective, WebtoonUpscaleDirective } from './webtoon-upscale.directive';
+import { PageLoadIndicatorComponent, WebtoonPageComponent } from './page-load-state.component';
 import {
   WebtoonNavPreferencesService, webtoonTapZone, webtoonScrollTarget, prefersReducedMotion,
 } from './webtoon-nav.service';
@@ -135,6 +136,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     ReaderSettingsMenuComponent,
     UpscaleDirective,
     WebtoonEnhanceHostDirective,
+    WebtoonPageComponent,
+    PageLoadIndicatorComponent,
     WebtoonUpscaleDirective,
     StarToggleComponent,
   ],
@@ -317,17 +320,21 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
              Enter on it is the keyboard twin of the centre tap (show / hide the
              controls). Tap and scroll behaviour are unchanged.
              Enhance (1.24.0): the host directive lays banded Anime4K canvases
-             over the strip (webtoon-enhance-coordinator.ts); the imgs register. -->
+             over the strip (webtoon-enhance-coordinator.ts); the imgs register.
+             Loading feedback (1.24.0): each img sits in an app-webtoon-page that
+             veils its box until load, or offers a retry on error (page-load-state.component.ts). -->
         <div class="reader-viewport webtoon" #scroller (scroll)="onWebtoonScroll()"
              [appWebtoonEnhanceHost]="upscaleActive()"
              [style.touch-action]="webtoonTouchAction()" tabindex="0"
              (pointerdown)="onReaderPointerDown($event)" (click)="onWebtoonTap($event)"
              (keydown.enter)="onWebtoonEnter($event)">
           @for (entry of pages(); track entry.entryKey) {
-            <img class="webtoon-page" appWebtoonUpscale [src]="pageUrlFor(entry)" loading="lazy"
-                 [style.width.%]="webtoonWidthPct()"
-                 [style.aspect-ratio]="aspectRatioFor(entry)"
-                 [attr.data-index]="$index" alt="Page {{ $index + 1 }}" />
+            <app-webtoon-page [pageNumber]="$index + 1">
+              <img class="webtoon-page" appWebtoonUpscale [src]="pageUrlFor(entry)" loading="lazy"
+                   [style.width.%]="webtoonWidthPct()"
+                   [style.aspect-ratio]="aspectRatioFor(entry)"
+                   [attr.data-index]="$index" alt="Page {{ $index + 1 }}" />
+            </app-webtoon-page>
           }
           <!-- End-of-chapter affordance: explicit Previous/Next chapter buttons
                (1.7.1: webtoon no longer auto-advances on scroll — owner revert).
@@ -366,7 +373,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
              [style.touch-action]="touchAction()"
              (pointerdown)="onReaderPointerDown($event)">
           @if (pageLoading()) {
-            <mat-spinner class="page-spinner" diameter="36"></mat-spinner>
+            <app-page-load-indicator class="page-spinner" />
           }
           <!-- Page-turn ghost (added 1.11.0): the page(s) just left stay
                rendered UNDER the incoming row for the length of the transition, so

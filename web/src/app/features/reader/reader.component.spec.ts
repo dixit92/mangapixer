@@ -19,6 +19,7 @@ import { WebtoonNavPreferencesService } from './webtoon-nav.service';
 import { UpscaleDirective, UpscaleSupportService } from './upscale.directive';
 import { WebtoonEnhanceHostDirective, WebtoonUpscaleDirective } from './webtoon-upscale.directive';
 import { WebtoonEnhanceCoordinator } from './webtoon-enhance-coordinator';
+import { WebtoonPageComponent } from './page-load-state.component';
 import { By } from '@angular/platform-browser';
 import { ManifestPageEntry, CatalogNodeDto, ItemReadiness } from '../../core/api/api-types';
 
@@ -593,6 +594,78 @@ describe('ReaderComponent webtoon Enhance wiring (1.24.0)', () => {
     expect(destroy).toHaveBeenCalledTimes(1);
     expect(fixture.debugElement.query(By.directive(WebtoonEnhanceHostDirective))).toBeNull();
     expect(fixture.debugElement.query(By.directive(UpscaleDirective))).toBeTruthy();
+  });
+});
+
+/**
+ * 1.24.0 follow-up: page loading feedback through the real reader template. Each
+ * strip img is wrapped in `app-webtoon-page` (veil + retry, see
+ * page-load-state.component.ts) without losing its Enhance registration, and the
+ * paged view shows `app-page-load-indicator` while the page is loading, adding
+ * "Loading…" after ~3 s.
+ */
+describe('ReaderComponent page loading feedback (1.24.0)', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  function renderView(view: 'webtoon' | 'paged') {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    localStorage.clear();
+    const fixture = TestBed.createComponent(ReaderComponent);
+    fixture.detectChanges(); // ngOnInit
+    const c = fixture.componentInstance;
+    c.pages.set(makePages(4));
+    c.view.set(view);
+    c.phase.set('ready');
+    fixture.detectChanges();
+    return { fixture, c };
+  }
+
+  it('webtoon: every strip img sits in its own app-webtoon-page, veiled until it loads', () => {
+    const { fixture } = renderView('webtoon');
+    const wrappers = fixture.debugElement.queryAll(By.directive(WebtoonPageComponent));
+    expect(wrappers.length).toBe(4);
+    wrappers.forEach((w, i) => {
+      const img = (w.nativeElement as HTMLElement).querySelector(':scope > img.webtoon-page') as HTMLImageElement;
+      expect(img.getAttribute('data-index')).toBe(String(i));
+      expect((w.componentInstance as WebtoonPageComponent).pageNumber()).toBe(i + 1);
+      expect((w.nativeElement as HTMLElement).querySelector('app-page-load-indicator')).toBeTruthy();
+    });
+    const img0 = (wrappers[0].nativeElement as HTMLElement).querySelector('img') as HTMLImageElement;
+    img0.dispatchEvent(new Event('load'));
+    fixture.detectChanges();
+    expect((wrappers[0].nativeElement as HTMLElement).querySelector('.veil')).toBeNull();
+    // The paged indicator is not used in the strip.
+    expect(fixture.nativeElement.querySelector('.page-spinner')).toBeNull();
+  });
+
+  it('webtoon: a failed page offers a retry, which is not a tap on the strip', () => {
+    const { fixture, c } = renderView('webtoon');
+    const toggle = vi.spyOn(c, 'toggleChrome');
+    const wrapper = fixture.debugElement.queryAll(By.directive(WebtoonPageComponent))[2].nativeElement as HTMLElement;
+    (wrapper.querySelector('img') as HTMLImageElement).dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    const retry = wrapper.querySelector('button.retry') as HTMLButtonElement;
+    expect(retry.textContent).toContain('Page 3 did not load');
+    retry.click();
+    fixture.detectChanges();
+    expect(toggle).not.toHaveBeenCalled();
+    expect(wrapper.querySelector('app-page-load-indicator')).toBeTruthy();
+  });
+
+  it('paged: the indicator shows while the page loads, adds "Loading…" after ~3 s, and goes on load', () => {
+    const { fixture, c } = renderView('paged');
+    const indicator = () => fixture.nativeElement.querySelector('app-page-load-indicator.page-spinner') as HTMLElement | null;
+    expect(c.pageLoading()).toBe(true);
+    expect(indicator()).toBeTruthy();
+    expect(indicator()!.getAttribute('role')).toBe('status');
+    expect(indicator()!.textContent?.trim()).toBe('');
+    vi.advanceTimersByTime(3000);
+    fixture.detectChanges();
+    expect(indicator()!.textContent?.trim()).toBe('Loading…');
+    c.onPageLoaded();
+    fixture.detectChanges();
+    expect(indicator()).toBeNull();
   });
 });
 
