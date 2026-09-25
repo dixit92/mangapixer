@@ -100,7 +100,7 @@ import { creditGroups, itemLine, metaLine } from './series-info-labels';
     .more { background: none; border: none; padding: 4px 0; color: #b39dff; cursor: pointer; font-size: 13px; }
     .empty, .mixed-lead { margin: 4px 0; color: #c8c8d4; }
     .mixed-list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
-    .mixed-name { color: #e6e6ee; }
+    .mixed-name { color: #e6e6ee; margin-right: 6px; }
     .status-note { font-size: 12px; margin-top: 6px; }
     .item { clear: both; margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
     .item h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: #e6e6ee; }
