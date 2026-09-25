@@ -1511,6 +1511,15 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   onKeyDown(event: KeyboardEvent): void {
     const target = event.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+    // A key an open overlay (Reading mode / Image fit / settings MatMenu, the phone
+    // options bottom sheet) already consumed must not ALSO act here: MatMenu and
+    // MatBottomSheet preventDefault() Escape (and MatMenu Up/Down/Home/End) before
+    // it bubbles to window, but menuOpen() is already reset by then, so without
+    // this the Escape that closes a menu also left the reader. Left/Right and
+    // typeahead letters are NOT prevented by MatMenu, so any key whose target sits
+    // inside an overlay pane is ignored too (no page turn from inside a menu).
+    if (event.defaultPrevented) return;
+    if (typeof target.closest === 'function' && target.closest('.cdk-overlay-container')) return;
     if (this.phase() !== 'ready') return;
     // Single-letter shortcuts are case-folded so Shift/CapsLock (event.key 'M'/'F')
     // still match the uppercase <kbd> the Help overlay shows; multi-char key names
