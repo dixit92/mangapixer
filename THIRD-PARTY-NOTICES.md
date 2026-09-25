@@ -243,15 +243,15 @@ production tree but tree-shaken out of the bundle, or used only at compile time.
 `anime4k-webgpu` is bundled as a separate chunk that the browser downloads only
 when a reader turns on Rendering: Enhance.
 
-- `@angular/animations` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/cdk` - 22.1.6 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/common` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/compiler` - 22.1.6 - MIT - https://github.com/angular/angular
-- `@angular/core` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/forms` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/material` - 22.1.6 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/platform-browser` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/router` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/animations` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/cdk` - 22.1.7 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/common` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/compiler` - 22.1.7 - MIT - https://github.com/angular/angular
+- `@angular/core` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/forms` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/material` - 22.1.7 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/platform-browser` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/router` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
 - `@fontsource/roboto` - 5.3.0 - OFL-1.1 - https://github.com/fontsource/font-files *(bundled)*
 - `@standard-schema/spec` - 1.1.0 - MIT - https://github.com/standard-schema/standard-schema
 - `@webgpu/types` - 0.1.72 - BSD-3-Clause - https://github.com/gpuweb/types
