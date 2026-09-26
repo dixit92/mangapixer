@@ -2868,6 +2868,22 @@ describe('ReaderComponent page variant requests', () => {
     expect(c.pageUrlFor(c.pages()[1])).toBe('/api/v1/items/item-1/pages/p1?maxDim=2160&filter=balanced');
   });
 
+  it('re-targets pinned URLs when switching from paged to Vertical, and keeps them on the way back', () => {
+    const { c } = create();
+    setViewport(1000, 800);
+    c.webtoonWidthPct.set(100); // 1000 wide, aspect 1.5 -> 1500 -> the 2160 rung
+    c.refreshVariantTarget();
+    const paged = c.pageUrlFor(c.pages()[0]); // fit-screen in 800 tall -> 1080
+    expect(paged).toBe('/api/v1/items/item-1/pages/p0?maxDim=1080&filter=balanced');
+
+    c.setView('webtoon');
+    const strip = c.pageUrlFor(c.pages()[0]);
+    expect(strip).toBe('/api/v1/items/item-1/pages/p0?maxDim=2160&filter=balanced');
+
+    c.setView('paged');
+    expect(c.pageUrlFor(c.pages()[0])).toBe(strip);
+  });
+
   /**
    * Prefetch MUST go through the same builder, or the warmed response is a
    * different URL from the one the <img> asks for and the browser fetches twice.
