@@ -2,7 +2,7 @@ import { test, expect, Page } from '@playwright/test';
 import { deflateSync } from 'node:zlib';
 
 /**
- * Reader Rendering on WebGL2 (1.25.0): Crisp (AMD FSR 1) and Enhance without
+ * Reader Upscaling on WebGL2 (1.25.0): Crisp (AMD FSR 1) and Enhance without
  * WebGPU, in headless Chromium, whose WebGL2 is SwiftShader (Playwright passes
  * --enable-unsafe-swiftshader) - usable for correctness and wiring, not speed.
  *
@@ -10,7 +10,7 @@ import { deflateSync } from 'node:zlib';
  * SPA and sign-in are real; the reader's item endpoints for one made-up item id
  * are answered by `page.route` with a synthetic small page (a PNG built below:
  * line art, no real content), so the page is shown ~2x larger than its natural
- * size and the Rendering overlay has work to do.
+ * size and the Upscaling overlay has work to do.
  */
 const ADMIN_USER = process.env['E2E_ADMIN_USER'] ?? 'admin';
 const ADMIN_PASSWORD = process.env['E2E_ADMIN_PASSWORD'] ?? 'AdminPass123!';
@@ -149,11 +149,11 @@ async function openReader(page: Page): Promise<void> {
 }
 
 async function openRenderingMenu(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Rendering', exact: true }).click();
-  await expect(page.getByRole('menuitemradio', { name: /^Rendering: Smooth/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Upscaling', exact: true }).click();
+  await expect(page.getByRole('menuitemradio', { name: /^Upscaling: Smooth/ })).toBeVisible();
 }
 
-/** The overlay canvas the Rendering directive lays over the page, once shown. */
+/** The overlay canvas the Upscaling directive lays over the page, once shown. */
 function overlay(page: Page) {
   return page.locator('.spread-row:not(.outgoing) canvas[aria-hidden="true"]').first();
 }
@@ -187,7 +187,7 @@ test('Crisp renders the enlarged page through FSR 1 on WebGL2, and the menu name
   await withoutWebGpu(page);
   await openReader(page);
   await openRenderingMenu(page);
-  const sharp = page.getByRole('menuitemradio', { name: /^Rendering: Crisp/ });
+  const sharp = page.getByRole('menuitemradio', { name: /^Upscaling: Crisp/ });
   await expect(sharp).toBeEnabled();
   await sharp.click();
 
@@ -201,7 +201,7 @@ test('Crisp renders the enlarged page through FSR 1 on WebGL2, and the menu name
   expect(pixels.light).toBeGreaterThan(pixels.width * pixels.height * 0.5);
 
   await openRenderingMenu(page);
-  await expect(page.getByRole('menuitemradio', { name: 'Rendering: Crisp - WebGL2' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('menuitemradio', { name: 'Upscaling: Crisp - AMD FSR 1' })).toHaveAttribute('aria-checked', 'true');
   // The option line names the engine; the desktop status line only summarises the device (owner, 2026-09-26).
   await expect(page.locator('.reader-options-menu .hint-tap')).toHaveText('GPU: WebGPU unavailable, WebGL2 ready');
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/rendering-sharp-menu.png` });
@@ -211,7 +211,7 @@ test('without WebGPU, Enhance runs on WebGL2 and says why WebGPU is not used', a
   await withoutWebGpu(page);
   await openReader(page);
   await openRenderingMenu(page);
-  await page.getByRole('menuitemradio', { name: /^Rendering: Enhance/ }).click();
+  await page.getByRole('menuitemradio', { name: /^Upscaling: Enhance/ }).click();
 
   await expect(overlay(page)).toBeVisible({ timeout: 60_000 });
   const pixels = await overlayPixels(page);
@@ -220,7 +220,7 @@ test('without WebGPU, Enhance runs on WebGL2 and says why WebGPU is not used', a
 
   await openRenderingMenu(page);
   // 127.0.0.1 is a secure context, so the reason is the browser, not HTTPS.
-  await expect(page.getByRole('menuitemradio', { name: 'Rendering: Enhance - WebGL2 - WebGPU unavailable here' }))
+  await expect(page.getByRole('menuitemradio', { name: 'Upscaling: Enhance - Anime4K (WebGL2)' }))
     .toHaveAttribute('aria-checked', 'true');
   // Max quality is WebGPU-only.
   await expect(page.getByRole('menuitemradio', { name: 'Enhance quality: Max quality' })).toBeDisabled();
@@ -233,11 +233,11 @@ test('without WebGPU or float render targets, Enhance is disabled with its reaso
   await openReader(page);
   await expect(page.getByText("Enhance isn't available here - showing Smooth.")).toBeVisible();
   await openRenderingMenu(page);
-  const enhance = page.getByRole('menuitemradio', { name: 'Rendering: Enhance - Graphics chip lacks float render targets' });
+  const enhance = page.getByRole('menuitemradio', { name: 'Upscaling: Enhance - Graphics chip lacks float render targets' });
   await expect(enhance).toBeDisabled();
-  await expect(page.getByRole('menuitemradio', { name: /^Rendering: Smooth/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('menuitemradio', { name: /^Upscaling: Smooth/ })).toHaveAttribute('aria-checked', 'true');
   // Crisp needs no float targets.
-  await expect(page.getByRole('menuitemradio', { name: /^Rendering: Crisp/ })).toBeEnabled();
+  await expect(page.getByRole('menuitemradio', { name: /^Upscaling: Crisp/ })).toBeEnabled();
   await expect(overlay(page)).toHaveCount(0);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/rendering-enhance-disabled.png` });
 });
@@ -246,8 +246,8 @@ test('software WebGL (blocklisted GPU): Enhance is disabled as "Graphics chip un
   await withoutWebGpu(page, false, 'software');
   await openReader(page);
   await openRenderingMenu(page);
-  await expect(page.getByRole('menuitemradio', { name: 'Rendering: Enhance - Graphics chip unavailable' })).toBeDisabled();
-  const crisp = page.getByRole('menuitemradio', { name: /^Rendering: Crisp/ });
+  await expect(page.getByRole('menuitemradio', { name: 'Upscaling: Enhance - Graphics chip unavailable' })).toBeDisabled();
+  const crisp = page.getByRole('menuitemradio', { name: /^Upscaling: Crisp/ });
   await expect(crisp).toBeEnabled();
   await crisp.click();
   await expect(overlay(page)).toBeVisible({ timeout: 30_000 });

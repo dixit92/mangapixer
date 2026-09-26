@@ -10,7 +10,7 @@ import {
 import type { EnhanceChain } from './webtoon-band-plan';
 
 /**
- * Display upscaling ("Rendering: Enhance", 1.19.0; "Crisp" and the WebGL2 engine 1.25.0).
+ * Display upscaling ("Upscaling: Enhance", 1.19.0; "Crisp" and the WebGL2 engine 1.25.0).
  *
  * Small manga scans blown up to a modern display are the one case the server
  * cannot fix: `?maxDim=` (see `page-variant.ts`) makes a DOWNSCALE sharp, but an
@@ -58,7 +58,7 @@ import type { EnhanceChain } from './webtoon-band-plan';
  * the `<img>` (and so this directive) on every turn.
  *
  * Feature detection: `UpscaleSupportService` probes WebGPU and WebGL2 once per
- * app session and resolves each Rendering choice to an engine or to a reason it
+ * app session and resolves each Upscaling choice to an engine or to a reason it
  * cannot run; the directive renders only the resolved backend, and the settings
  * UI and the reader say what runs and why (no silent fallback). Under jsdom (no
  * `navigator.gpu`, no WebGL2, images never decode) it does nothing and never
@@ -114,7 +114,7 @@ export function pagedChainFor(quality: EnhanceQuality): EnhanceChain {
 
 /** Rolling window for the median render-time readout. */
 const timingWindow = 15;
-/** Taps on the Rendering status line, within `statsTapWindowMs`, that toggle the timing readout. */
+/** Taps on the Upscaling status line, within `statsTapWindowMs`, that toggle the timing readout. */
 export const statsTapCount = 5;
 const statsTapWindowMs = 3000;
 
@@ -132,7 +132,7 @@ export type UpscaleSupport = 'checking' | 'ready' | 'unavailable';
  * Probes once per app session which GPU paths exist - whether a WebGPU device can
  * actually be acquired (a `navigator.gpu` that then fails to hand out an adapter
  * is common on older Linux/Android drivers) and whether a WebGL2 context with
- * float render targets can be created (1.25.0) - and resolves every Rendering
+ * float render targets can be created (1.25.0) - and resolves every Upscaling
  * choice to the engine it runs on here, or to the reason it cannot run
  * (`upscale-engine.ts`). The settings UI, the reader's `e` shortcut and the
  * once-per-session notice all read it, so nothing falls back silently. The probes
@@ -160,7 +160,7 @@ export class UpscaleSupportService {
   readonly sharp = computed<Availability>(() => availabilityFor('sharp', this.caps()));
   readonly enhance = computed<Availability>(() => availabilityFor('enhance', this.caps()));
 
-  /** The backend the stored Rendering choice runs on here, or null (Smooth, or it cannot run). */
+  /** The backend the stored Upscaling choice runs on here, or null (Smooth, or it cannot run). */
   readonly backend = computed<UpscaleBackend | null>(() => backendFor(this.prefs.upscaler(), this.caps()),
     { equal: sameBackend });
 
@@ -182,7 +182,7 @@ export class UpscaleSupportService {
   /**
    * Device-verification readout (1.24.0), OFF by default: the median ms per paged
    * page / webtoon band, appended to the status line. Toggled per device by
-   * tapping the Rendering status line `statsTapCount` times; nothing leaves the
+   * tapping the Upscaling status line `statsTapCount` times; nothing leaves the
    * device.
    */
   readonly statsVisible = signal(this.loadStats());
@@ -192,7 +192,7 @@ export class UpscaleSupportService {
   readonly bandMs = computed(() => median(this.bandTimes()));
   private taps: number[] = [];
 
-  /** Rendering choices already announced as unavailable this app session. */
+  /** Upscaling choices already announced as unavailable this app session. */
   private readonly noticed = signal<ReadonlySet<Upscaler>>(new Set());
 
   constructor() {
@@ -200,7 +200,7 @@ export class UpscaleSupportService {
   }
 
   /**
-   * A short human-readable status for the Rendering tooltip and status line: the
+   * A short human-readable status for the Upscaling tooltip and status line: the
    * engine the current choice runs on ("GPU: Enhance on WebGL2 - WebGPU needs
    * HTTPS"), or - under Smooth, or when the choice cannot run - what this device
    * offers ("GPU: WebGPU needs HTTPS, WebGL2 ready").
@@ -215,7 +215,7 @@ export class UpscaleSupportService {
     const a = availabilityFor(pref, this.caps());
     let text: string;
     // Smooth, or a choice that cannot run (its option says why): what this device offers.
-    if (withEngine && a.state === 'ready' && pref !== 'smooth') text = `GPU: ${upscalerLabels[pref]} on ${a.note}`;
+    if (withEngine && a.state === 'ready' && pref !== 'smooth') text = `GPU: ${upscalerLabels[pref]} - ${a.note}`;
     else if (a.state === 'checking') text = 'GPU: checking WebGPU…';
     else text = `GPU: ${capsSummary(this.caps())}`;
     if (this.webtoonPaused()) text += ` - ${pref === 'sharp' ? 'Crisp' : 'Enhance'} paused (GPU reset)`;
@@ -308,7 +308,7 @@ export class UpscaleDirective implements OnDestroy {
   private readonly prefs = inject(ReaderPreferencesService);
   private readonly support = inject(UpscaleSupportService);
 
-  /** True when the reader's "Rendering" preference is Crisp or Enhance (`ReaderComponent.upscaleActive`). */
+  /** True when the reader's "Upscaling" preference is Crisp or Enhance (`ReaderComponent.upscaleActive`). */
   readonly appUpscale = input(false);
 
   private canvas: HTMLCanvasElement | null = null;

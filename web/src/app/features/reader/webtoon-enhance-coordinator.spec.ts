@@ -469,7 +469,7 @@ describe('WebtoonEnhanceCoordinator', () => {
     expect(renderer.renderBand).toHaveBeenCalledTimes(2);
   });
 
-  /** 1.25.0: the strip renders whichever backend the Rendering choice resolved to. */
+  /** 1.25.0: the strip renders whichever backend the Upscaling choice resolved to. */
   describe('engines (1.25.0)', () => {
     const sharpGl = { mode: 'sharp' as const, engine: 'webgl2' as const };
     const enhanceGl = { mode: 'enhance' as const, engine: 'webgl2' as const };

@@ -1,6 +1,6 @@
 /**
- * WebGL2 upscaler (1.25.0) - the lazy GPU half of "Rendering: Sharp" (AMD FSR 1)
- * and of "Rendering: Enhance" where WebGPU is missing (Anime4K M on WebGL2, e.g.
+ * WebGL2 upscaler (1.25.0) - the lazy GPU half of "Upscaling: Sharp" (AMD FSR 1)
+ * and of "Upscaling: Enhance" where WebGPU is missing (Anime4K M on WebGL2, e.g.
  * over plain `http://` on a LAN, where browsers do not expose WebGPU). Reached
  * only through a dynamic `import()` from `upscale.directive.ts` (paged pages) and
  * `webtoon-enhance-coordinator.ts` (webtoon bands), so none of this - nor the

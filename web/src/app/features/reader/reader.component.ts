@@ -527,7 +527,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 where you land{{ direction() === 'rtl' ? '. It runs right to left, like the pages' : '' }}.
                 @if (isFullscreen()) { Tap the centre to bring it back when it is hidden. }</li>
               <li><kbd>M</kbd> show / hide the controls · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> exit ·
-                <kbd>?</kbd> this help · <kbd>S</kbd> cycle Downscale filter · <kbd>E</kbd> cycle Rendering:
+                <kbd>?</kbd> this help · <kbd>S</kbd> cycle Downscale filter · <kbd>E</kbd> cycle Upscaling:
                 Smooth / Crisp / Enhance (the ones this device can run)</li>
               @if (useInPageImmersive) {
                 <li><b>Fullscreen</b> goes immersive here (hides the reader's own bars) instead of
@@ -841,7 +841,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   readonly prefs = inject(ReaderPreferencesService);
   // Webtoon tap-to-scroll step / on-off (added 1.11.0); per-device.
   readonly webtoonNav = inject(WebtoonNavPreferencesService);
-  // Rendering engines (WebGPU / WebGL2) for the 'e' shortcut and the once-per-session
+  // Upscaling engines (WebGPU / WebGL2) for the 'e' shortcut and the once-per-session
   // notice - the same resolution the settings menu shows.
   private readonly upscaleSupport = inject(UpscaleSupportService);
   private readonly installHint = inject(InstallHintService);
@@ -1125,9 +1125,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   readonly upscaleBackend = computed(() => this.upscaleSupport.backend());
 
   /**
-   * No silent fallback (1.25.0): a SAVED Rendering choice that cannot run on this
+   * No silent fallback (1.25.0): a SAVED Upscaling choice that cannot run on this
    * device (Enhance over plain HTTP without WebGL2 float targets, no WebGL2 for
-   * Crisp) is announced once per app session; the Rendering menu shows the reason.
+   * Crisp) is announced once per app session; the Upscaling menu shows the reason.
    */
   private readonly renderingNoticeEffect = effect(() => {
     const message = this.upscaleSupport.pendingNotice();
@@ -1569,7 +1569,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // pageUrlFor), unlike page-mode/rendering below, so it must act before the
     // webtoon early-return, same as 'm'.
     if (key === 's') { this.cycleDownscaleFilter(); return; }
-    // Rendering applies to webtoon too since 1.24.0 (banded Enhance), so like 's'
+    // Upscaling applies to webtoon too since 1.24.0 (banded Enhance), so like 's'
     // it acts before the webtoon early-return.
     if (key === 'e') { this.cycleRendering(); return; }
     if (this.view() === 'webtoon') return; // native scroll drives webtoon
@@ -1604,7 +1604,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   /**
    * 's': cycles the 1.20.0 Downscale filter (sharp -> balanced -> soft -> …),
-   * same `DOWNSCALE_FILTER_OPTIONS` order as the Rendering menu and the same
+   * same `DOWNSCALE_FILTER_OPTIONS` order as the Upscaling menu and the same
    * `ReaderPreferencesService` write it uses. Handled in onKeyDown ABOVE the
    * webtoon early-return (like 'm') because `pageUrlFor` applies the filter to
    * every page request regardless of view, not just paged/spread. No-op under
@@ -1619,7 +1619,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   }
 
   /**
-   * 'e': cycles Rendering Smooth -> Crisp -> Enhance -> Smooth (1.25.0; a
+   * 'e': cycles Upscaling Smooth -> Crisp -> Enhance -> Smooth (1.25.0; a
    * Smooth/Enhance toggle before), skipping any choice this device cannot run -
    * the options the menu offers disabled. Same `setUpscaler` as the menu. Works
    * in every view, webtoon included (1.24.0).

@@ -4,7 +4,7 @@
  * every number the coordinator and the tile renderer act on is unit-tested here.
  *
  * Why bands: a webtoon strip page can be anywhere from ~1280 to 12000+ native
- * rows tall and every page has its own height. Rendering whole pages would
+ * rows tall and every page has its own height. Upscaling whole pages would
  * rebuild the Anime4K pipeline for almost every page (its textures are sized to
  * the input) and would blow past WebGPU's 8192 px texture limit on tall slices.
  * Instead each page is cut into horizontal BANDS of `bandRows` native rows, and
@@ -213,7 +213,7 @@ export function estimateBytes(opts: {
   };
 }
 
-/** The tile cost profile of a Rendering backend (webtoon runs the M chain on WebGPU). */
+/** The tile cost profile of a Upscaling backend (webtoon runs the M chain on WebGPU). */
 export function tileProfileFor(backend: { readonly mode: 'sharp' | 'enhance'; readonly engine: 'webgpu' | 'webgl2' }): TileProfile {
   if (backend.engine === 'webgpu') return 'm';
   return backend.mode === 'sharp' ? 'gl-sharp' : 'gl-m';

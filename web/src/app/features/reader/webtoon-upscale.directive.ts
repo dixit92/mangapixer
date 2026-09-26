@@ -15,7 +15,7 @@ import { WebtoonEnhanceCoordinator } from './webtoon-enhance-coordinator';
  *    the parent element injector and registers its img and `load` events.
  *
  * The input is `ReaderComponent.upscaleBackend()`: the backend the single
- * Rendering preference resolved to on this device (Sharp or Enhance, on WebGPU or
+ * Upscaling preference resolved to on this device (Sharp or Enhance, on WebGPU or
  * WebGL2; 1.25.0), or null for Smooth / a choice that cannot run here. Without it,
  * or without IntersectionObserver, the coordinator is inert, no lazy renderer
  * chunk is requested, and the reader shows exactly the plain `<img>`s it always did.
@@ -29,7 +29,7 @@ export class WebtoonEnhanceHostDirective implements AfterViewInit, OnDestroy {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly coordinator = inject(WebtoonEnhanceCoordinator);
 
-  /** The resolved Rendering backend, or null (plain images). */
+  /** The resolved Upscaling backend, or null (plain images). */
   readonly appWebtoonEnhanceHost = input<UpscaleBackend | null>(null);
 
   constructor() {

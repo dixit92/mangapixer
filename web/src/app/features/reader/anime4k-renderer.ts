@@ -1,5 +1,5 @@
 /**
- * Anime4K (WebGPU) line-art upscale renderer — the HEAVY half of the "Rendering:
+ * Anime4K (WebGPU) line-art upscale renderer — the HEAVY half of the "Upscaling:
  * Enhance" option (1.19.0). It is deliberately the only module in the app that
  * statically imports `anime4k-webgpu`, so the bundler parks the package (and its
  * ~3.5 MB of embedded WGSL convolution weights) in its own LAZY chunk that is

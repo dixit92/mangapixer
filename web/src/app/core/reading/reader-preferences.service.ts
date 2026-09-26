@@ -122,7 +122,7 @@ export class ReaderPreferencesService {
   /** Display-sized page requests are the default: less bandwidth, sharper pages. */
   static readonly DefaultPageQuality: PageQuality = 'auto';
   /**
-   * Rendering defaults to Crisp (FSR 1; owner, 2026-09-26: "good enough" and far lighter than
+   * Upscaling defaults to Crisp (FSR 1; owner, 2026-09-26: "good enough" and far lighter than
    * Enhance). Only while nothing is stored: a device that cannot run Crisp shows Smooth, and
    * because the user never chose, it is not announced (see `upscalerChosen`).
    */
@@ -139,7 +139,7 @@ export class ReaderPreferencesService {
   readonly upscaler = signal<Upscaler>(this.loadUpscaler());
 
   /**
-   * Whether this device ever SAVED a Rendering choice. A saved choice that cannot run is
+   * Whether this device ever SAVED a Upscaling choice. A saved choice that cannot run is
    * announced once per session; the unsaved default quietly shows what can run.
    */
   readonly upscalerChosen = signal<boolean>(this.hasStoredUpscaler());

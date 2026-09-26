@@ -543,7 +543,7 @@ describe('ReaderComponent controls rendering', () => {
  * 1.24.0 webtoon Enhance wiring, through the real reader template: the webtoon
  * scroller hosts the coordinator (`WebtoonEnhanceHostDirective`) and every strip
  * img registers with it (`WebtoonUpscaleDirective`); the host input is the single
- * Rendering preference (`upscaleActive()`), and the paged-only `UpscaleDirective`
+ * Upscaling preference (`upscaleActive()`), and the paged-only `UpscaleDirective`
  * never sits on a webtoon img.
  */
 describe('ReaderComponent webtoon Enhance wiring (1.24.0)', () => {
@@ -576,7 +576,7 @@ describe('ReaderComponent webtoon Enhance wiring (1.24.0)', () => {
     }
   });
 
-  it('the host input follows the Rendering preference (the backend it resolved to, 1.25.0)', () => {
+  it('the host input follows the Upscaling preference (the backend it resolved to, 1.25.0)', () => {
     const { fixture, c } = renderView('webtoon');
     const dir = () => fixture.debugElement.query(By.directive(WebtoonEnhanceHostDirective)).injector.get(WebtoonEnhanceHostDirective);
     expect(dir().appWebtoonEnhanceHost()).toBeNull();
@@ -1861,15 +1861,15 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('DESKTOP / TABLET: the full bar keeps every control, no overflow trigger (+ Rendering, 1.19.0)', () => {
+  it('DESKTOP / TABLET: the full bar keeps every control, no overflow trigger (+ Upscaling, 1.19.0)', () => {
     const { c, labels } = render(false);
     expect(c.compact()).toBe(false);
     expect(labels()).toEqual([
       'Back to folder',
       'No previous archive', 'No next archive',
       'Reading mode', 'Bookmark this page', 'Bookmarks', 'Add to favorites', 'Image fit', 'Switch to right-to-left', 'Page transition',
-      // 1.19.0 image scaling: the second settings-menu slot (Rendering + Page quality).
-      'Rendering',
+      // 1.19.0 image scaling: the second settings-menu slot (Upscaling + Page quality).
+      'Upscaling',
       'Reading help', 'Enter fullscreen',
     ]);
   });
@@ -2480,7 +2480,7 @@ describe('ReaderComponent onKeyDown case-insensitive single-letter shortcuts', (
 });
 
 /**
- * 1.21.0 reader shortcuts: page mode ('d'), Downscale filter ('s'), Rendering
+ * 1.21.0 reader shortcuts: page mode ('d'), Downscale filter ('s'), Upscaling
  * ('e'). Each routes through the exact handler the settings menu itself calls
  * (`chooseView`/`chooseSpread`, `ReaderPreferencesService.setDownscaleFilter`,
  * `ReaderPreferencesService.setUpscaler`) so persistence never diverges from a
@@ -2542,7 +2542,7 @@ describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filt
     expect(c.prefs.downscaleFilter()).toBe('balanced');
   });
 
-  it("'e' toggles Rendering Smooth <-> Enhance once WebGPU is ready", () => {
+  it("'e' toggles Upscaling Smooth <-> Enhance once WebGPU is ready", () => {
     const c = create('paged');
     TestBed.inject(UpscaleSupportService).support.set('ready');
     expect(c.prefs.upscaler()).toBe('smooth');
@@ -2559,7 +2559,7 @@ describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filt
     expect(c.prefs.upscaler()).toBe('smooth');
   });
 
-  it("'e' toggles Rendering in webtoon too (1.24.0 webtoon Enhance), above the native-scroll guard", () => {
+  it("'e' toggles Upscaling in webtoon too (1.24.0 webtoon Enhance), above the native-scroll guard", () => {
     const c = create('webtoon');
     TestBed.inject(UpscaleSupportService).support.set('ready');
     c.onKeyDown(press('e'));
@@ -3369,11 +3369,11 @@ describe('ReaderComponent shifted double-page pairing (1.23.0)', () => {
 });
 
 /**
- * 1.25.0 "no silent fallback": a SAVED Rendering choice this device cannot run
+ * 1.25.0 "no silent fallback": a SAVED Upscaling choice this device cannot run
  * is announced once per app session, through the reader's own snackbar; a choice
  * that runs (Enhance on WebGL2 over HTTP) is not a notice.
  */
-describe('ReaderComponent Rendering notice (1.25.0)', () => {
+describe('ReaderComponent Upscaling notice (1.25.0)', () => {
   function create(configure: (support: UpscaleSupportService) => void) {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     configure(TestBed.inject(UpscaleSupportService));
@@ -3412,7 +3412,7 @@ describe('ReaderComponent Rendering notice (1.25.0)', () => {
     expect(snack).not.toHaveBeenCalled();
   });
 
-  it('the help overlay lists the three Rendering choices for E', () => {
+  it('the help overlay lists the three Upscaling choices for E', () => {
     const { fixture, c } = create(() => undefined);
     c.phase.set('ready');
     c.pages.set(makePages(3));

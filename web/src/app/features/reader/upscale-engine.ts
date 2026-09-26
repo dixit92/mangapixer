@@ -1,7 +1,7 @@
 import type { Upscaler } from '../../core/reading/reader-preferences.service';
 
 /**
- * Rendering engines (1.25.0): which GPU path runs each Rendering choice on THIS
+ * Upscaling engines (1.25.0): which GPU path runs each Upscaling choice on THIS
  * device, and - when a choice cannot run - the one-line reason the settings UI
  * shows. Pure (the WebGL2 probe aside), so every state the menu can be in is
  * unit-tested here without a GPU.
@@ -23,7 +23,7 @@ import type { Upscaler } from '../../core/reading/reader-preferences.service';
 export type RenderMode = 'sharp' | 'enhance';
 export type UpscaleEngine = 'webgpu' | 'webgl2';
 
-/** A runnable Rendering choice: what to draw and on which API. */
+/** A runnable Upscaling choice: what to draw and on which API. */
 export interface UpscaleBackend {
   readonly mode: RenderMode;
   readonly engine: UpscaleEngine;
@@ -75,21 +75,23 @@ export const reasons = {
   https: 'Needs a secure connection (HTTPS)',
 } as const;
 
-/** Can this Rendering choice run here, and on which engine? */
+/** Can this Upscaling choice run here, and on which engine? */
 export function availabilityFor(mode: Upscaler, caps: GpuCaps): Availability {
   if (mode === 'smooth') return { state: 'ready', engine: null, note: 'Browser scaling' };
   const gl = caps.webgl;
   if (mode === 'sharp') {
-    if (gl.status === 'ready') return { state: 'ready', engine: 'webgl2', note: 'WebGL2' };
+    if (gl.status === 'ready') return { state: 'ready', engine: 'webgl2', note: 'AMD FSR 1' };
     return { state: 'unavailable', reason: gl.status === 'unsupported' ? reasons.noWebGl2 : reasons.chip };
   }
-  if (caps.webgpu === 'ready') return { state: 'ready', engine: 'webgpu', note: 'WebGPU' };
+  if (caps.webgpu === 'ready') return { state: 'ready', engine: 'webgpu', note: 'Anime4K' };
   // Wait for the adapter probe (a few ms) rather than flash a WebGL2 line first.
   if (caps.webgpu === 'checking') return { state: 'checking' };
   if (gl.status === 'ready' && gl.floatTargets && !gl.software) {
     return {
       state: 'ready', engine: 'webgl2',
-      note: caps.secure ? 'WebGL2 - WebGPU unavailable here' : 'WebGL2 - WebGPU needs HTTPS',
+      // The upscaler, not the API, is what the reader chooses (owner, 2026-09-26); the API is named only
+      // where it limits something (Max quality needs WebGPU - its option says so).
+      note: 'Anime4K (WebGL2)',
     };
   }
   // Software WebGL: the graphics chip is not available to the browser; HTTPS would not help.
@@ -112,12 +114,12 @@ export function sameBackend(a: UpscaleBackend | null, b: UpscaleBackend | null):
   return a === b || (!!a && !!b && a.mode === b.mode && a.engine === b.engine);
 }
 
-/** The Rendering choice actually on screen: the preference, or Smooth when it cannot run. */
+/** The Upscaling choice actually on screen: the preference, or Smooth when it cannot run. */
 export function effectiveUpscaler(pref: Upscaler, caps: GpuCaps): Upscaler {
   return availabilityFor(pref, caps).state === 'unavailable' ? 'smooth' : pref;
 }
 
-/** Rendering order for the menu and the `e` shortcut. */
+/** Upscaling order for the menu and the `e` shortcut. */
 export const upscalerOrder: readonly Upscaler[] = ['smooth', 'sharp', 'enhance'];
 
 /** `e`: the next choice after `current` that can run right now (Smooth always can). */

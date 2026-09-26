@@ -259,7 +259,7 @@ describe('UpscaleSupportService engines (1.25.0)', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fake.gl as unknown as GPUCanvasContext);
     const { svc } = setup();
     expect(svc.webgl()).toEqual({ status: 'ready', floatTargets: false, maxTextureSize: 4096, software: false });
-    expect(svc.sharp()).toEqual({ state: 'ready', engine: 'webgl2', note: 'WebGL2' });
+    expect(svc.sharp()).toEqual({ state: 'ready', engine: 'webgl2', note: 'AMD FSR 1' });
   });
 
   it('backend and effective follow the stored choice and the device', () => {
@@ -308,7 +308,7 @@ describe('UpscaleSupportService engines (1.25.0)', () => {
     svc.webgl.set(webgl());
     prefs.setUpscaler('enhance');
     expect(svc.pendingNotice()).toBeNull();
-    expect(svc.statusText()).toBe('GPU: Enhance on WebGL2 - WebGPU needs HTTPS');
+    expect(svc.statusText()).toBe('GPU: Enhance - Anime4K (WebGL2)');
   });
 
   it('says nothing while WebGPU is still being probed', () => {

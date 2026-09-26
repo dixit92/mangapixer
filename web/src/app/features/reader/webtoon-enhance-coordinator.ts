@@ -32,7 +32,7 @@ import { prefersReducedMotion } from './webtoon-nav.service';
  *  - device-loss handling (re-queue once; a second loss within a minute pauses
  *    webtoon Enhance for the session) and the ms/band median readout.
  *
- * Engines (1.25.0): the coordinator renders whichever backend the Rendering
+ * Engines (1.25.0): the coordinator renders whichever backend the Upscaling
  * choice resolved to - Enhance on WebGPU (`anime4k-tile-renderer.ts`), or Sharp /
  * Enhance on WebGL2 (`webgl-upscaler.ts`, one shared context whose output is
  * copied onto `2d` band canvases). A canvas holds one context type, so a backend
@@ -180,7 +180,7 @@ export class WebtoonEnhanceCoordinator {
   get currentBackend(): UpscaleBackend { return this.backend; }
 
   /**
-   * Follows the Rendering choice: on with the backend it resolved to (Sharp or
+   * Follows the Upscaling choice: on with the backend it resolved to (Sharp or
    * Enhance, WebGPU or WebGL2), or off (Smooth / cannot run here). A backend
    * change rebuilds the layer with fresh canvases and loads that engine's renderer.
    */

@@ -1,5 +1,5 @@
 /**
- * AMD FidelityFX Super Resolution 1 (FSR 1) for the "Rendering: Crisp" option
+ * AMD FidelityFX Super Resolution 1 (FSR 1) for the "Upscaling: Crisp" option
  * (1.25.0), as WebGL2 (GLSL ES 3.00) fragment shaders.
  *
  * PORTED from the reference header `ffx-fsr/ffx_fsr1.h` v1.20210629 of

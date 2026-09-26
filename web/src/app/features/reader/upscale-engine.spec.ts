@@ -7,7 +7,7 @@ import {
 } from './upscale-engine';
 
 /**
- * Rendering engines (1.25.0): every state the Rendering menu can be in, from the
+ * Upscaling engines (1.25.0): every state the Upscaling menu can be in, from the
  * device's capabilities - which engine each choice runs on, or the one-line
  * reason it cannot - plus the `e` cycle and the WebGL2 probe.
  */
@@ -20,7 +20,7 @@ describe('availabilityFor', () => {
   });
 
   it('Crisp runs on WebGL2 - also without float targets and over plain HTTP', () => {
-    expect(availabilityFor('sharp', caps({ webgl: gl(false), secure: false }))).toEqual({ state: 'ready', engine: 'webgl2', note: 'WebGL2' });
+    expect(availabilityFor('sharp', caps({ webgl: gl(false), secure: false }))).toEqual({ state: 'ready', engine: 'webgl2', note: 'AMD FSR 1' });
   });
 
   it('Crisp names why it cannot run: no WebGL2 at all, or no context (graphics chip)', () => {
@@ -30,8 +30,8 @@ describe('availabilityFor', () => {
   });
 
   it('Enhance prefers WebGPU whenever it is ready', () => {
-    expect(availabilityFor('enhance', caps({ webgpu: 'ready' }))).toEqual({ state: 'ready', engine: 'webgpu', note: 'WebGPU' });
-    expect(availabilityFor('enhance', caps({ webgpu: 'ready', webgl: noWebGl }))).toEqual({ state: 'ready', engine: 'webgpu', note: 'WebGPU' });
+    expect(availabilityFor('enhance', caps({ webgpu: 'ready' }))).toEqual({ state: 'ready', engine: 'webgpu', note: 'Anime4K' });
+    expect(availabilityFor('enhance', caps({ webgpu: 'ready', webgl: noWebGl }))).toEqual({ state: 'ready', engine: 'webgpu', note: 'Anime4K' });
   });
 
   it('Enhance waits for the WebGPU probe instead of flashing a WebGL2 line', () => {
@@ -39,8 +39,8 @@ describe('availabilityFor', () => {
   });
 
   it('Enhance falls back to WebGL2 with float targets, and says why WebGPU is not used', () => {
-    expect(availabilityFor('enhance', caps({ secure: false }))).toEqual({ state: 'ready', engine: 'webgl2', note: 'WebGL2 - WebGPU needs HTTPS' });
-    expect(availabilityFor('enhance', caps({ secure: true }))).toEqual({ state: 'ready', engine: 'webgl2', note: 'WebGL2 - WebGPU unavailable here' });
+    expect(availabilityFor('enhance', caps({ secure: false }))).toEqual({ state: 'ready', engine: 'webgl2', note: 'Anime4K (WebGL2)' });
+    expect(availabilityFor('enhance', caps({ secure: true }))).toEqual({ state: 'ready', engine: 'webgl2', note: 'Anime4K (WebGL2)' });
   });
 
   it('Enhance without WebGPU or WebGL2 float targets names the cause', () => {
@@ -167,7 +167,7 @@ describe('probeWebGl', () => {
 
   it('software WebGL (blocklisted GPU): Crisp runs, Enhance is disabled as "Graphics chip unavailable" even over HTTPS', () => {
     const soft: GpuCaps = { webgpu: 'unavailable', secure: true, webgl: { status: 'ready', floatTargets: true, maxTextureSize: 4096, software: true } };
-    expect(availabilityFor('sharp', soft)).toEqual({ state: 'ready', engine: 'webgl2', note: 'WebGL2' });
+    expect(availabilityFor('sharp', soft)).toEqual({ state: 'ready', engine: 'webgl2', note: 'AMD FSR 1' });
     expect(availabilityFor('enhance', soft)).toEqual({ state: 'unavailable', reason: reasons.chip });
     expect(availabilityFor('enhance', { ...soft, secure: false })).toEqual({ state: 'unavailable', reason: reasons.chip });
     expect(nextUpscaler('sharp', soft)).toBe('smooth');
