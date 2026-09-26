@@ -120,11 +120,18 @@ async function withoutWebGpu(page: Page, noFloatTargets = false): Promise<void> 
   }, noFloatTargets);
 }
 
+/** The paged page image (the overlay canvas is laid over it). */
+function pageImage(page: Page) {
+  return page.locator('.spread-row:not(.outgoing) img[alt="Page"]').first();
+}
+
 async function openReader(page: Page): Promise<void> {
   await routeItem(page);
+  // The first reader open auto-shows the help overlay (onboarding); not under test here.
+  await page.addInitScript(() => localStorage.setItem('mangapixer-reader-help-seen', '1'));
   await login(page);
   await page.goto(`/reader/${ITEM}`);
-  await expect(page.locator('img.page').first()).toBeVisible();
+  await expect(pageImage(page)).toBeVisible();
 }
 
 async function openRenderingMenu(page: Page): Promise<void> {
@@ -134,7 +141,7 @@ async function openRenderingMenu(page: Page): Promise<void> {
 
 /** The overlay canvas the Rendering directive lays over the page, once shown. */
 function overlay(page: Page) {
-  return page.locator('.spread-row canvas[aria-hidden="true"]').first();
+  return page.locator('.spread-row:not(.outgoing) canvas[aria-hidden="true"]').first();
 }
 
 /** Dark and light pixels on the overlay: a real picture, not a blank or black box. */
@@ -171,7 +178,7 @@ test('Sharp renders the enlarged page through FSR 1 on WebGL2, and the menu name
   await sharp.click();
 
   await expect(overlay(page)).toBeVisible({ timeout: 30_000 });
-  const img = await page.locator('img.page').first().boundingBox();
+  const img = await pageImage(page).boundingBox();
   const pixels = await overlayPixels(page);
   // Backing store = the painted page in device pixels (DPR 1), about 1.9x the source.
   expect(pixels.width).toBeGreaterThan(PAGE_W * 1.5);
