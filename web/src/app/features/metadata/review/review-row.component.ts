@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatIconModule } from '@angular/material/icon';
@@ -100,7 +100,7 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
                       (click)="$event.stopPropagation()" />
         <button type="button" class="thumb" (click)="focusRow.emit()" [attr.aria-label]="'Focus ' + it.displayName" tabindex="-1">
           @if (thumbUrl(); as url) {
-            <img [src]="url" alt="" loading="lazy">
+            <img [src]="url" alt="" loading="lazy" (error)="thumbFailed.set(true)">
           } @else {
             <mat-icon>{{ it.nodeKind === 'Archive' ? 'description' : 'folder' }}</mat-icon>
           }
@@ -263,6 +263,9 @@ export class ReviewRowComponent {
   readonly choose = output<number>();
   readonly focusRow = output<void>();
 
+  /** A local image that failed to load (no cover yet): show the kind icon instead. */
+  readonly thumbFailed = signal(false);
+
   readonly actions = computed(() => rowActions(this.tab(), this.item()));
   readonly hasCandidates = computed(() => (this.item().candidates ?? []).length > 0);
   readonly groupSize = computed(() => {
@@ -278,6 +281,7 @@ export class ReviewRowComponent {
   /** Local images only: the stored poster of the current link, or an archive's own cover. */
   readonly thumbUrl = computed(() => {
     const it = this.item();
+    if (this.thumbFailed()) return null;
     if (it.link?.imageUrl) return it.link.imageUrl;
     return it.nodeKind === 'Archive' && !it.missing ? `/api/v1/items/${encodeURIComponent(it.nodeId)}/cover` : null;
   });

@@ -84,7 +84,7 @@ type Outcome = Exclude<MetadataFlagState, 'Open'>;
               @if (f.note) {
                 <blockquote class="note" data-testid="flag-note">{{ f.note }}</blockquote>
               }
-              <p class="meta">Reported by {{ f.reporterDisplayName }} · {{ f.createdAt | date: 'medium' }}
+              <p class="meta">Reported by {{ f.reporterDisplayName }} · {{ f.createdAt | date: 'short' }}
                 @if (f.resolvedAt) { · resolved {{ f.resolvedAt | date: 'mediumDate' }}@if (f.resolvedByDisplayName) { by {{ f.resolvedByDisplayName }} } }
               </p>
               @if (f.state === 'Open') {

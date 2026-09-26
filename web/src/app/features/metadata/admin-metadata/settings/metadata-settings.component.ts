@@ -104,6 +104,7 @@ export function validateThresholds(
         <p class="muted">Loading…</p>
       } @else if (settings(); as s) {
         <div class="grid">
+          <div class="col">
           <!-- 1. Web lookups (stage 1) -->
           <section class="card" aria-labelledby="md-web-h">
             <h3 id="md-web-h"><mat-icon aria-hidden="true">public</mat-icon> Web lookups</h3>
@@ -148,6 +149,8 @@ export function validateThresholds(
             </div>
           </section>
 
+          </div>
+          <div class="col">
           <!-- 2. The ONE daily budget (decision 5) -->
           <section class="card" aria-labelledby="md-budget-h">
             <h3 id="md-budget-h"><mat-icon aria-hidden="true">speed</mat-icon> Daily request budget</h3>
@@ -177,7 +180,7 @@ export function validateThresholds(
           </section>
 
           <!-- 3. Automatic matching (decisions 2 + 3) -->
-          <section class="card wide" aria-labelledby="md-auto-h" data-testid="md-auto">
+          <section class="card" aria-labelledby="md-auto-h" data-testid="md-auto">
             <h3 id="md-auto-h"><mat-icon aria-hidden="true">auto_awesome</mat-icon> Automatic matching
               <span class="pill" [class.on]="s.autoMatchEnabled" data-testid="md-auto-state">{{ s.autoMatchEnabled ? 'On' : 'Off' }}</span></h3>
             <div class="consent" data-testid="md-auto-consent-text">
@@ -227,6 +230,8 @@ export function validateThresholds(
               }
             </p>
           </section>
+
+          </div>
 
           <!-- 4. Libraries (stage 1 rows + "Match now") -->
           <section class="card wide" aria-labelledby="md-libs-h">
@@ -340,6 +345,7 @@ export function validateThresholds(
   `,
   styles: [`
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; align-items: start; }
+    .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
     .card { background: #1c1c26; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 12px; padding: 14px 18px; min-width: 0; }
     .card.wide { grid-column: 1 / -1; }
     .card.advanced { padding: 0; background: transparent; border: none; }

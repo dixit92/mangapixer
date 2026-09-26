@@ -56,6 +56,11 @@ async function shot(page: Page, name: string, fullPage = false): Promise<void> {
   await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage });
 }
 
+/** A tab of the page's own tab bar (the Review list has its own tablist too). */
+function pageTab(page: Page, name: string) {
+  return page.locator('.mat-mdc-tab-header').getByRole('tab', { name: new RegExp(`^${name}`) });
+}
+
 /** Records every browser request to a host other than MangaPixer's. */
 function watchForeignRequests(page: Page, baseURL: string): string[] {
   const own = new URL(baseURL).host;
@@ -81,7 +86,7 @@ test('admin page: summary tile opens /admin/metadata with four tabs; Logging sta
 
   await tile.getByTestId('tile-open').click();
   await expect(page).toHaveURL(/\/admin\/metadata$/);
-  const tabs = page.getByRole('tab');
+  const tabs = page.locator('.mat-mdc-tab-header').getByRole('tab');
   await expect(tabs).toHaveCount(4);
   await expect(page.getByTestId('metadata-settings-card')).toBeVisible();
   await shot(page, 'c-02-settings-tab', true);
@@ -92,7 +97,7 @@ test('admin page: summary tile opens /admin/metadata with four tabs; Logging sta
     ['Flags', 'metadata-flags', /tab=flags/],
     ['Runs', 'metadata-runs', /tab=runs/],
   ] as const) {
-    await page.getByRole('tab', { name: new RegExp(`^${name}`) }).click();
+    await pageTab(page, name).click();
     await expect(page).toHaveURL(url);
     const panel = page.getByTestId(testId);
     await expect(panel).toBeVisible();
@@ -253,10 +258,10 @@ test('review dashboard with synthetic contract-shaped data: keyboard, deferred U
   await expect.poll(() => seen.bulks.length, { timeout: 12_000 }).toBe(1);
   expect(seen.bulks[0]).toEqual({ action: 'DontMatch', nodeIds: ['r2'] });
 
-  await page.getByRole('tab', { name: /^Flags/ }).click();
+  await pageTab(page, 'Flags').click();
   await expect(page.getByTestId('flag-row')).toHaveCount(2);
   await shot(page, 'c-07-flags-desktop', true);
-  await page.getByRole('tab', { name: /^Runs/ }).click();
+  await pageTab(page, 'Runs').click();
   await expect(page.getByTestId('run-live')).toBeVisible();
   await shot(page, 'c-08-runs-desktop', true);
   expect(foreign).toEqual([]);
@@ -274,10 +279,10 @@ test('phone: review cards with a bottom action bar, no inline actions', async ({
   await expect(bar.getByTestId('bar-accept')).toBeVisible();
   await expect(page.getByTestId('review-accept')).toHaveCount(0); // no inline actions on phone
   await shot(page, 'c-09-review-phone');
-  await page.getByRole('tab', { name: /^Settings/ }).click();
+  await pageTab(page, 'Settings').click();
   await expect(page.getByTestId('metadata-settings-card')).toBeVisible();
   await shot(page, 'c-10-settings-phone', true);
-  await page.getByRole('tab', { name: /^Flags/ }).click();
+  await pageTab(page, 'Flags').click();
   await expect(page.getByTestId('flag-row')).toHaveCount(2);
   await shot(page, 'c-11-flags-phone', true);
   expect(foreign).toEqual([]);

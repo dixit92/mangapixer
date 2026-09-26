@@ -201,6 +201,7 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
           </div>
         } @else if (focusedItem(); as f) {
           <div class="bottombar" data-testid="review-bottombar">
+            <span class="bar-name" data-testid="bar-name">{{ f.displayName }}</span>
             @for (a of focusedActions(); track a.action) {
               <button mat-button type="button" (click)="onRowAction({ action: a.action, item: f, rank: rankOf(f) })"
                       [disabled]="a.action === 'accept' && !(f.candidates ?? []).length" [attr.data-testid]="'bar-' + a.action">
@@ -242,6 +243,9 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
     .bottombar button { display: inline-flex; flex-direction: column; align-items: center; min-width: 0; padding: 0 6px; height: 52px; }
     .bottombar .lbl { font-size: 11px; line-height: 14px; white-space: nowrap; }
     .sel-count { font-weight: 600; }
+    .bottombar:has(.bar-name) { flex-wrap: wrap; }
+    .bar-name { flex: 1 0 100%; font-size: 12px; color: #b0b0c0; text-align: center; padding: 2px 8px 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     @media (max-width: 599.98px) {
       .lib-filter { width: 100%; }
       .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
