@@ -545,17 +545,17 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
       </mat-card-content>
     </mat-card>
 
-    <!-- Logging (1.17.0 DEBUGUI lane, integrator-wired for discoverability) -->
-    <app-debug-log-card />
+    <!-- Series metadata (1.24.0 lane B2): consent-gated web fetch, budget, per-library toggles -->
+    <app-metadata-settings-card />
 
     <!-- Update Checker (opt-in, off by default) -->
     <app-update-check-card />
 
-    <!-- Series metadata (1.24.0 lane B2): consent-gated web fetch, budget, per-library toggles -->
-    <app-metadata-settings-card />
-
     <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->
     <app-analytics-card />
+
+    <!-- Logging (1.17.0 DEBUGUI lane): a debugging tool, so it is the last card (owner, 2026-09-26) -->
+    <app-debug-log-card />
   `,
   styles: [`
     mat-card { margin-bottom: 16px; }

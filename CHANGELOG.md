@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Reader: archives are called archives.** The previous/next buttons, their tooltips, the end-of-folder messages, the loading and error messages and the reading help now say "archive" instead of "chapter" (for example **Next archive**, "Preparing this archive…"), because an archive can be a chapter, a volume or anything else. The "New chapters" row on Home keeps its name. See [Moving between archives](docs/reader.md#moving-between-archives).
+- **MangaPixer Administration:** **Series metadata** now follows the audit trail, and **Logging**, a debugging tool, is the last card on the page.
+
 ## [1.24.2] - 2026-09-26
 
 ### Fixed

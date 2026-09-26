@@ -4,7 +4,7 @@ Select any archive in a library to open it in the reader. This page covers the r
 
 ![The reader on desktop: a single page centered on a dark background, the toolbar above and the page slider below](../assets/screenshots/docs-reader-desktop.png)
 
-![The reader toolbar on desktop: back arrow and page counter on the left; previous and next chapter, reading mode, image fit, direction, page transition, help and fullscreen on the right](../assets/screenshots/docs-reader-toolbar-desktop.png)
+![The reader toolbar on desktop: back arrow and page counter on the left; previous and next archive, reading mode, image fit, direction, page transition, help and fullscreen on the right](../assets/screenshots/docs-reader-toolbar-desktop.png)
 
 ## Toolbar
 
@@ -12,8 +12,8 @@ On desktop and tablet, the toolbar at the top holds:
 
 - **Back to folder**.
 - The page counter (`12 / 40`, or `12-13 / 40` while a double page is showing).
-- **Favorite** (the star): adds the open chapter to your [favorites](library-layout.md#favorites).
-- **Previous chapter** / **Next chapter**. Their tooltips name the neighboring archive. They are disabled at either end of the folder.
+- **Favorite** (the star): adds the open archive to your [favorites](library-layout.md#favorites).
+- **Previous archive** / **Next archive**. Their tooltips name the neighboring archive. They are disabled at either end of the folder.
 - **Reading mode**.
 - **Image fit**, or the **Page width** slider in vertical mode.
 - The reading-direction toggle.
@@ -24,7 +24,7 @@ On desktop and tablet, the toolbar at the top holds:
 
 In a normal window the controls stay visible. In fullscreen they hide after 3 seconds without input. Tap the center of the page, press `m`, or (with a mouse) move to the top of the screen to bring them back.
 
-The bottom bar has a **page slider**: tap to jump, or drag to scrub, with a bubble showing where you will land. When the controls are hidden, a thin progress line shows how far through the chapter you are.
+The bottom bar has a **page slider**: tap to jump, or drag to scrub, with a bubble showing where you will land. When the controls are hidden, a thin progress line shows how far through the archive you are.
 
 ### Fullscreen on iPad and iPhone
 
@@ -34,7 +34,7 @@ For a reader with no Safari bars at all, add MangaPixer to the Home Screen (**Sh
 
 ### On phones
 
-On screens narrower than 600 px, the toolbar keeps only **Next chapter**, **Fullscreen** and **Reader options** (⋮). **Reader options** opens a bottom sheet with every other setting:
+On screens narrower than 600 px, the toolbar keeps only **Next archive**, **Fullscreen** and **Reader options** (⋮). **Reader options** opens a bottom sheet with every other setting:
 
 - **Layout**
 - **Image fit**
@@ -42,11 +42,11 @@ On screens narrower than 600 px, the toolbar keeps only **Next chapter**, **Full
 - **Page transition**
 - **Rendering**, **Page quality** and **Downscale filter** (see [Image quality](#image-quality))
 - In vertical mode, **Page width** and **Tap to scroll** replace the paged-only groups.
-- **Previous chapter**, **Next chapter** and **Reading help**.
+- **Previous archive**, **Next archive** and **Reading help**.
 
 Changing a setting keeps the sheet open.
 
-![The Reader options bottom sheet on a phone, with the Layout, Image fit, Reading direction and Page transition groups and the chapter buttons](../assets/screenshots/docs-reader-phone-options.png)
+![The Reader options bottom sheet on a phone, with the Layout, Image fit, Reading direction and Page transition groups and the archive buttons](../assets/screenshots/docs-reader-phone-options.png)
 
 ## Page modes
 
@@ -64,8 +64,8 @@ Details:
 
 - **Wide pages are never paired.** A page at least 1.2 times wider than it is tall (usually a scanned spread) is shown alone at full width in both double modes, and pairing restarts after it.
 - **Narrow portrait screens show single pages.** If you pick a double mode on a narrow portrait screen (under 600 px wide), pages still show one at a time. Double page returns when you rotate to landscape or widen the window.
-- **Your layout choice is remembered by this browser** (Auto, Single or Double). It applies to every chapter you open on that device, and is not saved to your account. The double-page pairing is saved differently: see [Fixing double-page pairing](#fixing-double-page-pairing).
-- **Choosing Vertical from the menu lasts for the current chapter only.** To make a series always open in vertical mode, an admin sets its reading direction to **Vertical** (see [Reading direction](#reading-direction)).
+- **Your layout choice is remembered by this browser** (Auto, Single or Double). It applies to every archive you open on that device, and is not saved to your account. The double-page pairing is saved differently: see [Fixing double-page pairing](#fixing-double-page-pairing).
+- **Choosing Vertical from the menu lasts for the current archive only.** To make a series always open in vertical mode, an admin sets its reading direction to **Vertical** (see [Reading direction](#reading-direction)).
 
 ### Fixing double-page pairing
 
@@ -80,7 +80,7 @@ Things to know:
 - **The pairing is saved for the archive, for everyone.** It is stored on the server as a property of the file, so every user who can read the archive sees the same pairing, and anyone who can read it can change it.
 - **A changed file starts over.** If the archive is replaced or modified, its saved pairing is dropped.
 - **Archives you have not adjusted** use the setting you last picked on the first page of an archive (cover alone or not), remembered by this browser.
-- If the pairing cannot be saved (for example, you are offline), it still applies until you leave the chapter, and the reader says so.
+- If the pairing cannot be saved (for example, you are offline), it still applies until you leave the archive, and the reader says so.
 
 ## Image fit
 
@@ -156,7 +156,7 @@ Admins set these (readers cannot):
 - **Per library:** **MangaPixer Administration** > **Libraries**, the **Direction** menu on each row: **Inherit**, **Left-to-right**, **Right-to-left** or **Vertical**.
 - **Per folder:** in the library view, choose **Select**, pick one or more folders, then **Direction**. The same options appear there, with **Inherit (clear)** removing the folder's own setting. Admins see a small `LTR` / `RTL` / `Vertical` chip on folders that have their own direction.
 
-The toolbar toggle (tooltip **Right-to-left (manga)** / **Left-to-right**) flips the direction for the chapter you are reading. It is not saved. The library sidebar and home cards show a small icon with each library's direction.
+The toolbar toggle (tooltip **Right-to-left (manga)** / **Left-to-right**) flips the direction for the archive you are reading. It is not saved. The library sidebar and home cards show a small icon with each library's direction.
 
 ## Page transition
 
@@ -172,7 +172,7 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
 
 | Key | Action |
 |---|---|
-| `←` / `→` | Previous / next page (swapped in right-to-left). At the end or start of a chapter, moves to the next or previous chapter. |
+| `←` / `→` | Previous / next page (swapped in right-to-left). At the end or start of an archive, moves to the next or previous archive. |
 | `Home` / `End` | First / last page |
 | `f` | Toggle fullscreen |
 | `d` | Switch between single and double page. Keeps the archive's pairing; switching to double page makes the page you are on start a spread. |
@@ -204,7 +204,7 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
   - Tap the **middle** to show or hide the controls.
   - A horizontal swipe does the same (swipe left to go forward).
 - With **Tap to scroll** off, a tap anywhere shows or hides the controls.
-- At the bottom of the strip, **Previous chapter** and **Next chapter** buttons appear. Vertical mode never moves to another chapter on its own.
+- At the bottom of the strip, **Previous archive** and **Next archive** buttons appear. Vertical mode never moves to another archive on its own.
 
 ## Help overlay
 
@@ -212,15 +212,15 @@ Select **Reading help** (`?`) or press `?` to see the controls for the current m
 
 ![The help overlay drawn over a page: tap zones on the left, center and right, the swipe band across the middle, and the Reader controls card listing the keyboard shortcuts](../assets/screenshots/docs-reader-help-overlay.png)
 
-## Moving between chapters
+## Moving between archives
 
 In single and double page mode:
 
 - Turning past the **last page** opens the next archive in the same folder.
 - Going back from the **first page** opens the previous archive, on its last page.
-- A short message names the chapter you moved to. At either end of the folder you see "You’ve reached the end. No next chapter in this folder." or "You’re at the start. No previous chapter in this folder."
+- A short message names the archive you moved to. At either end of the folder you see "You’ve reached the end. No next archive in this folder." or "You’re at the start. No previous archive in this folder."
 
-"Next" follows the folder's Name order (see [Library layout](library-layout.md#folders-and-archives)). Chapter moves replace the browser history entry, so **Back** always returns to the folder.
+"Next" follows the folder's Name order (see [Library layout](library-layout.md#folders-and-archives)). Moves between archives replace the browser history entry, so **Back** always returns to the folder.
 
 ## Loading and prefetch
 
@@ -228,7 +228,7 @@ The reader loads ahead so page turns feel instant:
 
 - **Single and double page:** the next 6 pages and the previous 2.
 - **Vertical:** the next 4 pages below your scroll position.
-- Prefetch stays within the current chapter.
+- Prefetch stays within the current archive.
 
 While a page is still on its way (for example when the library's drive is spinning up), the reader shows a small spinner where the page will appear, and adds **Loading…** if the page has not arrived after about 3 seconds. In vertical mode each page's space is reserved and shows its own spinner; if a page fails to load, **Page N did not load - Tap to retry** asks for it again.
 
@@ -249,7 +249,7 @@ The server saves your position as you read, including when you let go of the pag
 
 ## Read and unread
 
-**Reaching the last page marks an archive as read.** In vertical mode, scrolling to the very bottom counts. The read mark is sticky: going back to an earlier page later does not make the archive unread again. Arriving on a chapter's last page through **Previous chapter** does not mark it read.
+**Reaching the last page marks an archive as read.** In vertical mode, scrolling to the very bottom counts. The read mark is sticky: going back to an earlier page later does not make the archive unread again. Arriving on an archive's last page through **Previous archive** does not mark it read.
 
 There is no mark-read button inside the reader. To mark archives or whole folders yourself, use the library view:
 

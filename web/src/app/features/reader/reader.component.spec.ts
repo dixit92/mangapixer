@@ -280,7 +280,7 @@ describe('ReaderComponent double-spread pairing', () => {
     expect(c.aspectRatioFor({ ...p, width: 0, height: 0 })).toBeNull();
   });
 
-  it('auto-advances to the next chapter when paging past the last page', () => {
+  it('auto-advances to the next archive when paging past the last page', () => {
     const c = create();
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     c.pages.set(makePages(3));
@@ -293,7 +293,7 @@ describe('ReaderComponent double-spread pairing', () => {
     expect(nav).toHaveBeenCalledWith(['/reader', 'next-item'], { replaceUrl: true });
   });
 
-  it('does not navigate past the last page when there is no next chapter', () => {
+  it('does not navigate past the last page when there is no next archive', () => {
     const c = create();
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     c.pages.set(makePages(3));
@@ -1137,7 +1137,7 @@ describe('ReaderComponent swipe gestures', () => {
     });
 
     it('rubber-bands the follow when there is no page or chapter in that direction', () => {
-      const c = paged(5, 4); // last page, no next chapter
+      const c = paged(5, 4); // last page, no next archive
       c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
       c.onReaderPointerMove(pointer({ pointerId: 1, clientX: 100, clientY: 300, timeStamp: 50 }));
       expect(c.swipeDx()).toBeCloseTo(-35, 5);
@@ -1615,7 +1615,7 @@ describe('ReaderComponent webtoon auto-advance REMOVED (1.7.1 owner revert)', ()
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
-  it('scrolling to the true bottom never navigates, even with a next chapter available', () => {
+  it('scrolling to the true bottom never navigates, even with a next archive available', () => {
     const c = create();
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     c.pages.set(makePages(3));
@@ -1630,7 +1630,7 @@ describe('ReaderComponent webtoon auto-advance REMOVED (1.7.1 owner revert)', ()
     expect(nav).not.toHaveBeenCalled();
   });
 
-  it('scrolling up to the very top never navigates, even with a previous chapter available', () => {
+  it('scrolling up to the very top never navigates, even with a previous archive available', () => {
     const c = create();
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     c.pages.set(makePages(3));
@@ -1803,7 +1803,7 @@ describe('ReaderComponent onboarding help auto-show (1.9.0)', () => {
 /**
  * 1.10.0 phone controls (finding F2) + menu highlight (finding F4).
  *
- * At handset width (CDK XSmall) the bar keeps only Next chapter + Fullscreen +
+ * At handset width (CDK XSmall) the bar keeps only Next archive + Fullscreen +
  * a "Reader options" trigger that opens the options bottom sheet; everywhere
  * else the full desktop/tablet bar (10 controls as of the 1.17.0 bookmark
  * toggle + panel trigger) is UNCHANGED (guarded here so a later change cannot
@@ -1836,10 +1836,10 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
   }
   afterEach(() => vi.restoreAllMocks());
 
-  it('PHONE: the bar keeps only Back, Next chapter, Fullscreen and the Reader options trigger', () => {
+  it('PHONE: the bar keeps only Back, Next archive, Fullscreen and the Reader options trigger', () => {
     const { c, labels } = render(true);
     expect(c.compact()).toBe(true);
-    expect(labels()).toEqual(['Back to folder', 'No next chapter', 'Enter fullscreen', 'Reader options']);
+    expect(labels()).toEqual(['Back to folder', 'No next archive', 'Enter fullscreen', 'Reader options']);
   });
 
   it('PHONE: the options trigger is an accessible menu button (haspopup + expanded state)', () => {
@@ -1857,7 +1857,7 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
     expect(c.compact()).toBe(false);
     expect(labels()).toEqual([
       'Back to folder',
-      'No previous chapter', 'No next chapter',
+      'No previous archive', 'No next archive',
       'Reading mode', 'Bookmark this page', 'Bookmarks', 'Add to favorites', 'Image fit', 'Switch to right-to-left', 'Page transition',
       // 1.19.0 image scaling: the second settings-menu slot (Rendering + Page quality).
       'Rendering',
@@ -2386,7 +2386,7 @@ describe('ReaderComponent unsupported_solid error mapping', () => {
   it('falls back to the generic message for an unmapped code', () => {
     const c = create();
     expect(mapErrorCode(c, 'some_new_code', 'fallback text')).toBe('fallback text');
-    expect(mapErrorCode(c, null)).toBe('Something went wrong loading this chapter.');
+    expect(mapErrorCode(c, null)).toBe('Something went wrong loading this archive.');
   });
 
   it('a Failed readiness with unsupported_solid surfaces the specific message', () => {

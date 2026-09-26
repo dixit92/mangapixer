@@ -511,7 +511,7 @@ describe('ReaderOptionsSheetComponent', () => {
     const [prev, next] = buttons;
     expect(prev.disabled).toBe(true);
     expect(next.disabled).toBe(false);
-    expect(next.getAttribute('aria-label')).toBe('Next chapter: Ch 2');
+    expect(next.getAttribute('aria-label')).toBe('Next archive: Ch 2');
 
     const order: string[] = [];
     ref.dismiss.mockImplementation(() => order.push('dismiss'));

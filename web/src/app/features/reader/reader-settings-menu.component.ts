@@ -399,7 +399,7 @@ export interface ReaderOptionsHost {
  * Phone reader options (1.10.0, finding F2). On a handset-width screen the
  * reader bar packed ~8 icon buttons into ~375px, so the last ones were clipped
  * off-screen. The bar now keeps only the two actions a reader reaches for while
- * actually reading (Next chapter, Fullscreen) plus one "more" trigger, and the
+ * actually reading (Next archive, Fullscreen) plus one "more" trigger, and the
  * rest live here, in a bottom sheet - the established mobile home for reader
  * settings (Mihon/Tachiyomi, Kindle, Apple Books) and the region of the screen
  * the thumb can reach.
@@ -595,12 +595,12 @@ export interface ReaderOptionsHost {
 
       <div class="chapter-row">
         <button mat-stroked-button class="chapter" (click)="chapter('prev')" [disabled]="!host.hasPrevChapter()"
-                [attr.aria-label]="host.prevNeighbor() ? 'Previous chapter: ' + host.prevNeighbor()!.displayName : 'No previous chapter'">
-          <mat-icon>skip_previous</mat-icon> Previous chapter
+                [attr.aria-label]="host.prevNeighbor() ? 'Previous archive: ' + host.prevNeighbor()!.displayName : 'No previous archive'">
+          <mat-icon>skip_previous</mat-icon> Previous archive
         </button>
         <button mat-stroked-button class="chapter" (click)="chapter('next')" [disabled]="!host.hasNextChapter()"
-                [attr.aria-label]="host.nextNeighbor() ? 'Next chapter: ' + host.nextNeighbor()!.displayName : 'No next chapter'">
-          Next chapter <mat-icon iconPositionEnd>skip_next</mat-icon>
+                [attr.aria-label]="host.nextNeighbor() ? 'Next archive: ' + host.nextNeighbor()!.displayName : 'No next archive'">
+          Next archive <mat-icon iconPositionEnd>skip_next</mat-icon>
         </button>
       </div>
       <button mat-button class="help-row" (click)="help()">

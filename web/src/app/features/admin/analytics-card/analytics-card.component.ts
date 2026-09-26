@@ -85,7 +85,7 @@ const COLUMNS: SortableColumn[] = [
             Totals include every user's activity, including Private libraries; the table below
             leaves out each user's Private-library reading.
           </p>
-          <p class="scope-note">Counts and timestamps only. Never chapter/item titles or paths.</p>
+          <p class="scope-note">Counts and timestamps only. Never archive/item titles or paths.</p>
 
           <div class="table-scroll">
             <table aria-label="Per-user analytics">

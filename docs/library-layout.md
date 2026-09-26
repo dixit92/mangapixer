@@ -32,7 +32,7 @@ There is no special "series" or "chapter" type. By convention a series is a fold
 
 Structure matters in two places:
 
-- **Next/previous chapter** in the reader moves between archives in the *same folder*. It does not cross into a sibling folder, so `Vol 01` does not continue into `Vol 02`.
+- **Next/previous archive** in the reader moves between archives in the *same folder*. It does not cross into a sibling folder, so `Vol 01` does not continue into `Vol 02`.
 - **Folder covers** use the first archive found anywhere below the folder, using the Name order described below, so a folder that only contains subfolders still gets a cover. To pick a folder's cover yourself, give an archive a name that sorts first. For example, `@000.cbz` sorts ahead of `Chapter 001.cbz`.
 
 ## Supported archive formats
@@ -75,7 +75,7 @@ Page files inside an archive sort by these rules on their full path inside the a
 
 ### Folders and archives
 
-In the library view, **Name** sort applies the same rules. This affects browsing, next/previous chapter, folder covers, the pinned Continue row and the A–Z jump rail:
+In the library view, **Name** sort applies the same rules. This affects browsing, next/previous archive, folder covers, the pinned Continue row and the A–Z jump rail:
 
 | On disk | Shown in Name order |
 |---|---|
@@ -125,7 +125,7 @@ Leading punctuation, brackets and spaces are skipped, so `(Title)` and `-Title-`
 
 ## Favorites
 
-Star any folder or archive to keep it within easy reach. The star appears on cards and rows in the library view, on search results, and in the reader toolbar (for the chapter you are reading).
+Star any folder or archive to keep it within easy reach. The star appears on cards and rows in the library view, on search results, and in the reader toolbar (for the archive you are reading).
 
 - **Favorites** in the sidebar, above your libraries, lists everything you starred, most recently starred first.
 - **Favorites only** in the **Filter** menu narrows any library view to your starred items.

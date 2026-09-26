@@ -90,7 +90,7 @@ If a share was unmounted during a scan, don't worry about losing progress: a sca
 
 | Message | Meaning |
 |---|---|
-| "Preparing this chapter…" | It has not been analyzed yet. This happens right after a scan, while the server works through new archives. Wait a moment. |
+| "Preparing this archive…" | It has not been analyzed yet. This happens right after a scan, while the server works through new archives. Wait a moment. |
 | "This archive is password-protected." | Encrypted archives are not supported. |
 | "The source file is no longer available." | The file was moved or deleted since the last scan. Rescan. |
 | "The page could not be prepared in time; please retry." | Usually a drive spinning up, or a very large page. Try again. |

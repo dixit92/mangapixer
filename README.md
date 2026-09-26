@@ -85,7 +85,7 @@ The port is published on loopback only; put a [reverse proxy](docs/reverse-proxy
 - Touch and keyboard navigation: direction-aware swipe zones, arrow keys, a draggable page scrubber, a help overlay (`?`), and immersive fullscreen.
 - Webtoon tap zones and swipe move by a configurable step (90% of the screen by default). Turn them off for free scrolling only.
 - Configurable page-turn animation (Slide / Reveal / None).
-- Auto-advance to the next or previous chapter (or whatever your archive is), plus page prefetch around the current position.
+- Auto-advance to the next or previous archive, plus page prefetch around the current position.
 
 **Per-user reading state**
 
