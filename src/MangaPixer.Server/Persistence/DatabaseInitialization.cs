@@ -146,6 +146,17 @@ public static class DatabaseInitialization
     /// </summary>
     private static async Task ConfigureSeriesSearchAsync(MangaPixerDbContext db, CancellationToken ct)
     {
+        // Databases migrated only to a point before metadata_records exists (tests) have nothing to index.
+        var connection = db.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+            await connection.OpenAsync(ct);
+        using (var probe = connection.CreateCommand())
+        {
+            probe.CommandText = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'metadata_records';";
+            if (await probe.ExecuteScalarAsync(ct) is null)
+                return;
+        }
+
         await db.Database.ExecuteSqlRawAsync("""
             CREATE VIRTUAL TABLE IF NOT EXISTS series_search USING fts5(
                 title,
