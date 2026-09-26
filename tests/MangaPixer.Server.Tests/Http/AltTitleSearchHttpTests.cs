@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 /// <summary>
-/// HTTP tests for alt-title search (1.26.0): series matches on page 1 only,
+/// HTTP tests for alt-title search (1.26.0): series matches on the (only) HTTP page,
 /// members only, Incognito and "Show series information" hiding.
 /// </summary>
 [Collection("HttpSerial")]
@@ -39,8 +39,12 @@ public sealed class AltTitleSearchHttpTests : IClassFixture<MangaPixerWebApplica
 
         var rec = new MetadataRecordEntity
         {
-            PublicId = "altrec1", Provider = "mangaupdates", ExternalId = "424242", Title = "Zephyr Chronicle",
-            AltTitlesJson = "[\"Quixotic Wind Saga\"]", FetchedAt = DateTimeOffset.UtcNow,
+            PublicId = "altrec1",
+            Provider = "mangaupdates",
+            ExternalId = "424242",
+            Title = "Zephyr Chronicle",
+            AltTitlesJson = "[\"Quixotic Wind Saga\"]",
+            FetchedAt = DateTimeOffset.UtcNow,
         };
         db.MetadataRecords.Add(rec);
         await db.SaveChangesAsync();
@@ -49,15 +53,26 @@ public sealed class AltTitleSearchHttpTests : IClassFixture<MangaPixerWebApplica
         {
             var node = new CatalogNodeEntity
             {
-                PublicId = id, LibraryId = lib.Id, Kind = 0, DisplayName = "Folder " + id, RelativePath = "Folder " + id,
-                PathKey = "Folder " + id, SortKey = "1folder " + id, Availability = 0, CreatedAt = DateTimeOffset.UtcNow,
+                PublicId = id,
+                LibraryId = lib.Id,
+                Kind = 0,
+                DisplayName = "Folder " + id,
+                RelativePath = "Folder " + id,
+                PathKey = "Folder " + id,
+                SortKey = "1folder " + id,
+                Availability = 0,
+                CreatedAt = DateTimeOffset.UtcNow,
             };
             db.CatalogNodes.Add(node);
             await db.SaveChangesAsync();
             db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
             {
-                NodeId = node.Id, LibraryId = lib.Id, State = 0, RecordId = rec.Id,
-                CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+                NodeId = node.Id,
+                LibraryId = lib.Id,
+                State = 0,
+                RecordId = rec.Id,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
             });
             await db.SaveChangesAsync();
         }
@@ -111,15 +126,6 @@ public sealed class AltTitleSearchHttpTests : IClassFixture<MangaPixerWebApplica
         Assert.Equal(["altnodeA", "altnodeB"], MatchedNodeIds(root).Order().ToList());
         Assert.Equal("Quixotic Wind Saga", root.GetProperty("seriesMatches")[0].GetProperty("matchedTitle").GetString());
         Assert.Equal(0, root.GetProperty("totalCount").GetInt32());
-    }
-
-    [Fact]
-    public async Task Search_SecondPage_CarriesNoSeriesMatches()
-    {
-        await SeedAsync();
-        var client = await ResetAsync();
-        var root = await SearchAsync(client, "Quixotic Wind", "&cursor=0");
-        Assert.Empty(MatchedNodeIds(root));
     }
 
     [Fact]

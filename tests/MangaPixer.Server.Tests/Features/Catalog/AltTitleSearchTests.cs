@@ -46,8 +46,14 @@ public sealed class AltTitleSearchTests : IDisposable
         db.Libraries.AddRange(lib, libB);
         db.Users.Add(new UserEntity
         {
-            PublicId = OpaqueId.Encode(10), UserName = "admin", NormalizedUserName = "ADMIN", IsActive = true, IsAdmin = true,
-            PasswordHash = "h", SecurityStamp = "s", CreatedAt = DateTimeOffset.UtcNow,
+            PublicId = OpaqueId.Encode(10),
+            UserName = "admin",
+            NormalizedUserName = "ADMIN",
+            IsActive = true,
+            IsAdmin = true,
+            PasswordHash = "h",
+            SecurityStamp = "s",
+            CreatedAt = DateTimeOffset.UtcNow,
         });
         await db.SaveChangesAsync();
         return new Fixture(db, db.Users.Single().Id, lib, libB);
@@ -93,8 +99,12 @@ public sealed class AltTitleSearchTests : IDisposable
     {
         db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
         {
-            NodeId = node.Id, LibraryId = node.LibraryId, State = (int)state, RecordId = rec?.Id,
-            CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            NodeId = node.Id,
+            LibraryId = node.LibraryId,
+            State = (int)state,
+            RecordId = rec?.Id,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
         });
         await db.SaveChangesAsync();
     }
@@ -322,26 +332,32 @@ public sealed class AltTitleSearchLatencyTests : IDisposable
         db.Libraries.Add(new LibraryEntity { PublicId = OpaqueId.Encode(1), DisplayName = "L", RootPath = "/x", CreatedAt = DateTimeOffset.UtcNow });
         db.Users.Add(new UserEntity
         {
-            PublicId = OpaqueId.Encode(10), UserName = "admin", NormalizedUserName = "ADMIN", IsActive = true, IsAdmin = true,
-            PasswordHash = "h", SecurityStamp = "s", CreatedAt = DateTimeOffset.UtcNow,
+            PublicId = OpaqueId.Encode(10),
+            UserName = "admin",
+            NormalizedUserName = "ADMIN",
+            IsActive = true,
+            IsAdmin = true,
+            PasswordHash = "h",
+            SecurityStamp = "s",
+            CreatedAt = DateTimeOffset.UtcNow,
         });
         await db.SaveChangesAsync();
         var libId = db.Libraries.Single().Id;
         var userId = db.Users.Single().Id;
 
-        await db.Database.ExecuteSqlRawAsync($"""
+        await db.Database.ExecuteSqlAsync($"""
             WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 20000)
-            INSERT INTO catalog_nodes (PublicId, LibraryId, Kind, DisplayName, RelativePath, PathKey, SortKey, Availability, CreatedAt)
-            SELECT 'n' || i, {libId}, 0, 'Series Folder ' || i, 'Series Folder ' || i, 'k' || i, '1series folder ' || printf('%06d', i), 0, '2026-01-01'
+            INSERT INTO catalog_nodes (PublicId, LibraryId, Kind, DisplayName, RelativePath, PathKey, SortKey, Availability, CreatedAt, LastSeenScanRevision)
+            SELECT 'n' || i, {libId}, 0, 'Series Folder ' || i, 'Series Folder ' || i, 'k' || i, '1series folder ' || printf('%06d', i), 0, '2026-01-01', 0
             FROM n;
             """);
-        await db.Database.ExecuteSqlRawAsync($"""
+        await db.Database.ExecuteSqlAsync($"""
             WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 300)
             INSERT INTO metadata_records (PublicId, Provider, ExternalId, SourceKind, RecordKind, Title, AltTitlesJson, ImageState, ImageVersion, FetchedAt, FetchState)
             SELECT 'r' || i, 'mangaupdates', i, 0, 0, 'Record ' || i, '["Series Alias ' || i || '","Other Name ' || i || '"]', 0, 0, '2026-01-01', 0
             FROM n;
             """);
-        await db.Database.ExecuteSqlRawAsync($"""
+        await db.Database.ExecuteSqlAsync($"""
             INSERT INTO node_series_links (NodeId, LibraryId, State, RecordId, CreatedAt, UpdatedAt)
             SELECT cn.Id, {libId}, 0, r.Id, '2026-01-01', '2026-01-01'
             FROM metadata_records r JOIN catalog_nodes cn ON cn.PublicId = 'n' || r.Id;

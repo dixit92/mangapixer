@@ -116,6 +116,13 @@ export interface SearchResultsDto {
   totalCount: number;
   nextCursor: string | null;
   hasMore: boolean;
+  /** Series found through a linked series' alternative titles; first page only (1.26.0). */
+  seriesMatches?: SeriesMatchDto[] | null;
+}
+
+export interface SeriesMatchDto {
+  node: CatalogNodeDto;
+  matchedTitle: string;
 }
 
 export type ReadingState = 'Unread' | 'InProgress' | 'Completed';
