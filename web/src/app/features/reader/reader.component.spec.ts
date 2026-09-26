@@ -2569,6 +2569,31 @@ describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filt
     expect(c.prefs.upscaler()).toBe('smooth');
   });
 
+  it("'e' cycles Smooth -> Sharp -> Enhance -> Smooth where all three can run (1.25.0)", () => {
+    const c = create('paged');
+    const support = TestBed.inject(UpscaleSupportService);
+    support.support.set('ready');
+    support.webgl.set({ status: 'ready', floatTargets: true, maxTextureSize: 8192 });
+    c.onKeyDown(press('e'));
+    expect(c.prefs.upscaler()).toBe('sharp');
+    c.onKeyDown(press('e'));
+    expect(c.prefs.upscaler()).toBe('enhance');
+    c.onKeyDown(press('E'));
+    expect(c.prefs.upscaler()).toBe('smooth');
+  });
+
+  it("'e' over plain HTTP without float targets cycles Smooth <-> Sharp, skipping Enhance (1.25.0)", () => {
+    const c = create('webtoon');
+    const support = TestBed.inject(UpscaleSupportService);
+    support.support.set('unavailable');
+    support.secure.set(false);
+    support.webgl.set({ status: 'ready', floatTargets: false, maxTextureSize: 4096 });
+    c.onKeyDown(press('e'));
+    expect(c.prefs.upscaler()).toBe('sharp');
+    c.onKeyDown(press('e'));
+    expect(c.prefs.upscaler()).toBe('smooth');
+  });
+
   it('none of the new shortcuts fire while focus is in an input/textarea', () => {
     const c = create('paged');
     TestBed.inject(UpscaleSupportService).support.set('ready');
@@ -3330,5 +3355,59 @@ describe('ReaderComponent shifted double-page pairing (1.23.0)', () => {
     press(c, 'o');
     c.ngOnDestroy();
     expect(http.expectOne(LayoutUrl).request.body).toEqual({ expectedContentVersion: 7, spreadStarts: [3] });
+  });
+});
+
+/**
+ * 1.25.0 "no silent fallback": a SAVED Rendering choice this device cannot run
+ * is announced once per app session, through the reader's own snackbar; a choice
+ * that runs (Enhance on WebGL2 over HTTP) is not a notice.
+ */
+describe('ReaderComponent Rendering notice (1.25.0)', () => {
+  function create(configure: (support: UpscaleSupportService) => void) {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    configure(TestBed.inject(UpscaleSupportService));
+    const fixture = TestBed.createComponent(ReaderComponent);
+    const c = fixture.componentInstance;
+    const snack = vi.spyOn((c as unknown as { snackBar: MatSnackBar }).snackBar, 'open').mockImplementation(() => ({}) as never);
+    return { fixture, c, snack };
+  }
+
+  afterEach(() => localStorage.clear());
+
+  it("says once that a saved Enhance cannot run here and Smooth shows instead", () => {
+    localStorage.setItem(ReaderPreferencesService.UpscalerKey, 'enhance');
+    const { fixture, snack } = create((s) => { s.support.set('unavailable'); s.secure.set(false); });
+    fixture.detectChanges();
+    expect(snack).toHaveBeenCalledTimes(1);
+    expect(snack.mock.calls[0][0]).toBe("Enhance isn't available here - showing Smooth.");
+    fixture.detectChanges();
+    expect(snack).toHaveBeenCalledTimes(1);
+    // The next reader of the same app session does not repeat it.
+    // (Both readers share the environment's MatSnackBar, so `snack` sees both.)
+    const again = TestBed.createComponent(ReaderComponent);
+    expect((again.componentInstance as unknown as { snackBar: MatSnackBar }).snackBar.open).toBe(snack);
+    again.detectChanges();
+    expect(snack).toHaveBeenCalledTimes(1);
+  });
+
+  it('is silent when the saved choice runs (Enhance on WebGL2 over HTTP) and for Smooth', () => {
+    localStorage.setItem(ReaderPreferencesService.UpscalerKey, 'enhance');
+    const { fixture, snack } = create((s) => {
+      s.support.set('unavailable');
+      s.secure.set(false);
+      s.webgl.set({ status: 'ready', floatTargets: true, maxTextureSize: 8192 });
+    });
+    fixture.detectChanges();
+    expect(snack).not.toHaveBeenCalled();
+  });
+
+  it('the help overlay lists the three Rendering choices for E', () => {
+    const { fixture, c } = create(() => undefined);
+    c.phase.set('ready');
+    c.pages.set(makePages(3));
+    c.toggleHelp();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Smooth / Sharp / Enhance');
   });
 });

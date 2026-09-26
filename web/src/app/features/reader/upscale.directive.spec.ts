@@ -3,6 +3,7 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
+import { FakeGl, createFake2d, createFakeGl } from './fake-webgl.testing';
 import { UpscaleDirective, UpscaleSupportService, hasWebGpu } from './upscale.directive';
 
 /**
@@ -235,5 +236,162 @@ describe('UpscaleSupportService', () => {
     const svc = service();
     await new Promise((r) => setTimeout(r, 40));
     expect(svc.support()).toBe('unavailable');
+  });
+});
+
+/** 1.25.0: engine resolution for the stored choice, and the once-per-session notice. */
+describe('UpscaleSupportService engines (1.25.0)', () => {
+  const webgl = (floatTargets = true) => ({ status: 'ready' as const, floatTargets, maxTextureSize: 8192 });
+  const setup = () => {
+    const svc = TestBed.inject(UpscaleSupportService);
+    const prefs = TestBed.inject(ReaderPreferencesService);
+    return { svc, prefs };
+  };
+  afterEach(() => {
+    localStorage.clear();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('probes WebGL2 at start-up (a real context, given back at once)', () => {
+    vi.stubGlobal('WebGL2RenderingContext', function WebGL2RenderingContext() { /* marker */ });
+    const fake = createFakeGl(null, { floatTargets: false, maxTextureSize: 4096 });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fake.gl as unknown as GPUCanvasContext);
+    const { svc } = setup();
+    expect(svc.webgl()).toEqual({ status: 'ready', floatTargets: false, maxTextureSize: 4096 });
+    expect(svc.sharp()).toEqual({ state: 'ready', engine: 'webgl2', note: 'WebGL2' });
+  });
+
+  it('backend and effective follow the stored choice and the device', () => {
+    const { svc, prefs } = setup();
+    expect(svc.backend()).toBeNull(); // Smooth
+    prefs.setUpscaler('sharp');
+    expect(svc.backend()).toBeNull(); // no WebGL2 in jsdom
+    expect(svc.effective()).toBe('smooth');
+    svc.webgl.set(webgl());
+    expect(svc.backend()).toEqual({ mode: 'sharp', engine: 'webgl2' });
+    expect(svc.effective()).toBe('sharp');
+    prefs.setUpscaler('enhance');
+    expect(svc.backend()).toEqual({ mode: 'enhance', engine: 'webgl2' });
+    svc.support.set('ready');
+    expect(svc.backend()).toEqual({ mode: 'enhance', engine: 'webgpu' });
+    expect(svc.enhanceEngine()).toBe('webgpu');
+  });
+
+  it('announces a saved choice that cannot run here once per session, and nothing that runs', () => {
+    const { svc, prefs } = setup();
+    expect(svc.pendingNotice()).toBeNull(); // Smooth
+    prefs.setUpscaler('enhance');
+    expect(svc.pendingNotice()).toBe("Enhance isn't available here - showing Smooth.");
+    svc.markNoticeShown();
+    expect(svc.pendingNotice()).toBeNull();
+    prefs.setUpscaler('sharp');
+    expect(svc.pendingNotice()).toBe("Sharp isn't available here - showing Smooth.");
+    svc.markNoticeShown();
+    prefs.setUpscaler('enhance');
+    expect(svc.pendingNotice()).toBeNull(); // already said this session
+  });
+
+  it('Enhance falling back to WebGL2 is not a notice (it runs; the menu names the engine)', () => {
+    const { svc, prefs } = setup();
+    svc.secure.set(false);
+    svc.webgl.set(webgl());
+    prefs.setUpscaler('enhance');
+    expect(svc.pendingNotice()).toBeNull();
+    expect(svc.statusText()).toBe('GPU: Enhance on WebGL2 - WebGPU needs HTTPS');
+  });
+
+  it('says nothing while WebGPU is still being probed', () => {
+    const { svc, prefs } = setup();
+    svc.support.set('checking');
+    prefs.setUpscaler('enhance');
+    expect(svc.pendingNotice()).toBeNull();
+  });
+});
+
+/**
+ * 1.25.0: the paged overlay on the WebGL2 engine - the real directive and the real
+ * lazy `webgl-upscaler.ts` against a fake WebGL2 context: Sharp renders into a
+ * `2d` overlay canvas; switching to WebGPU Enhance re-creates the canvas (a
+ * canvas can hold only one context type).
+ */
+describe('UpscaleDirective on WebGL2 (1.25.0)', () => {
+  let fakes: FakeGl[];
+  let gl: typeof import('./webgl-upscaler');
+
+  beforeEach(async () => {
+    fakes = [];
+    Object.defineProperty(window, 'devicePixelRatio', { value: 1, configurable: true });
+    vi.stubGlobal('createImageBitmap', () => Promise.resolve({ close: () => undefined }));
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement, type: string) {
+      if (type !== '2d') return null;
+      const self = this as HTMLCanvasElement & { __2d?: ReturnType<typeof createFake2d> };
+      self.__2d ??= createFake2d(this);
+      return self.__2d as unknown as CanvasRenderingContext2D;
+    } as typeof HTMLCanvasElement.prototype.getContext);
+    gl = await import('./webgl-upscaler');
+    gl.setGlCanvasFactoryForTests(() => {
+      const canvas = document.createElement('canvas');
+      const fake = createFakeGl(canvas);
+      fakes.push(fake);
+      canvas.getContext = ((type: string) => (type === 'webgl2' ? fake.gl : null)) as typeof canvas.getContext;
+      return canvas;
+    });
+  });
+
+  afterEach(() => {
+    for (const f of fakes) expect(f.violations).toEqual([]);
+    gl.setGlCanvasFactoryForTests(null);
+    localStorage.clear();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function create() {
+    TestBed.configureTestingModule({ imports: [HostComponent] });
+    const support = TestBed.inject(UpscaleSupportService);
+    support.webgl.set({ status: 'ready', floatTargets: true, maxTextureSize: 8192 });
+    TestBed.inject(ReaderPreferencesService).setUpscaler('sharp');
+    const fixture = TestBed.createComponent(HostComponent);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    return { fixture, host, support, img: host.querySelector('img') as HTMLImageElement };
+  }
+
+  it('Sharp renders the page through FSR 1 into a 2d overlay canvas at the device-pixel target', async () => {
+    const { host, img } = create();
+    fakeLayout(img, 400, 1000); // 2.5x
+    img.dispatchEvent(new Event('load'));
+    await vi.waitFor(() => expect((host.querySelector('canvas') as HTMLCanvasElement | null)?.style.display).toBe('block'));
+    const canvas = host.querySelector('canvas') as HTMLCanvasElement;
+    expect([canvas.width, canvas.height]).toEqual([1000, 2000]);
+    expect(fakes[0].draws.map((d) => d.pass)).toEqual(['easu', 'rcas']);
+  });
+
+  it('switching Sharp -> WebGPU Enhance re-creates the overlay canvas (one context type per canvas)', async () => {
+    const { fixture, host, img, support } = create();
+    fakeLayout(img, 400, 1000);
+    img.dispatchEvent(new Event('load'));
+    await vi.waitFor(() => expect((host.querySelector('canvas') as HTMLCanvasElement | null)?.style.display).toBe('block'));
+    const first = host.querySelector('canvas') as HTMLCanvasElement;
+    (navigator as unknown as { gpu?: unknown }).gpu = { requestAdapter: () => Promise.resolve(null) };
+    support.support.set('ready');
+    TestBed.inject(ReaderPreferencesService).setUpscaler('enhance');
+    fixture.detectChanges();
+    await vi.waitFor(() => expect(first.isConnected).toBe(false));
+    expect(first.width).toBe(0);
+    expect(host.querySelectorAll('canvas').length).toBe(1);
+    delete (navigator as unknown as { gpu?: unknown }).gpu;
+  });
+
+  it('a choice that cannot run here draws nothing (the reader announces it; the menu says why)', async () => {
+    const { fixture, host, img, support } = create();
+    support.webgl.set({ status: 'unsupported', floatTargets: false, maxTextureSize: 0 });
+    fixture.detectChanges();
+    fakeLayout(img, 400, 1000);
+    img.dispatchEvent(new Event('load'));
+    await new Promise((r) => setTimeout(r, 40));
+    expect(host.querySelector('canvas')).toBeNull();
+    expect(fakes.length).toBe(0);
   });
 });

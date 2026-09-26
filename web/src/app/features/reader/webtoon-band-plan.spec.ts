@@ -1,7 +1,7 @@
 import {
   planBands, webtoonEnhanceGate, deviceScale, bandHeightFor, bandRowsFor, bandCssHeight, poolSize,
   estimatePipelineBytes, estimateCanvasBytes, estimateBytes, haloRows, defaultBandRows, seamRows,
-  minBandRows, maxBandRows, poolCap,
+  minBandRows, maxBandRows, poolCap, bytesPerTilePixel, tileProfileFor,
 } from './webtoon-band-plan';
 
 const MB = 1e6;
@@ -169,5 +169,36 @@ describe('estimateBytes reproduces the design tables', () => {
     const near = (bytes: number, mb: number) => expect(Math.abs(bytes / MB - mb)).toBeLessThanOrEqual(1);
     near(em.totalMin, m[0]); near(em.totalMax, m[1]);
     near(ev.totalMin, vl[0]); near(ev.totalMax, vl[1]);
+  });
+});
+
+/** 1.25.0: band tiles on the WebGL2 engines (Anime4K M as fragment shaders, FSR 1 Sharp). */
+describe('WebGL2 tile profiles (1.25.0)', () => {
+  it('bytes per tile pixel: gl-m 140 (124 of chain + the 2x drawing buffer), gl-sharp 36', () => {
+    expect(bytesPerTilePixel['gl-m']).toBe(140);
+    expect(bytesPerTilePixel['gl-sharp']).toBe(36);
+    expect(bytesPerTilePixel.m).toBe(228);
+  });
+
+  it('tileProfileFor maps each backend', () => {
+    expect(tileProfileFor({ mode: 'enhance', engine: 'webgpu' })).toBe('m');
+    expect(tileProfileFor({ mode: 'enhance', engine: 'webgl2' })).toBe('gl-m');
+    expect(tileProfileFor({ mode: 'sharp', engine: 'webgl2' })).toBe('gl-sharp');
+  });
+
+  it('lighter tiles let wide sources keep taller bands (fewer, cheaper band jobs)', () => {
+    expect(bandRowsFor(3000, 'm', false)).toBe(256);
+    expect(bandRowsFor(3000, 'gl-m', false)).toBe(320);
+    expect(bandRowsFor(3000, 'gl-sharp', false)).toBe(defaultBandRows);
+    expect(bandRowsFor(3000, 'gl-sharp', true)).toBe(defaultBandRows);
+    // Typical strips (<= 800 wide) keep the design default on every engine.
+    for (const profile of ['m', 'gl-m', 'gl-sharp'] as const) expect(bandRowsFor(800, profile, true)).toBe(defaultBandRows);
+  });
+
+  it('pipeline memory for an 800-wide strip tile: WebGPU M 78.8 MB, WebGL2 M 48.4 MB, Sharp 12.4 MB', () => {
+    const tileRows = defaultBandRows + 2 * haloRows;
+    expect(round1(estimatePipelineBytes(800, tileRows, 'm'))).toBe(78.8);
+    expect(round1(estimatePipelineBytes(800, tileRows, 'gl-m'))).toBe(48.4);
+    expect(round1(estimatePipelineBytes(800, tileRows, 'gl-sharp'))).toBe(12.4);
   });
 });
