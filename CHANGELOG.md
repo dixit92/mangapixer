@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.24.1] - 2026-09-26
+
 ### Fixed
 
 - **Page cache grew past its budget.** The page cache only counted the pages written since the server last started, so every restart (an update, a container restart, a reboot) left the previous run's pages behind, uncounted and never deleted: one server had 4.8 GB in a 1 GiB cache. The cache now starts empty on every start: each run writes into its own folder under the cache root and deletes what earlier runs left (including the old layout) in the background, so reading starts at once. Only cache-shaped files are deleted, so a cache path pointed at the wrong folder loses nothing else. The first read of each page after a restart is regenerated; thumbnails are stored separately and are not affected. See [Configuration](docs/configuration.md#storage).
