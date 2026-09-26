@@ -54,6 +54,7 @@ public sealed class TitleNormalizerTests
     [InlineData("Some Series v00 (2008) [Scan Team Name] [OneShot].cbz")]
     [InlineData("Some Series [Scan Team Name] (Digital)")]
     [InlineData("Some Series [Scan Team Name] {HQ} v01")]
+    [InlineData("Some Series [Vol. 0007 Ch. 5 - A Chapter Title [Scan Team Name]].cbz")]
     public void Normalize_BracketFollowedByFurtherTags_IsAGroupNotAVariant(string name)
     {
         var n = TitleNormalizer.Normalize(name);

@@ -74,14 +74,15 @@ public static partial class TitleNormalizer
         // (a) a non-leading, TRAILING [English Title] of >= 2 words becomes a second
         // variant. Only the last bracket group qualifies (a year group after it is
         // allowed): a [Group] tag followed by further tags ("[Scan Team] [OneShot]")
-        // is a scanlation group, never a title.
+        // or nested inside another group ("[Vol. 7 Ch. 5 - Title [Scan Team]]") is a
+        // scanlation group, never a title.
         string? englishVariant = null;
         var lastSquare = SquareGroup().Matches(s).LastOrDefault();
         if (lastSquare is not null && lastSquare.Index > 0) // a leading [Group] tag is never a title
         {
             var after = s[(lastSquare.Index + lastSquare.Length)..];
             var inner = lastSquare.Groups[1].Value.Trim();
-            var tagsAfter = AnyBracketGroup().Matches(after).Any(g => !YearGroup().IsMatch(g.Value));
+            var tagsAfter = YearGroup().Replace(after, " ").IndexOfAny(['[', ']', '(', ')', '{', '}']) >= 0;
             if (!tagsAfter && CountWords(inner) >= 2 && inner.Any(char.IsLetter))
                 englishVariant = inner;
         }
