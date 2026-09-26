@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-09-26
+
 ### Added
 
 - **Enhance in vertical (webtoon) mode.** Rendering: **Enhance** now also sharpens small-source webtoon strips on your device's graphics chip (WebGPU). Each page is enhanced in horizontal bands as you reach it: the plain page shows while you scroll quickly and the enhanced one fades in a moment after you stop. Changing the page width, rotating or zooming never re-renders anything, graphics memory stays bounded however long the chapter is, and only pages shown more than 1.2 times larger than their original width are enhanced. `e` now switches Rendering in vertical mode too. If the graphics chip resets twice within a minute, vertical-mode Enhance pauses and the page shows normally. See [Rendering](docs/reader.md#image-quality).
