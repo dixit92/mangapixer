@@ -119,6 +119,8 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
         var merged = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
             ["MangaPixer:Scanning:Scheduler:Enabled"] = "false",
+            // Metadata stage 2: tests drive automatic-matching passes directly.
+            ["Metadata:AutoMatch:WorkerEnabled"] = "false",
         };
         if (extra is not null)
         {

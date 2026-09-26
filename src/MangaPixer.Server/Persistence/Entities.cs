@@ -894,6 +894,26 @@ public sealed class AppSettingsEntity
     /// <summary>Last provider error for the settings card status line (a short code, never a message).</summary>
     public DateTimeOffset? MetadataLastErrorAt { get; set; }
     public string? MetadataLastErrorCode { get; set; }
+
+    // Series metadata stage 2 (auto-match). ONE global Automatic matching switch
+    // (owner decision 3) with its own consent (decision 2); automatic requests
+    // count in the one daily budget above (decision 5: no separate cap, no reserve).
+
+    /// <summary>Global "Automatic matching" switch. Off by default; enabling requires the automatic consent.</summary>
+    public bool MetadataAutoMatchEnabled { get; set; }
+
+    /// <summary>Automatic-lookups consent version the admin accepted, or null if never.</summary>
+    public int? MetadataAutoConsentVersion { get; set; }
+    public DateTimeOffset? MetadataAutoConsentAt { get; set; }
+
+    /// <summary>Match thresholds (decision 13); null = <c>MatchThresholds.Default</c>.</summary>
+    public double? MetadataAutoTitleThreshold { get; set; }
+    public double? MetadataMarginThreshold { get; set; }
+    public double? MetadataReviewFloorThreshold { get; set; }
+
+    /// <summary>Background id-only refresh GETs today (decision 14: at most 100 per UTC day, inside the one budget).</summary>
+    public DateTimeOffset? MetadataRefreshDayUtc { get; set; }
+    public int MetadataRefreshUsed { get; set; }
 }
 
 /// <summary>
@@ -986,6 +1006,12 @@ public sealed class MetadataRecordEntity
 
     /// <summary>Small provider-specific leftovers; never rendered raw.</summary>
     public string? ExtraJson { get; set; }
+
+    /// <summary>Serialization venues (MangaUpdates <c>publications</c>), <c>[{name, publisher}]</c> (stage 2, facet-ready).</summary>
+    public string? PublicationsJson { get; set; }
+
+    /// <summary>Related records, <c>[{externalId, relation}]</c> (stage 2: the related-pair rule).</summary>
+    public string? RelationsJson { get; set; }
 }
 
 /// <summary>
@@ -1087,6 +1113,179 @@ public sealed class FolderMetadataPrecedenceEntity
 
     /// <summary><c>MetadataPrecedence</c>: 0 web first, 1 ComicInfo first.</summary>
     public int Precedence { get; set; }
+
+    public CatalogNodeEntity? Node { get; set; }
+}
+
+/// <summary>
+/// Per-folder metadata Content override (stage 2, owner decision 4b), a 1:1 copy of
+/// <see cref="FolderMetadataPrecedenceEntity"/>: applies to the folder and its
+/// subtree; the nearest row wins. <c>MetadataFolderContent</c>: 0 auto, 1 doujinshi
+/// and adult one-shots (lifts the Doujinshi exclusion of automatic searches), 2 not
+/// doujinshi.
+/// </summary>
+public sealed class FolderMetadataContentEntity
+{
+    public long Id { get; set; }
+    public long NodeId { get; set; }
+    public int Content { get; set; }
+
+    public CatalogNodeEntity? Node { get; set; }
+}
+
+/// <summary>
+/// One row per WORK to match automatically (stage 2): a folder, or the first
+/// archive of an archive group in a collection folder (the other archives are in
+/// <see cref="MemberNodeIdsJson"/>). UNIQUE per node; kept after it is decided so
+/// the review dashboard knows the outcome, class and retry date. Drained by the
+/// background worker under a lease; crash-safe (an expired lease is picked up
+/// again and the outcome write is idempotent). No title or path is stored.
+/// </summary>
+public sealed class MetadataMatchQueueEntity
+{
+    public long Id { get; set; }
+    public long NodeId { get; set; }
+    public long LibraryId { get; set; }
+
+    /// <summary>0 new folder (scan), 1 bulk, 2 retry, 3 rerun, 4 carry check.</summary>
+    public int Reason { get; set; }
+
+    /// <summary>0 pending, 1 leased, 2 done, 3 failed, 4 skipped, 5 cancelled.</summary>
+    public int State { get; set; }
+
+    /// <summary><c>MatchLevel</c> the detector gave the work.</summary>
+    public int Level { get; set; }
+
+    /// <summary><c>WorkClass</c> of the folder (the collection folder for an archive group).</summary>
+    public int? WorkClass { get; set; }
+
+    /// <summary>Archive group: the other archive node ids (internal ids, JSON array); null for a folder.</summary>
+    public string? MemberNodeIdsJson { get; set; }
+
+    public int Attempts { get; set; }
+    public DateTimeOffset? NotBefore { get; set; }
+    public DateTimeOffset? LeaseUntil { get; set; }
+    public string? LeaseOwner { get; set; }
+    public string? LastErrorCode { get; set; }
+    public long? RunId { get; set; }
+
+    /// <summary>"Review everything once": an automatic outcome becomes Needs review.</summary>
+    public bool ReviewFirst { get; set; }
+
+    public DateTimeOffset EnqueuedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+
+    /// <summary><c>MatchBand</c> of the last decision, or null while undecided.</summary>
+    public int? Outcome { get; set; }
+
+    /// <summary><c>MatchReason</c> flags of the last decision.</summary>
+    public int OutcomeReasons { get; set; }
+
+    /// <summary>Automatic retries of an unmatched work so far (30 / 90 / 180 days, then never).</summary>
+    public int RetryStep { get; set; }
+
+    public CatalogNodeEntity? Node { get; set; }
+}
+
+/// <summary>
+/// One automatic-matching run (stage 2), like <see cref="ScanRunEntity"/>: counters
+/// only, never names. The outcome counters are local-only (how admins later judged
+/// this run's links) and never leave the server.
+/// </summary>
+public sealed class MetadataMatchRunEntity
+{
+    public long Id { get; set; }
+    public string PublicId { get; set; } = string.Empty;
+    public long LibraryId { get; set; }
+
+    /// <summary><c>MetadataMatchRunTrigger</c>.</summary>
+    public int Trigger { get; set; }
+
+    /// <summary><c>MetadataMatchRunStatus</c>.</summary>
+    public int Status { get; set; }
+    public bool ReviewFirst { get; set; }
+    public DateTimeOffset StartedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+
+    public int Candidates { get; set; }
+    public int Queued { get; set; }
+    public int Processed { get; set; }
+    public int AutoLinked { get; set; }
+    public int NeedsReview { get; set; }
+    public int Unmatched { get; set; }
+    public int Skipped { get; set; }
+    public int Failed { get; set; }
+    public int RequestsUsed { get; set; }
+
+    public int AutoChangedByAdmin { get; set; }
+    public int ReviewAcceptedTop { get; set; }
+    public int ReviewAcceptedOther { get; set; }
+    public int ReviewDontMatch { get; set; }
+}
+
+/// <summary>
+/// A stored review candidate of a work (stage 2, owner decision 8: the adaptive
+/// <c>MatchOutcome.ToPersist</c> set). Public provider data only, so the review
+/// dashboard needs no new search. Replaced whenever the work is matched again.
+/// </summary>
+public sealed class MetadataMatchCandidateEntity
+{
+    public long Id { get; set; }
+
+    /// <summary>The work's anchor node.</summary>
+    public long NodeId { get; set; }
+
+    /// <summary>1-based.</summary>
+    public int Rank { get; set; }
+    public string Provider { get; set; } = string.Empty;
+    public string ExternalId { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string? ProviderType { get; set; }
+    public int? Format { get; set; }
+    public int? Origin { get; set; }
+    public int? Year { get; set; }
+    public int? Volumes { get; set; }
+    public double TitleScore { get; set; }
+    public double AdjustedScore { get; set; }
+
+    /// <summary><c>MatchReason</c> flags.</summary>
+    public int Reasons { get; set; }
+
+    /// <summary>Remote poster (CDN allowlist); never sent to the browser - served through a candidate token.</summary>
+    public string? ImageRemoteUrl { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public CatalogNodeEntity? Node { get; set; }
+}
+
+/// <summary>
+/// A user's "Wrong series?" report on a series anchor (stage 2). One OPEN flag per
+/// reporter and anchor (partial unique index). <see cref="Note"/> is user content:
+/// admin-only, never logged.
+/// </summary>
+public sealed class MetadataFlagEntity
+{
+    public long Id { get; set; }
+    public string PublicId { get; set; } = string.Empty;
+
+    /// <summary>The anchor node (the node holding the link the reporter saw).</summary>
+    public long NodeId { get; set; }
+    public long LibraryId { get; set; }
+    public long ReporterUserId { get; set; }
+
+    /// <summary>The record the reporter saw (snapshot).</summary>
+    public string? Provider { get; set; }
+    public string? ExternalId { get; set; }
+
+    /// <summary><c>MetadataFlagReason</c>.</summary>
+    public int Reason { get; set; }
+    public string? Note { get; set; }
+
+    /// <summary><c>MetadataFlagState</c>: 0 open.</summary>
+    public int State { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? ResolvedAt { get; set; }
+    public long? ResolvedByUserId { get; set; }
 
     public CatalogNodeEntity? Node { get; set; }
 }

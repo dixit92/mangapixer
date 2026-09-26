@@ -589,6 +589,21 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.MetadataIdentifyService>();
         services.AddSingleton<Features.Metadata.Providers.IMetadataProvider, Features.Metadata.Providers.MangaUpdates.MangaUpdatesProvider>();
 
+        // Stage 2 (auto-match): queue / runs / worker, review dashboard, flags, folder
+        // Content, carry-over and the id-only refresh. The matcher core (IWorkDetector,
+        // IMatchQueryPlanner, IMatchScorer) is registered with its implementation; until
+        // then the worker reports matcher_unavailable and sends nothing.
+        services.AddSingleton(sp => Features.Metadata.AutoMatch.MetadataAutoMatchOptions.FromConfiguration(sp.GetRequiredService<IConfiguration>()));
+        services.AddSingleton<Features.Metadata.AutoMatch.MetadataAutoMatchState>();
+        services.AddScoped<Features.Metadata.AutoMatch.MetadataAutoMatchService>();
+        services.AddScoped<Features.Metadata.AutoMatch.MetadataFolderContentService>();
+        services.AddScoped<Features.Metadata.AutoMatch.MetadataCarryOverService>();
+        services.AddScoped<Features.Metadata.AutoMatch.MetadataPostScanHook>();
+        services.AddScoped<Features.Metadata.AutoMatch.MetadataRefreshService>();
+        services.AddScoped<Features.Metadata.Review.MetadataReviewService>();
+        services.AddScoped<Features.Metadata.Flags.MetadataFlagService>();
+        services.AddHostedService<Hosting.MetadataAutoMatchHostedService>();
+
         // Posters live in the data root, served only through a node's access check.
         services.AddSingleton(sp => new Features.Metadata.MetadataImageStore(
             Path.Combine(dataRoot, "metadata-images"),

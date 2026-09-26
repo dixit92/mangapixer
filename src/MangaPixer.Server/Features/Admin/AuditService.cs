@@ -196,6 +196,23 @@ public static class AuditActions
     public const string MetadataPrecedenceSet = "metadata.precedence.set";
     public const string MetadataPrecedenceClear = "metadata.precedence.clear";
     public const string MetadataPurge = "metadata.purge";
+
+    // Series metadata stage 2 (auto-match). Ids only; individual automatic links are
+    // counted on their run, not audited one by one.
+    public const string MetadataAutoMatchEnable = "metadata.automatch.enable";
+    public const string MetadataAutoMatchDisable = "metadata.automatch.disable";
+    public const string MetadataThresholdsChange = "metadata.thresholds.change";
+    public const string MetadataMatchLibrary = "metadata.match.library";
+    public const string MetadataMatchRerun = "metadata.match.rerun";
+    public const string MetadataRunCancel = "metadata.run.cancel";
+    public const string MetadataReviewAccept = "metadata.review.accept";
+    public const string MetadataReviewConfirm = "metadata.review.confirm";
+    public const string MetadataFlagResolve = "metadata.flag.resolve";
+    public const string MetadataLinkCarried = "metadata.link.carried";
+    public const string MetadataReattach = "metadata.reattach";
+    public const string MetadataMissingDelete = "metadata.missing.delete";
+    public const string MetadataContentSet = "metadata.content.set";
+    public const string MetadataContentClear = "metadata.content.clear";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>

@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangapixer.Server.Features.Metadata.Review;
 
 using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,15 +17,36 @@ using Microsoft.AspNetCore.Mvc;
 [Authorize(Policy = "Admin")]
 public sealed class MetadataReviewController : ControllerBase
 {
+    private readonly MetadataReviewService _review;
+    private readonly MetadataCarryOverService _carryOver;
+
+    public MetadataReviewController(MetadataReviewService review, MetadataCarryOverService carryOver)
+    {
+        _review = review;
+        _carryOver = carryOver;
+    }
+
+    private string? Actor => User.Identity?.Name;
+
     [HttpGet("review/summary")]
     [ProducesResponseType<MetadataReviewSummaryDto>(StatusCodes.Status200OK)]
-    public IActionResult Summary([FromQuery] string? library = null) => NotImplemented();
+    public async Task<IActionResult> Summary([FromQuery] string? library = null, CancellationToken ct = default) =>
+        await _review.SummaryAsync(library, ct) is { } dto ? Ok(dto) : NotFound();
 
     [HttpGet("review")]
     [ProducesResponseType<MetadataReviewPageDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
-    public IActionResult List([FromQuery] MetadataReviewTab tab = MetadataReviewTab.NeedsReview, [FromQuery] string? library = null,
-        [FromQuery] string? cursor = null, [FromQuery] int limit = 50) => NotImplemented();
+    public async Task<IActionResult> List([FromQuery] MetadataReviewTab tab = MetadataReviewTab.NeedsReview, [FromQuery] string? library = null,
+        [FromQuery] string? cursor = null, [FromQuery] int limit = 50, CancellationToken ct = default)
+    {
+        var (error, page) = await _review.ListAsync(tab, library, cursor, limit, ct);
+        return error switch
+        {
+            null => Ok(page),
+            "library_not_found" => NotFound(),
+            _ => BadRequest(new ApiError { Error = error, Message = "Unknown review tab." }),
+        };
+    }
 
     [HttpPost("review/{nodeId}/accept")]
     [ProducesResponseType<NodeSeriesLinkChangeDto>(StatusCodes.Status200OK)]
@@ -32,23 +54,55 @@ public sealed class MetadataReviewController : ControllerBase
     [ProducesResponseType<ApiError>(StatusCodes.Status409Conflict)]
     [ProducesResponseType<ApiError>(StatusCodes.Status429TooManyRequests)]
     [ProducesResponseType<ApiError>(StatusCodes.Status503ServiceUnavailable)]
-    public IActionResult Accept(string nodeId, [FromBody] MetadataReviewAcceptRequest request) => NotImplemented();
+    public async Task<IActionResult> Accept(string nodeId, [FromBody] MetadataReviewAcceptRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var (error, change) = await _review.AcceptAsync(nodeId, request.Rank, Actor, ct);
+            return error switch
+            {
+                null => Ok(change),
+                "not_found" => NotFound(),
+                "no_candidate" => BadRequest(new ApiError { Error = error, Message = "This row has no stored candidate with that rank." }),
+                _ => NotFound(new ApiError { Error = error, Message = "The provider has no series with that id." }),
+            };
+        }
+        catch (MetadataGatewayException ex)
+        {
+            return MetadataIdentifyController.Error(this, ex);
+        }
+    }
 
     [HttpPost("review/bulk")]
     [ProducesResponseType<MetadataReviewBulkResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
-    public IActionResult Bulk([FromBody] MetadataReviewBulkRequest request) => NotImplemented();
+    public async Task<IActionResult> Bulk([FromBody] MetadataReviewBulkRequest request, CancellationToken ct)
+    {
+        var (error, result) = await _review.BulkAsync(request, Actor, ct);
+        return error is null
+            ? Ok(result)
+            : BadRequest(new ApiError { Error = error, Message = $"Give a known action and 1-{MetadataReviewService.MaxBulk} node ids." });
+    }
 
     [HttpPost("missing/{nodeId}/reattach")]
     [ProducesResponseType<MetadataReattachResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
-    public IActionResult Reattach(string nodeId, [FromBody] MetadataReattachRequest request) => NotImplemented();
+    public async Task<IActionResult> Reattach(string nodeId, [FromBody] MetadataReattachRequest request, CancellationToken ct)
+    {
+        var (error, result) = await _carryOver.ReattachAsync(nodeId, request.TargetNodeId, Actor, ct);
+        return error switch
+        {
+            null => Ok(result),
+            "not_found" => NotFound(),
+            "target_not_found" => BadRequest(new ApiError { Error = error, Message = "The target folder does not exist." }),
+            "not_a_folder" => BadRequest(new ApiError { Error = error, Message = "Metadata can only be re-attached to a folder." }),
+            _ => BadRequest(new ApiError { Error = error, Message = "The target folder must be in the same library." }),
+        };
+    }
 
     /// <summary>Deletes the metadata rows left on a removed folder ("Delete" on the Missing folders tab).</summary>
     [HttpDelete("missing/{nodeId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public IActionResult DeleteMissing(string nodeId) => NotImplemented();
-
-    private ObjectResult NotImplemented() =>
-        StatusCode(StatusCodes.Status501NotImplemented, new ApiError { Error = "not_implemented", Message = "Not implemented yet." });
+    public async Task<IActionResult> DeleteMissing(string nodeId, CancellationToken ct) =>
+        await _carryOver.DeleteMissingAsync(nodeId, Actor, ct) ? NoContent() : NotFound();
 }

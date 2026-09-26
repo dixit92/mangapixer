@@ -29,6 +29,9 @@ internal sealed class MangaUpdatesProvider : IMetadataProvider
     /// <summary>Provider types left out by "Hide doujinshi &amp; novels" (a fixed list, never user data).</summary>
     internal static readonly IReadOnlyList<string> HiddenTypes = ["Doujinshi", "Novel", "Artbook", "Drama CD"];
 
+    /// <summary>The same fixed filter with doujinshi allowed (automatic searches below a doujinshi Content folder).</summary>
+    internal static readonly IReadOnlyList<string> HiddenTypesAllowingDoujinshi = ["Novel", "Artbook", "Drama CD"];
+
     private readonly IHttpClientFactory _httpFactory;
 
     public MangaUpdatesProvider(IHttpClientFactory httpFactory)
@@ -52,7 +55,8 @@ internal sealed class MangaUpdatesProvider : IMetadataProvider
     {
         var client = _httpFactory.CreateClient(MetadataHttp.MangaUpdatesApiClient);
         using var content = JsonContent.Create(new MuSearchRequest(
-            query.Text, query.Page, query.PerPage, query.HideDoujinshiAndNovels ? HiddenTypes : null));
+            query.Text, query.Page, query.PerPage,
+            !query.HideDoujinshiAndNovels ? null : query.AllowDoujinshi ? HiddenTypesAllowingDoujinshi : HiddenTypes));
         using var response = await client.PostAsync(ApiBase + "series/search", content, ct);
         MetadataHttp.EnsureSuccess(response);
         var body = Deserialize<MuSearchResponse>(await MetadataHttp.ReadBoundedAsync(response, MetadataHttp.MaxJsonBytes, ct));
@@ -218,7 +222,8 @@ public static class MangaUpdatesMapping
                 _ => "other",
             };
             if (creatorKeys.Add(role + "\n" + name))
-                creators.Add(new MetadataJson.Creator(name, role));
+                creators.Add(new MetadataJson.Creator(name, role,
+                    author.AuthorId is > 0 ? author.AuthorId.Value.ToString(CultureInfo.InvariantCulture) : null));
         }
 
         var publishers = new List<MetadataJson.Publisher>();
@@ -250,6 +255,24 @@ public static class MangaUpdatesMapping
             .Select(c => new MetadataJson.Category(MetadataText.Line(c.Category, 128)!, c.Votes ?? 0))
             .ToList();
 
+        var publications = new List<MetadataJson.Publication>();
+        foreach (var p in s.Publications ?? [])
+        {
+            if (publications.Count >= 30) break;
+            if (MetadataText.Line(p.PublicationName, 256) is not { } name) continue;
+            publications.Add(new MetadataJson.Publication(name, MetadataText.Line(p.PublisherName, 256)));
+        }
+
+        var relations = new List<MetadataJson.RelatedRecord>();
+        foreach (var r in s.RelatedSeries ?? [])
+        {
+            if (relations.Count >= 50) break;
+            if (r.RelatedSeriesId is not > 0) continue;
+            relations.Add(new MetadataJson.RelatedRecord(
+                r.RelatedSeriesId.Value.ToString(CultureInfo.InvariantCulture),
+                MetadataText.Line(r.RelationType, 64)?.ToLowerInvariant() ?? "related"));
+        }
+
         var type = MetadataText.Line(s.Type, 32);
         return new ProviderSeriesRecord
         {
@@ -276,6 +299,8 @@ public static class MangaUpdatesMapping
             Publishers = publishers,
             SiteUrl = SiteUrl(s.Url),
             ImageRemoteUrl = MangaUpdatesProvider.ImageUrl(s.Image?.Url?.Original),
+            Publications = publications,
+            Relations = relations,
             ProviderUpdatedAt = s.LastUpdated?.Timestamp is > 0 and < 253402300800
                 ? DateTimeOffset.FromUnixTimeSeconds(s.LastUpdated.Timestamp.Value)
                 : null,

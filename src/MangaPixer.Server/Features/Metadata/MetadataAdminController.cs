@@ -25,12 +25,15 @@ public sealed class MetadataAdminController : ControllerBase
     private readonly MetadataSettingsService _settings;
     private readonly MetadataLinkService _links;
     private readonly MetadataIdentifyService _identify;
+    private readonly AutoMatch.MetadataFolderContentService _content;
 
-    public MetadataAdminController(MetadataSettingsService settings, MetadataLinkService links, MetadataIdentifyService identify)
+    public MetadataAdminController(MetadataSettingsService settings, MetadataLinkService links, MetadataIdentifyService identify,
+        AutoMatch.MetadataFolderContentService content)
     {
         _settings = settings;
         _links = links;
         _identify = identify;
+        _content = content;
     }
 
     private string? Actor => User.Identity?.Name;
@@ -54,6 +57,21 @@ public sealed class MetadataAdminController : ControllerBase
             {
                 Error = error,
                 Message = "Turning on web metadata requires accepting the current consent version.",
+            }),
+            "auto_consent_required" => BadRequest(new ApiError
+            {
+                Error = error,
+                Message = "Turning on automatic matching requires accepting the current automatic-lookups consent version.",
+            }),
+            "fetch_required" => BadRequest(new ApiError
+            {
+                Error = error,
+                Message = "Automatic matching needs \"Fetch series information from the web\" to be on.",
+            }),
+            "invalid_thresholds" => BadRequest(new ApiError
+            {
+                Error = error,
+                Message = "Thresholds must be within their bounds (auto 0.85-0.99, margin 0.05-0.30, review floor 0.40-0.90) and the review floor below the auto threshold.",
             }),
             _ => BadRequest(new ApiError { Error = error, Message = "DailyBudget must be a positive whole number." }),
         };
@@ -153,19 +171,28 @@ public sealed class MetadataAdminController : ControllerBase
 
     [HttpGet("folders/{nodeId}/content")]
     [ProducesResponseType<FolderMetadataContentDto>(StatusCodes.Status200OK)]
-    public IActionResult GetFolderContent(string nodeId) => NotImplemented();
+    public async Task<IActionResult> GetFolderContent(string nodeId, CancellationToken ct)
+    {
+        var (code, dto) = await _content.GetAsync(nodeId, ct);
+        return code == MetadataLinkResultCode.Ok ? Ok(dto) : ToResult(code);
+    }
 
     [HttpPut("folders/{nodeId}/content")]
     [ProducesResponseType<FolderMetadataContentDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
-    public IActionResult SetFolderContent(string nodeId, [FromBody] SetFolderMetadataContentRequest request) => NotImplemented();
+    public async Task<IActionResult> SetFolderContent(string nodeId, [FromBody] SetFolderMetadataContentRequest request, CancellationToken ct)
+    {
+        var (code, dto) = await _content.SetAsync(nodeId, request.Content, Actor, ct);
+        return code == MetadataLinkResultCode.Ok ? Ok(dto) : ToResult(code);
+    }
 
     [HttpDelete("folders/{nodeId}/content")]
     [ProducesResponseType<FolderMetadataContentDto>(StatusCodes.Status200OK)]
-    public IActionResult ClearFolderContent(string nodeId) => NotImplemented();
-
-    private ObjectResult NotImplemented() =>
-        StatusCode(StatusCodes.Status501NotImplemented, new ApiError { Error = "not_implemented", Message = "Not implemented yet." });
+    public async Task<IActionResult> ClearFolderContent(string nodeId, CancellationToken ct)
+    {
+        var (code, dto) = await _content.ClearAsync(nodeId, Actor, ct);
+        return code == MetadataLinkResultCode.Ok ? Ok(dto) : ToResult(code);
+    }
 
     private IActionResult ToResult(MetadataLinkResultCode code) => code switch
     {
@@ -179,7 +206,7 @@ public sealed class MetadataAdminController : ControllerBase
         MetadataLinkResultCode.NotAFolder => BadRequest(new ApiError
         {
             Error = "not_a_folder",
-            Message = "A source-precedence override can only be set on a folder.",
+            Message = "This setting can only be set on a folder.",
         }),
         _ => BadRequest(new ApiError { Error = "invalid_request", Message = "The request is not valid." }),
     };
