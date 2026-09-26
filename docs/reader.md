@@ -123,7 +123,16 @@ Press `s` to cycle through the filters while reading. With **Full** page quality
 - **Smooth** (default): the browser's normal image scaling.
 - **Enhance**: when a page is shown *larger* than its original resolution, it is redrawn on your device's graphics chip with Anime4K, an upscaler designed for anime and line art, to keep lines sharp. Pages that are not being enlarged are left alone, and nothing is sent to the server.
 
-Enhance needs a browser with WebGPU. The Rendering button's tooltip says whether WebGPU is ready, and without it Enhance is greyed out ("Enhance needs WebGPU"). It works in single and double page modes; in vertical mode it is greyed out ("Enhance is for paged views"). Press `e` to switch between Smooth and Enhance. Enhance uses the graphics chip, so it can use more battery on phones and tablets.
+Enhance needs a browser with WebGPU. The Rendering button's tooltip says whether WebGPU is ready, and without it Enhance is greyed out ("Enhance needs WebGPU"). It works in single page, double page and vertical modes. Press `e` to switch between Smooth and Enhance. Enhance uses the graphics chip, so it can use more battery on phones and tablets.
+
+**Enhance quality** picks how much work Enhance does in single and double page (the choice is not shown in vertical mode):
+
+- **Efficient** (default): a lighter Anime4K network. It uses much less graphics memory and battery, and is the right choice on phones and tablets.
+- **Max quality**: the heavier network Enhance used before version 1.24.0. It can be a little sharper in single and double page modes, at the cost of more graphics memory and battery.
+
+In vertical mode Enhance always uses Efficient (your Enhance quality choice is kept for the paged modes), because it keeps many parts of the strip enhanced at once while you scroll. There, the enhanced version of a page appears a moment after you stop scrolling (the plain page shows while you scroll quickly), and only pages shown more than 1.2 times larger than their original width are enhanced.
+
+If the graphics chip resets twice within a minute (for example after the app spends time in the background), vertical-mode Enhance pauses until the page is reloaded and the Rendering status line reads "Enhance paused (GPU reset)"; the pages still show normally.
 
 Enhance is built on [Anime4K](https://github.com/bloc97/Anime4K) by bloc97, through the [anime4k-webgpu](https://github.com/Anime4KWebBoost/Anime4K-WebGPU) port. See [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
 
@@ -169,9 +178,9 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
 | `d` | Switch between single and double page. Keeps the archive's pairing; switching to double page makes the page you are on start a spread. |
 | `o` | Double page: shift the pairing by one page from the current spread (saved for the archive, see [Fixing double-page pairing](#fixing-double-page-pairing)) |
 | `s` | Cycle the downscale filter: Sharp, Balanced, Soft |
-| `e` | Switch Rendering between Smooth and Enhance (when Enhance is available) |
+| `e` | Switch Rendering between Smooth and Enhance (when Enhance is available), in every mode |
 | `m` | Show / hide the controls |
-| `Esc` | Close help. Otherwise exit fullscreen, or go back to the folder if not in fullscreen. |
+| `Esc` | Close an open menu or help. Otherwise exit fullscreen, or go back to the folder if not in fullscreen. |
 | `?` | Show / hide the help overlay |
 
 - In vertical mode only `m`, `s`, `?` and `Esc` (to close help) apply. Scroll with the mouse wheel, trackpad or the usual scroll keys.
@@ -220,6 +229,8 @@ The reader loads ahead so page turns feel instant:
 - **Single and double page:** the next 6 pages and the previous 2.
 - **Vertical:** the next 4 pages below your scroll position.
 - Prefetch stays within the current chapter.
+
+While a page is still on its way (for example when the library's drive is spinning up), the reader shows a small spinner where the page will appear, and adds **Loading…** if the page has not arrived after about 3 seconds. In vertical mode each page's space is reserved and shows its own spinner; if a page fails to load, **Page N did not load - Tap to retry** asks for it again.
 
 On the server, the page you are looking at always takes priority over prefetching, and prefetching takes priority over background work such as analyzing new archives. Extracted pages are cached (see the cache budget in [Configuration](configuration.md#storage)), so rereading is fast.
 

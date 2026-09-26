@@ -138,6 +138,10 @@ public static class HostingServicesExtensions
         services.AddHostedService<MediaWorkerHostedService>();
         services.AddHostedService<PendingAnalysisResumeHostedService>();
         services.AddHostedService<ThumbnailBackfillHostedService>();
+        // ComicInfo.xml backfill (1.24.0): single-flight singleton pass, kicked at
+        // startup (after the worker pool) and after every successful scan.
+        services.AddSingleton<com.lifepixer.mangapixer.Server.Features.Metadata.ComicInfoBackfillService>();
+        services.AddHostedService<ComicInfoBackfillHostedService>();
         services.AddHostedService<MaintenanceHostedService>();
         services.AddHostedService<RotatingBackupHostedService>();
         // Automatic per-library scans (1.23.0): after startup recovery, with its

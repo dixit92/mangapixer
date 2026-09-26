@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 using System.Globalization;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Persistence;
@@ -352,6 +353,10 @@ public sealed class CatalogBrowseService
         // Per-user favorite star (1.21.0): applies to folders AND archives, so it is
         // keyed off EVERY node on the page (not just archives). One batched join, no N+1.
         nodes = await ApplyFavoritesAsync(nodes, userId, ct);
+
+        // Card (i) affordance (1.24.0): whether each node ITSELF has series info.
+        // A fixed handful of batched queries per page, independent of page size.
+        nodes = await ApplyHasSeriesInfoAsync(nodes, rows, libraryId, ct);
 
         // Compute next cursor from the last row on the current page. recentlyRead
         // paginates by offset (in-memory pure-recency order); the others use a keyset.
@@ -816,6 +821,83 @@ public sealed class CatalogBrowseService
         return effective is null
             ? $"u:0:0:{row.InternalId}:{row.SortKey}"
             : $"u:1:{effective.Value.UtcDateTime.ToBinary()}:{row.InternalId}:{row.SortKey}";
+    }
+
+    /// <summary>
+    /// Sets <see cref="CatalogNodeDto.HasSeriesInfo"/> (1.24.0) for the page: a node's
+    /// own confirmed web link, an archive's own parsed ComicInfo (current content
+    /// version), or a folder with parsed ComicInfo on its child archives (depth 1) or
+    /// grandchild archives (depth 2) - the same scope the series-info resolver
+    /// aggregates. Inherited links and "Don't match" never count. All false while
+    /// "Show series information" is off for the library. Batched: at most five
+    /// queries per page whatever its size (a perf test pins this), never a
+    /// per-card walk.
+    /// </summary>
+    private async Task<List<CatalogNodeDto>> ApplyHasSeriesInfoAsync(
+        List<CatalogNodeDto> nodes, List<BrowseRow> rows, long libraryId, CancellationToken ct)
+    {
+        if (rows.Count == 0)
+            return nodes;
+
+        var hidden = await _db.Libraries
+            .Where(l => l.Id == libraryId)
+            .Select(l => l.MetadataSeriesInfoHidden
+                || _db.AppSettings.Any(s => s.Id == AppSettingsEntity.SingletonId && s.MetadataSeriesInfoHidden))
+            .FirstOrDefaultAsync(ct);
+        if (hidden)
+            return nodes;
+
+        var pageIds = rows.Select(r => r.InternalId).ToList();
+        var has = (await _db.NodeSeriesLinks
+            .Where(l => pageIds.Contains(l.NodeId) && l.RecordId != null
+                && (l.State == (int)SeriesLinkState.Confirmed || l.State == (int)SeriesLinkState.Auto))
+            .Select(l => l.NodeId)
+            .ToListAsync(ct)).ToHashSet();
+
+        var archiveIds = rows.Where(r => r.Kind == (int)CatalogNodeKind.Archive).Select(r => r.InternalId).ToList();
+        if (archiveIds.Count > 0)
+        {
+            has.UnionWith(await (
+                from e in _db.EmbeddedMetadata
+                join a in _db.ArchiveItems on e.NodeId equals a.NodeId
+                where archiveIds.Contains(e.NodeId) && e.State == 1 && e.ContentVersion == a.ContentVersion
+                select e.NodeId).ToListAsync(ct));
+        }
+
+        var folderIds = rows.Where(r => r.Kind == (int)CatalogNodeKind.Folder).Select(r => r.InternalId).ToList();
+        if (folderIds.Count > 0)
+        {
+            var depth1 = await (
+                from n in _db.CatalogNodes
+                join a in _db.ArchiveItems on n.Id equals a.NodeId
+                join e in _db.EmbeddedMetadata on n.Id equals e.NodeId
+                where n.ParentId != null && folderIds.Contains(n.ParentId.Value)
+                    && n.Kind == (int)CatalogNodeKind.Archive && n.Availability != (int)CatalogNodeAvailability.Tombstoned
+                    && e.State == 1 && e.ContentVersion == a.ContentVersion
+                select n.ParentId!.Value).Distinct().ToListAsync(ct);
+            has.UnionWith(depth1);
+
+            var remaining = folderIds.Where(id => !has.Contains(id)).ToList();
+            if (remaining.Count > 0)
+            {
+                has.UnionWith(await (
+                    from child in _db.CatalogNodes
+                    join n in _db.CatalogNodes on child.Id equals n.ParentId
+                    join a in _db.ArchiveItems on n.Id equals a.NodeId
+                    join e in _db.EmbeddedMetadata on n.Id equals e.NodeId
+                    where child.ParentId != null && remaining.Contains(child.ParentId.Value)
+                        && child.Kind == (int)CatalogNodeKind.Folder && child.Availability != (int)CatalogNodeAvailability.Tombstoned
+                        && n.Kind == (int)CatalogNodeKind.Archive && n.Availability != (int)CatalogNodeAvailability.Tombstoned
+                        && e.State == 1 && e.ContentVersion == a.ContentVersion
+                    select child.ParentId!.Value).Distinct().ToListAsync(ct));
+            }
+        }
+
+        if (has.Count == 0)
+            return nodes;
+
+        var publicIdsWithInfo = rows.Where(r => has.Contains(r.InternalId)).Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
+        return nodes.Select(n => publicIdsWithInfo.Contains(n.Id) ? n with { HasSeriesInfo = true } : n).ToList();
     }
 
     /// <summary>

@@ -53,7 +53,7 @@ You need Docker with Compose v2. The Compose file pulls the published image from
 3. From that folder, pull and start the version you want (see [Releases](https://github.com/dixit92/mangapixer/releases)):
 
    ```bash
-   export MANGAPIXER_VERSION=1.23.0
+   export MANGAPIXER_VERSION=1.24.0
    docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d
    ```
 
@@ -133,7 +133,7 @@ All guides live in [`docs/`](docs/README.md):
 
 - **Install:** [Docker](docs/install-docker.md), [Unraid](docs/install-unraid.md), [Windows](docs/install-windows.md)
 - **Set up and run:** [Configuration reference](docs/configuration.md), [Library layout](docs/library-layout.md), [Users and access](docs/users-and-access.md), [Backup and restore](docs/backup-and-restore.md), [Reverse proxy and HTTPS](docs/reverse-proxy-and-https.md)
-- **Use:** [Reader](docs/reader.md)
+- **Use:** [Reader](docs/reader.md), [Series information](docs/series-information.md)
 - **Help:** [Troubleshooting](docs/troubleshooting.md), [FAQ](docs/faq.md)
 
 ## Configuration
@@ -143,10 +143,17 @@ Settings follow ASP.NET Core conventions: `appsettings.json` or environment vari
 ## Privacy and security
 
 - **No telemetry, analytics or phone-home.** Fonts and icons are bundled and served by your own server, never from a CDN.
+- **Two optional internet features, both off by default and switched on only by an admin:** the Update Checker and fetching series information from MangaUpdates (see below).
 - **Logs never contain paths or titles**, only IDs, counts, timings and sanitized error codes. Reader-facing API responses never contain filesystem paths.
 - **Source media is read-only**, enforced by the code and by the `:ro` mounts.
 - **No default credentials.** The first admin is created by you on the setup screen, and that endpoint refuses once any user exists.
 - Session cookies use ASP.NET Core Data Protection; the keys live in `<DataRoot>/keys`, so treat the data volume as sensitive.
+
+### What leaves your server
+
+Out of the box, nothing: MangaPixer makes no internet requests until an admin turns something on. The **Update Checker** asks GitHub once a day whether a newer release exists. **Fetch series information from the web** (Administration > Series metadata, after a consent text, and per library) lets an admin look a folder up on [MangaUpdates](https://www.mangaupdates.com): only the search text the admin confirms in the Identify dialog, MangaUpdates record numbers, a fixed list of types to leave out (when **Hide doujinshi & novels** is ticked) and a generic `User-Agent` are sent, only to `api.mangaupdates.com` and `cdn.mangaupdates.com`, and only when an admin presses Search, Look up, Link or Refresh. File paths, your file list, user accounts and reading progress are never sent. Fetched data and cover art are stored on your server and served from it, so readers' browsers never contact MangaUpdates. `Metadata__NetworkDisabled=true` switches the feature off regardless of the admin setting. Details: [Series information](docs/series-information.md#what-is-sent).
+
+Series data fetched from the web is provided by [MangaUpdates](https://www.mangaupdates.com) and credited to it wherever it is shown.
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
 

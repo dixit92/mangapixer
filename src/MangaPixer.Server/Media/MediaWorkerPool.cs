@@ -580,6 +580,113 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     }
 
     /// <summary>
+    /// Reads only an archive's ComicInfo.xml in a worker (protocol v3, 1.24.0) - the
+    /// on-demand call behind the ComicInfo backfill, shaped like
+    /// <see cref="ExtractPageAsync"/> (a direct slot, not the analysis scheduler).
+    /// The caller throttles itself on <see cref="IsSaturated"/> /
+    /// <see cref="SchedulerPendingCount"/>. Never throws for worker-side problems:
+    /// every failure is a <see cref="ComicInfoReadOutcome"/> error type.
+    /// </summary>
+    public async Task<ComicInfoReadOutcome> ReadComicInfoAsync(
+        string archivePath,
+        long expectedLastWriteTicks,
+        long expectedByteLength,
+        CancellationToken ct = default)
+    {
+        if (_isShuttingDown)
+            return ComicInfoReadOutcome.Failed("unavailable");
+
+        var slot = await AcquireSlotAsync(ct);
+        if (slot is null)
+            return ComicInfoReadOutcome.Failed("busy");
+
+        var jobId = "comicinfo-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            var request = new ComicInfoRequest
+            {
+                JobId = jobId,
+                ArchivePath = archivePath,
+                ExpectedLastWriteTicks = expectedLastWriteTicks,
+                ExpectedByteLength = expectedByteLength,
+                Deadline = DateTimeOffset.UtcNow.Add(ComicInfoReadTimeout),
+                MaxXmlBytes = ComicInfoLimits.MaxXmlBytes,
+            };
+
+            var tcs = new TaskCompletionSource<ComicInfoReadOutcome>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+            Task HandleMessage(WorkerEnvelope envelope)
+            {
+                if (envelope.CorrelationId != jobId) return Task.CompletedTask;
+                switch (envelope.Type)
+                {
+                    case "comicinfo_result":
+                        {
+                            var r = WorkerProtocolFraming.GetPayload<ComicInfoResult>(envelope);
+                            if (r is null)
+                                tcs.TrySetResult(ComicInfoReadOutcome.Failed("read_failed"));
+                            else if (r.ObservedLastWriteTicks != expectedLastWriteTicks || r.ObservedByteLength != expectedByteLength)
+                                tcs.TrySetResult(ComicInfoReadOutcome.Failed("source_changed"));
+                            else
+                                tcs.TrySetResult(ComicInfoReadOutcome.Ok(r.Outcome));
+                            break;
+                        }
+                    case "comicinfo_error":
+                        {
+                            var e = WorkerProtocolFraming.GetPayload<ComicInfoError>(envelope);
+                            tcs.TrySetResult(ComicInfoReadOutcome.Failed(e?.ErrorType ?? "read_failed"));
+                            break;
+                        }
+                    case "analyze_error":
+                        {
+                            // A worker-level error for this correlation id (e.g. an
+                            // unknown message type from a mismatched worker).
+                            var e = WorkerProtocolFraming.GetPayload<AnalyzeError>(envelope);
+                            tcs.TrySetResult(ComicInfoReadOutcome.Failed(e?.ErrorType ?? "read_failed"));
+                            break;
+                        }
+                }
+                return Task.CompletedTask;
+            }
+
+            slot.Supervisor.OnMessageReceived += HandleMessage;
+            try
+            {
+                var envelope = WorkerProtocolFraming.CreateEnvelope("comicinfo", jobId, request);
+                await slot.Supervisor.SendMessageAsync(envelope, ct);
+
+                var timeout = Task.Delay(ComicInfoReadTimeout + _options.SourceOpenTimeout, ct);
+                var done = await Task.WhenAny(tcs.Task, timeout);
+                if (done != tcs.Task)
+                    return ComicInfoReadOutcome.Failed("timeout");
+                return await tcs.Task;
+            }
+            finally
+            {
+                slot.Supervisor.OnMessageReceived -= HandleMessage;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return ComicInfoReadOutcome.Failed("cancelled");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(LogEvents.Worker.ExtractDispatchFailed, ex, "ComicInfo dispatch failed: {Error}", ex.GetType().Name);
+            return ComicInfoReadOutcome.Failed("read_failed");
+        }
+        finally
+        {
+            ReleaseSlot(slot);
+            SignalDispatch();
+        }
+    }
+
+    /// <summary>Deadline for one ComicInfo read (directory + at most one 1 MiB entry).</summary>
+    internal static readonly TimeSpan ComicInfoReadTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>
     /// Finds a free worker slot, starting one if under the concurrency cap, and
     /// otherwise waiting briefly for one to free up. Marks the returned slot busy.
     /// Marks itself as a waiting reader for the duration of the call (even the
@@ -1136,6 +1243,18 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 /// at <see cref="OutputPath"/>; on failure <see cref="ErrorType"/> maps to an HTTP
 /// response (e.g. "unsupported_solid", "page_not_found", "encrypted", "timeout").
 /// </summary>
+/// <summary>Result of <see cref="MediaWorkerPool.ReadComicInfoAsync"/>.</summary>
+public sealed record ComicInfoReadOutcome
+{
+    public required bool Success { get; init; }
+    public ComicInfoOutcome? Outcome { get; init; }
+    public string? ErrorType { get; init; }
+
+    public static ComicInfoReadOutcome Ok(ComicInfoOutcome outcome) => new() { Success = true, Outcome = outcome };
+
+    public static ComicInfoReadOutcome Failed(string errorType) => new() { Success = false, ErrorType = errorType };
+}
+
 public sealed record PageExtractionOutcome
 {
     public required bool Success { get; init; }

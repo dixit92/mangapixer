@@ -7,7 +7,7 @@ import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import {
-  ReaderPreferencesService, PageAnimation, PageQuality, Upscaler, DownscaleFilter,
+  ReaderPreferencesService, PageAnimation, PageQuality, Upscaler, DownscaleFilter, EnhanceQuality,
 } from '../../core/reading/reader-preferences.service';
 import { DOWNSCALE_FILTER_OPTIONS, filterOptionHint } from '../../core/reading/downscale-filters';
 import { WebtoonNavPreferencesService, WebtoonTapStep } from './webtoon-nav.service';
@@ -75,6 +75,24 @@ export const UPSCALER_OPTIONS: readonly ReaderOption<Upscaler>[] = [
   { value: 'smooth', label: 'Smooth', icon: 'blur_on' },
   { value: 'enhance', label: 'Enhance', icon: 'auto_fix_high' },
 ];
+
+/**
+ * Which Anime4K network Enhance runs (1.24.0): `balanced` is the light M chain
+ * (the default everywhere), `max` the heavy VL chain paged Enhance used before.
+ * The vertical (webtoon) view always runs Efficient, so the group is hidden there
+ * (owner, 1.24.0); the stored choice is untouched and applies again in paged views.
+ */
+export const ENHANCE_QUALITY_OPTIONS: readonly ReaderOption<EnhanceQuality>[] = [
+  { value: 'balanced', label: 'Efficient', icon: 'balance' },
+  { value: 'max', label: 'Max quality', icon: 'diamond' },
+];
+
+/** One line under the Enhance quality group (shared by the menu and the phone sheet). */
+export function enhanceQualityHint(quality: EnhanceQuality): string {
+  return quality === 'max'
+    ? 'Sharpest; more GPU memory and battery (single and double page)'
+    : 'Lighter on GPU memory and battery';
+}
 
 /**
  * How many pixels to fetch per page (1.19.0). `auto` sizes each request to the
@@ -193,8 +211,29 @@ export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
             {{ opt.label }}
           </button>
         }
-        <div class="menu-hint">{{ renderingHint() }}</div>
+        <!-- The status line is a text-styled button: tapping it 5 times
+             toggles the device-verification timing readout (off by default). -->
+        <button type="button" class="menu-hint hint-tap"
+                (click)="$event.stopPropagation(); support.tapStats()">{{ renderingHint() }}</button>
       </div>
+      <!-- Enhance quality applies to the paged views only: vertical always runs
+           Efficient, so the choice is hidden there (not explained). -->
+      @if (showEnhanceQuality()) {
+        <div role="group" aria-label="Enhance quality">
+          <div class="menu-group-label">Enhance quality</div>
+          @for (opt of enhanceQualityOptions; track opt.value) {
+            <button mat-menu-item role="menuitemradio"
+                    [disabled]="enhanceDisabled()"
+                    [class.selected-option]="prefs.enhanceQuality() === opt.value"
+                    [attr.aria-checked]="prefs.enhanceQuality() === opt.value"
+                    (click)="chooseEnhanceQuality(opt.value)" [attr.aria-label]="'Enhance quality: ' + opt.label">
+              <mat-icon>{{ opt.icon }}</mat-icon>
+              {{ opt.label }}
+            </button>
+          }
+          <div class="menu-hint">{{ qualityHint() }}</div>
+        </div>
+      }
       <div role="group" aria-label="Page quality">
         <div class="menu-group-label">Page quality</div>
         @for (opt of pageQualityOptions; track opt.value) {
@@ -239,6 +278,10 @@ export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
       letter-spacing: 0.5px; text-transform: uppercase; opacity: 0.6;
     }
     ::ng-deep .reader-options-menu .menu-hint { padding: 0 16px 6px; font-size: 11px; opacity: 0.6; max-width: 220px; }
+    ::ng-deep .reader-options-menu .hint-tap {
+      display: block; background: none; border: 0; color: inherit; font-family: inherit;
+      text-align: left; cursor: default;
+    }
   `],
 })
 export class ReaderSettingsMenuComponent {
@@ -248,6 +291,7 @@ export class ReaderSettingsMenuComponent {
   readonly options = PAGE_ANIMATION_OPTIONS;
   readonly tapStepOptions = WEBTOON_TAP_STEP_OPTIONS;
   readonly upscalerOptions = UPSCALER_OPTIONS;
+  readonly enhanceQualityOptions = ENHANCE_QUALITY_OPTIONS;
   readonly pageQualityOptions = PAGE_QUALITY_OPTIONS;
   readonly downscaleFilterOptions = DOWNSCALE_FILTER_OPTIONS;
   readonly filterOptionHint = filterOptionHint;
@@ -261,18 +305,21 @@ export class ReaderSettingsMenuComponent {
 
   /**
    * GPU upscaling is offered but not selectable when the platform has no usable
-   * WebGPU device, and in the webtoon view, which the directive deliberately does
-   * not cover in 1.19.0. Disabled-with-a-reason beats an option that does nothing.
+   * WebGPU device. Disabled-with-a-reason beats an option that does nothing. Every
+   * view is covered since 1.24.0 (webtoon through the banded renderer).
    */
-  readonly enhanceDisabled = computed<boolean>(
-    () => this.support.support() !== 'ready' || this.view() === 'webtoon');
+  readonly enhanceDisabled = computed<boolean>(() => this.support.support() !== 'ready');
 
   /** One short line under the Rendering group explaining the current state. */
   readonly renderingHint = computed<string>(() => {
     if (this.support.support() !== 'ready') return 'Enhance needs WebGPU';
-    if (this.view() === 'webtoon') return 'Enhance is for paged views';
     return this.support.statusText();
   });
+
+  /** Enhance quality is a paged-view choice: the vertical view always runs Efficient. */
+  readonly showEnhanceQuality = computed<boolean>(() => this.view() !== 'webtoon');
+
+  readonly qualityHint = computed<string>(() => enhanceQualityHint(this.prefs.enhanceQuality()));
 
   /**
    * The Downscale filter only affects a SIZED (`?maxDim=`) request, which only
@@ -298,6 +345,11 @@ export class ReaderSettingsMenuComponent {
 
   choosePageQuality(quality: PageQuality): void {
     this.prefs.setPageQuality(quality);
+  }
+
+  chooseEnhanceQuality(quality: EnhanceQuality): void {
+    if (this.enhanceDisabled()) return;
+    this.prefs.setEnhanceQuality(quality);
   }
 
   chooseDownscaleFilter(filter: DownscaleFilter): void {
@@ -473,8 +525,8 @@ export interface ReaderOptionsHost {
 
       <!-- 1.19.0 image scaling, shown in every view: Rendering is how an UPSCALED
            page is resampled, Page quality is how many pixels are fetched. Enhance
-           is disabled (with the reason) without WebGPU and in the webtoon view,
-           which the upscale directive does not cover this cycle. -->
+           is disabled (with the reason) without WebGPU; since 1.24.0 it covers
+           the vertical view too. -->
       <section class="group">
         <h3 class="group-label" id="reader-options-rendering">Rendering</h3>
         <div class="chips" role="radiogroup" aria-labelledby="reader-options-rendering">
@@ -488,8 +540,27 @@ export interface ReaderOptionsHost {
             </button>
           }
         </div>
-        <p class="group-hint">{{ renderingHint() }}</p>
+        <!-- Text-styled button: 5 taps toggle the GPU timing readout (off by default). -->
+        <button type="button" class="group-hint hint-tap" (click)="support.tapStats()">{{ renderingHint() }}</button>
       </section>
+      <!-- Paged views only, as in the desktop menu. -->
+      @if (showEnhanceQuality()) {
+        <section class="group">
+          <h3 class="group-label" id="reader-options-enhance-quality">Enhance quality</h3>
+          <div class="chips" role="radiogroup" aria-labelledby="reader-options-enhance-quality">
+            @for (opt of enhanceQualityOptions; track opt.value) {
+              <button type="button" class="chip" role="radio"
+                      [disabled]="enhanceDisabled()"
+                      [class.selected]="prefs.enhanceQuality() === opt.value"
+                      [attr.aria-checked]="prefs.enhanceQuality() === opt.value"
+                      (click)="pickEnhanceQuality(opt.value)">
+                <mat-icon aria-hidden="true">{{ opt.icon }}</mat-icon>{{ opt.label }}
+              </button>
+            }
+          </div>
+          <p class="group-hint">{{ qualityHint() }}</p>
+        </section>
+      }
       <section class="group">
         <h3 class="group-label" id="reader-options-quality">Page quality</h3>
         <div class="chips" role="radiogroup" aria-labelledby="reader-options-quality">
@@ -574,6 +645,7 @@ export interface ReaderOptionsHost {
     /* Same look as .note, but a separate class: .note is the narrow-portrait
        double-page explanation and a test asserts it is absent everywhere else. */
     .group-hint { margin: 0; font-size: 12px; line-height: 16px; color: var(--mat-sys-on-surface-variant, #8a8a99); }
+    .hint-tap { display: block; padding: 0; background: none; border: 0; font-family: inherit; text-align: left; cursor: default; }
     /* Chips: 44px touch targets, the option's own glyph, and the accent highlight
        (not a tick) for the selected one. */
     .chip {
@@ -611,19 +683,23 @@ export class ReaderOptionsSheetComponent {
   readonly transitionOptions = PAGE_ANIMATION_OPTIONS;
   readonly tapStepOptions = WEBTOON_TAP_STEP_OPTIONS;
   readonly upscalerOptions = UPSCALER_OPTIONS;
+  readonly enhanceQualityOptions = ENHANCE_QUALITY_OPTIONS;
   readonly pageQualityOptions = PAGE_QUALITY_OPTIONS;
   readonly downscaleFilterOptions = DOWNSCALE_FILTER_OPTIONS;
   readonly filterOptionHint = filterOptionHint;
 
-  /** Same rule as the desktop menu: no usable WebGPU, or the webtoon view. */
-  readonly enhanceDisabled = computed<boolean>(
-    () => this.support.support() !== 'ready' || this.host.view() === 'webtoon');
+  /** Same rule as the desktop menu: no usable WebGPU. */
+  readonly enhanceDisabled = computed<boolean>(() => this.support.support() !== 'ready');
 
   readonly renderingHint = computed<string>(() => {
     if (this.support.support() !== 'ready') return 'Enhance needs WebGPU';
-    if (this.host.view() === 'webtoon') return 'Enhance is for paged views';
     return this.support.statusText();
   });
+
+  /** Same rule as the desktop menu: hidden in the vertical view. */
+  readonly showEnhanceQuality = computed<boolean>(() => this.host.view() !== 'webtoon');
+
+  readonly qualityHint = computed<string>(() => enhanceQualityHint(this.prefs.enhanceQuality()));
 
   /** Same rule as the desktop menu: only a sized (Auto) request can be filtered. */
   readonly filterDisabled = computed<boolean>(() => this.prefs.pageQuality() === 'full');
@@ -636,6 +712,11 @@ export class ReaderOptionsSheetComponent {
   pickUpscaler(upscaler: Upscaler): void {
     if (upscaler === 'enhance' && this.enhanceDisabled()) return;
     this.prefs.setUpscaler(upscaler);
+  }
+
+  pickEnhanceQuality(quality: EnhanceQuality): void {
+    if (this.enhanceDisabled()) return;
+    this.prefs.setEnhanceQuality(quality);
   }
 
   pickDownscaleFilter(filter: DownscaleFilter): void {

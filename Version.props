@@ -322,6 +322,14 @@
          tap turn on WebKit (iPad). Browse: the list-view favorite star moves off the thumbnail
          into the row markers. Unraid: install from Community Applications; the duplicate
          deploy/unraid/mangapixer.xml is removed (dixit92/unraid-templates is its only home). -->
+    <!-- 1.24.0 - MINOR over 1.23.0 ("Metadata Foundations and Webtoon Enhance" cycle, 2026-09-26).
+         Series information: ComicInfo.xml read in the worker (protocol 2 -> 3) with a background backfill;
+         optional, admin-only, opt-in MangaUpdates lookups (Identify, match by URL, consent text, per-library
+         switches, 2/5 req/s, daily budget, host allowlist, posters served locally; AGENTS.md Privacy amended);
+         per-folder source precedence; the (i) panel and a /series page; "Show series information" switch;
+         migration AddMetadataFoundations. Reader: Enhance in vertical (webtoon) mode, Enhance quality
+         Efficient (default) / Max quality, per-page loading feedback, Escape in a menu no longer leaves the
+         reader. CI: THIRD-PARTY-NOTICES drift check. Bugfixes ship as 1.24.x. -->
     <!-- 1.23.0 - additive MINOR over 1.22.2 ("Shifted Pairing, Scheduled Scan and Backup Move" cycle,
          2026-09-24). Double page: pairing correctable anywhere in an archive ("Double page
          (shifted)", o key, d re-anchors), saved per archive on the server and shared by every
@@ -333,7 +341,7 @@
          iPhone/iPad add-to-home-screen hint; analytics totals caption; a real OpenAPI drift check.
          Worker protocol unchanged (2). Bugfixes ship as 1.23.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <MangaPixerVersionMinor>23</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>24</MangaPixerVersionMinor>
     <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 

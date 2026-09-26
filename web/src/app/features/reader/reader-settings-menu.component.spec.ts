@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { signal } from '@angular/core';
+import { WritableSignal, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatBottomSheetRef, MAT_BOTTOM_SHEET_DATA } from '@angular/material/bottom-sheet';
@@ -65,9 +65,9 @@ describe('ReaderSettingsMenuComponent', () => {
     it('offers Smooth / Enhance and Auto / Full as menuitemradios, defaults highlighted', () => {
       const { fixture } = create();
       const { panel } = openRendering(fixture);
-      // Excludes the 1.20.0 Downscale filter group (its own describe block below).
+      // Excludes the 1.20.0 Downscale filter and 1.24.0 Enhance quality groups (own tests below).
       const items = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'))
-        .filter((i) => !(i.getAttribute('aria-label') ?? '').startsWith('Downscale filter'));
+        .filter((i) => !/^(Downscale filter|Enhance quality)/.test(i.getAttribute('aria-label') ?? ''));
       // textContent carries the icon ligature first, as elsewhere in these menus.
       expect(items.map((i) => (i.textContent ?? '').trim().split(/\s+/).pop()))
         .toEqual(['Smooth', 'Enhance', 'Auto', 'Full']);
@@ -111,7 +111,7 @@ describe('ReaderSettingsMenuComponent', () => {
       expect(prefs.upscaler()).toBe('smooth');
     });
 
-    it('with WebGPU ready, Enhance is selectable everywhere except the webtoon view', () => {
+    it('with WebGPU ready, Enhance is selectable in every view, webtoon included (1.24.0)', () => {
       const { fixture, c, prefs } = create();
       c.support.support.set('ready');
       fixture.detectChanges();
@@ -122,8 +122,95 @@ describe('ReaderSettingsMenuComponent', () => {
 
       fixture.componentRef.setInput('view', 'webtoon');
       fixture.detectChanges();
-      expect(c.enhanceDisabled()).toBe(true);
-      expect(c.renderingHint()).toBe('Enhance is for paged views');
+      expect(c.enhanceDisabled()).toBe(false);
+      expect(c.renderingHint()).toBe('GPU: WebGPU ready');
+      const { panel } = openRendering(fixture);
+      const enhance = Array.from(panel.querySelectorAll<HTMLButtonElement>('button[mat-menu-item]'))
+        .find((i) => (i.textContent ?? '').trim().endsWith('Enhance'))!;
+      expect(enhance.disabled).toBe(false);
+    });
+
+    /** 1.24.0 owner decision: M ("Efficient") by default, VL as "Max quality". */
+    describe('Enhance quality group (1.24.0)', () => {
+      const qualityItems = (panel: HTMLElement) => Array.from(panel.querySelectorAll<HTMLButtonElement>('button[mat-menu-item]'))
+        .filter((i) => (i.getAttribute('aria-label') ?? '').startsWith('Enhance quality'));
+
+      it('offers Efficient (default, highlighted) and Max quality as menuitemradios', () => {
+        const { fixture } = create();
+        const items = qualityItems(openRendering(fixture).panel);
+        expect(items.map((i) => i.getAttribute('aria-label'))).toEqual(['Enhance quality: Efficient', 'Enhance quality: Max quality']);
+        for (const i of items) expect(i.getAttribute('role')).toBe('menuitemradio');
+        expect(items[0].classList.contains('selected-option')).toBe(true);
+        expect(items[0].getAttribute('aria-checked')).toBe('true');
+        expect(items[1].getAttribute('aria-checked')).toBe('false');
+      });
+
+      it('is disabled without WebGPU and chooseEnhanceQuality refuses a change', () => {
+        const { fixture, c, prefs } = create();
+        const items = qualityItems(openRendering(fixture).panel);
+        expect(items.every((i) => i.disabled)).toBe(true);
+        c.chooseEnhanceQuality('max');
+        expect(prefs.enhanceQuality()).toBe('balanced');
+      });
+
+      it('with WebGPU ready, Max quality persists through the shared service', () => {
+        const { fixture, c, prefs } = create();
+        c.support.support.set('ready');
+        fixture.detectChanges();
+        const items = qualityItems(openRendering(fixture).panel);
+        items[1].click();
+        expect(prefs.enhanceQuality()).toBe('max');
+        expect(localStorage.getItem(ReaderPreferencesService.EnhanceQualityKey)).toBe('max');
+      });
+
+      it('hints what each choice costs', () => {
+        const { c, prefs } = create();
+        expect(c.qualityHint()).toBe('Lighter on GPU memory and battery');
+        prefs.setEnhanceQuality('max');
+        expect(c.qualityHint()).toContain('more GPU memory and battery');
+      });
+
+      it('is hidden in the vertical view (always Efficient there); the stored choice is untouched', () => {
+        const { fixture, c, prefs } = create();
+        c.support.support.set('ready');
+        prefs.setEnhanceQuality('max');
+        fixture.componentRef.setInput('view', 'webtoon');
+        fixture.detectChanges();
+        expect(c.showEnhanceQuality()).toBe(false);
+        const panel = openRendering(fixture).panel;
+        expect(qualityItems(panel)).toEqual([]);
+        expect(panel.querySelector('[role="group"][aria-label="Enhance quality"]')).toBeNull();
+        expect(panel.textContent).not.toContain('Enhance quality');
+        expect(panel.textContent).not.toContain('Max quality');
+        // Rendering and Page quality are still offered in vertical.
+        expect(panel.querySelector('[role="group"][aria-label="Rendering"]')).not.toBeNull();
+        expect(panel.querySelector('[role="group"][aria-label="Page quality"]')).not.toBeNull();
+        expect(prefs.enhanceQuality()).toBe('max');
+        // Back in a paged view the group returns (with the stored choice).
+        fixture.componentRef.setInput('view', 'spread');
+        fixture.detectChanges();
+        expect(c.showEnhanceQuality()).toBe(true);
+      });
+    });
+
+    it('five taps on the status line toggle the GPU timing readout, without closing the menu', () => {
+      const { fixture, c } = create();
+      c.support.support.set('ready');
+      fixture.detectChanges();
+      const { panel } = openRendering(fixture);
+      const status = panel.querySelector('button.hint-tap') as HTMLButtonElement;
+      expect(status.textContent?.trim()).toBe('GPU: WebGPU ready');
+      for (let i = 0; i < 5; i++) status.click();
+      fixture.detectChanges();
+      expect(c.support.statsVisible()).toBe(true);
+      expect(document.querySelector('.reader-options-menu')).toBeTruthy(); // still open
+      c.support.recordTiming('band', 18);
+      c.support.recordTiming('band', 22);
+      c.support.recordTiming('band', 400); // median, so one slow band does not skew it
+      fixture.detectChanges();
+      expect(status.textContent?.trim()).toBe('GPU: WebGPU ready - 22 ms/band');
+      for (let i = 0; i < 5; i++) status.click();
+      expect(c.support.statsVisible()).toBe(false);
     });
 
     it('the GPU status readout is a short, owner-verifiable string', () => {
@@ -472,7 +559,7 @@ describe('ReaderOptionsSheetComponent', () => {
       expect(TestBed.inject(ReaderPreferencesService).upscaler()).toBe('smooth');
     });
 
-    it('with WebGPU ready the Enhance chip is selectable, except in webtoon', () => {
+    it('with WebGPU ready the Enhance chip is selectable, in webtoon too (1.24.0)', () => {
       const { fixture, c, checked, chip } = create();
       c.support.support.set('ready');
       fixture.detectChanges();
@@ -485,8 +572,40 @@ describe('ReaderOptionsSheetComponent', () => {
       const webtoon = create(makeHost({ view: 'webtoon' }));
       webtoon.c.support.support.set('ready');
       webtoon.fixture.detectChanges();
-      expect(webtoon.c.enhanceDisabled()).toBe(true);
-      expect(webtoon.c.renderingHint()).toBe('Enhance is for paged views');
+      expect(webtoon.c.enhanceDisabled()).toBe(false);
+      expect(webtoon.c.renderingHint()).toBe('GPU: WebGPU ready');
+      expect((webtoon.chip('reader-options-rendering', 'Enhance') as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it('adds an Enhance quality chip group: Efficient checked by default, Max quality persists', () => {
+      const { fixture, c, chips, checked, chip } = create();
+      expect(chips('reader-options-enhance-quality').length).toBe(2);
+      expect(checked('reader-options-enhance-quality')[0].textContent).toContain('Efficient');
+      expect((chip('reader-options-enhance-quality', 'Max quality') as HTMLButtonElement).disabled).toBe(true);
+      c.support.support.set('ready');
+      fixture.detectChanges();
+      chip('reader-options-enhance-quality', 'Max quality').click();
+      fixture.detectChanges();
+      expect(TestBed.inject(ReaderPreferencesService).enhanceQuality()).toBe('max');
+      expect(checked('reader-options-enhance-quality')[0].textContent).toContain('Max quality');
+    });
+
+    it('hides the Enhance quality group in the vertical view and shows it again in paged', () => {
+      const { fixture, c, el, host, chips, checked } = create(makeHost({ view: 'webtoon' }));
+      const prefs = TestBed.inject(ReaderPreferencesService);
+      c.support.support.set('ready');
+      prefs.setEnhanceQuality('max');
+      fixture.detectChanges();
+      expect(el.querySelector('#reader-options-enhance-quality')).toBeNull();
+      expect(el.querySelector('[aria-labelledby="reader-options-enhance-quality"]')).toBeNull();
+      expect(el.textContent).not.toContain('Max quality');
+      expect(chips('reader-options-rendering').length).toBe(2);
+      expect(chips('reader-options-quality').length).toBeGreaterThan(0);
+      expect(prefs.enhanceQuality()).toBe('max');
+      (host.view as WritableSignal<ReaderView>).set('paged');
+      fixture.detectChanges();
+      expect(chips('reader-options-enhance-quality').length).toBe(2);
+      expect(checked('reader-options-enhance-quality')[0].textContent).toContain('Max quality');
     });
   });
 
@@ -496,7 +615,7 @@ describe('ReaderOptionsSheetComponent', () => {
    * with a reason under Full page quality.
    */
   describe('Downscale filter chip group (1.20.0)', () => {
-    it('adds the group with exactly one checked chip, Balanced by default', () => {
+    it('adds the group with exactly one checked chip, Efficient by default', () => {
       const { chips, checked } = create();
       expect(chips('reader-options-filter').map((c) => (c.textContent ?? '').trim()).length).toBe(3);
       expect(checked('reader-options-filter').length).toBe(1);
@@ -522,7 +641,8 @@ describe('ReaderOptionsSheetComponent', () => {
       fixture.detectChanges();
       expect(c.filterDisabled()).toBe(true);
       expect((chip('reader-options-filter', 'Sharp') as HTMLButtonElement).disabled).toBe(true);
-      expect(el.querySelectorAll('.group-hint')[1]?.textContent).toContain('Applies to Auto page quality');
+      const filterGroup = el.querySelector('[aria-labelledby="reader-options-filter"]')!.parentElement!;
+      expect(filterGroup.querySelector('.group-hint')?.textContent).toContain('Applies to Auto page quality');
     });
 
     it('pickDownscaleFilter refuses to change the preference while disabled', () => {

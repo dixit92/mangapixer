@@ -7,15 +7,21 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin, of, catchError, filter, switchMap } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
+import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
+import { MetadataStateService } from '../metadata/metadata-state.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
 import { ContinueRowComponent } from '../../shared/continue-row/continue-row.component';
+import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
+import { SeriesInfoButtonComponent } from '../metadata/series-info-button.component';
+import { SeriesSelectionActionsComponent } from '../metadata/series-selection-actions.component';
 import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
 
 /**
@@ -69,6 +75,9 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     FolderRollupBadgeComponent,
     StarToggleComponent,
     ContinueRowComponent,
+    InfoToggleComponent,
+    SeriesInfoButtonComponent,
+    SeriesSelectionActionsComponent,
   ],
   template: `
     <!-- Sticky top bar: breadcrumbs + Select normally; the merged action set while
@@ -130,6 +139,10 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                    (change)="onListColumnsChange($event)">
             <mat-icon class="size-icon">view_module</mat-icon>
           </div>
+        }
+        <!-- Series info for the folder being viewed (1.24.0): its own component. -->
+        @if (parentId(); as folderId) {
+          <app-series-info-button [nodeId]="folderId" />
         }
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
                 matTooltip="Change how the library is displayed" aria-label="View options">
@@ -310,6 +323,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                 <button mat-menu-item (click)="bulkSetDirection(opt.value)">{{ opt.label }}</button>
               }
             </mat-menu>
+            <app-series-selection-actions [nodes]="nodes()" [selected]="selected()" [disabled]="busy()" />
           }
         </div>
         <button mat-stroked-button class="done" (click)="toggleSelectMode()">
@@ -431,8 +445,12 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                    CARD. List rows put it in the trailing row-markers group instead
                    (1.22.2): the 32px overlay hid most of the 46px list thumbnail. Its own
                    component styles keep this out of the near-budget inline CSS below. -->
-              @if (viewMode() !== 'list') {
+              <!-- Neither is shown in select mode (a tap selects there; the select check
+                   shares the star's corner). -->
+              @if (viewMode() !== 'list' && !selectMode()) {
                 <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
+                <!-- Series info (1.24.0): cover bottom-left; shows itself only for the node's OWN info. -->
+                <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
               }
 
               <!-- Card mode: read/selection markers overlay the cover. List mode renders
@@ -465,6 +483,9 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
             @if (viewMode() === 'list') {
               <div class="row-markers">
                 <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" />
+                @if (!selectMode()) {
+                  <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [compact]="true" />
+                }
                 <ng-container *ngTemplateOutlet="markers; context: { $implicit: node }" />
               </div>
             }
@@ -978,6 +999,17 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     effect(() => this.observeBarHeight(this.browseBar()?.nativeElement ?? null));
     // A new page or a rail change moves the bucket boundaries: recompute.
     effect(() => { this.nodes(); this.jumpBuckets(); this.scheduleScrollSpy(); });
+    // 1.24.0: a star toggled or a series link changed anywhere patches the card's DTO in
+    // place (no reload), so a star / (i) re-created after select mode seeds from it.
+    inject(FavoritesStateService).changed$.pipe(takeUntilDestroyed())
+      .subscribe((c) => this.patchNode(c.nodeId, { isFavorite: c.favorite }));
+    inject(MetadataStateService).changed$.pipe(takeUntilDestroyed())
+      .subscribe((c) => this.patchNode(c.nodeId, { hasSeriesInfo: c.hasSeriesInfo }));
+  }
+
+  private patchNode(nodeId: string, patch: Partial<CatalogNodeDto>): void {
+    if (!this.nodes().some((n) => n.id === nodeId)) return;
+    this.nodes.update((list) => list.map((n) => (n.id === nodeId ? { ...n, ...patch } : n)));
   }
 
   ngOnInit(): void {

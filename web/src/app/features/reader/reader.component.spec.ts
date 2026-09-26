@@ -16,7 +16,11 @@ import { ReaderOptionsSheetComponent } from './reader-settings-menu.component';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import { WebtoonNavPreferencesService } from './webtoon-nav.service';
-import { UpscaleSupportService } from './upscale.directive';
+import { UpscaleDirective, UpscaleSupportService } from './upscale.directive';
+import { WebtoonEnhanceHostDirective, WebtoonUpscaleDirective } from './webtoon-upscale.directive';
+import { WebtoonEnhanceCoordinator } from './webtoon-enhance-coordinator';
+import { WebtoonPageComponent } from './page-load-state.component';
+import { By } from '@angular/platform-browser';
 import { ManifestPageEntry, CatalogNodeDto, ItemReadiness } from '../../core/api/api-types';
 
 function makePages(n: number): ManifestPageEntry[] {
@@ -532,6 +536,144 @@ describe('ReaderComponent controls rendering', () => {
     c.setFitMode('original');
     fixture.detectChanges();
     expect(img().classList.contains('original')).toBe(true);
+  });
+});
+
+/**
+ * 1.24.0 webtoon Enhance wiring, through the real reader template: the webtoon
+ * scroller hosts the coordinator (`WebtoonEnhanceHostDirective`) and every strip
+ * img registers with it (`WebtoonUpscaleDirective`); the host input is the single
+ * Rendering preference (`upscaleActive()`), and the paged-only `UpscaleDirective`
+ * never sits on a webtoon img.
+ */
+describe('ReaderComponent webtoon Enhance wiring (1.24.0)', () => {
+  function renderView(view: 'webtoon' | 'paged') {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    localStorage.clear();
+    const fixture = TestBed.createComponent(ReaderComponent);
+    fixture.detectChanges(); // ngOnInit
+    const c = fixture.componentInstance;
+    c.pages.set(makePages(4));
+    c.view.set(view);
+    c.phase.set('ready');
+    fixture.detectChanges();
+    return { fixture, c };
+  }
+
+  it('the webtoon scroller hosts the coordinator and every strip page carries the img directive', () => {
+    const { fixture } = renderView('webtoon');
+    const host = fixture.debugElement.query(By.directive(WebtoonEnhanceHostDirective));
+    expect(host).toBeTruthy();
+    expect((host.nativeElement as HTMLElement).classList.contains('webtoon')).toBe(true);
+    const pages = fixture.debugElement.queryAll(By.css('.webtoon-page'));
+    expect(pages.length).toBe(4);
+    const shared = host.injector.get(WebtoonEnhanceCoordinator);
+    for (const p of pages) {
+      expect(p.injector.get(WebtoonUpscaleDirective, null)).toBeTruthy();
+      expect(p.injector.get(WebtoonEnhanceCoordinator)).toBe(shared);
+      expect(p.injector.get(UpscaleDirective, null)).toBeNull(); // paged directive stays paged-only
+    }
+  });
+
+  it('the host input follows the Rendering preference (upscaleActive)', () => {
+    const { fixture, c } = renderView('webtoon');
+    const dir = () => fixture.debugElement.query(By.directive(WebtoonEnhanceHostDirective)).injector.get(WebtoonEnhanceHostDirective);
+    expect(dir().appWebtoonEnhanceHost()).toBe(false);
+    c.prefs.setUpscaler('enhance');
+    fixture.detectChanges();
+    expect(c.upscaleActive()).toBe(true);
+    expect(dir().appWebtoonEnhanceHost()).toBe(true);
+  });
+
+  it('switching to paged tears the webtoon host down (coordinator destroyed) and the paged directive returns', () => {
+    const { fixture, c } = renderView('webtoon');
+    const coordinator = fixture.debugElement.query(By.directive(WebtoonEnhanceHostDirective)).injector.get(WebtoonEnhanceCoordinator);
+    const destroy = vi.spyOn(coordinator, 'destroy');
+    c.view.set('paged');
+    fixture.detectChanges();
+    expect(destroy).toHaveBeenCalledTimes(1);
+    expect(fixture.debugElement.query(By.directive(WebtoonEnhanceHostDirective))).toBeNull();
+    expect(fixture.debugElement.query(By.directive(UpscaleDirective))).toBeTruthy();
+  });
+});
+
+/**
+ * 1.24.0 follow-up: page loading feedback through the real reader template. Each
+ * strip img is wrapped in `app-webtoon-page` (veil + retry, see
+ * page-load-state.component.ts) without losing its Enhance registration, and the
+ * paged view shows `app-page-load-indicator` while the page is loading, adding
+ * "Loading…" after ~3 s.
+ */
+describe('ReaderComponent page loading feedback (1.24.0)', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  function renderView(view: 'webtoon' | 'paged') {
+    // A full route (snapshot too): the paged test advances fake timers, which
+    // would otherwise flush rxjs's deferred rethrow of the missing snapshot.
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [...baseProviders(), {
+        provide: ActivatedRoute,
+        useValue: { paramMap: of({ get: () => 'item-1' }), snapshot: { queryParamMap: { get: () => null } } },
+      }],
+    });
+    localStorage.clear();
+    const fixture = TestBed.createComponent(ReaderComponent);
+    fixture.detectChanges(); // ngOnInit
+    const c = fixture.componentInstance;
+    c.pages.set(makePages(4));
+    c.view.set(view);
+    c.phase.set('ready');
+    fixture.detectChanges();
+    return { fixture, c };
+  }
+
+  it('webtoon: every strip img sits in its own app-webtoon-page, veiled until it loads', () => {
+    const { fixture } = renderView('webtoon');
+    const wrappers = fixture.debugElement.queryAll(By.directive(WebtoonPageComponent));
+    expect(wrappers.length).toBe(4);
+    wrappers.forEach((w, i) => {
+      const img = (w.nativeElement as HTMLElement).querySelector(':scope > img.webtoon-page') as HTMLImageElement;
+      expect(img.getAttribute('data-index')).toBe(String(i));
+      expect((w.componentInstance as WebtoonPageComponent).pageNumber()).toBe(i + 1);
+      expect((w.nativeElement as HTMLElement).querySelector('app-page-load-indicator')).toBeTruthy();
+    });
+    const img0 = (wrappers[0].nativeElement as HTMLElement).querySelector('img') as HTMLImageElement;
+    img0.dispatchEvent(new Event('load'));
+    fixture.detectChanges();
+    expect((wrappers[0].nativeElement as HTMLElement).querySelector('.veil')).toBeNull();
+    // The paged indicator is not used in the strip.
+    expect(fixture.nativeElement.querySelector('.page-spinner')).toBeNull();
+  });
+
+  it('webtoon: a failed page offers a retry, which is not a tap on the strip', () => {
+    const { fixture, c } = renderView('webtoon');
+    const toggle = vi.spyOn(c, 'toggleChrome');
+    const wrapper = fixture.debugElement.queryAll(By.directive(WebtoonPageComponent))[2].nativeElement as HTMLElement;
+    (wrapper.querySelector('img') as HTMLImageElement).dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    const retry = wrapper.querySelector('button.retry') as HTMLButtonElement;
+    expect(retry.textContent).toContain('Page 3 did not load');
+    retry.click();
+    fixture.detectChanges();
+    expect(toggle).not.toHaveBeenCalled();
+    expect(wrapper.querySelector('app-page-load-indicator')).toBeTruthy();
+  });
+
+  it('paged: the indicator shows while the page loads, adds "Loading…" after ~3 s, and goes on load', () => {
+    const { fixture, c } = renderView('paged');
+    const indicator = () => fixture.nativeElement.querySelector('app-page-load-indicator.page-spinner') as HTMLElement | null;
+    expect(c.pageLoading()).toBe(true);
+    expect(indicator()).toBeTruthy();
+    expect(indicator()!.getAttribute('role')).toBe('status');
+    expect(indicator()!.textContent?.trim()).toBe('');
+    vi.advanceTimersByTime(3000);
+    fixture.detectChanges();
+    expect(indicator()!.textContent?.trim()).toBe('Loading…');
+    c.onPageLoaded();
+    fixture.detectChanges();
+    expect(indicator()).toBeNull();
   });
 });
 
@@ -2332,7 +2474,8 @@ describe('ReaderComponent onKeyDown case-insensitive single-letter shortcuts', (
  * `ReaderPreferencesService.setUpscaler`) so persistence never diverges from a
  * mouse/touch pick. 's' is the odd one out: it must keep working in webtoon
  * (the Downscale filter sizes every page request, not just paged/spread), so
- * onKeyDown handles it above the webtoon early-return, unlike 'd'/'e'.
+ * onKeyDown handles it above the webtoon early-return, unlike 'd'. Since 1.24.0
+ * 'e' is handled there too (webtoon Enhance).
  */
 describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filter / rendering)', () => {
   function create(view: 'paged' | 'spread' | 'webtoon' = 'paged') {
@@ -2404,9 +2547,18 @@ describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filt
     expect(c.prefs.upscaler()).toBe('smooth');
   });
 
-  it("'e' does nothing in webtoon even with WebGPU ready (Enhance is paged/spread-only)", () => {
+  it("'e' toggles Rendering in webtoon too (1.24.0 webtoon Enhance), above the native-scroll guard", () => {
     const c = create('webtoon');
     TestBed.inject(UpscaleSupportService).support.set('ready');
+    c.onKeyDown(press('e'));
+    expect(c.prefs.upscaler()).toBe('enhance');
+    c.onKeyDown(press('E'));
+    expect(c.prefs.upscaler()).toBe('smooth');
+  });
+
+  it("'e' in webtoon still never enables Enhance without WebGPU", () => {
+    const c = create('webtoon');
+    TestBed.inject(UpscaleSupportService).support.set('unavailable');
     c.onKeyDown(press('e'));
     expect(c.prefs.upscaler()).toBe('smooth');
   });

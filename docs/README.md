@@ -26,6 +26,7 @@ These guides are for people who run MangaPixer on their own hardware. They descr
 | Page | What it covers |
 |---|---|
 | [Reader](reader.md) | Page modes, fit, image quality (Page quality, Downscale filter, Enhance), reading direction, page-turn animation, keyboard/touch controls, prefetch, resume position, read state. |
+| [Series information](series-information.md) | Series details from ComicInfo.xml and, if an admin allows it, MangaUpdates: the panel and series page, Identify, what is sent, the admin settings. |
 
 ## Help
 

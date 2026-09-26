@@ -18,6 +18,8 @@ namespace com.lifepixer.mangapixer.Server.Logging;
 /// - 5xxx Cache — hit/miss, publish, eviction, budget
 /// - 6xxx Backup — manual/scheduled backups, restore, maintenance
 /// - 7xxx Administration — admin actions (password reset, log-level change)
+/// - 8xxx Http — request pipeline errors
+/// - 9xxx Metadata — series metadata: ComicInfo backfill, links (1.24.0)
 ///
 /// Event payloads follow the privacy invariant: IDs, counts, timings, and
 /// sanitized error codes only — never paths, titles, entry names, or bytes.
@@ -35,6 +37,7 @@ public static class LogEvents
         ("Backup", Backup.Min, Backup.Max),
         ("Administration", Administration.Min, Administration.Max),
         ("Http", Http.Min, Http.Max),
+        ("Metadata", Metadata.Min, Metadata.Max),
     ];
 
     /// <summary>Category names derived from the real event-ID ranges.</summary>
@@ -336,5 +339,40 @@ public static class LogEvents
         public const int Max = 8999;
 
         public const int UnhandledRequestError = 8001;
+    }
+
+    /// <summary>
+    /// Series metadata (1.24.0). Payloads carry node/library/record ids, counts,
+    /// status codes and timings ONLY - never titles, ComicInfo values, search
+    /// text, URLs or paths.
+    /// </summary>
+    public static class Metadata
+    {
+        public const int Min = 9000;
+        public const int Max = 9999;
+
+        // ComicInfo backfill (B1)
+        public const int ComicInfoBackfillStarted = 9001;
+        public const int ComicInfoBackfillCompleted = 9002;
+        public const int ComicInfoBackfillFailed = 9003;
+        public const int ComicInfoReadFailed = 9004;
+        public const int ComicInfoPersistFailed = 9005;
+
+        // Admin link / settings changes (B1)
+        public const int SeriesLinkChanged = 9020;
+        public const int PrecedenceChanged = 9021;
+        public const int SettingsChanged = 9022;
+        public const int Purged = 9023;
+
+        // Network gateway / providers (B2, 9100-9199). Ids, operation, status and
+        // elapsed ms only - never query text, titles, URLs or bodies.
+        public const int GatewayRefused = 9100;
+        public const int ProviderCall = 9101;
+        public const int ProviderCallFailed = 9102;
+        public const int BackoffStarted = 9103;
+        public const int RecordStored = 9104;
+        public const int ImageStored = 9105;
+        public const int ImageRejected = 9106;
+        public const int ImageStoreFailed = 9107;
     }
 }

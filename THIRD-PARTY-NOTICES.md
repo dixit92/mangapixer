@@ -243,15 +243,15 @@ production tree but tree-shaken out of the bundle, or used only at compile time.
 `anime4k-webgpu` is bundled as a separate chunk that the browser downloads only
 when a reader turns on Rendering: Enhance.
 
-- `@angular/animations` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/cdk` - 22.1.6 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/common` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/compiler` - 22.1.6 - MIT - https://github.com/angular/angular
-- `@angular/core` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/forms` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/material` - 22.1.6 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/platform-browser` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/router` - 22.1.6 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/animations` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/cdk` - 22.1.7 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/common` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/compiler` - 22.1.7 - MIT - https://github.com/angular/angular
+- `@angular/core` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/forms` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/material` - 22.1.7 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/platform-browser` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/router` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
 - `@fontsource/roboto` - 5.3.0 - OFL-1.1 - https://github.com/fontsource/font-files *(bundled)*
 - `@standard-schema/spec` - 1.1.0 - MIT - https://github.com/standard-schema/standard-schema
 - `@webgpu/types` - 0.1.72 - BSD-3-Clause - https://github.com/gpuweb/types
@@ -347,9 +347,9 @@ operating systems, including the Linux image build stage.
 - `@angular-eslint/utils` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular/build` - 22.1.8 - MIT - https://github.com/angular/angular-cli
 - `@angular/cli` - 22.1.8 - MIT - https://github.com/angular/angular-cli
-- `@angular/compiler-cli` - 22.1.6 - MIT - https://github.com/angular/angular
-- `@asamuzakjp/css-color` - 6.0.7 - MIT - https://github.com/asamuzaK/cssColor
-- `@asamuzakjp/dom-selector` - 8.3.2 - MIT - https://github.com/asamuzaK/domSelector
+- `@angular/compiler-cli` - 22.1.7 - MIT - https://github.com/angular/angular
+- `@asamuzakjp/css-color` - 7.0.1 - MIT - https://github.com/asamuzaK/cssColor
+- `@asamuzakjp/dom-selector` - 9.2.1 - MIT - https://github.com/asamuzaK/domSelector
 - `@babel/code-frame` - 7.29.7 - MIT - https://github.com/babel/babel
 - `@babel/code-frame` - 8.0.0 - MIT - https://github.com/babel/babel
 - `@babel/compat-data` - 7.29.7 - MIT - https://github.com/babel/babel
@@ -457,11 +457,11 @@ operating systems, including the Linux image build stage.
 - `@babel/types` - 8.0.4 - MIT - https://github.com/babel/babel
 - `@bramus/specificity` - 2.4.2 - MIT - https://github.com/bramus/specificity
 - `@csstools/color-helpers` - 6.1.1 - MIT-0 - https://github.com/csstools/postcss-plugins
-- `@csstools/css-calc` - 3.3.0 - MIT - https://github.com/csstools/postcss-plugins
-- `@csstools/css-color-parser` - 4.2.2 - MIT - https://github.com/csstools/postcss-plugins
+- `@csstools/css-calc` - 3.4.0 - MIT - https://github.com/csstools/postcss-plugins
+- `@csstools/css-color-parser` - 4.2.3 - MIT - https://github.com/csstools/postcss-plugins
 - `@csstools/css-parser-algorithms` - 4.0.0 - MIT - https://github.com/csstools/postcss-plugins
-- `@csstools/css-syntax-patches-for-csstree` - 1.1.12 - MIT-0 - https://github.com/csstools/postcss-plugins
-- `@csstools/css-tokenizer` - 4.0.0 - MIT - https://github.com/csstools/postcss-plugins
+- `@csstools/css-syntax-patches-for-csstree` - 1.1.14 - MIT-0 - https://github.com/csstools/postcss-plugins
+- `@csstools/css-tokenizer` - 4.0.1 - MIT - https://github.com/csstools/postcss-plugins
 - `@discoveryjs/json-ext` - 1.1.0 - MIT - https://github.com/discoveryjs/json-ext
 - `@esbuild/win32-x64` - 0.28.2 - MIT - https://github.com/evanw/esbuild
 - `@eslint-community/eslint-utils` - 4.10.1 - MIT - https://github.com/eslint-community/eslint-utils
@@ -474,6 +474,7 @@ operating systems, including the Linux image build stage.
 - `@eslint/object-schema` - 2.1.7 - Apache-2.0 - https://github.com/eslint/rewrite
 - `@eslint/plugin-kit` - 0.4.1 - Apache-2.0 - https://github.com/eslint/rewrite
 - `@exodus/bytes` - 1.15.1 - MIT - https://github.com/ExodusOSS/bytes
+- `@exodus/bytes` - 1.15.2 - MIT - https://github.com/ExodusOSS/bytes
 - `@harperfast/extended-iterable` - 1.0.3 - Apache-2.0 - https://github.com/harperdb/extended-iterable
 - `@hono/node-server` - 2.1.1 - MIT - https://github.com/honojs/node-server
 - `@humanfs/core` - 0.19.2 - Apache-2.0 - https://github.com/humanwhocodes/humanfs
@@ -574,7 +575,7 @@ operating systems, including the Linux image build stage.
 - `@types/json-schema` - 7.0.15 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/less` - 3.0.8 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/mime` - 1.3.5 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/node` - 24.13.3 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
+- `@types/node` - 24.13.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/qs` - 6.15.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/range-parser` - 1.2.7 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/retry` - 0.12.2 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -875,7 +876,7 @@ operating systems, including the Linux image build stage.
 - `js-tokens` - 10.0.0 - MIT - https://github.com/lydell/js-tokens
 - `js-tokens` - 4.0.0 - MIT - https://github.com/lydell/js-tokens
 - `js-yaml` - 4.3.2 - MIT - https://github.com/nodeca/js-yaml
-- `jsdom` - 30.0.1 - MIT - https://github.com/jsdom/jsdom
+- `jsdom` - 30.1.0 - MIT - https://github.com/jsdom/jsdom
 - `jsesc` - 3.1.0 - MIT - https://github.com/mathiasbynens/jsesc
 - `json-buffer` - 3.0.1 - MIT - https://github.com/dominictarr/json-buffer
 - `json-parse-even-better-errors` - 2.3.1 - MIT - https://github.com/npm/json-parse-even-better-errors
@@ -905,7 +906,7 @@ operating systems, including the Linux image build stage.
 - `lodash.merge` - 4.6.2 - MIT - https://github.com/lodash/lodash
 - `log-symbols` - 7.0.1 - MIT - https://github.com/sindresorhus/log-symbols
 - `log-update` - 8.0.0 - MIT - https://github.com/sindresorhus/log-update
-- `lru-cache` - 11.5.2 - BlueOak-1.0.0 - https://github.com/isaacs/node-lru-cache
+- `lru-cache` - 11.5.3 - BlueOak-1.0.0 - https://github.com/isaacs/node-lru-cache
 - `lru-cache` - 5.1.1 - ISC - https://github.com/isaacs/node-lru-cache
 - `magic-string` - 0.30.21 - MIT - https://github.com/Rich-Harris/magic-string
 - `magic-string` - 1.0.0 - MIT - https://github.com/Rich-Harris/magic-string
@@ -1089,7 +1090,6 @@ operating systems, including the Linux image build stage.
 - `strip-json-comments` - 3.1.1 - MIT - https://github.com/sindresorhus/strip-json-comments
 - `supports-color` - 7.2.0 - MIT - https://github.com/chalk/supports-color
 - `supports-color` - 8.1.1 - MIT - https://github.com/chalk/supports-color
-- `symbol-tree` - 3.2.4 - MIT - https://github.com/jsdom/js-symbol-tree
 - `tapable` - 2.3.3 - MIT - https://github.com/webpack/tapable
 - `terser` - 5.49.0 - BSD-2-Clause - https://github.com/terser/terser
 - `terser` - 5.51.2 - BSD-2-Clause - https://github.com/terser/terser
@@ -1147,7 +1147,7 @@ operating systems, including the Linux image build stage.
 - `websocket-extensions` - 0.1.4 - Apache-2.0 - https://github.com/faye/websocket-extensions-node
 - `whatwg-mimetype` - 5.0.0 - MIT - https://github.com/jsdom/whatwg-mimetype
 - `whatwg-url` - 16.0.1 - MIT - https://github.com/jsdom/whatwg-url
-- `whatwg-url` - 17.1.0 - MIT - https://github.com/jsdom/whatwg-url
+- `whatwg-url` - 17.1.2 - MIT - https://github.com/jsdom/whatwg-url
 - `which` - 2.0.2 - ISC - https://github.com/isaacs/node-which
 - `why-is-node-running` - 2.3.0 - MIT - https://github.com/mafintosh/why-is-node-running
 - `wildcard` - 2.0.1 - MIT - https://github.com/DamonOehlman/wildcard
@@ -1222,3 +1222,10 @@ npm --prefix web ls --all --json
 Licenses: read `<license>` from `~/.nuget/packages/<id>/<version>/<id>.nuspec` and
 `license` from `web/node_modules/<pkg>/package.json`. Refresh this file whenever
 `Directory.Packages.props` or `web/package-lock.json` changes.
+
+CI runs `node web/scripts/check-notices-drift.mjs --publish <tmp>/server --publish <tmp>/worker`
+(the `notices` job in `.github/workflows/ci.yml`). It compares by name and version the shipped
+.NET set (section 1, parts 1a and 1b) with the publish output above and the web runtime set
+(section 3) with `npm ls --omit=dev --all`, prints missing, extra and mismatched packages, and
+fails on any difference. Sections 2 and 4 are not checked: section 4 is a Windows x64 install
+and section 2 needs a restore of the test projects.

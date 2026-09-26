@@ -72,6 +72,10 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<UserEntity> Users => Set<UserEntity>();
     public DbSet<SessionEntity> Sessions => Set<SessionEntity>();
     public DbSet<AppSettingsEntity> AppSettings => Set<AppSettingsEntity>();
+    public DbSet<MetadataRecordEntity> MetadataRecords => Set<MetadataRecordEntity>();
+    public DbSet<NodeSeriesLinkEntity> NodeSeriesLinks => Set<NodeSeriesLinkEntity>();
+    public DbSet<EmbeddedMetadataEntity> EmbeddedMetadata => Set<EmbeddedMetadataEntity>();
+    public DbSet<FolderMetadataPrecedenceEntity> FolderMetadataPrecedences => Set<FolderMetadataPrecedenceEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -96,6 +100,7 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureCacheEntries(modelBuilder);
         ConfigureAuditEvents(modelBuilder);
         ConfigureAppSettings(modelBuilder);
+        ConfigureMetadata(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
@@ -109,6 +114,93 @@ public sealed class MangaPixerDbContext : DbContext
             e.Property(x => x.UpdateLastKnownLatestVersion).HasMaxLength(64);
             e.Property(x => x.BackupLocation).HasMaxLength(1024);
             e.Property(x => x.BackupLocationMarkerId).HasMaxLength(32);
+            e.Property(x => x.MetadataLastErrorCode).HasMaxLength(32);
+        });
+    }
+
+    private static void ConfigureMetadata(ModelBuilder mb)
+    {
+        mb.Entity<MetadataRecordEntity>(e =>
+        {
+            e.ToTable("metadata_records");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.PublicId).IsRequired().HasMaxLength(64);
+            e.Property(x => x.Provider).IsRequired().HasMaxLength(32);
+            e.Property(x => x.ExternalId).IsRequired().HasMaxLength(64);
+            e.Property(x => x.Title).IsRequired().HasMaxLength(512);
+            e.Property(x => x.ProviderType).HasMaxLength(32);
+            e.Property(x => x.StatusText).HasMaxLength(1024);
+            e.Property(x => x.SiteUrl).HasMaxLength(512);
+            e.Property(x => x.ImageRemoteUrl).HasMaxLength(512);
+            e.HasIndex(x => new { x.Provider, x.ExternalId }).IsUnique();
+            e.HasIndex(x => x.PublicId).IsUnique();
+        });
+
+        mb.Entity<NodeSeriesLinkEntity>(e =>
+        {
+            e.ToTable("node_series_links");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            // At most one link per node (folder or archive).
+            e.HasIndex(x => x.NodeId).IsUnique();
+            e.HasIndex(x => new { x.LibraryId, x.State });
+            e.HasIndex(x => x.RecordId);
+
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<LibraryEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.LibraryId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // A record cannot vanish under a live link: the link service deletes
+            // the record only after its last link is gone.
+            e.HasOne(x => x.Record)
+                .WithMany()
+                .HasForeignKey(x => x.RecordId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        mb.Entity<EmbeddedMetadataEntity>(e =>
+        {
+            e.ToTable("embedded_metadata");
+            // 1:1 with the archive node.
+            e.HasKey(x => x.NodeId);
+            e.Property(x => x.NodeId).ValueGeneratedNever();
+            e.Property(x => x.Series).HasMaxLength(512);
+            e.Property(x => x.Title).HasMaxLength(512);
+            e.Property(x => x.AlternateSeries).HasMaxLength(512);
+            e.Property(x => x.SeriesGroup).HasMaxLength(512);
+            e.Property(x => x.StoryArc).HasMaxLength(512);
+            e.Property(x => x.Number).HasMaxLength(32);
+            e.Property(x => x.Format).HasMaxLength(32);
+            e.Property(x => x.AgeRating).HasMaxLength(32);
+            e.Property(x => x.LanguageIso).HasMaxLength(32);
+            e.Property(x => x.Publisher).HasMaxLength(256);
+            e.Property(x => x.Imprint).HasMaxLength(256);
+            e.Property(x => x.Gtin).HasMaxLength(32);
+            e.Property(x => x.Notes).HasMaxLength(2048);
+            e.HasIndex(x => x.State);
+
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<FolderMetadataPrecedenceEntity>(e =>
+        {
+            e.ToTable("folder_metadata_precedence");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            // One override row per folder node.
+            e.HasIndex(x => x.NodeId).IsUnique();
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

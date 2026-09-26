@@ -140,6 +140,14 @@ public sealed class LibraryScanLauncher
                             _logger.LogWarning(LogEvents.Worker.ThumbnailGenerationFailed, ex, "Post-scan thumbnail backfill failed (library {LibraryId}): {Error}", postScanLibraryId, ex.GetType().Name);
                         }
                     }, CancellationToken.None);
+
+                    // Post-scan ComicInfo backfill kick (1.24.0): background and
+                    // single-flight; newly scanned archives are read at analysis
+                    // time, this catches moved/changed ones. Nothing here touches
+                    // the scan's reconcile path.
+                    using (var comicInfoScope = _scopeFactory.CreateScope())
+                        comicInfoScope.ServiceProvider
+                            .GetService<com.lifepixer.mangapixer.Server.Features.Metadata.ComicInfoBackfillService>()?.RequestRun();
                 }
             }
             catch (OperationCanceledException)

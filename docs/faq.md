@@ -22,11 +22,11 @@ Yes, on a schedule. Every library is rescanned once a day by default; an admin c
 
 ### Does it use ComicInfo.xml or fetch metadata online?
 
-No. Names come from your folders and files. The server makes no calls to metadata services and has no telemetry. The web app's fonts and icons are bundled, so it works on a network with no internet access.
+Names always come from your folders and files. Since 1.24.0 MangaPixer also reads `ComicInfo.xml` inside your archives to show series information, locally. Looking series up online (on MangaUpdates) is off by default: an admin has to turn it on after a consent text and then identify each series by hand. See [Series information](series-information.md). There is no telemetry, and the web app's fonts and icons are bundled, so it works on a network with no internet access.
 
 ### Does it contact the internet at all?
 
-Only if an admin turns on the **Update Checker**, which is off by default. It then asks GitHub at most once a day whether a newer MangaPixer release exists, without sending anything about your server or users. See [Configuration](configuration.md#settings-stored-in-the-app).
+Only if an admin turns something on; both features are off by default. The **Update Checker** asks GitHub at most once a day whether a newer MangaPixer release exists, without sending anything about your server or users. **Fetch series information from the web** lets admins look series up on MangaUpdates, sending only the search text they confirm (see [What is sent](series-information.md#what-is-sent)). See also [Configuration](configuration.md#settings-stored-in-the-app).
 
 ### If I rename or move a series folder, do I lose my progress?
 
