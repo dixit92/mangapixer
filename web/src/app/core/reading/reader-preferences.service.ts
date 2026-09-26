@@ -62,6 +62,8 @@ export type Upscaler = 'smooth' | 'sharp' | 'enhance';
  *    what paged Enhance used from 1.19.0 to 1.23.x.
  * Only the PAGED / double-page views honour `max`; the vertical (webtoon) view
  * always runs `balanced`, because it keeps many bands alive while scrolling.
+ * `max` is WebGPU-only (1.25.0): Enhance on WebGL2 runs `balanced` and the menu
+ * says so; the stored value is kept for a WebGPU connection.
  */
 export type EnhanceQuality = 'balanced' | 'max';
 
