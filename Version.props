@@ -322,6 +322,11 @@
          tap turn on WebKit (iPad). Browse: the list-view favorite star moves off the thumbnail
          into the row markers. Unraid: install from Community Applications; the duplicate
          deploy/unraid/mangapixer.xml is removed (dixit92/unraid-templates is its only home). -->
+    <!-- 1.24.2 - PATCH over 1.24.1 (2026-09-26). Name sort is case-insensitive: SortKey.ForNode stores the
+         case-folded name plus the name as spelled as a tie-breaker (U+0001 separator), so lower-case names no longer
+         list after every capitalised one and the A-Z jump rail reaches them; punctuation such as '[' and '_' lists
+         before letters. Data-only migration CaseInsensitiveSortKeys rewrites existing keys (no schema change, no
+         rescan). Page order inside archives unchanged. Worker protocol unchanged (3). -->
     <!-- 1.24.1 - PATCH over 1.24.0 (2026-09-26). Page cache: each run writes into its own run-* folder and
          deletes what earlier runs left in the background (the in-memory index let every restart leak the
          previous run's pages past the budget). Secret-bearing request/response records print [redacted].
@@ -347,7 +352,7 @@
          Worker protocol unchanged (2). Bugfixes ship as 1.23.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
     <MangaPixerVersionMinor>24</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
+    <MangaPixerVersionPatch>2</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
