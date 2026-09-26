@@ -4,18 +4,21 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { InfoToggleComponent } from './info-toggle.component';
 import { SeriesInfoOverlayService } from '../../features/metadata/series-info-overlay.service';
+import { MetadataApiService } from '../../features/metadata/metadata-api.service';
+import { MetadataStateService } from '../../features/metadata/metadata-state.service';
 
 @Component({
   standalone: true,
   imports: [InfoToggleComponent],
   template: `
     <a class="card" href="/somewhere" (click)="cardClicks = cardClicks + 1">
-      <div class="cover"><app-info-toggle [nodeId]="nodeId()" [overlay]="true" /></div>
+      <div class="cover"><app-info-toggle [nodeId]="nodeId()" [hasSeriesInfo]="has()" [overlay]="true" /></div>
     </a>
   `,
 })
 class HostComponent {
   readonly nodeId = signal('node-7');
+  readonly has = signal(true);
   cardClicks = 0;
 }
 
@@ -27,7 +30,11 @@ describe('InfoToggleComponent', () => {
     open.mockClear();
     TestBed.configureTestingModule({
       imports: [HostComponent],
-      providers: [provideNoopAnimations(), { provide: SeriesInfoOverlayService, useValue: { open } }],
+      providers: [
+        provideNoopAnimations(),
+        { provide: SeriesInfoOverlayService, useValue: { open } },
+        { provide: MetadataApiService, useValue: {} },
+      ],
     });
     const fixture = TestBed.createComponent(HostComponent);
     fixture.detectChanges();
@@ -53,5 +60,26 @@ describe('InfoToggleComponent', () => {
     expect(open).toHaveBeenCalledWith('node-7');
     expect(fixture.componentInstance.cardClicks).toBe(0);
     expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('shows itself only while the node has its own information, synced in place by link changes', () => {
+    const fixture = create();
+    const button = () => fixture.nativeElement.querySelector('[data-testid="info-toggle"]');
+    fixture.componentInstance.has.set(false);
+    fixture.detectChanges();
+    expect(button()).toBeNull();
+
+    const state = TestBed.inject(MetadataStateService);
+    state.announce('other-node', true); // another card: no change here
+    fixture.detectChanges();
+    expect(button()).toBeNull();
+
+    state.announce('node-7', true); // Link in the identify dialog
+    fixture.detectChanges();
+    expect(button()).not.toBeNull();
+
+    state.announce('node-7', false); // Unlink / Don't match
+    fixture.detectChanges();
+    expect(button()).toBeNull();
   });
 });

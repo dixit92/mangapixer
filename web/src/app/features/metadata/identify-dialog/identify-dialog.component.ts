@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } 
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -20,6 +21,7 @@ import {
   NodeSeriesLinkDto,
 } from '../../../core/api/api-types';
 import { MetadataApiService } from '../metadata-api.service';
+import { MetadataStateService } from '../metadata-state.service';
 import { creditGroups } from '../series-info-labels';
 import { IdentifyDialogData, IdentifyDialogResult } from './identify-dialog.service';
 import { STRENGTH_LABELS, candidateLine, previewLine, retryLabel, scorePercent, tallStripsLabel } from './identify-labels';
@@ -33,6 +35,9 @@ type Step = 'search' | 'preview';
  *    "Use it" when ComicInfo already points to a series;
  * 2. ranked results with server-proxied thumbnails;
  * 3. preview beside the local folder, warnings, then Link (with Undo).
+ * "Hide doujinshi & novels" (on by default, 1.24.0 polish) adds a FIXED type filter to
+ * the search; it carries no user data. Link and Undo are announced through
+ * `MetadataStateService`, so the card (i) and the top-bar button update in place.
  * When the switches are off it shows why and makes no call. Every request goes to
  * MangaPixer; the browser never contacts a provider.
  */
@@ -40,13 +45,13 @@ type Step = 'search' | 'preview';
   selector: 'app-identify-dialog',
   standalone: true,
   imports: [
-    FormsModule, RouterLink, MatButtonModule, MatDialogModule, MatFormFieldModule, MatIconModule, MatInputModule,
+    FormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatDialogModule, MatFormFieldModule, MatIconModule, MatInputModule,
     MatProgressSpinnerModule,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="head">
-      <h2 mat-dialog-title class="title">Identify “{{ context()?.displayName ?? '…' }}”</h2>
+      <h2 mat-dialog-title class="title" [title]="context()?.displayName ?? ''">Identify “{{ context()?.displayName ?? '…' }}”</h2>
       <button mat-icon-button mat-dialog-close aria-label="Close" data-testid="identify-close"><mat-icon>close</mat-icon></button>
     </div>
     <mat-dialog-content class="body">
@@ -76,10 +81,12 @@ type Step = 'search' | 'preview';
             <div class="suggestions">
               <span class="muted">Suggestions:</span>
               @for (s of ctx.suggestions; track s) {
-                <button mat-stroked-button type="button" class="chip" (click)="query.set(s)">{{ s }}</button>
+                <button mat-stroked-button type="button" class="chip" [title]="s" (click)="query.set(s)"><span class="chip-text">{{ s }}</span></button>
               }
             </div>
           }
+          <mat-checkbox class="hide-types" [checked]="hideDoujinshi()" (change)="hideDoujinshi.set($event.checked)"
+                        data-testid="identify-hide-doujinshi">Hide doujinshi &amp; novels</mat-checkbox>
           <p class="note"><mat-icon inline>info_outline</mat-icon>
             The search text is sent to {{ ctx.providerName }}. Nothing else about your library is.</p>
 
@@ -183,13 +190,17 @@ type Step = 'search' | 'preview';
   `,
   styles: [`
     .head { display: flex; align-items: center; justify-content: space-between; padding-right: 8px; }
-    .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .body { min-height: 180px; }
+    .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .head button { flex: none; }
+    /* A long archive name never widens the dialog: long words wrap, chips ellipsize. */
+    .body { min-height: 180px; overflow-x: hidden; overflow-wrap: anywhere; }
     .center { display: flex; justify-content: center; padding: 32px; }
     .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
     .grow { flex: 1; min-width: 0; }
     .suggestions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
-    .chip { font-size: 12px; line-height: 26px; }
+    .chip { font-size: 12px; line-height: 26px; max-width: 100%; min-width: 0; }
+    .chip-text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hide-types { display: block; margin: 0 0 0 -8px; }
     .note { color: #9a9aa8; font-size: 12px; margin: 4px 0 8px; }
     .muted { color: #9a9aa8; }
     .small { font-size: 12px; }
@@ -221,6 +232,7 @@ export class IdentifyDialogComponent implements OnInit {
   private readonly api = inject(MetadataApiService);
   private readonly dialogRef = inject<MatDialogRef<IdentifyDialogComponent, IdentifyDialogResult>>(MatDialogRef);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly metadataState = inject(MetadataStateService);
   private readonly data = inject<IdentifyDialogData>(MAT_DIALOG_DATA);
 
   readonly STRENGTH = STRENGTH_LABELS;
@@ -232,6 +244,8 @@ export class IdentifyDialogComponent implements OnInit {
   readonly step = signal<Step>('search');
   readonly query = signal('');
   readonly reference = signal('');
+  /** "Hide doujinshi & novels": on by default; applies to the next Search. */
+  readonly hideDoujinshi = signal(true);
   readonly searched = signal(false);
   readonly candidates = signal<IdentifyCandidateDto[]>([]);
   readonly totalHits = signal(0);
@@ -252,6 +266,7 @@ export class IdentifyDialogComponent implements OnInit {
     return c ? { score: c.score, strength: c.strength } : { score: p?.score ?? 0, strength: p?.strength ?? 'Weak' };
   });
   private readonly lastSubmittedQuery = signal('');
+  private readonly lastSubmittedHide = signal(true);
 
   readonly queryValid = computed(() => {
     const q = this.query().trim();
@@ -278,6 +293,7 @@ export class IdentifyDialogComponent implements OnInit {
     if (!this.queryValid() || this.busy()) return;
     const q = this.query().trim();
     this.lastSubmittedQuery.set(q);
+    this.lastSubmittedHide.set(this.hideDoujinshi());
     this.page.set(1);
     this.fetchPage(q, 1, false);
   }
@@ -319,6 +335,7 @@ export class IdentifyDialogComponent implements OnInit {
       .subscribe({
         next: (change) => {
           this.busy.set(false);
+          this.metadataState.announce(change.nodeId, true);
           this.dialogRef.close(true);
           this.offerUndo(change, p.title);
         },
@@ -357,7 +374,7 @@ export class IdentifyDialogComponent implements OnInit {
   private fetchPage(query: string, page: number, append: boolean): void {
     this.busy.set(true);
     this.error.set(null);
-    this.api.search(this.data.nodeId, query, page).subscribe({
+    this.api.search(this.data.nodeId, query, page, this.lastSubmittedHide()).subscribe({
       next: (result) => {
         this.candidates.set(append ? [...this.candidates(), ...result.candidates] : result.candidates);
         this.totalHits.set(result.totalHits);
@@ -396,7 +413,10 @@ export class IdentifyDialogComponent implements OnInit {
     const ref = this.snackBar.open(`Linked to ${title}`, 'Undo', { duration: 8000 });
     ref.onAction().subscribe(() => {
       restorePrevious(this.api, change.nodeId, change.previous ?? null).subscribe({
-        next: () => this.snackBar.open('Link undone', 'Close', { duration: 2500 }),
+        next: () => {
+          this.metadataState.refresh(change.nodeId);
+          this.snackBar.open('Link undone', 'Close', { duration: 2500 });
+        },
         error: (err: ApiError) => this.snackBar.open(`Undo failed: ${err?.message ?? 'error'}`, 'Close', { duration: 4000 }),
       });
     });

@@ -1,15 +1,20 @@
-import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
+import { MetadataStateService } from '../../features/metadata/metadata-state.service';
 import { SeriesInfoOverlayService } from '../../features/metadata/series-info-overlay.service';
 
 /**
  * Card (i) affordance (1.24.0), the sibling of `StarToggleComponent`: a small round
- * `info_outline` button that opens the series-info overlay for its node. Shown by
- * browse only when `CatalogNodeDto.hasSeriesInfo` is true (the node's OWN
- * information), hidden in select mode (taps select there). With `overlay` it sits
+ * `info_outline` button that opens the series-info overlay for its node. Rendered by
+ * browse for every card and row (not in select mode - taps select there) and shows
+ * itself only while the node has its OWN information: seeded from
+ * `CatalogNodeDto.hasSeriesInfo`, then kept in sync in place through
+ * `MetadataStateService.changed$` (Link / Undo / Unlink / Don't match), the way the star
+ * follows `FavoritesStateService` - no browse reload. With `overlay` it sits
  * in the cover's free BOTTOM-LEFT corner (star top-left, read badge top-right,
  * direction chip bottom-right); in list rows it sits in `.row-markers` after the star.
  * Its own styles keep the near-budget browse CSS untouched.
@@ -24,12 +29,14 @@ import { SeriesInfoOverlayService } from '../../features/metadata/series-info-ov
     '[class.compact]': 'compact()',
   },
   template: `
-    <button type="button" mat-icon-button class="info-btn"
-            aria-label="Series info" matTooltip="Series info"
-            data-testid="info-toggle"
-            (click)="open($event)">
-      <mat-icon>info_outline</mat-icon>
-    </button>
+    @if (shown()) {
+      <button type="button" mat-icon-button class="info-btn"
+              aria-label="Series info" matTooltip="Series info"
+              data-testid="info-toggle"
+              (click)="open($event)">
+        <mat-icon>info_outline</mat-icon>
+      </button>
+    }
   `,
   styles: [`
     :host { display: inline-flex; }
@@ -45,9 +52,26 @@ import { SeriesInfoOverlayService } from '../../features/metadata/series-info-ov
 })
 export class InfoToggleComponent {
   private readonly overlayService = inject(SeriesInfoOverlayService);
+  private readonly metadataState = inject(MetadataStateService);
 
   /** Opaque public id of the node (folder or archive). */
   readonly nodeId = input.required<string>();
+
+  /** The node's own information, from the server (browse responses). */
+  readonly hasSeriesInfo = input(false);
+
+  /** Locally tracked visibility: seeded from the input, updated by link changes. */
+  readonly shown = signal(false);
+
+  constructor() {
+    // Keep in sync with the input when the parent re-fetches (server truth).
+    effect(() => this.shown.set(this.hasSeriesInfo()));
+
+    // A link change for this node anywhere (dialog, admin menu, selection bar).
+    this.metadataState.changed$.pipe(takeUntilDestroyed()).subscribe((change) => {
+      if (change.nodeId === this.nodeId()) this.shown.set(change.hasSeriesInfo);
+    });
+  }
 
   /** Absolutely position in the cover's bottom-left corner. */
   readonly overlay = input(false);

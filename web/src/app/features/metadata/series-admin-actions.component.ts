@@ -9,6 +9,7 @@ import { Observable } from 'rxjs';
 
 import { MetadataPrecedence, SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
+import { MetadataStateService } from './metadata-state.service';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
 
 /**
@@ -20,7 +21,9 @@ import { IdentifyDialogService } from './identify-dialog/identify-dialog.service
  * - Don't match / Clear Don't match - the node is not one series; nothing is inherited.
  * - Unlink - removes the node's own web link (inheritance resumes).
  * - Source precedence (folders): inherit / web first / ComicInfo first.
- * Emits `changed` after a successful change so the host re-resolves the info.
+ * Emits `changed` after a successful change so the host re-resolves the info; a link
+ * change (Don't match, Clear, Unlink) is also announced through `MetadataStateService`
+ * so the browse card (i) and top-bar button update without a reload.
  */
 @Component({
   selector: 'app-series-admin-actions',
@@ -91,6 +94,7 @@ export class SeriesAdminActionsComponent {
   private readonly api = inject(MetadataApiService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly identifyDialog = inject(IdentifyDialogService);
+  private readonly metadataState = inject(MetadataStateService);
 
   readonly info = input.required<SeriesInfoDto>();
   readonly changed = output<void>();
@@ -140,15 +144,15 @@ export class SeriesAdminActionsComponent {
   readonly isFolder = computed(() => this.info().nodeKind === 'Folder');
 
   dontMatch(): void {
-    this.run(this.api.setDontMatch(this.info().nodeId), "Marked Don't match");
+    this.run(this.api.setDontMatch(this.info().nodeId), "Marked Don't match", true);
   }
 
   clearDontMatch(): void {
-    this.run(this.api.clearDontMatch(this.info().nodeId), "Don't match cleared");
+    this.run(this.api.clearDontMatch(this.info().nodeId), "Don't match cleared", true);
   }
 
   unlink(): void {
-    this.run(this.api.unlink(this.info().nodeId), 'Series link removed');
+    this.run(this.api.unlink(this.info().nodeId), 'Series link removed', true);
   }
 
   setPrecedence(precedence: MetadataPrecedence | null): void {
@@ -159,11 +163,14 @@ export class SeriesAdminActionsComponent {
     this.run(call, precedence ? 'Source precedence set' : 'Source precedence cleared');
   }
 
-  run(call: Observable<unknown>, message: string): void {
+  /** `linkChange`: the node's own link row changed, so browse must learn its new state. */
+  run(call: Observable<unknown>, message: string, linkChange = false): void {
+    const nodeId = this.info().nodeId;
     this.busy.set(true);
     call.subscribe({
       next: () => {
         this.busy.set(false);
+        if (linkChange) this.metadataState.refresh(nodeId);
         this.snackBar.open(message, 'Close', { duration: 2500 });
         this.changed.emit();
       },

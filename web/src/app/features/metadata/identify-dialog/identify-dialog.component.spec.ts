@@ -7,6 +7,7 @@ import { Subject, of, throwError } from 'rxjs';
 
 import { IdentifyContextDto, IdentifyPreviewDto, IdentifySearchResultDto } from '../../../core/api/api-types';
 import { MetadataApiService } from '../metadata-api.service';
+import { MetadataStateService } from '../metadata-state.service';
 import { IdentifyDialogComponent, restorePrevious } from './identify-dialog.component';
 
 /**
@@ -50,6 +51,7 @@ describe('IdentifyDialogComponent', () => {
     externalId: '51239621230',
     title: 'Berserk',
     altTitles: ['Beruseruku', 'Berserk: The Black Swordsman'],
+    providerType: 'Manga',
     format: 'Comic',
     origin: 'Japan',
     webtoon: true,
@@ -81,6 +83,7 @@ describe('IdentifyDialogComponent', () => {
       setDontMatch: vi.fn(() => of({ nodeId: 'n1' })),
       candidateImageUrl: (t: string) => `/api/v1/admin/metadata/candidates/${t}/image`,
     };
+    const state = { announce: vi.fn(), refresh: vi.fn() };
     TestBed.configureTestingModule({
       imports: [IdentifyDialogComponent],
       providers: [
@@ -90,6 +93,7 @@ describe('IdentifyDialogComponent', () => {
         { provide: MAT_DIALOG_DATA, useValue: { nodeId: 'n1' } },
         { provide: MatDialogRef, useValue: dialogRef },
         { provide: MatSnackBar, useValue: snackBar },
+        { provide: MetadataStateService, useValue: state },
       ],
     });
     const fixture = TestBed.createComponent(IdentifyDialogComponent);
@@ -97,7 +101,7 @@ describe('IdentifyDialogComponent', () => {
     const el = fixture.nativeElement as HTMLElement;
     const q = (sel: string) => el.querySelector(sel) as HTMLElement | null;
     const render = () => fixture.detectChanges();
-    return { fixture, c: fixture.componentInstance, api, dialogRef, snackBar, undo, el, q, render };
+    return { fixture, c: fixture.componentInstance, api, state, dialogRef, snackBar, undo, el, q, render };
   }
 
   it('shows why it is unavailable and makes no call beyond the context', () => {
@@ -116,7 +120,27 @@ describe('IdentifyDialogComponent', () => {
     c.query.set('  Berserk Deluxe ');
     render();
     (q('[data-testid="identify-search"]') as HTMLButtonElement).click();
-    expect(api.search).toHaveBeenCalledWith('n1', 'Berserk Deluxe', 1);
+    expect(api.search).toHaveBeenCalledWith('n1', 'Berserk Deluxe', 1, true);
+  });
+
+  it('hides doujinshi and novels by default; unticking sends the search without the filter', () => {
+    const { c, api, q, render } = create();
+    const box = q('[data-testid="identify-hide-doujinshi"] input') as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    box.click();
+    render();
+    expect(c.hideDoujinshi()).toBe(false);
+    c.runSearch();
+    c.moreResults(); // later pages keep the filter the search was made with
+    expect(api.search).toHaveBeenNthCalledWith(1, 'n1', 'Berserk', 1, false);
+    expect(api.search).toHaveBeenNthCalledWith(2, 'n1', 'Berserk', 2, false);
+  });
+
+  it('keeps a long name from widening the dialog: full name in the title tooltip', () => {
+    const long = 'A Very Long Archive Name v00 (2008) [Some Scan Team] [OneShot] Extra Words To Overflow.cbz';
+    const { q } = create(ctx({ displayName: long, suggestions: [long] }));
+    expect(q('.title')!.getAttribute('title')).toBe(long);
+    expect(q('.suggestions .chip')!.getAttribute('title')).toBe(long);
   });
 
   it('lists ranked results with proxied thumbnails, hit titles and a novel warning', () => {
@@ -136,7 +160,7 @@ describe('IdentifyDialogComponent', () => {
     const { c, api } = create();
     c.runSearch();
     c.moreResults();
-    expect(api.search).toHaveBeenLastCalledWith('n1', 'Berserk', 2);
+    expect(api.search).toHaveBeenLastCalledWith('n1', 'Berserk', 2, true);
     expect(c.candidates().length).toBe(6);
   });
 
@@ -167,18 +191,22 @@ describe('IdentifyDialogComponent', () => {
     expect(a.getAttribute('rel')).toBe('noopener noreferrer');
     expect(a.getAttribute('referrerpolicy')).toBe('no-referrer');
     expect(el.textContent).toContain('this folder and everything inside');
+    expect(el.textContent).toContain('Manga · Japan · 1989'); // the provider type, like the results list
+    expect(el.textContent).not.toContain('Comic ·');
   });
 
   it('links, closes with true and offers Undo that restores the previous state', () => {
-    const { c, api, dialogRef, snackBar, undo, q, render } = create();
+    const { c, api, state, dialogRef, snackBar, undo, q, render } = create();
     c.usePreview('mangaupdates', '51239621230', 'Search');
     render();
     (q('[data-testid="identify-link"]') as HTMLButtonElement).click();
+    expect(state.announce).toHaveBeenCalledWith('n1', true); // the card (i) + top bar update in place
     expect(api.link).toHaveBeenCalledWith('n1', { provider: 'mangaupdates', externalId: '51239621230', matchMethod: 'Search', matchScore: 0.97 });
     expect(dialogRef.close).toHaveBeenCalledWith(true);
     expect(snackBar.open).toHaveBeenCalledWith('Linked to Berserk', 'Undo', expect.anything());
     undo.next();
     expect(api.unlink).toHaveBeenCalledWith('n1');
+    expect(state.refresh).toHaveBeenCalledWith('n1'); // the restored state is re-derived from series-info
   });
 
   it('keeps the search score of the candidate a preview came from', () => {

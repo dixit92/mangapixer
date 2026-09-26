@@ -27,13 +27,16 @@ export function candidateLine(c: { providerType?: string | null; origin?: Parame
   return parts.join(' · ');
 }
 
-/** "Comic · Japan · 1989 · 43 volumes, ongoing" for a preview record. */
+/**
+ * "Manga · Japan · 1989 · 43 vols, ongoing" for a preview record: the provider type
+ * like the results list (the normalized format only when the provider gave no type).
+ */
 export function previewLine(p: IdentifyPreviewDto): string {
   const parts: string[] = [];
-  const format = formatLabel(p.format);
-  if (format) parts.push(format);
+  const type = p.providerType || formatLabel(p.format);
+  if (type) parts.push(type);
   const origin = originLabel(p.origin);
-  if (origin) parts.push(origin);
+  if (origin && origin.toLowerCase() !== type.toLowerCase()) parts.push(origin);
   if (p.startYear) parts.push(String(p.startYear));
   const status = p.originStatus ? STATUS_WORDS[p.originStatus] : '';
   if (p.originVolumes && status) parts.push(`${p.originVolumes} vol${p.originVolumes === 1 ? '' : 's'}, ${status}`);

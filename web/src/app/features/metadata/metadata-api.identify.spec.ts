@@ -26,8 +26,12 @@ describe('MetadataApiService identify calls', () => {
 
     api.search('n1', 'Berserk', 2).subscribe();
     const search = http.expectOne({ method: 'POST', url: '/api/v1/admin/metadata/nodes/n1/search' });
-    expect(search.request.body).toEqual({ query: 'Berserk', page: 2 });
+    expect(search.request.body).toEqual({ query: 'Berserk', page: 2, hideDoujinshiAndNovels: false });
     search.flush({});
+
+    api.search('n1', 'Berserk', 1, true).subscribe();
+    expect(http.expectOne('/api/v1/admin/metadata/nodes/n1/search').request.body)
+      .toEqual({ query: 'Berserk', page: 1, hideDoujinshiAndNovels: true });
 
     api.lookup('n1', 'mu:1').subscribe();
     expect(http.expectOne('/api/v1/admin/metadata/nodes/n1/lookup').request.body).toEqual({ reference: 'mu:1' });
