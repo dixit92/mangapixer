@@ -111,10 +111,11 @@ async function withoutWebGpu(page: Page, noFloatTargets = false): Promise<void> 
   await page.addInitScript((noFloat: boolean) => {
     Object.defineProperty(Navigator.prototype, 'gpu', { configurable: true, get: () => undefined });
     if (noFloat) {
-      const original = WebGL2RenderingContext.prototype.getExtension;
-      WebGL2RenderingContext.prototype.getExtension = function (this: WebGL2RenderingContext, name: string) {
+      const proto = WebGL2RenderingContext.prototype as unknown as { getExtension(name: string): unknown };
+      const original = proto.getExtension;
+      proto.getExtension = function (this: WebGL2RenderingContext, name: string) {
         return /^EXT_color_buffer_(half_)?float$/.test(name) ? null : original.call(this, name);
-      } as typeof original;
+      };
     }
   }, noFloatTargets);
 }
