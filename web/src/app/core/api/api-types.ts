@@ -1200,6 +1200,8 @@ export interface IdentifyContextDto {
   backoffUntil?: string | null;
   currentLink?: NodeSeriesLinkDto | null;
   local: IdentifyLocalDto;
+  /** In (or is) a folder whose Content is "Doujinshi & adult one-shots": the dialog starts with the type filter off. */
+  doujinshiContent?: boolean;
 }
 
 export interface IdentifySearchRequest {

@@ -5172,6 +5172,9 @@
           },
           "local": {
             "$ref": "#/components/schemas/IdentifyLocalDto"
+          },
+          "doujinshiContent": {
+            "type": "boolean"
           }
         }
       },

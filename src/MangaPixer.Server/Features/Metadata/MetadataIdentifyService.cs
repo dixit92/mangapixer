@@ -5,6 +5,7 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Admin;
+using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 using com.lifepixer.mangapixer.Server.Logging;
@@ -110,6 +111,7 @@ public sealed class MetadataIdentifyService
             Add(node.DisplayName);
 
         var ownLink = await _db.NodeSeriesLinks.AsNoTracking().FirstOrDefaultAsync(l => l.NodeId == node.Id, ct);
+        var (content, _) = await MetadataFolderContentService.ResolveAsync(_db, node.Id, ct);
 
         return new IdentifyContextDto
         {
@@ -129,6 +131,7 @@ public sealed class MetadataIdentifyService
             BackoffUntil = await _backoff.ActiveUntilAsync(ct),
             CurrentLink = ownLink is null ? null : await ToLinkDtoAsync(ownLink, node.PublicId, ct),
             Local = local,
+            DoujinshiContent = content == MetadataFolderContent.DoujinshiAndAdultOneShots,
         };
     }
 
