@@ -132,13 +132,31 @@ describe('MetadataSettingsComponent', () => {
 
   // --- Stage 2 ---
 
-  it('explains the ONE budget honestly: no hidden reserve, automatic work stops when spent', () => {
+  it('shows the budget as usage only, without an explanation paragraph', () => {
     const { q, c } = create(settings({ budgetUsedToday: 2500 }));
-    const text = q('[data-testid="md-budget-explain"]')!.textContent!;
-    expect(text).toContain('One budget for everything');
-    expect(text).toContain('automatic work stops');
-    expect(text).toContain('There is no hidden reserve.');
+    expect(q('[data-testid="md-status"]')!.textContent).toContain('Requests today: 2500 / 5000');
+    expect(q('[data-testid="md-budget-explain"]')).toBeNull();
     expect(c.budgetPercent()).toBe(50);
+  });
+
+  it('folds both consent texts behind "What is sent?" once accepted', () => {
+    const { q, c, fixture } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true,
+      acceptedAutoConsentVersion: 1 }));
+    expect(q('[data-testid="md-consent-text"]')).toBeNull();
+    expect(q('[data-testid="md-auto-consent-text"]')).toBeNull();
+    q('[data-testid="md-consent-toggle"]')!.click();
+    q('[data-testid="md-auto-consent-toggle"]')!.click();
+    fixture.detectChanges();
+    expect(q('[data-testid="md-consent-text"]')!.textContent).toContain('What is never sent:');
+    expect(q('[data-testid="md-auto-consent-text"]')!.textContent).toContain('What is sent automatically:');
+    expect(c.showConsent()).toBe(true);
+  });
+
+  it('shows no automatic-lookups consent while Fetch is off (it cannot be given yet)', () => {
+    const { q } = create(settings());
+    expect(q('[data-testid="md-auto-consent-text"]')).toBeNull();
+    expect(q('[data-testid="md-auto-consent"]')).toBeNull();
+    expect(q('[data-testid="md-auto-needs-fetch"]')).not.toBeNull();
   });
 
   it('shows the automatic-lookups consent (v2) text: what is sent automatically and never', () => {

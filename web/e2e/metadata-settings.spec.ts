@@ -71,9 +71,11 @@ test('settings card: consent gates the web switch; enabling makes no lookup', as
 
   const card = page.getByTestId('metadata-settings-card');
   await card.scrollIntoViewIfNeeded();
-  await expect(card.getByTestId('md-consent-text')).toContainText('What is never sent:');
   const fetchSwitch = card.getByTestId('md-fetch').getByRole('switch');
   const consented = await card.getByTestId('md-consented').count();
+  // After consent the text folds behind "What is sent?".
+  if (consented) await card.getByTestId('md-consent-toggle').click();
+  await expect(card.getByTestId('md-consent-text')).toContainText('What is never sent:');
   if (!consented) {
     await expect(fetchSwitch).toBeDisabled();
     await shot(page, 'b2-01-settings-consent-required');

@@ -86,7 +86,8 @@ export function validateThresholds(
  *   automatic-lookups consent (v2, decision 2); it applies to every library with Fetch
  *   on, and background refresh follows it. Turning it on is ONE settings PUT - nothing
  *   is looked up by the switch itself.
- * - The budget is ONE global budget (decision 5): usage shown honestly, no hidden reserve.
+ * - The budget is ONE global budget (decision 5): usage shown, no hidden reserve.
+ * - Consent texts show until accepted, then fold behind "What is sent?" (owner, 2026-09-26).
  * - Per library "Match now" with the local estimate (decision 1).
  * - **Advanced**: the three thresholds with their bounds and Reset (decision 13).
  */
@@ -119,6 +120,7 @@ export function validateThresholds(
                 <mat-icon inline>block</mat-icon> Disabled by the server configuration (Metadata:NetworkDisabled).
               </p>
             }
+            @if (!consentCurrent() || showConsent()) {
             <div class="consent" data-testid="md-consent-text">
               <p>When on, MangaPixer can look up series details - description, authors, genres, publication status and
                 cover art - on <strong>MangaUpdates</strong> for the libraries you enable below.</p>
@@ -132,9 +134,12 @@ export function validateThresholds(
               <p>Fetched information is stored on this server and credited to MangaUpdates, which provides it as-is. You
                 can switch this off at any time; stored information stays until you delete it.</p>
             </div>
+            }
             @if (consentCurrent()) {
               <p class="muted small" data-testid="md-consented">
-                Consent given {{ s.consentAt | date: 'mediumDate' }} (version {{ s.acceptedConsentVersion }}).</p>
+                Consent given {{ s.consentAt | date: 'mediumDate' }} ·
+                <button type="button" class="link" (click)="showConsent.set(!showConsent())" [attr.aria-expanded]="showConsent()"
+                        data-testid="md-consent-toggle">{{ showConsent() ? 'Hide' : 'What is sent?' }}</button></p>
             } @else {
               <mat-checkbox [checked]="consentTicked()" (change)="consentTicked.set($event.checked)"
                             [disabled]="s.networkDisabledByConfig" data-testid="md-consent">
@@ -161,11 +166,6 @@ export function validateThresholds(
             </p>
             <mat-progress-bar mode="determinate" [value]="budgetPercent()" [class.spent]="budgetPercent() >= 100"
                               aria-label="Requests used today" />
-            <p class="note" data-testid="md-budget-explain">
-              One budget for everything: Identify, automatic matching and background refresh. Every search, series fetch and
-              cover counts one. When it is spent, automatic work stops and Identify waits until 00:00 UTC - raise the
-              budget any time. There is no hidden reserve.
-            </p>
             <form class="budget" (ngSubmit)="saveBudget()">
               <mat-form-field appearance="outline" subscriptSizing="dynamic">
                 <mat-label>Daily request budget</mat-label>
@@ -183,6 +183,7 @@ export function validateThresholds(
           <section class="card" aria-labelledby="md-auto-h" data-testid="md-auto">
             <h3 id="md-auto-h"><mat-icon aria-hidden="true">auto_awesome</mat-icon> Automatic matching
               <span class="pill" [class.on]="s.autoMatchEnabled" data-testid="md-auto-state">{{ s.autoMatchEnabled ? 'On' : 'Off' }}</span></h3>
+            @if ((s.fetchEnabled && !autoConsentCurrent()) || showAutoConsent()) {
             <div class="consent" data-testid="md-auto-consent-text">
               <p>When on, MangaPixer matches new series folders on its own, in the background, in <strong>every library whose
                 Fetch switch is on</strong>. Links it is sure about go live at once and are listed under Review › Auto-linked;
@@ -200,10 +201,13 @@ export function validateThresholds(
                 automatic work stops until the next day.</p>
               <p>You can switch this off at any time; links it made stay until you remove them.</p>
             </div>
+            }
             @if (autoConsentCurrent()) {
               <p class="muted small" data-testid="md-auto-consented">
-                Consent given {{ s.autoConsentAt | date: 'mediumDate' }} (version {{ s.acceptedAutoConsentVersion }}).</p>
-            } @else {
+                Consent given {{ s.autoConsentAt | date: 'mediumDate' }} ·
+                <button type="button" class="link" (click)="showAutoConsent.set(!showAutoConsent())" [attr.aria-expanded]="showAutoConsent()"
+                        data-testid="md-auto-consent-toggle">{{ showAutoConsent() ? 'Hide' : 'What is sent?' }}</button></p>
+            } @else if (s.fetchEnabled) {
               <mat-checkbox [checked]="autoConsentTicked()" (change)="autoConsentTicked.set($event.checked)"
                             [disabled]="s.networkDisabledByConfig || !s.fetchEnabled" data-testid="md-auto-consent">
                 I understand that folder names will be sent automatically - enable automatic matching
@@ -359,6 +363,7 @@ export function validateThresholds(
     .muted { color: #999; }
     .consent { font-size: 13px; color: #c8c8d0; border-left: 3px solid #555; padding: 2px 12px; margin: 6px 0 10px; }
     .consent p { margin: 6px 0; }
+    .link { background: none; border: none; padding: 0; font: inherit; color: #b39dff; cursor: pointer; text-decoration: underline; }
     .banner { color: #ffb300; }
     .status { font-size: 13px; margin: 0 0 8px; }
     .warn { color: #ffb300; }
@@ -401,6 +406,9 @@ export class MetadataSettingsComponent implements OnInit {
   readonly settings = signal<MetadataSettingsDto | null>(null);
   readonly consentTicked = signal(false);
   readonly autoConsentTicked = signal(false);
+  /** After consent the texts fold away behind "What is sent?" so the controls come first. */
+  readonly showConsent = signal(false);
+  readonly showAutoConsent = signal(false);
   readonly budgetText = signal('');
   readonly confirming = signal<string | null>(null);
   /** The library whose "Match now" panel is open. */

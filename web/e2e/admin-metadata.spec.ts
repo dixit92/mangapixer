@@ -126,9 +126,11 @@ test('Automatic matching is consent-gated: no automatic-matching call before con
   await page.goto('/admin/metadata');
   const auto = page.getByTestId('md-auto');
   await auto.scrollIntoViewIfNeeded();
+  const autoSwitch = auto.getByTestId('md-auto-switch').getByRole('switch');
+  // After consent the text folds behind "What is sent?".
+  if (await auto.getByTestId('md-auto-consented').count()) await auto.getByTestId('md-auto-consent-toggle').click();
   await expect(auto.getByTestId('md-auto-consent-text')).toContainText('What is sent automatically:');
   await expect(auto.getByTestId('md-auto-consent-text')).toContainText('nobody reviews before it is sent');
-  const autoSwitch = auto.getByTestId('md-auto-switch').getByRole('switch');
   if (!(await auto.getByTestId('md-auto-consented').count())) {
     await expect(autoSwitch).toBeDisabled();
     await shot(page, 'c-03-auto-consent-required');
