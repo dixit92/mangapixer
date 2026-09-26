@@ -182,6 +182,27 @@ public sealed class WorkDetectorTests
     }
 
     [Fact]
+    public void DoujinsArtistsTree_OnlyTheArtistFoldersAreMatched_ArchiveByArchive()
+    {
+        // Doujins/ -> Artists/ -> <artist>/ -> archives: the top two levels are never matched themselves.
+        var top = _detector.Classify(Folder("Doujins", [], [("Artists", 9)], depth: 1));
+        var artists = _detector.Classify(Folder("Artists", [], [("Artist One", 3), ("Artist Two", 3), ("Artist Three", 3)], depth: 2));
+        // Named after the creator tag its archives carry.
+        var tagged = _detector.Classify(Folder("Artist One",
+            ["(C99) [Artist One] First Story (Parody A).cbz", "[Artist One] Second Story.cbz", "(C101) [Artist One] Third Night (Parody B).cbz"], depth: 3));
+        // Archives that carry only a circle name: still one work per archive (distinct titles).
+        var circle = _detector.Classify(Folder("Artist Two",
+            ["[Some Circle] Alpha Story.cbz", "[Some Circle] Beta Tale.cbz", "[Some Circle] Gamma Saga.cbz", "[Some Circle] Delta Night.cbz", "[Some Circle] Epsilon Dawn.cbz"], depth: 3));
+
+        Assert.Equal((WorkClass.Wrapper, MatchLevel.None), (top.Class, top.Level));
+        Assert.Equal((WorkClass.CollectionContainer, MatchLevel.None), (artists.Class, artists.Level));
+        Assert.Equal((WorkClass.ArtistCollection, MatchLevel.Archive), (tagged.Class, tagged.Level));
+        Assert.Equal(3, tagged.ArchiveGroups.Count);
+        Assert.Equal(MatchLevel.Archive, circle.Level);
+        Assert.Equal(5, circle.ArchiveGroups.Count);
+    }
+
+    [Fact]
     public void DistinctTitles_AreACollectionLeaf_MatchedPerArchive()
     {
         var c = _detector.Classify(Folder("Anthology Shelf",
