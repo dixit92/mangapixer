@@ -4260,6 +4260,9 @@
               "string"
             ],
             "format": "int32"
+          },
+          "hideDoujinshiAndNovels": {
+            "type": "boolean"
           }
         }
       },

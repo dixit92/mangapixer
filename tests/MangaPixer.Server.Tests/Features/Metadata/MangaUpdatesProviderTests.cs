@@ -80,7 +80,7 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         Assert.Equal(["search", "page", "perpage", "filter_types"], body.RootElement.EnumerateObject().Select(p => p.Name).ToArray());
         Assert.Equal(
             ["Doujinshi", "Novel", "Artbook", "Drama CD"],
-            body.RootElement.GetProperty("filter_types").EnumerateArray().Select(e => e.GetString()).ToArray());
+            body.RootElement.GetProperty("filter_types").EnumerateArray().Select(e => e.GetString()!).ToArray());
     }
 
     // --- Get mapping ---
