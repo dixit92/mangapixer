@@ -320,7 +320,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
              focused programmatically) so arrow / Page keys scroll it natively, and
              Enter on it is the keyboard twin of the centre tap (show / hide the
              controls). Tap and scroll behaviour are unchanged.
-             Enhance (1.24.0) / Sharp (1.25.0): the host directive lays banded GPU
+             Enhance (1.24.0) / Crisp (1.25.0): the host directive lays banded GPU
              canvases over the strip (webtoon-enhance-coordinator.ts); the imgs register.
              Loading feedback (1.24.0): each img sits in an app-webtoon-page that
              veils its box until load, or offers a retry on error (page-load-state.component.ts). -->
@@ -528,7 +528,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 @if (isFullscreen()) { Tap the centre to bring it back when it is hidden. }</li>
               <li><kbd>M</kbd> show / hide the controls · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> exit ·
                 <kbd>?</kbd> this help · <kbd>S</kbd> cycle Downscale filter · <kbd>E</kbd> cycle Rendering:
-                Smooth / Sharp / Enhance (the ones this device can run)</li>
+                Smooth / Crisp / Enhance (the ones this device can run)</li>
               @if (useInPageImmersive) {
                 <li><b>Fullscreen</b> goes immersive here (hides the reader's own bars) instead of
                   the browser's fullscreen - on iPhone/iPad, and in this app installed to the home
@@ -1113,7 +1113,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.view() === 'spread' && this.narrowPortrait() ? 'paged' : this.view());
 
   /**
-   * Is GPU upscaling (Sharp or Enhance) on for the pages currently rendered?
+   * Is GPU upscaling (Crisp or Enhance) on for the pages currently rendered?
    * Simply the device-wide preference: the paged / double-spread `<img>`s read it
    * through `UpscaleDirective`, which renders the backend it resolved to. Both
    * directives are no-ops when the choice cannot run here and when a page is not
@@ -1127,7 +1127,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   /**
    * No silent fallback (1.25.0): a SAVED Rendering choice that cannot run on this
    * device (Enhance over plain HTTP without WebGL2 float targets, no WebGL2 for
-   * Sharp) is announced once per app session; the Rendering menu shows the reason.
+   * Crisp) is announced once per app session; the Rendering menu shows the reason.
    */
   private readonly renderingNoticeEffect = effect(() => {
     const message = this.upscaleSupport.pendingNotice();
@@ -1619,7 +1619,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   }
 
   /**
-   * 'e': cycles Rendering Smooth -> Sharp -> Enhance -> Smooth (1.25.0; a
+   * 'e': cycles Rendering Smooth -> Crisp -> Enhance -> Smooth (1.25.0; a
    * Smooth/Enhance toggle before), skipping any choice this device cannot run -
    * the options the menu offers disabled. Same `setUpscaler` as the menu. Works
    * in every view, webtoon included (1.24.0).

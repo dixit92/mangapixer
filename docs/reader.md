@@ -123,14 +123,14 @@ Press `s` to cycle through the filters while reading. With **Full** page quality
 What happens when a page is shown *larger* than its original resolution (a small or old scan on a big or high-density screen). Pages that are not being enlarged are always left to the browser, and nothing is ever sent to the server: the work happens on your device's graphics chip.
 
 - **Smooth** (default): the browser's normal image scaling. No extra work, works everywhere.
-- **Sharp**: AMD FidelityFX Super Resolution 1 (FSR 1): an edge-aware upscale plus a light sharpening pass. Cheap on battery, and it works on almost any device, over plain `http://` too.
-- **Enhance**: Anime4K, an upscaler designed for anime and line art. It restores and redraws lines and screentones for the sharpest result, at more graphics work than Sharp.
+- **Crisp**: AMD FidelityFX Super Resolution 1 (FSR 1): an edge-aware upscale plus a light sharpening pass. Cheap on battery, and it works on almost any device, over plain `http://` too.
+- **Enhance**: Anime4K, an upscaler designed for anime and line art. It restores and redraws lines and screentones for the sharpest result, at more graphics work than Crisp.
 
 Which graphics engine runs what:
 
 | Choice | Runs on | Needs |
 |---|---|---|
-| **Sharp** | WebGL2 | Any browser with WebGL2 (almost all). Works over plain `http://`. |
+| **Crisp** | WebGL2 | Any browser with WebGL2 (almost all). Works over plain `http://`. |
 | **Enhance** | WebGPU when the browser offers it | A secure connection: HTTPS, or `localhost` on the computer running MangaPixer. |
 | **Enhance** | WebGL2 otherwise (for example over plain `http://<LAN address>`) | WebGL2 with float render targets (most devices). Runs **Efficient** only. |
 
@@ -138,7 +138,7 @@ Browsers only offer WebGPU to secure pages, so on a phone or tablet that opens M
 
 The Rendering menu always tells you what is running: the selected choice has a small second line naming the engine (for example "WebGPU", or "WebGL2 - WebGPU needs HTTPS"), and a choice that cannot run on this device is greyed out with the reason ("Needs a secure connection (HTTPS)", "Graphics chip unavailable", ...). On phones, the reasons are listed under the Rendering chips. If a choice you picked earlier (for example on HTTPS) cannot run on this connection, the reader says so once ("Enhance isn't available here - showing Smooth.") and shows the page with Smooth; your choice is kept for the next time it can run. The status line under Rendering (also the Rendering button's tooltip) names the engine in use, or what this device offers (for example "GPU: WebGPU needs HTTPS, WebGL2 ready").
 
-Sharp and Enhance work in single page, double page and vertical modes. Press `e` to cycle Smooth, Sharp and Enhance (choices this device cannot run are skipped). Both use the graphics chip, so they can use more battery on phones and tablets; Sharp much less than Enhance.
+Crisp and Enhance work in single page, double page and vertical modes. Press `e` to cycle Smooth, Crisp and Enhance (choices this device cannot run are skipped). Both use the graphics chip, so they can use more battery on phones and tablets; Crisp much less than Enhance.
 
 **Enhance quality** picks how much work Enhance does in single and double page. It appears under Rendering while Enhance is selected (not in vertical mode):
 
@@ -147,9 +147,9 @@ Sharp and Enhance work in single page, double page and vertical modes. Press `e`
 
 In vertical mode Enhance always uses Efficient (your Enhance quality choice is kept for the paged modes), because it keeps many parts of the strip enhanced at once while you scroll. There, the enhanced (or sharpened) version of a page appears a moment after you stop scrolling (the plain page shows while you scroll quickly), and only pages shown more than 1.2 times larger than their original width are processed.
 
-If the graphics chip resets twice within a minute (for example after the app spends time in the background), vertical-mode Enhance or Sharp pauses until the page is reloaded and the Rendering status line reads "Enhance paused (GPU reset)" (or "Sharp paused"); the pages still show normally.
+If the graphics chip resets twice within a minute (for example after the app spends time in the background), vertical-mode Enhance or Crisp pauses until the page is reloaded and the Rendering status line reads "Enhance paused (GPU reset)" (or "Crisp paused"); the pages still show normally.
 
-Enhance is built on [Anime4K](https://github.com/bloc97/Anime4K) by bloc97: on WebGPU through the [anime4k-webgpu](https://github.com/Anime4KWebBoost/Anime4K-WebGPU) port, on WebGL2 from Anime4K's own shaders. Sharp is a port of AMD's [FidelityFX Super Resolution 1](https://github.com/GPUOpen-Effects/FidelityFX-FSR). See [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
+Enhance is built on [Anime4K](https://github.com/bloc97/Anime4K) by bloc97: on WebGPU through the [anime4k-webgpu](https://github.com/Anime4KWebBoost/Anime4K-WebGPU) port, on WebGL2 from Anime4K's own shaders. Crisp is a port of AMD's [FidelityFX Super Resolution 1](https://github.com/GPUOpen-Effects/FidelityFX-FSR). See [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
 
 ## Reading direction
 
@@ -193,7 +193,7 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
 | `d` | Switch between single and double page. Keeps the archive's pairing; switching to double page makes the page you are on start a spread. |
 | `o` | Double page: shift the pairing by one page from the current spread (saved for the archive, see [Fixing double-page pairing](#fixing-double-page-pairing)) |
 | `s` | Cycle the downscale filter: Sharp, Balanced, Soft |
-| `e` | Cycle Rendering: Smooth, Sharp, Enhance (skipping any this device cannot run), in every mode |
+| `e` | Cycle Rendering: Smooth, Crisp, Enhance (skipping any this device cannot run), in every mode |
 | `m` | Show / hide the controls |
 | `Esc` | Close an open menu or help. Otherwise exit fullscreen, or go back to the folder if not in fullscreen. |
 | `?` | Show / hide the help overlay |

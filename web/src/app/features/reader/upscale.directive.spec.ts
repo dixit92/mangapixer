@@ -258,7 +258,7 @@ describe('UpscaleSupportService engines (1.25.0)', () => {
     const fake = createFakeGl(null, { floatTargets: false, maxTextureSize: 4096 });
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fake.gl as unknown as GPUCanvasContext);
     const { svc } = setup();
-    expect(svc.webgl()).toEqual({ status: 'ready', floatTargets: false, maxTextureSize: 4096 });
+    expect(svc.webgl()).toEqual({ status: 'ready', floatTargets: false, maxTextureSize: 4096, software: false });
     expect(svc.sharp()).toEqual({ state: 'ready', engine: 'webgl2', note: 'WebGL2' });
   });
 
@@ -286,7 +286,7 @@ describe('UpscaleSupportService engines (1.25.0)', () => {
     svc.markNoticeShown();
     expect(svc.pendingNotice()).toBeNull();
     prefs.setUpscaler('sharp');
-    expect(svc.pendingNotice()).toBe("Sharp isn't available here - showing Smooth.");
+    expect(svc.pendingNotice()).toBe("Crisp isn't available here - showing Smooth.");
     svc.markNoticeShown();
     prefs.setUpscaler('enhance');
     expect(svc.pendingNotice()).toBeNull(); // already said this session

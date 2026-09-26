@@ -10,7 +10,7 @@ import {
 import type { EnhanceChain } from './webtoon-band-plan';
 
 /**
- * Display upscaling ("Rendering: Enhance", 1.19.0; "Sharp" and the WebGL2 engine 1.25.0).
+ * Display upscaling ("Rendering: Enhance", 1.19.0; "Crisp" and the WebGL2 engine 1.25.0).
  *
  * Small manga scans blown up to a modern display are the one case the server
  * cannot fix: `?maxDim=` (see `page-variant.ts`) makes a DOWNSCALE sharp, but an
@@ -44,10 +44,10 @@ import type { EnhanceChain } from './webtoon-band-plan';
  * Engines (1.25.0, `upscale-engine.ts`): Enhance runs on WebGPU
  * (`anime4k-renderer.ts`, a `webgpu` canvas context) where the browser offers it
  * and on WebGL2 (`webgl-upscaler.ts`, Efficient chain only) where it does not;
- * Sharp (FSR 1) always runs on WebGL2. The WebGL2 path draws into one shared
+ * Crisp (FSR 1) always runs on WebGL2. The WebGL2 path draws into one shared
  * context and copies onto this overlay through a `2d` context. A canvas can hold
  * only one context type, so the overlay canvas is re-created when the engine
- * changes (Sharp <-> WebGPU Enhance).
+ * changes (Crisp <-> WebGPU Enhance).
  *
  * GPU memory: the renderer keeps one Anime4K pipeline (hundreds of MB for a
  * large page) alive between pages. This directive is the only thing that knows
@@ -204,16 +204,21 @@ export class UpscaleSupportService {
    * engine the current choice runs on ("GPU: Enhance on WebGL2 - WebGPU needs
    * HTTPS"), or - under Smooth, or when the choice cannot run - what this device
    * offers ("GPU: WebGPU needs HTTPS, WebGL2 ready").
+   *
+   * `withEngine: false` always gives the capability summary: the desktop menu's
+   * selected option already names its engine on its second line, so its status line
+   * does not repeat it (owner, 2026-09-26). Phone chips have no second line, so the
+   * options sheet keeps the engine here.
    */
-  statusText(): string {
+  statusText(withEngine = true): string {
     const pref = this.prefs.upscaler();
     const a = availabilityFor(pref, this.caps());
     let text: string;
     // Smooth, or a choice that cannot run (its option says why): what this device offers.
-    if (a.state === 'ready' && pref !== 'smooth') text = `GPU: ${upscalerLabels[pref]} on ${a.note}`;
+    if (withEngine && a.state === 'ready' && pref !== 'smooth') text = `GPU: ${upscalerLabels[pref]} on ${a.note}`;
     else if (a.state === 'checking') text = 'GPU: checking WebGPU…';
     else text = `GPU: ${capsSummary(this.caps())}`;
-    if (this.webtoonPaused()) text += ` - ${pref === 'sharp' ? 'Sharp' : 'Enhance'} paused (GPU reset)`;
+    if (this.webtoonPaused()) text += ` - ${pref === 'sharp' ? 'Crisp' : 'Enhance'} paused (GPU reset)`;
     if (this.statsVisible()) {
       const page = this.pageMs();
       const band = this.bandMs();
@@ -302,7 +307,7 @@ export class UpscaleDirective implements OnDestroy {
   private readonly prefs = inject(ReaderPreferencesService);
   private readonly support = inject(UpscaleSupportService);
 
-  /** True when the reader's "Rendering" preference is Sharp or Enhance (`ReaderComponent.upscaleActive`). */
+  /** True when the reader's "Rendering" preference is Crisp or Enhance (`ReaderComponent.upscaleActive`). */
   readonly appUpscale = input(false);
 
   private canvas: HTMLCanvasElement | null = null;
@@ -460,7 +465,7 @@ export class UpscaleDirective implements OnDestroy {
         started = performance.now();
         ok = await renderer.renderUpscaled({ source: img, canvas, targetWidth, targetHeight, chain });
       } else {
-        // WebGL2: Sharp (FSR 1), or Enhance on the Efficient chain (Max quality is WebGPU-only).
+        // WebGL2: Crisp (FSR 1), or Enhance on the Efficient chain (Max quality is WebGPU-only).
         glRenderer = await import('./webgl-upscaler');
         if (this.destroyed || token !== this.token) return;
         started = performance.now();

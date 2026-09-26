@@ -2,7 +2,7 @@ import { test, expect, Page } from '@playwright/test';
 import { deflateSync } from 'node:zlib';
 
 /**
- * Reader Rendering on WebGL2 (1.25.0): Sharp (AMD FSR 1) and Enhance without
+ * Reader Rendering on WebGL2 (1.25.0): Crisp (AMD FSR 1) and Enhance without
  * WebGPU, in headless Chromium, whose WebGL2 is SwiftShader (Playwright passes
  * --enable-unsafe-swiftshader) - usable for correctness and wiring, not speed.
  *
@@ -106,10 +106,24 @@ async function login(page: Page): Promise<void> {
   await expect(page).not.toHaveURL(/\/login$/);
 }
 
-/** Headless Chromium may or may not expose WebGPU; these tests pin "no WebGPU". */
-async function withoutWebGpu(page: Page, noFloatTargets = false): Promise<void> {
-  await page.addInitScript((noFloat: boolean) => {
+/**
+ * Headless Chromium may or may not expose WebGPU; these tests pin "no WebGPU". Its WebGL
+ * runs on SwiftShader (software), which the app treats as "Graphics chip unavailable" for
+ * Enhance - so the GPU kind is pinned too: `hardware` drops `failIfMajorPerformanceCaveat`
+ * (the probe then sees a hardware context), `software` refuses such contexts.
+ */
+async function withoutWebGpu(page: Page, noFloatTargets = false, gpu: 'hardware' | 'software' = 'hardware'): Promise<void> {
+  await page.addInitScript(([noFloat, kind]: [boolean, string]) => {
     Object.defineProperty(Navigator.prototype, 'gpu', { configurable: true, get: () => undefined });
+    const getContext = HTMLCanvasElement.prototype.getContext as (this: HTMLCanvasElement, id: string, opts?: Record<string, unknown>) => unknown;
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, id: string, opts?: Record<string, unknown>) {
+      if (id === 'webgl2' && opts?.['failIfMajorPerformanceCaveat']) {
+        if (kind === 'software') return null;
+        const { failIfMajorPerformanceCaveat: _drop, ...rest } = opts;
+        return getContext.call(this, id, rest);
+      }
+      return getContext.call(this, id, opts);
+    } as typeof HTMLCanvasElement.prototype.getContext;
     if (noFloat) {
       const proto = WebGL2RenderingContext.prototype as unknown as { getExtension(name: string): unknown };
       const original = proto.getExtension;
@@ -117,7 +131,7 @@ async function withoutWebGpu(page: Page, noFloatTargets = false): Promise<void> 
         return /^EXT_color_buffer_(half_)?float$/.test(name) ? null : original.call(this, name);
       };
     }
-  }, noFloatTargets);
+  }, [noFloatTargets, gpu] as [boolean, string]);
 }
 
 /** The paged page image (the overlay canvas is laid over it). */
@@ -169,11 +183,11 @@ test.afterEach(async ({ page }) => {
   await page.evaluate(() => localStorage.removeItem('mangapixer-reader-upscaler')).catch(() => undefined);
 });
 
-test('Sharp renders the enlarged page through FSR 1 on WebGL2, and the menu names the engine', async ({ page }) => {
+test('Crisp renders the enlarged page through FSR 1 on WebGL2, and the menu names the engine', async ({ page }) => {
   await withoutWebGpu(page);
   await openReader(page);
   await openRenderingMenu(page);
-  const sharp = page.getByRole('menuitemradio', { name: /^Rendering: Sharp/ });
+  const sharp = page.getByRole('menuitemradio', { name: /^Rendering: Crisp/ });
   await expect(sharp).toBeEnabled();
   await sharp.click();
 
@@ -187,8 +201,9 @@ test('Sharp renders the enlarged page through FSR 1 on WebGL2, and the menu name
   expect(pixels.light).toBeGreaterThan(pixels.width * pixels.height * 0.5);
 
   await openRenderingMenu(page);
-  await expect(page.getByRole('menuitemradio', { name: 'Rendering: Sharp - WebGL2' })).toHaveAttribute('aria-checked', 'true');
-  await expect(page.locator('.reader-options-menu .hint-tap')).toHaveText('GPU: Sharp on WebGL2');
+  await expect(page.getByRole('menuitemradio', { name: 'Rendering: Crisp - WebGL2' })).toHaveAttribute('aria-checked', 'true');
+  // The option line names the engine; the desktop status line only summarises the device (owner, 2026-09-26).
+  await expect(page.locator('.reader-options-menu .hint-tap')).toHaveText('GPU: WebGPU unavailable, WebGL2 ready');
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/rendering-sharp-menu.png` });
 });
 
@@ -221,8 +236,19 @@ test('without WebGPU or float render targets, Enhance is disabled with its reaso
   const enhance = page.getByRole('menuitemradio', { name: 'Rendering: Enhance - Graphics chip lacks float render targets' });
   await expect(enhance).toBeDisabled();
   await expect(page.getByRole('menuitemradio', { name: /^Rendering: Smooth/ })).toHaveAttribute('aria-checked', 'true');
-  // Sharp needs no float targets.
-  await expect(page.getByRole('menuitemradio', { name: /^Rendering: Sharp/ })).toBeEnabled();
+  // Crisp needs no float targets.
+  await expect(page.getByRole('menuitemradio', { name: /^Rendering: Crisp/ })).toBeEnabled();
   await expect(overlay(page)).toHaveCount(0);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/rendering-enhance-disabled.png` });
+});
+
+test('software WebGL (blocklisted GPU): Enhance is disabled as "Graphics chip unavailable", Crisp still runs', async ({ page }) => {
+  await withoutWebGpu(page, false, 'software');
+  await openReader(page);
+  await openRenderingMenu(page);
+  await expect(page.getByRole('menuitemradio', { name: 'Rendering: Enhance - Graphics chip unavailable' })).toBeDisabled();
+  const crisp = page.getByRole('menuitemradio', { name: /^Rendering: Crisp/ });
+  await expect(crisp).toBeEnabled();
+  await crisp.click();
+  await expect(overlay(page)).toBeVisible({ timeout: 30_000 });
 });

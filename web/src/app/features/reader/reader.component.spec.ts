@@ -584,7 +584,7 @@ describe('ReaderComponent webtoon Enhance wiring (1.24.0)', () => {
     fixture.detectChanges();
     expect(c.upscaleActive()).toBe(true);
     expect(dir().appWebtoonEnhanceHost()).toEqual({ mode: 'enhance', engine: 'webgpu' });
-    // A choice this device cannot run (jsdom has no WebGL2 for Sharp): plain images.
+    // A choice this device cannot run (jsdom has no WebGL2 for Crisp): plain images.
     c.prefs.setUpscaler('sharp');
     fixture.detectChanges();
     expect(c.upscaleActive()).toBe(true);
@@ -2569,7 +2569,7 @@ describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filt
     expect(c.prefs.upscaler()).toBe('smooth');
   });
 
-  it("'e' cycles Smooth -> Sharp -> Enhance -> Smooth where all three can run (1.25.0)", () => {
+  it("'e' cycles Smooth -> Crisp -> Enhance -> Smooth where all three can run (1.25.0)", () => {
     const c = create('paged');
     const support = TestBed.inject(UpscaleSupportService);
     support.support.set('ready');
@@ -2582,7 +2582,7 @@ describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filt
     expect(c.prefs.upscaler()).toBe('smooth');
   });
 
-  it("'e' over plain HTTP without float targets cycles Smooth <-> Sharp, skipping Enhance (1.25.0)", () => {
+  it("'e' over plain HTTP without float targets cycles Smooth <-> Crisp, skipping Enhance (1.25.0)", () => {
     const c = create('webtoon');
     const support = TestBed.inject(UpscaleSupportService);
     support.support.set('unavailable');
@@ -3408,6 +3408,6 @@ describe('ReaderComponent Rendering notice (1.25.0)', () => {
     c.pages.set(makePages(3));
     c.toggleHelp();
     fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Smooth / Sharp / Enhance');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Smooth / Crisp / Enhance');
   });
 });

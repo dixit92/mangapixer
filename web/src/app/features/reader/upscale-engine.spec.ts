@@ -19,11 +19,11 @@ describe('availabilityFor', () => {
     expect(availabilityFor('smooth', caps({ webgl: noWebGl }))).toEqual({ state: 'ready', engine: null, note: 'Browser scaling' });
   });
 
-  it('Sharp runs on WebGL2 - also without float targets and over plain HTTP', () => {
+  it('Crisp runs on WebGL2 - also without float targets and over plain HTTP', () => {
     expect(availabilityFor('sharp', caps({ webgl: gl(false), secure: false }))).toEqual({ state: 'ready', engine: 'webgl2', note: 'WebGL2' });
   });
 
-  it('Sharp names why it cannot run: no WebGL2 at all, or no context (graphics chip)', () => {
+  it('Crisp names why it cannot run: no WebGL2 at all, or no context (graphics chip)', () => {
     expect(availabilityFor('sharp', caps({ webgl: noWebGl }))).toEqual({ state: 'unavailable', reason: reasons.noWebGl2 });
     expect(availabilityFor('sharp', caps({ webgl: { status: 'unavailable', floatTargets: false, maxTextureSize: 0 } })))
       .toEqual({ state: 'unavailable', reason: reasons.chip });
@@ -84,14 +84,14 @@ describe('backends', () => {
 });
 
 describe('nextUpscaler (the e shortcut)', () => {
-  it('cycles Smooth -> Sharp -> Enhance -> Smooth when all three can run', () => {
+  it('cycles Smooth -> Crisp -> Enhance -> Smooth when all three can run', () => {
     const c = caps({ webgpu: 'ready' });
     expect(nextUpscaler('smooth', c)).toBe('sharp');
     expect(nextUpscaler('sharp', c)).toBe('enhance');
     expect(nextUpscaler('enhance', c)).toBe('smooth');
   });
 
-  it('skips what cannot run: Smooth <-> Sharp over HTTP without float targets', () => {
+  it('skips what cannot run: Smooth <-> Crisp over HTTP without float targets', () => {
     const c = caps({ secure: false, webgl: gl(false) });
     expect(nextUpscaler('smooth', c)).toBe('sharp');
     expect(nextUpscaler('sharp', c)).toBe('smooth');
@@ -117,7 +117,7 @@ describe('capsSummary', () => {
   it('reads as the device verification line', () => {
     expect(capsSummary(caps({ webgpu: 'ready' }))).toBe('WebGPU ready, WebGL2 ready');
     expect(capsSummary(caps({ secure: false }))).toBe('WebGPU needs HTTPS, WebGL2 ready');
-    expect(capsSummary(caps({ webgl: gl(false) }))).toBe('WebGPU unavailable, WebGL2 ready (Sharp only)');
+    expect(capsSummary(caps({ webgl: gl(false) }))).toBe('WebGPU unavailable, WebGL2 ready (Crisp only)');
     expect(capsSummary(caps({ webgpu: 'checking', webgl: noWebGl }))).toBe('checking WebGPU…, no WebGL2');
   });
 });
@@ -141,9 +141,17 @@ describe('probeWebGl', () => {
     const getExtension = fake.gl.getExtension.bind(fake.gl);
     fake.gl.getExtension = ((name: string) => (name === 'WEBGL_lose_context' ? { loseContext: lose } : getExtension(name))) as typeof fake.gl.getExtension;
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fake.gl as unknown as GPUCanvasContext);
-    expect(probeWebGl()).toEqual({ status: 'ready', floatTargets: true, maxTextureSize: 4096 });
+    expect(probeWebGl()).toEqual({ status: 'ready', floatTargets: true, maxTextureSize: 4096, software: false });
     expect(lose).toHaveBeenCalledTimes(1);
     expect(fake.live()).toBe(0); // the RGBA16F test framebuffer was deleted
+  });
+
+  it('flags software WebGL: no context with failIfMajorPerformanceCaveat, but one without it', () => {
+    vi.stubGlobal('WebGL2RenderingContext', function WebGL2RenderingContext() { /* marker */ });
+    const fake = createFakeGl(null, { maxTextureSize: 4096 });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(((_: string, opts?: { failIfMajorPerformanceCaveat?: boolean }) =>
+      (opts?.failIfMajorPerformanceCaveat ? null : fake.gl)) as unknown as HTMLCanvasElement['getContext']);
+    expect(probeWebGl()).toEqual({ status: 'ready', floatTargets: true, maxTextureSize: 4096, software: true });
   });
 
   it('is "unavailable" when WebGL2 exists but no context can be created', () => {
@@ -155,5 +163,14 @@ describe('probeWebGl', () => {
   it('canRenderHalfFloat needs the extension AND a complete RGBA16F framebuffer', () => {
     expect(canRenderHalfFloat(createFakeGl(null, { floatTargets: false }).gl)).toBe(false);
     expect(canRenderHalfFloat(createFakeGl(null).gl)).toBe(true);
+  });
+
+  it('software WebGL (blocklisted GPU): Crisp runs, Enhance is disabled as "Graphics chip unavailable" even over HTTPS', () => {
+    const soft: GpuCaps = { webgpu: 'unavailable', secure: true, webgl: { status: 'ready', floatTargets: true, maxTextureSize: 4096, software: true } };
+    expect(availabilityFor('sharp', soft)).toEqual({ state: 'ready', engine: 'webgl2', note: 'WebGL2' });
+    expect(availabilityFor('enhance', soft)).toEqual({ state: 'unavailable', reason: reasons.chip });
+    expect(availabilityFor('enhance', { ...soft, secure: false })).toEqual({ state: 'unavailable', reason: reasons.chip });
+    expect(nextUpscaler('sharp', soft)).toBe('smooth');
+    expect(capsSummary(soft)).toBe('WebGPU unavailable, WebGL2 in software (Crisp only)');
   });
 });

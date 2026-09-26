@@ -76,7 +76,7 @@ export const FIT_OPTIONS: readonly ReaderOption<FitMode>[] = [
  */
 export const UPSCALER_OPTIONS: readonly ReaderOption<Upscaler>[] = [
   { value: 'smooth', label: 'Smooth', icon: 'blur_on' },
-  { value: 'sharp', label: 'Sharp', icon: 'deblur' },
+  { value: 'sharp', label: 'Crisp', icon: 'deblur' },
   { value: 'enhance', label: 'Enhance', icon: 'auto_fix_high' },
 ];
 
@@ -344,7 +344,7 @@ export class ReaderSettingsMenuComponent {
   readonly closed = output<void>();
 
   /**
-   * The Rendering list: Smooth / Sharp / Enhance, each disabled with its reason
+   * The Rendering list: Smooth / Crisp / Enhance, each disabled with its reason
    * when it cannot run on this device, the selected one with its engine line
    * (1.25.0). Disabled-with-a-reason beats an option that does nothing. Every
    * view is covered since 1.24.0 (webtoon through the banded renderer).
@@ -355,7 +355,7 @@ export class ReaderSettingsMenuComponent {
   readonly enhanceDisabled = computed<boolean>(() => this.support.enhance().state !== 'ready');
 
   /** The status line under the Rendering group (5 taps toggle the timing readout). */
-  readonly renderingHint = computed<string>(() => this.support.statusText());
+  readonly renderingHint = computed<string>(() => this.support.statusText(false));  // desktop: the option line names the engine
 
   /**
    * Enhance quality is a sub-choice of Enhance, and a paged-view choice: the
@@ -578,7 +578,7 @@ export interface ReaderOptionsHost {
 
       <!-- 1.19.0 image scaling, shown in every view: Rendering is how an UPSCALED
            page is resampled, Page quality is how many pixels are fetched. Since
-           1.25.0 Rendering is Smooth / Sharp / Enhance; a choice that cannot run
+           1.25.0 Rendering is Smooth / Crisp / Enhance; a choice that cannot run
            here is disabled, and the line under the chips names the engine in use
            and each reason. Since 1.24.0 it covers the vertical view too. -->
       <section class="group">

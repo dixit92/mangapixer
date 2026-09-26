@@ -7,7 +7,7 @@ import type { Upscaler } from '../../core/reading/reader-preferences.service';
  * unit-tested here without a GPU.
  *
  *  - Smooth  - the browser's own scaling. No GPU work of ours, always available.
- *  - Sharp   - AMD FSR 1 (EASU + RCAS) on WebGL2. Needs only a WebGL2 context:
+ *  - Crisp   - AMD FSR 1 (EASU + RCAS) on WebGL2. Needs only a WebGL2 context:
  *              no secure context, no float render targets.
  *  - Enhance - Anime4K. WebGPU when the browser hands out an adapter; WebGPU is
  *              `[SecureContext]`, so over plain `http://<LAN IP>` it does not
@@ -38,12 +38,18 @@ export type WebGpuStatus = 'checking' | 'ready' | 'unavailable';
  *  - `unavailable` - WebGL2 exists but no context could be created (GPU
  *    blocklisted, driver trouble, too many contexts);
  *  - `ready` - a context works; `floatTargets` says whether `RGBA16F` can be
- *    rendered to (needed by Enhance's convolution layers, not by Sharp).
+ *    rendered to (needed by Enhance's convolution layers, not by Crisp).
  */
 export interface WebGlCaps {
   readonly status: 'unsupported' | 'unavailable' | 'ready';
   readonly floatTargets: boolean;
   readonly maxTextureSize: number;
+  /**
+   * The browser renders WebGL in software (a blocklisted GPU: a context exists, but not
+   * with `failIfMajorPerformanceCaveat`). Crisp is cheap enough to keep; Enhance would
+   * take seconds per page, so it is offered disabled instead (owner, 2026-09-26).
+   */
+  readonly software?: boolean;
 }
 
 export interface GpuCaps {
@@ -80,12 +86,14 @@ export function availabilityFor(mode: Upscaler, caps: GpuCaps): Availability {
   if (caps.webgpu === 'ready') return { state: 'ready', engine: 'webgpu', note: 'WebGPU' };
   // Wait for the adapter probe (a few ms) rather than flash a WebGL2 line first.
   if (caps.webgpu === 'checking') return { state: 'checking' };
-  if (gl.status === 'ready' && gl.floatTargets) {
+  if (gl.status === 'ready' && gl.floatTargets && !gl.software) {
     return {
       state: 'ready', engine: 'webgl2',
       note: caps.secure ? 'WebGL2 - WebGPU unavailable here' : 'WebGL2 - WebGPU needs HTTPS',
     };
   }
+  // Software WebGL: the graphics chip is not available to the browser; HTTPS would not help.
+  if (gl.status === 'ready' && gl.software) return { state: 'unavailable', reason: reasons.chip };
   // Over plain HTTP the fix is the connection: HTTPS brings WebGPU.
   if (!caps.secure) return { state: 'unavailable', reason: reasons.https };
   if (gl.status === 'ready') return { state: 'unavailable', reason: reasons.chipFloat };
@@ -122,7 +130,7 @@ export function nextUpscaler(current: Upscaler, caps: GpuCaps): Upscaler {
   return 'smooth';
 }
 
-export const upscalerLabels: Readonly<Record<Upscaler, string>> = { smooth: 'Smooth', sharp: 'Sharp', enhance: 'Enhance' };
+export const upscalerLabels: Readonly<Record<Upscaler, string>> = { smooth: 'Smooth', sharp: 'Crisp', enhance: 'Enhance' };
 
 /** Short engine summary for the status line when Smooth is selected (capabilities at a glance). */
 export function capsSummary(caps: GpuCaps): string {
@@ -130,7 +138,9 @@ export function capsSummary(caps: GpuCaps): string {
     : caps.webgpu === 'checking' ? 'checking WebGPU…'
       : caps.secure ? 'WebGPU unavailable' : 'WebGPU needs HTTPS';
   const gl = caps.webgl;
-  const webgl = gl.status !== 'ready' ? 'no WebGL2' : gl.floatTargets ? 'WebGL2 ready' : 'WebGL2 ready (Sharp only)';
+  const webgl = gl.status !== 'ready' ? 'no WebGL2'
+    : gl.software ? 'WebGL2 in software (Crisp only)'
+      : gl.floatTargets ? 'WebGL2 ready' : 'WebGL2 ready (Crisp only)';
   return `${webgpu}, ${webgl}`;
 }
 
@@ -147,12 +157,20 @@ export function probeWebGl(doc: Document | null = typeof document === 'undefined
     const canvas = doc.createElement('canvas');
     canvas.width = 1;
     canvas.height = 1;
-    const gl = canvas.getContext('webgl2', { antialias: false, depth: false, stencil: false });
+    const options: WebGLContextAttributes = { antialias: false, depth: false, stencil: false };
+    // A hardware context first; if only a "major performance caveat" (software) context
+    // exists, Crisp still runs but Enhance is offered disabled.
+    let software = false;
+    let gl = canvas.getContext('webgl2', { ...options, failIfMajorPerformanceCaveat: true });
+    if (!gl) {
+      gl = doc.createElement('canvas').getContext('webgl2', options);
+      software = !!gl;
+    }
     if (!gl) return { status: 'unavailable', floatTargets: false, maxTextureSize: 0 };
     const maxTextureSize = Number(gl.getParameter(gl.MAX_TEXTURE_SIZE)) || 0;
     const floatTargets = canRenderHalfFloat(gl);
     gl.getExtension('WEBGL_lose_context')?.loseContext();
-    return { status: 'ready', floatTargets, maxTextureSize };
+    return { status: 'ready', floatTargets, maxTextureSize, software };
   } catch {
     return { status: 'unavailable', floatTargets: false, maxTextureSize: 0 };
   }

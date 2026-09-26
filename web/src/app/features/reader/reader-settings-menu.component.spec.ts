@@ -70,12 +70,12 @@ describe('ReaderSettingsMenuComponent', () => {
     const noteOf = (item: HTMLElement) => item.querySelector('.option-note')?.textContent?.trim() ?? null;
     const webgl = (floatTargets = true) => ({ status: 'ready' as const, floatTargets, maxTextureSize: 8192 });
 
-    it('offers Smooth / Sharp / Enhance and Auto / Full as menuitemradios, defaults highlighted', () => {
+    it('offers Smooth / Crisp / Enhance and Auto / Full as menuitemradios, defaults highlighted', () => {
       const { fixture } = create();
       const { panel } = openRendering(fixture);
       const rendering = renderingItems(panel);
       expect(rendering.map((i) => (i.getAttribute('aria-label') ?? '').replace(/ - .*$/, '')))
-        .toEqual(['Rendering: Smooth', 'Rendering: Sharp', 'Rendering: Enhance']);
+        .toEqual(['Rendering: Smooth', 'Rendering: Crisp', 'Rendering: Enhance']);
       const quality = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'))
         .filter((i) => (i.getAttribute('aria-label') ?? '').startsWith('Page quality'));
       // textContent carries the icon ligature first, as elsewhere in these menus.
@@ -102,23 +102,23 @@ describe('ReaderSettingsMenuComponent', () => {
       expect(prefs.pageQuality()).toBe('full');
     });
 
-    it('without WebGPU or WebGL2, Sharp and Enhance are disabled, each with its reason', () => {
+    it('without WebGPU or WebGL2, Crisp and Enhance are disabled, each with its reason', () => {
       const { fixture, c } = create();
       expect(c.support.support()).toBe('unavailable'); // jsdom: no navigator.gpu
       expect(c.support.webgl().status).toBe('unsupported'); // ... and no WebGL2
       expect(c.enhanceDisabled()).toBe(true);
       const { panel } = openRendering(fixture);
-      const sharp = renderingItem(panel, 'Sharp');
+      const sharp = renderingItem(panel, 'Crisp');
       const enhance = renderingItem(panel, 'Enhance');
       expect(sharp.disabled).toBe(true);
       expect(enhance.disabled).toBe(true);
       expect(noteOf(sharp)).toBe('Needs WebGL2, which this browser lacks');
       expect(noteOf(enhance)).toBe('Needs WebGL2, which this browser lacks');
-      expect(sharp.getAttribute('aria-label')).toBe('Rendering: Sharp - Needs WebGL2, which this browser lacks');
+      expect(sharp.getAttribute('aria-label')).toBe('Rendering: Crisp - Needs WebGL2, which this browser lacks');
       expect(panel.querySelector('.menu-hint')?.textContent).toContain('WebGPU unavailable, no WebGL2');
     });
 
-    it('over plain HTTP with WebGL2: Enhance runs on WebGL2 and says why; Sharp is WebGL2', () => {
+    it('over plain HTTP with WebGL2: Enhance runs on WebGL2 and says why; Crisp is WebGL2', () => {
       const { fixture, c, prefs } = create();
       c.support.secure.set(false);
       c.support.webgl.set(webgl());
@@ -129,13 +129,13 @@ describe('ReaderSettingsMenuComponent', () => {
       expect(enhance.disabled).toBe(false);
       expect(enhance.classList.contains('selected-option')).toBe(true);
       expect(noteOf(enhance)).toBe('WebGL2 - WebGPU needs HTTPS');
-      expect(noteOf(renderingItem(panel, 'Sharp'))).toBeNull(); // not selected: no line
-      expect(renderingItem(panel, 'Sharp').disabled).toBe(false);
-      expect(c.renderingHint()).toBe('GPU: Enhance on WebGL2 - WebGPU needs HTTPS');
-      renderingItem(panel, 'Sharp').click();
+      expect(noteOf(renderingItem(panel, 'Crisp'))).toBeNull(); // not selected: no line
+      expect(renderingItem(panel, 'Crisp').disabled).toBe(false);
+      expect(c.renderingHint()).toBe('GPU: WebGPU needs HTTPS, WebGL2 ready');  // desktop: engine on the option line
+      renderingItem(panel, 'Crisp').click();
       fixture.detectChanges();
       expect(prefs.upscaler()).toBe('sharp');
-      expect(c.renderingHint()).toBe('GPU: Sharp on WebGL2');
+      expect(c.renderingHint()).toBe('GPU: WebGPU needs HTTPS, WebGL2 ready');  // desktop: engine on the option line
     });
 
     it('over plain HTTP without float render targets, Enhance is disabled: needs a secure connection', () => {
@@ -172,7 +172,7 @@ describe('ReaderSettingsMenuComponent', () => {
       const { panel } = openRendering(fixture);
       expect(renderingItem(panel, 'Enhance').disabled).toBe(true);
       expect(noteOf(renderingItem(panel, 'Enhance'))).toBe('Checking WebGPU…');
-      expect(renderingItem(panel, 'Sharp').disabled).toBe(false);
+      expect(renderingItem(panel, 'Crisp').disabled).toBe(false);
     });
 
     it('with WebGPU ready, Enhance is selectable in every view, webtoon included (1.24.0)', () => {
@@ -183,7 +183,7 @@ describe('ReaderSettingsMenuComponent', () => {
       expect(c.renderingHint()).toBe('GPU: WebGPU ready, no WebGL2');
       c.chooseUpscaler('enhance');
       expect(prefs.upscaler()).toBe('enhance');
-      expect(c.renderingHint()).toBe('GPU: Enhance on WebGPU');
+      expect(c.renderingHint()).toBe('GPU: WebGPU ready, no WebGL2');  // desktop: engine on the option line
 
       fixture.componentRef.setInput('view', 'webtoon');
       fixture.detectChanges();
@@ -296,7 +296,7 @@ describe('ReaderSettingsMenuComponent', () => {
       fixture.detectChanges();
       const { panel } = openRendering(fixture);
       const status = panel.querySelector('button.hint-tap') as HTMLButtonElement;
-      expect(status.textContent?.trim()).toBe('GPU: Enhance on WebGPU');
+      expect(status.textContent?.trim()).toBe('GPU: WebGPU ready, no WebGL2');  // desktop: engine on the option line
       for (let i = 0; i < 5; i++) status.click();
       fixture.detectChanges();
       expect(c.support.statsVisible()).toBe(true);
@@ -305,7 +305,7 @@ describe('ReaderSettingsMenuComponent', () => {
       c.support.recordTiming('band', 22);
       c.support.recordTiming('band', 400); // median, so one slow band does not skew it
       fixture.detectChanges();
-      expect(status.textContent?.trim()).toBe('GPU: Enhance on WebGPU - 22 ms/band');
+      expect(status.textContent?.trim()).toBe('GPU: WebGPU ready, no WebGL2 - 22 ms/band');
       for (let i = 0; i < 5; i++) status.click();
       expect(c.support.statsVisible()).toBe(false);
     });
@@ -316,7 +316,7 @@ describe('ReaderSettingsMenuComponent', () => {
       c.support.support.set('ready');
       expect(c.support.statusText()).toBe('GPU: WebGPU ready, no WebGL2');
       c.support.webgl.set(webgl(false));
-      expect(c.support.statusText()).toBe('GPU: WebGPU ready, WebGL2 ready (Sharp only)');
+      expect(c.support.statusText()).toBe('GPU: WebGPU ready, WebGL2 ready (Crisp only)');
       c.support.secure.set(false);
       c.support.support.set('unavailable');
       c.support.webgl.set(webgl());
@@ -637,7 +637,7 @@ describe('ReaderOptionsSheetComponent', () => {
 
     it('adds both groups in the paged view, each with exactly one checked chip', () => {
       const { chips, checked } = create();
-      expect(chips('reader-options-rendering').length).toBe(3); // Smooth / Sharp / Enhance (1.25.0)
+      expect(chips('reader-options-rendering').length).toBe(3); // Smooth / Crisp / Enhance (1.25.0)
       expect(chips('reader-options-quality').length).toBe(2);
       for (const id of ['reader-options-rendering', 'reader-options-quality']) {
         expect(checked(id).length, id).toBe(1);
@@ -660,19 +660,19 @@ describe('ReaderOptionsSheetComponent', () => {
       expect(ref.dismiss).not.toHaveBeenCalled();
     });
 
-    it('Sharp and Enhance are disabled and explained without WebGPU or WebGL2 (jsdom has neither)', () => {
+    it('Crisp and Enhance are disabled and explained without WebGPU or WebGL2 (jsdom has neither)', () => {
       const { c, el, chip } = create();
       expect(c.enhanceDisabled()).toBe(true);
       expect((chip('reader-options-rendering', 'Enhance') as HTMLButtonElement).disabled).toBe(true);
-      expect((chip('reader-options-rendering', 'Sharp') as HTMLButtonElement).disabled).toBe(true);
+      expect((chip('reader-options-rendering', 'Crisp') as HTMLButtonElement).disabled).toBe(true);
       expect(el.querySelector('.rendering-notes')?.textContent?.trim())
-        .toBe('Sharp: Needs WebGL2, which this browser lacks · Enhance: Needs WebGL2, which this browser lacks');
+        .toBe('Crisp: Needs WebGL2, which this browser lacks · Enhance: Needs WebGL2, which this browser lacks');
       c.pickUpscaler('enhance');
       c.pickUpscaler('sharp');
       expect(TestBed.inject(ReaderPreferencesService).upscaler()).toBe('smooth');
     });
 
-    it('over plain HTTP with WebGL2: Sharp and Enhance are selectable, the status line names the engine', () => {
+    it('over plain HTTP with WebGL2: Crisp and Enhance are selectable, the status line names the engine', () => {
       const { fixture, c, el, checked, chip } = create();
       c.support.secure.set(false);
       c.support.webgl.set(webgl());
@@ -683,9 +683,9 @@ describe('ReaderOptionsSheetComponent', () => {
       expect(TestBed.inject(ReaderPreferencesService).upscaler()).toBe('enhance');
       expect(checked('reader-options-rendering')[0].textContent).toContain('Enhance');
       expect(el.querySelector('.hint-tap')?.textContent?.trim()).toBe('GPU: Enhance on WebGL2 - WebGPU needs HTTPS');
-      chip('reader-options-rendering', 'Sharp').click();
+      chip('reader-options-rendering', 'Crisp').click();
       fixture.detectChanges();
-      expect(el.querySelector('.hint-tap')?.textContent?.trim()).toBe('GPU: Sharp on WebGL2');
+      expect(el.querySelector('.hint-tap')?.textContent?.trim()).toBe('GPU: Crisp on WebGL2');
     });
 
     it('without float render targets over HTTP, only Enhance is disabled: needs a secure connection', () => {
@@ -693,7 +693,7 @@ describe('ReaderOptionsSheetComponent', () => {
       c.support.secure.set(false);
       c.support.webgl.set(webgl(false));
       fixture.detectChanges();
-      expect((chip('reader-options-rendering', 'Sharp') as HTMLButtonElement).disabled).toBe(false);
+      expect((chip('reader-options-rendering', 'Crisp') as HTMLButtonElement).disabled).toBe(false);
       expect((chip('reader-options-rendering', 'Enhance') as HTMLButtonElement).disabled).toBe(true);
       expect(el.querySelector('.rendering-notes')?.textContent?.trim()).toBe('Enhance: Needs a secure connection (HTTPS)');
     });
