@@ -17,10 +17,17 @@ using System.IO;
 /// - Cache miss is recoverable: eviction only affects derived entries.
 /// - Never evict source media.
 /// - Access writes are coalesced, never one SQLite write per image hit.
+/// - Each process writes into its own run folder (<c>run-&lt;start time&gt;</c>) under
+///   the cache root; the index lives in memory, so files left by an earlier run
+///   would be invisible to the budget. <see cref="DeleteStaleRuns"/> removes them
+///   in the background after startup (1.24.1).
 /// </summary>
 public sealed class CacheService
 {
+    private const string RunFolderPrefix = "run-";
+
     private readonly string _cacheRoot;
+    private readonly string _runRoot;
     private readonly long _budgetBytes;
     private readonly ConcurrentDictionary<string, CacheEntry> _entries = new();
     private readonly ConcurrentDictionary<string, int> _pinnedFiles = new();
@@ -31,16 +38,22 @@ public sealed class CacheService
     {
         _cacheRoot = Path.GetFullPath(cacheRoot)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        _runRoot = Path.Combine(_cacheRoot,
+            RunFolderPrefix + DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'", System.Globalization.CultureInfo.InvariantCulture)
+            + "-" + Guid.NewGuid().ToString("N")[..6]);
         _budgetBytes = budgetBytes;
         _logger = logger;
     }
+
+    /// <summary>This process's run folder; every cache file and temp file lives under it.</summary>
+    public string RunDirectory => _runRoot;
 
     /// <summary>
     /// Directory for short-lived temp bytes staged before publish. Lives UNDER
     /// the app-managed cache root — never the system temp dir — so page bytes
     /// stay within the scratch/cache boundary (audit finding A2).
     /// </summary>
-    public string ScratchDirectory => Path.Combine(_cacheRoot, "_tmp");
+    public string ScratchDirectory => Path.Combine(_runRoot, "_tmp");
 
     /// <summary>
     /// Initializes the cache root and scratch directories.
@@ -48,7 +61,105 @@ public sealed class CacheService
     public void Initialize()
     {
         Directory.CreateDirectory(_cacheRoot);
+        Directory.CreateDirectory(_runRoot);
         Directory.CreateDirectory(ScratchDirectory);
+    }
+
+    /// <summary>
+    /// Deletes what earlier runs left in the cache root: other <c>run-*</c> folders,
+    /// the pre-1.24.1 flat layout (two-hex-digit folders of 64-hex-digit files) and
+    /// its <c>_tmp</c> folder. Only those cache-shaped names are touched, so a cache
+    /// root that points at a shared folder by mistake loses nothing else. Best
+    /// effort: an entry that cannot be deleted is skipped. Returns the files and
+    /// bytes removed.
+    /// </summary>
+    public (int Files, long Bytes) DeleteStaleRuns(CancellationToken ct = default)
+    {
+        var files = 0;
+        long bytes = 0;
+        if (!Directory.Exists(_cacheRoot))
+            return (0, 0);
+
+        var current = Path.GetFileName(_runRoot);
+        foreach (var dir in Directory.EnumerateDirectories(_cacheRoot))
+        {
+            ct.ThrowIfCancellationRequested();
+            var name = Path.GetFileName(dir);
+            if (string.Equals(name, current, StringComparison.Ordinal))
+                continue;
+
+            if (name.StartsWith(RunFolderPrefix, StringComparison.Ordinal) || name == "_tmp")
+            {
+                DeleteTree(dir, _ => true, ref files, ref bytes, ct);
+            }
+            else if (name.Length == 2 && IsLowerHex(name))
+            {
+                DeleteTree(dir, IsLegacyCacheFileName, ref files, ref bytes, ct);
+            }
+        }
+
+        if (files > 0)
+        {
+            _logger?.LogInformation(LogEvents.Cache.CacheStaleRunsDeleted,
+                "Deleted {Files} cache files ({Bytes} bytes) left by earlier runs", files, bytes);
+        }
+        return (files, bytes);
+    }
+
+    private static void DeleteTree(string dir, Func<string, bool> fileFilter, ref int files, ref long bytes, CancellationToken ct)
+    {
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+            {
+                ct.ThrowIfCancellationRequested();
+                if (!fileFilter(Path.GetFileName(file)))
+                    continue;
+                try
+                {
+                    var length = new FileInfo(file).Length;
+                    File.Delete(file);
+                    files++;
+                    bytes += length;
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+
+            // Remove the now-empty folders, deepest first; a folder that still
+            // holds something (a foreign file, a failed delete) stays.
+            foreach (var sub in Directory.EnumerateDirectories(dir, "*", SearchOption.AllDirectories)
+                         .OrderByDescending(d => d.Length).Append(dir))
+            {
+                try
+                {
+                    if (!Directory.EnumerateFileSystemEntries(sub).Any())
+                        Directory.Delete(sub);
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+        catch (DirectoryNotFoundException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    // Pre-1.24.1 cache files: the SHA-256 of the key as 64 lower-case hex
+    // digits, or the same name + ".tmp" for a publish interrupted mid-write.
+    private static bool IsLegacyCacheFileName(string fileName)
+    {
+        var stem = fileName.EndsWith(".tmp", StringComparison.Ordinal) ? fileName[..^4] : fileName;
+        return stem.Length == 64 && IsLowerHex(stem);
+    }
+
+    private static bool IsLowerHex(string value)
+    {
+        foreach (var c in value)
+        {
+            if (!(c is >= '0' and <= '9' or >= 'a' and <= 'f'))
+                return false;
+        }
+        return true;
     }
 
     /// <summary>
@@ -67,7 +178,7 @@ public sealed class CacheService
         // Use a hash to avoid filesystem path length issues
         var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(cacheKey))).ToLowerInvariant();
-        return Path.Combine(_cacheRoot, hash[..2], hash);
+        return Path.Combine(_runRoot, hash[..2], hash);
     }
 
     /// <summary>
