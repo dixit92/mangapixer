@@ -63,6 +63,13 @@ export const routes: Routes = [
           import('./features/admin/admin.component').then((m) => m.AdminComponent),
       },
       {
+        // Series metadata admin page (stage 2): Settings / Review / Flags / Runs.
+        path: 'admin/metadata',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./features/metadata/admin-metadata/admin-metadata.component').then((m) => m.AdminMetadataComponent),
+      },
+      {
         // WIRING HOOK (1.17.0 DEBUGUI lane): per-category debug log-level UI.
         // Integrator: keep this route and/or embed <app-debug-log-card /> in AdminComponent.
         path: 'admin/logging',

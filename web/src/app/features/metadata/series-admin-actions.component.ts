@@ -7,10 +7,11 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Observable } from 'rxjs';
 
-import { MetadataPrecedence, SeriesInfoDto } from '../../core/api/api-types';
+import { FolderMetadataContentDto, MetadataFolderContent, MetadataPrecedence, SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
 import { MetadataStateService } from './metadata-state.service';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
+import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion } from './folder-content';
 
 /**
  * Admin menu for one node's series metadata (1.24.0), shared by the overlay and the
@@ -21,6 +22,9 @@ import { IdentifyDialogService } from './identify-dialog/identify-dialog.service
  * - Don't match / Clear Don't match - the node is not one series; nothing is inherited.
  * - Unlink - removes the node's own web link (inheritance resumes).
  * - Source precedence (folders): inherit / web first / ComicInfo first.
+ * - Content (folders, stage 2): Auto / Doujinshi & adult one-shots / Not doujinshi, with
+ *   where the current value comes from and the detector's suggestion (loaded when the
+ *   menu opens; hidden when the server has no Content setting).
  * Emits `changed` after a successful change so the host re-resolves the info; a link
  * change (Don't match, Clear, Unlink) is also announced through `MetadataStateService`
  * so the browse card (i) and top-bar button update without a reload.
@@ -31,7 +35,7 @@ import { IdentifyDialogService } from './identify-dialog/identify-dialog.service
   imports: [MatButtonModule, MatIconModule, MatMenuModule, MatDividerModule, MatTooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <button mat-stroked-button type="button" [matMenuTriggerFor]="adminMenu" [disabled]="busy()" (menuOpened)="checkIdentify()"
+    <button mat-stroked-button type="button" [matMenuTriggerFor]="adminMenu" [disabled]="busy()" (menuOpened)="onMenuOpened()"
             aria-label="Series admin actions" data-testid="series-admin-menu">
       <mat-icon>admin_panel_settings</mat-icon> Admin
     </button>
@@ -77,6 +81,23 @@ import { IdentifyDialogService } from './identify-dialog/identify-dialog.service
         <button mat-menu-item (click)="setPrecedence('ComicInfoFirst')" data-testid="precedence-comicinfo">
           <mat-icon>description</mat-icon> ComicInfo first
         </button>
+        @if (content(); as c) {
+          <mat-divider />
+          <span class="caption" data-testid="content-caption">{{ caption() }}</span>
+          @for (o of contentOptions; track o.value) {
+            <button mat-menu-item (click)="setContent(o.value)" [matTooltip]="o.hint" matTooltipPosition="left"
+                    [attr.data-testid]="'content-' + o.value">
+              <mat-icon>{{ c.effective === o.value ? 'check' : o.icon }}</mat-icon>
+              <span>{{ o.label }}</span>
+              @if (suggested() === o.value) { <span class="suggest" data-testid="content-suggested">suggested</span> }
+            </button>
+          }
+          @if (c.content) {
+            <button mat-menu-item (click)="setContent(null)" data-testid="content-inherit">
+              <mat-icon>vertical_align_top</mat-icon> Inherit (clear)
+            </button>
+          }
+        }
       }
     </mat-menu>
   `,
@@ -84,6 +105,7 @@ import { IdentifyDialogService } from './identify-dialog/identify-dialog.service
     :host { display: inline-flex; }
     button mat-icon { margin-right: 4px; }
     .why { display: block; max-width: 240px; padding: 0 16px 6px 56px; font-size: 12px; color: #9a9aa8; }
+    .suggest { margin-left: 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #ffcc80; }
     .caption {
       display: block; padding: 6px 16px 2px; font-size: 11px; font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.5px; color: #8a8a99;
@@ -104,6 +126,43 @@ export class SeriesAdminActionsComponent {
   /** Whether the web switches allow Identify/Refresh here; null until checked. */
   readonly identifyAvailable = signal(false);
   readonly identifyReason = signal<string | null>(null);
+
+  /** Folder Content setting (stage 2); null until loaded or when unavailable. */
+  readonly content = signal<FolderMetadataContentDto | null>(null);
+  readonly contentOptions = FOLDER_CONTENT_OPTIONS;
+  readonly caption = computed(() => contentCaption(this.content()));
+  readonly suggested = computed(() => contentSuggestion(this.content()));
+
+  onMenuOpened(): void {
+    this.checkIdentify();
+    if (this.isFolder()) this.loadContent();
+  }
+
+  /** Local read; a server without the Content setting leaves the section hidden. */
+  loadContent(): void {
+    this.api.getFolderContent(this.info().nodeId).subscribe({
+      next: (c) => this.content.set(c),
+      error: () => this.content.set(null),
+    });
+  }
+
+  /** null clears the folder's own value (the nearest ancestor's applies again). */
+  setContent(value: MetadataFolderContent | null): void {
+    const id = this.info().nodeId;
+    this.busy.set(true);
+    const call = value ? this.api.setFolderContent(id, value) : this.api.clearFolderContent(id);
+    call.subscribe({
+      next: (c) => {
+        this.busy.set(false);
+        this.content.set(c);
+        this.snackBar.open(value ? `Content set: ${contentLabel(value)}` : 'Content cleared (inherited again)', 'Close', { duration: 2500 });
+      },
+      error: (err: { message?: string }) => {
+        this.busy.set(false);
+        this.snackBar.open(`Failed: ${err?.message ?? 'error'}`, 'Close', { duration: 4000 });
+      },
+    });
+  }
 
   /** Asks the server (no network call) whether web lookups are allowed for this node. */
   checkIdentify(): void {
@@ -180,4 +239,8 @@ export class SeriesAdminActionsComponent {
       },
     });
   }
+}
+
+function contentLabel(value: MetadataFolderContent): string {
+  return FOLDER_CONTENT_OPTIONS.find((o) => o.value === value)?.label ?? value;
 }
