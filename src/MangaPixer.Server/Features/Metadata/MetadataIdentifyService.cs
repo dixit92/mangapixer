@@ -504,6 +504,7 @@ public sealed class MetadataIdentifyService
         {
             archives.AddRange(await _db.CatalogNodes.AsNoTracking()
                 .Where(n => n.ParentId != null && folders.Contains(n.ParentId.Value) && n.Kind == (int)CatalogNodeKind.Archive && n.Availability != live)
+                .OrderBy(n => n.Id)
                 .Select(n => n.Id)
                 .Take(MaxLocalItems)
                 .ToListAsync(ct));
@@ -528,6 +529,7 @@ public sealed class MetadataIdentifyService
 
         var dims = await _db.PageEntries.AsNoTracking()
             .Where(p => archiveIds.Contains(p.ItemId) && p.Width != null && p.Height != null && p.Width > 0)
+            .OrderBy(p => p.ItemId).ThenBy(p => p.Ordinal)
             .Select(p => new { p.Width, p.Height })
             .Take(MaxMeasuredPages)
             .ToListAsync(ct);
@@ -548,6 +550,7 @@ public sealed class MetadataIdentifyService
         var archiveIds = await LocalArchiveIdsAsync(node, ct);
         var webJson = await _db.EmbeddedMetadata.AsNoTracking()
             .Where(e => archiveIds.Contains(e.NodeId) && e.State == 1 && e.WebUrlsJson != null)
+            .OrderBy(e => e.NodeId)
             .Select(e => e.WebUrlsJson)
             .Take(50)
             .ToListAsync(ct);

@@ -9,7 +9,8 @@ using Microsoft.Extensions.Logging;
 
 /// <summary>
 /// Periodic maintenance: hourly expired-session cleanup and daily cache
-/// eviction pass. Uses a single timer with bounded drift; failures are
+/// eviction pass, plus a one-off background deletion at startup of the cache
+/// files earlier runs left behind (1.24.1). Uses a single timer with bounded drift; failures are
 /// logged as warnings and do not crash the host.
 /// </summary>
 public sealed class MaintenanceHostedService : IHostedService, IAsyncDisposable
@@ -31,6 +32,9 @@ public sealed class MaintenanceHostedService : IHostedService, IAsyncDisposable
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        // Off the startup path: reading starts at once in this run's own cache
+        // folder while the old ones are deleted.
+        RunSafe(DeleteStaleCacheRunsAsync, "stale cache cleanup");
         _sessionTimer = new Timer(_ => RunSafe(CleanupSessionsAsync, "session cleanup"), null,
             TimeSpan.FromMinutes(1), _sessionInterval);
         _cacheTimer = new Timer(_ => RunSafe(RunCacheEvictionAsync, "cache eviction"), null,
@@ -70,6 +74,13 @@ public sealed class MaintenanceHostedService : IHostedService, IAsyncDisposable
         using var scope = _services.CreateScope();
         var sessions = scope.ServiceProvider.GetRequiredService<SessionService>();
         await sessions.CleanupExpiredSessionsAsync();
+    }
+
+    private Task DeleteStaleCacheRunsAsync()
+    {
+        var cache = _services.GetRequiredService<CacheService>();
+        cache.DeleteStaleRuns();
+        return Task.CompletedTask;
     }
 
     private async Task RunCacheEvictionAsync()

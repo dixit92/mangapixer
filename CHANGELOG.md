@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.24.1] - 2026-09-26
+
+### Fixed
+
+- **Page cache grew past its budget.** The page cache only counted the pages written since the server last started, so every restart (an update, a container restart, a reboot) left the previous run's pages behind, uncounted and never deleted: one server had 4.8 GB in a 1 GiB cache. The cache now starts empty on every start: each run writes into its own folder under the cache root and deletes what earlier runs left (including the old layout) in the background, so reading starts at once. Only cache-shaped files are deleted, so a cache path pointed at the wrong folder loses nothing else. The first read of each page after a restart is regenerated; thumbnails are stored separately and are not affected. See [Configuration](docs/configuration.md#storage).
+- **Reader: switching from single or double page to vertical mode** kept the smaller page sizes requested for single page for pages already loaded, so they looked soft in the strip. Switching to vertical now requests every page at strip size.
+- **Series information: Identify** sampled a folder's archives, page sizes and ComicInfo links in no fixed order, so the "tall pages" hint and the ComicInfo suggestion could differ between two openings of the dialog for a large folder (EF Core also logged a warning about it). They are now taken in a fixed order.
+- **Security:** request and response records that carry a password, token or activation link (sign-in, first-run setup, password change and reset, account activation, user creation, backup settings) now print those values as `[redacted]`, so raising the log level can never write them to the log.
+
 ## [1.24.0] - 2026-09-26
 
 ### Added

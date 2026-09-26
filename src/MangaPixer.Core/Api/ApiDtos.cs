@@ -524,6 +524,10 @@ public sealed record AuthUserDto
 public sealed record CsrfTokenDto
 {
     public required string Token { get; init; }
+
+
+    public override string ToString() =>
+        "CsrfTokenDto { Token = [redacted] }";
 }
 
 /// <summary>
@@ -542,6 +546,10 @@ public sealed record SetupRequest
 {
     public required string Username { get; init; }
     public required string Password { get; init; }
+
+
+    public override string ToString() =>
+        $"SetupRequest {{ Username = {Username}, Password = [redacted] }}";
 }
 
 /// <summary>
@@ -551,6 +559,10 @@ public sealed record LoginRequest
 {
     public required string Username { get; init; }
     public required string Password { get; init; }
+
+
+    public override string ToString() =>
+        $"LoginRequest {{ Username = {Username}, Password = [redacted] }}";
 }
 
 /// <summary>
@@ -560,6 +572,10 @@ public sealed record ChangePasswordRequest
 {
     public required string CurrentPassword { get; init; }
     public required string NewPassword { get; init; }
+
+
+    public override string ToString() =>
+        "ChangePasswordRequest { CurrentPassword = [redacted], NewPassword = [redacted] }";
 }
 
 /// <summary>
@@ -706,6 +722,10 @@ public sealed record CreateUserRequest
     public required string Username { get; init; }
     public string? Password { get; init; }
     public bool IsAdmin { get; init; }
+
+
+    public override string ToString() =>
+        $"CreateUserRequest {{ Username = {Username}, Password = {(Password is null ? "null" : "[redacted]")}, IsAdmin = {IsAdmin} }}";
 }
 
 /// <summary>
@@ -718,6 +738,10 @@ public sealed record CreateUserResponse
 {
     public required AdminUserDto User { get; init; }
     public string? ActivationUrl { get; init; }
+
+
+    public override string ToString() =>
+        $"CreateUserResponse {{ User = {User}, ActivationUrl = {(ActivationUrl is null ? "null" : "[redacted]")} }}";
 }
 
 /// <summary>
@@ -728,6 +752,10 @@ public sealed record ActivateAccountRequest
 {
     public required string Token { get; init; }
     public required string Password { get; init; }
+
+
+    public override string ToString() =>
+        "ActivateAccountRequest { Token = [redacted], Password = [redacted] }";
 }
 
 /// <summary>
@@ -740,6 +768,10 @@ public sealed record ReissueActivationResponse
 {
     public required AdminUserDto User { get; init; }
     public required string ActivationUrl { get; init; }
+
+
+    public override string ToString() =>
+        $"ReissueActivationResponse {{ User = {User}, ActivationUrl = [redacted] }}";
 }
 
 /// <summary>
@@ -758,6 +790,10 @@ public sealed record UpdateUserRequest
 public sealed record ResetPasswordResponse
 {
     public required string TemporaryPassword { get; init; }
+
+
+    public override string ToString() =>
+        "ResetPasswordResponse { TemporaryPassword = [redacted] }";
 }
 
 /// <summary>

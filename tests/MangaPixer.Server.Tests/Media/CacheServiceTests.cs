@@ -213,4 +213,81 @@ public sealed class CacheServiceTests : IDisposable
         var usage = cache.GetCurrentUsageBytes();
         Assert.True(usage >= 500);
     }
+
+    [Fact]
+    public async Task PublishAsync_WritesUnderThisRunsFolder()
+    {
+        var cacheRoot = Path.Combine(_tempDir, "cache");
+        var cache = new CacheService(cacheRoot, 10 * 1024 * 1024);
+        cache.Initialize();
+
+        var sourceFile = Path.Combine(_tempDir, "source.png");
+        File.WriteAllText(sourceFile, "fake image data");
+        var cacheKey = CacheService.BuildCacheKey(1, 1, "page001.png", "original");
+        await cache.PublishAsync(cacheKey, sourceFile, "image/png");
+
+        var path = cache.GetCacheFilePath(cacheKey);
+        Assert.True(File.Exists(path));
+        Assert.StartsWith(cache.RunDirectory + Path.DirectorySeparatorChar, path);
+        Assert.StartsWith(cache.RunDirectory + Path.DirectorySeparatorChar, cache.ScratchDirectory);
+        Assert.Equal("run-", Path.GetFileName(cache.RunDirectory)[..4]);
+    }
+
+    [Fact]
+    public async Task DeleteStaleRuns_RemovesEarlierRunsAndLegacyLayout_KeepsCurrentRunAndForeignFiles()
+    {
+        var cacheRoot = Path.Combine(_tempDir, "cache");
+        var legacyName = new string('a', 64);
+
+        // An earlier run of the new layout, with a nested page and a temp file.
+        var earlier = new CacheService(cacheRoot, 10 * 1024 * 1024);
+        earlier.Initialize();
+        var sourceFile = Path.Combine(_tempDir, "source.png");
+        File.WriteAllText(sourceFile, new string('x', 100));
+        var earlierKey = CacheService.BuildCacheKey(1, 1, "old.png", "original");
+        await earlier.PublishAsync(earlierKey, sourceFile, "image/png");
+        File.WriteAllText(Path.Combine(earlier.ScratchDirectory, "page-abc.bin"), "tmp");
+
+        // The pre-1.24.1 flat layout: two-hex folders, 64-hex files, _tmp.
+        Directory.CreateDirectory(Path.Combine(cacheRoot, "aa"));
+        File.WriteAllText(Path.Combine(cacheRoot, "aa", legacyName), new string('y', 50));
+        File.WriteAllText(Path.Combine(cacheRoot, "aa", legacyName + ".tmp"), "z");
+        Directory.CreateDirectory(Path.Combine(cacheRoot, "_tmp"));
+        File.WriteAllText(Path.Combine(cacheRoot, "_tmp", "thumb-1.bin"), "t");
+
+        // Things that are not cache-shaped must survive a misconfigured root.
+        Directory.CreateDirectory(Path.Combine(cacheRoot, "bb"));
+        File.WriteAllText(Path.Combine(cacheRoot, "bb", "notes.txt"), "keep");
+        Directory.CreateDirectory(Path.Combine(cacheRoot, "photos"));
+        File.WriteAllText(Path.Combine(cacheRoot, "photos", legacyName), "keep");
+        File.WriteAllText(Path.Combine(cacheRoot, "readme.txt"), "keep");
+
+        var current = new CacheService(cacheRoot, 10 * 1024 * 1024);
+        current.Initialize();
+        var currentKey = CacheService.BuildCacheKey(2, 1, "new.png", "original");
+        await current.PublishAsync(currentKey, sourceFile, "image/png");
+
+        var (files, bytes) = current.DeleteStaleRuns();
+
+        Assert.Equal(5, files);
+        Assert.Equal(100 + 3 + 50 + 1 + 1, bytes);
+        Assert.False(Directory.Exists(earlier.RunDirectory));
+        Assert.False(Directory.Exists(Path.Combine(cacheRoot, "aa")));
+        Assert.False(Directory.Exists(Path.Combine(cacheRoot, "_tmp")));
+        Assert.True(File.Exists(Path.Combine(cacheRoot, "bb", "notes.txt")));
+        Assert.True(File.Exists(Path.Combine(cacheRoot, "photos", legacyName)));
+        Assert.True(File.Exists(Path.Combine(cacheRoot, "readme.txt")));
+        Assert.True(current.TryGet(currentKey, out _));
+        Assert.True(File.Exists(current.GetCacheFilePath(currentKey)));
+
+        // A second pass has nothing left to do.
+        Assert.Equal((0, 0L), current.DeleteStaleRuns());
+    }
+
+    [Fact]
+    public void DeleteStaleRuns_MissingRoot_IsANoOp()
+    {
+        var cache = new CacheService(Path.Combine(_tempDir, "never-created"), 1024);
+        Assert.Equal((0, 0L), cache.DeleteStaleRuns());
+    }
 }

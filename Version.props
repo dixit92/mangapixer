@@ -322,6 +322,11 @@
          tap turn on WebKit (iPad). Browse: the list-view favorite star moves off the thumbnail
          into the row markers. Unraid: install from Community Applications; the duplicate
          deploy/unraid/mangapixer.xml is removed (dixit92/unraid-templates is its only home). -->
+    <!-- 1.24.1 - PATCH over 1.24.0 (2026-09-26). Page cache: each run writes into its own run-* folder and
+         deletes what earlier runs left in the background (the in-memory index let every restart leak the
+         previous run's pages past the budget). Secret-bearing request/response records print [redacted].
+         Reader: switching to Vertical re-targets page sizes. Identify samples in a fixed order. No migration;
+         worker protocol unchanged (3). -->
     <!-- 1.24.0 - MINOR over 1.23.0 ("Metadata Foundations and Webtoon Enhance" cycle, 2026-09-26).
          Series information: ComicInfo.xml read in the worker (protocol 2 -> 3) with a background backfill;
          optional, admin-only, opt-in MangaUpdates lookups (Identify, match by URL, consent text, per-library
@@ -342,7 +347,7 @@
          Worker protocol unchanged (2). Bugfixes ship as 1.23.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
     <MangaPixerVersionMinor>24</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

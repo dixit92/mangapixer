@@ -263,6 +263,7 @@ public static class LogEvents
         public const int CacheEvictedBatch = 5007;
         public const int CacheDiskFull = 5008;
         public const int CacheEvictionFreed = 5009;
+        public const int CacheStaleRunsDeleted = 5010;
     }
 
     /// <summary>Manual and scheduled backups, restore, and maintenance.</summary>

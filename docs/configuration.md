@@ -50,10 +50,10 @@ Leave `ASPNETCORE_URLS` alone in Docker. The image's health check calls `http://
 | Key (environment variable) | Default | Meaning |
 |---|---|---|
 | `MangaPixer:Storage:DataRoot` (`MangaPixer__Storage__DataRoot`) | `/data` in the image; otherwise a `data` folder next to the server binary | Database (`mangapixer.db`), sign-in keys (`keys/`), logs (`logs/`), backups (`backups/`) and thumbnails (`thumbnails/`). Keep this safe. |
-| `MangaPixer:Storage:CacheRoot` (`MangaPixer__Storage__CacheRoot`) | `/cache` in the image; otherwise `cache` next to the binary | Cached page images. Disposable. |
+| `MangaPixer:Storage:CacheRoot` (`MangaPixer__Storage__CacheRoot`) | `/cache` in the image; otherwise `cache` next to the binary | Cached page images. Disposable: emptied on every start (each run writes into its own `run-…` folder and deletes the earlier ones in the background). |
 | `MangaPixer:Storage:ScratchRoot` (`MangaPixer__Storage__ScratchRoot`) | `/scratch` in the image; otherwise `scratch` next to the binary | Temporary work folders for opening archives and for the YACReader import. Disposable. |
 | `MangaPixer:Storage:MediaRoot` (`MangaPixer__Storage__MediaRoot`) | `/media` | The only folder tree the admin **Browse…** picker can show when you register a library. It does not restrict what you can type into **Root Path** by hand. |
-| `MangaPixer:Storage:CacheBudgetBytes` (`MangaPixer__Storage__CacheBudgetBytes`) | `1073741824` (1 GiB) | Maximum size of the page cache, in bytes. The least recently used pages are evicted after a write pushes the cache over budget, and a full pass also runs once a day. |
+| `MangaPixer:Storage:CacheBudgetBytes` (`MangaPixer__Storage__CacheBudgetBytes`) | `1073741824` (1 GiB) | Maximum size of the page cache, in bytes. The least recently used pages are evicted after a write pushes the cache over budget, and a full pass also runs once a day. The cache starts empty on every start, so the budget covers everything in the folder. |
 | `MangaPixer:Storage:ScratchBudgetBytes` (`MangaPixer__Storage__ScratchBudgetBytes`) | `1073741824` (1 GiB) | Size limit for temporary work folders, in bytes. Pages are written here briefly while they are extracted, and the YACReader import unpacks its upload here. |
 
 Budgets are plain byte counts: `268435456` is 256 MiB, `4294967296` is 4 GiB. Relative paths are resolved against the server's working directory. You cannot register a library whose folder is inside a storage root or contains one.

@@ -2572,6 +2572,11 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   setView(view: ReaderView): void {
     const wasWebtoon = this.view() === 'webtoon';
     this.view.set(view);
+    // Entering Vertical swaps the whole page layout (every page at strip
+    // width), so the URLs pinned in paged view are the wrong size for all of
+    // them, not just the next ones: re-target everything (1.24.1). Leaving
+    // Vertical keeps the pins - the strip-sized pages are big enough.
+    if (view === 'webtoon' && !wasWebtoon) this.pageUrlCache.clear();
     this.refreshVariantTarget();
     if (view === 'webtoon' && !wasWebtoon) {
       queueMicrotask(() => this.scrollWebtoonTo(this.currentPage()));
