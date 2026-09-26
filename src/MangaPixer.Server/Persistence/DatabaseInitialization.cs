@@ -131,8 +131,76 @@ public static class DatabaseInitialization
             WHERE Id NOT IN (SELECT node_id FROM catalog_search);
             """, ct);
 
+        await ConfigureSeriesSearchAsync(db, ct);
+
         // Set the schema version so startup validation can detect incompatible databases
         await SetSchemaVersionAsync(db, CurrentSchemaVersion, ct);
+    }
+
+    /// <summary>
+    /// Alt-title search index (1.26.0): one FTS5 trigram row per title of each
+    /// metadata record (Title plus every AltTitlesJson entry), kept in sync by
+    /// triggers on metadata_records only. catalog_search and the catalog_nodes
+    /// triggers are deliberately untouched (scan-performance invariant). The JSON
+    /// is guarded with json_valid so a malformed value can never fail a record write.
+    /// </summary>
+    private static async Task ConfigureSeriesSearchAsync(MangaPixerDbContext db, CancellationToken ct)
+    {
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS series_search USING fts5(
+                title,
+                record_id UNINDEXED,
+                tokenize='trigram'
+            );
+            """, ct);
+
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TRIGGER IF NOT EXISTS series_search_ai
+            AFTER INSERT ON metadata_records
+            BEGIN
+                INSERT INTO series_search(title, record_id) VALUES (new.Title, new.Id);
+                INSERT INTO series_search(title, record_id)
+                SELECT value, new.Id
+                FROM json_each(CASE WHEN json_valid(new.AltTitlesJson) THEN new.AltTitlesJson ELSE '[]' END)
+                WHERE type = 'text' AND value <> '';
+            END;
+            """, ct);
+
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TRIGGER IF NOT EXISTS series_search_au
+            AFTER UPDATE OF Title, AltTitlesJson ON metadata_records
+            BEGIN
+                DELETE FROM series_search WHERE record_id = old.Id;
+                INSERT INTO series_search(title, record_id) VALUES (new.Title, new.Id);
+                INSERT INTO series_search(title, record_id)
+                SELECT value, new.Id
+                FROM json_each(CASE WHEN json_valid(new.AltTitlesJson) THEN new.AltTitlesJson ELSE '[]' END)
+                WHERE type = 'text' AND value <> '';
+            END;
+            """, ct);
+
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TRIGGER IF NOT EXISTS series_search_ad
+            AFTER DELETE ON metadata_records
+            BEGIN
+                DELETE FROM series_search WHERE record_id = old.Id;
+            END;
+            """, ct);
+
+        // One-time backfill for records that existed before the table did. One
+        // statement so the NOT IN list is built once (record_id is UNINDEXED).
+        await db.Database.ExecuteSqlRawAsync("""
+            INSERT INTO series_search(title, record_id)
+            SELECT t, id FROM (
+                SELECT r.Id AS id, r.Title AS t FROM metadata_records r
+                UNION ALL
+                SELECT r.Id, j.value
+                FROM metadata_records r,
+                     json_each(CASE WHEN json_valid(r.AltTitlesJson) THEN r.AltTitlesJson ELSE '[]' END) j
+                WHERE j.type = 'text' AND j.value <> ''
+            )
+            WHERE id NOT IN (SELECT record_id FROM series_search);
+            """, ct);
     }
 
     /// <summary>
