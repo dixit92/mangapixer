@@ -63,8 +63,9 @@ describe('ReviewRowComponent', () => {
   it('emits Accept with the chosen rank and the tab\'s other actions', () => {
     const { el, events } = create(reviewItem(), 'NeedsReview', { rank: 2 });
     (el.querySelector('[data-testid="review-accept"]') as HTMLButtonElement).click();
-    (el.querySelector('[data-testid="review-later"]') as HTMLButtonElement).click();
-    expect(events.map((e) => [e.action, e.rank])).toEqual([['accept', 2], ['later', undefined]]);
+    (el.querySelector('[data-testid="review-dontMatch"]') as HTMLButtonElement).click();
+    expect(events.map((e) => [e.action, e.rank])).toEqual([['accept', 2], ['dontMatch', undefined]]);
+    expect(el.querySelector('[data-testid="review-later"]')).toBeNull(); // removed (owner, 2026-09-26)
   });
 
   it('shows the current link on the Auto-linked tab and hides inline actions on phone', () => {
@@ -79,7 +80,7 @@ describe('ReviewRowComponent', () => {
 
   it('offers per-tab actions', () => {
     const it = reviewItem();
-    expect(rowActions('Unmatched', it).map((a) => a.action)).toEqual(['identify', 'dontMatch', 'later']);
+    expect(rowActions('Unmatched', it).map((a) => a.action)).toEqual(['identify', 'dontMatch']);
     expect(rowActions('DontMatch', it).map((a) => a.action)).toEqual(['clearDontMatch']);
     expect(rowActions('MissingFolders', it).map((a) => a.action)).toEqual(['reattach', 'deleteMissing']);
     expect(rowActions('Confirmed', it).map((a) => a.action)).toEqual(['identify', 'unlink']);

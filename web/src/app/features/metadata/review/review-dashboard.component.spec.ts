@@ -37,7 +37,7 @@ function fakeSnackBar() {
 /**
  * The review dashboard (stage 2, section 5), HTTP mocked at the service: tabs + counts,
  * deferred-commit Undo (nothing is sent inside the Undo window), bulk with partial
- * failure, keyboard triage, Later, Flags hand-off, missing-folder re-attach, phone bar.
+ * failure, keyboard triage, Flags hand-off, missing-folder re-attach, phone bar.
  */
 describe('ReviewDashboardComponent', () => {
   const rows = [
@@ -172,14 +172,6 @@ describe('ReviewDashboardComponent', () => {
     expect(api.acceptCandidate).toHaveBeenCalledWith('n2', 1);
     key('x');
     expect(c.selected().has('n3')).toBe(true); // focus moved on to the next row
-  });
-
-  it('Later moves the row to the end without a request', () => {
-    const { c, api, names } = create();
-    c.onRowAction({ action: 'later', item: rows[0] });
-    expect(names()).toEqual(['Beta Saga', 'Gamma Saga', 'Alpha Saga']);
-    expect(api.reviewBulk).not.toHaveBeenCalled();
-    expect(api.acceptCandidate).not.toHaveBeenCalled();
   });
 
   it('switches tabs (sending a pending action first), and hands Flags to the Flags tab', () => {

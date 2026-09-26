@@ -19,7 +19,7 @@ import { MetadataApiService } from '../metadata-api.service';
 
 /** A row action; `rank` for Accept (the chosen stored candidate). */
 export type ReviewRowAction =
-  | 'accept' | 'identify' | 'dontMatch' | 'later' | 'confirm' | 'unlink' | 'clearDontMatch'
+  | 'accept' | 'identify' | 'dontMatch' | 'confirm' | 'unlink' | 'clearDontMatch'
   | 'reattach' | 'deleteMissing' | 'rerun';
 
 export interface ReviewRowActionEvent {
@@ -45,7 +45,6 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
         { action: 'accept', label: 'Accept', icon: 'check', key: 'a', primary: true },
         { action: 'identify', label: 'Identify…', icon: 'travel_explore', key: 'i' },
         { action: 'dontMatch', label: 'Don\'t match', icon: 'block', key: 'd' },
-        { action: 'later', label: 'Later', icon: 'schedule', key: 'l' },
       ];
     case 'AutoLinked':
       return [
@@ -58,7 +57,6 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
       return [
         { action: 'identify', label: 'Identify…', icon: 'travel_explore', key: 'i', primary: true },
         { action: 'dontMatch', label: 'Don\'t match', icon: 'block', key: 'd' },
-        { action: 'later', label: 'Later', icon: 'schedule', key: 'l' },
       ];
     case 'DontMatch':
       return [{ action: 'clearDontMatch', label: 'Clear Don\'t match', icon: 'undo', primary: true }];
@@ -125,7 +123,6 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
             @if (it.openFlagCount > 0) {
               <span class="tag flag" matTooltip="A reader reported this series as wrong"><mat-icon inline>flag</mat-icon> {{ it.openFlagCount }}</span>
             }
-            @if (later()) { <span class="tag">Later</span> }
             @for (r of it.reasons ?? []; track r) {
               <span class="chip" [matTooltip]="tip(r)" data-testid="review-reason">{{ reason(r) }}</span>
             }
@@ -251,7 +248,6 @@ export class ReviewRowComponent {
   readonly focused = input(false);
   readonly selected = input(false);
   readonly expanded = input(false);
-  readonly later = input(false);
   /** Phone card: no inline actions (the page's bottom bar has them). */
   readonly compact = input(false);
   /** The chosen candidate rank (defaults to 1). */

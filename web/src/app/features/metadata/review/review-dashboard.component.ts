@@ -88,13 +88,13 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
 
 /** Keys -> row actions (the key must be offered by the row's tab). */
 const KEY_ACTIONS: Record<string, ReviewRowAction> = {
-  a: 'accept', d: 'dontMatch', i: 'identify', l: 'later', c: 'confirm', u: 'unlink',
+  a: 'accept', d: 'dontMatch', i: 'identify', c: 'confirm', u: 'unlink',
 };
 
 /**
  * The review dashboard (metadata stage 2, design section 5): tabs with counts, a
  * library filter, the rows, bulk actions, Undo and keyboard triage (j/k move, a accept,
- * d Don't match, i identify, l later, c confirm, u unlink, x select, e expand).
+ * d Don't match, i identify, c confirm, u unlink, x select, e expand).
  * Reading a tab never contacts a provider. Every change goes through a deferred commit
  * (see `DeferredCommitQueue`), so Undo is exact.
  *
@@ -140,7 +140,7 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
             Select all {{ visible().length }} shown
           </mat-checkbox>
           @if (!phone()) {
-            <span class="keys">j/k move · a accept · d don't match · i identify · l later · x select · e covers</span>
+            <span class="keys">j/k move · a accept · d don't match · i identify · x select · e covers</span>
           }
         </div>
       }
@@ -155,7 +155,7 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
             <div class="wrap" role="listitem" (pointerdown)="pressStart($event, it)" (pointerup)="pressEnd()"
                  (pointerleave)="pressEnd()" (pointercancel)="pressEnd()">
               <app-review-row [item]="it" [tab]="tab()" [focused]="focusIndex() === i" [selected]="selected().has(it.nodeId)"
-                              [expanded]="expanded().has(it.nodeId)" [later]="later().has(it.nodeId)" [compact]="phone()"
+                              [expanded]="expanded().has(it.nodeId)" [compact]="phone()"
                               [rank]="rankOf(it)"
                               (action)="onRowAction($event)" (toggleSelect)="toggle(it.nodeId)" (toggleExpand)="toggleExpanded(it.nodeId)"
                               (choose)="choose(it.nodeId, $event)" (focusRow)="onRowTap(i, it)" />
@@ -287,7 +287,6 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
   readonly selected = signal<ReadonlySet<string>>(new Set());
   readonly selectMode = signal(false);
   readonly expanded = signal<ReadonlySet<string>>(new Set());
-  readonly later = signal<ReadonlySet<string>>(new Set());
   readonly ranks = signal<Readonly<Record<string, number>>>({});
   readonly focusIndex = signal(0);
   /** Rows hidden while their action waits in the Undo window (or is being sent). */
@@ -518,9 +517,6 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
         this.defer([item], `Accepted "${title}" for ${item.displayName}`, () => none(this.api.acceptCandidate(item.nodeId, rank)));
         return;
       }
-      case 'later':
-        this.setAside(item);
-        return;
       case 'identify':
         this.identify(item);
         return;
@@ -618,13 +614,6 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** "Later": moves the row to the end of this list (nothing is sent). */
-  private setAside(item: MetadataReviewItemDto): void {
-    this.later.update((s) => new Set(s).add(item.nodeId));
-    this.items.update((list) => [...list.filter((i) => i.nodeId !== item.nodeId), item]);
-    this.clampFocus();
-  }
-
   private hide(ids: string[]): void {
     this.hidden.update((s) => {
       const next = new Set(s);
@@ -685,7 +674,6 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
   private resetView(): void {
     this.items.set([]);
     this.hidden.set(new Set());
-    this.later.set(new Set());
     this.expanded.set(new Set());
     this.ranks.set({});
     this.focusIndex.set(0);
