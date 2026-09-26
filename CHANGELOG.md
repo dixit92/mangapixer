@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Reader: Enhance without HTTPS, and a new Rendering choice, Sharp.** Browsers only offer WebGPU on secure pages, so over plain `http://<LAN address>` (a LAN install, Docker or Unraid without a reverse proxy, the Windows app with **Allow LAN access**) **Enhance** used to be greyed out ("Enhance needs WebGPU") and a saved Enhance quietly showed Smooth. Enhance now runs on WebGL2 there (the Efficient network; **Max quality** still needs WebGPU), and a new **Sharp** choice (AMD FSR 1: an edge-aware upscale plus light sharpening, much cheaper than Enhance) works on almost any device, over HTTP too, in single page, double page and vertical modes. Rendering is now **Smooth / Sharp / Enhance**; `e` cycles through the ones this device can run.
+- **Reader: no silent Rendering fallback.** The Rendering menu names the engine under the selected choice (for example "WebGL2 - WebGPU needs HTTPS"), greys out a choice this device cannot run with the reason ("Needs a secure connection (HTTPS)", "Graphics chip unavailable", ...), and the reader says once per session when a choice you saved cannot run here ("Enhance isn't available here - showing Smooth."). The status line under Rendering reports the engine in use. **Enhance quality** now appears only while Enhance is selected. See [Image quality](docs/reader.md#image-quality).
+
 ### Changed
 
 - **Reader: archives are called archives.** The previous/next buttons, their tooltips, the end-of-folder messages, the loading and error messages and the reading help now say "archive" instead of "chapter" (for example **Next archive**, "Preparing this archive…"), because an archive can be a chapter, a volume or anything else. The "New chapters" row on Home keeps its name. See [Moving between archives](docs/reader.md#moving-between-archives).
