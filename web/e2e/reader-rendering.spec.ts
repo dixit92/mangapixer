@@ -203,7 +203,8 @@ test('Crisp renders the enlarged page through FSR 1 on WebGL2, and the menu name
   await openRenderingMenu(page);
   await expect(page.getByRole('menuitemradio', { name: 'Upscaling: Crisp - AMD FSR 1' })).toHaveAttribute('aria-checked', 'true');
   // The option line names the engine; the desktop status line only summarises the device (owner, 2026-09-26).
-  await expect(page.locator('.reader-options-menu .hint-tap')).toHaveText('GPU: WebGPU unavailable, WebGL2 ready');
+  // Secure origin (127.0.0.1 in CI): "WebGPU unavailable"; plain http on a LAN address: "WebGPU needs HTTPS".
+  await expect(page.locator('.reader-options-menu .hint-tap')).toHaveText(/^GPU: WebGPU (unavailable|needs HTTPS), WebGL2 ready$/);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/rendering-sharp-menu.png` });
 });
 
@@ -233,7 +234,10 @@ test('without WebGPU or float render targets, Enhance is disabled with its reaso
   await openReader(page);
   await expect(page.getByText("Enhance isn't available here - showing Smooth.")).toBeVisible();
   await openRenderingMenu(page);
-  const enhance = page.getByRole('menuitemradio', { name: 'Upscaling: Enhance - Graphics chip lacks float render targets' });
+  const enhance = page.getByRole('menuitemradio', {
+    // Secure origin (CI): the chip is the limit; plain http: HTTPS (WebGPU) is the fix, so that is the reason shown.
+    name: /^Upscaling: Enhance - (Graphics chip lacks float render targets|Needs a secure connection \(HTTPS\))$/,
+  });
   await expect(enhance).toBeDisabled();
   await expect(page.getByRole('menuitemradio', { name: /^Upscaling: Smooth/ })).toHaveAttribute('aria-checked', 'true');
   // Crisp needs no float targets.
