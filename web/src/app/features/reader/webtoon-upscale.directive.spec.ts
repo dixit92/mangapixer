@@ -4,7 +4,10 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 
 import type { BandRenderRequest, BandRenderResult } from './anime4k-tile-renderer';
-import { TileRendererApi, WEBTOON_TILE_RENDERER, WebtoonEnhanceCoordinator, pageRootMargin, bandRootMargin } from './webtoon-enhance-coordinator';
+import type { UpscaleBackend } from './upscale-engine';
+import {
+  TileRendererApi, WEBTOON_TILE_RENDERER, WebtoonEnhanceCoordinator, pageRootMargin, bandRootMargin, webgpuEnhance,
+} from './webtoon-enhance-coordinator';
 import { WebtoonEnhanceHostDirective, WebtoonUpscaleDirective } from './webtoon-upscale.directive';
 
 /**
@@ -46,7 +49,7 @@ class FakeRO {
   `,
 })
 class StripHostComponent {
-  readonly on = signal(false);
+  readonly on = signal<UpscaleBackend | null>(null);
   readonly shown = signal(true);
   readonly pages = [0, 1, 2];
 }
@@ -111,7 +114,7 @@ describe('WebtoonEnhanceHostDirective / WebtoonUpscaleDirective', () => {
   it('the input turns the enhance layer on and off; it is appended after the template nodes', async () => {
     const { fixture, scroller, imgs } = render();
     expect(scroller().querySelector('.mp-enhance-layer')).toBeNull();
-    fixture.componentInstance.on.set(true);
+    fixture.componentInstance.on.set(webgpuEnhance);
     fixture.detectChanges();
     expect(scroller().lastElementChild?.className).toBe('mp-enhance-layer');
     const pageIO = FakeIO.all.find((o) => o.options.rootMargin === pageRootMargin)!;
@@ -125,7 +128,7 @@ describe('WebtoonEnhanceHostDirective / WebtoonUpscaleDirective', () => {
     expect(loads).toBe(1);
     expect(scroller().querySelectorAll('canvas').length).toBe(1);
 
-    fixture.componentInstance.on.set(false);
+    fixture.componentInstance.on.set(null);
     fixture.detectChanges();
     expect(scroller().querySelector('.mp-enhance-layer')).toBeNull();
     expect(scroller().querySelectorAll('canvas').length).toBe(0);
@@ -135,7 +138,7 @@ describe('WebtoonEnhanceHostDirective / WebtoonUpscaleDirective', () => {
   it('without WebGPU: no layer, no canvas, and the lazy renderer is never imported', async () => {
     delete (navigator as unknown as { gpu?: unknown }).gpu;
     const { fixture, scroller } = render();
-    fixture.componentInstance.on.set(true);
+    fixture.componentInstance.on.set(webgpuEnhance);
     fixture.detectChanges();
     await vi.advanceTimersByTimeAsync(100);
     expect(scroller().querySelector('.mp-enhance-layer')).toBeNull();
@@ -146,7 +149,7 @@ describe('WebtoonEnhanceHostDirective / WebtoonUpscaleDirective', () => {
 
   it('destroying the scroller (view switch / reader closed) releases every canvas and pipeline', async () => {
     const { fixture, scroller, imgs } = render();
-    fixture.componentInstance.on.set(true);
+    fixture.componentInstance.on.set(webgpuEnhance);
     fixture.detectChanges();
     FakeIO.all.find((o) => o.options.rootMargin === pageRootMargin)!.fire([imgs()[0]], true);
     const bandIO = FakeIO.all.find((o) => o.options.rootMargin === bandRootMargin)!;

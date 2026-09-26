@@ -575,14 +575,20 @@ describe('ReaderComponent webtoon Enhance wiring (1.24.0)', () => {
     }
   });
 
-  it('the host input follows the Rendering preference (upscaleActive)', () => {
+  it('the host input follows the Rendering preference (the backend it resolved to, 1.25.0)', () => {
     const { fixture, c } = renderView('webtoon');
     const dir = () => fixture.debugElement.query(By.directive(WebtoonEnhanceHostDirective)).injector.get(WebtoonEnhanceHostDirective);
-    expect(dir().appWebtoonEnhanceHost()).toBe(false);
+    expect(dir().appWebtoonEnhanceHost()).toBeNull();
+    TestBed.inject(UpscaleSupportService).support.set('ready');
     c.prefs.setUpscaler('enhance');
     fixture.detectChanges();
     expect(c.upscaleActive()).toBe(true);
-    expect(dir().appWebtoonEnhanceHost()).toBe(true);
+    expect(dir().appWebtoonEnhanceHost()).toEqual({ mode: 'enhance', engine: 'webgpu' });
+    // A choice this device cannot run (jsdom has no WebGL2 for Sharp): plain images.
+    c.prefs.setUpscaler('sharp');
+    fixture.detectChanges();
+    expect(c.upscaleActive()).toBe(true);
+    expect(dir().appWebtoonEnhanceHost()).toBeNull();
   });
 
   it('switching to paged tears the webtoon host down (coordinator destroyed) and the paged directive returns', () => {

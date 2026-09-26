@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
+import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import { UpscaleDirective, UpscaleSupportService, hasWebGpu } from './upscale.directive';
 
 /**
@@ -34,6 +35,8 @@ function fakeLayout(img: HTMLImageElement, natural: number, box: number): void {
 describe('UpscaleDirective', () => {
   function create() {
     TestBed.configureTestingModule({ imports: [HostComponent] });
+    // The reader binds [appUpscale] from this preference (Sharp or Enhance).
+    TestBed.inject(ReaderPreferencesService).setUpscaler('enhance');
     const fixture = TestBed.createComponent(HostComponent);
     fixture.detectChanges();
     const host = fixture.nativeElement as HTMLElement;
@@ -42,6 +45,7 @@ describe('UpscaleDirective', () => {
 
   afterEach(() => {
     delete (navigator as unknown as { gpu?: unknown }).gpu;
+    localStorage.clear();
     vi.restoreAllMocks();
   });
 
@@ -119,7 +123,7 @@ describe('UpscaleDirective', () => {
 
     it('treats a CSS-px downscale as an upscale once DPR 3 device pixels are counted', async () => {
       setDpr(3);
-      (navigator as unknown as { gpu?: unknown }).gpu = { requestAdapter: () => Promise.resolve(null) };
+      (navigator as unknown as { gpu?: unknown }).gpu = { requestAdapter: () => Promise.resolve({}) };
       const { fixture, host, img } = create();
       // Painted at 390 CSS px against a 780px-wide source: 0.5x in CSS px (would
       // read as a downscale) but 390 * 3 / 780 = 1.5x in device px: an upscale.
@@ -143,7 +147,7 @@ describe('UpscaleDirective', () => {
 
     it('is an upscale for the iPad spread case: DPR 2, 1366 CSS px painted, 1415 natural', async () => {
       setDpr(2);
-      (navigator as unknown as { gpu?: unknown }).gpu = { requestAdapter: () => Promise.resolve(null) };
+      (navigator as unknown as { gpu?: unknown }).gpu = { requestAdapter: () => Promise.resolve({}) };
       const { fixture, host, img } = create();
       // 1366 * 2 = 2732 device px against a 1415px-wide source: ~1.93x, an upscale.
       fakeLayout(img, 1415, 1366);
@@ -193,30 +197,33 @@ describe('hasWebGpu', () => {
 describe('UpscaleSupportService', () => {
   afterEach(() => { delete (navigator as unknown as { gpu?: unknown }).gpu; });
 
+  const service = () => TestBed.inject(UpscaleSupportService);
+
   it('reports unavailable with no navigator.gpu, with a readable status', () => {
-    const svc = new UpscaleSupportService();
+    const svc = service();
     expect(svc.support()).toBe('unavailable');
-    expect(svc.statusText()).toBe('GPU: WebGPU unavailable');
+    // jsdom: a secure context (localhost), no WebGL2.
+    expect(svc.statusText()).toBe('GPU: WebGPU unavailable, no WebGL2');
   });
 
   it('reports ready when an adapter is handed out', async () => {
     (navigator as unknown as { gpu?: unknown }).gpu = { requestAdapter: () => Promise.resolve({}) };
-    const svc = new UpscaleSupportService();
+    const svc = service();
     await new Promise((r) => setTimeout(r, 40));
     expect(svc.support()).toBe('ready');
-    expect(svc.statusText()).toBe('GPU: WebGPU ready');
+    expect(svc.statusText()).toBe('GPU: WebGPU ready, no WebGL2');
   });
 
   it('reports unavailable when the adapter request resolves to null', async () => {
     (navigator as unknown as { gpu?: unknown }).gpu = { requestAdapter: () => Promise.resolve(null) };
-    const svc = new UpscaleSupportService();
+    const svc = service();
     await new Promise((r) => setTimeout(r, 40));
     expect(svc.support()).toBe('unavailable');
   });
 
   it('reports unavailable when the adapter request rejects', async () => {
     (navigator as unknown as { gpu?: unknown }).gpu = { requestAdapter: () => Promise.reject(new Error('no')) };
-    const svc = new UpscaleSupportService();
+    const svc = service();
     await new Promise((r) => setTimeout(r, 40));
     expect(svc.support()).toBe('unavailable');
   });
@@ -225,7 +232,7 @@ describe('UpscaleSupportService', () => {
     (navigator as unknown as { gpu?: unknown }).gpu = {
       requestAdapter: () => { throw new Error('boom'); },
     };
-    const svc = new UpscaleSupportService();
+    const svc = service();
     await new Promise((r) => setTimeout(r, 40));
     expect(svc.support()).toBe('unavailable');
   });

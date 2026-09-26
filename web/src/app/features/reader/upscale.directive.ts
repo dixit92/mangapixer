@@ -213,7 +213,7 @@ export class UpscaleSupportService {
     if (a.state === 'ready' && pref !== 'smooth') text = `GPU: ${upscalerLabels[pref]} on ${a.note}`;
     else if (a.state === 'checking') text = 'GPU: checking WebGPU…';
     else text = `GPU: ${capsSummary(this.caps())}`;
-    if (this.webtoonPaused()) text += ` - vertical ${upscalerLabels[pref]} paused (GPU reset)`;
+    if (this.webtoonPaused()) text += ` - ${pref === 'sharp' ? 'Sharp' : 'Enhance'} paused (GPU reset)`;
     if (this.statsVisible()) {
       const page = this.pageMs();
       const band = this.bandMs();
@@ -447,6 +447,9 @@ export class UpscaleDirective implements OnDestroy {
     if (targetWidth <= 0 || targetHeight <= 0) { this.hide(); return; }
 
     const token = ++this.token;
+    // Counted as live before any GPU memory exists, even if the preference effect
+    // has not re-run since the engine probe resolved (the release needs it).
+    retainUpscaler(this);
     try {
       let ok: boolean;
       let started: number;
