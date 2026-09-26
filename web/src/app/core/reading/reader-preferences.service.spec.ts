@@ -64,8 +64,10 @@ describe('ReaderPreferencesService', () => {
   });
 
   describe('upscaler (rendering)', () => {
-    it('defaults to smooth (the pre-1.19.0 browser resampling)', () => {
-      expect(new ReaderPreferencesService().upscaler()).toBe('smooth');
+    it('defaults to Crisp (stored value "sharp"), not yet chosen (1.25.0)', () => {
+      const svc = new ReaderPreferencesService();
+      expect(svc.upscaler()).toBe('sharp');
+      expect(svc.upscalerChosen()).toBe(false);
     });
 
     it('persists and reloads the chosen renderer', () => {
@@ -78,9 +80,18 @@ describe('ReaderPreferencesService', () => {
       expect(new ReaderPreferencesService().upscaler()).toBe('smooth');
     });
 
-    it('falls back to smooth for an unrecognised stored value', () => {
+    it('a stored choice - even Smooth - counts as chosen; setUpscaler marks it chosen', () => {
+      localStorage.setItem('mangapixer-reader-upscaler', 'smooth');
+      expect(new ReaderPreferencesService().upscalerChosen()).toBe(true);
+      localStorage.clear();
+      const svc = new ReaderPreferencesService();
+      svc.setUpscaler('sharp');
+      expect(svc.upscalerChosen()).toBe(true);
+    });
+
+    it('falls back to the Crisp default (not chosen) for an unrecognised stored value', () => {
       localStorage.setItem(ReaderPreferencesService.UpscalerKey, 'anime4k');
-      expect(new ReaderPreferencesService().upscaler()).toBe('smooth');
+      expect(new ReaderPreferencesService().upscaler()).toBe('sharp');
     });
   });
 
@@ -165,7 +176,7 @@ describe('ReaderPreferencesService', () => {
       try {
         const svc = new ReaderPreferencesService();
         expect(svc.pageQuality()).toBe('auto');
-        expect(svc.upscaler()).toBe('smooth');
+        expect(svc.upscaler()).toBe('sharp');
         expect(svc.downscaleFilter()).toBe('balanced');
       } finally {
         Storage.prototype.getItem = original;

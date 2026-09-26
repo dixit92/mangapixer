@@ -26,6 +26,7 @@ import { BookmarksPanelComponent, BookmarksPanelHost } from './bookmarks-panel.c
 import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode, BookmarkDto } from '../../core/api/api-types';
 import { targetMaxDim, withMaxDim, VariantFitMode } from './page-variant';
 import { UpscaleDirective, UpscaleSupportService } from './upscale.directive';
+import { nextUpscaler } from './upscale-engine';
 import { WebtoonEnhanceHostDirective, WebtoonUpscaleDirective } from './webtoon-upscale.directive';
 import { PageLoadIndicatorComponent, WebtoonPageComponent } from './page-load-state.component';
 import {
@@ -89,7 +90,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
  *     images don't jerk the scroll position; see `aspectRatioFor`.
  *  8. Auto-advance (2026-09-08): the forward gesture (arrow key / edge tap) on the
  *     last screen loads the next archive in the folder (`nextNeighbor` from the
- *     catalog neighbor endpoint); with no next chapter it shows a brief notice.
+ *     catalog neighbor endpoint); with no next archive it shows a brief notice.
  *     Applies to paged / spread; webtoon (scroll-driven) is not auto-advanced.
  *  9. Previous-chapter advance (2026-09-09): symmetrically, the backward gesture on
  *     the first screen loads the PREVIOUS archive (`prevNeighbor`) and lands on its
@@ -97,7 +98,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
  *     progress, so it never falsely completes/marks-read an unread chapter.
  * 10. Phone bar (1.10.0, finding F2): at handset width (`compact`, CDK XSmall,
  *     < 600px) the full icon bar - ~8 controls that no longer fit - collapses to
- *     the two actions a reader reaches for mid-read (Next chapter, Fullscreen) plus
+ *     the two actions a reader reaches for mid-read (Next archive, Fullscreen) plus
  *     a "Reader options" trigger that opens `ReaderOptionsSheetComponent`, a bottom
  *     sheet holding the rest, grouped. Desktop and tablet keep the full bar as is.
  *     Reader menus everywhere mark the active option with the accent highlight
@@ -156,13 +157,13 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
 
         <!-- Controls stay visible in fullscreen. -->
         @if (phase() === 'ready' && compact()) {
-          <!-- PHONE bar: Next chapter + Fullscreen stay where they
+          <!-- PHONE bar: Next archive + Fullscreen stay where they
                were (first and last of the right-hand group), everything else is
                one tap away in the options sheet. -->
           <button mat-icon-button class="chapter-arrow" [class.direction-mirrored]="direction() === 'rtl'"
                   (click)="nextChapter()" [disabled]="!hasNextChapter()"
-                  [matTooltip]="nextNeighbor() ? 'Next chapter: ' + nextNeighbor()!.displayName : 'No next chapter'"
-                  [attr.aria-label]="nextNeighbor() ? 'Next chapter: ' + nextNeighbor()!.displayName : 'No next chapter'">
+                  [matTooltip]="nextNeighbor() ? 'Next archive: ' + nextNeighbor()!.displayName : 'No next archive'"
+                  [attr.aria-label]="nextNeighbor() ? 'Next archive: ' + nextNeighbor()!.displayName : 'No next archive'">
             <mat-icon>skip_next</mat-icon>
           </button>
           <button mat-icon-button (click)="toggleFullscreen()"
@@ -184,14 +185,14 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                .chapter-arrow.direction-mirrored below. -->
           <button mat-icon-button class="chapter-arrow" [class.direction-mirrored]="direction() === 'rtl'"
                   (click)="prevChapter()" [disabled]="!hasPrevChapter()"
-                  [matTooltip]="prevNeighbor() ? 'Previous chapter: ' + prevNeighbor()!.displayName : 'No previous chapter'"
-                  [attr.aria-label]="prevNeighbor() ? 'Previous chapter: ' + prevNeighbor()!.displayName : 'No previous chapter'">
+                  [matTooltip]="prevNeighbor() ? 'Previous archive: ' + prevNeighbor()!.displayName : 'No previous archive'"
+                  [attr.aria-label]="prevNeighbor() ? 'Previous archive: ' + prevNeighbor()!.displayName : 'No previous archive'">
             <mat-icon>skip_previous</mat-icon>
           </button>
           <button mat-icon-button class="chapter-arrow" [class.direction-mirrored]="direction() === 'rtl'"
                   (click)="nextChapter()" [disabled]="!hasNextChapter()"
-                  [matTooltip]="nextNeighbor() ? 'Next chapter: ' + nextNeighbor()!.displayName : 'No next chapter'"
-                  [attr.aria-label]="nextNeighbor() ? 'Next chapter: ' + nextNeighbor()!.displayName : 'No next chapter'">
+                  [matTooltip]="nextNeighbor() ? 'Next archive: ' + nextNeighbor()!.displayName : 'No next archive'"
+                  [attr.aria-label]="nextNeighbor() ? 'Next archive: ' + nextNeighbor()!.displayName : 'No next archive'">
             <mat-icon>skip_next</mat-icon>
           </button>
           <button mat-icon-button [matMenuTriggerFor]="modeMenu" matTooltip="Reading mode" aria-label="Reading mode"
@@ -243,7 +244,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                   aria-haspopup="dialog">
             <mat-icon>bookmarks</mat-icon>
           </button>
-          <!-- Favorite this chapter (1.21.0): the reader star targets the currently open
+          <!-- Favorite this archive (1.21.0): the reader star targets the currently open
                archive (itemId). Its own component styles keep the reader's near-budget
                inline CSS untouched. -->
           <app-star-toggle [nodeId]="itemId()" [favorite]="currentFavorite()" />
@@ -319,12 +320,12 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
              focused programmatically) so arrow / Page keys scroll it natively, and
              Enter on it is the keyboard twin of the centre tap (show / hide the
              controls). Tap and scroll behaviour are unchanged.
-             Enhance (1.24.0): the host directive lays banded Anime4K canvases
-             over the strip (webtoon-enhance-coordinator.ts); the imgs register.
+             Enhance (1.24.0) / Crisp (1.25.0): the host directive lays banded GPU
+             canvases over the strip (webtoon-enhance-coordinator.ts); the imgs register.
              Loading feedback (1.24.0): each img sits in an app-webtoon-page that
              veils its box until load, or offers a retry on error (page-load-state.component.ts). -->
         <div class="reader-viewport webtoon" #scroller (scroll)="onWebtoonScroll()"
-             [appWebtoonEnhanceHost]="upscaleActive()"
+             [appWebtoonEnhanceHost]="upscaleBackend()"
              [style.touch-action]="webtoonTouchAction()" tabindex="0"
              (pointerdown)="onReaderPointerDown($event)" (click)="onWebtoonTap($event)"
              (keydown.enter)="onWebtoonEnter($event)">
@@ -336,7 +337,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                    [attr.data-index]="$index" alt="Page {{ $index + 1 }}" />
             </app-webtoon-page>
           }
-          <!-- End-of-chapter affordance: explicit Previous/Next chapter buttons
+          <!-- End-of-chapter affordance: explicit Previous/Next archive buttons
                (1.7.1: webtoon no longer auto-advances on scroll — owner revert).
                Styled inline to stay within the component CSS budget. -->
           <div class="webtoon-end"
@@ -344,14 +345,14 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                       align-items:center; gap:14px; padding:40px 16px 64px; color:#ccc; text-align:center;">
             <button mat-stroked-button (click)="prevChapter()" [disabled]="!hasPrevChapter()"
                     style="min-width:200px;">
-              <mat-icon>skip_previous</mat-icon> Previous chapter
+              <mat-icon>skip_previous</mat-icon> Previous archive
             </button>
             <p style="margin:0; opacity:0.7; font-size:14px;">
-              {{ nextNeighbor() ? 'Tap Next chapter to continue' : 'End of this folder' }}
+              {{ nextNeighbor() ? 'Tap Next archive to continue' : 'End of this folder' }}
             </p>
             <button mat-flat-button color="primary" (click)="nextChapter()" [disabled]="!hasNextChapter()"
                     style="min-width:200px;">
-              Next chapter <mat-icon>skip_next</mat-icon>
+              Next archive <mat-icon>skip_next</mat-icon>
             </button>
           </div>
         </div>
@@ -526,12 +527,12 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 where you land{{ direction() === 'rtl' ? '. It runs right to left, like the pages' : '' }}.
                 @if (isFullscreen()) { Tap the centre to bring it back when it is hidden. }</li>
               <li><kbd>M</kbd> show / hide the controls · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> exit ·
-                <kbd>?</kbd> this help · <kbd>S</kbd> cycle Downscale filter · <kbd>E</kbd> Rendering:
-                Smooth / Enhance (needs WebGPU)</li>
+                <kbd>?</kbd> this help · <kbd>S</kbd> cycle Downscale filter · <kbd>E</kbd> cycle Upscaling:
+                Smooth / Crisp / Enhance (the ones this device can run)</li>
               @if (useInPageImmersive) {
                 <li><b>Fullscreen</b> goes immersive here (hides the reader's own bars) instead of
                   the browser's fullscreen - on iPhone/iPad, and in this app installed to the home
-                  screen{{ isStandalone ? ', where it is already on by default when you open a chapter' : '' }}.
+                  screen{{ isStandalone ? ', where it is already on by default when you open an archive' : '' }}.
                   The button still toggles it off and back on.</li>
               }
             </ul>
@@ -840,7 +841,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   readonly prefs = inject(ReaderPreferencesService);
   // Webtoon tap-to-scroll step / on-off (added 1.11.0); per-device.
   readonly webtoonNav = inject(WebtoonNavPreferencesService);
-  // WebGPU readiness for the 'e' Rendering shortcut — same gate the settings menu uses.
+  // Upscaling engines (WebGPU / WebGL2) for the 'e' shortcut and the once-per-session
+  // notice - the same resolution the settings menu shows.
   private readonly upscaleSupport = inject(UpscaleSupportService);
   private readonly installHint = inject(InstallHintService);
   readonly fitOptions = FIT_OPTIONS;
@@ -1087,7 +1089,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   // the library's root browse route rather than a nested :nodeId segment.
   readonly fallbackBackRoute = signal<string[]>(['/']);
 
-  // Set when this chapter was entered via "previous chapter" back-navigation, which
+  // Set when this archive was entered via "previous archive" back-navigation, which
   // asks to land on the LAST page (query param at=end). While the reader is still
   // sitting on that landed last page we suppress progress saves, so merely backing
   // into a chapter never marks it completed/read (the sticky read-mark stays honest).
@@ -1111,12 +1113,30 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.view() === 'spread' && this.narrowPortrait() ? 'paged' : this.view());
 
   /**
-   * Is the GPU line-art upscaler on for the pages currently rendered? Simply the
-   * device-wide preference: the paged / double-spread `<img>`s read it through
-   * `UpscaleDirective`, the webtoon scroller through `WebtoonEnhanceHostDirective`
-   * (1.24.0). Both are no-ops without WebGPU and when a page is not upscaled.
+   * Is GPU upscaling (Crisp or Enhance) on for the pages currently rendered?
+   * Simply the device-wide preference: the paged / double-spread `<img>`s read it
+   * through `UpscaleDirective`, which renders the backend it resolved to. Both
+   * directives are no-ops when the choice cannot run here and when a page is not
+   * upscaled.
    */
-  readonly upscaleActive = computed<boolean>(() => this.prefs.upscaler() === 'enhance');
+  readonly upscaleActive = computed<boolean>(() => this.prefs.upscaler() !== 'smooth');
+
+  /** The backend the webtoon strip renders with (1.25.0), or null for plain images. */
+  readonly upscaleBackend = computed(() => this.upscaleSupport.backend());
+
+  /**
+   * No silent fallback (1.25.0): a SAVED Upscaling choice that cannot run on this
+   * device (Enhance over plain HTTP without WebGL2 float targets, no WebGL2 for
+   * Crisp) is announced once per app session; the Upscaling menu shows the reason.
+   */
+  private readonly renderingNoticeEffect = effect(() => {
+    const message = this.upscaleSupport.pendingNotice();
+    if (!message) return;
+    untracked(() => {
+      this.upscaleSupport.markNoticeShown();
+      this.snackBar.open(message, 'Dismiss', { duration: 5000 });
+    });
+  });
 
   /**
    * "Page quality" is an explicit quality decision, so unlike a rotation it DOES
@@ -1346,7 +1366,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.route.paramMap.subscribe((params) => {
       const id = params.get('itemId') ?? '';
       // Send any unsaved pairing for the chapter being left, then forget it: the
-      // next chapter's layout (or none) arrives with its manifest.
+      // next archive's layout (or none) arrives with its manifest.
       this.flushSpreadSave();
       this.spreadLayout.set(null);
       this.itemId.set(id);
@@ -1549,9 +1569,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // pageUrlFor), unlike page-mode/rendering below, so it must act before the
     // webtoon early-return, same as 'm'.
     if (key === 's') { this.cycleDownscaleFilter(); return; }
-    // Rendering applies to webtoon too since 1.24.0 (banded Enhance), so like 's'
+    // Upscaling applies to webtoon too since 1.24.0 (banded Enhance), so like 's'
     // it acts before the webtoon early-return.
-    if (key === 'e') { this.toggleRendering(); return; }
+    if (key === 'e') { this.cycleRendering(); return; }
     if (this.view() === 'webtoon') return; // native scroll drives webtoon
 
     switch (key) {
@@ -1584,7 +1604,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   /**
    * 's': cycles the 1.20.0 Downscale filter (sharp -> balanced -> soft -> …),
-   * same `DOWNSCALE_FILTER_OPTIONS` order as the Rendering menu and the same
+   * same `DOWNSCALE_FILTER_OPTIONS` order as the Upscaling menu and the same
    * `ReaderPreferencesService` write it uses. Handled in onKeyDown ABOVE the
    * webtoon early-return (like 'm') because `pageUrlFor` applies the filter to
    * every page request regardless of view, not just paged/spread. No-op under
@@ -1599,14 +1619,14 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   }
 
   /**
-   * 'e': toggles Rendering between Smooth and Enhance (Anime4K), via the same
-   * `ReaderPreferencesService.setUpscaler` the menu uses. Guarded exactly like
-   * `ReaderSettingsMenuComponent.enhanceDisabled` (WebGPU not ready). Works in
-   * every view, webtoon included (1.24.0).
+   * 'e': cycles Upscaling Smooth -> Crisp -> Enhance -> Smooth (1.25.0; a
+   * Smooth/Enhance toggle before), skipping any choice this device cannot run -
+   * the options the menu offers disabled. Same `setUpscaler` as the menu. Works
+   * in every view, webtoon included (1.24.0).
    */
-  private toggleRendering(): void {
-    if (this.upscaleSupport.support() !== 'ready') return;
-    this.prefs.setUpscaler(this.prefs.upscaler() === 'smooth' ? 'enhance' : 'smooth');
+  private cycleRendering(): void {
+    const next = nextUpscaler(this.prefs.upscaler(), this.upscaleSupport.caps());
+    if (next !== this.prefs.upscaler()) this.prefs.setUpscaler(next);
   }
 
   // --- Immersive chrome (auto-hide toolbar + nav) ---
@@ -1783,7 +1803,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // auto-hide only runs once a page is on screen.
     this.chromeVisible.set(true);
     this.clearHideTimer();
-    this.statusMessage.set(this.pollAttempts === 0 ? 'Loading…' : 'Preparing this chapter…');
+    this.statusMessage.set(this.pollAttempts === 0 ? 'Loading…' : 'Preparing this archive…');
 
     this.api.getManifest(this.itemId()).subscribe({
       next: (res) => {
@@ -1815,7 +1835,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // before the first <img> resolves its src.
     this.refreshVariantTarget();
     if (manifest.pages.length === 0) {
-      this.fail('This chapter has no readable pages.');
+      this.fail('This archive has no readable pages.');
       return;
     }
     const last = manifest.pages.length - 1;
@@ -1957,7 +1977,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private scheduleRetry(): void {
     if (this.destroyed) return;
     this.pollAttempts++;
-    this.statusMessage.set('Preparing this chapter…');
+    this.statusMessage.set('Preparing this archive…');
     if (this.pollAttempts > 40) {
       this.fail('Preparing is taking longer than expected. Please try again.');
       return;
@@ -1969,7 +1989,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   private terminalReadinessMessage(r: ItemReadiness): string | null {
     const s = String(r.state);
-    if (s === 'Failed') return this.mapErrorCode(r.error, 'This chapter could not be analyzed.');
+    if (s === 'Failed') return this.mapErrorCode(r.error, 'This archive could not be analyzed.');
     if (s === 'Unsupported') return this.mapErrorCode(r.error, 'This archive format is not supported.');
     if (s === 'Encrypted') return 'This archive is password-protected and cannot be opened.';
     if (s === 'Missing') return 'The source file is no longer available.';
@@ -1979,7 +1999,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private mapErrorCode(code: string | null | undefined, fallback?: string | null): string {
     switch (code) {
       case 'not_analyzed':
-      case 'preparing': return 'Preparing this chapter…';
+      case 'preparing': return 'Preparing this archive…';
       case 'source_missing': return 'The source file is no longer available.';
       case 'not_readable':
       case 'unsupported': return "This item can't be read.";
@@ -1989,7 +2009,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       case 'extraction_failed':
       case 'extraction_error': return 'This page could not be extracted from the archive.';
       case 'not_found': return 'This item no longer exists.';
-      default: return fallback || 'Something went wrong loading this chapter.';
+      default: return fallback || 'Something went wrong loading this archive.';
     }
   }
 
@@ -2024,7 +2044,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   }
   /**
    * Advance toward the start (previous screen). When already on the first screen,
-   * the backward gesture auto-advances to the previous chapter, landing on ITS last
+   * the backward gesture auto-advances to the previous archive, landing on ITS last
    * page (mirror of {@link nextPage}), if there is one.
    */
   prevPage(): void {
@@ -2060,7 +2080,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private goToNextChapter(): void {
     const next = this.nextNeighbor();
     if (!next) {
-      this.snackBar.open('You’ve reached the end. No next chapter in this folder.', 'Dismiss', { duration: 3000 });
+      this.snackBar.open('You’ve reached the end. No next archive in this folder.', 'Dismiss', { duration: 3000 });
       return;
     }
     this.saveProgress();
@@ -2069,7 +2089,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // being left — without this notify, the just-finished item's browse card
     // and the Continue row stayed stale until the reader was closed entirely.
     this.readState.notifyChanged(this.itemId());
-    this.snackBar.open(`Next chapter: ${next.displayName}`, '', { duration: 2000 });
+    this.snackBar.open(`Next archive: ${next.displayName}`, '', { duration: 2000 });
     // 1.7.1 (owner-approved): REPLACE the history entry so chapter-to-chapter
     // navigation via the buttons never builds a chain Back has to walk — Back
     // from any chapter reached this way exits straight to the folder.
@@ -2078,18 +2098,18 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   /**
    * Auto-advance to the previous archive in the folder, landing on its LAST page
-   * (via the at=end query param), or tell the reader there's no previous chapter.
+   * (via the at=end query param), or tell the reader there's no previous archive.
    */
   private goToPreviousChapter(): void {
     const prev = this.prevNeighbor();
     if (!prev) {
-      this.snackBar.open('You’re at the start. No previous chapter in this folder.', 'Dismiss', { duration: 3000 });
+      this.snackBar.open('You’re at the start. No previous archive in this folder.', 'Dismiss', { duration: 3000 });
       return;
     }
     this.saveProgress();
     // 1.7.3: same in-reader-transition notify as goToNextChapter — see there.
     this.readState.notifyChanged(this.itemId());
-    this.snackBar.open(`Previous chapter: ${prev.displayName}`, '', { duration: 2000 });
+    this.snackBar.open(`Previous archive: ${prev.displayName}`, '', { duration: 2000 });
     // 1.7.1: same replaceUrl treatment as goToNextChapter — Back always exits
     // to the folder, never walks a chain of previously-visited chapters.
     this.router.navigate(['/reader', prev.id], { queryParams: { at: 'end' }, replaceUrl: true });
@@ -2716,7 +2736,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       error: () => {
         this.spreadSaveInFlight = false;
         if (!this.destroyed) {
-          this.snackBar.open('Could not save the page pairing. It still applies until you leave this chapter.',
+          this.snackBar.open('Could not save the page pairing. It still applies until you leave this archive.',
             'Dismiss', { duration: 4000 });
         }
         this.flushSpreadSave();
@@ -2762,7 +2782,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     }
     // 1.7.1 (owner revert): webtoon no longer auto-advances chapters on scroll —
     // the scroll-up-at-top gesture fought the fullscreen-exit gesture on touch.
-    // The explicit prev/next chapter buttons (toolbar + end-of-chapter footer)
+    // The explicit prev/next archive buttons (toolbar + end-of-chapter footer)
     // remain the only way to move between chapters in webtoon.
   }
 

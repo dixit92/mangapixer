@@ -322,6 +322,12 @@
          tap turn on WebKit (iPad). Browse: the list-view favorite star moves off the thumbnail
          into the row markers. Unraid: install from Community Applications; the duplicate
          deploy/unraid/mangapixer.xml is removed (dixit92/unraid-templates is its only home). -->
+    <!-- 1.25.0 - MINOR over 1.24.2 ("WebGL2 Enhance and Metadata Auto-Match" cycle, first of its two releases,
+         2026-09-26). Reader upscaling without HTTPS: Upscaling (was Rendering) is Smooth / Crisp (AMD FSR 1 on WebGL2, the new
+         default) / Enhance (Anime4K on WebGPU, else WebGL2 Efficient); the selected choice names its upscaler, a choice that
+         cannot run is greyed out with the reason, a saved choice that cannot run is announced once per session, software WebGL
+         greys Enhance out. The reader says "archive" instead of "chapter"; admin card order (Logging last); README metadata +
+         image quality. Web-only: no API, schema or dependency change; worker protocol unchanged (3). -->
     <!-- 1.24.2 - PATCH over 1.24.1 (2026-09-26). Name sort is case-insensitive: SortKey.ForNode stores the
          case-folded name plus the name as spelled as a tie-breaker (U+0001 separator), so lower-case names no longer
          list after every capitalised one and the A-Z jump rail reaches them; punctuation such as '[' and '_' lists
@@ -351,8 +357,8 @@
          iPhone/iPad add-to-home-screen hint; analytics totals caption; a real OpenAPI drift check.
          Worker protocol unchanged (2). Bugfixes ship as 1.23.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <MangaPixerVersionMinor>24</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>2</MangaPixerVersionPatch>
+    <MangaPixerVersionMinor>25</MangaPixerVersionMinor>
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

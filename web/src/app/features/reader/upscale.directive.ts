@@ -2,11 +2,15 @@ import {
   Directive, ElementRef, Injectable, NgZone, OnDestroy, computed, effect, inject, input, signal,
 } from '@angular/core';
 
-import { EnhanceQuality, ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
+import { EnhanceQuality, ReaderPreferencesService, Upscaler } from '../../core/reading/reader-preferences.service';
+import {
+  Availability, GpuCaps, UpscaleBackend, UpscaleEngine, WebGlCaps, availabilityFor, backendFor, capsSummary,
+  effectiveUpscaler, noWebGl, probeWebGl, sameBackend, upscalerLabels,
+} from './upscale-engine';
 import type { EnhanceChain } from './webtoon-band-plan';
 
 /**
- * Display upscaling ("Rendering: Enhance", 1.19.0).
+ * Display upscaling ("Upscaling: Enhance", 1.19.0; "Crisp" and the WebGL2 engine 1.25.0).
  *
  * Small manga scans blown up to a modern display are the one case the server
  * cannot fix: `?maxDim=` (see `page-variant.ts`) makes a DOWNSCALE sharp, but an
@@ -37,6 +41,14 @@ import type { EnhanceChain } from './webtoon-band-plan';
  * Chain: the paged views honour the Enhance quality preference - the light M
  * chain ("Efficient", the default) or the heavy VL chain ("Max quality").
  *
+ * Engines (1.25.0, `upscale-engine.ts`): Enhance runs on WebGPU
+ * (`anime4k-renderer.ts`, a `webgpu` canvas context) where the browser offers it
+ * and on WebGL2 (`webgl-upscaler.ts`, Efficient chain only) where it does not;
+ * Crisp (FSR 1) always runs on WebGL2. The WebGL2 path draws into one shared
+ * context and copies onto this overlay through a `2d` context. A canvas can hold
+ * only one context type, so the overlay canvas is re-created when the engine
+ * changes (Crisp <-> WebGPU Enhance).
+ *
  * GPU memory: the renderer keeps one Anime4K pipeline (hundreds of MB for a
  * large page) alive between pages. This directive is the only thing that knows
  * when no Enhance overlay is live any more (reader closed, view switched to
@@ -45,14 +57,16 @@ import type { EnhanceChain } from './webtoon-band-plan';
  * texture and buffer is destroyed. The delay absorbs page turns, which re-create
  * the `<img>` (and so this directive) on every turn.
  *
- * Feature detection: with no `navigator.gpu`, or when adapter/device acquisition
- * fails, the directive is a silent no-op and `UpscaleSupportService` reports the
- * option as unavailable so the settings UI can disable it with a reason. Under
- * jsdom (`navigator.gpu` absent, images never decode) it does nothing and never
+ * Feature detection: `UpscaleSupportService` probes WebGPU and WebGL2 once per
+ * app session and resolves each Upscaling choice to an engine or to a reason it
+ * cannot run; the directive renders only the resolved backend, and the settings
+ * UI and the reader say what runs and why (no silent fallback). Under jsdom (no
+ * `navigator.gpu`, no WebGL2, images never decode) it does nothing and never
  * throws, so no test needs to know it exists.
  *
- * The heavy Anime4K code is reached through a dynamic `import()` of
- * `anime4k-renderer.ts`, keeping it out of the initial bundle entirely.
+ * The heavy renderers are reached through dynamic `import()`s of
+ * `anime4k-renderer.ts` / `webgl-upscaler.ts`, keeping them out of the initial
+ * bundle entirely (each lands in its own lazy chunk).
  */
 
 /** Below this display/native scale the page is not being upscaled — do nothing. */
@@ -61,8 +75,9 @@ const upscaleThreshold = 1.02;
 /** How long no Enhance overlay may be live before the renderer's GPU memory is released. */
 export const upscaleReleaseDelayMs = 1500;
 
-/** The lazy renderer module, once some overlay has loaded it (never loaded here just to release). */
+/** The lazy renderer modules, once some overlay has loaded them (never loaded here just to release). */
 let renderer: typeof import('./anime4k-renderer') | null = null;
+let glRenderer: typeof import('./webgl-upscaler') | null = null;
 /** Directives whose preference is on: each may be showing (or about to show) GPU output. */
 const liveOverlays = new Set<object>();
 let releaseTimer: ReturnType<typeof setTimeout> | null = null;
@@ -73,11 +88,13 @@ function retainUpscaler(owner: object): void {
 }
 
 function relinquishUpscaler(owner: object): void {
-  if (!liveOverlays.delete(owner) || liveOverlays.size > 0 || !renderer) return;
+  if (!liveOverlays.delete(owner) || liveOverlays.size > 0 || (!renderer && !glRenderer)) return;
   if (releaseTimer !== null) clearTimeout(releaseTimer);
   releaseTimer = setTimeout(() => {
     releaseTimer = null;
-    if (liveOverlays.size === 0) renderer?.releaseUpscaler();
+    if (liveOverlays.size > 0) return;
+    renderer?.releaseUpscaler();
+    glRenderer?.releasePages();
   }, upscaleReleaseDelayMs);
 }
 
@@ -97,7 +114,7 @@ export function pagedChainFor(quality: EnhanceQuality): EnhanceChain {
 
 /** Rolling window for the median render-time readout. */
 const timingWindow = 15;
-/** Taps on the Rendering status line, within `statsTapWindowMs`, that toggle the timing readout. */
+/** Taps on the Upscaling status line, within `statsTapWindowMs`, that toggle the timing readout. */
 export const statsTapCount = 5;
 const statsTapWindowMs = 3000;
 
@@ -108,22 +125,53 @@ function median(values: readonly number[]): number | null {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-/** What the settings UI shows about GPU upscaling availability. */
+/** WebGPU adapter probe state (kept as `support` for the 1.19.0 API). */
 export type UpscaleSupport = 'checking' | 'ready' | 'unavailable';
 
 /**
- * Probes once per app session whether a WebGPU device can actually be acquired
- * (a `navigator.gpu` that then fails to hand out an adapter is common on older
- * Linux/Android drivers), so the settings surface can say "needs WebGPU" instead
- * of offering an option that silently does nothing. The probe touches no Anime4K
- * code, so asking the question never downloads the lazy chunk.
+ * Probes once per app session which GPU paths exist - whether a WebGPU device can
+ * actually be acquired (a `navigator.gpu` that then fails to hand out an adapter
+ * is common on older Linux/Android drivers) and whether a WebGL2 context with
+ * float render targets can be created (1.25.0) - and resolves every Upscaling
+ * choice to the engine it runs on here, or to the reason it cannot run
+ * (`upscale-engine.ts`). The settings UI, the reader's `e` shortcut and the
+ * once-per-session notice all read it, so nothing falls back silently. The probes
+ * touch no renderer code, so asking never downloads a lazy chunk.
  */
 @Injectable({ providedIn: 'root' })
 export class UpscaleSupportService {
   static readonly StatsKey = 'mangapixer-reader-gpu-stats';
 
+  private readonly prefs = inject(ReaderPreferencesService);
+
+  /** WebGPU adapter probe. */
   readonly support = signal<UpscaleSupport>('checking');
   private probed = false;
+
+  /** WebGL2 probe (synchronous; `unsupported` under jsdom). */
+  readonly webgl = signal<WebGlCaps>(noWebGl);
+
+  /** WebGPU is `[SecureContext]`: over plain `http://<LAN IP>` it never exists. */
+  readonly secure = signal<boolean>(typeof isSecureContext === 'boolean' ? isSecureContext : true);
+
+  readonly caps = computed<GpuCaps>(() => ({ webgpu: this.support(), webgl: this.webgl(), secure: this.secure() }));
+
+  /** Can each choice run here, and on which engine? */
+  readonly sharp = computed<Availability>(() => availabilityFor('sharp', this.caps()));
+  readonly enhance = computed<Availability>(() => availabilityFor('enhance', this.caps()));
+
+  /** The backend the stored Upscaling choice runs on here, or null (Smooth, or it cannot run). */
+  readonly backend = computed<UpscaleBackend | null>(() => backendFor(this.prefs.upscaler(), this.caps()),
+    { equal: sameBackend });
+
+  /** The choice actually on screen: the stored one, or Smooth when it cannot run here. */
+  readonly effective = computed<Upscaler>(() => effectiveUpscaler(this.prefs.upscaler(), this.caps()));
+
+  /** The engine Enhance runs on here (null when it cannot run / still checking). */
+  readonly enhanceEngine = computed<UpscaleEngine | null>(() => {
+    const a = this.enhance();
+    return a.state === 'ready' ? a.engine : null;
+  });
 
   /**
    * Webtoon Enhance paused for this app session after a second GPU reset within
@@ -134,7 +182,7 @@ export class UpscaleSupportService {
   /**
    * Device-verification readout (1.24.0), OFF by default: the median ms per paged
    * page / webtoon band, appended to the status line. Toggled per device by
-   * tapping the Rendering status line `statsTapCount` times; nothing leaves the
+   * tapping the Upscaling status line `statsTapCount` times; nothing leaves the
    * device.
    */
   readonly statsVisible = signal(this.loadStats());
@@ -144,19 +192,33 @@ export class UpscaleSupportService {
   readonly bandMs = computed(() => median(this.bandTimes()));
   private taps: number[] = [];
 
+  /** Upscaling choices already announced as unavailable this app session. */
+  private readonly noticed = signal<ReadonlySet<Upscaler>>(new Set());
+
   constructor() {
     this.probe();
   }
 
-  /** A short human-readable status for a tooltip/hint. */
-  statusText(): string {
+  /**
+   * A short human-readable status for the Upscaling tooltip and status line: the
+   * engine the current choice runs on ("GPU: Enhance on WebGL2 - WebGPU needs
+   * HTTPS"), or - under Smooth, or when the choice cannot run - what this device
+   * offers ("GPU: WebGPU needs HTTPS, WebGL2 ready").
+   *
+   * `withEngine: false` always gives the capability summary: the desktop menu's
+   * selected option already names its engine on its second line, so its status line
+   * does not repeat it (owner, 2026-09-26). Phone chips have no second line, so the
+   * options sheet keeps the engine here.
+   */
+  statusText(withEngine = true): string {
+    const pref = this.prefs.upscaler();
+    const a = availabilityFor(pref, this.caps());
     let text: string;
-    switch (this.support()) {
-      case 'ready': text = 'GPU: WebGPU ready'; break;
-      case 'unavailable': return 'GPU: WebGPU unavailable';
-      default: return 'GPU: checking WebGPU…';
-    }
-    if (this.webtoonPaused()) text += ' - Enhance paused (GPU reset)';
+    // Smooth, or a choice that cannot run (its option says why): what this device offers.
+    if (withEngine && a.state === 'ready' && pref !== 'smooth') text = `GPU: ${upscalerLabels[pref]} - ${a.note}`;
+    else if (a.state === 'checking') text = 'GPU: checking WebGPU…';
+    else text = `GPU: ${capsSummary(this.caps())}`;
+    if (this.webtoonPaused()) text += ` - ${pref === 'sharp' ? 'Crisp' : 'Enhance'} paused (GPU reset)`;
     if (this.statsVisible()) {
       const page = this.pageMs();
       const band = this.bandMs();
@@ -165,6 +227,24 @@ export class UpscaleSupportService {
       if (page === null && band === null) text += ' - no renders yet';
     }
     return text;
+  }
+
+  /**
+   * The once-per-session message for a SAVED choice that cannot run here
+   * ("Enhance isn't available here - showing Smooth."), or null. The reader shows
+   * it and calls `markNoticeShown()`. The unsaved default (Crisp since 1.25.0) is
+   * never announced: the user did not choose it, and the menu still shows why.
+   */
+  readonly pendingNotice = computed<string | null>(() => {
+    const pref = this.prefs.upscaler();
+    if (pref === 'smooth' || !this.prefs.upscalerChosen() || this.noticed().has(pref)) return null;
+    const a = availabilityFor(pref, this.caps());
+    return a.state === 'unavailable' ? `${upscalerLabels[pref]} isn't available here - showing Smooth.` : null;
+  });
+
+  markNoticeShown(): void {
+    const pref = this.prefs.upscaler();
+    if (pref !== 'smooth') this.noticed.update((set) => new Set([...set, pref]));
   }
 
   /** Record one finished render (paged page or webtoon band) for the median readout. */
@@ -200,6 +280,7 @@ export class UpscaleSupportService {
   probe(): void {
     if (this.probed) return;
     this.probed = true;
+    this.webgl.set(probeWebGl());
     if (!hasWebGpu()) { this.support.set('unavailable'); return; }
     const gpu = (navigator as Navigator & { gpu?: GPU }).gpu;
     try {
@@ -227,10 +308,12 @@ export class UpscaleDirective implements OnDestroy {
   private readonly prefs = inject(ReaderPreferencesService);
   private readonly support = inject(UpscaleSupportService);
 
-  /** True when the reader's "Rendering" preference is `enhance`. */
+  /** True when the reader's "Upscaling" preference is Crisp or Enhance (`ReaderComponent.upscaleActive`). */
   readonly appUpscale = input(false);
 
   private canvas: HTMLCanvasElement | null = null;
+  /** The context type the overlay canvas holds (a canvas can hold only one). */
+  private canvasKind: 'webgpu' | '2d' | null = null;
   private observer: ResizeObserver | null = null;
   private frame: number | null = null;
   /** Bumped on every (re)schedule so a slow async render can detect it is stale. */
@@ -240,7 +323,8 @@ export class UpscaleDirective implements OnDestroy {
   constructor() {
     // React to the preference flipping while a page is on screen.
     effect(() => {
-      const on = this.appUpscale();
+      // Off, or the choice cannot run here: the plain <img> (the menu says why).
+      const on = this.appUpscale() && this.support.backend() !== null;
       this.prefs.enhanceQuality(); // an Efficient <-> Max quality switch re-renders too
       if (!on) {
         this.hide();
@@ -266,6 +350,11 @@ export class UpscaleDirective implements OnDestroy {
     this.observer = null;
     if (this.frame !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.frame);
     this.frame = null;
+    this.dropCanvas();
+    this.zone.runOutsideAngular(() => relinquishUpscaler(this));
+  }
+
+  private dropCanvas(): void {
     if (this.canvas) {
       // WebKit keeps a detached canvas's backing store until it is resized.
       this.canvas.width = 0;
@@ -273,7 +362,7 @@ export class UpscaleDirective implements OnDestroy {
       this.canvas.remove();
     }
     this.canvas = null;
-    this.zone.runOutsideAngular(() => relinquishUpscaler(this));
+    this.canvasKind = null;
   }
 
   /** Coalesce the (load / resize / preference) triggers into one render a frame. */
@@ -316,8 +405,9 @@ export class UpscaleDirective implements OnDestroy {
     };
   }
 
-  private ensureCanvas(): HTMLCanvasElement | null {
-    if (this.canvas) return this.canvas;
+  private ensureCanvas(kind: 'webgpu' | '2d'): HTMLCanvasElement | null {
+    if (this.canvas && this.canvasKind === kind) return this.canvas;
+    this.dropCanvas(); // switching engines: the old canvas holds the other context type
     const img = this.host.nativeElement;
     const parent = img.parentElement;
     if (!parent) return null;
@@ -329,12 +419,14 @@ export class UpscaleDirective implements OnDestroy {
     canvas.style.display = 'none';
     parent.insertBefore(canvas, img.nextSibling);
     this.canvas = canvas;
+    this.canvasKind = kind;
     return canvas;
   }
 
   /** The whole decision, in one place; never throws. */
   private async apply(): Promise<void> {
-    if (this.destroyed || !this.appUpscale()) { this.hide(); return; }
+    const backend = this.support.backend();
+    if (this.destroyed || !this.appUpscale() || !backend) { this.hide(); return; }
     const img = this.host.nativeElement;
     if (!img.complete) return; // a (load) event will bring us back
     const rect = this.paintedRect();
@@ -349,9 +441,10 @@ export class UpscaleDirective implements OnDestroy {
     const dpr = typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1;
     const scale = (rect.width * dpr) / img.naturalWidth;
     if (!(scale > upscaleThreshold)) { this.hide(); return; }
-    if (!hasWebGpu()) { this.hide(); return; }
+    const webgpu = backend.engine === 'webgpu';
+    if (webgpu && !hasWebGpu()) { this.hide(); return; }
 
-    const canvas = this.ensureCanvas();
+    const canvas = this.ensureCanvas(webgpu ? 'webgpu' : '2d');
     if (!canvas) { this.hide(); return; }
 
     const targetWidth = Math.round(rect.width * dpr);
@@ -360,12 +453,25 @@ export class UpscaleDirective implements OnDestroy {
     if (targetWidth <= 0 || targetHeight <= 0) { this.hide(); return; }
 
     const token = ++this.token;
+    // Counted as live before any GPU memory exists, even if the preference effect
+    // has not re-run since the engine probe resolved (the release needs it).
+    retainUpscaler(this);
     try {
-      renderer = await import('./anime4k-renderer');
-      if (this.destroyed || token !== this.token) return;
-      const chain = pagedChainFor(this.prefs.enhanceQuality());
-      const started = performance.now();
-      const ok = await renderer.renderUpscaled({ source: img, canvas, targetWidth, targetHeight, chain });
+      let ok: boolean;
+      let started: number;
+      if (webgpu) {
+        renderer = await import('./anime4k-renderer');
+        if (this.destroyed || token !== this.token) return;
+        const chain = pagedChainFor(this.prefs.enhanceQuality());
+        started = performance.now();
+        ok = await renderer.renderUpscaled({ source: img, canvas, targetWidth, targetHeight, chain });
+      } else {
+        // WebGL2: Crisp (FSR 1), or Enhance on the Efficient chain (Max quality is WebGPU-only).
+        glRenderer = await import('./webgl-upscaler');
+        if (this.destroyed || token !== this.token) return;
+        started = performance.now();
+        ok = await glRenderer.renderPage({ source: img, canvas, targetWidth, targetHeight, mode: backend.mode });
+      }
       if (this.destroyed || token !== this.token) return;
       if (!ok) { canvas.style.display = 'none'; return; }
       this.support.recordTiming('page', performance.now() - started);
@@ -375,7 +481,7 @@ export class UpscaleDirective implements OnDestroy {
       canvas.style.height = `${rect.height}px`;
       canvas.style.display = 'block';
     } catch {
-      // Chunk failed to load, WebGPU threw, anything: stay on the <img>.
+      // Chunk failed to load, the GPU threw, anything: stay on the <img>.
       if (this.canvas) this.canvas.style.display = 'none';
     }
   }

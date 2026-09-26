@@ -18,6 +18,7 @@ describe('ReaderSettingsMenuComponent', () => {
       providers: [provideNoopAnimations()],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const fixture = TestBed.createComponent(ReaderSettingsMenuComponent);
     fixture.detectChanges();
     return { fixture, c: fixture.componentInstance, prefs: TestBed.inject(ReaderPreferencesService) };
@@ -39,47 +40,58 @@ describe('ReaderSettingsMenuComponent', () => {
 
   /**
    * 1.19.0 image scaling. A second trigger, present in every view, opens a menu
-   * with two radio groups: Rendering (how an upscaled page is resampled) and
+   * with two radio groups: Upscaling (how an upscaled page is resampled) and
    * Page quality (how many pixels are fetched). Its tooltip is the WebGPU status
    * readout - the only way to confirm the GPU path on a real device.
    */
-  describe('Rendering menu (1.19.0)', () => {
+  describe('Upscaling menu (1.19.0)', () => {
     function openRendering(fixture: ReturnType<typeof create>['fixture']) {
       const trigger = (fixture.nativeElement as HTMLElement)
-        .querySelector('button[aria-label="Rendering"]') as HTMLElement;
+        .querySelector('button[aria-label="Upscaling"]') as HTMLElement;
       expect(trigger).toBeTruthy();
       trigger.click();
       fixture.detectChanges();
       return { trigger, panel: document.querySelector('.reader-options-menu') as HTMLElement };
     }
 
-    it('renders a Rendering trigger in the paged AND webtoon views', () => {
+    it('renders a Upscaling trigger in the paged AND webtoon views', () => {
       const { fixture } = create();
       const host = fixture.nativeElement as HTMLElement;
-      expect(host.querySelector('button[aria-label="Rendering"]')).toBeTruthy();
+      expect(host.querySelector('button[aria-label="Upscaling"]')).toBeTruthy();
       fixture.componentRef.setInput('view', 'webtoon');
       fixture.detectChanges();
-      expect(host.querySelector('button[aria-label="Rendering"]')).toBeTruthy();
+      expect(host.querySelector('button[aria-label="Upscaling"]')).toBeTruthy();
     });
 
-    it('offers Smooth / Enhance and Auto / Full as menuitemradios, defaults highlighted', () => {
+    /** Upscaling items by their option label (the aria-label may carry an engine / reason line). */
+    const renderingItems = (panel: HTMLElement) => Array.from(panel.querySelectorAll<HTMLButtonElement>('button[mat-menu-item]'))
+      .filter((i) => (i.getAttribute('aria-label') ?? '').startsWith('Upscaling: '));
+    const renderingItem = (panel: HTMLElement, label: string) =>
+      renderingItems(panel).find((i) => new RegExp(`^Upscaling: ${label}( - |$)`).test(i.getAttribute('aria-label') ?? ''))!;
+    const noteOf = (item: HTMLElement) => item.querySelector('.option-note')?.textContent?.trim() ?? null;
+    const webgl = (floatTargets = true) => ({ status: 'ready' as const, floatTargets, maxTextureSize: 8192 });
+
+    it('offers Smooth / Crisp / Enhance and Auto / Full as menuitemradios, defaults highlighted', () => {
       const { fixture } = create();
       const { panel } = openRendering(fixture);
-      // Excludes the 1.20.0 Downscale filter and 1.24.0 Enhance quality groups (own tests below).
-      const items = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'))
-        .filter((i) => !/^(Downscale filter|Enhance quality)/.test(i.getAttribute('aria-label') ?? ''));
+      const rendering = renderingItems(panel);
+      expect(rendering.map((i) => (i.getAttribute('aria-label') ?? '').replace(/ - .*$/, '')))
+        .toEqual(['Upscaling: Smooth', 'Upscaling: Crisp', 'Upscaling: Enhance']);
+      const quality = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'))
+        .filter((i) => (i.getAttribute('aria-label') ?? '').startsWith('Page quality'));
       // textContent carries the icon ligature first, as elsewhere in these menus.
-      expect(items.map((i) => (i.textContent ?? '').trim().split(/\s+/).pop()))
-        .toEqual(['Smooth', 'Enhance', 'Auto', 'Full']);
+      expect(quality.map((i) => (i.textContent ?? '').trim().split(/\s+/).pop())).toEqual(['Auto', 'Full']);
+      const items = [...rendering, ...quality];
       for (const i of items) expect(i.getAttribute('role')).toBe('menuitemradio');
-      const byLabel = (l: string) => items.find((i) => (i.textContent ?? '').trim().endsWith(l))!;
-      expect(byLabel('Smooth').classList.contains('selected-option')).toBe(true);
-      expect(byLabel('Smooth').getAttribute('aria-checked')).toBe('true');
-      expect(byLabel('Auto').classList.contains('selected-option')).toBe(true);
-      expect(byLabel('Enhance').getAttribute('aria-checked')).toBe('false');
-      expect(byLabel('Full').getAttribute('aria-checked')).toBe('false');
+      expect(renderingItem(panel, 'Smooth').classList.contains('selected-option')).toBe(true);
+      expect(renderingItem(panel, 'Smooth').getAttribute('aria-checked')).toBe('true');
+      expect(quality[0].classList.contains('selected-option')).toBe(true);
+      expect(renderingItem(panel, 'Enhance').getAttribute('aria-checked')).toBe('false');
+      expect(quality[1].getAttribute('aria-checked')).toBe('false');
       // Colour highlight, never a tick - same rule as every other reader menu.
       for (const i of items) expect(i.querySelector('mat-icon')?.textContent?.trim()).not.toBe('check');
+      // The selected option names its engine on a second line.
+      expect(noteOf(renderingItem(panel, 'Smooth'))).toBe('Browser scaling');
     });
 
     it('page quality is selectable and persists through the shared service', () => {
@@ -91,24 +103,77 @@ describe('ReaderSettingsMenuComponent', () => {
       expect(prefs.pageQuality()).toBe('full');
     });
 
-    it('Enhance is disabled with a "needs WebGPU" hint on a platform without WebGPU', () => {
+    it('without WebGPU or WebGL2, Crisp and Enhance are disabled, each with its reason', () => {
       const { fixture, c } = create();
       expect(c.support.support()).toBe('unavailable'); // jsdom: no navigator.gpu
+      expect(c.support.webgl().status).toBe('unsupported'); // ... and no WebGL2
       expect(c.enhanceDisabled()).toBe(true);
-      expect(c.renderingHint()).toBe('Enhance needs WebGPU');
       const { panel } = openRendering(fixture);
-      const enhance = Array.from(panel.querySelectorAll<HTMLButtonElement>('button[mat-menu-item]'))
-        .find((i) => (i.textContent ?? '').trim().endsWith('Enhance'))!;
+      const sharp = renderingItem(panel, 'Crisp');
+      const enhance = renderingItem(panel, 'Enhance');
+      expect(sharp.disabled).toBe(true);
       expect(enhance.disabled).toBe(true);
-      expect(panel.querySelector('.menu-hint')?.textContent).toContain('needs WebGPU');
+      expect(noteOf(sharp)).toBe('Needs WebGL2, which this browser lacks');
+      expect(noteOf(enhance)).toBe('Needs WebGL2, which this browser lacks');
+      expect(sharp.getAttribute('aria-label')).toBe('Upscaling: Crisp - Needs WebGL2, which this browser lacks');
+      expect(panel.querySelector('.menu-hint')?.textContent).toContain('WebGPU unavailable, no WebGL2');
     });
 
-    it('chooseUpscaler refuses Enhance while it is unavailable, but always allows Smooth', () => {
+    it('over plain HTTP with WebGL2: Enhance runs on WebGL2 and says why; Crisp is WebGL2', () => {
+      const { fixture, c, prefs } = create();
+      c.support.secure.set(false);
+      c.support.webgl.set(webgl());
+      prefs.setUpscaler('enhance');
+      fixture.detectChanges();
+      const { panel } = openRendering(fixture);
+      const enhance = renderingItem(panel, 'Enhance');
+      expect(enhance.disabled).toBe(false);
+      expect(enhance.classList.contains('selected-option')).toBe(true);
+      expect(noteOf(enhance)).toBe('Anime4K (WebGL2)');
+      expect(noteOf(renderingItem(panel, 'Crisp'))).toBeNull(); // not selected: no line
+      expect(renderingItem(panel, 'Crisp').disabled).toBe(false);
+      expect(c.renderingHint()).toBe('GPU: WebGPU needs HTTPS, WebGL2 ready');  // desktop: engine on the option line
+      renderingItem(panel, 'Crisp').click();
+      fixture.detectChanges();
+      expect(prefs.upscaler()).toBe('sharp');
+      expect(c.renderingHint()).toBe('GPU: WebGPU needs HTTPS, WebGL2 ready');  // desktop: engine on the option line
+    });
+
+    it('over plain HTTP without float render targets, Enhance is disabled: needs a secure connection', () => {
+      const { fixture, c, prefs } = create();
+      c.support.secure.set(false);
+      c.support.webgl.set(webgl(false));
+      prefs.setUpscaler('enhance'); // saved on another connection
+      fixture.detectChanges();
+      const { panel } = openRendering(fixture);
+      const enhance = renderingItem(panel, 'Enhance');
+      expect(enhance.disabled).toBe(true);
+      expect(noteOf(enhance)).toBe('Needs a secure connection (HTTPS)');
+      // The page shows Smooth, so that is what is highlighted; the stored choice is kept.
+      expect(renderingItem(panel, 'Smooth').classList.contains('selected-option')).toBe(true);
+      expect(enhance.getAttribute('aria-checked')).toBe('false');
+      expect(prefs.upscaler()).toBe('enhance');
+    });
+
+    it('chooseUpscaler refuses a choice that cannot run here, but always allows Smooth', () => {
       const { c, prefs } = create();
       c.chooseUpscaler('enhance');
       expect(prefs.upscaler()).toBe('smooth'); // rejected: no WebGPU here
+      c.chooseUpscaler('sharp');
+      expect(prefs.upscaler()).toBe('smooth'); // rejected: no WebGL2 here
       c.chooseUpscaler('smooth');
       expect(prefs.upscaler()).toBe('smooth');
+    });
+
+    it('while WebGPU is still being probed, Enhance waits (disabled, "Checking WebGPU…")', () => {
+      const { fixture, c } = create();
+      c.support.support.set('checking');
+      c.support.webgl.set(webgl());
+      fixture.detectChanges();
+      const { panel } = openRendering(fixture);
+      expect(renderingItem(panel, 'Enhance').disabled).toBe(true);
+      expect(noteOf(renderingItem(panel, 'Enhance'))).toBe('Checking WebGPU…');
+      expect(renderingItem(panel, 'Crisp').disabled).toBe(false);
     });
 
     it('with WebGPU ready, Enhance is selectable in every view, webtoon included (1.24.0)', () => {
@@ -116,18 +181,18 @@ describe('ReaderSettingsMenuComponent', () => {
       c.support.support.set('ready');
       fixture.detectChanges();
       expect(c.enhanceDisabled()).toBe(false);
-      expect(c.renderingHint()).toBe('GPU: WebGPU ready');
+      expect(c.renderingHint()).toBe('GPU: WebGPU ready, no WebGL2');
       c.chooseUpscaler('enhance');
       expect(prefs.upscaler()).toBe('enhance');
+      expect(c.renderingHint()).toBe('GPU: WebGPU ready, no WebGL2');  // desktop: engine on the option line
 
       fixture.componentRef.setInput('view', 'webtoon');
       fixture.detectChanges();
       expect(c.enhanceDisabled()).toBe(false);
-      expect(c.renderingHint()).toBe('GPU: WebGPU ready');
       const { panel } = openRendering(fixture);
-      const enhance = Array.from(panel.querySelectorAll<HTMLButtonElement>('button[mat-menu-item]'))
-        .find((i) => (i.textContent ?? '').trim().endsWith('Enhance'))!;
+      const enhance = renderingItem(panel, 'Enhance');
       expect(enhance.disabled).toBe(false);
+      expect(noteOf(enhance)).toBe('Anime4K');
     });
 
     /** 1.24.0 owner decision: M ("Efficient") by default, VL as "Max quality". */
@@ -135,8 +200,17 @@ describe('ReaderSettingsMenuComponent', () => {
       const qualityItems = (panel: HTMLElement) => Array.from(panel.querySelectorAll<HTMLButtonElement>('button[mat-menu-item]'))
         .filter((i) => (i.getAttribute('aria-label') ?? '').startsWith('Enhance quality'));
 
+      /** 1.25.0: the group is a sub-choice of Enhance, shown only while Enhance runs. */
+      function createEnhance() {
+        const created = create();
+        created.c.support.support.set('ready');
+        created.prefs.setUpscaler('enhance');
+        created.fixture.detectChanges();
+        return created;
+      }
+
       it('offers Efficient (default, highlighted) and Max quality as menuitemradios', () => {
-        const { fixture } = create();
+        const { fixture } = createEnhance();
         const items = qualityItems(openRendering(fixture).panel);
         expect(items.map((i) => i.getAttribute('aria-label'))).toEqual(['Enhance quality: Efficient', 'Enhance quality: Max quality']);
         for (const i of items) expect(i.getAttribute('role')).toBe('menuitemradio');
@@ -145,22 +219,46 @@ describe('ReaderSettingsMenuComponent', () => {
         expect(items[1].getAttribute('aria-checked')).toBe('false');
       });
 
-      it('is disabled without WebGPU and chooseEnhanceQuality refuses a change', () => {
+      it('is shown only while Enhance is the Upscaling on screen (1.25.0)', () => {
         const { fixture, c, prefs } = create();
-        const items = qualityItems(openRendering(fixture).panel);
-        expect(items.every((i) => i.disabled)).toBe(true);
+        c.support.support.set('ready');
+        fixture.detectChanges();
+        expect(c.showEnhanceQuality()).toBe(false); // Smooth
+        expect(qualityItems(openRendering(fixture).panel)).toEqual([]);
+        prefs.setUpscaler('enhance');
+        expect(c.showEnhanceQuality()).toBe(true);
+        c.support.support.set('unavailable'); // saved Enhance cannot run: Smooth shows
+        expect(c.showEnhanceQuality()).toBe(false);
+      });
+
+      it('chooseEnhanceQuality refuses a change while Enhance cannot run', () => {
+        const { c, prefs } = create();
         c.chooseEnhanceQuality('max');
         expect(prefs.enhanceQuality()).toBe('balanced');
       });
 
       it('with WebGPU ready, Max quality persists through the shared service', () => {
-        const { fixture, c, prefs } = create();
-        c.support.support.set('ready');
-        fixture.detectChanges();
+        const { fixture, prefs } = createEnhance();
         const items = qualityItems(openRendering(fixture).panel);
         items[1].click();
         expect(prefs.enhanceQuality()).toBe('max');
         expect(localStorage.getItem(ReaderPreferencesService.EnhanceQualityKey)).toBe('max');
+      });
+
+      it('on WebGL2, Max quality is disabled and Efficient runs; the stored Max is kept (1.25.0)', () => {
+        const { fixture, c, prefs } = create();
+        c.support.secure.set(false);
+        c.support.webgl.set(webgl());
+        prefs.setUpscaler('enhance');
+        prefs.setEnhanceQuality('max');
+        fixture.detectChanges();
+        const items = qualityItems(openRendering(fixture).panel);
+        expect(items[1].disabled).toBe(true);
+        expect(items[0].disabled).toBe(false);
+        expect(items[0].getAttribute('aria-checked')).toBe('true');
+        expect(c.qualityHint()).toBe('Max quality needs WebGPU, which needs HTTPS; Efficient runs here');
+        c.chooseEnhanceQuality('max');
+        expect(prefs.enhanceQuality()).toBe('max'); // untouched: WebGPU would run it
       });
 
       it('hints what each choice costs', () => {
@@ -171,8 +269,7 @@ describe('ReaderSettingsMenuComponent', () => {
       });
 
       it('is hidden in the vertical view (always Efficient there); the stored choice is untouched', () => {
-        const { fixture, c, prefs } = create();
-        c.support.support.set('ready');
+        const { fixture, c, prefs } = createEnhance();
         prefs.setEnhanceQuality('max');
         fixture.componentRef.setInput('view', 'webtoon');
         fixture.detectChanges();
@@ -182,8 +279,8 @@ describe('ReaderSettingsMenuComponent', () => {
         expect(panel.querySelector('[role="group"][aria-label="Enhance quality"]')).toBeNull();
         expect(panel.textContent).not.toContain('Enhance quality');
         expect(panel.textContent).not.toContain('Max quality');
-        // Rendering and Page quality are still offered in vertical.
-        expect(panel.querySelector('[role="group"][aria-label="Rendering"]')).not.toBeNull();
+        // Upscaling and Page quality are still offered in vertical.
+        expect(panel.querySelector('[role="group"][aria-label="Upscaling"]')).not.toBeNull();
         expect(panel.querySelector('[role="group"][aria-label="Page quality"]')).not.toBeNull();
         expect(prefs.enhanceQuality()).toBe('max');
         // Back in a paged view the group returns (with the stored choice).
@@ -194,12 +291,13 @@ describe('ReaderSettingsMenuComponent', () => {
     });
 
     it('five taps on the status line toggle the GPU timing readout, without closing the menu', () => {
-      const { fixture, c } = create();
+      const { fixture, c, prefs } = create();
       c.support.support.set('ready');
+      prefs.setUpscaler('enhance');
       fixture.detectChanges();
       const { panel } = openRendering(fixture);
       const status = panel.querySelector('button.hint-tap') as HTMLButtonElement;
-      expect(status.textContent?.trim()).toBe('GPU: WebGPU ready');
+      expect(status.textContent?.trim()).toBe('GPU: WebGPU ready, no WebGL2');  // desktop: engine on the option line
       for (let i = 0; i < 5; i++) status.click();
       fixture.detectChanges();
       expect(c.support.statsVisible()).toBe(true);
@@ -208,23 +306,33 @@ describe('ReaderSettingsMenuComponent', () => {
       c.support.recordTiming('band', 22);
       c.support.recordTiming('band', 400); // median, so one slow band does not skew it
       fixture.detectChanges();
-      expect(status.textContent?.trim()).toBe('GPU: WebGPU ready - 22 ms/band');
+      expect(status.textContent?.trim()).toBe('GPU: WebGPU ready, no WebGL2 - 22 ms/band');
       for (let i = 0; i < 5; i++) status.click();
       expect(c.support.statsVisible()).toBe(false);
     });
 
     it('the GPU status readout is a short, owner-verifiable string', () => {
-      const { c } = create();
-      expect(c.support.statusText()).toBe('GPU: WebGPU unavailable');
+      const { c, prefs } = create();
+      expect(c.support.statusText()).toBe('GPU: WebGPU unavailable, no WebGL2');
       c.support.support.set('ready');
-      expect(c.support.statusText()).toBe('GPU: WebGPU ready');
+      expect(c.support.statusText()).toBe('GPU: WebGPU ready, no WebGL2');
+      c.support.webgl.set(webgl(false));
+      expect(c.support.statusText()).toBe('GPU: WebGPU ready, WebGL2 ready (Crisp only)');
+      c.support.secure.set(false);
+      c.support.support.set('unavailable');
+      c.support.webgl.set(webgl());
+      expect(c.support.statusText()).toBe('GPU: WebGPU needs HTTPS, WebGL2 ready');
+      prefs.setUpscaler('enhance');
+      expect(c.support.statusText()).toBe('GPU: Enhance - Anime4K (WebGL2)');
+      c.support.secure.set(true);
+      expect(c.support.statusText()).toBe('GPU: Enhance - Anime4K (WebGL2)');
       c.support.support.set('checking');
       expect(c.support.statusText()).toContain('checking');
     });
   });
 
   /**
-   * 1.20.0 "Downscale filter": a third radio group in the same Rendering menu,
+   * 1.20.0 "Downscale filter": a third radio group in the same Upscaling menu,
    * after Page quality. Only meaningful for a sized (Auto) page request, so it
    * is offered disabled with a reason under Full - the same treatment as
    * Enhance being disabled with a reason on webtoon.
@@ -232,7 +340,7 @@ describe('ReaderSettingsMenuComponent', () => {
   describe('Downscale filter menu (1.20.0)', () => {
     function openRendering(fixture: ReturnType<typeof create>['fixture']) {
       const trigger = (fixture.nativeElement as HTMLElement)
-        .querySelector('button[aria-label="Rendering"]') as HTMLElement;
+        .querySelector('button[aria-label="Upscaling"]') as HTMLElement;
       trigger.click();
       fixture.detectChanges();
       return { panel: document.querySelector('.reader-options-menu') as HTMLElement };
@@ -407,6 +515,7 @@ describe('ReaderOptionsSheetComponent', () => {
       ],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const fixture = TestBed.createComponent(ReaderOptionsSheetComponent);
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
@@ -511,7 +620,7 @@ describe('ReaderOptionsSheetComponent', () => {
     const [prev, next] = buttons;
     expect(prev.disabled).toBe(true);
     expect(next.disabled).toBe(false);
-    expect(next.getAttribute('aria-label')).toBe('Next chapter: Ch 2');
+    expect(next.getAttribute('aria-label')).toBe('Next archive: Ch 2');
 
     const order: string[] = [];
     ref.dismiss.mockImplementation(() => order.push('dismiss'));
@@ -525,11 +634,14 @@ describe('ReaderOptionsSheetComponent', () => {
    * (Page quality applies to webtoon too), with Enhance disabled and explained
    * wherever it cannot work.
    */
-  describe('Rendering + Page quality chip groups (1.19.0)', () => {
+  describe('Upscaling + Page quality chip groups (1.19.0)', () => {
+    const webgl = (floatTargets = true) => ({ status: 'ready' as const, floatTargets, maxTextureSize: 8192 });
+
     it('adds both groups in the paged view, each with exactly one checked chip', () => {
       const { chips, checked } = create();
+      expect(chips('reader-options-rendering').length).toBe(3); // Smooth / Crisp / Enhance (1.25.0)
+      expect(chips('reader-options-quality').length).toBe(2);
       for (const id of ['reader-options-rendering', 'reader-options-quality']) {
-        expect(chips(id).map((c) => (c.textContent ?? '').trim()).length, id).toBe(2);
         expect(checked(id).length, id).toBe(1);
         expect(checked(id)[0].classList.contains('selected'), id).toBe(true);
       }
@@ -550,13 +662,42 @@ describe('ReaderOptionsSheetComponent', () => {
       expect(ref.dismiss).not.toHaveBeenCalled();
     });
 
-    it('Enhance is disabled and explained without WebGPU (jsdom has none)', () => {
+    it('Crisp and Enhance are disabled and explained without WebGPU or WebGL2 (jsdom has neither)', () => {
       const { c, el, chip } = create();
       expect(c.enhanceDisabled()).toBe(true);
       expect((chip('reader-options-rendering', 'Enhance') as HTMLButtonElement).disabled).toBe(true);
-      expect(el.querySelector('.group-hint')?.textContent).toContain('needs WebGPU');
+      expect((chip('reader-options-rendering', 'Crisp') as HTMLButtonElement).disabled).toBe(true);
+      expect(el.querySelector('.rendering-notes')?.textContent?.trim())
+        .toBe('Crisp: Needs WebGL2, which this browser lacks · Enhance: Needs WebGL2, which this browser lacks');
       c.pickUpscaler('enhance');
+      c.pickUpscaler('sharp');
       expect(TestBed.inject(ReaderPreferencesService).upscaler()).toBe('smooth');
+    });
+
+    it('over plain HTTP with WebGL2: Crisp and Enhance are selectable, the status line names the engine', () => {
+      const { fixture, c, el, checked, chip } = create();
+      c.support.secure.set(false);
+      c.support.webgl.set(webgl());
+      fixture.detectChanges();
+      expect(el.querySelector('.rendering-notes')).toBeNull(); // nothing disabled
+      chip('reader-options-rendering', 'Enhance').click();
+      fixture.detectChanges();
+      expect(TestBed.inject(ReaderPreferencesService).upscaler()).toBe('enhance');
+      expect(checked('reader-options-rendering')[0].textContent).toContain('Enhance');
+      expect(el.querySelector('.hint-tap')?.textContent?.trim()).toBe('GPU: Enhance - Anime4K (WebGL2)');
+      chip('reader-options-rendering', 'Crisp').click();
+      fixture.detectChanges();
+      expect(el.querySelector('.hint-tap')?.textContent?.trim()).toBe('GPU: Crisp - AMD FSR 1');
+    });
+
+    it('without float render targets over HTTP, only Enhance is disabled: needs a secure connection', () => {
+      const { fixture, c, el, chip } = create();
+      c.support.secure.set(false);
+      c.support.webgl.set(webgl(false));
+      fixture.detectChanges();
+      expect((chip('reader-options-rendering', 'Crisp') as HTMLButtonElement).disabled).toBe(false);
+      expect((chip('reader-options-rendering', 'Enhance') as HTMLButtonElement).disabled).toBe(true);
+      expect(el.querySelector('.rendering-notes')?.textContent?.trim()).toBe('Enhance: Needs a secure connection (HTTPS)');
     });
 
     it('with WebGPU ready the Enhance chip is selectable, in webtoon too (1.24.0)', () => {
@@ -573,33 +714,48 @@ describe('ReaderOptionsSheetComponent', () => {
       webtoon.c.support.support.set('ready');
       webtoon.fixture.detectChanges();
       expect(webtoon.c.enhanceDisabled()).toBe(false);
-      expect(webtoon.c.renderingHint()).toBe('GPU: WebGPU ready');
+      expect(webtoon.c.renderingHint()).toBe('GPU: WebGPU ready, no WebGL2'); // fresh device prefs: Smooth
       expect((webtoon.chip('reader-options-rendering', 'Enhance') as HTMLButtonElement).disabled).toBe(false);
     });
 
-    it('adds an Enhance quality chip group: Efficient checked by default, Max quality persists', () => {
-      const { fixture, c, chips, checked, chip } = create();
+    it('adds an Enhance quality chip group while Enhance runs: Efficient by default, Max quality persists', () => {
+      const { fixture, c, el, chips, checked, chip } = create();
+      expect(el.querySelector('#reader-options-enhance-quality')).toBeNull(); // Smooth: no sub-choice
+      c.support.support.set('ready');
+      TestBed.inject(ReaderPreferencesService).setUpscaler('enhance');
+      fixture.detectChanges();
       expect(chips('reader-options-enhance-quality').length).toBe(2);
       expect(checked('reader-options-enhance-quality')[0].textContent).toContain('Efficient');
-      expect((chip('reader-options-enhance-quality', 'Max quality') as HTMLButtonElement).disabled).toBe(true);
-      c.support.support.set('ready');
-      fixture.detectChanges();
       chip('reader-options-enhance-quality', 'Max quality').click();
       fixture.detectChanges();
       expect(TestBed.inject(ReaderPreferencesService).enhanceQuality()).toBe('max');
       expect(checked('reader-options-enhance-quality')[0].textContent).toContain('Max quality');
     });
 
+    it('on WebGL2 the Max quality chip is disabled and Efficient is checked (1.25.0)', () => {
+      const { fixture, c, checked, chip } = create();
+      c.support.secure.set(false);
+      c.support.webgl.set(webgl());
+      const prefs = TestBed.inject(ReaderPreferencesService);
+      prefs.setUpscaler('enhance');
+      prefs.setEnhanceQuality('max');
+      fixture.detectChanges();
+      expect((chip('reader-options-enhance-quality', 'Max quality') as HTMLButtonElement).disabled).toBe(true);
+      expect(checked('reader-options-enhance-quality')[0].textContent).toContain('Efficient');
+      expect(c.qualityHint()).toBe('Max quality needs WebGPU, which needs HTTPS; Efficient runs here');
+    });
+
     it('hides the Enhance quality group in the vertical view and shows it again in paged', () => {
       const { fixture, c, el, host, chips, checked } = create(makeHost({ view: 'webtoon' }));
       const prefs = TestBed.inject(ReaderPreferencesService);
       c.support.support.set('ready');
+      prefs.setUpscaler('enhance');
       prefs.setEnhanceQuality('max');
       fixture.detectChanges();
       expect(el.querySelector('#reader-options-enhance-quality')).toBeNull();
       expect(el.querySelector('[aria-labelledby="reader-options-enhance-quality"]')).toBeNull();
       expect(el.textContent).not.toContain('Max quality');
-      expect(chips('reader-options-rendering').length).toBe(2);
+      expect(chips('reader-options-rendering').length).toBe(3);
       expect(chips('reader-options-quality').length).toBeGreaterThan(0);
       expect(prefs.enhanceQuality()).toBe('max');
       (host.view as WritableSignal<ReaderView>).set('paged');

@@ -14,7 +14,7 @@ Inspired by several great comic servers and readers developed by the community, 
 - Folder-native. It doesn't enforce a library structure on you. Similar to [YACReader](https://www.yacreader.com/), but with...
 - Multi-user support. You can create admin or "normal" users, and admins can expose specific libraries to normal users. Each user has their own reading progress, and users don't interfere with each other.
 - Good native web support. I'm trying to offer as good a reading experience as possible across desktop, iPad/tablet and smartphone without needing an app. An app is to follow later so that you can save and download reliably.
-- No metadata required. If you have libraries with populated metadata, I'd recommend checking out [Kavita](https://www.kavitareader.com/) or [Komga](https://komga.org/).
+- No metadata required, but used when it's there. Folder and file names are enough to browse and read. MangaPixer also reads the `ComicInfo.xml` inside your archives, and an admin can optionally link series to [MangaUpdates](https://www.mangaupdates.com) for descriptions, authors and cover art (off by default). If your library is organized around metadata first, I'd still recommend checking out [Kavita](https://www.kavitareader.com/) or [Komga](https://komga.org/).
 - You can also allow users to mark libraries as "private" and hide them from the default view. Might be useful...
 
 ### What "folder-native" means
@@ -53,7 +53,7 @@ You need Docker with Compose v2. The Compose file pulls the published image from
 3. From that folder, pull and start the version you want (see [Releases](https://github.com/dixit92/mangapixer/releases)):
 
    ```bash
-   export MANGAPIXER_VERSION=1.24.2
+   export MANGAPIXER_VERSION=1.25.0
    docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d
    ```
 
@@ -81,11 +81,19 @@ The port is published on loopback only; put a [reverse proxy](docs/reverse-proxy
 **Reader**
 
 - Four modes: paged left-to-right, paged right-to-left (manga), double-page spreads, and vertical webtoon scrolling. Admins set a default mode per library and per folder, and each user can override it per item or set a personal default.
-- Double-page mode adapts: it shows a single page in narrow portrait, keeps wide spreads whole, and shows both page numbers.
+- Double-page mode adapts: it shows a single page in narrow portrait, keeps wide spreads whole, and shows both page numbers. When extra pages split a spread across the wrong pair, you can shift the pairing anywhere in an archive, and it is saved for everyone who reads it.
+- Image quality: pages are sent at the size your screen shows them (or full size, your choice), downscaled on the server with a choice of filter to keep screentones clean. Pages shown larger than their resolution can be redrawn on your device's graphics chip: **Crisp** (AMD FSR 1, light) or **Enhance** (the Anime4K line-art upscaler, **Efficient** or **Max quality**), in paged and vertical mode. Enhance uses WebGPU over HTTPS and WebGL2 elsewhere, so both also work over plain `http://` on your LAN, and the reader always shows which engine is running.
 - Touch and keyboard navigation: direction-aware swipe zones, arrow keys, a draggable page scrubber, a help overlay (`?`), and immersive fullscreen.
 - Webtoon tap zones and swipe move by a configurable step (90% of the screen by default). Turn them off for free scrolling only.
 - Configurable page-turn animation (Slide / Reveal / None).
-- Auto-advance to the next or previous chapter (or whatever your archive is), plus page prefetch around the current position.
+- Auto-advance to the next or previous archive, plus page prefetch around the current position.
+
+**Series information**
+
+- Reads the `ComicInfo.xml` inside your archives (series, number, summary, credits, genres, publisher). Nothing leaves your server for this.
+- A card with series information shows an **(i)**: it opens a side panel with the summary, and a full series page lists the items.
+- Admins can link a folder or archive to a [MangaUpdates](https://www.mangaupdates.com) series with **Identify** (search, or paste a MangaUpdates address). Optional and off by default; see [What leaves your server](#what-leaves-your-server).
+- Per folder, admins choose whether web data or `ComicInfo.xml` wins, and can mark a folder **Don't match** when it is not one series. **Show series information** hides it all for everyone.
 
 **Per-user reading state**
 

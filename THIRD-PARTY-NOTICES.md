@@ -241,7 +241,10 @@ for 1.23.0; the rest of this file keeps the 1.12.0 basis described above). Packa
 ones Angular lists in its extracted `3rdpartylicenses.txt`. The rest are in the
 production tree but tree-shaken out of the bundle, or used only at compile time.
 `anime4k-webgpu` is bundled as a separate chunk that the browser downloads only
-when a reader turns on Rendering: Enhance.
+when a reader turns on Rendering: Enhance. The WebGL2 renderer (Rendering: Sharp,
+and Enhance where WebGPU is missing) is another such chunk; it carries shader code
+ported or copied from two upstream projects, attributed under "Ported shader code"
+below.
 
 - `@angular/animations` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
 - `@angular/cdk` - 22.1.7 - MIT - https://github.com/angular/components *(bundled)*
@@ -309,6 +312,46 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+### Ported shader code
+
+Two upstream shader works are compiled into the SPA's WebGL2 renderer chunk
+(`web/src/app/features/reader/`), not installed from npm, so they are not in
+`3rdpartylicenses.txt`; their notices are reproduced here and kept in the source
+files.
+
+- **Anime4K GLSL shaders** (https://github.com/bloc97/Anime4K, commit `7684e95`):
+  `glsl/Restore/Anime4K_Clamp_Highlights.glsl`, `glsl/Restore/Anime4K_Restore_CNN_M.glsl`
+  and `glsl/Upscale/Anime4K_Upscale_CNN_x2_M.glsl`, copied verbatim (license headers
+  included) into `anime4k-glsl-m.ts` and run by `anime4k-webgl.ts` for Rendering:
+  Enhance on WebGL2. Each file carries "Copyright (c) 2019-2021 bloc97" under the
+  MIT License reproduced in "Upstream works" above.
+- **AMD FidelityFX Super Resolution 1 (FSR 1)** (https://github.com/GPUOpen-Effects/FidelityFX-FSR,
+  `ffx-fsr/ffx_fsr1.h` v1.20210629 and helpers from `ffx_a.h`): the EASU and RCAS
+  passes ported to WebGL2 GLSL in `fsr1-glsl.ts` for Rendering: Sharp. Distributed
+  under the following license:
+
+```text
+Copyright (c) 2021 Advanced Micro Devices, Inc. All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 ```
 
 ### Fonts and icons

@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-09-26
+
+### Added
+
+- **Reader: Enhance without HTTPS, and a new Upscaling choice, Crisp.** Browsers only offer WebGPU on secure pages, so over plain `http://<LAN address>` (a LAN install, Docker or Unraid without a reverse proxy, the Windows app with **Allow LAN access**) **Enhance** used to be greyed out ("Enhance needs WebGPU") and a saved Enhance quietly showed Smooth. Enhance now runs on WebGL2 there (the Efficient network; **Max quality** still needs WebGPU), and a new **Crisp** choice (AMD FSR 1: an edge-aware upscale plus light sharpening, much cheaper than Enhance) works on almost any device, over HTTP too, in single page, double page and vertical modes. Upscaling is now **Smooth / Crisp / Enhance**; `e` cycles through the ones this device can run.
+- **Reader: no silent Upscaling fallback.** The Upscaling menu names the upscaler under the selected choice (for example "AMD FSR 1", "Anime4K", or "Anime4K (WebGL2)" without WebGPU, where **Max quality** says it needs WebGPU and HTTPS), greys out a choice this device cannot run with the reason ("Needs a secure connection (HTTPS)", "Graphics chip unavailable", ...), and the reader says once per session when a choice you saved cannot run here ("Enhance isn't available here - showing Smooth."). The status line under Upscaling summarises what this device offers (on phones, where the choices are chips, it also names the engine in use). When the browser can only draw WebGL in software (a blocked graphics chip), Enhance is greyed out as "Graphics chip unavailable" - it would take seconds per page - and Crisp still works. **Enhance quality** now appears only while Enhance is selected. See [Image quality](docs/reader.md#image-quality).
+
+### Changed
+
+- **Reader: Crisp is the new default for Upscaling.** On a device where you never picked an Upscaling choice, pages shown larger than their resolution now use Crisp instead of the browser's own scaling; where Crisp cannot run, the page shows Smooth without a notice (you did not choose Crisp), and the menu says why. A choice you picked is kept. Enhance stays available: its line art can be a little cleaner, at several times the graphics work and battery.
+- **Reader: "Rendering" is now "Upscaling"**, the counterpart of the Downscale filter in the same menu.
+- **Reader: archives are called archives.** The previous/next buttons, their tooltips, the end-of-folder messages, the loading and error messages and the reading help now say "archive" instead of "chapter" (for example **Next archive**, "Preparing this archive…"), because an archive can be a chapter, a volume or anything else. The "New chapters" row on Home keeps its name. See [Moving between archives](docs/reader.md#moving-between-archives).
+- **MangaPixer Administration:** **Series metadata** now follows the audit trail, and **Logging**, a debugging tool, is the last card on the page.
+
 ## [1.24.2] - 2026-09-26
 
 ### Fixed

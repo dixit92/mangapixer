@@ -35,17 +35,23 @@ export type PageAnimation = 'slide' | 'reveal' | 'none';
 export type PageQuality = 'auto' | 'full';
 
 /**
- * How an UPSCALED page is resampled for display (1.19.0). Only relevant when the
- * page is being painted LARGER than its natural size (a small/old scan on a big
- * screen); a downscale is already handled server-side.
- *  - `smooth` — the default and exactly today's behaviour: whatever the browser's
+ * How an UPSCALED page is resampled for display (1.19.0; `sharp` 1.25.0). Only
+ * relevant when the page is being painted LARGER than its natural size (a
+ * small/old scan on a big screen); a downscale is already handled server-side.
+ *  - `smooth` - the default and exactly today's behaviour: whatever the browser's
  *    built-in image smoothing does. Zero cost, works everywhere.
- *  - `enhance` — a GPU (WebGPU) line-art upscaler, Anime4K, rendered into a
- *    canvas laid over the page. Line art and screentones survive magnification
- *    far better than with bilinear smoothing. Needs WebGPU; where it is missing
- *    the reader silently renders as `smooth` and the settings UI says so.
+ *  - `sharp` - AMD FSR 1 (edge-adaptive upscale + contrast-adaptive sharpening) on
+ *    WebGL2: two cheap GPU passes, no secure context needed, so it also works over
+ *    plain `http://` on a LAN.
+ *  - `enhance` - the Anime4K line-art upscaler, rendered into a canvas laid over
+ *    the page: on WebGPU where the browser offers it (HTTPS or localhost only),
+ *    otherwise on WebGL2 (Efficient chain only). Line art and screentones survive
+ *    magnification far better than with bilinear smoothing.
+ * Where the saved choice cannot run on this device the reader shows the page as
+ * `smooth`, says so once per session, and the settings UI names the reason; the
+ * stored value is kept, so the same choice works again on a capable connection.
  */
-export type Upscaler = 'smooth' | 'enhance';
+export type Upscaler = 'smooth' | 'sharp' | 'enhance';
 
 /**
  * Which Anime4K network Enhance runs (1.24.0, owner decision 2026-09-25):
@@ -56,6 +62,8 @@ export type Upscaler = 'smooth' | 'enhance';
  *    what paged Enhance used from 1.19.0 to 1.23.x.
  * Only the PAGED / double-page views honour `max`; the vertical (webtoon) view
  * always runs `balanced`, because it keeps many bands alive while scrolling.
+ * `max` is WebGPU-only (1.25.0): Enhance on WebGL2 runs `balanced` and the menu
+ * says so; the stored value is kept for a WebGPU connection.
  */
 export type EnhanceQuality = 'balanced' | 'max';
 
@@ -113,8 +121,12 @@ export class ReaderPreferencesService {
 
   /** Display-sized page requests are the default: less bandwidth, sharper pages. */
   static readonly DefaultPageQuality: PageQuality = 'auto';
-  /** Rendering defaults to the browser's own resampling (pre-1.19.0 behaviour). */
-  static readonly DefaultUpscaler: Upscaler = 'smooth';
+  /**
+   * Upscaling defaults to Crisp (FSR 1; owner, 2026-09-26: "good enough" and far lighter than
+   * Enhance). Only while nothing is stored: a device that cannot run Crisp shows Smooth, and
+   * because the user never chose, it is not announced (see `upscalerChosen`).
+   */
+  static readonly DefaultUpscaler: Upscaler = 'sharp';
   /** Mitchell is the new server default: a middle ground between Sharp and Soft. */
   static readonly DefaultDownscaleFilter: DownscaleFilter = 'balanced';
   /** 1.24.0: the light M chain by default; VL is the opt-in "Max quality". */
@@ -125,6 +137,12 @@ export class ReaderPreferencesService {
 
   /** How an upscaled page is resampled for display; see `Upscaler`. */
   readonly upscaler = signal<Upscaler>(this.loadUpscaler());
+
+  /**
+   * Whether this device ever SAVED a Upscaling choice. A saved choice that cannot run is
+   * announced once per session; the unsaved default quietly shows what can run.
+   */
+  readonly upscalerChosen = signal<boolean>(this.hasStoredUpscaler());
 
   /** Which resampling filter a sized-down page request asks for; see `DownscaleFilter`. */
   readonly downscaleFilter = signal<DownscaleFilter>(this.loadDownscaleFilter());
@@ -143,6 +161,7 @@ export class ReaderPreferencesService {
 
   setUpscaler(upscaler: Upscaler): void {
     this.upscaler.set(upscaler);
+    this.upscalerChosen.set(true);
     try {
       localStorage.setItem(ReaderPreferencesService.UpscalerKey, upscaler);
     } catch {
@@ -188,10 +207,19 @@ export class ReaderPreferencesService {
     return ReaderPreferencesService.DefaultPageQuality;
   }
 
+  private hasStoredUpscaler(): boolean {
+    try {
+      const raw = localStorage.getItem(ReaderPreferencesService.UpscalerKey);
+      return raw === 'smooth' || raw === 'sharp' || raw === 'enhance';
+    } catch {
+      return false;
+    }
+  }
+
   private loadUpscaler(): Upscaler {
     try {
       const raw = localStorage.getItem(ReaderPreferencesService.UpscalerKey);
-      if (raw === 'smooth' || raw === 'enhance') return raw;
+      if (raw === 'smooth' || raw === 'sharp' || raw === 'enhance') return raw;
     } catch {
       /* storage unavailable — fall through to the default */
     }

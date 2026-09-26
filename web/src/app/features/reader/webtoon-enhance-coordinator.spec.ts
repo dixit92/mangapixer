@@ -51,6 +51,7 @@ function define(el: object, props: Record<string, unknown>) {
 describe('WebtoonEnhanceCoordinator', () => {
   let pending: Pending[];
   let loads: number;
+  let engines: string[];
   let lostListener: (() => void) | null;
   let renderer: TileRendererApi & {
     renderBand: ReturnType<typeof vi.fn<(req: BandRenderRequest) => Promise<BandRenderResult>>>;
@@ -83,10 +84,12 @@ describe('WebtoonEnhanceCoordinator', () => {
   }
 
   beforeEach(() => {
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // the default is Crisp since 1.25.0; these flows predate it
     FakeIO.all = [];
     FakeRO.all = [];
     pending = [];
     loads = 0;
+    engines = [];
     lostListener = null;
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] });
     vi.stubGlobal('IntersectionObserver', FakeIO);
@@ -104,7 +107,7 @@ describe('WebtoonEnhanceCoordinator', () => {
     TestBed.configureTestingModule({
       providers: [
         WebtoonEnhanceCoordinator,
-        { provide: WEBTOON_TILE_RENDERER, useValue: () => { loads++; return Promise.resolve(renderer); } },
+        { provide: WEBTOON_TILE_RENDERER, useValue: (engine: string) => { loads++; engines.push(engine); return Promise.resolve(renderer); } },
       ],
     });
     c = TestBed.inject(WebtoonEnhanceCoordinator);
@@ -464,5 +467,109 @@ describe('WebtoonEnhanceCoordinator', () => {
     bandIO().fire([sentinelsOf(0)[0]], true);
     await flush();
     expect(renderer.renderBand).toHaveBeenCalledTimes(2);
+  });
+
+  /** 1.25.0: the strip renders whichever backend the Upscaling choice resolved to. */
+  describe('engines (1.25.0)', () => {
+    const sharpGl = { mode: 'sharp' as const, engine: 'webgl2' as const };
+    const enhanceGl = { mode: 'enhance' as const, engine: 'webgl2' as const };
+
+    it('a WebGL2 backend runs without navigator.gpu, loads the WebGL2 renderer and passes the mode', async () => {
+      delete (navigator as unknown as { gpu?: unknown }).gpu;
+      c.setEnabled(true, sharpGl);
+      expect(c.isActive).toBe(true);
+      await showBands(0, [0]);
+      expect(engines).toEqual(['webgl2']);
+      expect(pending[0].req.mode).toBe('sharp');
+      await resolveNext();
+      expect(canvases().length).toBe(1);
+    });
+
+    it('setEnabled(true) without a backend keeps the 1.24.0 meaning: Enhance on WebGPU', async () => {
+      c.setEnabled(true);
+      expect(c.currentBackend).toEqual({ mode: 'enhance', engine: 'webgpu' });
+      await showBands(0, [0]);
+      expect(engines).toEqual(['webgpu']);
+      expect(pending[0].req.mode).toBe('enhance');
+    });
+
+    it('a backend change tears the layer down (fresh canvases, a canvas holds one context type) and loads that engine', async () => {
+      c.setEnabled(true);
+      await showBands(0, [0]);
+      await resolveNext();
+      const old = canvases();
+      expect(old.length).toBe(1);
+      const oldLayer = scroller.querySelector('.mp-enhance-layer');
+
+      c.setEnabled(true, enhanceGl);
+      expect(old[0].isConnected).toBe(false);
+      expect(old[0].width).toBe(0);
+      expect(renderer.releaseTiles).toHaveBeenCalledTimes(1);
+      expect(scroller.querySelector('.mp-enhance-layer')).not.toBe(oldLayer);
+      await showBands(0, [0]);
+      expect(engines).toEqual(['webgpu', 'webgl2']);
+      expect(pending[pending.length - 1].req.mode).toBe('enhance');
+    });
+
+    it('the same backend again is a no-op (no teardown, no reload)', async () => {
+      c.setEnabled(true, sharpGl);
+      await showBands(0, [0]);
+      const layer = scroller.querySelector('.mp-enhance-layer');
+      c.setEnabled(true, { ...sharpGl });
+      expect(scroller.querySelector('.mp-enhance-layer')).toBe(layer);
+      expect(loads).toBe(1);
+    });
+
+    it('band heights follow the engine: a wide source gets taller bands on light WebGL2 Sharp', async () => {
+      const wide = page(0, { naturalWidth: 3000, naturalHeight: 3000, offsetWidth: 4000, offsetHeight: 4000 });
+      c.unregister(imgs[0]);
+      imgs[0].remove();
+      imgs[0] = wide;
+      scroller.prepend(wide);
+      c.register(wide);
+      c.setEnabled(true); // WebGPU M: 228 B/px -> 256-row bands
+      pageIO().fire([wide], true);
+      expect(sentinelsOf(0).length).toBe(Math.ceil(3000 / 256));
+      c.setEnabled(true, sharpGl); // WebGL2 Sharp: 36 B/px -> the 384 default
+      pageIO().fire([wide], true);
+      expect(sentinelsOf(0).length).toBe(Math.ceil(3000 / 384));
+    });
+
+    it('releasing a WebGL2 band canvas never creates a webgpu context on it', async () => {
+      delete (navigator as unknown as { gpu?: unknown }).gpu;
+      c.setEnabled(true, sharpGl);
+      await showBands(0, [0]);
+      await resolveNext();
+      const canvas = canvases()[0];
+      const getContext = vi.spyOn(canvas, 'getContext');
+      c.setEnabled(false, sharpGl);
+      expect(getContext).not.toHaveBeenCalledWith('webgpu');
+      expect(canvas.width).toBe(0);
+    });
+
+    it('a new engine gets a fresh chance after the old one stopped on repeated failures', async () => {
+      c.setEnabled(true);
+      await showBands(0, [0, 1, 2]);
+      for (let i = 0; i < maxConsecutiveFailures; i++) await resolveNext({ status: 'failed', gpuMs: 0, slices: 0 });
+      expect(c.isActive).toBe(false);
+      c.setEnabled(true, sharpGl);
+      expect(c.isActive).toBe(true);
+    });
+
+    it('a WebGL2 context loss follows the same rule: re-queue once, a second loss within a minute pauses', async () => {
+      const support = TestBed.inject(UpscaleSupportService);
+      c.setEnabled(true, enhanceGl);
+      await showBands(0, [0]);
+      await resolveNext();
+      lostListener!();
+      await flush();
+      expect(renderer.renderBand).toHaveBeenCalledTimes(2);
+      await resolveNext();
+      lostListener!();
+      await flush();
+      expect(support.webtoonPaused()).toBe(true);
+      expect(c.isActive).toBe(false);
+      support.webtoonPaused.set(false);
+    });
   });
 });

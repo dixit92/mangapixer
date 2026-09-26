@@ -280,7 +280,7 @@ describe('ReaderComponent double-spread pairing', () => {
     expect(c.aspectRatioFor({ ...p, width: 0, height: 0 })).toBeNull();
   });
 
-  it('auto-advances to the next chapter when paging past the last page', () => {
+  it('auto-advances to the next archive when paging past the last page', () => {
     const c = create();
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     c.pages.set(makePages(3));
@@ -293,7 +293,7 @@ describe('ReaderComponent double-spread pairing', () => {
     expect(nav).toHaveBeenCalledWith(['/reader', 'next-item'], { replaceUrl: true });
   });
 
-  it('does not navigate past the last page when there is no next chapter', () => {
+  it('does not navigate past the last page when there is no next archive', () => {
     const c = create();
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     c.pages.set(makePages(3));
@@ -543,13 +543,14 @@ describe('ReaderComponent controls rendering', () => {
  * 1.24.0 webtoon Enhance wiring, through the real reader template: the webtoon
  * scroller hosts the coordinator (`WebtoonEnhanceHostDirective`) and every strip
  * img registers with it (`WebtoonUpscaleDirective`); the host input is the single
- * Rendering preference (`upscaleActive()`), and the paged-only `UpscaleDirective`
+ * Upscaling preference (`upscaleActive()`), and the paged-only `UpscaleDirective`
  * never sits on a webtoon img.
  */
 describe('ReaderComponent webtoon Enhance wiring (1.24.0)', () => {
   function renderView(view: 'webtoon' | 'paged') {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const fixture = TestBed.createComponent(ReaderComponent);
     fixture.detectChanges(); // ngOnInit
     const c = fixture.componentInstance;
@@ -575,14 +576,20 @@ describe('ReaderComponent webtoon Enhance wiring (1.24.0)', () => {
     }
   });
 
-  it('the host input follows the Rendering preference (upscaleActive)', () => {
+  it('the host input follows the Upscaling preference (the backend it resolved to, 1.25.0)', () => {
     const { fixture, c } = renderView('webtoon');
     const dir = () => fixture.debugElement.query(By.directive(WebtoonEnhanceHostDirective)).injector.get(WebtoonEnhanceHostDirective);
-    expect(dir().appWebtoonEnhanceHost()).toBe(false);
+    expect(dir().appWebtoonEnhanceHost()).toBeNull();
+    TestBed.inject(UpscaleSupportService).support.set('ready');
     c.prefs.setUpscaler('enhance');
     fixture.detectChanges();
     expect(c.upscaleActive()).toBe(true);
-    expect(dir().appWebtoonEnhanceHost()).toBe(true);
+    expect(dir().appWebtoonEnhanceHost()).toEqual({ mode: 'enhance', engine: 'webgpu' });
+    // A choice this device cannot run (jsdom has no WebGL2 for Crisp): plain images.
+    c.prefs.setUpscaler('sharp');
+    fixture.detectChanges();
+    expect(c.upscaleActive()).toBe(true);
+    expect(dir().appWebtoonEnhanceHost()).toBeNull();
   });
 
   it('switching to paged tears the webtoon host down (coordinator destroyed) and the paged directive returns', () => {
@@ -619,6 +626,7 @@ describe('ReaderComponent page loading feedback (1.24.0)', () => {
       }],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const fixture = TestBed.createComponent(ReaderComponent);
     fixture.detectChanges(); // ngOnInit
     const c = fixture.componentInstance;
@@ -703,7 +711,7 @@ describe('ReaderComponent per-device page mode', () => {
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: height });
   }
 
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => { localStorage.clear(); localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); });
 
   it('chooseView("webtoon") switches the view but does NOT persist a device-global preference', () => {
     // Option A fix (reader-mode-sticky bug): webtoon is content orientation, not a
@@ -1137,7 +1145,7 @@ describe('ReaderComponent swipe gestures', () => {
     });
 
     it('rubber-bands the follow when there is no page or chapter in that direction', () => {
-      const c = paged(5, 4); // last page, no next chapter
+      const c = paged(5, 4); // last page, no next archive
       c.onReaderPointerDown(pointer({ pointerId: 1, clientX: 200, clientY: 300, timeStamp: 0 }));
       c.onReaderPointerMove(pointer({ pointerId: 1, clientX: 100, clientY: 300, timeStamp: 50 }));
       expect(c.swipeDx()).toBeCloseTo(-35, 5);
@@ -1615,7 +1623,7 @@ describe('ReaderComponent webtoon auto-advance REMOVED (1.7.1 owner revert)', ()
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
-  it('scrolling to the true bottom never navigates, even with a next chapter available', () => {
+  it('scrolling to the true bottom never navigates, even with a next archive available', () => {
     const c = create();
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     c.pages.set(makePages(3));
@@ -1630,7 +1638,7 @@ describe('ReaderComponent webtoon auto-advance REMOVED (1.7.1 owner revert)', ()
     expect(nav).not.toHaveBeenCalled();
   });
 
-  it('scrolling up to the very top never navigates, even with a previous chapter available', () => {
+  it('scrolling up to the very top never navigates, even with a previous archive available', () => {
     const c = create();
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     c.pages.set(makePages(3));
@@ -1670,6 +1678,7 @@ describe('ReaderComponent page-navigation transition (1.9.0)', () => {
   function create() {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
     c.pages.set(makePages(6));
     c.view.set('paged');
@@ -1768,7 +1777,7 @@ describe('ReaderComponent onboarding help auto-show (1.9.0)', () => {
     return TestBed.createComponent(ReaderComponent).componentInstance;
   }
 
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => { localStorage.clear(); localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); });
 
   it('auto-shows help the first time and records it seen (per-device)', () => {
     const c = create();
@@ -1803,7 +1812,7 @@ describe('ReaderComponent onboarding help auto-show (1.9.0)', () => {
 /**
  * 1.10.0 phone controls (finding F2) + menu highlight (finding F4).
  *
- * At handset width (CDK XSmall) the bar keeps only Next chapter + Fullscreen +
+ * At handset width (CDK XSmall) the bar keeps only Next archive + Fullscreen +
  * a "Reader options" trigger that opens the options bottom sheet; everywhere
  * else the full desktop/tablet bar (10 controls as of the 1.17.0 bookmark
  * toggle + panel trigger) is UNCHANGED (guarded here so a later change cannot
@@ -1836,10 +1845,10 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
   }
   afterEach(() => vi.restoreAllMocks());
 
-  it('PHONE: the bar keeps only Back, Next chapter, Fullscreen and the Reader options trigger', () => {
+  it('PHONE: the bar keeps only Back, Next archive, Fullscreen and the Reader options trigger', () => {
     const { c, labels } = render(true);
     expect(c.compact()).toBe(true);
-    expect(labels()).toEqual(['Back to folder', 'No next chapter', 'Enter fullscreen', 'Reader options']);
+    expect(labels()).toEqual(['Back to folder', 'No next archive', 'Enter fullscreen', 'Reader options']);
   });
 
   it('PHONE: the options trigger is an accessible menu button (haspopup + expanded state)', () => {
@@ -1852,15 +1861,15 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('DESKTOP / TABLET: the full bar keeps every control, no overflow trigger (+ Rendering, 1.19.0)', () => {
+  it('DESKTOP / TABLET: the full bar keeps every control, no overflow trigger (+ Upscaling, 1.19.0)', () => {
     const { c, labels } = render(false);
     expect(c.compact()).toBe(false);
     expect(labels()).toEqual([
       'Back to folder',
-      'No previous chapter', 'No next chapter',
+      'No previous archive', 'No next archive',
       'Reading mode', 'Bookmark this page', 'Bookmarks', 'Add to favorites', 'Image fit', 'Switch to right-to-left', 'Page transition',
-      // 1.19.0 image scaling: the second settings-menu slot (Rendering + Page quality).
-      'Rendering',
+      // 1.19.0 image scaling: the second settings-menu slot (Upscaling + Page quality).
+      'Upscaling',
       'Reading help', 'Enter fullscreen',
     ]);
   });
@@ -1981,6 +1990,7 @@ describe('ReaderComponent webtoon tap-to-scroll (1.11.0)', () => {
   function create() {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
     c.itemId.set('item-1');
     c.pages.set(makePages(10));
@@ -2136,6 +2146,7 @@ describe('ReaderComponent adaptive double page on narrow portrait (1.11.0)', () 
       providers: [...baseProviders(), { provide: BreakpointObserver, useValue: breakpoints }],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
     c.itemId.set('item-1');
     c.pages.set(makePages(6)); // standalone cover: [0],[1,2],[3,4],[5]
@@ -2258,6 +2269,7 @@ describe('ReaderComponent page-turn ghost (1.11.0)', () => {
   function create(animation: 'slide' | 'reveal' | 'none') {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
     TestBed.inject(ReaderPreferencesService).setPageAnimation(animation);
     c.itemId.set('item-1');
@@ -2386,7 +2398,7 @@ describe('ReaderComponent unsupported_solid error mapping', () => {
   it('falls back to the generic message for an unmapped code', () => {
     const c = create();
     expect(mapErrorCode(c, 'some_new_code', 'fallback text')).toBe('fallback text');
-    expect(mapErrorCode(c, null)).toBe('Something went wrong loading this chapter.');
+    expect(mapErrorCode(c, null)).toBe('Something went wrong loading this archive.');
   });
 
   it('a Failed readiness with unsupported_solid surfaces the specific message', () => {
@@ -2468,7 +2480,7 @@ describe('ReaderComponent onKeyDown case-insensitive single-letter shortcuts', (
 });
 
 /**
- * 1.21.0 reader shortcuts: page mode ('d'), Downscale filter ('s'), Rendering
+ * 1.21.0 reader shortcuts: page mode ('d'), Downscale filter ('s'), Upscaling
  * ('e'). Each routes through the exact handler the settings menu itself calls
  * (`chooseView`/`chooseSpread`, `ReaderPreferencesService.setDownscaleFilter`,
  * `ReaderPreferencesService.setUpscaler`) so persistence never diverges from a
@@ -2490,7 +2502,7 @@ describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filt
     return { key, target } as unknown as KeyboardEvent;
   }
 
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => { localStorage.clear(); localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); });
 
   it("'d' toggles single <-> double page, case-insensitively", () => {
     const c = create('paged');
@@ -2530,7 +2542,7 @@ describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filt
     expect(c.prefs.downscaleFilter()).toBe('balanced');
   });
 
-  it("'e' toggles Rendering Smooth <-> Enhance once WebGPU is ready", () => {
+  it("'e' toggles Upscaling Smooth <-> Enhance once WebGPU is ready", () => {
     const c = create('paged');
     TestBed.inject(UpscaleSupportService).support.set('ready');
     expect(c.prefs.upscaler()).toBe('smooth');
@@ -2547,7 +2559,7 @@ describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filt
     expect(c.prefs.upscaler()).toBe('smooth');
   });
 
-  it("'e' toggles Rendering in webtoon too (1.24.0 webtoon Enhance), above the native-scroll guard", () => {
+  it("'e' toggles Upscaling in webtoon too (1.24.0 webtoon Enhance), above the native-scroll guard", () => {
     const c = create('webtoon');
     TestBed.inject(UpscaleSupportService).support.set('ready');
     c.onKeyDown(press('e'));
@@ -2559,6 +2571,31 @@ describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filt
   it("'e' in webtoon still never enables Enhance without WebGPU", () => {
     const c = create('webtoon');
     TestBed.inject(UpscaleSupportService).support.set('unavailable');
+    c.onKeyDown(press('e'));
+    expect(c.prefs.upscaler()).toBe('smooth');
+  });
+
+  it("'e' cycles Smooth -> Crisp -> Enhance -> Smooth where all three can run (1.25.0)", () => {
+    const c = create('paged');
+    const support = TestBed.inject(UpscaleSupportService);
+    support.support.set('ready');
+    support.webgl.set({ status: 'ready', floatTargets: true, maxTextureSize: 8192 });
+    c.onKeyDown(press('e'));
+    expect(c.prefs.upscaler()).toBe('sharp');
+    c.onKeyDown(press('e'));
+    expect(c.prefs.upscaler()).toBe('enhance');
+    c.onKeyDown(press('E'));
+    expect(c.prefs.upscaler()).toBe('smooth');
+  });
+
+  it("'e' over plain HTTP without float targets cycles Smooth <-> Crisp, skipping Enhance (1.25.0)", () => {
+    const c = create('webtoon');
+    const support = TestBed.inject(UpscaleSupportService);
+    support.support.set('unavailable');
+    support.secure.set(false);
+    support.webgl.set({ status: 'ready', floatTargets: false, maxTextureSize: 4096 });
+    c.onKeyDown(press('e'));
+    expect(c.prefs.upscaler()).toBe('sharp');
     c.onKeyDown(press('e'));
     expect(c.prefs.upscaler()).toBe('smooth');
   });
@@ -2770,6 +2807,7 @@ describe('ReaderComponent page variant requests', () => {
       ],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
     c.itemId.set('item-1');
     c.pages.set(makePages(6)); // 800x1200 -> aspect 1.5
@@ -2929,6 +2967,7 @@ describe('ReaderComponent per-page aspect requests (webtoon downsampling fix, 1.
       ],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
     c.itemId.set('item-1');
     // A webtoon strip's pages vary hugely in height: p0 is a normal-aspect
@@ -3009,6 +3048,7 @@ describe('ReaderComponent downscale filter requests (1.20.0)', () => {
       ],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
     c.itemId.set('item-1');
     c.pages.set(makePages(6));
@@ -3085,6 +3125,7 @@ describe('ReaderComponent downscale filter requests (1.20.0)', () => {
       ],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
     Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true });
     Object.defineProperty(window, 'devicePixelRatio', { value: 1, configurable: true });
@@ -3324,5 +3365,59 @@ describe('ReaderComponent shifted double-page pairing (1.23.0)', () => {
     press(c, 'o');
     c.ngOnDestroy();
     expect(http.expectOne(LayoutUrl).request.body).toEqual({ expectedContentVersion: 7, spreadStarts: [3] });
+  });
+});
+
+/**
+ * 1.25.0 "no silent fallback": a SAVED Upscaling choice this device cannot run
+ * is announced once per app session, through the reader's own snackbar; a choice
+ * that runs (Enhance on WebGL2 over HTTP) is not a notice.
+ */
+describe('ReaderComponent Upscaling notice (1.25.0)', () => {
+  function create(configure: (support: UpscaleSupportService) => void) {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    configure(TestBed.inject(UpscaleSupportService));
+    const fixture = TestBed.createComponent(ReaderComponent);
+    const c = fixture.componentInstance;
+    const snack = vi.spyOn((c as unknown as { snackBar: MatSnackBar }).snackBar, 'open').mockImplementation(() => ({}) as never);
+    return { fixture, c, snack };
+  }
+
+  afterEach(() => localStorage.clear());
+
+  it("says once that a saved Enhance cannot run here and Smooth shows instead", () => {
+    localStorage.setItem(ReaderPreferencesService.UpscalerKey, 'enhance');
+    const { fixture, snack } = create((s) => { s.support.set('unavailable'); s.secure.set(false); });
+    fixture.detectChanges();
+    expect(snack).toHaveBeenCalledTimes(1);
+    expect(snack.mock.calls[0][0]).toBe("Enhance isn't available here - showing Smooth.");
+    fixture.detectChanges();
+    expect(snack).toHaveBeenCalledTimes(1);
+    // The next reader of the same app session does not repeat it.
+    // (Both readers share the environment's MatSnackBar, so `snack` sees both.)
+    const again = TestBed.createComponent(ReaderComponent);
+    expect((again.componentInstance as unknown as { snackBar: MatSnackBar }).snackBar.open).toBe(snack);
+    again.detectChanges();
+    expect(snack).toHaveBeenCalledTimes(1);
+  });
+
+  it('is silent when the saved choice runs (Enhance on WebGL2 over HTTP) and for Smooth', () => {
+    localStorage.setItem(ReaderPreferencesService.UpscalerKey, 'enhance');
+    const { fixture, snack } = create((s) => {
+      s.support.set('unavailable');
+      s.secure.set(false);
+      s.webgl.set({ status: 'ready', floatTargets: true, maxTextureSize: 8192 });
+    });
+    fixture.detectChanges();
+    expect(snack).not.toHaveBeenCalled();
+  });
+
+  it('the help overlay lists the three Upscaling choices for E', () => {
+    const { fixture, c } = create(() => undefined);
+    c.phase.set('ready');
+    c.pages.set(makePages(3));
+    c.toggleHelp();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Smooth / Crisp / Enhance');
   });
 });

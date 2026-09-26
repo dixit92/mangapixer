@@ -1,5 +1,6 @@
 import { AfterViewInit, Directive, ElementRef, OnDestroy, OnInit, effect, inject, input } from '@angular/core';
 
+import type { UpscaleBackend } from './upscale-engine';
 import { WebtoonEnhanceCoordinator } from './webtoon-enhance-coordinator';
 
 /**
@@ -13,10 +14,11 @@ import { WebtoonEnhanceCoordinator } from './webtoon-enhance-coordinator';
  *  - `img[appWebtoonUpscale]` on each strip page injects that coordinator from
  *    the parent element injector and registers its img and `load` events.
  *
- * The input is `ReaderComponent.upscaleActive()` (Rendering: Enhance) - the same
- * single preference as paged. Without WebGPU or IntersectionObserver the
- * coordinator is inert, the lazy renderer chunk is never requested, and the
- * reader shows exactly the plain `<img>`s it always did.
+ * The input is `ReaderComponent.upscaleBackend()`: the backend the single
+ * Upscaling preference resolved to on this device (Sharp or Enhance, on WebGPU or
+ * WebGL2; 1.25.0), or null for Smooth / a choice that cannot run here. Without it,
+ * or without IntersectionObserver, the coordinator is inert, no lazy renderer
+ * chunk is requested, and the reader shows exactly the plain `<img>`s it always did.
  */
 @Directive({
   selector: 'div[appWebtoonEnhanceHost]',
@@ -27,11 +29,15 @@ export class WebtoonEnhanceHostDirective implements AfterViewInit, OnDestroy {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly coordinator = inject(WebtoonEnhanceCoordinator);
 
-  /** True when Rendering is Enhance. */
-  readonly appWebtoonEnhanceHost = input(false);
+  /** The resolved Upscaling backend, or null (plain images). */
+  readonly appWebtoonEnhanceHost = input<UpscaleBackend | null>(null);
 
   constructor() {
-    effect(() => this.coordinator.setEnabled(this.appWebtoonEnhanceHost()));
+    effect(() => {
+      const backend = this.appWebtoonEnhanceHost();
+      if (backend) this.coordinator.setEnabled(true, backend);
+      else this.coordinator.setEnabled(false, this.coordinator.currentBackend);
+    });
   }
 
   ngAfterViewInit(): void {
