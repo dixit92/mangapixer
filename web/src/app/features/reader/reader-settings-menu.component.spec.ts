@@ -130,15 +130,15 @@ describe('ReaderSettingsMenuComponent', () => {
       expect(enhance.disabled).toBe(false);
     });
 
-    /** 1.24.0 owner decision: M ("Balanced") by default, VL as "Max quality". */
+    /** 1.24.0 owner decision: M ("Efficient") by default, VL as "Max quality". */
     describe('Enhance quality group (1.24.0)', () => {
       const qualityItems = (panel: HTMLElement) => Array.from(panel.querySelectorAll<HTMLButtonElement>('button[mat-menu-item]'))
         .filter((i) => (i.getAttribute('aria-label') ?? '').startsWith('Enhance quality'));
 
-      it('offers Balanced (default, highlighted) and Max quality as menuitemradios', () => {
+      it('offers Efficient (default, highlighted) and Max quality as menuitemradios', () => {
         const { fixture } = create();
         const items = qualityItems(openRendering(fixture).panel);
-        expect(items.map((i) => i.getAttribute('aria-label'))).toEqual(['Enhance quality: Balanced', 'Enhance quality: Max quality']);
+        expect(items.map((i) => i.getAttribute('aria-label'))).toEqual(['Enhance quality: Efficient', 'Enhance quality: Max quality']);
         for (const i of items) expect(i.getAttribute('role')).toBe('menuitemradio');
         expect(items[0].classList.contains('selected-option')).toBe(true);
         expect(items[0].getAttribute('aria-checked')).toBe('true');
@@ -170,7 +170,7 @@ describe('ReaderSettingsMenuComponent', () => {
         expect(c.qualityHint()).toContain('more GPU memory and battery');
       });
 
-      it('is hidden in the vertical view (always Balanced there); the stored choice is untouched', () => {
+      it('is hidden in the vertical view (always Efficient there); the stored choice is untouched', () => {
         const { fixture, c, prefs } = create();
         c.support.support.set('ready');
         prefs.setEnhanceQuality('max');
@@ -577,10 +577,10 @@ describe('ReaderOptionsSheetComponent', () => {
       expect((webtoon.chip('reader-options-rendering', 'Enhance') as HTMLButtonElement).disabled).toBe(false);
     });
 
-    it('adds an Enhance quality chip group: Balanced checked by default, Max quality persists', () => {
+    it('adds an Enhance quality chip group: Efficient checked by default, Max quality persists', () => {
       const { fixture, c, chips, checked, chip } = create();
       expect(chips('reader-options-enhance-quality').length).toBe(2);
-      expect(checked('reader-options-enhance-quality')[0].textContent).toContain('Balanced');
+      expect(checked('reader-options-enhance-quality')[0].textContent).toContain('Efficient');
       expect((chip('reader-options-enhance-quality', 'Max quality') as HTMLButtonElement).disabled).toBe(true);
       c.support.support.set('ready');
       fixture.detectChanges();
@@ -615,7 +615,7 @@ describe('ReaderOptionsSheetComponent', () => {
    * with a reason under Full page quality.
    */
   describe('Downscale filter chip group (1.20.0)', () => {
-    it('adds the group with exactly one checked chip, Balanced by default', () => {
+    it('adds the group with exactly one checked chip, Efficient by default', () => {
       const { chips, checked } = create();
       expect(chips('reader-options-filter').map((c) => (c.textContent ?? '').trim()).length).toBe(3);
       expect(checked('reader-options-filter').length).toBe(1);

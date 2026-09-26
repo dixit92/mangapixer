@@ -35,7 +35,7 @@ import type { EnhanceChain } from './webtoon-band-plan';
  * bands through its own tile renderer rather than one pipeline per page.
  *
  * Chain: the paged views honour the Enhance quality preference - the light M
- * chain ("Balanced", the default) or the heavy VL chain ("Max quality").
+ * chain ("Efficient", the default) or the heavy VL chain ("Max quality").
  *
  * GPU memory: the renderer keeps one Anime4K pipeline (hundreds of MB for a
  * large page) alive between pages. This directive is the only thing that knows
@@ -241,7 +241,7 @@ export class UpscaleDirective implements OnDestroy {
     // React to the preference flipping while a page is on screen.
     effect(() => {
       const on = this.appUpscale();
-      this.prefs.enhanceQuality(); // a Balanced <-> Max quality switch re-renders too
+      this.prefs.enhanceQuality(); // an Efficient <-> Max quality switch re-renders too
       if (!on) {
         this.hide();
         this.zone.runOutsideAngular(() => relinquishUpscaler(this));

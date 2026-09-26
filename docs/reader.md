@@ -127,10 +127,10 @@ Enhance needs a browser with WebGPU. The Rendering button's tooltip says whether
 
 **Enhance quality** picks how much work Enhance does in single and double page (the choice is not shown in vertical mode):
 
-- **Balanced** (default): a lighter Anime4K network. It uses much less graphics memory and battery, and is the right choice on phones and tablets.
+- **Efficient** (default): a lighter Anime4K network. It uses much less graphics memory and battery, and is the right choice on phones and tablets.
 - **Max quality**: the heavier network Enhance used before version 1.24.0. It can be a little sharper in single and double page modes, at the cost of more graphics memory and battery.
 
-In vertical mode Enhance always uses Balanced (your Enhance quality choice is kept for the paged modes), because it keeps many parts of the strip enhanced at once while you scroll. There, the enhanced version of a page appears a moment after you stop scrolling (the plain page shows while you scroll quickly), and only pages shown more than 1.2 times larger than their original width are enhanced.
+In vertical mode Enhance always uses Efficient (your Enhance quality choice is kept for the paged modes), because it keeps many parts of the strip enhanced at once while you scroll. There, the enhanced version of a page appears a moment after you stop scrolling (the plain page shows while you scroll quickly), and only pages shown more than 1.2 times larger than their original width are enhanced.
 
 If the graphics chip resets twice within a minute (for example after the app spends time in the background), vertical-mode Enhance pauses until the page is reloaded and the Rendering status line reads "Enhance paused (GPU reset)"; the pages still show normally.
 

@@ -84,7 +84,7 @@ describe('ReaderPreferencesService', () => {
     });
   });
 
-  /** 1.24.0 Enhance quality: M ("Balanced") by default, VL as the opt-in "Max quality". */
+  /** 1.24.0 Enhance quality: M ("Efficient") by default, VL as the opt-in "Max quality". */
   describe('enhance quality', () => {
     it('defaults to balanced (the light M chain)', () => {
       expect(new ReaderPreferencesService().enhanceQuality()).toBe('balanced');

@@ -79,11 +79,11 @@ export const UPSCALER_OPTIONS: readonly ReaderOption<Upscaler>[] = [
 /**
  * Which Anime4K network Enhance runs (1.24.0): `balanced` is the light M chain
  * (the default everywhere), `max` the heavy VL chain paged Enhance used before.
- * The vertical (webtoon) view always runs Balanced, so the group is hidden there
+ * The vertical (webtoon) view always runs Efficient, so the group is hidden there
  * (owner, 1.24.0); the stored choice is untouched and applies again in paged views.
  */
 export const ENHANCE_QUALITY_OPTIONS: readonly ReaderOption<EnhanceQuality>[] = [
-  { value: 'balanced', label: 'Balanced', icon: 'balance' },
+  { value: 'balanced', label: 'Efficient', icon: 'balance' },
   { value: 'max', label: 'Max quality', icon: 'diamond' },
 ];
 
@@ -217,7 +217,7 @@ export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
                 (click)="$event.stopPropagation(); support.tapStats()">{{ renderingHint() }}</button>
       </div>
       <!-- Enhance quality applies to the paged views only: vertical always runs
-           Balanced, so the choice is hidden there (not explained). -->
+           Efficient, so the choice is hidden there (not explained). -->
       @if (showEnhanceQuality()) {
         <div role="group" aria-label="Enhance quality">
           <div class="menu-group-label">Enhance quality</div>
@@ -316,7 +316,7 @@ export class ReaderSettingsMenuComponent {
     return this.support.statusText();
   });
 
-  /** Enhance quality is a paged-view choice: the vertical view always runs Balanced. */
+  /** Enhance quality is a paged-view choice: the vertical view always runs Efficient. */
   readonly showEnhanceQuality = computed<boolean>(() => this.view() !== 'webtoon');
 
   readonly qualityHint = computed<string>(() => enhanceQualityHint(this.prefs.enhanceQuality()));
