@@ -46,7 +46,7 @@ On screens narrower than 600 px, the toolbar keeps only **Next archive**, **Full
 
 Changing a setting keeps the sheet open.
 
-![The Reader options bottom sheet on a phone, with the Layout, Image fit, Reading direction and Page transition groups](../assets/screenshots/docs-reader-phone-options.png)
+![The Reader options bottom sheet on a phone in vertical mode: Layout, Page width, Tap to scroll, Upscaling with Crisp selected (AMD FSR 1), and Page quality](../assets/screenshots/docs-reader-phone-options.png)
 
 ## Page modes
 
