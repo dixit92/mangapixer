@@ -11,8 +11,10 @@
  * size) - and a GLSL body defining `vec4 hook()`. For every bound texture NAME
  * the body may use `NAME_pos` (this output pixel, normalised), `NAME_size`,
  * `NAME_pt` (1 / size), `NAME_tex(pos)` and `NAME_texOff(offset in texels)`;
- * `HOOKED` is the hooked texture (MAIN). Those become the macros below over one
- * `sampler2D` + size uniform per binding, so the upstream bodies run unchanged.
+ * `HOOKED` is the hooked texture, which mpv ALSO exposes under the hook's name
+ * (`//!HOOK MAIN` + `//!BIND HOOKED` lets the body read `MAIN_texOff`, as
+ * Clamp_Highlights does). Those become the macros below over one `sampler2D` +
+ * size uniform per binding, so the upstream bodies run unchanged.
  * `//!WHEN` is ignored: this module decides which stages run.
  *
  * The chain (Anime4K mode A's first half, M network):
@@ -32,6 +34,8 @@ import { clampHighlightsGlsl, restoreCnnMGlsl, upscaleCnnX2MGlsl } from './anime
 
 export interface HookPass {
   readonly desc: string;
+  /** The hooked texture's name (`//!HOOK`, MAIN in every Anime4K pass). */
+  readonly hook: string;
   readonly binds: readonly string[];
   readonly save: string | null;
   readonly width: string | null;
@@ -42,7 +46,9 @@ export interface HookPass {
 /** Split an mpv hook file into passes (text before the first `//!DESC` is the license header). */
 export function parseHooks(source: string): HookPass[] {
   const passes: HookPass[] = [];
-  let current: { desc: string; binds: string[]; save: string | null; width: string | null; height: string | null; body: string[] } | null = null;
+  let current: {
+    desc: string; hook: string; binds: string[]; save: string | null; width: string | null; height: string | null; body: string[];
+  } | null = null;
   const flush = () => {
     if (current) passes.push({ ...current, body: current.body.join('\n').trim() });
   };
@@ -52,15 +58,16 @@ export function parseHooks(source: string): HookPass[] {
       const [, key, value] = directive;
       if (key === 'DESC') {
         flush();
-        current = { desc: value.trim(), binds: [], save: null, width: null, height: null, body: [] };
+        current = { desc: value.trim(), hook: 'MAIN', binds: [], save: null, width: null, height: null, body: [] };
         continue;
       }
       if (!current) continue;
-      if (key === 'BIND') current.binds.push(value.trim());
+      if (key === 'HOOK') current.hook = value.trim();
+      else if (key === 'BIND') current.binds.push(value.trim());
       else if (key === 'SAVE') current.save = value.trim();
       else if (key === 'WIDTH') current.width = value.trim();
       else if (key === 'HEIGHT') current.height = value.trim();
-      continue; // HOOK, COMPONENTS, WHEN: decided by the chain, not the file
+      continue; // COMPONENTS, WHEN: decided by the chain, not the file
     }
     current?.body.push(line);
   }
@@ -91,6 +98,16 @@ export function evalSize(expr: string, sizeOf: (name: string) => Size): number {
   return Math.round(value);
 }
 
+/**
+ * The names a pass's body can read: its bindings, plus the hook name when it
+ * binds HOOKED (mpv binds the hooked texture under both).
+ */
+export function passInputs(pass: HookPass): string[] {
+  const names = [...new Set(pass.binds)];
+  if (names.includes('HOOKED') && !names.includes(pass.hook)) names.push(pass.hook);
+  return names;
+}
+
 /** Uniform carrying the output size (`NAME_pos` is `gl_FragCoord.xy / mp_out_size`). */
 export const outSizeUniform = 'mp_out_size';
 
@@ -104,7 +121,7 @@ export function hookFragmentSource(pass: HookPass): string {
     `uniform vec2 ${outSizeUniform};`,
     'out vec4 mp_frag;',
   ];
-  for (const name of new Set(pass.binds)) {
+  for (const name of passInputs(pass)) {
     lines.push(
       `uniform sampler2D ${name}_raw;`,
       `uniform vec2 ${name}_size;`,
@@ -222,7 +239,7 @@ export function planAnime4kChain(width: number, height: number, upscale: boolean
       const hooked = sizeOf('HOOKED');
       const w = pass.width ? evalSize(pass.width, sizeOf) : hooked.width;
       const h = pass.height ? evalSize(pass.height, sizeOf) : hooked.height;
-      const inputs = pass.binds.map((name) => ({ name, texture: current.get(name === 'HOOKED' ? 'MAIN' : name) ?? -1 }));
+      const inputs = passInputs(pass).map((name) => ({ name, texture: current.get(name === 'HOOKED' ? 'MAIN' : name) ?? -1 }));
       if (inputs.some((i) => i.texture < 0)) throw new Error(`unbound input in ${pass.desc}`);
       const save = pass.save ?? 'MAIN';
       let key = `${save}@${w}x${h}`;

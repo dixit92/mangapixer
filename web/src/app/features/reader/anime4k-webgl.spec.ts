@@ -1,5 +1,5 @@
 import { clampHighlightsGlsl, restoreCnnMGlsl, upscaleCnnX2MGlsl } from './anime4k-glsl-m';
-import { evalSize, hookFragmentSource, parseHooks, planAnime4kChain, planBytes, presentFragmentSource } from './anime4k-webgl';
+import { evalSize, hookFragmentSource, parseHooks, passInputs, planAnime4kChain, planBytes, presentFragmentSource } from './anime4k-webgl';
 import { bytesPerTilePixel } from './webtoon-band-plan';
 import { easuCon0, easuGlsl, rcasGlsl, rcasSharpness } from './fsr1-glsl';
 
@@ -56,6 +56,28 @@ describe('hookFragmentSource', () => {
     expect(src).toContain('void main() { mp_frag = hook(); }');
     // The upstream weights are untouched.
     expect(src).toContain('mat4(-0.09991986, 0.13782342, -0.031251684, -0.06356843');
+  });
+
+  it('exposes the hooked texture under its hook name too, as mpv does (Clamp_Highlights binds HOOKED, reads MAIN_texOff)', () => {
+    // Found in the real browser: without the alias the statistics pass failed to compile.
+    const stats = parseHooks(clampHighlightsGlsl)[0];
+    expect(stats.hook).toBe('MAIN');
+    expect(stats.binds).toEqual(['HOOKED']);
+    expect(stats.body).toContain('MAIN_texOff');
+    expect(passInputs(stats)).toEqual(['HOOKED', 'MAIN']);
+    expect(hookFragmentSource(stats)).toContain('#define MAIN_texOff(off)');
+    // Every macro any pass body uses is defined for it.
+    for (const pass of [...parseHooks(clampHighlightsGlsl).slice(0, 2), ...parseHooks(restoreCnnMGlsl), ...parseHooks(upscaleCnnX2MGlsl)]) {
+      const src = hookFragmentSource(pass);
+      for (const [, name] of pass.body.matchAll(/\b(\w+)_(?:texOff|tex|pos|pt|size)\b/g)) {
+        expect(src, `${pass.desc} uses ${name}`).toContain(`uniform sampler2D ${name}_raw;`);
+      }
+    }
+    // Both names point at the same texture in the plan.
+    const plan = planAnime4kChain(64, 64, false);
+    const first = plan.draws[0].inputs;
+    expect(first.find((i) => i.name === 'MAIN')?.texture).toBe(plan.input);
+    expect(first.find((i) => i.name === 'HOOKED')?.texture).toBe(plan.input);
   });
 
   it('the present pass ports the De-Ring clamp and flips into the canvas', () => {
