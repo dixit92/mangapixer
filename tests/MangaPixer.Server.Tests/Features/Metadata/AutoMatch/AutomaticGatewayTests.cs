@@ -152,7 +152,9 @@ public sealed class AutomaticGatewayTests : IAsyncLifetime
             {
                 TokenLimit = 1,
                 TokensPerPeriod = 1,
-                ReplenishmentPeriod = TimeSpan.FromMilliseconds(300),
+                // Long enough that a slow first call (cold client, loaded CI host) cannot refill the
+                // token before the second interactive call; the automatic call then waits for it.
+                ReplenishmentPeriod = TimeSpan.FromSeconds(3),
                 QueueLimit = 0,
                 AutoReplenishment = true,
             },

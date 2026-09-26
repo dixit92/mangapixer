@@ -398,8 +398,8 @@ public sealed class MetadataAutoMatchHttpTests
 
         var estimate = await OkAsync<MetadataMatchEstimateDto>(await admin.GetAsync($"/api/v1/admin/metadata/libraries/{LibPub}/match/estimate"));
         Assert.Equal(1, estimate.Candidates); // amPlain; the others are linked / in review
+        Assert.True(estimate.AutomaticAvailable);
         Assert.False(estimate.FirstRun); // the seeded "mmseed" run was a bulk run of this library
-        Assert.True(estimate.FirstRun);
 
         var started = await admin.PostAsJsonAsync($"/api/v1/admin/metadata/libraries/{LibPub}/match", new MetadataMatchLibraryRequest { ReviewFirst = true });
         Assert.Equal(HttpStatusCode.Accepted, started.StatusCode);
