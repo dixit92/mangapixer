@@ -11,7 +11,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api/api.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
-import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
+import { CatalogNodeDto, SearchResultsDto, SeriesMatchDto } from '../../core/api/api-types';
 
 /**
  * Search component. Uses the FTS5 trigram search via the API.
@@ -39,36 +39,54 @@ import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
       <mat-icon matSuffix>search</mat-icon>
     </mat-form-field>
 
+    @if (seriesMatches().length > 0) {
+      <section class="series-matches" aria-labelledby="series-matches-heading">
+        <h3 id="series-matches-heading" class="section-heading">Series matches</h3>
+        <div class="results-grid">
+          @for (match of seriesMatches(); track match.node.id) {
+            <ng-container *ngTemplateOutlet="card; context: { node: match.node, aka: match.matchedTitle }" />
+          }
+        </div>
+      </section>
+    }
+
     @if (results().length > 0) {
       <p class="result-count">{{ totalCount() }} results</p>
       <div class="results-grid">
         @for (node of results(); track node.id) {
-          <a [routerLink]="getNodeLink(node)" class="result-card">
-            <div class="cover">
-              @if (coverSrc(node); as src) {
-                <img appCover [src]="src" alt="" loading="lazy">
-              }
-              <mat-icon class="cover-fallback">{{ kindIcon(node) }}</mat-icon>
-              <!-- Folder-vs-archive badge (1.12.0): shown over every result - including
-                   ones with a real cover image, where the fallback icon above is hidden -
-                   so the result kind stays legible regardless of cover art. -->
-              <span class="kind-badge" [matTooltip]="kindLabel(node)" [attr.aria-label]="kindLabel(node)" role="img">
-                <mat-icon>{{ kindIcon(node) }}</mat-icon>
-              </span>
-              <!-- Favorites prominence (1.21.0): the star (badge + interactive toggle)
-                   appears in search only when the user opted in; when off, results render
-                   normally. Boosting favorited results to the top is done in doSearch(). -->
-              @if (prominence()) {
-                <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
-              }
-            </div>
-            <div class="result-title" [title]="node.displayName">{{ node.displayName }}</div>
-          </a>
+          <ng-container *ngTemplateOutlet="card; context: { node: node, aka: null }" />
         }
       </div>
-    } @else if (searched()) {
+    } @else if (searched() && seriesMatches().length === 0) {
       <p class="no-results">No results found.</p>
     }
+
+    <ng-template #card let-node="node" let-aka="aka">
+      <a [routerLink]="getNodeLink(node)" class="result-card">
+        <div class="cover">
+          @if (coverSrc(node); as src) {
+            <img appCover [src]="src" alt="" loading="lazy">
+          }
+          <mat-icon class="cover-fallback">{{ kindIcon(node) }}</mat-icon>
+          <!-- Folder-vs-archive badge (1.12.0): shown over every result - including
+               ones with a real cover image, where the fallback icon above is hidden -
+               so the result kind stays legible regardless of cover art. -->
+          <span class="kind-badge" [matTooltip]="kindLabel(node)" [attr.aria-label]="kindLabel(node)" role="img">
+            <mat-icon>{{ kindIcon(node) }}</mat-icon>
+          </span>
+          <!-- Favorites prominence (1.21.0): the star (badge + interactive toggle)
+               appears in search only when the user opted in; when off, results render
+               normally. Boosting favorited results to the top is done in doSearch(). -->
+          @if (prominence()) {
+            <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
+          }
+        </div>
+        <div class="result-title" [title]="node.displayName">{{ node.displayName }}</div>
+        @if (aka) {
+          <div class="result-aka" [matTooltip]="aka">aka {{ aka }}</div>
+        }
+      </a>
+    </ng-template>
   `,
   styles: [`
     .search-field { width: 100%; max-width: 600px; }
@@ -101,6 +119,12 @@ import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
       margin-top: 6px; font-size: 13px; font-weight: 500;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+    .series-matches { margin-bottom: 8px; }
+    .section-heading { margin: 16px 0 12px; font-size: 16px; font-weight: 500; }
+    .result-aka {
+      margin-top: 2px; font-size: 12px; color: #999;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
     .no-results { color: #999; padding: 32px; text-align: center; }
   `],
 })
@@ -109,6 +133,7 @@ export class SearchComponent {
 
   query = '';
   readonly results = signal<CatalogNodeDto[]>([]);
+  readonly seriesMatches = signal<SeriesMatchDto[]>([]);
   readonly totalCount = signal(0);
   readonly searched = signal(false);
 
@@ -173,6 +198,7 @@ export class SearchComponent {
   private doSearch(): void {
     if (!this.query.trim()) {
       this.results.set([]);
+      this.seriesMatches.set([]);
       this.totalCount.set(0);
       this.searched.set(false);
       return;
@@ -180,12 +206,18 @@ export class SearchComponent {
 
     this.api.search(this.query).subscribe({
       next: (response: SearchResultsDto) => {
-        this.results.set(this.boost(response.items));
-        this.totalCount.set(response.totalCount);
+        // An anchor that is also a normal hit shows once, in "Series matches".
+        const matches = response.seriesMatches ?? [];
+        const matchedIds = new Set(matches.map((m) => m.node.id));
+        const rest = response.items.filter((n) => !matchedIds.has(n.id));
+        this.seriesMatches.set(matches);
+        this.results.set(this.boost(rest));
+        this.totalCount.set(response.totalCount - (response.items.length - rest.length));
         this.searched.set(true);
       },
       error: () => {
         this.results.set([]);
+        this.seriesMatches.set([]);
         this.totalCount.set(0);
         this.searched.set(true);
       },
