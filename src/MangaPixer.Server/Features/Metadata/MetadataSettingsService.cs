@@ -2,7 +2,9 @@ namespace com.lifepixer.mangapixer.Server.Features.Metadata;
 
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Admin;
+using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -123,6 +125,10 @@ public sealed class MetadataSettingsService
                 Precedence = (MetadataPrecedence?)l.MetadataPrecedence,
                 LinkCount = linkCounts.GetValueOrDefault(l.Id),
             }).ToList(),
+            CurrentAutoConsentVersion = MetadataAutoConsent.CurrentVersion,
+            Thresholds = MetadataThresholds.ToDto(MatchThresholds.Default),
+            DefaultThresholds = MetadataThresholds.ToDto(MatchThresholds.Default),
+            ThresholdBounds = MetadataThresholds.Bounds,
         };
     }
 

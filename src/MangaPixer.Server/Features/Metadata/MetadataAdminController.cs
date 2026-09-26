@@ -149,6 +149,24 @@ public sealed class MetadataAdminController : ControllerBase
     public async Task<IActionResult> ClearFolderPrecedence(string nodeId, CancellationToken ct)
         => ToResult(await _links.ClearFolderPrecedenceAsync(nodeId, Actor, ct));
 
+    // --- Folder Content (stage 2) ---
+
+    [HttpGet("folders/{nodeId}/content")]
+    [ProducesResponseType<FolderMetadataContentDto>(StatusCodes.Status200OK)]
+    public IActionResult GetFolderContent(string nodeId) => NotImplemented();
+
+    [HttpPut("folders/{nodeId}/content")]
+    [ProducesResponseType<FolderMetadataContentDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
+    public IActionResult SetFolderContent(string nodeId, [FromBody] SetFolderMetadataContentRequest request) => NotImplemented();
+
+    [HttpDelete("folders/{nodeId}/content")]
+    [ProducesResponseType<FolderMetadataContentDto>(StatusCodes.Status200OK)]
+    public IActionResult ClearFolderContent(string nodeId) => NotImplemented();
+
+    private ObjectResult NotImplemented() =>
+        StatusCode(StatusCodes.Status501NotImplemented, new ApiError { Error = "not_implemented", Message = "Not implemented yet." });
+
     private IActionResult ToResult(MetadataLinkResultCode code) => code switch
     {
         MetadataLinkResultCode.Ok => NoContent(),
