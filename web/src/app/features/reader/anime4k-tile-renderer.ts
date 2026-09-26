@@ -27,11 +27,15 @@
  */
 
 import { buildTileChain, EncodeStep, flattenPasses } from './anime4k-chains';
+import { SliceBudget, adaptSlice, createSliceBudget, nextAnimationFrame } from './band-slicing';
 import { TrackingDevice, acquireDevice, onDeviceLost, trackingDevice } from './gpu-device';
+import type { RenderMode } from './upscale-engine';
 import type { BandPlan, EnhanceChain } from './webtoon-band-plan';
 
-/** Target GPU time per submitted slice (ms). */
-export const sliceBudgetMs = 6;
+// Re-exported: the slicing helpers lived here until 1.25.0 (specs and the coordinator use them).
+export { adaptSlice, createSliceBudget, sliceBudgetMs } from './band-slicing';
+export type { SliceBudget } from './band-slicing';
+
 /** Pipelines kept alive: the strip width and one odd size (credits, a wider cover). */
 export const maxStates = 2;
 
@@ -74,21 +78,6 @@ fn fs(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
 }
 `;
 
-/** Adaptive slice size, shared across bands so it converges once per session. */
-export interface SliceBudget {
-  /** Passes per slice. */
-  k: number;
-}
-
-export function createSliceBudget(): SliceBudget {
-  return { k: 4 };
-}
-
-/** AIMD: +1 pass while a slice stays under budget, halve when it goes over. */
-export function adaptSlice(budget: SliceBudget, sliceMs: number, maxK = 64): void {
-  budget.k = sliceMs <= sliceBudgetMs ? Math.min(maxK, budget.k + 1) : Math.max(1, Math.floor(budget.k / 2));
-}
-
 export interface BandRenderRequest {
   /** The decoded strip page (`naturalWidth` is `Wn`). */
   readonly source: HTMLImageElement;
@@ -96,6 +85,11 @@ export interface BandRenderRequest {
   readonly canvas: HTMLCanvasElement;
   readonly band: BandPlan;
   readonly chain: EnhanceChain;
+  /**
+   * What to draw (1.25.0). The WebGPU renderer only does `enhance`; the WebGL2
+   * renderer (`webgl-upscaler.ts`) does both. Default `enhance`.
+   */
+  readonly mode?: RenderMode;
   /** Checked between slices: an aborted job finishes its current slice and stops. */
   readonly signal?: AbortSignal;
   readonly budget?: SliceBudget;
@@ -157,13 +151,6 @@ function disposeStates(): void {
 /** How many pipelines are alive (tests, diagnostics). */
 export function liveStateCount(): number {
   return states.length;
-}
-
-function defaultNextFrame(): Promise<void> {
-  return new Promise((resolve) => {
-    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
-    else setTimeout(resolve, 16);
-  });
 }
 
 /** Render one band. Serialised: bands never interleave on the shared pipeline textures. */
@@ -248,7 +235,7 @@ function stateFor(device: GPUDevice, shared: DeviceState, chain: EnhanceChain, w
 async function renderNow(req: BandRenderRequest): Promise<BandRenderResult> {
   const { source, canvas, band, chain, signal } = req;
   const budget = req.budget ?? createSliceBudget();
-  const nextFrame = req.nextFrame ?? defaultNextFrame;
+  const nextFrame = req.nextFrame ?? nextAnimationFrame;
   let gpuMs = 0;
   let slices = 0;
   const result = (status: BandRenderResult['status']): BandRenderResult => ({ status, gpuMs, slices });
