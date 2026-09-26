@@ -1,0 +1,267 @@
+import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+
+import { MetadataSettingsDto } from '../../../../core/api/api-types';
+import { estimate, settings } from '../metadata-admin.testing';
+import { MetadataSettingsComponent, parseDailyBudget, validateThresholds } from './metadata-settings.component';
+
+/**
+ * Settings tab of /admin/metadata, mocked at the HTTP layer so the real
+ * MetadataApiService request shapes are asserted. Stage 1 (moved from the admin card):
+ * the web switch is consent-gated and enabling it is ONE settings PUT. Stage 2: the
+ * global Automatic matching switch is gated by the separate automatic-lookups consent
+ * and Fetch; turning it on is ONE settings PUT and nothing else.
+ */
+describe('MetadataSettingsComponent', () => {
+  const SETTINGS = '/api/v1/admin/metadata/settings';
+  let http: HttpTestingController;
+
+  function create(initial: MetadataSettingsDto = settings()) {
+    TestBed.configureTestingModule({
+      imports: [MetadataSettingsComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations()],
+    });
+    const fixture = TestBed.createComponent(MetadataSettingsComponent);
+    http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    http.expectOne({ method: 'GET', url: SETTINGS }).flush(initial);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    return { fixture, c: fixture.componentInstance, el, q: (s: string) => el.querySelector(s) as HTMLElement | null };
+  }
+
+  afterEach(() => http?.verify());
+
+  // --- Stage 1 behaviour, unchanged by the move ---
+
+  it('shows the approved consent text and the status line', () => {
+    const { q } = create();
+    const text = q('[data-testid="md-consent-text"]')!.textContent!;
+    expect(text).toContain('What is sent:');
+    expect(text).toContain('What is never sent:');
+    expect(text).toContain('Nothing happens automatically unless you also turn on Automatic matching.');
+    expect(q('[data-testid="md-status"]')!.textContent).toContain('Requests today: 12 / 5000');
+    expect(q('[data-testid="md-comicinfo"]')!.textContent).toContain('90 of 100 archives read');
+  });
+
+  it('keeps the Fetch switch disabled until consent is ticked', () => {
+    const { c } = create();
+    expect(c.canToggleFetch()).toBe(false);
+    c.consentTicked.set(true);
+    expect(c.canToggleFetch()).toBe(true);
+  });
+
+  it('enabling Fetch sends ONE settings PUT with the consent version and nothing else', () => {
+    const { c } = create();
+    c.consentTicked.set(true);
+    c.setFetch(true);
+    const put = http.expectOne({ method: 'PUT', url: SETTINGS });
+    expect(put.request.body).toEqual({ fetchEnabled: true, acceptedConsentVersion: 1 });
+    put.flush(settings({ fetchEnabled: true, acceptedConsentVersion: 1, consentAt: '2026-09-25T00:00:00Z' }));
+    http.expectNone(() => true);
+    expect(c.consentCurrent()).toBe(true);
+  });
+
+  it('turning Fetch off needs no consent', () => {
+    const { c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1 }));
+    expect(c.canToggleFetch()).toBe(true);
+    c.setFetch(false);
+    expect(http.expectOne({ method: 'PUT', url: SETTINGS }).request.body).toEqual({ fetchEnabled: false });
+  });
+
+  it('re-prompts on a stale consent version and honours the config kill', () => {
+    const stale = create(settings({ acceptedConsentVersion: 0 }));
+    expect(stale.c.consentCurrent()).toBe(false);
+    expect(stale.q('[data-testid="md-consent"]')).not.toBeNull();
+    TestBed.resetTestingModule();
+    const killed = create(settings({ networkDisabledByConfig: true }));
+    killed.c.consentTicked.set(true);
+    expect(killed.c.canToggleFetch()).toBe(false);
+    expect(killed.q('[data-testid="md-config-kill"]')).not.toBeNull();
+  });
+
+  it('saves an integer daily budget only', () => {
+    const { c } = create();
+    c.budgetText.set('1.5');
+    expect(c.parsedBudget()).toBeNull();
+    c.budgetText.set('250');
+    c.saveBudget();
+    expect(http.expectOne({ method: 'PUT', url: SETTINGS }).request.body).toEqual({ dailyBudget: 250 });
+  });
+
+  it('toggles a library and deletes its fetched data after confirmation', () => {
+    const { c, fixture, el } = create();
+    const lib = c.settings()!.libraries[0];
+    c.setLibrary(lib, { fetchEnabled: true });
+    const put = http.expectOne({ method: 'PUT', url: '/api/v1/admin/metadata/libraries/lib1' });
+    expect(put.request.body).toEqual({ fetchEnabled: true });
+    put.flush(settings());
+
+    c.confirming.set('lib1');
+    fixture.detectChanges();
+    expect(el.textContent).toContain('Delete 2 links?');
+    c.purge('lib1');
+    const purge = http.expectOne({ method: 'POST', url: '/api/v1/admin/metadata/purge' });
+    expect(purge.request.body).toEqual({ libraryId: 'lib1' });
+    purge.flush({ linksRemoved: 2, recordsRemoved: 1 });
+    http.expectOne({ method: 'GET', url: SETTINGS }).flush(settings({ webRecordCount: 1 }));
+    expect(c.message()).toContain('Deleted 2 link(s)');
+  });
+
+  it('sets a library precedence (default clears it)', () => {
+    const { c } = create();
+    c.setPrecedence(c.settings()!.libraries[0], 'default');
+    const put = http.expectOne({ method: 'PUT', url: '/api/v1/admin/metadata/libraries/lib1/precedence' });
+    expect(put.request.body).toEqual({ precedence: null });
+    put.flush(null);
+    http.expectOne({ method: 'GET', url: SETTINGS }).flush(settings());
+  });
+
+  it('shows a refused change and re-syncs', () => {
+    const { c } = create();
+    c.setFetch(true);
+    http.expectOne({ method: 'PUT', url: SETTINGS }).flush(
+      { error: 'consent_required', message: 'Consent required', detail: null, correlationId: null },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    http.expectOne({ method: 'GET', url: SETTINGS }).flush(settings());
+    expect(c.error()).toBe('Consent required');
+  });
+
+  // --- Stage 2 ---
+
+  it('explains the ONE budget honestly: no hidden reserve, automatic work stops when spent', () => {
+    const { q, c } = create(settings({ budgetUsedToday: 2500 }));
+    const text = q('[data-testid="md-budget-explain"]')!.textContent!;
+    expect(text).toContain('One budget for everything');
+    expect(text).toContain('automatic work stops');
+    expect(text).toContain('There is no hidden reserve.');
+    expect(c.budgetPercent()).toBe(50);
+  });
+
+  it('shows the automatic-lookups consent (v2) text: what is sent automatically and never', () => {
+    const { q } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1 }));
+    const text = q('[data-testid="md-auto-consent-text"]')!.textContent!.replace(/\s+/g, ' ');
+    expect(text).toContain('in every library whose Fetch switch is on');
+    expect(text).toContain('What is sent automatically:');
+    expect(text).toContain('nobody reviews before it is sent');
+    expect(text).toContain('What is never sent:');
+    expect(text).toContain('Don\'t match');
+    expect(q('[data-testid="md-auto-consent"]')).not.toBeNull();
+  });
+
+  it('keeps Automatic matching disabled until Fetch is on AND the automatic consent is ticked', () => {
+    const off = create(settings());
+    off.c.autoConsentTicked.set(true);
+    expect(off.c.canToggleAuto()).toBe(false); // Fetch off
+    expect(off.q('[data-testid="md-auto-needs-fetch"]')).not.toBeNull();
+    TestBed.resetTestingModule();
+    const { c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1 }));
+    expect(c.canToggleAuto()).toBe(false);
+    c.autoConsentTicked.set(true);
+    expect(c.canToggleAuto()).toBe(true);
+  });
+
+  it('turning Automatic matching on is ONE settings PUT with the automatic consent version - no lookup', () => {
+    const { c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1 }));
+    c.autoConsentTicked.set(true);
+    c.setAuto(true);
+    const put = http.expectOne({ method: 'PUT', url: SETTINGS });
+    expect(put.request.body).toEqual({ autoMatchEnabled: true, acceptedAutoConsentVersion: 1 });
+    put.flush(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true, acceptedAutoConsentVersion: 1,
+      autoConsentAt: '2026-09-26T00:00:00Z' }));
+    http.expectNone(() => true);
+    expect(c.autoConsentCurrent()).toBe(true);
+    expect(c.message()).toBe('Automatic matching is on');
+  });
+
+  it('turning Automatic matching off needs no consent; a stale automatic consent re-prompts', () => {
+    const { c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true,
+      acceptedAutoConsentVersion: 1 }));
+    expect(c.canToggleAuto()).toBe(true);
+    c.setAuto(false);
+    expect(http.expectOne({ method: 'PUT', url: SETTINGS }).request.body).toEqual({ autoMatchEnabled: false });
+    TestBed.resetTestingModule();
+    const stale = create(settings({ fetchEnabled: true, acceptedAutoConsentVersion: 1, currentAutoConsentVersion: 2 }));
+    expect(stale.c.autoConsentCurrent()).toBe(false);
+    expect(stale.q('[data-testid="md-auto-consent"]')).not.toBeNull();
+  });
+
+  it('shows which libraries automatic matching covers (every library with Fetch on)', () => {
+    const { q } = create(settings({
+      fetchEnabled: true, autoMatchEnabled: true,
+      libraries: [
+        { libraryId: 'a', name: 'Alpha', fetchEnabled: true, showSeriesInfo: true, linkCount: 0, autoMatchActive: true },
+        { libraryId: 'b', name: 'Beta', fetchEnabled: false, showSeriesInfo: true, linkCount: 0 },
+      ],
+    }));
+    const text = q('[data-testid="md-auto-coverage"]')!.textContent!.replace(/\s+/g, ' ');
+    expect(text).toContain('Applies to: Alpha');
+    expect(text).toContain('not Beta (Fetch off)');
+  });
+
+  it('validates thresholds against the bounds and saves or resets them', () => {
+    const { c } = create();
+    c.setThreshold('reviewFloor', '0.95');
+    expect(c.thresholdError()).toContain('Review floor must be from 0.4 to 0.9');
+    c.setThreshold('reviewFloor', '0.7');
+    c.setThreshold('autoTitle', '0.95');
+    expect(c.thresholdError()).toBeNull();
+    expect(c.thresholdsDirty()).toBe(true);
+    c.saveThresholds();
+    const put = http.expectOne({ method: 'PUT', url: SETTINGS });
+    expect(put.request.body).toEqual({ thresholds: { autoTitle: 0.95, margin: 0.1, reviewFloor: 0.7 } });
+    put.flush(settings({ thresholds: { autoTitle: 0.95, margin: 0.1, reviewFloor: 0.7 }, thresholdsAreDefault: false }));
+    expect(c.thresholdsDirty()).toBe(false);
+    c.resetThresholds();
+    expect(http.expectOne({ method: 'PUT', url: SETTINGS }).request.body).toEqual({ resetThresholds: true });
+  });
+
+  it('opens "Match now" for a library with Fetch on and reports a queued run', () => {
+    const { c, fixture, q } = create(settings({
+      fetchEnabled: true,
+      libraries: [{ libraryId: 'lib1', name: 'Library One', fetchEnabled: true, showSeriesInfo: true, linkCount: 0 }],
+    }));
+    const runs: string[] = [];
+    c.runStarted.subscribe((r) => runs.push(r.runId));
+    (q('[data-testid="md-match-now"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    http.expectOne('/api/v1/admin/metadata/libraries/lib1/match/estimate').flush(estimate());
+    fixture.detectChanges();
+    expect(q('[data-testid="match-estimate"]')!.textContent).toContain('120 folders');
+    (q('[data-testid="match-start"]') as HTMLButtonElement).click();
+    const post = http.expectOne({ method: 'POST', url: '/api/v1/admin/metadata/libraries/lib1/match' });
+    expect(post.request.body).toEqual({ reviewFirst: false, retryUnmatched: false });
+    post.flush({ runId: 'r9', libraryName: 'Library One' });
+    expect(runs).toEqual(['r9']);
+    expect(c.matching()).toBeNull();
+  });
+});
+
+describe('parseDailyBudget', () => {
+  it('accepts whole numbers 1..1,000,000 only', () => {
+    expect(parseDailyBudget('5000')).toBe(5000);
+    expect(parseDailyBudget(' 1 ')).toBe(1);
+    expect(parseDailyBudget('1000000')).toBe(1_000_000);
+    for (const bad of ['0', '-1', '1e3', '2.5', '1000001', '', 'abc', null]) expect(parseDailyBudget(bad)).toBeNull();
+  });
+});
+
+describe('validateThresholds', () => {
+  const bounds = settings().thresholdBounds!;
+  it('accepts the defaults and the bounds themselves', () => {
+    expect(validateThresholds({ autoTitle: '0.92', margin: '0.10', reviewFloor: '0.60' }, bounds))
+      .toEqual({ value: { autoTitle: 0.92, margin: 0.1, reviewFloor: 0.6 } });
+    expect('value' in validateThresholds({ autoTitle: '0.99', margin: '.05', reviewFloor: '0.9' }, bounds)).toBe(true);
+  });
+  it('rejects out-of-bounds, non-numbers and a floor at or above the auto score', () => {
+    expect(validateThresholds({ autoTitle: '0.8', margin: '0.1', reviewFloor: '0.6' }, bounds)).toEqual(
+      { error: 'Auto-link title score must be from 0.85 to 0.99.' });
+    expect(validateThresholds({ autoTitle: '0.9', margin: 'x', reviewFloor: '0.6' }, bounds)).toEqual(
+      { error: 'Lead over the runner-up must be from 0.05 to 0.3.' });
+    expect(validateThresholds({ autoTitle: '0.86', margin: '0.1', reviewFloor: '0.9' }, bounds)).toEqual(
+      { error: 'The review floor must be below the auto-link title score.' });
+  });
+});

@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { Component } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
@@ -10,6 +10,8 @@ import { LayoutComponent } from './layout.component';
 import { AuthService } from '../core/auth/auth.service';
 import { IncognitoService } from '../core/incognito/incognito.service';
 import { ApiService } from '../core/api/api.service';
+import { MetadataReviewSummaryDto } from '../core/api/api-types';
+import { MetadataReviewStateService } from '../features/metadata/metadata-review-state.service';
 
 /** Bare routed component so the outlet has something to activate. */
 @Component({ standalone: true, template: 'routed' })
@@ -42,11 +44,11 @@ class FakeBreakpointObserver {
  * the pre-existing tests below assert exactly that with no changes needed.
  */
 describe('LayoutComponent sidebar visibility', () => {
-  function create(options: { authenticated?: boolean; phone?: boolean } = {}) {
-    const { authenticated = false, phone = false } = options;
+  function create(options: { authenticated?: boolean; phone?: boolean; admin?: boolean; attention?: [number, number] } = {}) {
+    const { authenticated = false, phone = false, admin = false } = options;
     const authSpy = {
       isAuthenticated: () => authenticated,
-      isAdmin: () => false,
+      isAdmin: () => admin,
       currentUser: () => null,
       logout: vi.fn().mockReturnValue(of(void 0)),
     };
@@ -54,6 +56,16 @@ describe('LayoutComponent sidebar visibility', () => {
     const apiSpy = { getLibraries: vi.fn().mockReturnValue(of([])) };
     const breakpointObserver = new FakeBreakpointObserver();
     breakpointObserver.state$.next({ matches: phone, breakpoints: {} });
+    // Admin nav badge (metadata stage 2): needs review + open flags.
+    const [needsReview, openFlags] = options.attention ?? [0, 0];
+    const summary = signal<MetadataReviewSummaryDto | null>(null);
+    const metadataReview = {
+      summary,
+      attention: computed(() => (summary() ? summary()!.needsReview + summary()!.openFlags : 0)),
+      refresh: vi.fn(() => summary.set({ needsReview, openFlags, autoLinked: 0, unmatched: 0, dontMatch: 0, confirmed: 0,
+        missingFolders: 0, pending: 0 })),
+      clear: vi.fn(() => summary.set(null)),
+    };
 
     TestBed.configureTestingModule({
       imports: [LayoutComponent],
@@ -69,11 +81,12 @@ describe('LayoutComponent sidebar visibility', () => {
         { provide: IncognitoService, useValue: incognitoSpy },
         { provide: ApiService, useValue: apiSpy },
         { provide: BreakpointObserver, useValue: breakpointObserver },
+        { provide: MetadataReviewStateService, useValue: metadataReview },
       ],
     });
     const fixture = TestBed.createComponent(LayoutComponent);
     const router = TestBed.inject(Router);
-    return { fixture, router, breakpointObserver };
+    return { fixture, router, breakpointObserver, metadataReview };
   }
 
   async function go(router: Router, url: string, fixture: ReturnType<typeof create>['fixture']) {
@@ -185,6 +198,33 @@ describe('LayoutComponent sidebar visibility', () => {
       expect(fixture.componentInstance.isPhone()).toBe(true);
       expect(fixture.nativeElement.querySelector('app-library-sidebar')).toBeNull();
       expect(fixture.nativeElement.querySelector('.mobile-nav-btn')).not.toBeNull();
+    });
+  });
+
+  describe('admin nav badge (metadata stage 2)', () => {
+    it('shows needs review + open flags on the account icon for admins, with a menu item into the review', async () => {
+      const { fixture, router, metadataReview } = create({ authenticated: true, admin: true, attention: [5, 2] });
+      await go(router, '/', fixture);
+      expect(metadataReview.refresh).toHaveBeenCalled();
+      expect(fixture.componentInstance.adminAttention()).toBe(7);
+      const badge = fixture.nativeElement.querySelector('[data-testid="admin-attention-badge"] .mat-badge-content');
+      expect(badge.textContent.trim()).toBe('7');
+      expect(fixture.componentInstance.metadataTab()).toBe('review');
+    });
+
+    it('opens Flags when only flags wait', async () => {
+      const { fixture, router } = create({ authenticated: true, admin: true, attention: [0, 2] });
+      await go(router, '/', fixture);
+      expect(fixture.componentInstance.metadataTab()).toBe('flags');
+    });
+
+    it('never loads or shows the badge for non-admins', async () => {
+      const { fixture, router, metadataReview } = create({ authenticated: true, admin: false, attention: [5, 2] });
+      await go(router, '/', fixture);
+      expect(metadataReview.refresh).not.toHaveBeenCalled();
+      expect(fixture.componentInstance.adminAttention()).toBe(0);
+      fixture.componentInstance.refreshAttention();
+      expect(metadataReview.refresh).not.toHaveBeenCalled();
     });
   });
 });
