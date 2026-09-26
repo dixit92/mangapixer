@@ -4,6 +4,7 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Admin;
+using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -176,11 +177,22 @@ public sealed class MetadataLinkService
         await AfterAdminChangeAsync(node.Id, before, null, null, ct);
         if (recordId is { } id)
             await DeleteOrphanRecordsAsync([id], ct);
+        await ForgetFinishedMatchWorkAsync(_db.MetadataMatchQueue.Where(q => q.NodeId == node.Id), ct);
 
         await _audit.RecordAsync(AuditActions.MetadataUnlink, AuditResults.Success, actor, ct: ct, targetLibraryId: node.LibraryId, targetItemId: node.Id);
         _logger.LogInformation(LogEvents.Metadata.SeriesLinkChanged, "Series link removed from node {NodeId}", node.Id);
         return (MetadataLinkResultCode.Ok, new NodeSeriesLinkChangeDto { NodeId = node.PublicId, Previous = previous });
     }
+
+    /// <summary>
+    /// Forgets FINISHED automatic-match work (done / failed / skipped / cancelled queue rows) so a later
+    /// "Match this library now" looks those works up again after a purge or an unlink (owner,
+    /// 2026-09-26). Pending and leased rows stay: a running worker is never pulled out from under.
+    /// </summary>
+    private static Task<int> ForgetFinishedMatchWorkAsync(IQueryable<MetadataMatchQueueEntity> rows, CancellationToken ct) =>
+        rows.Where(q => q.State == QueueState.Done || q.State == QueueState.Failed
+                || q.State == QueueState.Skipped || q.State == QueueState.Cancelled)
+            .ExecuteDeleteAsync(ct);
 
     /// <summary>Sets a folder's precedence override (folders only).</summary>
     public async Task<MetadataLinkResultCode> SetFolderPrecedenceAsync(
@@ -275,6 +287,11 @@ public sealed class MetadataLinkService
         if (libraryId is { } candidateLibrary)
             candidates = candidates.Where(c => _db.CatalogNodes.Any(n => n.Id == c.NodeId && n.LibraryId == candidateLibrary));
         await candidates.ExecuteDeleteAsync(ct);
+
+        var queue = _db.MetadataMatchQueue.AsQueryable();
+        if (libraryId is { } queueLibrary)
+            queue = queue.Where(q => q.LibraryId == queueLibrary);
+        await ForgetFinishedMatchWorkAsync(queue, ct);
 
         // A global purge also sweeps records that were previewed but never linked.
         var recordIds = libraryId is null

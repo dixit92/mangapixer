@@ -590,9 +590,12 @@ public sealed partial class Program
         services.AddSingleton<Features.Metadata.Providers.IMetadataProvider, Features.Metadata.Providers.MangaUpdates.MangaUpdatesProvider>();
 
         // Stage 2 (auto-match): queue / runs / worker, review dashboard, flags, folder
-        // Content, carry-over and the id-only refresh. The matcher core (IWorkDetector,
-        // IMatchQueryPlanner, IMatchScorer) is registered with its implementation; until
-        // then the worker reports matcher_unavailable and sends nothing.
+        // Content, carry-over and the id-only refresh. The matcher core (Core, pure and
+        // stateless) decides what a folder is, what to look up and how a result bands;
+        // without it the worker reports matcher_unavailable and sends nothing.
+        services.AddSingleton<Core.Metadata.AutoMatch.IWorkDetector, Core.Metadata.AutoMatch.WorkDetector>();
+        services.AddSingleton<Core.Metadata.AutoMatch.IMatchQueryPlanner, Core.Metadata.AutoMatch.MatchQueryPlanner>();
+        services.AddSingleton<Core.Metadata.AutoMatch.IMatchScorer, Core.Metadata.AutoMatch.MatchScorer>();
         services.AddSingleton(sp => Features.Metadata.AutoMatch.MetadataAutoMatchOptions.FromConfiguration(sp.GetRequiredService<IConfiguration>()));
         services.AddSingleton<Features.Metadata.AutoMatch.MetadataAutoMatchState>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataAutoMatchService>();

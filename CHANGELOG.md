@@ -12,6 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Series information: review and reports.** Admins get review lists (Needs review, Auto-linked, Unmatched, Flags, Don't match, Confirmed, Missing folders) with bulk actions and a record of every matching run. Readers can report a wrong series with **Wrong series?**; admins see the report and its note and resolve it. See [Review](docs/series-information.md#review) and [Wrong series?](docs/series-information.md#wrong-series).
 - **Renamed folders keep their series settings.** When a folder is renamed or moved, its link or **Don't match**, source precedence, default reading mode and **Content** setting move to the new folder; when that is not clear (a folder split in two), they wait under **Missing folders** to be re-attached. See [Renamed and moved folders](docs/series-information.md#renamed-and-moved-folders).
 
+### Changed
+
+- **Privacy:** MangaPixer can now look series up on MangaUpdates **automatically**, but only after an admin turns on **Automatic matching** (off by default) and ticks its own consent text, and only in libraries whose **Fetch from the web** is on. It then sends, without anyone reviewing it first, the cleaned name of each new series folder or of an archive that is its own work (in a collection folder, or loose next to other folders), with the fixed list of types to leave out (without doujinshi below a folder whose **Content** is **Doujinshi & adult one-shots**), and the record numbers of linked series to refresh them. Same hosts, same daily budget, at most one request per second; nothing inside a **Don't match** folder is ever looked up. Manual Identify keeps working without the new consent. `Metadata__NetworkDisabled=true` still switches everything off. See [What leaves your server](README.md#what-leaves-your-server).
+- **Delete fetched data** (per library or all) and **Unlink** now also let **Match this library now** look those folders up again.
+- API (admin): review lists, bulk actions, runs and estimates, flags, missing-folder re-attach and folder **Content** under `/api/v1/admin/metadata/*`; any signed-in user with access to a node can report it with `POST /api/v1/nodes/{nodeId}/series-info/flags`.
+- **Upgrade note:** this version adds a database migration (`AddMetadataAutoMatch`: the match queue, runs, stored candidates, flags and folder Content; a snapshot is taken before it runs). The media worker protocol is unchanged (3).
+
 ## [1.25.0] - 2026-09-26
 
 ### Added
