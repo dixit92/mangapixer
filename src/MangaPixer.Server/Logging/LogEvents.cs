@@ -375,5 +375,21 @@ public static class LogEvents
         public const int ImageStored = 9105;
         public const int ImageRejected = 9106;
         public const int ImageStoreFailed = 9107;
+
+        // Automatic matching (stage 2, 9200-9299). Ids, counts, codes and timings
+        // only - never search text, folder names, titles or flag notes.
+        public const int AutoMatchQueued = 9200;
+        public const int AutoMatchDecided = 9201;
+        public const int AutoMatchWaiting = 9202;
+        public const int AutoMatchFailed = 9203;
+        public const int AutoMatchRunCompleted = 9204;
+        public const int AutoMatchSkipped = 9205;
+        public const int CarryOver = 9210;
+        public const int CarryOverFailed = 9211;
+        public const int RefreshPass = 9220;
+        public const int RefreshFailed = 9221;
+        public const int FlagCreated = 9230;
+        public const int FlagResolved = 9231;
+        public const int ReviewAction = 9240;
     }
 }

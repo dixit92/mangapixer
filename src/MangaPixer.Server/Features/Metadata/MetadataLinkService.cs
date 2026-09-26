@@ -77,6 +77,7 @@ public sealed class MetadataLinkService
 
         var existing = await _db.NodeSeriesLinks.FirstOrDefaultAsync(l => l.NodeId == node.Id, ct);
         var previous = existing is null ? null : await ToDtoAsync(existing, node.PublicId, ct);
+        var before = Snapshot(existing);
         var now = _time.GetUtcNow();
         var previousRecordId = existing?.RecordId;
         var action = existing is { State: (int)SeriesLinkState.Confirmed } && existing.RecordId != record.Id
@@ -94,6 +95,7 @@ public sealed class MetadataLinkService
         existing.MatchScore = request.MatchScore is { } score ? Math.Clamp(score, 0, 1) : null;
         existing.UpdatedAt = now;
         await _db.SaveChangesAsync(ct);
+        await AfterAdminChangeAsync(node.Id, before, SeriesLinkState.Confirmed, record.ExternalId, ct);
 
         if (previousRecordId is { } oldRecord && oldRecord != record.Id)
             await DeleteOrphanRecordsAsync([oldRecord], ct);
@@ -119,6 +121,7 @@ public sealed class MetadataLinkService
 
         var existing = await _db.NodeSeriesLinks.FirstOrDefaultAsync(l => l.NodeId == node.Id, ct);
         var previous = existing is null ? null : await ToDtoAsync(existing, node.PublicId, ct);
+        var before = Snapshot(existing);
         var previousRecordId = existing?.RecordId;
         var now = _time.GetUtcNow();
 
@@ -133,6 +136,7 @@ public sealed class MetadataLinkService
         existing.MatchScore = null;
         existing.UpdatedAt = now;
         await _db.SaveChangesAsync(ct);
+        await AfterAdminChangeAsync(node.Id, before, SeriesLinkState.DontMatch, null, ct);
 
         if (previousRecordId is { } oldRecord)
             await DeleteOrphanRecordsAsync([oldRecord], ct);
@@ -165,9 +169,11 @@ public sealed class MetadataLinkService
             return (MetadataLinkResultCode.Ok, new NodeSeriesLinkChangeDto { NodeId = node.PublicId });
 
         var previous = await ToDtoAsync(existing, node.PublicId, ct);
+        var before = Snapshot(existing);
         var recordId = existing.RecordId;
         _db.NodeSeriesLinks.Remove(existing);
         await _db.SaveChangesAsync(ct);
+        await AfterAdminChangeAsync(node.Id, before, null, null, ct);
         if (recordId is { } id)
             await DeleteOrphanRecordsAsync([id], ct);
 
@@ -264,6 +270,12 @@ public sealed class MetadataLinkService
         var candidateRecordIds = await links.Where(l => l.RecordId != null).Select(l => l.RecordId!.Value).Distinct().ToListAsync(ct);
         var linksRemoved = await links.ExecuteDeleteAsync(ct);
 
+        // Stage 2: stored review candidates are fetched provider data too.
+        var candidates = _db.MetadataMatchCandidates.AsQueryable();
+        if (libraryId is { } candidateLibrary)
+            candidates = candidates.Where(c => _db.CatalogNodes.Any(n => n.Id == c.NodeId && n.LibraryId == candidateLibrary));
+        await candidates.ExecuteDeleteAsync(ct);
+
         // A global purge also sweeps records that were previewed but never linked.
         var recordIds = libraryId is null
             ? await _db.MetadataRecords.Select(r => r.Id).ToListAsync(ct)
@@ -299,6 +311,21 @@ public sealed class MetadataLinkService
             }
         }
         return orphanIds.Count;
+    }
+
+    private static NodeSeriesLinkEntity? Snapshot(NodeSeriesLinkEntity? link) =>
+        link is null ? null : new NodeSeriesLinkEntity { NodeId = link.NodeId, State = link.State, RecordId = link.RecordId };
+
+    /// <summary>
+    /// Stage 2 bookkeeping after an admin link change: counts how an automatic result
+    /// was judged (local-only counters) and drops the node's stored review candidates
+    /// once it is no longer in review.
+    /// </summary>
+    private async Task AfterAdminChangeAsync(long nodeId, NodeSeriesLinkEntity? before, SeriesLinkState? newState, string? newExternalId, CancellationToken ct)
+    {
+        await AutoMatch.MetadataOutcomeCounters.CountChangeAsync(_db, nodeId, before, newState, newExternalId, ct);
+        if (before is { State: (int)SeriesLinkState.NeedsReview })
+            await _db.MetadataMatchCandidates.Where(c => c.NodeId == nodeId).ExecuteDeleteAsync(ct);
     }
 
     private async Task<NodeSeriesLinkDto> ToDtoAsync(NodeSeriesLinkEntity link, string nodePublicId, CancellationToken ct)

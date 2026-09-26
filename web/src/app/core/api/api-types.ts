@@ -1067,6 +1067,8 @@ export interface MetadataLibrarySettingsDto {
   showSeriesInfo: boolean;
   precedence?: MetadataPrecedence | null;
   linkCount: number;
+  /** Global switch + automatic consent + this library's Fetch. */
+  autoMatchActive?: boolean;
 }
 
 /** GET/PUT /admin/metadata/settings (the settings card is lane B2's). */
@@ -1086,6 +1088,15 @@ export interface MetadataSettingsDto {
   comicInfo: MetadataComicInfoStatsDto;
   webRecordCount: number;
   libraries: MetadataLibrarySettingsDto[];
+  /** Stage 2: the global Automatic matching switch (one switch; decision 3). */
+  autoMatchEnabled?: boolean;
+  acceptedAutoConsentVersion?: number | null;
+  currentAutoConsentVersion?: number;
+  autoConsentAt?: string | null;
+  thresholds?: MetadataMatchThresholdsDto | null;
+  defaultThresholds?: MetadataMatchThresholdsDto | null;
+  thresholdBounds?: MetadataMatchThresholdBoundsDto | null;
+  thresholdsAreDefault?: boolean;
 }
 
 export interface UpdateMetadataSettingsRequest {
@@ -1094,6 +1105,11 @@ export interface UpdateMetadataSettingsRequest {
   acceptedConsentVersion?: number | null;
   dailyBudget?: number | null;
   resetDailyBudget?: boolean;
+  /** On requires acceptedAutoConsentVersion = currentAutoConsentVersion and Fetch on. */
+  autoMatchEnabled?: boolean | null;
+  acceptedAutoConsentVersion?: number | null;
+  thresholds?: MetadataMatchThresholdsDto | null;
+  resetThresholds?: boolean;
 }
 
 export interface UpdateMetadataLibraryRequest {
@@ -1252,4 +1268,279 @@ export interface MetadataRefreshResultDto {
   state: string;
   fetchedAt: string;
   imageUpdated: boolean;
+}
+
+// --- Series metadata stage 2: auto-match, review, flags (lane B contract) ---------
+// Mirrors MangaPixer.Core/Api/MetadataAutoMatchDtos.cs + Core/Metadata/AutoMatch/AutoMatchContracts.cs.
+
+export type WorkClass =
+  | 'Excluded' | 'Series' | 'SeriesWithUnits' | 'OneShot' | 'CollectionLeaf' | 'ArtistCollection'
+  | 'FranchiseContainer' | 'CollectionContainer' | 'Wrapper' | 'Mixed' | 'UnitSub' | 'Ambiguous';
+export type MatchLevel = 'None' | 'Folder' | 'Archive' | 'ReviewOnly';
+export type MetadataReviewTab =
+  | 'NeedsReview' | 'AutoLinked' | 'Unmatched' | 'Flags' | 'DontMatch' | 'Confirmed' | 'MissingFolders';
+export type MetadataFolderContent = 'Auto' | 'DoujinshiAndAdultOneShots' | 'NotDoujinshi';
+export type MetadataMatchRunTrigger = 'Scan' | 'Bulk' | 'Retry' | 'Rerun';
+export type MetadataMatchRunStatus = 'Running' | 'Completed' | 'Cancelled';
+export type MetadataReviewBulkAction = 'AcceptTop' | 'DontMatch' | 'RerunMatching' | 'Confirm' | 'Unlink';
+export type MetadataFlagReason = 'WrongSeries' | 'WrongDetails' | 'NotOneSeries' | 'Other';
+export type MetadataFlagState = 'Open' | 'Relinked' | 'Unlinked' | 'DontMatch' | 'Dismissed';
+
+export interface MetadataMatchThresholdsDto {
+  /** 0.85-0.99, default 0.92. */
+  autoTitle: number;
+  /** 0.05-0.30, default 0.10. */
+  margin: number;
+  /** 0.40-0.90, default 0.60; below autoTitle. */
+  reviewFloor: number;
+}
+
+export interface MetadataMatchThresholdBoundsDto {
+  autoTitleMin: number;
+  autoTitleMax: number;
+  marginMin: number;
+  marginMax: number;
+  reviewFloorMin: number;
+  reviewFloorMax: number;
+}
+
+/** GET /admin/metadata/review/summary?library= */
+export interface MetadataReviewSummaryDto {
+  needsReview: number;
+  autoLinked: number;
+  unmatched: number;
+  openFlags: number;
+  dontMatch: number;
+  confirmed: number;
+  missingFolders: number;
+  pending: number;
+}
+
+export interface MetadataReviewLinkDto {
+  state: SeriesLinkState;
+  provider?: string | null;
+  externalId?: string | null;
+  recordId?: string | null;
+  title?: string | null;
+  matchMethod?: MetadataMatchMethod | null;
+  matchScore?: number | null;
+  imageUrl?: string | null;
+  updatedAt: string;
+}
+
+export interface MetadataReviewCandidateDto {
+  /** 1-based; the value accept takes. */
+  rank: number;
+  provider: string;
+  externalId: string;
+  title: string;
+  providerType?: string | null;
+  format?: MetadataFormat | null;
+  origin?: MetadataOrigin | null;
+  year?: number | null;
+  volumes?: number | null;
+  titleScore: number;
+  adjustedScore: number;
+  /** close_second, count, year, type, related_pair, one_shot, author, number, review_only. */
+  reasons?: string[];
+  /** For GET /admin/metadata/candidates/{token}/image (fetched only when loaded). */
+  imageToken?: string | null;
+}
+
+export interface MetadataReviewItemDto {
+  nodeId: string;
+  nodeKind: CatalogNodeKind;
+  displayName: string;
+  libraryId: string;
+  libraryName: string;
+  /** Up to 3 ancestor display names below the library root, outermost first. */
+  trail?: string[];
+  missing?: boolean;
+  workClass?: WorkClass | null;
+  matchLevel?: MatchLevel | null;
+  itemCount: number;
+  /** Archive group: the other archives (anchor excluded). */
+  memberNodeIds?: string[];
+  link?: MetadataReviewLinkDto | null;
+  candidates?: MetadataReviewCandidateDto[];
+  reasons?: string[];
+  matchedAt?: string | null;
+  nextRetryAt?: string | null;
+  runId?: string | null;
+  openFlagCount: number;
+  /** Flags tab only. */
+  flags?: MetadataFlagDto[];
+}
+
+/** GET /admin/metadata/review?tab=&library=&cursor=&limit= */
+export interface MetadataReviewPageDto {
+  tab: MetadataReviewTab;
+  items: MetadataReviewItemDto[];
+  total: number;
+  nextCursor?: string | null;
+  hasMore?: boolean;
+}
+
+export interface MetadataReviewAcceptRequest {
+  rank: number;
+}
+
+export interface MetadataReviewBulkRequest {
+  action: MetadataReviewBulkAction;
+  /** Max 200. */
+  nodeIds: string[];
+}
+
+export interface MetadataReviewBulkItemResultDto {
+  nodeId: string;
+  /** ok, or an error code. */
+  code: string;
+}
+
+export interface MetadataReviewBulkResultDto {
+  action: MetadataReviewBulkAction;
+  succeeded: number;
+  failed: number;
+  results: MetadataReviewBulkItemResultDto[];
+}
+
+export interface MetadataAutoMatchStatusDto {
+  enabled: boolean;
+  active: boolean;
+  /** automatic_off, metadata_disabled, metadata_network_disabled, budget_exhausted, provider_backoff. */
+  waitingCode?: string | null;
+  waitingUntil?: string | null;
+  pending: number;
+}
+
+export interface MetadataMatchRunDto {
+  runId: string;
+  libraryId: string;
+  libraryName: string;
+  trigger: MetadataMatchRunTrigger;
+  status: MetadataMatchRunStatus;
+  reviewFirst: boolean;
+  startedAt: string;
+  completedAt?: string | null;
+  candidates: number;
+  queued: number;
+  processed: number;
+  autoLinked: number;
+  needsReview: number;
+  unmatched: number;
+  skipped: number;
+  failed: number;
+  requestsUsed: number;
+  /** Local-only outcome counters. */
+  autoChangedByAdmin: number;
+  reviewAcceptedTop: number;
+  reviewAcceptedOther: number;
+  reviewDontMatch: number;
+}
+
+/** GET /admin/metadata/runs?library=&cursor=&limit= */
+export interface MetadataMatchRunsDto {
+  status: MetadataAutoMatchStatusDto;
+  items: MetadataMatchRunDto[];
+  nextCursor?: string | null;
+  hasMore?: boolean;
+}
+
+/** GET /admin/metadata/libraries/{id}/match/estimate?retryUnmatched= (no network). */
+export interface MetadataMatchEstimateDto {
+  libraryId: string;
+  candidates: number;
+  estimatedRequests: number;
+  estimatedDays: number;
+  alreadyLinked: number;
+  unmatched: number;
+  dailyBudget: number;
+  budgetUsedToday: number;
+  firstRun: boolean;
+  automaticAvailable: boolean;
+  unavailableCode?: string | null;
+}
+
+export interface MetadataMatchLibraryRequest {
+  reviewFirst?: boolean;
+  retryUnmatched?: boolean;
+}
+
+/** POST /nodes/{id}/series-info/flags. Note: plain text, max 500. */
+export interface CreateMetadataFlagRequest {
+  reason: MetadataFlagReason;
+  note?: string | null;
+}
+
+export interface MetadataMyFlagDto {
+  flagId: string;
+  anchorNodeId: string;
+  reason: MetadataFlagReason;
+  state: MetadataFlagState;
+  createdAt: string;
+  resolvedAt?: string | null;
+}
+
+/** GET /nodes/{id}/series-info/flags/mine */
+export interface MetadataMyFlagStateDto {
+  canFlag: boolean;
+  flag?: MetadataMyFlagDto | null;
+}
+
+export interface MetadataFlagDto {
+  flagId: string;
+  nodeId: string;
+  nodeKind: CatalogNodeKind;
+  nodeDisplayName: string;
+  libraryId: string;
+  reason: MetadataFlagReason;
+  /** User content: admin-only. */
+  note?: string | null;
+  state: MetadataFlagState;
+  reporterDisplayName: string;
+  resolvedByDisplayName?: string | null;
+  createdAt: string;
+  resolvedAt?: string | null;
+  provider?: string | null;
+  externalId?: string | null;
+  currentLink?: MetadataReviewLinkDto | null;
+}
+
+/** GET /admin/metadata/flags?state=open|resolved|all&library=&cursor=&limit= */
+export interface MetadataFlagPageDto {
+  items: MetadataFlagDto[];
+  total: number;
+  nextCursor?: string | null;
+  hasMore?: boolean;
+}
+
+export interface ResolveMetadataFlagRequest {
+  /** Anything but Open. */
+  outcome: MetadataFlagState;
+}
+
+export interface MetadataReattachRequest {
+  targetNodeId: string;
+}
+
+export interface MetadataReattachResultDto {
+  nodeId: string;
+  targetNodeId: string;
+  link: boolean;
+  precedence: boolean;
+  readerDefault: boolean;
+  content: boolean;
+}
+
+export interface SetFolderMetadataContentRequest {
+  content: MetadataFolderContent;
+}
+
+/** GET/PUT/DELETE /admin/metadata/folders/{id}/content */
+export interface FolderMetadataContentDto {
+  nodeId: string;
+  content?: MetadataFolderContent | null;
+  effective: MetadataFolderContent;
+  sourceNodeId?: string | null;
+  suggested?: MetadataFolderContent | null;
 }

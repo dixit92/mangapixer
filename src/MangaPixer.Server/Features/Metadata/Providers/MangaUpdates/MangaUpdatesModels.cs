@@ -46,6 +46,20 @@ internal sealed record MuSeries
     [JsonPropertyName("authors")] public List<MuAuthor>? Authors { get; init; }
     [JsonPropertyName("publishers")] public List<MuPublisher>? Publishers { get; init; }
     [JsonPropertyName("last_updated")] public MuTime? LastUpdated { get; init; }
+    [JsonPropertyName("publications")] public List<MuPublication>? Publications { get; init; }
+    [JsonPropertyName("related_series")] public List<MuRelatedSeries>? RelatedSeries { get; init; }
+}
+
+internal sealed record MuPublication
+{
+    [JsonPropertyName("publication_name")] public string? PublicationName { get; init; }
+    [JsonPropertyName("publisher_name")] public string? PublisherName { get; init; }
+}
+
+internal sealed record MuRelatedSeries
+{
+    [JsonPropertyName("relation_type")] public string? RelationType { get; init; }
+    [JsonPropertyName("related_series_id")] public long? RelatedSeriesId { get; init; }
 }
 
 internal sealed record MuTitle
@@ -80,6 +94,7 @@ internal sealed record MuCategory
 internal sealed record MuAuthor
 {
     [JsonPropertyName("name")] public string? Name { get; init; }
+    [JsonPropertyName("author_id")] public long? AuthorId { get; init; }
     [JsonPropertyName("type")] public string? Type { get; init; }
 }
 

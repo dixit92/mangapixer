@@ -2,7 +2,9 @@ namespace com.lifepixer.mangapixer.Server.Features.Metadata;
 
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Admin;
+using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -92,6 +94,11 @@ public sealed class MetadataSettingsService
             .ToListAsync(ct);
 
         var (total, read, found) = await ComicInfoBackfillService.CountAsync(_db, ct);
+        var thresholds = MetadataThresholds.Resolve(row?.MetadataAutoTitleThreshold, row?.MetadataMarginThreshold, row?.MetadataReviewFloorThreshold);
+        var automaticOn = !NetworkDisabledByConfig
+            && row is { MetadataEnabled: true, MetadataAutoMatchEnabled: true }
+            && row.MetadataConsentVersion == MetadataConsent.CurrentVersion
+            && row.MetadataAutoConsentVersion == MetadataAutoConsent.CurrentVersion;
 
         return new MetadataSettingsDto
         {
@@ -122,7 +129,17 @@ public sealed class MetadataSettingsService
                 ShowSeriesInfo = !l.MetadataSeriesInfoHidden,
                 Precedence = (MetadataPrecedence?)l.MetadataPrecedence,
                 LinkCount = linkCounts.GetValueOrDefault(l.Id),
+                AutoMatchActive = automaticOn && l.MetadataEnabled,
             }).ToList(),
+            AutoMatchEnabled = row?.MetadataAutoMatchEnabled ?? false,
+            AcceptedAutoConsentVersion = row?.MetadataAutoConsentVersion,
+            CurrentAutoConsentVersion = MetadataAutoConsent.CurrentVersion,
+            AutoConsentAt = row?.MetadataAutoConsentAt,
+            Thresholds = MetadataThresholds.ToDto(thresholds),
+            DefaultThresholds = MetadataThresholds.ToDto(MatchThresholds.Default),
+            ThresholdBounds = MetadataThresholds.Bounds,
+            ThresholdsAreDefault = row is null
+                || (row.MetadataAutoTitleThreshold is null && row.MetadataMarginThreshold is null && row.MetadataReviewFloorThreshold is null),
         };
     }
 
@@ -131,6 +148,8 @@ public sealed class MetadataSettingsService
     {
         if (request.DailyBudget is { } budget && (budget < 1 || budget > MaxDailyBudget))
             return "invalid_daily_budget";
+        if (request.Thresholds is { } t && !request.ResetThresholds && !MetadataThresholds.FromDto(t).IsValid)
+            return "invalid_thresholds";
 
         var row = await _db.AppSettings.FirstOrDefaultAsync(s => s.Id == AppSettingsEntity.SingletonId, ct);
 
@@ -142,6 +161,19 @@ public sealed class MetadataSettingsService
         var alreadyConsented = row is { MetadataEnabled: true } && row.MetadataConsentVersion == MetadataConsent.CurrentVersion;
         if (request.FetchEnabled == true && !consentGiven && !alreadyConsented)
             return "consent_required";
+
+        // Automatic matching (stage 2): its own consent (v2 surface, decision 2), and
+        // it needs "Fetch from the web" on - already, or turned on in this request.
+        var autoConsentGiven = request.AcceptedAutoConsentVersion == MetadataAutoConsent.CurrentVersion;
+        var autoAlreadyConsented = row is { MetadataAutoMatchEnabled: true } && row.MetadataAutoConsentVersion == MetadataAutoConsent.CurrentVersion;
+        if (request.AutoMatchEnabled == true)
+        {
+            if (!autoConsentGiven && !autoAlreadyConsented)
+                return "auto_consent_required";
+            var fetchOn = request.FetchEnabled ?? row?.MetadataEnabled ?? false;
+            if (!fetchOn)
+                return "fetch_required";
+        }
 
         if (row is null)
         {
@@ -179,12 +211,49 @@ public sealed class MetadataSettingsService
             audits.Add(AuditActions.MetadataSettingsChange);
         }
 
+        if (request.AutoMatchEnabled == true && !autoAlreadyConsented)
+        {
+            row.MetadataAutoMatchEnabled = true;
+            row.MetadataAutoConsentVersion = MetadataAutoConsent.CurrentVersion;
+            row.MetadataAutoConsentAt = _time.GetUtcNow();
+            audits.Add(AuditActions.MetadataAutoMatchEnable);
+        }
+        else if (request.AutoMatchEnabled == false && row.MetadataAutoMatchEnabled)
+        {
+            row.MetadataAutoMatchEnabled = false;
+            audits.Add(AuditActions.MetadataAutoMatchDisable);
+        }
+        if (request.ResetThresholds)
+        {
+            if (row.MetadataAutoTitleThreshold is not null || row.MetadataMarginThreshold is not null || row.MetadataReviewFloorThreshold is not null)
+            {
+                row.MetadataAutoTitleThreshold = null;
+                row.MetadataMarginThreshold = null;
+                row.MetadataReviewFloorThreshold = null;
+                audits.Add(AuditActions.MetadataThresholdsChange);
+            }
+        }
+        else if (request.Thresholds is { } thresholds)
+        {
+            // Stored as given; a value equal to the default is still stored (the admin chose it).
+            if (row.MetadataAutoTitleThreshold != thresholds.AutoTitle || row.MetadataMarginThreshold != thresholds.Margin
+                || row.MetadataReviewFloorThreshold != thresholds.ReviewFloor)
+            {
+                row.MetadataAutoTitleThreshold = thresholds.AutoTitle;
+                row.MetadataMarginThreshold = thresholds.Margin;
+                row.MetadataReviewFloorThreshold = thresholds.ReviewFloor;
+                audits.Add(AuditActions.MetadataThresholdsChange);
+            }
+        }
+
         await _db.SaveChangesAsync(ct);
         foreach (var action in audits.Distinct())
         {
             // The consent version rides in Result for enable, as designed.
             var result = action == AuditActions.MetadataSettingsEnable
                 ? $"consent_v{MetadataConsent.CurrentVersion}"
+                : action == AuditActions.MetadataAutoMatchEnable
+                ? $"auto_consent_v{MetadataAutoConsent.CurrentVersion}"
                 : AuditResults.Success;
             await _audit.RecordAsync(action, result, actor, ct: ct);
         }

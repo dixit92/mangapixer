@@ -76,6 +76,11 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<NodeSeriesLinkEntity> NodeSeriesLinks => Set<NodeSeriesLinkEntity>();
     public DbSet<EmbeddedMetadataEntity> EmbeddedMetadata => Set<EmbeddedMetadataEntity>();
     public DbSet<FolderMetadataPrecedenceEntity> FolderMetadataPrecedences => Set<FolderMetadataPrecedenceEntity>();
+    public DbSet<FolderMetadataContentEntity> FolderMetadataContents => Set<FolderMetadataContentEntity>();
+    public DbSet<MetadataMatchQueueEntity> MetadataMatchQueue => Set<MetadataMatchQueueEntity>();
+    public DbSet<MetadataMatchRunEntity> MetadataMatchRuns => Set<MetadataMatchRunEntity>();
+    public DbSet<MetadataMatchCandidateEntity> MetadataMatchCandidates => Set<MetadataMatchCandidateEntity>();
+    public DbSet<MetadataFlagEntity> MetadataFlags => Set<MetadataFlagEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -101,6 +106,7 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureAuditEvents(modelBuilder);
         ConfigureAppSettings(modelBuilder);
         ConfigureMetadata(modelBuilder);
+        ConfigureMetadataAutoMatch(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
@@ -201,6 +207,124 @@ public sealed class MangaPixerDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.NodeId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    /// <summary>Metadata stage 2 (auto-match): queue, runs, stored candidates, flags, folder Content.</summary>
+    private static void ConfigureMetadataAutoMatch(ModelBuilder mb)
+    {
+        mb.Entity<MetadataRecordEntity>(e =>
+        {
+            e.Property(x => x.PublicationsJson).HasMaxLength(8192);
+            e.Property(x => x.RelationsJson).HasMaxLength(8192);
+        });
+
+        mb.Entity<FolderMetadataContentEntity>(e =>
+        {
+            e.ToTable("folder_metadata_content");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            // One override row per folder node.
+            e.HasIndex(x => x.NodeId).IsUnique();
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<MetadataMatchRunEntity>(e =>
+        {
+            e.ToTable("metadata_match_runs");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.PublicId).IsRequired().HasMaxLength(32);
+            e.HasIndex(x => x.PublicId).IsUnique();
+            e.HasIndex(x => new { x.LibraryId, x.StartedAt });
+            e.HasIndex(x => x.Status);
+            e.HasOne<LibraryEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.LibraryId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<MetadataMatchQueueEntity>(e =>
+        {
+            e.ToTable("metadata_match_queue");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.LeaseOwner).HasMaxLength(64);
+            e.Property(x => x.LastErrorCode).HasMaxLength(32);
+            e.Property(x => x.MemberNodeIdsJson).HasMaxLength(16384);
+            // One row per work anchor: re-queueing updates the row, never duplicates it.
+            e.HasIndex(x => x.NodeId).IsUnique();
+            e.HasIndex(x => new { x.State, x.NotBefore });
+            e.HasIndex(x => new { x.LibraryId, x.Outcome });
+            e.HasIndex(x => x.RunId);
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<LibraryEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.LibraryId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<MetadataMatchRunEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.RunId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        mb.Entity<MetadataMatchCandidateEntity>(e =>
+        {
+            e.ToTable("metadata_match_candidates");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.Provider).IsRequired().HasMaxLength(32);
+            e.Property(x => x.ExternalId).IsRequired().HasMaxLength(64);
+            e.Property(x => x.Title).IsRequired().HasMaxLength(512);
+            e.Property(x => x.ProviderType).HasMaxLength(32);
+            e.Property(x => x.ImageRemoteUrl).HasMaxLength(512);
+            e.HasIndex(x => new { x.NodeId, x.Rank }).IsUnique();
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<MetadataFlagEntity>(e =>
+        {
+            e.ToTable("metadata_flags");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.PublicId).IsRequired().HasMaxLength(32);
+            e.Property(x => x.Provider).HasMaxLength(32);
+            e.Property(x => x.ExternalId).HasMaxLength(64);
+            e.Property(x => x.Note).HasMaxLength(500);
+            e.HasIndex(x => x.PublicId).IsUnique();
+            e.HasIndex(x => new { x.State, x.CreatedAt });
+            e.HasIndex(x => new { x.ReporterUserId, x.CreatedAt });
+            e.HasIndex(x => x.NodeId);
+            // One OPEN flag per reporter and anchor.
+            e.HasIndex(x => new { x.ReporterUserId, x.NodeId })
+                .IsUnique()
+                .HasFilter("\"State\" = 0")
+                .HasDatabaseName("IX_metadata_flags_open_per_reporter");
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<LibraryEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.LibraryId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<UserEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.ReporterUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<UserEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.ResolvedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 
