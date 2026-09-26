@@ -28,6 +28,25 @@ public sealed class MatchScorerTests
     private MatchOutcome Score(MatchQuery q, params MatchCandidate[] c) => _scorer.Score(q, c, MatchThresholds.Default);
 
     [Fact]
+    public void OneShotFolder_NamedEdition_MatchesTheSeriesRecord()
+    {
+        // A whole series in one archive, named after a re-release: the planner drops the edition
+        // phrase, so the series record leads its spin-offs instead of all scoring alike.
+        var planner = new MatchQueryPlanner();
+        var shape = new FolderShape("SOME TITLE! Master Edition", 1, ["SOME TITLE! Master Edition.cbz"], []);
+        var q = planner.PlanFolder(shape, new WorkDetector().Classify(shape));
+
+        var o = _scorer.Score(q,
+            [Rec("1", "Some Title!", volumes: 10), Rec("2", "Some Title! Academy and So On"), Rec("3", "Some Title 2")],
+            MatchThresholds.Default);
+
+        Assert.Equal(WorkClass.OneShot, q.Context.Class);
+        Assert.Equal("SOME TITLE", q.Variants[0].Text);
+        Assert.NotEqual(MatchBand.Unmatched, o.Band);
+        Assert.Equal("1", o.Ranked[0].Candidate.ExternalId);
+    }
+
+    [Fact]
     public void ExactTitle_ClearLead_IsAuto()
     {
         var o = Score(Query(["Some Series"]), Rec("1", "Some Series"), Rec("2", "Completely Different"));

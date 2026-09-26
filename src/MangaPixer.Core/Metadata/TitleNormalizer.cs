@@ -17,7 +17,7 @@ using System.Text.RegularExpressions;
 /// <c>[...]</c>, <c>(...)</c>, <c>{...}</c> are removed, EXCEPT a non-leading,
 /// trailing <c>[English Title]</c> of at least two words (no further tag after it) (a second query variant, the
 /// Manga-list convention) and a <c>(19xx|20xx)</c> year (a year hint) -> volume
-/// and chapter tokens are removed, edition words are removed but kept as hints ->
+/// and chapter tokens are removed, edition words and phrases ("Master Edition", "Kanzenban") are removed but kept as hints ->
 /// whitespace collapsed, edge punctuation trimmed. A bracket character left
 /// without its partner (<c>Title (unclosed</c>) is dropped, its text kept.
 ///
@@ -33,6 +33,14 @@ public static partial class TitleNormalizer
         [".cbz", ".zip", ".cbr", ".rar", ".cb7", ".7z", ".cbt", ".tar", ".pdf", ".epub"];
 
     private static readonly string[] s_editionWords = ["Omnibus", "Deluxe", "Complete", "Digital"];
+
+    // Named re-releases ("Master Edition", "Perfect Edition", kanzenban...), removed before the single
+    // words above so "Complete Edition" goes as one phrase. Provider records rarely carry them: a
+    // query with "Master Edition" scored the series record below the review floor (owner test, 1.26.0).
+    [GeneratedRegex(
+        @"(?<![\p{L}\p{N}])(?:(?:Master|Perfect|Deluxe|Collector'?s|Special|Anniversary|Complete|Definitive|Ultimate|Legendary|Remastered|Full[- ]Colou?r)\s+Edition|Kanzenban|Shinsou?ban|Aizou?ban|Bunkoban|Wideban)(?![\p{L}\p{N}])",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex EditionPhrase();
 
     [GeneratedRegex(@"\[([^\[\]]*)\]", RegexOptions.CultureInvariant)]
     private static partial Regex SquareGroup();
@@ -330,6 +338,10 @@ public static partial class TitleNormalizer
         s = HashNumber().Replace(s, " ");
         s = BareUnitWord().Replace(s, " ");
 
+        foreach (Match m in EditionPhrase().Matches(s))
+            editionHints.Add(m.Value);
+        s = EditionPhrase().Replace(s, " ");
+
         foreach (var word in s_editionWords)
         {
             var pattern = $@"(?<![\p{{L}}\p{{N}}]){word}(?![\p{{L}}\p{{N}}])";
@@ -393,7 +405,7 @@ public static partial class TitleNormalizer
 /// <summary>
 /// Normalized title: the primary query, all query variants (primary first, then a
 /// bracketed English title when present), an optional year hint and the edition
-/// words that were removed (Omnibus, Deluxe, Complete, Digital).
+/// words and phrases that were removed (Omnibus, Deluxe, Complete, Digital, "Master Edition", "Kanzenban", ...).
 /// </summary>
 public sealed record NormalizedTitle(
     string Primary,

@@ -91,6 +91,28 @@ public sealed class TitleNormalizerTests
         Assert.Contains("Omnibus", n.EditionHints);
     }
 
+    [Theory]
+    [InlineData("SOME TITLE! Master Edition", "SOME TITLE", "Master Edition")]
+    [InlineData("Some Series Perfect Edition v01", "Some Series", "Perfect Edition")]
+    [InlineData("Some Series - Complete Edition", "Some Series", "Complete Edition")]
+    [InlineData("Some Series Collector's Edition", "Some Series", "Collector's Edition")]
+    [InlineData("Some Series Full Color Edition", "Some Series", "Full Color Edition")]
+    [InlineData("Some Series Kanzenban v03", "Some Series", "Kanzenban")]
+    [InlineData("Some Series (Shinsoban)", "Some Series", null)] // a bracket tag is dropped before
+    public void Normalize_EditionPhrases_AreRemovedAndKeptAsHints(string name, string primary, string? hint)
+    {
+        var n = TitleNormalizer.Normalize(name);
+
+        Assert.Equal(primary, n.Primary);
+        if (hint is not null)
+            Assert.Contains(hint, n.EditionHints);
+    }
+
+    [Theory]
+    [InlineData("Edition Wars")]
+    [InlineData("The Editions of Master")]
+    public void Normalize_EditionAlone_IsKept(string name) => Assert.Equal(name, TitleNormalizer.Normalize(name).Primary);
+
     [Fact]
     public void Normalize_UnderscoresAndDots_BecomeSpaces_WhenNoSpaces()
     {
