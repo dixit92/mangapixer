@@ -1,9 +1,10 @@
 import { Injectable, InjectionToken, NgZone, inject } from '@angular/core';
 
 import type { BandRenderRequest, BandRenderResult, SliceBudget } from './anime4k-tile-renderer';
+import { UpscaleBackend, UpscaleEngine, sameBackend } from './upscale-engine';
 import { UpscaleSupportService, hasWebGpu } from './upscale.directive';
 import {
-  BandPlan, EnhanceChain, bandCssHeight, bandRowsFor, planBands, poolSize, webtoonEnhanceGate,
+  BandPlan, EnhanceChain, TileProfile, bandCssHeight, bandRowsFor, planBands, poolSize, tileProfileFor, webtoonEnhanceGate,
 } from './webtoon-band-plan';
 import { prefersReducedMotion } from './webtoon-nav.service';
 
@@ -31,10 +32,18 @@ import { prefersReducedMotion } from './webtoon-nav.service';
  *  - device-loss handling (re-queue once; a second loss within a minute pauses
  *    webtoon Enhance for the session) and the ms/band median readout.
  *
+ * Engines (1.25.0): the coordinator renders whichever backend the Rendering
+ * choice resolved to - Enhance on WebGPU (`anime4k-tile-renderer.ts`), or Sharp /
+ * Enhance on WebGL2 (`webgl-upscaler.ts`, one shared context whose output is
+ * copied onto `2d` band canvases). A canvas holds one context type, so a backend
+ * change tears the layer down and rebuilds it with fresh canvases; the band
+ * height follows the engine's bytes per pixel (`tileProfileFor`).
+ *
  * Every callback runs outside Angular (no change detection per scroll or
- * observer tick). Without IntersectionObserver / ResizeObserver (jsdom) or
- * WebGPU the coordinator is inert and never throws; the plain `<img>` is always
- * underneath, so every failure simply shows today's picture.
+ * observer tick). Without IntersectionObserver / ResizeObserver (jsdom), or
+ * without the backend's API, the coordinator is inert and never throws; the
+ * plain `<img>` is always underneath, so every failure simply shows today's
+ * picture.
  */
 
 /** The lazy renderer surface the coordinator uses (a seam for tests). */
@@ -45,14 +54,17 @@ export interface TileRendererApi {
   createSliceBudget(): SliceBudget;
 }
 
-/** How the coordinator loads the tile renderer: a dynamic import, i.e. a lazy chunk. */
-export const WEBTOON_TILE_RENDERER = new InjectionToken<() => Promise<TileRendererApi>>('WEBTOON_TILE_RENDERER', {
+/** How the coordinator loads an engine's tile renderer: a dynamic import, i.e. a lazy chunk per engine. */
+export const WEBTOON_TILE_RENDERER = new InjectionToken<(engine: UpscaleEngine) => Promise<TileRendererApi>>('WEBTOON_TILE_RENDERER', {
   providedIn: 'root',
-  factory: () => () => import('./anime4k-tile-renderer'),
+  factory: () => (engine: UpscaleEngine) => engine === 'webgl2' ? import('./webgl-upscaler') : import('./anime4k-tile-renderer'),
 });
 
 /** Webtoon always runs the light M chain (owner decision 2026-09-25; see the settings menu). */
 export const webtoonChain: EnhanceChain = 'm';
+
+/** The backend `setEnabled(true)` means when none is given: Enhance on WebGPU (the 1.24.0 behaviour). */
+export const webgpuEnhance: UpscaleBackend = { mode: 'enhance', engine: 'webgpu' };
 
 export const pageRootMargin = '150% 0px 250% 0px';
 export const bandRootMargin = '25% 0px 75% 0px';
@@ -83,6 +95,8 @@ interface PageState {
   gateOn: boolean;
   nativeWidth: number;
   nativeHeight: number;
+  /** The tile profile `plan` was made for (band height depends on the engine). */
+  profile: TileProfile | null;
   plan: BandPlan[];
   bands: BandState[];
   container: HTMLDivElement | null;
@@ -119,6 +133,7 @@ export class WebtoonEnhanceCoordinator {
 
   private scroller: HTMLElement | null = null;
   private enabled = false;
+  private backend: UpscaleBackend = webgpuEnhance;
   private active = false;
   private readonly pages = new Map<HTMLImageElement, PageState>();
   private readonly sentinels = new Map<Element, BandState>();
@@ -161,9 +176,30 @@ export class WebtoonEnhanceCoordinator {
     if (this.enabled) this.activate();
   }
 
-  /** Follows `ReaderComponent.upscaleActive()` (Rendering: Enhance). */
-  setEnabled(on: boolean): void {
-    if (on === this.enabled) return;
+  /** The backend the strip renders with (tests, diagnostics). */
+  get currentBackend(): UpscaleBackend { return this.backend; }
+
+  /**
+   * Follows the Rendering choice: on with the backend it resolved to (Sharp or
+   * Enhance, WebGPU or WebGL2), or off (Smooth / cannot run here). A backend
+   * change rebuilds the layer with fresh canvases and loads that engine's renderer.
+   */
+  setEnabled(on: boolean, backend: UpscaleBackend = webgpuEnhance): void {
+    const changed = !sameBackend(backend, this.backend);
+    if (on === this.enabled && !(on && changed)) return;
+    if (changed) {
+      this.deactivate();
+      this.offLost?.();
+      this.offLost = null;
+      this.renderer = null;
+      this.rendererLoad = null;
+      this.budget = null;
+      this.backend = backend;
+      // A new engine gets a fresh chance: failures and resets of the old one do not count.
+      this.failures = 0;
+      this.broken = false;
+      this.lossTimes = [];
+    }
     this.enabled = on;
     if (on) this.activate();
     else this.deactivate();
@@ -173,7 +209,7 @@ export class WebtoonEnhanceCoordinator {
     if (this.pages.has(img)) return;
     const page: PageState = {
       img, near: false, src: '', generation: 0, gateOn: false, nativeWidth: 0, nativeHeight: 0,
-      plan: [], bands: [], container: null, geometry: null,
+      profile: null, plan: [], bands: [], container: null, geometry: null,
     };
     this.pages.set(img, page);
     this.pageObserver?.observe(img);
@@ -211,7 +247,8 @@ export class WebtoonEnhanceCoordinator {
 
   private activate(): void {
     if (this.active || !this.scroller || this.broken) return;
-    if (typeof IntersectionObserver !== 'function' || typeof ResizeObserver !== 'function' || !hasWebGpu()) return;
+    if (typeof IntersectionObserver !== 'function' || typeof ResizeObserver !== 'function') return;
+    if (this.backend.engine === 'webgpu' && !hasWebGpu()) return;
     if (this.support.webtoonPaused()) return;
     const scroller = this.scroller;
     this.active = true;
@@ -297,13 +334,15 @@ export class WebtoonEnhanceCoordinator {
     const nh = img.naturalHeight;
     if (!img.complete || !(nw > 0) || !(nh > 0)) return; // `loaded()` brings us back
     const src = img.currentSrc || img.src;
-    if (src !== page.src || nw !== page.nativeWidth || nh !== page.nativeHeight) {
+    const profile = tileProfileFor(this.backend);
+    if (src !== page.src || nw !== page.nativeWidth || nh !== page.nativeHeight || profile !== page.profile) {
       this.clearBands(page);
       page.src = src;
       page.generation++;
       page.nativeWidth = nw;
       page.nativeHeight = nh;
-      page.plan = planBands(nw, nh, bandRowsFor(nw, webtoonChain, coarsePointer()));
+      page.profile = profile;
+      page.plan = planBands(nw, nh, bandRowsFor(nw, profile, coarsePointer()));
     }
     page.geometry = readGeometry(img);
     page.gateOn = webtoonEnhanceGate(page.geometry.width, devicePixelRatioOr1(), nw);
@@ -489,7 +528,9 @@ export class WebtoonEnhanceCoordinator {
     entry.generation = -1;
     entry.rendered = false;
     const c = entry.canvas;
-    try { (c.getContext?.('webgpu') as GPUCanvasContext | null)?.unconfigure(); } catch { /* never configured */ }
+    if (this.backend.engine === 'webgpu') {
+      try { (c.getContext?.('webgpu') as GPUCanvasContext | null)?.unconfigure(); } catch { /* never configured */ }
+    }
     c.width = 0;
     c.height = 0;
     c.style.display = 'none';
@@ -557,7 +598,7 @@ export class WebtoonEnhanceCoordinator {
         if (renderer && !ctrl.signal.aborted && this.active) {
           this.budget ??= renderer.createSliceBudget();
           result = await renderer.renderBand({
-            source: page.img, canvas: entry.canvas, band: band.plan, chain: webtoonChain,
+            source: page.img, canvas: entry.canvas, band: band.plan, chain: webtoonChain, mode: this.backend.mode,
             signal: ctrl.signal, budget: this.budget,
           });
         } else if (ctrl.signal.aborted) {
@@ -603,15 +644,19 @@ export class WebtoonEnhanceCoordinator {
   }
 
   private ensureRenderer(): Promise<TileRendererApi | null> {
-    this.rendererLoad ??= this.loadRenderer().then((r) => {
+    if (this.rendererLoad) return this.rendererLoad;
+    const backend = this.backend;
+    const load: Promise<TileRendererApi | null> = this.loadRenderer(backend.engine).then((r) => {
+      if (this.backend !== backend) return null; // the engine changed while the chunk loaded
       this.renderer = r;
       this.offLost = r.onTilesLost(() => this.zone.runOutsideAngular(() => this.deviceLost()));
       return r;
     }).catch(() => {
-      this.rendererLoad = null; // chunk failed to load: plain <img>, retry on a later band
+      if (this.rendererLoad === load) this.rendererLoad = null; // chunk failed to load: plain <img>, retry on a later band
       return null;
     });
-    return this.rendererLoad;
+    this.rendererLoad = load;
+    return load;
   }
 
   // --- gating ---------------------------------------------------------------------

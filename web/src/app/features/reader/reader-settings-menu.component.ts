@@ -12,6 +12,7 @@ import {
 import { DOWNSCALE_FILTER_OPTIONS, filterOptionHint } from '../../core/reading/downscale-filters';
 import { WebtoonNavPreferencesService, WebtoonTapStep } from './webtoon-nav.service';
 import { UpscaleSupportService } from './upscale.directive';
+import { availabilityFor } from './upscale-engine';
 
 // --- Reader option vocabulary -------------------------------------------------
 // The value types the reader's settings surfaces (desktop menus + the phone
@@ -65,16 +66,43 @@ export const FIT_OPTIONS: readonly ReaderOption<FitMode>[] = [
 ];
 
 /**
- * Display upscaling choices (1.19.0). `enhance` runs the Anime4K line-art
- * upscaler on the GPU for pages painted LARGER than their natural size; `smooth`
- * is the browser's own resampling, i.e. exactly the pre-1.19.0 picture. Needs
- * WebGPU - where it is missing the option is offered disabled with a reason
- * rather than silently doing nothing (`UpscaleSupportService`).
+ * Display upscaling choices, for pages painted LARGER than their natural size:
+ * `smooth` is the browser's own resampling (the pre-1.19.0 picture), `sharp`
+ * (1.25.0) AMD FSR 1 on WebGL2 - cheap, and it works over plain HTTP - and
+ * `enhance` (1.19.0) the Anime4K line-art upscaler, on WebGPU or else WebGL2.
+ * ONE short list: the engine in use is a small line under the selected option,
+ * and an option that cannot run here is disabled with its reason
+ * (`renderingRows`, from `UpscaleSupportService` / `upscale-engine.ts`).
  */
 export const UPSCALER_OPTIONS: readonly ReaderOption<Upscaler>[] = [
   { value: 'smooth', label: 'Smooth', icon: 'blur_on' },
+  { value: 'sharp', label: 'Sharp', icon: 'deblur' },
   { value: 'enhance', label: 'Enhance', icon: 'auto_fix_high' },
 ];
+
+/** One Rendering option as the menu and the sheet draw it. */
+export interface RenderingRow extends ReaderOption<Upscaler> {
+  /** Cannot run here (or WebGPU still being probed): offered, not selectable. */
+  readonly disabled: boolean;
+  /** The choice actually on screen (Smooth when the saved one cannot run). */
+  readonly selected: boolean;
+  /** The engine line under the selected option, or why a disabled one cannot run. */
+  readonly note: string | null;
+}
+
+/** The Rendering list for this device (shared by the desktop menu and the phone sheet). */
+export function renderingRows(support: UpscaleSupportService): RenderingRow[] {
+  const caps = support.caps();
+  const active = support.effective();
+  return UPSCALER_OPTIONS.map((opt) => {
+    const a = availabilityFor(opt.value, caps);
+    const selected = active === opt.value;
+    const note = a.state === 'unavailable' ? a.reason
+      : a.state === 'checking' ? 'Checking WebGPU…'
+        : selected ? a.note : null;
+    return { ...opt, disabled: a.state !== 'ready', selected, note };
+  });
+}
 
 /**
  * Which Anime4K network Enhance runs (1.24.0): `balanced` is the light M chain
@@ -87,8 +115,12 @@ export const ENHANCE_QUALITY_OPTIONS: readonly ReaderOption<EnhanceQuality>[] = 
   { value: 'max', label: 'Max quality', icon: 'diamond' },
 ];
 
-/** One line under the Enhance quality group (shared by the menu and the phone sheet). */
-export function enhanceQualityHint(quality: EnhanceQuality): string {
+/**
+ * One line under the Enhance quality group (shared by the menu and the phone
+ * sheet). On WebGL2 only Efficient runs (1.25.0), so that is what it says.
+ */
+export function enhanceQualityHint(quality: EnhanceQuality, webgl2 = false): string {
+  if (webgl2) return 'Max quality needs WebGPU; WebGL2 runs Efficient';
   return quality === 'max'
     ? 'Sharpest; more GPU memory and battery (single and double page)'
     : 'Lighter on GPU memory and battery';
@@ -201,14 +233,17 @@ export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
     <mat-menu #renderMenu="matMenu" class="reader-options-menu">
       <div role="group" aria-label="Rendering">
         <div class="menu-group-label">Rendering</div>
-        @for (opt of upscalerOptions; track opt.value) {
+        <!-- 1.25.0: a small second line names the engine under the selected
+             option, or why a disabled option cannot run on this device. -->
+        @for (row of renderingRows(); track row.value) {
           <button mat-menu-item role="menuitemradio"
-                  [disabled]="opt.value === 'enhance' && enhanceDisabled()"
-                  [class.selected-option]="prefs.upscaler() === opt.value"
-                  [attr.aria-checked]="prefs.upscaler() === opt.value"
-                  (click)="chooseUpscaler(opt.value)" [attr.aria-label]="'Rendering: ' + opt.label">
-            <mat-icon>{{ opt.icon }}</mat-icon>
-            {{ opt.label }}
+                  [disabled]="row.disabled"
+                  [class.selected-option]="row.selected"
+                  [attr.aria-checked]="row.selected"
+                  (click)="chooseUpscaler(row.value)"
+                  [attr.aria-label]="'Rendering: ' + row.label + (row.note ? ' - ' + row.note : '')">
+            <mat-icon>{{ row.icon }}</mat-icon>
+            <span class="option-text">{{ row.label }}@if (row.note) {<span class="option-note">{{ row.note }}</span>}</span>
           </button>
         }
         <!-- The status line is a text-styled button: tapping it 5 times
@@ -216,16 +251,18 @@ export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
         <button type="button" class="menu-hint hint-tap"
                 (click)="$event.stopPropagation(); support.tapStats()">{{ renderingHint() }}</button>
       </div>
-      <!-- Enhance quality applies to the paged views only: vertical always runs
-           Efficient, so the choice is hidden there (not explained). -->
+      <!-- Enhance quality is a sub-choice of Enhance (shown only while Enhance
+           is the Rendering on screen) and applies to the paged views only:
+           vertical always runs Efficient, so the choice is hidden there (not
+           explained). On WebGL2 Max quality is disabled (WebGPU only). -->
       @if (showEnhanceQuality()) {
         <div role="group" aria-label="Enhance quality">
           <div class="menu-group-label">Enhance quality</div>
           @for (opt of enhanceQualityOptions; track opt.value) {
             <button mat-menu-item role="menuitemradio"
-                    [disabled]="enhanceDisabled()"
-                    [class.selected-option]="prefs.enhanceQuality() === opt.value"
-                    [attr.aria-checked]="prefs.enhanceQuality() === opt.value"
+                    [disabled]="qualityDisabled(opt.value)"
+                    [class.selected-option]="activeQuality() === opt.value"
+                    [attr.aria-checked]="activeQuality() === opt.value"
                     (click)="chooseEnhanceQuality(opt.value)" [attr.aria-label]="'Enhance quality: ' + opt.label">
               <mat-icon>{{ opt.icon }}</mat-icon>
               {{ opt.label }}
@@ -282,6 +319,9 @@ export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
       display: block; background: none; border: 0; color: inherit; font-family: inherit;
       text-align: left; cursor: default;
     }
+    /* 1.25.0: the engine / reason line under a Rendering option. */
+    ::ng-deep .reader-options-menu .option-text { display: flex; flex-direction: column; line-height: 18px; }
+    ::ng-deep .reader-options-menu .option-note { font-size: 11px; line-height: 14px; opacity: 0.7; white-space: normal; max-width: 200px; }
   `],
 })
 export class ReaderSettingsMenuComponent {
@@ -304,22 +344,35 @@ export class ReaderSettingsMenuComponent {
   readonly closed = output<void>();
 
   /**
-   * GPU upscaling is offered but not selectable when the platform has no usable
-   * WebGPU device. Disabled-with-a-reason beats an option that does nothing. Every
+   * The Rendering list: Smooth / Sharp / Enhance, each disabled with its reason
+   * when it cannot run on this device, the selected one with its engine line
+   * (1.25.0). Disabled-with-a-reason beats an option that does nothing. Every
    * view is covered since 1.24.0 (webtoon through the banded renderer).
    */
-  readonly enhanceDisabled = computed<boolean>(() => this.support.support() !== 'ready');
+  readonly renderingRows = computed(() => renderingRows(this.support));
 
-  /** One short line under the Rendering group explaining the current state. */
-  readonly renderingHint = computed<string>(() => {
-    if (this.support.support() !== 'ready') return 'Enhance needs WebGPU';
-    return this.support.statusText();
-  });
+  /** Enhance cannot run here (or WebGPU is still being probed). */
+  readonly enhanceDisabled = computed<boolean>(() => this.support.enhance().state !== 'ready');
 
-  /** Enhance quality is a paged-view choice: the vertical view always runs Efficient. */
-  readonly showEnhanceQuality = computed<boolean>(() => this.view() !== 'webtoon');
+  /** The status line under the Rendering group (5 taps toggle the timing readout). */
+  readonly renderingHint = computed<string>(() => this.support.statusText());
 
-  readonly qualityHint = computed<string>(() => enhanceQualityHint(this.prefs.enhanceQuality()));
+  /**
+   * Enhance quality is a sub-choice of Enhance, and a paged-view choice: the
+   * vertical view always runs Efficient.
+   */
+  readonly showEnhanceQuality = computed<boolean>(() => this.view() !== 'webtoon' && this.support.effective() === 'enhance');
+
+  /** On WebGL2 only Efficient runs; that is the one highlighted there. */
+  readonly activeQuality = computed<EnhanceQuality>(() =>
+    this.support.enhanceEngine() === 'webgl2' ? 'balanced' : this.prefs.enhanceQuality());
+
+  readonly qualityHint = computed<string>(() =>
+    enhanceQualityHint(this.prefs.enhanceQuality(), this.support.enhanceEngine() === 'webgl2'));
+
+  qualityDisabled(quality: EnhanceQuality): boolean {
+    return this.enhanceDisabled() || (quality === 'max' && this.support.enhanceEngine() === 'webgl2');
+  }
 
   /**
    * The Downscale filter only affects a SIZED (`?maxDim=`) request, which only
@@ -339,7 +392,7 @@ export class ReaderSettingsMenuComponent {
   }
 
   chooseUpscaler(upscaler: Upscaler): void {
-    if (upscaler === 'enhance' && this.enhanceDisabled()) return;
+    if (availabilityFor(upscaler, this.support.caps()).state !== 'ready') return;
     this.prefs.setUpscaler(upscaler);
   }
 
@@ -348,7 +401,7 @@ export class ReaderSettingsMenuComponent {
   }
 
   chooseEnhanceQuality(quality: EnhanceQuality): void {
-    if (this.enhanceDisabled()) return;
+    if (this.qualityDisabled(quality)) return;
     this.prefs.setEnhanceQuality(quality);
   }
 
@@ -524,22 +577,24 @@ export interface ReaderOptionsHost {
       }
 
       <!-- 1.19.0 image scaling, shown in every view: Rendering is how an UPSCALED
-           page is resampled, Page quality is how many pixels are fetched. Enhance
-           is disabled (with the reason) without WebGPU; since 1.24.0 it covers
-           the vertical view too. -->
+           page is resampled, Page quality is how many pixels are fetched. Since
+           1.25.0 Rendering is Smooth / Sharp / Enhance; a choice that cannot run
+           here is disabled, and the line under the chips names the engine in use
+           and each reason. Since 1.24.0 it covers the vertical view too. -->
       <section class="group">
         <h3 class="group-label" id="reader-options-rendering">Rendering</h3>
         <div class="chips" role="radiogroup" aria-labelledby="reader-options-rendering">
-          @for (opt of upscalerOptions; track opt.value) {
+          @for (row of renderingRows(); track row.value) {
             <button type="button" class="chip" role="radio"
-                    [disabled]="opt.value === 'enhance' && enhanceDisabled()"
-                    [class.selected]="prefs.upscaler() === opt.value"
-                    [attr.aria-checked]="prefs.upscaler() === opt.value"
-                    (click)="pickUpscaler(opt.value)">
-              <mat-icon aria-hidden="true">{{ opt.icon }}</mat-icon>{{ opt.label }}
+                    [disabled]="row.disabled"
+                    [class.selected]="row.selected"
+                    [attr.aria-checked]="row.selected"
+                    (click)="pickUpscaler(row.value)">
+              <mat-icon aria-hidden="true">{{ row.icon }}</mat-icon>{{ row.label }}
             </button>
           }
         </div>
+        @if (renderingNotes()) { <p class="group-hint rendering-notes">{{ renderingNotes() }}</p> }
         <!-- Text-styled button: 5 taps toggle the GPU timing readout (off by default). -->
         <button type="button" class="group-hint hint-tap" (click)="support.tapStats()">{{ renderingHint() }}</button>
       </section>
@@ -550,9 +605,9 @@ export interface ReaderOptionsHost {
           <div class="chips" role="radiogroup" aria-labelledby="reader-options-enhance-quality">
             @for (opt of enhanceQualityOptions; track opt.value) {
               <button type="button" class="chip" role="radio"
-                      [disabled]="enhanceDisabled()"
-                      [class.selected]="prefs.enhanceQuality() === opt.value"
-                      [attr.aria-checked]="prefs.enhanceQuality() === opt.value"
+                      [disabled]="qualityDisabled(opt.value)"
+                      [class.selected]="activeQuality() === opt.value"
+                      [attr.aria-checked]="activeQuality() === opt.value"
                       (click)="pickEnhanceQuality(opt.value)">
                 <mat-icon aria-hidden="true">{{ opt.icon }}</mat-icon>{{ opt.label }}
               </button>
@@ -688,18 +743,34 @@ export class ReaderOptionsSheetComponent {
   readonly downscaleFilterOptions = DOWNSCALE_FILTER_OPTIONS;
   readonly filterOptionHint = filterOptionHint;
 
-  /** Same rule as the desktop menu: no usable WebGPU. */
-  readonly enhanceDisabled = computed<boolean>(() => this.support.support() !== 'ready');
+  /** Same list as the desktop menu. */
+  readonly renderingRows = computed(() => renderingRows(this.support));
 
-  readonly renderingHint = computed<string>(() => {
-    if (this.support.support() !== 'ready') return 'Enhance needs WebGPU';
-    return this.support.statusText();
-  });
+  /**
+   * Chips have no room for a second line, so the reason each disabled option
+   * cannot run is one line under them ("Enhance: Needs a secure connection
+   * (HTTPS)"); the engine in use is the status line below it.
+   */
+  readonly renderingNotes = computed<string>(() =>
+    this.renderingRows().filter((r) => r.disabled && r.note).map((r) => `${r.label}: ${r.note}`).join(' · '));
 
-  /** Same rule as the desktop menu: hidden in the vertical view. */
-  readonly showEnhanceQuality = computed<boolean>(() => this.host.view() !== 'webtoon');
+  /** Same rule as the desktop menu. */
+  readonly enhanceDisabled = computed<boolean>(() => this.support.enhance().state !== 'ready');
 
-  readonly qualityHint = computed<string>(() => enhanceQualityHint(this.prefs.enhanceQuality()));
+  readonly renderingHint = computed<string>(() => this.support.statusText());
+
+  /** Same rule as the desktop menu: Enhance on screen, and hidden in the vertical view. */
+  readonly showEnhanceQuality = computed<boolean>(() => this.host.view() !== 'webtoon' && this.support.effective() === 'enhance');
+
+  readonly activeQuality = computed<EnhanceQuality>(() =>
+    this.support.enhanceEngine() === 'webgl2' ? 'balanced' : this.prefs.enhanceQuality());
+
+  readonly qualityHint = computed<string>(() =>
+    enhanceQualityHint(this.prefs.enhanceQuality(), this.support.enhanceEngine() === 'webgl2'));
+
+  qualityDisabled(quality: EnhanceQuality): boolean {
+    return this.enhanceDisabled() || (quality === 'max' && this.support.enhanceEngine() === 'webgl2');
+  }
 
   /** Same rule as the desktop menu: only a sized (Auto) request can be filtered. */
   readonly filterDisabled = computed<boolean>(() => this.prefs.pageQuality() === 'full');
@@ -710,12 +781,12 @@ export class ReaderOptionsSheetComponent {
   });
 
   pickUpscaler(upscaler: Upscaler): void {
-    if (upscaler === 'enhance' && this.enhanceDisabled()) return;
+    if (availabilityFor(upscaler, this.support.caps()).state !== 'ready') return;
     this.prefs.setUpscaler(upscaler);
   }
 
   pickEnhanceQuality(quality: EnhanceQuality): void {
-    if (this.enhanceDisabled()) return;
+    if (this.qualityDisabled(quality)) return;
     this.prefs.setEnhanceQuality(quality);
   }
 

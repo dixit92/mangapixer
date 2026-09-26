@@ -28,6 +28,12 @@
 export type EnhanceChain = 'm' | 'vl';
 
 /**
+ * What a band tile costs, by engine (1.25.0): the WebGPU chains above, or the
+ * WebGL2 paths - `gl-m` (Anime4K M as fragment shaders) and `gl-sharp` (FSR 1).
+ */
+export type TileProfile = EnhanceChain | 'gl-m' | 'gl-sharp';
+
+/**
  * Webtoon enhances a page only when it is painted more than this much larger than
  * its delivered natural width, in DEVICE pixels. Below it the fixed-2x design
  * would pay for a full x2 only to be downscaled again (paged keeps its 1.02).
@@ -58,8 +64,13 @@ export const poolCap = 12;
  *  - VL: 4 + ClampHighlights 3*8 + CNNVL 18*8 + CNNx2VL (17*8 + DepthToSpace and
  *    Overlay at 4x area, 2*4*8) = 372
  *  - M:  4 + 3*8 + CNNM 9*8 + CNNx2M (8*8 + 2*4*8) = 228
+ * and from `planAnime4kChain` / the FSR states in `webgl-upscaler.ts` (1.25.0),
+ * each plus the shared context's drawing buffer at 2x (4 * 4 = 16):
+ *  - gl-m: 4 + 2 stats * 8 + 7 conv * 8 (shared by restore and x2) + restored 8 +
+ *    conv_last 8 + x2 output at 4x area 4*8 = 124, + 16 = 140
+ *  - gl-sharp: 4 + EASU output (RGBA8) at 4x area 16, + 16 = 36
  */
-export const bytesPerTilePixel: Readonly<Record<EnhanceChain, number>> = { m: 228, vl: 372 };
+export const bytesPerTilePixel: Readonly<Record<TileProfile, number>> = { m: 228, vl: 372, 'gl-m': 140, 'gl-sharp': 36 };
 
 /** Pipeline memory budget for one tile: tighter on touch (coarse-pointer) devices. */
 export const pipelineBudgetBytes = { coarse: 96e6, fine: 160e6 } as const;
@@ -142,9 +153,9 @@ export function bandHeightFor(width: number, bytesPerPx: number, budgetBytes: nu
  * The band height the coordinator actually uses: the design default (384), made
  * smaller for wide sources so one tile stays inside the pipeline budget.
  */
-export function bandRowsFor(width: number, chain: EnhanceChain, coarsePointer: boolean): number {
+export function bandRowsFor(width: number, profile: TileProfile, coarsePointer: boolean): number {
   const budget = coarsePointer ? pipelineBudgetBytes.coarse : pipelineBudgetBytes.fine;
-  return Math.min(defaultBandRows, bandHeightFor(width, bytesPerTilePixel[chain], budget));
+  return Math.min(defaultBandRows, bandHeightFor(width, bytesPerTilePixel[profile], budget));
 }
 
 /** CSS height of one band of a page painted `cssWidth` wide from a `nativeWidth` source. */
@@ -163,7 +174,7 @@ export function poolSize(viewportCssHeight: number, bandCssH: number, cap = pool
 }
 
 /** Bytes of one tile pipeline (all intermediate textures) for a `width x tileRows` input. */
-export function estimatePipelineBytes(width: number, tileRows: number, chain: EnhanceChain): number {
+export function estimatePipelineBytes(width: number, tileRows: number, chain: TileProfile): number {
   return bytesPerTilePixel[chain] * width * tileRows;
 }
 
@@ -186,7 +197,7 @@ export interface MemoryEstimate {
  * 2x swap images). Reproduces the design note's device table.
  */
 export function estimateBytes(opts: {
-  nativeWidth: number; bandRows: number; chain: EnhanceChain; viewportCssHeight: number; cssWidth: number;
+  nativeWidth: number; bandRows: number; chain: TileProfile; viewportCssHeight: number; cssWidth: number;
 }): MemoryEstimate {
   const { nativeWidth, bandRows, chain, viewportCssHeight, cssWidth } = opts;
   const pipeline = estimatePipelineBytes(nativeWidth, bandRows + 2 * haloRows, chain);
@@ -200,4 +211,10 @@ export function estimateBytes(opts: {
     totalMin: pipeline + bands * one,
     totalMax: pipeline + bands * one * 2,
   };
+}
+
+/** The tile cost profile of a Rendering backend (webtoon runs the M chain on WebGPU). */
+export function tileProfileFor(backend: { readonly mode: 'sharp' | 'enhance'; readonly engine: 'webgpu' | 'webgl2' }): TileProfile {
+  if (backend.engine === 'webgpu') return 'm';
+  return backend.mode === 'sharp' ? 'gl-sharp' : 'gl-m';
 }

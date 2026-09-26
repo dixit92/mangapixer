@@ -201,18 +201,19 @@ export class UpscaleSupportService {
 
   /**
    * A short human-readable status for the Rendering tooltip and status line: the
-   * engine the current choice runs on (or why it cannot run), or, under Smooth,
-   * what this device offers.
+   * engine the current choice runs on ("GPU: Enhance on WebGL2 - WebGPU needs
+   * HTTPS"), or - under Smooth, or when the choice cannot run - what this device
+   * offers ("GPU: WebGPU needs HTTPS, WebGL2 ready").
    */
   statusText(): string {
     const pref = this.prefs.upscaler();
     const a = availabilityFor(pref, this.caps());
     let text: string;
-    if (pref === 'smooth') text = `GPU: ${capsSummary(this.caps())}`;
+    // Smooth, or a choice that cannot run (its option says why): what this device offers.
+    if (a.state === 'ready' && pref !== 'smooth') text = `GPU: ${upscalerLabels[pref]} on ${a.note}`;
     else if (a.state === 'checking') text = 'GPU: checking WebGPU…';
-    else if (a.state === 'unavailable') text = `GPU: ${upscalerLabels[pref]} unavailable - ${a.reason}`;
-    else text = `GPU: ${upscalerLabels[pref]} on ${a.note}`;
-    if (this.webtoonPaused()) text += ' - Enhance paused (GPU reset)';
+    else text = `GPU: ${capsSummary(this.caps())}`;
+    if (this.webtoonPaused()) text += ` - vertical ${upscalerLabels[pref]} paused (GPU reset)`;
     if (this.statsVisible()) {
       const page = this.pageMs();
       const band = this.bandMs();

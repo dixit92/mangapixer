@@ -26,6 +26,7 @@ import { BookmarksPanelComponent, BookmarksPanelHost } from './bookmarks-panel.c
 import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode, BookmarkDto } from '../../core/api/api-types';
 import { targetMaxDim, withMaxDim, VariantFitMode } from './page-variant';
 import { UpscaleDirective, UpscaleSupportService } from './upscale.directive';
+import { nextUpscaler } from './upscale-engine';
 import { WebtoonEnhanceHostDirective, WebtoonUpscaleDirective } from './webtoon-upscale.directive';
 import { PageLoadIndicatorComponent, WebtoonPageComponent } from './page-load-state.component';
 import {
@@ -319,12 +320,12 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
              focused programmatically) so arrow / Page keys scroll it natively, and
              Enter on it is the keyboard twin of the centre tap (show / hide the
              controls). Tap and scroll behaviour are unchanged.
-             Enhance (1.24.0): the host directive lays banded Anime4K canvases
-             over the strip (webtoon-enhance-coordinator.ts); the imgs register.
+             Enhance (1.24.0) / Sharp (1.25.0): the host directive lays banded GPU
+             canvases over the strip (webtoon-enhance-coordinator.ts); the imgs register.
              Loading feedback (1.24.0): each img sits in an app-webtoon-page that
              veils its box until load, or offers a retry on error (page-load-state.component.ts). -->
         <div class="reader-viewport webtoon" #scroller (scroll)="onWebtoonScroll()"
-             [appWebtoonEnhanceHost]="upscaleActive()"
+             [appWebtoonEnhanceHost]="upscaleBackend()"
              [style.touch-action]="webtoonTouchAction()" tabindex="0"
              (pointerdown)="onReaderPointerDown($event)" (click)="onWebtoonTap($event)"
              (keydown.enter)="onWebtoonEnter($event)">
@@ -526,8 +527,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 where you land{{ direction() === 'rtl' ? '. It runs right to left, like the pages' : '' }}.
                 @if (isFullscreen()) { Tap the centre to bring it back when it is hidden. }</li>
               <li><kbd>M</kbd> show / hide the controls · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> exit ·
-                <kbd>?</kbd> this help · <kbd>S</kbd> cycle Downscale filter · <kbd>E</kbd> Rendering:
-                Smooth / Enhance (needs WebGPU)</li>
+                <kbd>?</kbd> this help · <kbd>S</kbd> cycle Downscale filter · <kbd>E</kbd> cycle Rendering:
+                Smooth / Sharp / Enhance (the ones this device can run)</li>
               @if (useInPageImmersive) {
                 <li><b>Fullscreen</b> goes immersive here (hides the reader's own bars) instead of
                   the browser's fullscreen - on iPhone/iPad, and in this app installed to the home
@@ -840,7 +841,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   readonly prefs = inject(ReaderPreferencesService);
   // Webtoon tap-to-scroll step / on-off (added 1.11.0); per-device.
   readonly webtoonNav = inject(WebtoonNavPreferencesService);
-  // WebGPU readiness for the 'e' Rendering shortcut — same gate the settings menu uses.
+  // Rendering engines (WebGPU / WebGL2) for the 'e' shortcut and the once-per-session
+  // notice - the same resolution the settings menu shows.
   private readonly upscaleSupport = inject(UpscaleSupportService);
   private readonly installHint = inject(InstallHintService);
   readonly fitOptions = FIT_OPTIONS;
@@ -1111,12 +1113,30 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.view() === 'spread' && this.narrowPortrait() ? 'paged' : this.view());
 
   /**
-   * Is the GPU line-art upscaler on for the pages currently rendered? Simply the
-   * device-wide preference: the paged / double-spread `<img>`s read it through
-   * `UpscaleDirective`, the webtoon scroller through `WebtoonEnhanceHostDirective`
-   * (1.24.0). Both are no-ops without WebGPU and when a page is not upscaled.
+   * Is GPU upscaling (Sharp or Enhance) on for the pages currently rendered?
+   * Simply the device-wide preference: the paged / double-spread `<img>`s read it
+   * through `UpscaleDirective`, which renders the backend it resolved to. Both
+   * directives are no-ops when the choice cannot run here and when a page is not
+   * upscaled.
    */
-  readonly upscaleActive = computed<boolean>(() => this.prefs.upscaler() === 'enhance');
+  readonly upscaleActive = computed<boolean>(() => this.prefs.upscaler() !== 'smooth');
+
+  /** The backend the webtoon strip renders with (1.25.0), or null for plain images. */
+  readonly upscaleBackend = computed(() => this.upscaleSupport.backend());
+
+  /**
+   * No silent fallback (1.25.0): a SAVED Rendering choice that cannot run on this
+   * device (Enhance over plain HTTP without WebGL2 float targets, no WebGL2 for
+   * Sharp) is announced once per app session; the Rendering menu shows the reason.
+   */
+  private readonly renderingNoticeEffect = effect(() => {
+    const message = this.upscaleSupport.pendingNotice();
+    if (!message) return;
+    untracked(() => {
+      this.upscaleSupport.markNoticeShown();
+      this.snackBar.open(message, 'Dismiss', { duration: 5000 });
+    });
+  });
 
   /**
    * "Page quality" is an explicit quality decision, so unlike a rotation it DOES
@@ -1551,7 +1571,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     if (key === 's') { this.cycleDownscaleFilter(); return; }
     // Rendering applies to webtoon too since 1.24.0 (banded Enhance), so like 's'
     // it acts before the webtoon early-return.
-    if (key === 'e') { this.toggleRendering(); return; }
+    if (key === 'e') { this.cycleRendering(); return; }
     if (this.view() === 'webtoon') return; // native scroll drives webtoon
 
     switch (key) {
@@ -1599,14 +1619,14 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   }
 
   /**
-   * 'e': toggles Rendering between Smooth and Enhance (Anime4K), via the same
-   * `ReaderPreferencesService.setUpscaler` the menu uses. Guarded exactly like
-   * `ReaderSettingsMenuComponent.enhanceDisabled` (WebGPU not ready). Works in
-   * every view, webtoon included (1.24.0).
+   * 'e': cycles Rendering Smooth -> Sharp -> Enhance -> Smooth (1.25.0; a
+   * Smooth/Enhance toggle before), skipping any choice this device cannot run -
+   * the options the menu offers disabled. Same `setUpscaler` as the menu. Works
+   * in every view, webtoon included (1.24.0).
    */
-  private toggleRendering(): void {
-    if (this.upscaleSupport.support() !== 'ready') return;
-    this.prefs.setUpscaler(this.prefs.upscaler() === 'smooth' ? 'enhance' : 'smooth');
+  private cycleRendering(): void {
+    const next = nextUpscaler(this.prefs.upscaler(), this.upscaleSupport.caps());
+    if (next !== this.prefs.upscaler()) this.prefs.setUpscaler(next);
   }
 
   // --- Immersive chrome (auto-hide toolbar + nav) ---
