@@ -19,25 +19,21 @@ public sealed class SecretRedactionTests
     // ImageToken is an opaque cache handle for a provider cover, not a credential.
     private static readonly Regex SecretName = new("(Password|Secret|Token|ActivationUrl)$", RegexOptions.CultureInvariant);
 
-    public static TheoryData<Type> SecretBearingRecords()
-    {
-        var data = new TheoryData<Type>();
-        foreach (var type in new[] { typeof(LoginRequest).Assembly, typeof(UpdateBackupSettingsRequest).Assembly }
-                     .SelectMany(a => a.GetTypes())
-                     .Where(t => t is { IsClass: true, IsAbstract: false, IsGenericTypeDefinition: false }
-                                 && t.GetMethod("<Clone>$") is not null
-                                 && SecretProperties(t).Any())
-                     .OrderBy(t => t.FullName, StringComparer.Ordinal))
-        {
-            data.Add(type);
-        }
-        return data;
-    }
+    private static IReadOnlyList<Type> SecretBearingRecordTypes() =>
+        new[] { typeof(LoginRequest).Assembly, typeof(UpdateBackupSettingsRequest).Assembly }
+            .SelectMany(a => a.GetTypes())
+            .Where(t => t is { IsClass: true, IsAbstract: false, IsGenericTypeDefinition: false }
+                        && t.GetMethod("<Clone>$") is not null
+                        && SecretProperties(t).Any())
+            .OrderBy(t => t.FullName, StringComparer.Ordinal)
+            .ToList();
+
+    public static TheoryData<Type> SecretBearingRecords() => new(SecretBearingRecordTypes());
 
     [Fact]
     public void KnownSecretBearingRecordsAreCovered()
     {
-        var types = SecretBearingRecords().Select(row => (Type)row[0]).ToHashSet();
+        var types = SecretBearingRecordTypes().ToHashSet();
         Assert.Contains(typeof(LoginRequest), types);
         Assert.Contains(typeof(SetupRequest), types);
         Assert.Contains(typeof(ChangePasswordRequest), types);
