@@ -100,6 +100,23 @@ public sealed class Stage2SettingsRefreshContentTests : IAsyncLifetime
         Assert.Equal(MatchThresholds.Default, await _h.Service().ThresholdsAsync());
     }
 
+    [Fact]
+    public async Task Purge_AlsoDeletesStoredReviewCandidates()
+    {
+        var folder = await _db.AddFolderAsync(null, "Review Folder");
+        await _db.AddLinkAsync(folder, null, SeriesLinkState.NeedsReview);
+        _db.Db.MetadataMatchCandidates.Add(new MetadataMatchCandidateEntity
+        {
+            NodeId = folder.Id, Rank = 1, Provider = "mangaupdates", ExternalId = "31", Title = "Candidate", CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await _db.Db.SaveChangesAsync();
+
+        var (code, _) = await _db.Links().PurgeAsync(_db.LibraryPublicId, "admin");
+        Assert.Equal(MetadataLinkResultCode.Ok, code);
+        Assert.False(await _db.Db.MetadataMatchCandidates.AnyAsync());
+        Assert.False(await _db.Db.NodeSeriesLinks.AnyAsync());
+    }
+
     // --- Folder Content ---
 
     private MetadataFolderContentService Content() =>

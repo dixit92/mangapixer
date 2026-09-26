@@ -270,6 +270,12 @@ public sealed class MetadataLinkService
         var candidateRecordIds = await links.Where(l => l.RecordId != null).Select(l => l.RecordId!.Value).Distinct().ToListAsync(ct);
         var linksRemoved = await links.ExecuteDeleteAsync(ct);
 
+        // Stage 2: stored review candidates are fetched provider data too.
+        var candidates = _db.MetadataMatchCandidates.AsQueryable();
+        if (libraryId is { } candidateLibrary)
+            candidates = candidates.Where(c => _db.CatalogNodes.Any(n => n.Id == c.NodeId && n.LibraryId == candidateLibrary));
+        await candidates.ExecuteDeleteAsync(ct);
+
         // A global purge also sweeps records that were previewed but never linked.
         var recordIds = libraryId is null
             ? await _db.MetadataRecords.Select(r => r.Id).ToListAsync(ct)
