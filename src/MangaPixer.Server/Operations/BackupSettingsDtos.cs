@@ -73,6 +73,10 @@ public sealed record UpdateBackupSettingsRequest
     /// default) leaves them where they are, unmanaged.
     /// </summary>
     public bool MoveExistingSnapshots { get; init; }
+
+    public override string ToString() =>
+        $"UpdateBackupSettingsRequest {{ Enabled = {Enabled}, IntervalHours = {IntervalHours}, RetentionCount = {RetentionCount}, Location = {Location}, "
+        + $"CurrentPassword = {(CurrentPassword is null ? "null" : "[redacted]")}, ValidateOnly = {ValidateOnly}, AdoptExistingMarker = {AdoptExistingMarker}, MoveExistingSnapshots = {MoveExistingSnapshots} }}";
 }
 
 /// <summary>Result of a backup settings PUT.</summary>
