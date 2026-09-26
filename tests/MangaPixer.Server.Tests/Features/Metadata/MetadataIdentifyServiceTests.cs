@@ -73,6 +73,17 @@ public sealed class MetadataIdentifyServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Context_NameWithTrailingExclamation_IsTheFirstSuggestion()
+    {
+        var folder = await _db.AddFolderAsync(null, "SOME TITLE! Master Edition");
+        await _db.AddArchiveAsync(folder, "SOME TITLE! Master Edition.cbz");
+
+        var ctx = await _h.Identify().GetContextAsync(folder.PublicId);
+
+        Assert.Equal(["SOME TITLE!", "SOME TITLE"], ctx!.Suggestions);
+    }
+
+    [Fact]
     public async Task Context_DoujinshiContent_FollowsTheNearestFolderContent()
     {
         var shelf = await _db.AddFolderAsync(null, "Circles");

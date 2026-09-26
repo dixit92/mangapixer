@@ -109,6 +109,21 @@ public sealed class TitleNormalizerTests
     }
 
     [Theory]
+    [InlineData("SOME TITLE! Master Edition", "SOME TITLE", "SOME TITLE!")]
+    [InlineData("Some Series to! v01 [Group]", "Some Series to", "Some Series to!")]
+    [InlineData("Some Series!!", "Some Series", "Some Series!!")]
+    [InlineData("Some Series", "Some Series", null)]
+    [InlineData("!Some Series", "Some Series", null)]
+    [InlineData("Wow! Some Series", "Wow! Some Series", null)]
+    public void Normalize_TrailingExclamation_IsKeptAsASecondForm(string name, string primary, string? withExclamation)
+    {
+        var n = TitleNormalizer.Normalize(name);
+
+        Assert.Equal(primary, n.Primary);
+        Assert.Equal(withExclamation, n.PrimaryWithExclamation);
+    }
+
+    [Theory]
     [InlineData("Edition Wars")]
     [InlineData("The Editions of Master")]
     public void Normalize_EditionAlone_IsKept(string name) => Assert.Equal(name, TitleNormalizer.Normalize(name).Primary);

@@ -137,6 +137,7 @@ public static partial class TitleNormalizer
 
         var editionHints = new List<string>();
         var primary = CleanTitle(s, editionHints);
+        var primaryAsWritten = CleanTitle(s, [], keepExclamation: true);
         var variants = new List<string>();
         if (primary.Length > 0)
             variants.Add(primary);
@@ -165,6 +166,7 @@ public static partial class TitleNormalizer
             editionHints.Distinct(StringComparer.OrdinalIgnoreCase).ToList())
         {
             Derived = derived,
+            PrimaryWithExclamation = primary.Length > 0 && primaryAsWritten.EndsWith('!') ? primaryAsWritten : null,
         };
     }
 
@@ -331,7 +333,7 @@ public static partial class TitleNormalizer
         return Whitespace().Replace(s, " ").Trim();
     }
 
-    private static string CleanTitle(string text, List<string> editionHints)
+    private static string CleanTitle(string text, List<string> editionHints, bool keepExclamation = false)
     {
         var s = VolumeToken().Replace(text, " ");
         s = ChapterToken().Replace(s, " ");
@@ -353,6 +355,12 @@ public static partial class TitleNormalizer
         }
 
         s = Whitespace().Replace(s, " ").Trim();
+        if (keepExclamation)
+        {
+            s = s.TrimStart(' ', '-', '_', '.', ',', ':', ';', '~', '!', '|', '/', '+', '=', '\'', '"')
+                .TrimEnd(' ', '-', '_', '.', ',', ':', ';', '~', '|', '/', '+', '=', '\'', '"');
+            return s.TrimEnd('!').TrimEnd().Length > 0 ? s : string.Empty;
+        }
         return s.Trim(' ', '-', '_', '.', ',', ':', ';', '~', '!', '|', '/', '+', '=', '\'', '"');
     }
 
@@ -418,6 +426,13 @@ public sealed record NormalizedTitle(
     /// so an identify prefill can offer them as suggestions rather than as the name.
     /// </summary>
     public IReadOnlyList<DerivedTitle> Derived { get; init; } = [];
+
+    /// <summary>
+    /// <see cref="Primary"/> with the trailing <c>!</c> the name had (<c>BLAME!</c>), else null.
+    /// MangaUpdates search treats it as significant ("BLAME" misses the record "Blame!"), so it
+    /// is a second search text and the first identify suggestion; scoring ignores it.
+    /// </summary>
+    public string? PrimaryWithExclamation { get; init; }
 }
 
 /// <summary>How a derived variant was made from a clean title.</summary>

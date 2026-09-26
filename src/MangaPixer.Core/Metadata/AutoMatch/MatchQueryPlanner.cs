@@ -88,6 +88,7 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
         var groupTitle = TitleNormalizer.Normalize(group.QueryTitle);
         if (groupTitle.Primary.Length > 0)
             variants.Add(groupTitle.Primary, QueryVariantKind.Primary);
+        variants.Add(groupTitle.PrimaryWithExclamation, QueryVariantKind.Primary);
         foreach (var n in names.Select(TitleNormalizer.Normalize))
         {
             if (n.Variants.Count > 1)
@@ -139,6 +140,8 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
     {
         if (name.Primary.Length > 0)
             variants.Add(name.Primary, QueryVariantKind.Primary);
+        // Second search text, only sent when the first finds nothing confident (the loop stops at 0.85).
+        variants.Add(name.PrimaryWithExclamation, QueryVariantKind.Primary);
         if (name.Variants.Count > 1)
             variants.Add(name.Variants[1], QueryVariantKind.EnglishTitle);
         foreach (var d in name.Derived.Where(d => d.Kind == DerivedTitleKind.SubtitleSplit))
@@ -188,7 +191,8 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             if (string.IsNullOrEmpty(t))
                 return;
             var key = TitleNormalizer.ScoringForm(t);
-            if (key.Length == 0 || !_keys.Add(key))
+            // A trailing "!" changes MangaUpdates' results although it scores the same: keep both.
+            if (key.Length == 0 || !_keys.Add(t.EndsWith('!') ? key + "!" : key))
                 return;
             _items.Add(new QueryVariant(t, kind));
         }

@@ -103,6 +103,8 @@ public sealed class MetadataIdentifyService
                 suggestions.Add(q);
         }
         var normalized = TitleNormalizer.Normalize(node.DisplayName);
+        // "BLAME!" finds the record "Blame!" where "BLAME" does not: the name as written comes first.
+        Add(normalized.PrimaryWithExclamation);
         foreach (var v in normalized.Variants)
             Add(v);
         if (local.ComicInfoSeries is { } ciSeries)

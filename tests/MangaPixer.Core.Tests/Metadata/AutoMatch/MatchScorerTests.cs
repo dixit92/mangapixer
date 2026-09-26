@@ -42,6 +42,8 @@ public sealed class MatchScorerTests
 
         Assert.Equal(WorkClass.OneShot, q.Context.Class);
         Assert.Equal("SOME TITLE", q.Variants[0].Text);
+        // MangaUpdates search treats a trailing "!" as significant: the name as written is the second search.
+        Assert.Equal(new QueryVariant("SOME TITLE!", QueryVariantKind.Primary), q.Variants[1]);
         Assert.NotEqual(MatchBand.Unmatched, o.Band);
         Assert.Equal("1", o.Ranked[0].Candidate.ExternalId);
     }
