@@ -5,7 +5,9 @@ MangaPixer can show a series summary (title, description, authors, genres, publi
 - **ComicInfo.xml** inside your archives. It is read when an archive is analysed; nothing leaves your server.
 - **MangaUpdates**, only if an admin allows it. An admin *identifies* a folder (or a single archive) with a MangaUpdates series; MangaPixer then fetches that series' details and cover once and stores them on your server.
 
-Folders and archives with information show an **(i)** in the cover's bottom-left corner. It opens a side panel (a bottom sheet on a phone); **Open series page** leads to the full page. A folder that holds several series (an anthology or an author's folder, for example) lists them in the panel instead, without a series page. Inside a series folder, **Series info** in the top bar opens the same panel.
+Folders and archives with information show an **(i)** in the cover's bottom-left corner. It opens a side panel (a bottom sheet on a phone); **Open series page** leads to the full page. A folder that holds several series (an anthology or an author's folder, for example) lists them in the panel instead, without a series page. Inside a series folder, **Series info** in the top bar opens the same panel; an admin inside a folder without information sees **Identify…** there instead (when web lookups are on for the library). The (i) and the top-bar button update as soon as an admin links, unlinks or marks a folder, without reloading the page.
+
+On the series page the description appears once, under **About**. Genres are shown as text. The precedence line under **Sources** appears only when both MangaUpdates data and ComicInfo exist. A series page for a single archive offers **Read** (or **Continue reading**) and **Show in folder**.
 
 ## Where the information applies
 
@@ -14,18 +16,18 @@ A link made on a folder applies to the folder and everything inside it, so every
 - **Don't match** marks a folder or archive as "not one series": nothing is inherited from above. Use it on anthology, magazine and artist folders, then link the right subfolders or archives individually.
 - **Source precedence** decides which source wins when both have a value: **Web first** (the default) or **ComicInfo first**, per library or per folder. Chapter-level details (number, volume, chapter title) always come from ComicInfo.
 
-These actions are in the panel's and series page's **Admin** menu, and in the **Series** menu of the browse selection bar.
+These actions are in the panel's and series page's **Admin** menu, and in the **Series** menu of the browse selection bar (hidden while **Show series information** is off for that library or globally).
 
 ## Identify a series (admins)
 
 Before you can look anything up, turn on **Fetch series information from the web** (see [Admin settings](#admin-settings)) and the **Fetch** switch of the library.
 
-1. Open **Identify…** from the panel's or series page's **Admin** menu, or select one folder in browse and choose **Series** > **Identify…**. When lookups are off, the menu item and the dialog say why.
-2. Search: the box is filled with a suggestion (the cleaned folder name, an English title in square brackets such as `[Delicious in Dungeon]`, or the ComicInfo series). Edit it if needed and press **Search**. Only this text is sent.
+1. Open **Identify…** from the panel's or series page's **Admin** menu, from **Identify…** in the top bar inside a folder without information, or select one folder in browse and choose **Series** > **Identify…**. When lookups are off, the menu item and the dialog say why.
+2. Search: the box is filled with a suggestion (the cleaned folder name, an English title in trailing square brackets such as `[Delicious in Dungeon]`, or the ComicInfo series). Edit it if needed and press **Search**. Only this text is sent. **Hide doujinshi & novels** (on by default) leaves doujinshi, novels, artbooks and drama CDs out of the results.
    - Or paste a MangaUpdates series address (`https://www.mangaupdates.com/series/njeqwry/berserk`) or a shortcode (`mu:51239621230`, `mu:njeqwry`) and press **Look up**. MangaPixer reads the series number from what you paste, so only that number is sent. Old-style `series.html?id=` addresses do not work: open the series on MangaUpdates and copy its current address.
    - If an archive's ComicInfo already points to a MangaUpdates series, **ComicInfo points to a MangaUpdates series – Use it** previews it directly.
 3. Results are ranked by how closely they match the folder name (**Strong**, **Possible**, **Weak**). "matched as" shows the alternative title MangaUpdates matched. **Preview** opens a series.
-4. The preview shows your folder next to the MangaUpdates record: item count, the ComicInfo series, whether the pages are tall strips, and MangaUpdates' type, year, volumes, authors and genres ("MangaUpdates: webtoon" when its users tag it so). Warnings point out likely mistakes, for example a novel instead of the comic, a different year, or far more items than the record has volumes or chapters.
+4. The preview shows your folder next to the MangaUpdates record: item count, the ComicInfo series, whether the pages are tall strips, and MangaUpdates' type (Manga, Manhwa, …), year, volumes, authors and genres ("MangaUpdates: webtoon" when its users tag it so). Warnings point out likely mistakes, for example a novel instead of the comic, a different year, or far more items than the record has volumes or chapters.
 5. **Link** stores the series and its cover and applies it. **Undo** in the message that follows restores what was there before.
 
 **Refresh from MangaUpdates** in the **Admin** menu fetches the linked series again (the page shows how long ago it was fetched). **Unlink** removes a link; inheritance from above resumes. Nothing is refreshed or matched automatically.
@@ -35,6 +37,7 @@ Before you can look anything up, turn on **Fetch series information from the web
 Only when an admin presses **Search**, **Look up**, **Preview**, **Link** or **Refresh** in an enabled library, and only to `api.mangaupdates.com` (search and series details) and `cdn.mangaupdates.com` (cover images):
 
 - the search text you confirmed;
+- with **Hide doujinshi & novels** ticked, the fixed list of types to leave out (`Doujinshi`, `Novel`, `Artbook`, `Drama CD`);
 - MangaUpdates series numbers;
 - a generic `User-Agent: MangaPixer-Metadata`.
 
