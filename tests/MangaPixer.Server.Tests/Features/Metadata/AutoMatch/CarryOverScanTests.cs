@@ -107,8 +107,12 @@ public sealed class CarryOverScanTests : IDisposable
         await db.SaveChangesAsync();
         db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
         {
-            NodeId = folderId, LibraryId = _libraryId, State = (int)SeriesLinkState.Confirmed, RecordId = record.Id,
-            CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            NodeId = folderId,
+            LibraryId = _libraryId,
+            State = (int)SeriesLinkState.Confirmed,
+            RecordId = record.Id,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
         });
         db.FolderMetadataPrecedences.Add(new FolderMetadataPrecedenceEntity { NodeId = folderId, Precedence = 1 });
         db.FolderReaderDefaults.Add(new FolderReaderDefaultEntity { NodeId = folderId, ReaderMode = 2 });

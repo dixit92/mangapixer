@@ -135,21 +135,21 @@ public static class MuJson
 
     public static string Get(long id, string title, string[]? alt = null, string type = "Manga", string status = "5 Volumes (Ongoing)",
         string? image = null, long? relatedId = null) => JsonSerializer.Serialize(new
-    {
-        series_id = id,
-        title,
-        url = $"https://www.mangaupdates.com/series/s{id}/synthetic",
-        associated = (alt ?? []).Select(a => new { title = a }),
-        description = "A synthetic description.",
-        type,
-        year = "2001",
-        status,
-        latest_chapter = 40,
-        authors = new[] { new { name = "Synthetic Author", type = "Author", author_id = 7001L } },
-        publications = new[] { new { publication_name = "Synthetic Weekly", publisher_name = "Synthetic House" } },
-        related_series = relatedId is { } r ? new object[] { new { relation_type = "Sequel", related_series_id = r } } : Array.Empty<object>(),
-        image = image is null ? null : new { url = new { original = image, thumb = image } },
-    });
+        {
+            series_id = id,
+            title,
+            url = $"https://www.mangaupdates.com/series/s{id}/synthetic",
+            associated = (alt ?? []).Select(a => new { title = a }),
+            description = "A synthetic description.",
+            type,
+            year = "2001",
+            status,
+            latest_chapter = 40,
+            authors = new[] { new { name = "Synthetic Author", type = "Author", author_id = 7001L } },
+            publications = new[] { new { publication_name = "Synthetic Weekly", publisher_name = "Synthetic House" } },
+            related_series = relatedId is { } r ? new object[] { new { relation_type = "Sequel", related_series_id = r } } : Array.Empty<object>(),
+            image = image is null ? null : new { url = new { original = image, thumb = image } },
+        });
 }
 
 /// <summary>

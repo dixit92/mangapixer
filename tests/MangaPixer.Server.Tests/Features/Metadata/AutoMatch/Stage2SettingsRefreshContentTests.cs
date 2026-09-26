@@ -107,7 +107,12 @@ public sealed class Stage2SettingsRefreshContentTests : IAsyncLifetime
         await _db.AddLinkAsync(folder, null, SeriesLinkState.NeedsReview);
         _db.Db.MetadataMatchCandidates.Add(new MetadataMatchCandidateEntity
         {
-            NodeId = folder.Id, Rank = 1, Provider = "mangaupdates", ExternalId = "31", Title = "Candidate", CreatedAt = DateTimeOffset.UtcNow,
+            NodeId = folder.Id,
+            Rank = 1,
+            Provider = "mangaupdates",
+            ExternalId = "31",
+            Title = "Candidate",
+            CreatedAt = DateTimeOffset.UtcNow,
         });
         await _db.Db.SaveChangesAsync();
 

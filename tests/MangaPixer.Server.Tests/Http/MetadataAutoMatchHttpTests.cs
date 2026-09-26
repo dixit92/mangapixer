@@ -88,7 +88,11 @@ public sealed class MetadataAutoMatchHttpTests
 
         var record = new MetadataRecordEntity
         {
-            PublicId = "ramberserk", Provider = "mangaupdates", ExternalId = BerserkId, Title = "Berserk", FetchedAt = DateTimeOffset.UtcNow,
+            PublicId = "ramberserk",
+            Provider = "mangaupdates",
+            ExternalId = BerserkId,
+            Title = "Berserk",
+            FetchedAt = DateTimeOffset.UtcNow,
             SiteUrl = "https://www.mangaupdates.com/series/njeqwry/berserk",
         };
         var autoRecord = new MetadataRecordEntity { PublicId = "ramauto", Provider = "mangaupdates", ExternalId = "777", Title = "Auto Saga", FetchedAt = DateTimeOffset.UtcNow };
@@ -109,8 +113,16 @@ public sealed class MetadataAutoMatchHttpTests
         db.MetadataMatchCandidates.AddRange(
             new MetadataMatchCandidateEntity
             {
-                NodeId = review.Id, Rank = 1, Provider = "mangaupdates", ExternalId = BerserkId, Title = "Berserk", TitleScore = 0.9, AdjustedScore = 0.9,
-                Reasons = 1, ImageRemoteUrl = "https://cdn.mangaupdates.com/image/i1.png", CreatedAt = now,
+                NodeId = review.Id,
+                Rank = 1,
+                Provider = "mangaupdates",
+                ExternalId = BerserkId,
+                Title = "Berserk",
+                TitleScore = 0.9,
+                AdjustedScore = 0.9,
+                Reasons = 1,
+                ImageRemoteUrl = "https://cdn.mangaupdates.com/image/i1.png",
+                CreatedAt = now,
             },
             new MetadataMatchCandidateEntity { NodeId = review.Id, Rank = 2, Provider = "mangaupdates", ExternalId = "888", Title = "Berserk!", TitleScore = 0.88, AdjustedScore = 0.88, CreatedAt = now });
         await db.SaveChangesAsync();
@@ -264,8 +276,13 @@ public sealed class MetadataAutoMatchHttpTests
             {
                 db.MetadataFlags.Add(new MetadataFlagEntity
                 {
-                    PublicId = $"flcap{i}", NodeId = anchor.Id, LibraryId = anchor.LibraryId, ReporterUserId = userId,
-                    Reason = 3, State = (int)MetadataFlagState.Dismissed, CreatedAt = DateTimeOffset.UtcNow,
+                    PublicId = $"flcap{i}",
+                    NodeId = anchor.Id,
+                    LibraryId = anchor.LibraryId,
+                    ReporterUserId = userId,
+                    Reason = 3,
+                    State = (int)MetadataFlagState.Dismissed,
+                    CreatedAt = DateTimeOffset.UtcNow,
                 });
             }
             await db.SaveChangesAsync();
