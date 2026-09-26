@@ -99,7 +99,7 @@ Series data is provided by [MangaUpdates](https://www.mangaupdates.com) as-is an
 
 ## Series metadata page (admins)
 
-**MangaPixer Administration** shows a **Series metadata** tile: how many folders wait for review, open reports, requests used today against the budget, and whether automatic matching is on. It opens the **Series metadata** page (`/admin/metadata`), which has four tabs: **Settings**, **Review**, **Flags** and **Runs**. When folders wait for review or reports are open, the account menu shows their number on a badge and a **Series metadata** item that goes straight there.
+**MangaPixer Administration** shows a **Series metadata** tile: how many folders wait for review, open reports, requests used today against the budget, and whether automatic matching is on. It opens the **Series metadata** page (`/admin/metadata`), which has four tabs: **Settings**, **Review**, **Flags** and **Runs**. Admins can also open it from the account menu (**Series metadata**). When folders wait for review or reports are open, the account icon shows their number on a badge, and the menu item shows the same number and opens **Review** (or **Flags** when only reports wait).
 
 ### Admin settings
 

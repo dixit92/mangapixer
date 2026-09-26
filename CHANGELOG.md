@@ -23,7 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Delete fetched data** (per library or all) and **Unlink** now also let **Match now** look those folders up again.
 - API (admin): review lists, bulk actions, runs and estimates, flags, missing-folder re-attach and folder **Content** under `/api/v1/admin/metadata/*`; any signed-in user with access to a node can report it with `POST /api/v1/nodes/{nodeId}/series-info/flags`.
 - **Upgrade note:** this version adds a database migration (`AddMetadataAutoMatch`: the match queue, runs, stored candidates, flags and folder Content; a snapshot is taken before it runs). The media worker protocol is unchanged (3).
-- **MangaPixer Administration:** the Series metadata card is replaced by a summary tile (items to review, open reports, requests today against the budget, automatic matching on or off) that links to the new page, and the account menu shows a badge with the number of items to review plus open reports.
+- **MangaPixer Administration:** the Series metadata card is replaced by a summary tile (items to review, open reports, requests today against the budget, automatic matching on or off) that links to the new page, and the account menu has a **Series metadata** item for admins, with a badge showing the number of items to review plus open reports.
 
 ## [1.25.0] - 2026-09-26
 

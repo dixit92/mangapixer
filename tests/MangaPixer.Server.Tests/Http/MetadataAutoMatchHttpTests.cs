@@ -164,8 +164,8 @@ public sealed class MetadataAutoMatchHttpTests
         Assert.NotNull(sp.GetRequiredService<MetadataPostScanHook>());
         Assert.NotNull(sp.GetRequiredService<MetadataRefreshService>());
         Assert.Single(factory.Services.GetServices<IHostedService>().OfType<MetadataAutoMatchHostedService>());
-        // Without lane A's matcher core the worker waits and sends nothing.
-        Assert.False(sp.GetRequiredService<MetadataAutoMatchService>().MatcherAvailable);
+        // The matcher core is registered; with web lookups off the worker still waits and sends nothing.
+        Assert.True(sp.GetRequiredService<MetadataAutoMatchService>().MatcherAvailable);
         var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
         var runs = await OkAsync<MetadataMatchRunsDto>(await admin.GetAsync("/api/v1/admin/metadata/runs"));
         Assert.Equal("metadata_disabled", runs.Status.WaitingCode);

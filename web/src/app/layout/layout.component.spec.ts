@@ -218,6 +218,13 @@ describe('LayoutComponent sidebar visibility', () => {
       expect(fixture.componentInstance.metadataTab()).toBe('flags');
     });
 
+    it('opens the page on its default tab when nothing waits', async () => {
+      const { fixture, router } = create({ authenticated: true, admin: true, attention: [0, 0] });
+      await go(router, '/', fixture);
+      expect(fixture.componentInstance.adminAttention()).toBe(0);
+      expect(fixture.componentInstance.metadataTab()).toBeNull();
+    });
+
     it('never loads or shows the badge for non-admins', async () => {
       const { fixture, router, metadataReview } = create({ authenticated: true, admin: false, attention: [5, 2] });
       await go(router, '/', fixture);

@@ -84,12 +84,13 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
             <button mat-menu-item routerLink="/admin">
               <mat-icon>admin_panel_settings</mat-icon>MangaPixer Administration
             </button>
-            @if (adminAttention()) {
-              <button mat-menu-item routerLink="/admin/metadata" [queryParams]="{ tab: metadataTab() }" data-testid="nav-metadata-review">
-                <mat-icon>fact_check</mat-icon>Series metadata
+            <!-- Always listed for admins; with items waiting it opens Review or Flags and shows the count. -->
+            <button mat-menu-item routerLink="/admin/metadata" [queryParams]="metadataTab() ? { tab: metadataTab() } : null" data-testid="nav-metadata">
+              <mat-icon>fact_check</mat-icon>Series metadata
+              @if (adminAttention()) {
                 <span class="menu-count">{{ adminAttention() }}</span>
-              </button>
-            }
+              }
+            </button>
           }
           <button mat-menu-item (click)="logout()">
             <mat-icon>logout</mat-icon>Logout
@@ -167,8 +168,9 @@ export class LayoutComponent {
 
   /** Series to review + open flags (admins only; 0 hides the badge). */
   readonly adminAttention = computed(() => (this.auth.isAdmin() ? this.metadataReview.attention() : 0));
-  /** The badge's menu item opens Review, or Flags when only flags wait. */
-  readonly metadataTab = computed(() => ((this.metadataReview.summary()?.needsReview ?? 0) > 0 ? 'review' : 'flags'));
+  /** The Series metadata menu item opens Review, or Flags when only flags wait; otherwise the default tab. */
+  readonly metadataTab = computed(() =>
+    (this.metadataReview.summary()?.needsReview ?? 0) > 0 ? 'review' : this.adminAttention() > 0 ? 'flags' : null);
 
   constructor() {
     // Load the counts once an admin is signed in; clear them on sign-out.
