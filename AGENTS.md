@@ -129,7 +129,7 @@ Never merge `dev` into `main` for an in-progress cycle (main must track released
 
 - Opaque IDs use base36 encoding (`OpaqueId.Encode/Decode`). All ID types (`LibraryId`, `CatalogNodeId`, `ItemId`, `UserId`, `PageEntryKey`) are readonly record structs.
 - Page indices are zero-based throughout (`PageIndex` with `Value >= 0`).
-- `SortKey.EncodeName` produces a persisted sort key that matches `NaturalOrderComparer` ordering. Use `StringComparer.Ordinal` when sorting by sort key.
+- `SortKey.EncodeName` produces a persisted sort key that matches `NaturalOrderComparer` ordering. `SortKey.ForNode` (what the catalog stores) orders case-insensitively: the case-folded name first, the name as spelled as a tie-breaker. Use `StringComparer.Ordinal` when sorting by sort key.
 - Worker protocol uses JSON-lines over stdin/stdout with `WorkerEnvelope` framing. Protocol version is `WorkerProtocolVersion.Current` (2).
 - No DTO exposes source paths. `AnalyzeRequest.ArchivePath` is the only DTO with a path field (private validated source locator for worker IPC, never a public HTTP DTO). `BreadcrumbsDto.Trail` is used instead of `Path` to avoid the forbidden name.
 - OpenAPI contract is at `contracts/openapi.json`. API prefix is `/api/v1`.

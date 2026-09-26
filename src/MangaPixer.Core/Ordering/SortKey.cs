@@ -10,10 +10,16 @@ using System.Text;
 /// collation. This avoids needing a custom collation function for keyset
 /// pagination: <c>ORDER BY SortKey</c> (ordinal) IS natural order.
 ///
-/// Format:
+/// Format: kind prefix + encoded case-folded name + <see cref="CaseTieBreakSeparator"/>
+/// + encoded name as spelled.
 /// - Folders sort before archives at the same level (prefix '0' vs '1').
 /// - Within the name, runs of digits are encoded so they compare numerically,
-///   and every other character is copied verbatim so it compares ordinally.
+///   and every other character is copied so it compares ordinally.
+/// - Names compare case-insensitively: "apple" sorts next to "Apple", not
+///   after "Zebra". The name as spelled follows as a tie-breaker, so two siblings that
+///   differ only in case ("Berserk" / "berserk" on a case-sensitive filesystem) still
+///   get distinct keys - the name-sort cursor is the raw key with no Id tie-break, so a
+///   collision would make paging skip one of them.
 ///
 /// The key is per-node, not hierarchical: it orders a node against its SIBLINGS,
 /// which is what every ordering query does (all of them filter by ParentId, and
@@ -58,22 +64,46 @@ public static class SortKey
     private const int MaxLeadingZeros = 99;
 
     /// <summary>
+    /// Separates the case-folded part of a key from the case tie-breaker. It must sort
+    /// below every character an encoded name can contain, so that when one folded name is
+    /// a prefix of another ("abc" / "abc def") the shorter still sorts first, exactly as it
+    /// would without the tie-breaker. U+0001 is below space and every printable character;
+    /// file and folder names never contain it.
+    /// </summary>
+    private const char CaseTieBreakSeparator = '\u0001';
+
+    /// <summary>
     /// Builds the persisted sort key for a catalog node: the kind prefix (folders
-    /// before archives) followed by the encoded display name. This is the single
-    /// production encoder - the scanner stores exactly this, and the migration
-    /// backfills exactly this.
+    /// before archives), the encoded case-folded display name, then the encoded name as
+    /// spelled to break ties between names that differ only in case. This is the single
+    /// production encoder - the scanner stores exactly this, and the migrations
+    /// backfill exactly this (through <c>mp_sort_key</c>).
     /// </summary>
     public static string ForNode(CatalogNodeKind kind, string displayName)
     {
         var prefix = kind == CatalogNodeKind.Folder ? FolderPrefix : ArchivePrefix;
-        return prefix + EncodeName(displayName);
+        return prefix + EncodeName(FoldCase(displayName)) + CaseTieBreakSeparator + EncodeName(displayName);
     }
+
+    /// <summary>
+    /// Lower-cases every character (culture-invariant, one char at a time, so the length and
+    /// the digit runs are unchanged). Lower rather than upper case keeps letters above ASCII
+    /// punctuation such as '_' and '[', which is where a file manager lists them.
+    /// </summary>
+    private static string FoldCase(string name) =>
+        string.IsNullOrEmpty(name)
+            ? string.Empty
+            : string.Create(name.Length, name, static (span, source) =>
+            {
+                for (var i = 0; i < source.Length; i++) span[i] = char.ToLowerInvariant(source[i]);
+            });
 
     /// <summary>
     /// Encodes a display name into a string whose ORDINAL order is natural order,
     /// matching <see cref="NaturalOrderComparer"/>:
     /// - Non-digit characters are copied verbatim, so they compare ordinally
-    ///   (uppercase before lowercase, matching ASCII).
+    ///   (uppercase before lowercase, matching ASCII; <see cref="ForNode"/> folds case
+    ///   before calling this).
     /// - A digit run is encoded as marker + length-of-length + length + significant
     ///   digits + terminator + inverted leading-zero count. Comparing two encoded runs
     ///   therefore compares significant LENGTH first (2 &lt; 10), then the digits

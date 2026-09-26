@@ -64,7 +64,8 @@ MangaPixer sorts names in **natural order**. The same rules apply to pages insid
 
 - Runs of digits compare as numbers: `Chapter 2` < `Chapter 10`, `page2.png` < `page10.png`.
 - Equal numbers with different zero-padding put the longer padding first: `001` < `01` < `1`.
-- Letters compare by character code, so uppercase comes before lowercase (`Cover.png` < `cover.png`) and there is no language-specific collation.
+- In the library view, letters compare **without regard to case**: `apple` < `Banana` < `cherry`, and a name that differs from another only in case lists right next to it, capitalised form first (`Berserk`, then `berserk`). Page names inside an archive still compare by character code, so uppercase comes before lowercase there (`Cover.png` < `cover.png`). There is no language-specific collation.
+- Punctuation such as `-`, `_` and `[` sorts before digits and letters: `[Extras]` < `10 Tigers` < `Akira`.
 - Digits sort before letters: `10 Tigers` < `Akira`.
 - Decimals work the way you expect for volume numbers: `Vol.1.5` < `Vol.2`.
 

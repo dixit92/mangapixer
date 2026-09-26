@@ -230,6 +230,93 @@ public sealed class SortKeyEncodingTests
             SortKey.ForNode(CatalogNodeKind.Archive, "Chapter 007.cbz"));
     }
 
+    /// <summary>
+    /// Names sort case-insensitively: a lower-case name sits next to its capitalised
+    /// neighbours instead of after every capitalised name ("apple" used to follow "Zebra").
+    /// </summary>
+    [Fact]
+    public void ForNode_OrdersNamesCaseInsensitively()
+    {
+        var names = new[] { "Zebra", "apple", "Cherry", "banana", "Apricot" };
+        var sorted = names
+            .OrderBy(n => SortKey.ForNode(CatalogNodeKind.Folder, n), StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(["apple", "Apricot", "banana", "Cherry", "Zebra"], sorted);
+    }
+
+    /// <summary>
+    /// Siblings that differ only in case (possible on a case-sensitive filesystem) keep
+    /// DISTINCT keys: the name-sort cursor is the raw key, so equal keys would make paging
+    /// skip one of them. They sit next to each other, in a fixed order.
+    /// </summary>
+    [Fact]
+    public void ForNode_CaseOnlyDifferences_KeepDistinctAdjacentKeys()
+    {
+        var upper = SortKey.ForNode(CatalogNodeKind.Folder, "Berserk");
+        var lower = SortKey.ForNode(CatalogNodeKind.Folder, "berserk");
+        var next = SortKey.ForNode(CatalogNodeKind.Folder, "Berserk 2");
+
+        Assert.NotEqual(upper, lower);
+        Assert.True(SortKey.Compare(upper, lower) < 0);
+        Assert.True(SortKey.Compare(lower, next) < 0);
+    }
+
+    /// <summary>
+    /// The case tie-breaker must not disturb prefix ordering: a name that is a prefix of
+    /// another (ignoring case) still sorts first, and digit runs still compare numerically.
+    /// </summary>
+    [Fact]
+    public void ForNode_TieBreaker_KeepsPrefixAndNumericOrder()
+    {
+        var names = new[] { "abcd", "ABC def", "abc", "chapter 10", "Chapter 2" };
+        var sorted = names
+            .OrderBy(n => SortKey.ForNode(CatalogNodeKind.Archive, n), StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(["abc", "ABC def", "abcd", "Chapter 2", "chapter 10"], sorted);
+    }
+
+    /// <summary>
+    /// Folding to LOWER case keeps letters above ASCII punctuation such as '_' and '[',
+    /// so "[Group] Title" and "_Staging" list before the letters, as a file manager does.
+    /// </summary>
+    [Fact]
+    public void ForNode_PunctuationBetweenCases_SortsBeforeLetters()
+    {
+        Assert.True(SortKey.Compare(
+            SortKey.ForNode(CatalogNodeKind.Folder, "[Group] Title"),
+            SortKey.ForNode(CatalogNodeKind.Folder, "Akira")) < 0);
+        Assert.True(SortKey.Compare(
+            SortKey.ForNode(CatalogNodeKind.Folder, "_Staging"),
+            SortKey.ForNode(CatalogNodeKind.Folder, "Akira")) < 0);
+    }
+
+    /// <summary>
+    /// Every pair of the corpus: ordinal order of the keys equals natural order ignoring
+    /// case, with natural order of the names as spelled breaking ties. (Pairs involving
+    /// non-ASCII digits are skipped for the reason documented on EncodeName.)
+    /// </summary>
+    [Fact]
+    public void ForNode_AgreesWithCaseInsensitiveNaturalOrder_ForEveryPair()
+    {
+        static int Expected(string x, string y)
+        {
+            var folded = NaturalOrderComparer.Instance.Compare(x.ToLowerInvariant(), y.ToLowerInvariant());
+            return folded != 0 ? Math.Sign(folded) : Math.Sign(NaturalOrderComparer.Instance.Compare(x, y));
+        }
+
+        static bool AsciiDigitsOnly(string s) => s.All(c => !char.IsDigit(c) || c is >= '0' and <= '9');
+
+        foreach (var x in Corpus.Where(AsciiDigitsOnly))
+            foreach (var y in Corpus.Where(AsciiDigitsOnly))
+            {
+                var actual = Math.Sign(SortKey.Compare(
+                    SortKey.ForNode(CatalogNodeKind.Archive, x), SortKey.ForNode(CatalogNodeKind.Archive, y)));
+                Assert.True(Expected(x, y) == actual, $"'{x}' vs '{y}': expected {Expected(x, y)}, key gave {actual}");
+            }
+    }
+
     [Fact]
     public void EncodeName_EmptyName_IsEmpty()
     {
