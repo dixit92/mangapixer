@@ -228,6 +228,7 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
     .keys { font-size: 12px; color: #8a8a99; }
     .rows { display: flex; flex-direction: column; gap: 8px; padding-bottom: 72px; }
     .wrap { touch-action: manipulation; }
+    .phone .wrap { -webkit-touch-callout: none; user-select: none; }
     .state { display: flex; justify-content: center; padding: 32px 0; }
     .error { color: #ff8a80; }
     .empty { display: flex; flex-direction: column; align-items: center; padding: 40px 0; color: #9a9aa8; }
@@ -446,6 +447,8 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
   // --- Long-press (touch): start selecting, like browse ---
 
   pressStart(event: PointerEvent, item: MetadataReviewItemDto): void {
+    // A new touch: a long-press whose release produced no click must not eat this tap.
+    this.pressFired = false;
     if (event.pointerType !== 'touch' || this.selectMode()) return;
     this.pressEnd();
     this.pressTimer = setTimeout(() => {
