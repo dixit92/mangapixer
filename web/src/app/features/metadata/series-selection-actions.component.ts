@@ -12,7 +12,7 @@ import { MetadataApiService } from './metadata-api.service';
 import { MetadataStateService } from './metadata-state.service';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
 import { PRECEDENCE_LABELS } from './series-info-labels';
-import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion } from './folder-content';
+import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessage, sumRematch } from './folder-content';
 
 /**
  * Browse selection-bar "Series" menu for admins (1.24.0), mirroring the reading-
@@ -155,10 +155,35 @@ export class SeriesSelectionActionsComponent implements OnInit {
 
   content(value: MetadataFolderContent | null): void {
     const folders = this.selectedFolders();
-    const calls: Observable<unknown>[] = folders.map((f) =>
-      value ? this.api.setFolderContent(f.id, value) : this.api.clearFolderContent(f.id));
+    if (folders.length === 0) return;
+    const calls = folders.map((f) => (value ? this.api.setFolderContent(f.id, value) : this.api.clearFolderContent(f.id)));
     const label = value ? FOLDER_CONTENT_OPTIONS.find((o) => o.value === value)?.label ?? value : 'Inherit';
-    this.runAll(calls, `Content (${label}) on ${plural(folders.length, 'folder')}`);
+    this.busy.set(true);
+    forkJoin(calls).subscribe({
+      next: (results) => {
+        this.busy.set(false);
+        const rematch = sumRematch(results.map((r) => r.rematch));
+        const text = `Content (${label}) on ${plural(folders.length, 'folder')}${rematchMessage(rematch)}`;
+        if (!rematch?.needsConfirmation) {
+          this.snackBar.open(text, 'Close', { duration: rematch?.affected ? 5000 : 2500 });
+          return;
+        }
+        // Over the limit somewhere: "Match again" queues the folders that asked first.
+        const asked = results.filter((r) => r.rematch?.needsConfirmation).map((r) => this.api.rematchFolderContent(r.nodeId));
+        this.snackBar.open(text, 'Match again', { duration: 15000 }).onAction()
+          .subscribe(() => forkJoin(asked).subscribe({
+            next: (done) => {
+              const n = done.reduce((sum, r) => sum + r.queued, 0);
+              this.snackBar.open(`${n} item${n === 1 ? '' : 's'} queued to match again`, 'Close', { duration: 3000 });
+            },
+            error: (err: { message?: string }) => this.snackBar.open(`Failed: ${err?.message ?? 'error'}`, 'Close', { duration: 4000 }),
+          }));
+      },
+      error: (err: { message?: string }) => {
+        this.busy.set(false);
+        this.snackBar.open(`Failed: ${err?.message ?? 'error'}`, 'Close', { duration: 4000 });
+      },
+    });
   }
 
   /** Opens the identify dialog for the single selected node (the dialog explains a disabled state). */

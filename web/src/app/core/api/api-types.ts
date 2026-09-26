@@ -1552,4 +1552,14 @@ export interface FolderMetadataContentDto {
   effective: MetadataFolderContent;
   sourceNodeId?: string | null;
   suggested?: MetadataFolderContent | null;
+  /** PUT/DELETE only, when the change allows or excludes doujinshi below the folder. */
+  rematch?: MetadataContentRematchDto | null;
+}
+
+/** Matching again after a Content change; POST /admin/metadata/folders/{id}/content/rematch returns it too. */
+export interface MetadataContentRematchDto {
+  affected: number;
+  queued: number;
+  needsConfirmation?: boolean;
+  automaticOff?: boolean;
 }

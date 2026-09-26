@@ -17,6 +17,7 @@ import {
   MetadataFlagDto,
   MetadataFlagPageDto,
   MetadataFlagState,
+  MetadataContentRematchDto,
   MetadataFolderContent,
   MetadataMatchEstimateDto,
   MetadataMatchLibraryRequest,
@@ -163,6 +164,11 @@ export class MetadataApiService {
   /** Clears the folder's own value; the nearest ancestor's (or Auto) applies again. */
   clearFolderContent(nodeId: string): Observable<FolderMetadataContentDto> {
     return this.delete<FolderMetadataContentDto>(`/admin/metadata/folders/${encodeURIComponent(nodeId)}/content`);
+  }
+
+  /** After a Content change that asked first: queues the affected items below the folder (no lookup here). */
+  rematchFolderContent(nodeId: string): Observable<MetadataContentRematchDto> {
+    return this.post<MetadataContentRematchDto>(`/admin/metadata/folders/${encodeURIComponent(nodeId)}/content/rematch`, {});
   }
 
   // --- Stage 2: review dashboard (reading a tab never contacts a provider) ---

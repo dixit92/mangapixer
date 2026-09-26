@@ -196,6 +196,7 @@ public sealed class MetadataAutoMatchHttpTests
             () => reader.DeleteAsync("/api/v1/admin/metadata/missing/amGone"),
             () => reader.GetAsync("/api/v1/admin/metadata/folders/amPlain/content"),
             () => reader.PutAsJsonAsync("/api/v1/admin/metadata/folders/amPlain/content", new SetFolderMetadataContentRequest { Content = MetadataFolderContent.NotDoujinshi }),
+            () => reader.PostAsync("/api/v1/admin/metadata/folders/amPlain/content/rematch", null),
         };
         foreach (var call in calls)
             Assert.Equal(HttpStatusCode.Forbidden, (await call()).StatusCode);
@@ -387,6 +388,10 @@ public sealed class MetadataAutoMatchHttpTests
         var set = await OkAsync<FolderMetadataContentDto>(await admin.PutAsJsonAsync("/api/v1/admin/metadata/folders/amLinked/content",
             new SetFolderMetadataContentRequest { Content = MetadataFolderContent.DoujinshiAndAdultOneShots }));
         Assert.Equal(MetadataFolderContent.DoujinshiAndAdultOneShots, set.Content);
+        Assert.Equal(new MetadataContentRematchDto { Affected = 0, Queued = 0 }, set.Rematch); // the doujinshi rule changed; nothing below to redo
+        Assert.Equal(new MetadataContentRematchDto { Affected = 0, Queued = 0 },
+            await OkAsync<MetadataContentRematchDto>(await admin.PostAsync("/api/v1/admin/metadata/folders/amLinked/content/rematch", null)));
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsync("/api/v1/admin/metadata/folders/nope/content/rematch", null)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync("/api/v1/admin/metadata/folders/amArc/content",
             new SetFolderMetadataContentRequest { Content = MetadataFolderContent.NotDoujinshi })).StatusCode);
         var cleared = await OkAsync<FolderMetadataContentDto>(await admin.DeleteAsync("/api/v1/admin/metadata/folders/amLinked/content"));

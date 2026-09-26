@@ -1924,6 +1924,45 @@
         }
       }
     },
+    "/api/v1/admin/metadata/folders/{nodeId}/content/rematch": {
+      "post": {
+        "tags": [
+          "MetadataAdmin"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataContentRematchDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataContentRematchDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataContentRematchDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/metadata/nodes/{nodeId}/identify": {
       "get": {
         "tags": [
@@ -4966,6 +5005,16 @@
                 "$ref": "#/components/schemas/MetadataFolderContent"
               }
             ]
+          },
+          "rematch": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MetadataContentRematchDto"
+              }
+            ]
           }
         }
       },
@@ -5701,6 +5750,37 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "MetadataContentRematchDto": {
+        "required": [
+          "affected",
+          "queued"
+        ],
+        "type": "object",
+        "properties": {
+          "affected": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "queued": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "needsConfirmation": {
+            "type": "boolean"
+          },
+          "automaticOff": {
+            "type": "boolean"
           }
         }
       },

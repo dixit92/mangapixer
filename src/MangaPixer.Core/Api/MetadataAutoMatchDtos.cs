@@ -512,4 +512,27 @@ public sealed record FolderMetadataContentDto
 
     /// <summary>A suggestion from archive-name signals (never applied automatically).</summary>
     public MetadataFolderContent? Suggested { get; init; }
+
+    /// <summary>Set on PUT / DELETE when the change allows or excludes doujinshi below the folder: what it re-queued.</summary>
+    public MetadataContentRematchDto? Rematch { get; init; }
+}
+
+/// <summary>
+/// Matching again after a Content change (owner, 2026-09-26): the Needs-review and Unmatched works
+/// below the folder (the folder itself included, subfolders with their own Content excluded) were
+/// decided with the other doujinshi rule. Linked and Don't-match works are never touched.
+/// </summary>
+public sealed record MetadataContentRematchDto
+{
+    /// <summary>Works below the folder decided with the other rule (Needs review, Unmatched).</summary>
+    public required int Affected { get; init; }
+
+    /// <summary>Works queued to match again.</summary>
+    public required int Queued { get; init; }
+
+    /// <summary>More than the limit: nothing queued; <c>POST folders/{id}/content/rematch</c> queues them.</summary>
+    public bool NeedsConfirmation { get; init; }
+
+    /// <summary>Automatic matching is off: nothing queued (Review › Re-run matching works once it is on).</summary>
+    public bool AutomaticOff { get; init; }
 }

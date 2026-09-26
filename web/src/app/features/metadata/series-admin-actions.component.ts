@@ -11,7 +11,7 @@ import { FolderMetadataContentDto, MetadataFolderContent, MetadataPrecedence, Se
 import { MetadataApiService } from './metadata-api.service';
 import { MetadataStateService } from './metadata-state.service';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
-import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion } from './folder-content';
+import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessage } from './folder-content';
 
 /**
  * Admin menu for one node's series metadata (1.24.0), shared by the overlay and the
@@ -155,7 +155,16 @@ export class SeriesAdminActionsComponent {
       next: (c) => {
         this.busy.set(false);
         this.content.set(c);
-        this.snackBar.open(value ? `Content set: ${contentLabel(value)}` : 'Content cleared (inherited again)', 'Close', { duration: 2500 });
+        const text = (value ? `Content set: ${contentLabel(value)}` : 'Content cleared (inherited again)') + rematchMessage(c.rematch);
+        if (c.rematch?.needsConfirmation) {
+          this.snackBar.open(text, 'Match again', { duration: 15000 }).onAction()
+            .subscribe(() => this.api.rematchFolderContent(id).subscribe({
+              next: (r) => this.snackBar.open(`${r.queued} item${r.queued === 1 ? '' : 's'} queued to match again`, 'Close', { duration: 3000 }),
+              error: (err: { message?: string }) => this.snackBar.open(`Failed: ${err?.message ?? 'error'}`, 'Close', { duration: 4000 }),
+            }));
+        } else {
+          this.snackBar.open(text, 'Close', { duration: c.rematch?.affected ? 5000 : 2500 });
+        }
       },
       error: (err: { message?: string }) => {
         this.busy.set(false);

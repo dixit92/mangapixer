@@ -23,17 +23,20 @@ public sealed class MetadataFolderContentService
     private readonly AuditService _audit;
     private readonly ILogger<MetadataFolderContentService> _logger;
     private readonly IWorkDetector? _detector;
+    private readonly MetadataAutoMatchService? _autoMatch;
 
     public MetadataFolderContentService(
         MangaPixerDbContext db,
         AuditService audit,
         ILogger<MetadataFolderContentService> logger,
-        IEnumerable<IWorkDetector> detectors)
+        IEnumerable<IWorkDetector> detectors,
+        MetadataAutoMatchService? autoMatch = null)
     {
         _db = db;
         _audit = audit;
         _logger = logger;
         _detector = detectors.LastOrDefault();
+        _autoMatch = autoMatch;
     }
 
     /// <summary>The effective Content of a folder and the folder it comes from (null source = default Auto).</summary>
@@ -72,6 +75,7 @@ public sealed class MetadataFolderContentService
         if (node.Code != MetadataLinkResultCode.Ok)
             return (node.Code, null);
 
+        var before = await AllowsDoujinshiAsync(node.Node!.Id, ct);
         var row = await _db.FolderMetadataContents.FirstOrDefaultAsync(c => c.NodeId == node.Node!.Id, ct);
         if (row is null)
             _db.FolderMetadataContents.Add(new FolderMetadataContentEntity { NodeId = node.Node!.Id, Content = (int)content });
@@ -81,7 +85,7 @@ public sealed class MetadataFolderContentService
         await _audit.RecordAsync(AuditActions.MetadataContentSet, content.ToString(), actor, ct: ct,
             targetLibraryId: node.Node!.LibraryId, targetItemId: node.Node.Id);
         _logger.LogInformation(LogEvents.Metadata.SettingsChanged, "Metadata Content set on folder {NodeId}", node.Node.Id);
-        return (MetadataLinkResultCode.Ok, await ToDtoAsync(node.Node, ct));
+        return (MetadataLinkResultCode.Ok, await ToDtoAsync(node.Node, ct) with { Rematch = await RematchIfChangedAsync(node.Node.Id, before, actor, ct) });
     }
 
     public async Task<(MetadataLinkResultCode Code, FolderMetadataContentDto? Dto)> ClearAsync(string nodePublicId, string? actor, CancellationToken ct = default)
@@ -89,6 +93,7 @@ public sealed class MetadataFolderContentService
         var node = await FolderAsync(nodePublicId, ct);
         if (node.Code != MetadataLinkResultCode.Ok)
             return (node.Code, null);
+        var before = await AllowsDoujinshiAsync(node.Node!.Id, ct);
         var removed = await _db.FolderMetadataContents.Where(c => c.NodeId == node.Node!.Id).ExecuteDeleteAsync(ct);
         if (removed > 0)
         {
@@ -96,7 +101,29 @@ public sealed class MetadataFolderContentService
                 targetLibraryId: node.Node!.LibraryId, targetItemId: node.Node.Id);
             _logger.LogInformation(LogEvents.Metadata.SettingsChanged, "Metadata Content cleared on folder {NodeId}", node.Node.Id);
         }
-        return (MetadataLinkResultCode.Ok, await ToDtoAsync(node.Node!, ct));
+        return (MetadataLinkResultCode.Ok, await ToDtoAsync(node.Node!, ct) with { Rematch = await RematchIfChangedAsync(node.Node!.Id, before, actor, ct) });
+    }
+
+    /// <summary>"Match again" after a Content change that asked first (more than the limit): queues every affected work.</summary>
+    public async Task<(MetadataLinkResultCode Code, MetadataContentRematchDto? Dto)> RematchAsync(string nodePublicId, string? actor, CancellationToken ct = default)
+    {
+        var node = await FolderAsync(nodePublicId, ct);
+        if (node.Code != MetadataLinkResultCode.Ok)
+            return (node.Code, null);
+        if (_autoMatch is null)
+            return (MetadataLinkResultCode.Ok, new MetadataContentRematchDto { Affected = 0, Queued = 0 });
+        return (MetadataLinkResultCode.Ok, await _autoMatch.RematchBelowAsync(node.Node!.Id, confirmed: true, actor, ct));
+    }
+
+    private async Task<bool> AllowsDoujinshiAsync(long folderId, CancellationToken ct) =>
+        (await ResolveAsync(_db, folderId, ct)).Content == MetadataFolderContent.DoujinshiAndAdultOneShots;
+
+    /// <summary>Only a change of the doujinshi rule re-queues (Auto and Not doujinshi search alike).</summary>
+    private async Task<MetadataContentRematchDto?> RematchIfChangedAsync(long folderId, bool before, string? actor, CancellationToken ct)
+    {
+        if (_autoMatch is null || await AllowsDoujinshiAsync(folderId, ct) == before)
+            return null;
+        return await _autoMatch.RematchBelowAsync(folderId, confirmed: false, actor, ct);
     }
 
     private async Task<(MetadataLinkResultCode Code, CatalogNodeEntity? Node)> FolderAsync(string nodePublicId, CancellationToken ct)

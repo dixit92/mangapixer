@@ -1,7 +1,8 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of, throwError } from 'rxjs';
+import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
+import { Subject, of, throwError } from 'rxjs';
 
 import { FolderMetadataContentDto, IdentifyContextDto, SeriesInfoDto } from '../../core/api/api-types';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
@@ -135,6 +136,33 @@ describe('SeriesAdminActionsComponent', () => {
     document.querySelectorAll('.cdk-overlay-container').forEach((c) => (c.innerHTML = ''));
     create(seriesInfo({ nodeId: 'a1', nodeKind: 'Archive' }));
     expect(item('[data-testid="precedence-web"]')).toBeNull();
+  });
+
+  it('says what a Content change queued again, and offers "Match again" when it asked first', () => {
+    const action = new Subject<void>();
+    const open = vi.spyOn(MatSnackBar.prototype, 'open')
+      .mockReturnValue({ onAction: () => action } as unknown as MatSnackBarRef<TextOnlySnackBar>);
+    const { api, fixture } = create(seriesInfo({ nodeId: 'f1', nodeKind: 'Folder' }), false, { nodeId: 'f1', effective: 'Auto' });
+    fixture.detectChanges();
+    api.setFolderContent.mockReturnValueOnce(of({ nodeId: 'f1', content: 'DoujinshiAndAdultOneShots', effective: 'DoujinshiAndAdultOneShots',
+      rematch: { affected: 6, queued: 6 } }) as never);
+    item('[data-testid="content-DoujinshiAndAdultOneShots"]')!.click();
+    expect(open).toHaveBeenLastCalledWith('Content set: Doujinshi & adult one-shots · 6 items below queued to match again', 'Close', { duration: 5000 });
+
+    const rematch = vi.fn(() => of({ affected: 250, queued: 250 }));
+    (api as unknown as { rematchFolderContent: typeof rematch }).rematchFolderContent = rematch;
+    api.setFolderContent.mockReturnValueOnce(of({ nodeId: 'f1', content: 'DoujinshiAndAdultOneShots', effective: 'DoujinshiAndAdultOneShots',
+      rematch: { affected: 250, queued: 0, needsConfirmation: true } }) as never);
+    (fixture.nativeElement.querySelector('[data-testid="series-admin-menu"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    item('[data-testid="content-DoujinshiAndAdultOneShots"]')!.click();
+    expect(open.mock.calls.at(-1)![1]).toBe('Match again');
+    expect(open.mock.calls.at(-1)![0]).toContain('250 items below were matched without this setting');
+    expect(rematch).not.toHaveBeenCalled();
+    action.next();
+    expect(rematch).toHaveBeenCalledWith('f1');
+    expect(open).toHaveBeenLastCalledWith('250 items queued to match again', 'Close', { duration: 3000 });
+    open.mockRestore();
   });
 
   it('shows the folder Content setting with its source and the detector\'s suggestion (stage 2)', () => {

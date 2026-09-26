@@ -96,6 +96,8 @@ describe('MetadataApiService stage 2', () => {
     put.flush({ nodeId: 'f1', effective: 'DoujinshiAndAdultOneShots' });
     api.clearFolderContent('f1').subscribe();
     http.expectOne({ method: 'DELETE', url: `${A}/folders/f1/content` }).flush({ nodeId: 'f1', effective: 'Auto' });
+    api.rematchFolderContent('f1').subscribe();
+    http.expectOne({ method: 'POST', url: `${A}/folders/f1/content/rematch` }).flush({ affected: 3, queued: 3 });
   });
 
   it('maps a 501 (stage 2 not implemented yet) to an ApiError with the status', () => {

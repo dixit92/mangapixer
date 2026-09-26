@@ -194,6 +194,15 @@ public sealed class MetadataAdminController : ControllerBase
         return code == MetadataLinkResultCode.Ok ? Ok(dto) : ToResult(code);
     }
 
+    /// <summary>After a Content change that asked first: queues the affected works below the folder.</summary>
+    [HttpPost("folders/{nodeId}/content/rematch")]
+    [ProducesResponseType<MetadataContentRematchDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> RematchFolderContent(string nodeId, CancellationToken ct)
+    {
+        var (code, dto) = await _content.RematchAsync(nodeId, Actor, ct);
+        return code == MetadataLinkResultCode.Ok ? Ok(dto) : ToResult(code);
+    }
+
     private IActionResult ToResult(MetadataLinkResultCode code) => code switch
     {
         MetadataLinkResultCode.Ok => NoContent(),

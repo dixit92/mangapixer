@@ -4,6 +4,7 @@ using System.Text.Json;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Server.Features.Admin;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -105,6 +106,60 @@ public sealed class AutoMatchServiceTests : IAsyncLifetime
         Assert.Equal(1, await _h.Service().EnqueueNewFoldersAsync(_db.LibraryId, since));
         Assert.Equal((int)MatchLevel.Archive, (await QueueOfAsync(fresh)).Level);
         Assert.Equal(0, _h.Handler.CallCount);
+    }
+
+    // --- Content change -> match again ---
+
+    [Fact]
+    public async Task ContentChange_RequeuesUnmatchedBelow_NeverLinkedNorOverriddenSubtrees()
+    {
+        var top = await _db.AddFolderAsync(null, "Doujins");
+        var artist = await _db.AddFolderAsync(top, "Collection Artist");
+        var missed = await _db.AddArchiveAsync(artist, "Alpha Story");
+        var linked = await _db.AddArchiveAsync(artist, "Beta Tale");
+        var other = await _db.AddFolderAsync(top, "Collection Other");
+        var overridden = await _db.AddArchiveAsync(other, "Gamma Saga");
+        _h.Search["Beta Tale"] = [new MuJson.Hit(501, "Beta Tale")];
+        _h.Records[501] = MuJson.Get(501, "Beta Tale");
+        await _h.EnableAutomaticAsync();
+        await EnqueueAsync();
+        await _h.DrainAsync();
+        Assert.Equal((int)SeriesLinkState.Auto, (await LinkOfAsync(linked))!.State);
+        Assert.Equal(QueueState.Done, (await QueueOfAsync(missed)).State);
+        _db.Db.FolderMetadataContents.Add(new FolderMetadataContentEntity { NodeId = other.Id, Content = (int)MetadataFolderContent.NotDoujinshi });
+        await _db.Db.SaveChangesAsync();
+        var content = new MetadataFolderContentService(_db.Db, new AuditService(_db.Db), NullLogger<MetadataFolderContentService>.Instance,
+            [_h.Detector], _h.Service());
+        var calls = _h.Handler.CallCount;
+
+        var (_, dto) = await content.SetAsync(top.PublicId, MetadataFolderContent.DoujinshiAndAdultOneShots, "admin");
+
+        Assert.Equal(new MetadataContentRematchDto { Affected = 1, Queued = 1 }, dto!.Rematch);
+        Assert.Equal(QueueState.Pending, (await QueueOfAsync(missed)).State);
+        Assert.Equal(QueueState.Done, (await QueueOfAsync(overridden)).State); // its own Content wins
+        Assert.Equal((int)SeriesLinkState.Auto, (await LinkOfAsync(linked))!.State);
+        Assert.Equal(calls, _h.Handler.CallCount); // queueing sends nothing
+        // The same rule again changes nothing; Auto <-> Not doujinshi search alike.
+        Assert.Null((await content.SetAsync(top.PublicId, MetadataFolderContent.DoujinshiAndAdultOneShots, "admin")).Dto!.Rematch);
+        Assert.Null((await content.SetAsync(artist.PublicId, MetadataFolderContent.DoujinshiAndAdultOneShots, "admin")).Dto!.Rematch);
+    }
+
+    [Fact]
+    public async Task ContentChange_WithAutomaticOff_QueuesNothing_AndSaysSo()
+    {
+        var top = await _db.AddFolderAsync(null, "Collection Shelf");
+        var missed = await _db.AddArchiveAsync(top, "Alpha Story");
+        await _h.EnableAutomaticAsync();
+        await EnqueueAsync();
+        await _h.DrainAsync();
+        await _h.EnableAutomaticAsync(automatic: false);
+        var content = new MetadataFolderContentService(_db.Db, new AuditService(_db.Db), NullLogger<MetadataFolderContentService>.Instance,
+            [_h.Detector], _h.Service());
+
+        var (_, dto) = await content.SetAsync(top.PublicId, MetadataFolderContent.DoujinshiAndAdultOneShots, "admin");
+
+        Assert.Equal(new MetadataContentRematchDto { Affected = 1, Queued = 0, AutomaticOff = true }, dto!.Rematch);
+        Assert.Equal(QueueState.Done, (await QueueOfAsync(missed)).State);
     }
 
     [Fact]

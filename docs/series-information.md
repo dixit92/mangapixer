@@ -71,6 +71,8 @@ Automatic matching leaves doujinshi out of its searches, because they otherwise 
 - **Doujinshi & adult one-shots**: automatic matching also searches doujinshi in this folder and everything below it, and **Identify** starts with **Hide doujinshi & novels** unticked there.
 - **Not doujinshi**: never search doujinshi here, even inside a folder marked **Doujinshi & adult one-shots**.
 
+**Changing it matches again.** When a change allows or stops doujinshi below the folder (setting or clearing **Doujinshi & adult one-shots**), the items below it that are still in **Needs review** or **Unmatched** were searched with the other rule, so they are queued to match again and the message says how many. Linked and **Don't match** items are never touched, nor anything below a subfolder with its own Content. With more than 200 such items MangaPixer asks first (**Match again** in the message); with Automatic matching off it only tells you how many could be re-run from Review. For a tree such as `Doujins/Artists/<artist>/`, marking `Doujins` is enough.
+
 Like the folder reading direction, the value applies to everything below the folder until a subfolder sets its own; the menu says whether it is **set here**, **inherited** or the **default**, and **Inherit (clear)** removes a folder's own value. When MangaPixer's folder check thinks a folder looks like doujinshi (from its name), the menu marks that choice **suggested**; it never applies it by itself. Content only changes what automatic matching searches for; the Identify dialog has its own **Hide doujinshi & novels** box.
 
 ## Reporting a wrong series

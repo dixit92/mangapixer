@@ -376,6 +376,73 @@ public sealed class MetadataAutoMatchService
         return codes;
     }
 
+    /// <summary>Above this many works a Content change asks before it re-queues them.</summary>
+    public const int ContentRematchConfirmAbove = 200;
+
+    /// <summary>
+    /// The Needs-review and Unmatched works at or below <paramref name="folderId"/> whose effective
+    /// Content comes from it (subtrees of folders with their own Content row are skipped).
+    /// </summary>
+    public async Task<IReadOnlyList<long>> ContentRematchCandidatesAsync(long folderId, CancellationToken ct = default)
+    {
+        var libraryId = await _db.CatalogNodes.AsNoTracking().Where(n => n.Id == folderId).Select(n => n.LibraryId).FirstAsync(ct);
+        var tree = await LibraryTreeSnapshot.LoadAsync(_db, libraryId, ct);
+        var overrides = (await _db.FolderMetadataContents.AsNoTracking().Select(c => c.NodeId).ToListAsync(ct)).ToHashSet();
+        var scope = new List<long>();
+        var stack = new Stack<long>([folderId]);
+        while (stack.Count > 0)
+        {
+            var id = stack.Pop();
+            scope.Add(id);
+            foreach (var child in tree.ChildrenOf(id))
+                if (!(child.IsFolder && overrides.Contains(child.Id)))
+                    stack.Push(child.Id);
+        }
+
+        var needsReview = (int)SeriesLinkState.NeedsReview;
+        var unmatched = (int)MatchBand.Unmatched;
+        var found = new HashSet<long>();
+        foreach (var chunk in scope.Chunk(500))
+        {
+            var ids = chunk.ToList();
+            found.UnionWith(await _db.NodeSeriesLinks.AsNoTracking()
+                .Where(l => ids.Contains(l.NodeId) && l.State == needsReview)
+                .Select(l => l.NodeId)
+                .ToListAsync(ct));
+            found.UnionWith(await _db.MetadataMatchQueue.AsNoTracking()
+                .Where(q => ids.Contains(q.NodeId)
+                    && ((q.Outcome == unmatched && q.State == QueueState.Done) || q.State == QueueState.Failed)
+                    && !_db.NodeSeriesLinks.Any(l => l.NodeId == q.NodeId))
+                .Select(q => q.NodeId)
+                .ToListAsync(ct));
+        }
+        return found.Order().ToList();
+    }
+
+    /// <summary>
+    /// Re-queues the works <see cref="ContentRematchCandidatesAsync"/> finds, when automatic matching is
+    /// on and (unless <paramref name="confirmed"/>) there are at most <see cref="ContentRematchConfirmAbove"/>.
+    /// </summary>
+    public async Task<MetadataContentRematchDto> RematchBelowAsync(long folderId, bool confirmed, string? actor, CancellationToken ct = default)
+    {
+        var nodes = await ContentRematchCandidatesAsync(folderId, ct);
+        if (nodes.Count == 0)
+            return new MetadataContentRematchDto { Affected = 0, Queued = 0 };
+        if (!await IsAutomaticEnabledAsync(ct))
+            return new MetadataContentRematchDto { Affected = nodes.Count, Queued = 0, AutomaticOff = true };
+        if (!confirmed && nodes.Count > ContentRematchConfirmAbove)
+            return new MetadataContentRematchDto { Affected = nodes.Count, Queued = 0, NeedsConfirmation = true };
+
+        var publicIds = new List<string>();
+        foreach (var chunk in nodes.Chunk(500))
+        {
+            var ids = chunk.ToList();
+            publicIds.AddRange(await _db.CatalogNodes.AsNoTracking().Where(n => ids.Contains(n.Id)).Select(n => n.PublicId).ToListAsync(ct));
+        }
+        var codes = await RerunAsync(publicIds, actor, ct);
+        return new MetadataContentRematchDto { Affected = nodes.Count, Queued = codes.Values.Count(c => c == "ok") };
+    }
+
     /// <summary>Unmatched works whose retry date came go back to the queue (one Retry run per library).</summary>
     public async Task<int> PromoteDueRetriesAsync(CancellationToken ct = default)
     {
