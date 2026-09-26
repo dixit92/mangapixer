@@ -9,6 +9,7 @@ import {
   IdentifyContextDto,
   IdentifyPreviewDto,
   IdentifyPreviewRequest,
+  IdentifySearchRequest,
   IdentifySearchResultDto,
   LinkSeriesRequest,
   MetadataPrecedence,
@@ -93,9 +94,13 @@ export class MetadataApiService {
     return this.get<IdentifyContextDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/identify`);
   }
 
-  /** Sends `query` (exactly what the admin confirmed) to the provider, via the server. */
-  search(nodeId: string, query: string, page = 1): Observable<IdentifySearchResultDto> {
-    return this.post<IdentifySearchResultDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/search`, { query, page });
+  /**
+   * Sends `query` (exactly what the admin confirmed) to the provider, via the server.
+   * `hideDoujinshiAndNovels` adds the provider's fixed type filter (no user data).
+   */
+  search(nodeId: string, query: string, page = 1, hideDoujinshiAndNovels = false): Observable<IdentifySearchResultDto> {
+    const body: IdentifySearchRequest = { query, page, hideDoujinshiAndNovels };
+    return this.post<IdentifySearchResultDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/search`, body);
   }
 
   /** A pasted URL / `mu:` shortcode; the server parses it locally and sends only the id. */

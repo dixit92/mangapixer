@@ -6,9 +6,11 @@ import { creditGroups, itemLine, metaLine } from './series-info-labels';
 /**
  * Presentational series summary (1.24.0) shared by the overlay and the series page,
  * so the two surfaces never disagree: title, alternative titles, the facts line,
- * credits, genres, description, the per-item ComicInfo block (archives), and the
- * mixed / none / Don't match states. `compact` (overlay) clamps the description to
- * six lines with a "More" toggle and folds long alt-title and genre lists.
+ * credits, genres (plain text until faceted search exists - chips would look
+ * clickable), description, the per-item ComicInfo block (archives), and the mixed /
+ * none / Don't match states. `compact` (overlay) clamps the description to six lines
+ * with a "More" toggle and folds long alt-title and genre lists. The series page sets
+ * `showDescription` false: it shows the description once, under About.
  *
  * All text is bound as text (never innerHTML): ComicInfo and provider values are
  * data, never markup.
@@ -59,12 +61,9 @@ import { creditGroups, itemLine, metaLine } from './series-info-labels';
           </p>
         }
         @if (genres().length > 0) {
-          <div class="chips">
-            @for (g of genres(); track g) { <span class="chip">{{ g }}</span> }
-            @if (genreOverflow() > 0) { <span class="chip more">+{{ genreOverflow() }}</span> }
-          </div>
+          <p class="genres" data-testid="series-genres">{{ genres().join(' · ') }}@if (genreOverflow() > 0) {<span class="muted"> · +{{ genreOverflow() }} more</span>}</p>
         }
-        @if (i.description) {
+        @if (i.description && showDescription()) {
           <p class="description" [class.clamped]="compact() && !expanded()">{{ i.description }}</p>
           @if (compact()) {
             <button type="button" class="more" (click)="expanded.set(!expanded())">{{ expanded() ? 'Less' : 'More' }}</button>
@@ -91,9 +90,7 @@ import { creditGroups, itemLine, metaLine } from './series-info-labels';
     .alt, .facts, .credits { margin: 2px 0; font-size: 13px; color: #c8c8d4; }
     .alt { color: #9a9aad; }
     .muted { color: #8a8a99; }
-    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-    .chip { font-size: 12px; padding: 2px 8px; border-radius: 12px; background: rgba(124, 77, 255, 0.18); color: #d8ccff; }
-    .chip.more { background: rgba(255, 255, 255, 0.08); color: #b0b0c0; }
+    .genres { margin: 6px 0; font-size: 13px; color: #c8c8d4; }
     .description, .item-summary { margin: 8px 0 0; font-size: 14px; line-height: 1.5; white-space: pre-line; color: #dcdce6; clear: both; }
     .clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
     .item-summary.clamped { -webkit-line-clamp: 3; }
@@ -112,6 +109,9 @@ export class SeriesInfoSummaryComponent {
 
   /** Overlay mode: clamp the description, fold long lists. */
   readonly compact = input(false);
+
+  /** False on the series page, which shows the description once, under About. */
+  readonly showDescription = input(true);
 
   readonly expanded = signal(false);
 

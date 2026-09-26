@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,6 +9,7 @@ import { Observable, forkJoin } from 'rxjs';
 
 import { CatalogNodeDto, MetadataPrecedence } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
+import { MetadataStateService } from './metadata-state.service';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
 import { PRECEDENCE_LABELS } from './series-info-labels';
 
@@ -16,7 +17,10 @@ import { PRECEDENCE_LABELS } from './series-info-labels';
  * Browse selection-bar "Series" menu for admins (1.24.0), mirroring the reading-
  * direction action: mark the selected nodes "Don't match" (or clear it), and set /
  * clear the source precedence on the selected FOLDERS, and (lane B2) "Identify..." when
- * exactly one node is selected.
+ * exactly one node is selected. Hidden while "Show series information" is off globally
+ * or for this library (it carries the (i) icon, so it reads as series information);
+ * the admin settings card is where it is turned back on. Link changes are announced
+ * through `MetadataStateService` so the cards' (i) update in place.
  */
 @Component({
   selector: 'app-series-selection-actions',
@@ -24,6 +28,7 @@ import { PRECEDENCE_LABELS } from './series-info-labels';
   imports: [MatButtonModule, MatIconModule, MatMenuModule, MatDividerModule, MatTooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    @if (shown()) {
     <button mat-button type="button" [matMenuTriggerFor]="seriesMenu"
             [disabled]="disabled() || busy() || selectedNodes().length === 0"
             matTooltip="Series metadata for the selection" data-testid="series-selection-menu">
@@ -52,6 +57,7 @@ import { PRECEDENCE_LABELS } from './series-info-labels';
         <mat-icon>vertical_align_top</mat-icon> Inherit (clear)
       </button>
     </mat-menu>
+    }
   `,
   styles: [`
     :host { display: contents; }
@@ -66,8 +72,9 @@ import { PRECEDENCE_LABELS } from './series-info-labels';
     }
   `],
 })
-export class SeriesSelectionActionsComponent {
+export class SeriesSelectionActionsComponent implements OnInit {
   private readonly api = inject(MetadataApiService);
+  private readonly metadataState = inject(MetadataStateService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly identifyDialog = inject(IdentifyDialogService);
 
@@ -82,6 +89,22 @@ export class SeriesSelectionActionsComponent {
 
   readonly busy = signal(false);
 
+  /** "Show series information" for this library, from the settings (hidden until known). */
+  private readonly showSeriesInfo = signal<boolean | null>(null);
+  readonly shown = computed(() => this.showSeriesInfo() === true);
+
+  ngOnInit(): void {
+    // Admin-only surface (the host renders it for admins), so the admin settings call is allowed.
+    this.api.getSettings().subscribe({
+      next: (s) => {
+        const libraryId = this.nodes()[0]?.libraryId;
+        const library = s.libraries.find((l) => l.libraryId === libraryId);
+        this.showSeriesInfo.set(s.showSeriesInfo && (library?.showSeriesInfo ?? true));
+      },
+      error: () => this.showSeriesInfo.set(true), // cannot tell: keep the admin actions reachable
+    });
+  }
+
   readonly selectedNodes = computed(() => this.nodes().filter((n) => this.selected().has(n.id)));
   readonly selectedFolders = computed(() => this.selectedNodes().filter((n) => n.kind === 'Folder'));
 
@@ -94,7 +117,8 @@ export class SeriesSelectionActionsComponent {
   dontMatch(on: boolean): void {
     const nodes = this.selectedNodes();
     const calls = nodes.map((n) => (on ? this.api.setDontMatch(n.id) : this.api.clearDontMatch(n.id)));
-    this.runAll(calls, `${on ? "Don't match set" : "Don't match cleared"} on ${plural(nodes.length, 'item')}`);
+    this.runAll(calls, `${on ? "Don't match set" : "Don't match cleared"} on ${plural(nodes.length, 'item')}`,
+      () => nodes.forEach((n) => this.metadataState.refresh(n.id)));
   }
 
   precedence(value: MetadataPrecedence | null): void {
@@ -105,12 +129,13 @@ export class SeriesSelectionActionsComponent {
     this.runAll(calls, `Source precedence (${label}) on ${plural(folders.length, 'folder')}`);
   }
 
-  private runAll(calls: Observable<unknown>[], message: string): void {
+  private runAll(calls: Observable<unknown>[], message: string, done?: () => void): void {
     if (calls.length === 0) return;
     this.busy.set(true);
     forkJoin(calls).subscribe({
       next: () => {
         this.busy.set(false);
+        done?.();
         this.snackBar.open(message, 'Close', { duration: 2500 });
       },
       error: (err: { message?: string }) => {

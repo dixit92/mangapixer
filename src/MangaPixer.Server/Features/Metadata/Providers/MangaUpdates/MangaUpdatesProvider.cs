@@ -15,14 +15,19 @@ using com.lifepixer.mangapixer.Core.Metadata;
 /// gateway resolves providers.
 ///
 /// Requests: <c>POST /v1/series/search</c> with exactly
-/// <c>{"search", "page", "perpage"}</c>, and <c>GET /v1/series/{id}</c> with the
-/// numeric id only. Nothing else is sent (headers come from the named client).
+/// <c>{"search", "page", "perpage"}</c> (plus the FIXED <c>"filter_types"</c> list
+/// <see cref="HiddenTypes"/> when the admin hides doujinshi and novels), and
+/// <c>GET /v1/series/{id}</c> with the numeric id only. Nothing else is sent
+/// (headers come from the named client).
 /// </summary>
 internal sealed class MangaUpdatesProvider : IMetadataProvider
 {
     public const string ProviderId = "mangaupdates";
     public const string ProviderName = "MangaUpdates";
     private const string ApiBase = "https://" + MetadataHttp.MangaUpdatesApiHost + "/v1/";
+
+    /// <summary>Provider types left out by "Hide doujinshi &amp; novels" (a fixed list, never user data).</summary>
+    internal static readonly IReadOnlyList<string> HiddenTypes = ["Doujinshi", "Novel", "Artbook", "Drama CD"];
 
     private readonly IHttpClientFactory _httpFactory;
 
@@ -46,7 +51,8 @@ internal sealed class MangaUpdatesProvider : IMetadataProvider
     public async Task<ProviderSearchPage> SearchSeriesAsync(ProviderSearchQuery query, CancellationToken ct)
     {
         var client = _httpFactory.CreateClient(MetadataHttp.MangaUpdatesApiClient);
-        using var content = JsonContent.Create(new MuSearchRequest(query.Text, query.Page, query.PerPage));
+        using var content = JsonContent.Create(new MuSearchRequest(
+            query.Text, query.Page, query.PerPage, query.HideDoujinshiAndNovels ? HiddenTypes : null));
         using var response = await client.PostAsync(ApiBase + "series/search", content, ct);
         MetadataHttp.EnsureSuccess(response);
         var body = Deserialize<MuSearchResponse>(await MetadataHttp.ReadBoundedAsync(response, MetadataHttp.MaxJsonBytes, ct));

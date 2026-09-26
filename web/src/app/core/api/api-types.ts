@@ -1182,6 +1182,8 @@ export interface IdentifyContextDto {
 export interface IdentifySearchRequest {
   query: string;
   page?: number;
+  /** Leave doujinshi, novels, artbooks and drama CDs out (a fixed provider type filter). */
+  hideDoujinshiAndNovels?: boolean;
 }
 
 export interface IdentifyLookupRequest {

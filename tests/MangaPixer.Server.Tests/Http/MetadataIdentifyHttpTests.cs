@@ -270,6 +270,29 @@ public sealed class MetadataIdentifyHttpTests
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/v1/nodes/mdnPlain/series-info/image")).StatusCode);
     }
 
+    [Fact]
+    public async Task Search_HideDoujinshiAndNovels_SendsOnlyTheFixedTypeFilter()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory();
+        await SeedAsync(factory);
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+        await EnableAsync(admin);
+
+        // The dialog's default (checked): the fixed provider type list, nothing else added.
+        (await admin.PostAsJsonAsync("/api/v1/admin/metadata/nodes/mdnSeries/search",
+            new IdentifySearchRequest { Query = "Berserk", HideDoujinshiAndNovels = true })).EnsureSuccessStatusCode();
+        // Omitted (older clients / unchecked): exactly the original three fields.
+        (await admin.PostAsync("/api/v1/admin/metadata/nodes/mdnSeries/search",
+            JsonContent.Create(new { query = "Berserk", page = 1 }))).EnsureSuccessStatusCode();
+
+        var bodies = factory.Handler.Seen.Where(s => s.Uri.AbsolutePath == "/v1/series/search")
+            .Select(s => System.Text.Json.JsonDocument.Parse(s.Body!).RootElement).ToList();
+        Assert.Equal(2, bodies.Count); // a different filter is a different cached search
+        Assert.Equal(["search", "page", "perpage", "filter_types"], bodies[0].EnumerateObject().Select(p => p.Name).ToArray());
+        Assert.Equal(["Doujinshi", "Novel", "Artbook", "Drama CD"], bodies[0].GetProperty("filter_types").EnumerateArray().Select(e => e.GetString()!).ToArray());
+        Assert.Equal(["search", "page", "perpage"], bodies[1].EnumerateObject().Select(p => p.Name).ToArray());
+    }
+
     // --- Budget and backoff through the API ---
 
     [Fact]

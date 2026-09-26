@@ -69,6 +69,20 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         Assert.False(seen.Headers.ContainsKey("Referer"));
     }
 
+    [Fact]
+    public async Task Search_HideDoujinshiAndNovels_AddsOnlyTheFixedTypeFilter()
+    {
+        await _h.Provider.SearchSeriesAsync(
+            new ProviderSearchQuery("Solo Leveling", _db.LibraryId, 1, 10, HideDoujinshiAndNovels: true), CancellationToken.None);
+
+        var seen = Assert.Single(_h.Handler.Seen);
+        using var body = JsonDocument.Parse(seen.Body!);
+        Assert.Equal(["search", "page", "perpage", "filter_types"], body.RootElement.EnumerateObject().Select(p => p.Name).ToArray());
+        Assert.Equal(
+            ["Doujinshi", "Novel", "Artbook", "Drama CD"],
+            body.RootElement.GetProperty("filter_types").EnumerateArray().Select(e => e.GetString()!).ToArray());
+    }
+
     // --- Get mapping ---
 
     [Fact]
@@ -355,6 +369,32 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         Assert.Null(MetadataText.Flatten("<p></p>", 10));
         Assert.Equal("a b", MetadataText.Line("a\n\nb", 10));
     }
+
+    [Fact]
+    public void Text_Flatten_StripsMarkdownHeadingsQuotesAndEmphasis_KeepingTheWords()
+    {
+        // The shape of a real provider description: a synopsis, then a "Notes" heading block.
+        const string raw = "A delinquent finds a baby on the riverbank.\n\n##### Notes:\nIncludes a __one-shot__ and *extra* pages.\n"
+            + "> Quoted from the _publisher_.\n#Hashtag stays\n### \nsnake_case_name stays";
+
+        var flat = MetadataText.Flatten(raw, 1000);
+
+        Assert.Equal(
+            "A delinquent finds a baby on the riverbank.\n\nNotes:\nIncludes a one-shot and extra pages.\n"
+            + "Quoted from the publisher.\n#Hashtag stays\n\nsnake_case_name stays",
+            flat);
+    }
+
+    [Theory]
+    [InlineData("# Title", "Title")]
+    [InlineData("###### Six", "Six")]
+    [InlineData("   ## Indented", "Indented")]
+    [InlineData("Price #1 in sales", "Price #1 in sales")]
+    [InlineData(">> nested quote", "nested quote")]
+    [InlineData("a > b", "a > b")]
+    [InlineData("&gt; encoded quote", "encoded quote")]
+    public void Text_Flatten_MarkdownMarkers(string raw, string expected) =>
+        Assert.Equal(expected, MetadataText.Flatten(raw, 1000));
 
     // --- Images ---
 

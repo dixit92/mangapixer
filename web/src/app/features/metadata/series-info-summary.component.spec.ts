@@ -63,14 +63,16 @@ describe('SeriesInfoSummaryComponent', () => {
     expect(text(f)).toContain('Story: A Writer');
     expect(text(f)).toContain('Art: An Artist');
     expect(text(f)).toContain('Licensed in English');
-    expect(f.nativeElement.querySelectorAll('.chip').length).toBe(2);
+    // Genres are plain text (chips would look clickable before faceted search exists).
+    expect(q(f, '[data-testid="series-genres"]')!.textContent!.trim()).toBe('Action · Drama');
+    expect(f.nativeElement.querySelector('.chip')).toBeNull();
   });
 
   it('folds alternative titles and genres in compact mode', () => {
     const f = render(seriesInfo({ altTitles: ['A', 'B', 'C', 'D'], genres: ['g1', 'g2', 'g3', 'g4', 'g5'] }), true);
     expect(q(f, '.alt')!.textContent).toContain('A, B');
     expect(q(f, '.alt')!.textContent).toContain('+2');
-    expect(q(f, '.chip.more')!.textContent).toContain('+2');
+    expect(q(f, '[data-testid="series-genres"]')!.textContent!.replace(/\s+/g, ' ').trim()).toBe('g1 · g2 · g3 · +2 more');
   });
 
   it('clamps the description in compact mode with a More toggle', () => {
@@ -96,5 +98,14 @@ describe('SeriesInfoSummaryComponent', () => {
     expect(item.textContent).toContain('Vol 3 · #12');
     expect(item.textContent).toContain('Issue Twelve');
     expect(item.textContent).toContain('An issue.');
+  });
+
+  it('omits the description when the host shows it elsewhere (series page About)', () => {
+    TestBed.configureTestingModule({ imports: [SeriesInfoSummaryComponent] });
+    const f = TestBed.createComponent(SeriesInfoSummaryComponent);
+    f.componentRef.setInput('info', seriesInfo({ description: 'Shown once.' }));
+    f.componentRef.setInput('showDescription', false);
+    f.detectChanges();
+    expect((f.nativeElement as HTMLElement).querySelector('.description')).toBeNull();
   });
 });

@@ -16,6 +16,12 @@ describe('identify labels', () => {
     expect(previewLine({ ...p, originVolumes: null, originStatus: 'Ongoing' })).toBe('Comic · Korea · 2018 · ongoing');
   });
 
+  it('leads the preview line with the provider type, like the results list', () => {
+    const p = { providerType: 'Manhwa', format: 'Comic', origin: 'Korea', startYear: 2018 } as IdentifyPreviewDto;
+    expect(previewLine(p)).toBe('Manhwa · Korea · 2018');
+    expect(previewLine({ ...p, providerType: 'Korea' })).toBe('Korea · 2018'); // an origin equal to the type is not repeated
+  });
+
   it('describes the local tall-strip signal', () => {
     expect(tallStripsLabel(true)).toContain('tall strips');
     expect(tallStripsLabel(false)).toBe('regular pages');

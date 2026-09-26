@@ -100,7 +100,8 @@ public sealed class MetadataGatewayTests : IAsyncLifetime
         Assert.Equal(1, (await _h.Budget().GetAsync()).Used);
 
         await gateway.SearchAsync(Mu, _db.LibraryId, "Berserk", 2); // another page is another request
-        Assert.Equal(2, _h.Handler.CallCount);
+        await gateway.SearchAsync(Mu, _db.LibraryId, "Berserk", 2, hideDoujinshiAndNovels: true); // another filter too
+        Assert.Equal(3, _h.Handler.CallCount);
         Assert.Equal("Berserk", System.Text.Json.JsonDocument.Parse(_h.Handler.Seen[0].Body!).RootElement.GetProperty("search").GetString());
     }
 

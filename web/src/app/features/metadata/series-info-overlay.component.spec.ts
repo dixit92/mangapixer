@@ -96,6 +96,18 @@ describe('SeriesInfoOverlayComponent', () => {
     expect(create(seriesInfo(), { admin: true }).el.querySelector('app-series-admin-actions')).not.toBeNull();
   });
 
+  it('shows the precedence line only when both web data and ComicInfo exist (admins too)', () => {
+    const web = { provider: 'mangaupdates', providerName: 'MangaUpdates', fetchedAt: new Date().toISOString() };
+    const ciOnly = create(seriesInfo({ state: 'ComicInfo', comicInfo: { itemsWithComicInfo: 1, itemsTotal: 1 } }), { admin: true });
+    expect(ciOnly.el.textContent).not.toContain('Precedence');
+    TestBed.resetTestingModule();
+    const webOnly = create(seriesInfo({ state: 'Web', web }), { admin: true });
+    expect(webOnly.el.textContent).not.toContain('Precedence');
+    TestBed.resetTestingModule();
+    const both = create(seriesInfo({ state: 'WebAndComicInfo', web, comicInfo: { itemsWithComicInfo: 2, itemsTotal: 3 } }));
+    expect(both.el.textContent).toContain('Precedence: Web first');
+  });
+
   it('shows an error state when the node cannot be loaded', () => {
     const { el } = create('error');
     expect(el.querySelector('.error')!.textContent).toContain('not available');
