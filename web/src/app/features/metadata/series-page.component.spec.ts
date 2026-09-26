@@ -56,6 +56,7 @@ describe('SeriesPageComponent', () => {
       nodeId: 'series-1',
       anchorNodeId: 'series-1',
       state: 'WebAndComicInfo',
+      web: { provider: 'mangaupdates', providerName: 'MangaUpdates', fetchedAt: '2026-09-25T00:00:00Z' },
       description: 'About this synthetic series.',
       creators: [{ name: 'A Writer', role: 'writer' }],
       genres: ['Action'],

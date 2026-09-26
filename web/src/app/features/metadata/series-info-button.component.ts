@@ -3,7 +3,7 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { catchError, filter, forkJoin, map, merge, of, switchMap } from 'rxjs';
+import { Observable, catchError, filter, forkJoin, map, merge, of, switchMap } from 'rxjs';
 
 import { AuthService } from '../../core/auth/auth.service';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
@@ -75,12 +75,12 @@ export class SeriesInfoButtonComponent {
 
   private readonly nodeId$ = toObservable(this.nodeId);
 
-  readonly slot = toSignal<SeriesSlot>(
+  readonly slot = toSignal(
     merge(
       this.nodeId$,
       this.metadataState.changed$.pipe(filter((c) => c.nodeId === this.nodeId()), map(() => this.nodeId())),
     ).pipe(switchMap((id) => this.resolve(id))),
-    { initialValue: 'none' },
+    { initialValue: 'none' as SeriesSlot },
   );
 
   open(): void {
@@ -92,7 +92,7 @@ export class SeriesInfoButtonComponent {
     void this.identifyDialog.open(this.nodeId());
   }
 
-  private resolve(id: string) {
+  private resolve(id: string): Observable<SeriesSlot> {
     return this.api.getSeriesInfo(id).pipe(
       catchError(() => of(null)),
       switchMap((info) => {
