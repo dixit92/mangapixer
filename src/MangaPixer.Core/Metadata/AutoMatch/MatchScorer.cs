@@ -20,8 +20,9 @@ namespace com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// conflict (the archive's creator tags name none of the record's authors).</item>
 /// <item><b>Bands</b> from <see cref="MatchThresholds"/>: auto = raw title &gt;= AutoTitle, adjusted lead
 /// &gt;= Margin over the next distinct record, no veto, and an auto-capable class; a
-/// <see cref="WorkClass.OneShot"/> folder additionally needs raw &gt;= <see cref="OneShotAutoTitle"/> and a
-/// one-shot / 1-volume record (a code constant, owner decision 13). Review = raw &gt;= ReviewFloor.</item>
+/// <see cref="WorkClass.OneShot"/> folder additionally needs raw &gt;= <see cref="OneShotAutoTitle"/> (a code
+/// constant, owner decision 13). A single archive may hold a one-shot, one volume or a whole multi-volume series
+/// (owner, 2026-09-26), so the record's volume count never blocks auto; a one-shot record only breaks ties. Review = raw &gt;= ReviewFloor.</item>
 /// <item><b>ToPersist</b> (decision 8): candidates within <see cref="PersistWindow"/> of the top, at most
 /// <see cref="PersistMax"/>; only the top when it leads the next by <see cref="PersistClearLead"/> or more.</item>
 /// </list>
@@ -53,8 +54,6 @@ public sealed class MatchScorer : IMatchScorer
     public const double CountFactor = 1.5;
     public const int CountSlack = 2;
 
-    /// <summary>One-shot conflict: the record has at least this many volumes.</summary>
-    public const int OneShotMaxVolumes = 3;
 
     public const double PersistWindow = 0.15;
     public const int PersistMax = 5;
@@ -62,7 +61,7 @@ public sealed class MatchScorer : IMatchScorer
 
     /// <summary>Reasons that veto auto (a conflict between local evidence and the record).</summary>
     public const MatchReason VetoReasons = MatchReason.CountConflict | MatchReason.YearConflict | MatchReason.TypeConflict
-        | MatchReason.RelatedPair | MatchReason.OneShotMismatch | MatchReason.AuthorConflict;
+        | MatchReason.RelatedPair | MatchReason.AuthorConflict;
 
     public MatchOutcome Score(MatchQuery query, IReadOnlyList<MatchCandidate> candidates, MatchThresholds thresholds)
     {
@@ -103,8 +102,7 @@ public sealed class MatchScorer : IMatchScorer
         if (!autoClass)
             reasons |= MatchReason.ReviewOnlyClass;
 
-        var oneShotOk = ctx.Class != WorkClass.OneShot
-            || (top.TitleScore >= OneShotAutoTitle && IsOneShotRecord(top.Candidate));
+        var oneShotOk = ctx.Class != WorkClass.OneShot || top.TitleScore >= OneShotAutoTitle;
 
         var band = autoClass && oneShotOk
             && top.TitleScore >= thresholds.AutoTitle
@@ -233,12 +231,14 @@ public sealed class MatchScorer : IMatchScorer
         }
 
         // One-shot shape: a one-shot folder, or a single archive of a collection that does not
-        // name a volume or chapter (a lone "Title v01" is one unit of a longer work).
-        if (ctx.Class == WorkClass.OneShot
-            || (IsArchiveLevel(ctx.Class) && ctx.ArchiveCount == 1 && ctx.VolumeLikeCount == 0 && ctx.ChapterLikeCount == 0))
+        // name a volume or chapter. A one-shot record gets a small tie-break; a multi-volume record is
+        // NOT a conflict - one archive can hold a whole series (owner, 2026-09-26), and linking a lone
+        // volume or an omnibus to its series record is right either way.
+        if ((ctx.Class == WorkClass.OneShot
+             || (IsArchiveLevel(ctx.Class) && ctx.ArchiveCount == 1 && ctx.VolumeLikeCount == 0 && ctx.ChapterLikeCount == 0))
+            && IsOneShotRecord(c))
         {
-            if (IsOneShotRecord(c)) delta += OneShotAgree;
-            else if (c.Volumes is >= OneShotMaxVolumes) { delta += Conflict; reasons |= MatchReason.OneShotMismatch; }
+            delta += OneShotAgree;
         }
 
         // ComicInfo series names the record.

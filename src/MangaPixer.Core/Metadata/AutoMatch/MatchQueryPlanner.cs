@@ -118,8 +118,13 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             && TitleNormalizer.Normalize(folder.DisplayName).Primary is { Length: > 0 } artist)
             AddDistinct(authorTags, artist);
 
+        // A group of loose archives in a container or mixed folder is a work inside a collection
+        // (owner, 2026-09-26): score it as one, so it may auto-link and the author veto applies.
+        var workClass = classification.Class is WorkClass.CollectionLeaf or WorkClass.ArtistCollection
+            ? classification.Class
+            : WorkClass.CollectionLeaf;
         var context = new MatchContext(
-            classification.Class,
+            workClass,
             names.Count,
             names.Count(AutoMatchText.IsVolumeLike),
             names.Count(AutoMatchText.IsChapterLike),

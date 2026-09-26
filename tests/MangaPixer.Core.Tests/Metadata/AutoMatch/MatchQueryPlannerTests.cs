@@ -114,4 +114,18 @@ public sealed class MatchQueryPlannerTests
 
         Assert.Equal(PlanFolder(f).Variants, PlanFolder(f).Variants);
     }
+
+    [Fact]
+    public void LooseArchiveGroup_InAContainer_IsScoredAsACollectionWork()
+    {
+        var detector = new WorkDetector();
+        var folder = new FolderShape("Manga", 1, ["Short Story.cbz"],
+            [new ChildFolderShape("Alpha Story", 10), new ChildFolderShape("Beta Tale", 12)]);
+        var c = detector.Classify(folder);
+
+        var q = _planner.PlanArchiveGroup(folder, c, c.ArchiveGroups.Single());
+
+        Assert.Equal(WorkClass.CollectionContainer, c.Class);
+        Assert.Equal(WorkClass.CollectionLeaf, q.Context.Class);
+    }
 }

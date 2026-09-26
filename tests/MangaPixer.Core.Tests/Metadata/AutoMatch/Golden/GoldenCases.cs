@@ -169,9 +169,8 @@ public static class GoldenCases
         new("A08 ambiguous folder: review only", F("Vinland Saga",
             ["Vinland Saga 1.cbz", "Vinland Saga 2.cbz", "Vinland Saga 3.cbz", "Alpha Story.cbz", "Beta Tale.cbz", "Gamma Saga.cbz"]),
             WorkClass.Ambiguous, MatchBand.NeedsReview, VinlandSaga),
-        new("A10 doujin anatomy: a lone archive of a 7-volume dj record -> one-shot veto", F("Doujin Shelf", s_doujinShelfLone), WorkClass.CollectionLeaf,
-            MatchBand.NeedsReview, YotsubaDjYanda, DoujinAllowed: true, GroupTitle: "Yanda&", Content: ContentSuggestion.DoujinshiAndAdultOneShots,
-            Vetoes: MatchReason.OneShotMismatch),
+        new("A10 doujin anatomy: a lone archive of a 7-volume dj record links to it (one archive may hold the whole series)", F("Doujin Shelf", s_doujinShelfLone), WorkClass.CollectionLeaf,
+            MatchBand.Auto, YotsubaDjYanda, DoujinAllowed: true, GroupTitle: "Yanda&", Content: ContentSuggestion.DoujinshiAndAdultOneShots),
         new("A09 mixed folder: review only", F("Berserk", ["Berserk v01.cbz"], subs: [("Berserk Gaiden", 2)]), WorkClass.Mixed, MatchBand.NeedsReview, Berserk),
 
         // --- Detector only ---------------------------------------------------------------------

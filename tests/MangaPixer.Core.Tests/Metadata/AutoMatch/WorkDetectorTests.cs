@@ -127,9 +127,50 @@ public sealed class WorkDetectorTests
     {
         Assert.Equal(WorkClass.Wrapper, _detector.Classify(Folder("Outer", [], [("Inner Series", 5)])).Class);
 
+        // A loose titled archive next to one subfolder is its own work: matched one by one (owner, 2026-09-26).
         var mixed = _detector.Classify(Folder("Outer", ["Loose One.cbz"], [("Inner Series", 5)]));
         Assert.Equal(WorkClass.Mixed, mixed.Class);
-        Assert.Equal(MatchLevel.ReviewOnly, mixed.Level);
+        Assert.Equal(MatchLevel.Archive, mixed.Level);
+        Assert.Single(mixed.ArchiveGroups);
+    }
+
+    [Fact]
+    public void Mixed_WithLooseUnitsOfOneWork_StaysReviewOnly()
+    {
+        var c = _detector.Classify(Folder("Some Series", Numbered("Some Series v{0:00}.cbz", 4), [("Side Story Title", 2)]));
+
+        Assert.Equal(WorkClass.Mixed, c.Class);
+        Assert.Equal(MatchLevel.ReviewOnly, c.Level);
+        Assert.Empty(c.ArchiveGroups);
+    }
+
+    [Fact]
+    public void Container_LooseOneShots_AreMatchedOneByOne_ItsSubfoldersStayCandidates()
+    {
+        var c = _detector.Classify(Folder("Manga", ["Short Story.cbz", "Another Tale.cbz"],
+            [("Alpha Story", 10), ("Beta Tale", 12), ("Gamma Saga", 3)], depth: 1));
+
+        Assert.Equal(WorkClass.CollectionContainer, c.Class);
+        Assert.Equal(MatchLevel.Archive, c.Level);
+        Assert.Equal(2, c.ArchiveGroups.Count);
+    }
+
+    [Fact]
+    public void Container_OneLooseArchive_IsItsOwnWork_EvenAWholeSeriesInOneFile()
+    {
+        var c = _detector.Classify(Folder("Manga", ["Complete Series Omnibus.cbz"], [("Alpha Story", 10), ("Beta Tale", 12)], depth: 1));
+
+        Assert.Equal(MatchLevel.Archive, c.Level);
+        Assert.Single(c.ArchiveGroups);
+    }
+
+    [Fact]
+    public void Container_LooseVolumesOfOneWork_AreNotMatchedOneByOne()
+    {
+        var c = _detector.Classify(Folder("Manga", Numbered("Some Series v{0:00}.cbz", 3), [("Alpha Story", 10), ("Beta Tale", 12)], depth: 1));
+
+        Assert.Equal(MatchLevel.None, c.Level);
+        Assert.Empty(c.ArchiveGroups);
     }
 
     [Fact]

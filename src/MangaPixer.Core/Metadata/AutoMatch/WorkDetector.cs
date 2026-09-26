@@ -74,12 +74,19 @@ public sealed class WorkDetector : IWorkDetector
         var workSubs = subfolders.Where(s => !AutoMatchText.IsUnitFolderName(s.DisplayName)).ToList();
 
         if (workSubs.Count >= 2)
-            return ClassifyContainer(folder, workSubs, archives.Count, content);
+            return ClassifyContainer(folder, workSubs, archives, content);
 
         if (workSubs.Count == 1)
         {
-            return archives.Count == 0
-                ? Result(WorkClass.Wrapper, MatchLevel.None, ["exactly one non-unit subfolder and no archives"], content: content)
+            if (archives.Count == 0)
+                return Result(WorkClass.Wrapper, MatchLevel.None, ["exactly one non-unit subfolder and no archives"], content: content);
+
+            // Loose archives that are separate works (one-shots, or a whole series in one archive) are
+            // matched one by one (owner, 2026-09-26); loose units of one work keep the folder review-only.
+            var mixedGroups = LooseWorkGroups(folder, archives, content);
+            return mixedGroups.Count > 0
+                ? Result(WorkClass.Mixed, MatchLevel.Archive,
+                    [Invariant($"one non-unit subfolder plus {archives.Count} loose archives, matched one by one")], mixedGroups, content)
                 : Result(WorkClass.Mixed, MatchLevel.ReviewOnly,
                     [Invariant($"one non-unit subfolder plus {archives.Count} loose archives")], content: content);
         }
@@ -106,7 +113,7 @@ public sealed class WorkDetector : IWorkDetector
     }
 
     private static WorkClassification ClassifyContainer(
-        FolderShape folder, List<ChildFolderShape> workSubs, int looseArchives, ContentSuggestion content)
+        FolderShape folder, List<ChildFolderShape> workSubs, IReadOnlyList<string> archives, ContentSuggestion content)
     {
         var parent = TitleNormalizer.Normalize(folder.DisplayName).Primary;
         var related = workSubs.Count(s =>
@@ -119,12 +126,34 @@ public sealed class WorkDetector : IWorkDetector
             return AutoMatchText.ContainsTokens(child, parent) || TitleSimilarity.Score(child, parent) >= FranchiseRelatedScore;
         });
 
-        var loose = looseArchives > 0 ? Invariant($", {looseArchives} loose archives (not matched)") : string.Empty;
+        // The container itself is never matched (its subfolders are the candidates), but loose archives
+        // that are separate works are matched one by one (owner, 2026-09-26): level Archive + groups.
+        var groups = archives.Count > 0 ? LooseWorkGroups(folder, archives, content) : [];
+        var level = groups.Count > 0 ? MatchLevel.Archive : MatchLevel.None;
+        var loose = archives.Count == 0 ? string.Empty
+            : groups.Count > 0 ? Invariant($", {archives.Count} loose archives matched one by one")
+            : Invariant($", {archives.Count} loose archives (units of one work - not matched)");
         return related * 2 >= workSubs.Count
-            ? Result(WorkClass.FranchiseContainer, MatchLevel.None,
-                [Invariant($"{related} of {workSubs.Count} subfolders related to the folder name{loose}")], content: content)
-            : Result(WorkClass.CollectionContainer, MatchLevel.None,
-                [Invariant($"{workSubs.Count} unrelated subfolders{loose}")], content: content);
+            ? Result(WorkClass.FranchiseContainer, level,
+                [Invariant($"{related} of {workSubs.Count} subfolders related to the folder name{loose}")], groups, content)
+            : Result(WorkClass.CollectionContainer, level,
+                [Invariant($"{workSubs.Count} unrelated subfolders{loose}")], groups, content);
+    }
+
+    /// <summary>
+    /// Archive groups for archives lying loose next to subfolders, or none when they look like units of
+    /// one work (<c>Vol 01</c>, <c>Vol 02</c> ...), which must not be matched one by one. A single titled
+    /// archive is its own work: a one-shot, or a whole series in one archive.
+    /// </summary>
+    private static IReadOnlyList<ArchiveGroup> LooseWorkGroups(FolderShape folder, IReadOnlyList<string> archives, ContentSuggestion content)
+    {
+        if (archives.Count == 1)
+            return GroupArchives(archives);
+        // Only "units of one work" is excluded. The folder-level collection thresholds (E6) are
+        // calibrated for whole folders and call two different titles ambiguous; loose archives outside
+        // any series folder are works of their own (numbered mini-series still grouped).
+        var leaf = ClassifyLeaf(folder, archives, content);
+        return leaf.Class == WorkClass.Series ? [] : GroupArchives(archives);
     }
 
     private static WorkClassification ClassifyLeaf(FolderShape folder, IReadOnlyList<string> archives, ContentSuggestion content)

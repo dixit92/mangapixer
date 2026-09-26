@@ -196,14 +196,16 @@ public sealed class MatchScorerTests
     }
 
     [Fact]
-    public void OneShotFolder_NeedsAOneShotRecord()
+    public void OneShotFolder_AutoLinks_WhateverTheRecordsVolumeCount()
     {
+        // One archive can be a one-shot, one volume or a whole multi-volume series (owner, 2026-09-26):
+        // the record's volume count never blocks auto; only the stricter title score does.
         Assert.Equal(MatchBand.Auto, Score(Query(["Short Story"], cls: WorkClass.OneShot, archives: 1), Rec("1", "Short Story", volumes: 1)).Band);
-        Assert.Equal(MatchBand.NeedsReview, Score(Query(["Short Story"], cls: WorkClass.OneShot, archives: 1), Rec("1", "Short Story")).Band);
+        Assert.Equal(MatchBand.Auto, Score(Query(["Short Story"], cls: WorkClass.OneShot, archives: 1), Rec("1", "Short Story")).Band);
 
-        var big = Score(Query(["Short Story"], cls: WorkClass.OneShot, archives: 1), Rec("1", "Short Story", volumes: 12));
-        Assert.Equal(MatchBand.NeedsReview, big.Band);
-        Assert.True(big.Ranked[0].Reasons.HasFlag(MatchReason.OneShotMismatch));
+        var wholeSeries = Score(Query(["Short Story"], cls: WorkClass.OneShot, archives: 1), Rec("1", "Short Story", volumes: 12));
+        Assert.Equal(MatchBand.Auto, wholeSeries.Band);
+        Assert.False(wholeSeries.Ranked[0].Reasons.HasFlag(MatchReason.OneShotMismatch));
     }
 
     [Fact]

@@ -216,6 +216,7 @@ public enum MatchReason
     YearConflict = 1 << 2,
     TypeConflict = 1 << 3,
     RelatedPair = 1 << 4,
+    /// <summary>Retired 2026-09-26 (owner: one archive can hold a whole series); never raised, kept so values stay stable.</summary>
     OneShotMismatch = 1 << 5,
     AuthorConflict = 1 << 6,
     NumberMismatch = 1 << 7,
