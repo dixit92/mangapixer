@@ -5,7 +5,7 @@ import {
 import { EnhanceQuality, ReaderPreferencesService, Upscaler } from '../../core/reading/reader-preferences.service';
 import {
   Availability, GpuCaps, UpscaleBackend, UpscaleEngine, WebGlCaps, availabilityFor, backendFor, capsSummary,
-  effectiveUpscaler, noWebGl, probeWebGl, upscalerLabels,
+  effectiveUpscaler, noWebGl, probeWebGl, sameBackend, upscalerLabels,
 } from './upscale-engine';
 import type { EnhanceChain } from './webtoon-band-plan';
 
@@ -162,7 +162,7 @@ export class UpscaleSupportService {
 
   /** The backend the stored Rendering choice runs on here, or null (Smooth, or it cannot run). */
   readonly backend = computed<UpscaleBackend | null>(() => backendFor(this.prefs.upscaler(), this.caps()),
-    { equal: (a, b) => a === b || (!!a && !!b && a.mode === b.mode && a.engine === b.engine) });
+    { equal: sameBackend });
 
   /** The choice actually on screen: the stored one, or Smooth when it cannot run here. */
   readonly effective = computed<Upscaler>(() => effectiveUpscaler(this.prefs.upscaler(), this.caps()));
