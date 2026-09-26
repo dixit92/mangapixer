@@ -140,7 +140,8 @@ public sealed class MetadataIdentifyService
         if (node is null)
             return null;
 
-        var page = await _gateway.SearchAsync(DefaultProvider, node.LibraryId, request.Query, request.Page, ct);
+        var page = await _gateway.SearchAsync(
+            DefaultProvider, node.LibraryId, request.Query, request.Page, request.HideDoujinshiAndNovels, ct);
         var name = TitleNormalizer.Normalize(node.DisplayName);
         var queries = name.Variants.Append(MetadataGateway.NormalizeQuery(request.Query)).ToList();
 

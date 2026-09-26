@@ -78,7 +78,15 @@ public sealed record IdentifySearchRequest
     public required string Query { get; init; }
     public int Page { get; init; } = 1;
 
-    public override string ToString() => $"IdentifySearchRequest {{ Query = [redacted], Page = {Page} }}";
+    /// <summary>
+    /// Leave doujinshi, novels, artbooks and drama CDs out of the results (the
+    /// identify dialog's "Hide doujinshi &amp; novels", on by default there). Sent to
+    /// the provider as a fixed type filter; carries no user data.
+    /// </summary>
+    public bool HideDoujinshiAndNovels { get; init; }
+
+    public override string ToString() =>
+        $"IdentifySearchRequest {{ Query = [redacted], Page = {Page}, HideDoujinshiAndNovels = {HideDoujinshiAndNovels} }}";
 }
 
 /// <summary>A pasted reference; like the query, never printed by <see cref="ToString"/> (URLs carry title slugs).</summary>

@@ -127,7 +127,8 @@ public sealed class MetadataGateway
     /// of provider + normalized query + page; never persisted or logged) when
     /// possible, else one gated request.
     /// </summary>
-    public async Task<ProviderSearchPage> SearchAsync(string providerId, long libraryId, string query, int page, CancellationToken ct = default)
+    public async Task<ProviderSearchPage> SearchAsync(
+        string providerId, long libraryId, string query, int page, bool hideDoujinshiAndNovels = false, CancellationToken ct = default)
     {
         var provider = Provider(providerId);
         var text = NormalizeQuery(query);
@@ -137,12 +138,12 @@ public sealed class MetadataGateway
         page = Math.Clamp(page, 1, 100);
 
         await ThrowIfSwitchedOffAsync(libraryId, ct);
-        var key = SearchCacheKey(provider.Id, text, page);
+        var key = SearchCacheKey(provider.Id, text, page, hideDoujinshiAndNovels);
         if (_cache.TryGetValue<ProviderSearchPage>(key, out var cached) && cached is not null)
             return cached;
 
         var result = await CallAsync(provider.Id, "search", libraryId, _state.ApiLimiter,
-            c => provider.SearchSeriesAsync(new ProviderSearchQuery(text, libraryId, page, SearchPageSize), c), ct);
+            c => provider.SearchSeriesAsync(new ProviderSearchQuery(text, libraryId, page, SearchPageSize, hideDoujinshiAndNovels), c), ct);
         _cache.Set(key, result, SearchCacheTtl);
         return result;
     }
@@ -305,9 +306,9 @@ public sealed class MetadataGateway
     public static string NormalizeQuery(string? query) =>
         string.Join(' ', (query ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
-    private static string SearchCacheKey(string providerId, string text, int page)
+    private static string SearchCacheKey(string providerId, string text, int page, bool hideDoujinshiAndNovels)
     {
-        var material = Encoding.UTF8.GetBytes($"{providerId}\n{text.ToLowerInvariant()}\n{page}");
+        var material = Encoding.UTF8.GetBytes($"{providerId}\n{text.ToLowerInvariant()}\n{page}\n{(hideDoujinshiAndNovels ? 1 : 0)}");
         return "metadata-search:" + Convert.ToHexString(SHA256.HashData(material));
     }
 }

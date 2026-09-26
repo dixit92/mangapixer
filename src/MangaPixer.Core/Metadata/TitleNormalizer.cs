@@ -14,8 +14,8 @@ using System.Text.RegularExpressions;
 /// Pipeline for <see cref="Normalize"/>:
 /// NFKC (full-width to ASCII) -> strip a known archive extension -> <c>_</c> and
 /// <c>.</c> become spaces when the name has no spaces -> bracketed tags
-/// <c>[...]</c>, <c>(...)</c>, <c>{...}</c> are removed, EXCEPT a non-leading
-/// <c>[English Title]</c> of at least two words (a second query variant, the
+/// <c>[...]</c>, <c>(...)</c>, <c>{...}</c> are removed, EXCEPT a non-leading,
+/// trailing <c>[English Title]</c> of at least two words (no further tag after it) (a second query variant, the
 /// Manga-list convention) and a <c>(19xx|20xx)</c> year (a year hint) -> volume
 /// and chapter tokens are removed, edition words are removed but kept as hints ->
 /// whitespace collapsed, edge punctuation trimmed.
@@ -71,15 +71,19 @@ public static partial class TitleNormalizer
         if (!s.Contains(' ', StringComparison.Ordinal))
             s = s.Replace('_', ' ').Replace('.', ' ');
 
-        // (a) a non-leading [English Title] of >= 2 words becomes a second variant.
+        // (a) a non-leading, TRAILING [English Title] of >= 2 words becomes a second
+        // variant. Only the last bracket group qualifies (a year group after it is
+        // allowed): a [Group] tag followed by further tags ("[Scan Team] [OneShot]")
+        // is a scanlation group, never a title.
         string? englishVariant = null;
-        foreach (Match m in SquareGroup().Matches(s))
+        var lastSquare = SquareGroup().Matches(s).LastOrDefault();
+        if (lastSquare is not null && lastSquare.Index > 0) // a leading [Group] tag is never a title
         {
-            if (m.Index == 0)
-                continue; // a leading [Group] tag is a scanlation group, never a title
-            var inner = m.Groups[1].Value.Trim();
-            if (CountWords(inner) >= 2 && inner.Any(char.IsLetter))
-                englishVariant = inner; // the last qualifying group wins ("trailing")
+            var after = s[(lastSquare.Index + lastSquare.Length)..];
+            var inner = lastSquare.Groups[1].Value.Trim();
+            var tagsAfter = AnyBracketGroup().Matches(after).Any(g => !YearGroup().IsMatch(g.Value));
+            if (!tagsAfter && CountWords(inner) >= 2 && inner.Any(char.IsLetter))
+                englishVariant = inner;
         }
 
         // (b) a (19xx|20xx) year becomes a year hint.

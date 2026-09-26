@@ -54,8 +54,11 @@ public enum MetadataCapabilities
 /// <summary>A provider record reference parsed locally.</summary>
 public sealed record ProviderRef(string Provider, string ExternalId);
 
-/// <summary>A search the admin confirmed. <see cref="LibraryId"/> is the library the call is made for (gateway gate).</summary>
-public sealed record ProviderSearchQuery(string Text, long LibraryId, int Page = 1, int PerPage = 10);
+/// <summary>
+/// A search the admin confirmed. <see cref="LibraryId"/> is the library the call is made for (gateway gate).
+/// <see cref="HideDoujinshiAndNovels"/> asks the provider to leave doujinshi, novels, artbooks and drama CDs out.
+/// </summary>
+public sealed record ProviderSearchQuery(string Text, long LibraryId, int Page = 1, int PerPage = 10, bool HideDoujinshiAndNovels = false);
 
 public sealed record ProviderSearchPage(IReadOnlyList<ProviderSearchHit> Hits, int TotalHits);
 

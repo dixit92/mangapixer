@@ -50,6 +50,27 @@ public sealed class TitleNormalizerTests
         Assert.Single(TitleNormalizer.Normalize("[Scan Group Name] Some Series").Variants);
     }
 
+    [Theory]
+    [InlineData("Some Series v00 (2008) [Scan Team Name] [OneShot].cbz")]
+    [InlineData("Some Series [Scan Team Name] (Digital)")]
+    [InlineData("Some Series [Scan Team Name] {HQ} v01")]
+    public void Normalize_BracketFollowedByFurtherTags_IsAGroupNotAVariant(string name)
+    {
+        var n = TitleNormalizer.Normalize(name);
+
+        Assert.Equal("Some Series", n.Primary);
+        Assert.Equal(["Some Series"], n.Variants);
+    }
+
+    [Fact]
+    public void Normalize_TrailingEnglishTitleBeforeAYear_IsStillAVariant()
+    {
+        var n = TitleNormalizer.Normalize("Dungeon Meshi [Delicious in Dungeon] (2014)");
+
+        Assert.Equal(["Dungeon Meshi", "Delicious in Dungeon"], n.Variants);
+        Assert.Equal(2014, n.YearHint);
+    }
+
     [Fact]
     public void Normalize_YearInParentheses_BecomesAHint()
     {

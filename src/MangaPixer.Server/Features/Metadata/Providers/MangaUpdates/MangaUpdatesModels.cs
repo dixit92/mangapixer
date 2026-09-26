@@ -10,7 +10,9 @@ using System.Text.Json.Serialization;
 internal sealed record MuSearchRequest(
     [property: JsonPropertyName("search")] string Search,
     [property: JsonPropertyName("page")] int Page,
-    [property: JsonPropertyName("perpage")] int PerPage);
+    [property: JsonPropertyName("perpage")] int PerPage,
+    [property: JsonPropertyName("filter_types"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<string>? FilterTypes = null);
 
 internal sealed record MuSearchResponse
 {

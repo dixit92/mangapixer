@@ -5,7 +5,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 
 /// <summary>
-/// Flattens provider text (Markdown links and emphasis, stray HTML, entities)
+/// Flattens provider text (Markdown links, headings, emphasis and quote markers,
+/// stray HTML, entities)
 /// into bounded plain text for storage (1.24.0). The result is DATA: the web
 /// client renders it as text, never as markup, and links inside it are reduced
 /// to their label (a provider URL never reaches the browser this way).
@@ -20,6 +21,18 @@ public static partial class MetadataText
 
     [GeneratedRegex(@"<[^<>]{0,200}>", RegexOptions.CultureInvariant)]
     private static partial Regex HtmlTag();
+
+    // "##### Notes:" -> "Notes:" (ATX heading marker at a line start, up to 3 spaces of indent).
+    [GeneratedRegex(@"^[ \t]{0,3}#{1,6}(?:[ \t]+|$)", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
+    private static partial Regex HeadingMarker();
+
+    // "> quoted" -> "quoted" (one or more quote markers at a line start).
+    [GeneratedRegex(@"^[ \t]*(?:>[ \t]?)+", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
+    private static partial Regex QuoteMarker();
+
+    // "_word_" -> "word", only when the underscores sit at word edges (snake_case survives).
+    [GeneratedRegex(@"(?<![\p{L}\p{N}_])_(?=[^\s_])([^_\n]*?[^\s_])_(?![\p{L}\p{N}_])", RegexOptions.CultureInvariant)]
+    private static partial Regex UnderscoreEmphasis();
 
     [GeneratedRegex(@"[ \t]+\n", RegexOptions.CultureInvariant)]
     private static partial Regex TrailingSpaces();
@@ -41,9 +54,12 @@ public static partial class MetadataText
         s = HtmlBreak().Replace(s, "\n");
         s = HtmlTag().Replace(s, string.Empty);
         s = WebUtility.HtmlDecode(s);
+        s = HeadingMarker().Replace(s, string.Empty);
+        s = QuoteMarker().Replace(s, string.Empty);
         s = s.Replace("**", string.Empty, StringComparison.Ordinal)
              .Replace("__", string.Empty, StringComparison.Ordinal)
              .Replace("*", string.Empty, StringComparison.Ordinal);
+        s = UnderscoreEmphasis().Replace(s, "$1");
 
         var sb = new StringBuilder(s.Length);
         foreach (var c in s)
