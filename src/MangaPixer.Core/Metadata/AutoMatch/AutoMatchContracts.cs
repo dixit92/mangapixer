@@ -85,6 +85,9 @@ public sealed record ChildFolderShape(string DisplayName, int DescendantArchiveC
 /// <summary>
 /// One folder, as the detector sees it: display names only (never paths), counts, and the
 /// category hint (the nearest ancestor named like a category, e.g. "manga", "manhwa").
+/// <c>KnownAuthorNames</c> (optional, added by the matcher-core lane): provider author names the
+/// caller already holds (e.g. from linked records); a folder named like one of them is an
+/// artist collection. <c>Depth</c>: 0 = the library root, its direct children 1.
 /// </summary>
 public sealed record FolderShape(
     string DisplayName,
@@ -92,7 +95,8 @@ public sealed record FolderShape(
     IReadOnlyList<string> ArchiveNames,
     IReadOnlyList<ChildFolderShape> Subfolders,
     string? ParentDisplayName = null,
-    string? CategoryHint = null);
+    string? CategoryHint = null,
+    IReadOnlyList<string>? KnownAuthorNames = null);
 
 /// <summary>Archives of a collection folder that form one work (a numbered mini-series, or one archive).</summary>
 public sealed record ArchiveGroup(string QueryTitle, IReadOnlyList<int> ArchiveIndexes);
@@ -153,7 +157,14 @@ public interface IMatchQueryPlanner
 
 public sealed record CandidateRelation(string ExternalId, string Relation);
 
-/// <summary>A provider record as the scorer sees it (public provider data only).</summary>
+/// <summary>
+/// A provider record as the scorer sees it (public provider data only). <c>Origin</c> accepts a
+/// provider type ("Manga", "Manhwa", "Manhua", "OEL") or a <see cref="MetadataOrigin"/> name.
+/// <c>Webtoon</c> (optional, added by the matcher-core lane) is the record's webtoon flag.
+/// <c>TotalChapters</c> (optional, added by the matcher-core lane): the provider's total chapter count when
+/// it states one (MangaUpdates status "652 Chapters (Ongoing)"); <c>LatestChapter</c> restarts per season for
+/// season-renumbered webtoons, so the count rule compares chapters with the larger of the two.
+/// </summary>
 public sealed record MatchCandidate(
     string Provider,
     string ExternalId,
@@ -165,7 +176,9 @@ public sealed record MatchCandidate(
     int? Volumes,
     int? LatestChapter,
     IReadOnlyList<string> Authors,
-    IReadOnlyList<CandidateRelation> Relations);
+    IReadOnlyList<CandidateRelation> Relations,
+    bool? Webtoon = null,
+    int? TotalChapters = null);
 
 /// <summary>
 /// Admin-adjustable thresholds (owner decision 13), validated against the bounds below.
