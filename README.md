@@ -53,7 +53,7 @@ You need Docker with Compose v2. The Compose file pulls the published image from
 3. From that folder, pull and start the version you want (see [Releases](https://github.com/dixit92/mangapixer/releases)):
 
    ```bash
-   export MANGAPIXER_VERSION=1.24.2
+   export MANGAPIXER_VERSION=1.25.0
    docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d
    ```
 
