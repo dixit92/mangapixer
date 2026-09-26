@@ -232,11 +232,12 @@ export class UpscaleSupportService {
   /**
    * The once-per-session message for a SAVED choice that cannot run here
    * ("Enhance isn't available here - showing Smooth."), or null. The reader shows
-   * it and calls `markNoticeShown()`.
+   * it and calls `markNoticeShown()`. The unsaved default (Crisp since 1.25.0) is
+   * never announced: the user did not choose it, and the menu still shows why.
    */
   readonly pendingNotice = computed<string | null>(() => {
     const pref = this.prefs.upscaler();
-    if (pref === 'smooth' || this.noticed().has(pref)) return null;
+    if (pref === 'smooth' || !this.prefs.upscalerChosen() || this.noticed().has(pref)) return null;
     const a = availabilityFor(pref, this.caps());
     return a.state === 'unavailable' ? `${upscalerLabels[pref]} isn't available here - showing Smooth.` : null;
   });

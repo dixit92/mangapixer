@@ -84,6 +84,7 @@ describe('WebtoonEnhanceCoordinator', () => {
   }
 
   beforeEach(() => {
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // the default is Crisp since 1.25.0; these flows predate it
     FakeIO.all = [];
     FakeRO.all = [];
     pending = [];

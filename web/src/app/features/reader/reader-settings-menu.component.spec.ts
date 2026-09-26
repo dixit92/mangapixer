@@ -18,6 +18,7 @@ describe('ReaderSettingsMenuComponent', () => {
       providers: [provideNoopAnimations()],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const fixture = TestBed.createComponent(ReaderSettingsMenuComponent);
     fixture.detectChanges();
     return { fixture, c: fixture.componentInstance, prefs: TestBed.inject(ReaderPreferencesService) };
@@ -514,6 +515,7 @@ describe('ReaderOptionsSheetComponent', () => {
       ],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const fixture = TestBed.createComponent(ReaderOptionsSheetComponent);
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;

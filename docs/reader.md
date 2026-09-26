@@ -122,8 +122,8 @@ Press `s` to cycle through the filters while reading. With **Full** page quality
 
 What happens when a page is shown *larger* than its original resolution (a small or old scan on a big or high-density screen). Pages that are not being enlarged are always left to the browser, and nothing is ever sent to the server: the work happens on your device's graphics chip.
 
-- **Smooth** (default): the browser's normal image scaling. No extra work, works everywhere.
-- **Crisp**: AMD FidelityFX Super Resolution 1 (FSR 1): an edge-aware upscale plus a light sharpening pass. Cheap on battery, and it works on almost any device, over plain `http://` too.
+- **Smooth**: the browser's normal image scaling. No extra work, works everywhere.
+- **Crisp** (default): AMD FidelityFX Super Resolution 1 (FSR 1): an edge-aware upscale plus a light sharpening pass. Cheap on battery, and it works on almost any device, over plain `http://` too.
 - **Enhance**: Anime4K, an upscaler designed for anime and line art. It restores and redraws lines and screentones for the sharpest result, at more graphics work than Crisp.
 
 Which graphics engine runs what:
@@ -138,7 +138,7 @@ Browsers only offer WebGPU to secure pages, so on a phone or tablet that opens M
 
 The Rendering menu always tells you what is running: the selected choice has a small second line naming the engine (for example "WebGPU", or "WebGL2 - WebGPU needs HTTPS"), and a choice that cannot run on this device is greyed out with the reason ("Needs a secure connection (HTTPS)", "Graphics chip unavailable", ...). On phones, the reasons are listed under the Rendering chips. If a choice you picked earlier (for example on HTTPS) cannot run on this connection, the reader says so once ("Enhance isn't available here - showing Smooth.") and shows the page with Smooth; your choice is kept for the next time it can run. The status line under Rendering (also the Rendering button's tooltip) sums up what this device offers (for example "GPU: WebGPU needs HTTPS, WebGL2 ready"); on a phone, where the choices are chips without a second line, it names the engine in use instead. If the browser can only draw WebGL in software (its graphics chip is blocked, often an old or unusual driver), Enhance is greyed out as "Graphics chip unavailable", because it would take seconds per page; Crisp still works there.
 
-Crisp and Enhance work in single page, double page and vertical modes. Press `e` to cycle Smooth, Crisp and Enhance (choices this device cannot run are skipped). Both use the graphics chip, so they can use more battery on phones and tablets; Crisp much less than Enhance.
+Crisp is the default until you pick something else on a device; where it cannot run, that device quietly shows Smooth (the menu says why). Enhance has the edge on some pages, but it costs several times the graphics work and battery of Crisp. Crisp and Enhance work in single page, double page and vertical modes. Press `e` to cycle Smooth, Crisp and Enhance (choices this device cannot run are skipped). Both use the graphics chip, so they can use more battery on phones and tablets; Crisp much less than Enhance.
 
 **Enhance quality** picks how much work Enhance does in single and double page. It appears under Rendering while Enhance is selected (not in vertical mode):
 

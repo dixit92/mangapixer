@@ -292,6 +292,16 @@ describe('UpscaleSupportService engines (1.25.0)', () => {
     expect(svc.pendingNotice()).toBeNull(); // already said this session
   });
 
+  it('the unsaved Crisp default that cannot run here is never announced; once saved, it is (1.25.0)', () => {
+    localStorage.clear();
+    const { svc, prefs } = setup();
+    expect(prefs.upscaler()).toBe('sharp'); // the default, not chosen
+    expect(prefs.upscalerChosen()).toBe(false);
+    expect(svc.pendingNotice()).toBeNull(); // jsdom has no WebGL2: Smooth shows, quietly
+    prefs.setUpscaler('sharp');
+    expect(svc.pendingNotice()).toBe("Crisp isn't available here - showing Smooth.");
+  });
+
   it('Enhance falling back to WebGL2 is not a notice (it runs; the menu names the engine)', () => {
     const { svc, prefs } = setup();
     svc.secure.set(false);

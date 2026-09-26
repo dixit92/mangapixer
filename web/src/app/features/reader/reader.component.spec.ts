@@ -550,6 +550,7 @@ describe('ReaderComponent webtoon Enhance wiring (1.24.0)', () => {
   function renderView(view: 'webtoon' | 'paged') {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const fixture = TestBed.createComponent(ReaderComponent);
     fixture.detectChanges(); // ngOnInit
     const c = fixture.componentInstance;
@@ -625,6 +626,7 @@ describe('ReaderComponent page loading feedback (1.24.0)', () => {
       }],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const fixture = TestBed.createComponent(ReaderComponent);
     fixture.detectChanges(); // ngOnInit
     const c = fixture.componentInstance;
@@ -709,7 +711,7 @@ describe('ReaderComponent per-device page mode', () => {
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: height });
   }
 
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => { localStorage.clear(); localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); });
 
   it('chooseView("webtoon") switches the view but does NOT persist a device-global preference', () => {
     // Option A fix (reader-mode-sticky bug): webtoon is content orientation, not a
@@ -1676,6 +1678,7 @@ describe('ReaderComponent page-navigation transition (1.9.0)', () => {
   function create() {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
     c.pages.set(makePages(6));
     c.view.set('paged');
@@ -1774,7 +1777,7 @@ describe('ReaderComponent onboarding help auto-show (1.9.0)', () => {
     return TestBed.createComponent(ReaderComponent).componentInstance;
   }
 
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => { localStorage.clear(); localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); });
 
   it('auto-shows help the first time and records it seen (per-device)', () => {
     const c = create();
@@ -1987,6 +1990,7 @@ describe('ReaderComponent webtoon tap-to-scroll (1.11.0)', () => {
   function create() {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
     c.itemId.set('item-1');
     c.pages.set(makePages(10));
@@ -2142,6 +2146,7 @@ describe('ReaderComponent adaptive double page on narrow portrait (1.11.0)', () 
       providers: [...baseProviders(), { provide: BreakpointObserver, useValue: breakpoints }],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
     c.itemId.set('item-1');
     c.pages.set(makePages(6)); // standalone cover: [0],[1,2],[3,4],[5]
@@ -2264,6 +2269,7 @@ describe('ReaderComponent page-turn ghost (1.11.0)', () => {
   function create(animation: 'slide' | 'reveal' | 'none') {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
     TestBed.inject(ReaderPreferencesService).setPageAnimation(animation);
     c.itemId.set('item-1');
@@ -2496,7 +2502,7 @@ describe('ReaderComponent onKeyDown reader shortcuts (page mode / downscale filt
     return { key, target } as unknown as KeyboardEvent;
   }
 
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => { localStorage.clear(); localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); });
 
   it("'d' toggles single <-> double page, case-insensitively", () => {
     const c = create('paged');
@@ -2801,6 +2807,7 @@ describe('ReaderComponent page variant requests', () => {
       ],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
     c.itemId.set('item-1');
     c.pages.set(makePages(6)); // 800x1200 -> aspect 1.5
@@ -2960,6 +2967,7 @@ describe('ReaderComponent per-page aspect requests (webtoon downsampling fix, 1.
       ],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
     c.itemId.set('item-1');
     // A webtoon strip's pages vary hugely in height: p0 is a normal-aspect
@@ -3040,6 +3048,7 @@ describe('ReaderComponent downscale filter requests (1.20.0)', () => {
       ],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     const c = TestBed.createComponent(ReaderComponent).componentInstance;
     c.itemId.set('item-1');
     c.pages.set(makePages(6));
@@ -3116,6 +3125,7 @@ describe('ReaderComponent downscale filter requests (1.20.0)', () => {
       ],
     });
     localStorage.clear();
+    localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
     Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
     Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true });
     Object.defineProperty(window, 'devicePixelRatio', { value: 1, configurable: true });
