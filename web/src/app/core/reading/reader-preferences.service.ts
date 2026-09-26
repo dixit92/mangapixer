@@ -35,17 +35,23 @@ export type PageAnimation = 'slide' | 'reveal' | 'none';
 export type PageQuality = 'auto' | 'full';
 
 /**
- * How an UPSCALED page is resampled for display (1.19.0). Only relevant when the
- * page is being painted LARGER than its natural size (a small/old scan on a big
- * screen); a downscale is already handled server-side.
- *  - `smooth` — the default and exactly today's behaviour: whatever the browser's
+ * How an UPSCALED page is resampled for display (1.19.0; `sharp` 1.25.0). Only
+ * relevant when the page is being painted LARGER than its natural size (a
+ * small/old scan on a big screen); a downscale is already handled server-side.
+ *  - `smooth` - the default and exactly today's behaviour: whatever the browser's
  *    built-in image smoothing does. Zero cost, works everywhere.
- *  - `enhance` — a GPU (WebGPU) line-art upscaler, Anime4K, rendered into a
- *    canvas laid over the page. Line art and screentones survive magnification
- *    far better than with bilinear smoothing. Needs WebGPU; where it is missing
- *    the reader silently renders as `smooth` and the settings UI says so.
+ *  - `sharp` - AMD FSR 1 (edge-adaptive upscale + contrast-adaptive sharpening) on
+ *    WebGL2: two cheap GPU passes, no secure context needed, so it also works over
+ *    plain `http://` on a LAN.
+ *  - `enhance` - the Anime4K line-art upscaler, rendered into a canvas laid over
+ *    the page: on WebGPU where the browser offers it (HTTPS or localhost only),
+ *    otherwise on WebGL2 (Efficient chain only). Line art and screentones survive
+ *    magnification far better than with bilinear smoothing.
+ * Where the saved choice cannot run on this device the reader shows the page as
+ * `smooth`, says so once per session, and the settings UI names the reason; the
+ * stored value is kept, so the same choice works again on a capable connection.
  */
-export type Upscaler = 'smooth' | 'enhance';
+export type Upscaler = 'smooth' | 'sharp' | 'enhance';
 
 /**
  * Which Anime4K network Enhance runs (1.24.0, owner decision 2026-09-25):
@@ -56,6 +62,8 @@ export type Upscaler = 'smooth' | 'enhance';
  *    what paged Enhance used from 1.19.0 to 1.23.x.
  * Only the PAGED / double-page views honour `max`; the vertical (webtoon) view
  * always runs `balanced`, because it keeps many bands alive while scrolling.
+ * `max` is WebGPU-only (1.25.0): Enhance on WebGL2 runs `balanced` and the menu
+ * says so; the stored value is kept for a WebGPU connection.
  */
 export type EnhanceQuality = 'balanced' | 'max';
 
@@ -191,7 +199,7 @@ export class ReaderPreferencesService {
   private loadUpscaler(): Upscaler {
     try {
       const raw = localStorage.getItem(ReaderPreferencesService.UpscalerKey);
-      if (raw === 'smooth' || raw === 'enhance') return raw;
+      if (raw === 'smooth' || raw === 'sharp' || raw === 'enhance') return raw;
     } catch {
       /* storage unavailable — fall through to the default */
     }

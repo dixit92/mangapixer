@@ -7,6 +7,7 @@ import {
   FakeGpuDevice, FakeTexture, installNavigatorGpu, removeNavigatorGpu, stubWebGpuGlobals,
 } from './fake-webgpu.testing';
 import { resetGpuDeviceForTests } from './gpu-device';
+import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import { UpscaleDirective, upscaleReleaseDelayMs } from './upscale.directive';
 
 /**
@@ -71,12 +72,14 @@ describe('UpscaleDirective GPU release wiring', () => {
     releaseUpscaler();
     resetGpuDeviceForTests();
     removeNavigatorGpu();
+    localStorage.clear();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
   async function enhancedPage() {
     TestBed.configureTestingModule({ imports: [ReaderLikeHostComponent] });
+    TestBed.inject(ReaderPreferencesService).setUpscaler('enhance');
     const fixture = TestBed.createComponent(ReaderLikeHostComponent);
     fixture.detectChanges();
     const host = fixture.nativeElement as HTMLElement;
