@@ -7,11 +7,12 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Observable, forkJoin } from 'rxjs';
 
-import { CatalogNodeDto, MetadataPrecedence } from '../../core/api/api-types';
+import { CatalogNodeDto, FolderMetadataContentDto, MetadataFolderContent, MetadataPrecedence } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
 import { MetadataStateService } from './metadata-state.service';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
 import { PRECEDENCE_LABELS } from './series-info-labels';
+import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion } from './folder-content';
 
 /**
  * Browse selection-bar "Series" menu for admins (1.24.0), mirroring the reading-
@@ -19,7 +20,9 @@ import { PRECEDENCE_LABELS } from './series-info-labels';
  * clear the source precedence on the selected FOLDERS, and (lane B2) "Identify..." when
  * exactly one node is selected. Hidden while "Show series information" is off globally
  * or for this library (it carries the (i) icon, so it reads as series information);
- * the admin settings card is where it is turned back on. Link changes are announced
+ * the admin settings page is where it is turned back on. Stage 2 adds the folder
+ * Content setting for the selected FOLDERS (with the one folder's current value and
+ * the detector's suggestion when exactly one is selected). Link changes are announced
  * through `MetadataStateService` so the cards' (i) update in place.
  */
 @Component({
@@ -31,7 +34,7 @@ import { PRECEDENCE_LABELS } from './series-info-labels';
     @if (shown()) {
     <button mat-button type="button" [matMenuTriggerFor]="seriesMenu"
             [disabled]="disabled() || busy() || selectedNodes().length === 0"
-            matTooltip="Series metadata for the selection" data-testid="series-selection-menu">
+            matTooltip="Series metadata for the selection" data-testid="series-selection-menu" (menuOpened)="onMenuOpened()">
       <mat-icon>info_outline</mat-icon><span class="lbl">Series</span>
     </button>
     <mat-menu #seriesMenu="matMenu">
@@ -56,12 +59,27 @@ import { PRECEDENCE_LABELS } from './series-info-labels';
       <button mat-menu-item [disabled]="selectedFolders().length === 0" (click)="precedence(null)" data-testid="bulk-precedence-inherit">
         <mat-icon>vertical_align_top</mat-icon> Inherit (clear)
       </button>
+      @if (contentAvailable()) {
+        <mat-divider />
+        <span class="caption" data-testid="bulk-content-caption">{{ caption() }}</span>
+        @for (o of contentOptions; track o.value) {
+          <button mat-menu-item [disabled]="selectedFolders().length === 0" (click)="content(o.value)" [matTooltip]="o.hint"
+                  matTooltipPosition="left" [attr.data-testid]="'bulk-content-' + o.value">
+            <mat-icon>{{ single()?.effective === o.value ? 'check' : o.icon }}</mat-icon> {{ o.label }}
+            @if (suggested() === o.value) { <span class="suggest">suggested</span> }
+          </button>
+        }
+        <button mat-menu-item [disabled]="selectedFolders().length === 0" (click)="content(null)" data-testid="bulk-content-inherit">
+          <mat-icon>vertical_align_top</mat-icon> Inherit (clear)
+        </button>
+      }
     </mat-menu>
     }
   `,
   styles: [`
     :host { display: contents; }
     mat-icon { margin-right: 4px; }
+    .suggest { margin-left: 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #ffcc80; }
     .caption {
       display: block; padding: 6px 16px 2px; font-size: 11px; font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.5px; color: #8a8a99;
@@ -107,6 +125,41 @@ export class SeriesSelectionActionsComponent implements OnInit {
 
   readonly selectedNodes = computed(() => this.nodes().filter((n) => this.selected().has(n.id)));
   readonly selectedFolders = computed(() => this.selectedNodes().filter((n) => n.kind === 'Folder'));
+
+  /** Whether the server has the folder Content setting (unknown = shown; a failed read hides it). */
+  readonly contentAvailable = signal(true);
+  /** The one selected folder's Content, when exactly one folder is selected. */
+  readonly single = signal<FolderMetadataContentDto | null>(null);
+  readonly contentOptions = FOLDER_CONTENT_OPTIONS;
+  readonly caption = computed(() => {
+    const folders = this.selectedFolders().length;
+    if (folders === 1 && this.single()) return contentCaption(this.single());
+    return folders > 1 ? `Content (${folders} folders)` : 'Content (folders)';
+  });
+  readonly suggested = computed(() => (this.selectedFolders().length === 1 ? contentSuggestion(this.single()) : null));
+
+  onMenuOpened(): void {
+    this.single.set(null);
+    const folders = this.selectedFolders();
+    if (folders.length !== 1) return;
+    this.api.getFolderContent(folders[0].id).subscribe({
+      next: (c) => {
+        this.single.set(c);
+        this.contentAvailable.set(true);
+      },
+      error: (err: { status?: number }) => {
+        if (err?.status === 501 || err?.status === 404) this.contentAvailable.set(false);
+      },
+    });
+  }
+
+  content(value: MetadataFolderContent | null): void {
+    const folders = this.selectedFolders();
+    const calls: Observable<unknown>[] = folders.map((f) =>
+      value ? this.api.setFolderContent(f.id, value) : this.api.clearFolderContent(f.id));
+    const label = value ? FOLDER_CONTENT_OPTIONS.find((o) => o.value === value)?.label ?? value : 'Inherit';
+    this.runAll(calls, `Content (${label}) on ${plural(folders.length, 'folder')}`);
+  }
 
   /** Opens the identify dialog for the single selected node (the dialog explains a disabled state). */
   identify(): void {

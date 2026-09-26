@@ -10,6 +10,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
 import { SeriesAdminActionsComponent } from './series-admin-actions.component';
+import { WrongSeriesFlagComponent } from './flag-dialog/wrong-series-flag.component';
 import { ageLabel, precedenceLabel, showsPrecedence } from './series-info-labels';
 import { SeriesInfoOverlayData } from './series-info-overlay.service';
 import { SeriesInfoSummaryComponent } from './series-info-summary.component';
@@ -24,7 +25,7 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
 @Component({
   selector: 'app-series-info-overlay',
   standalone: true,
-  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent],
+  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="sheet" data-testid="series-overlay">
@@ -80,6 +81,9 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
             }
             @if (auth.isAdmin()) {
               <app-series-admin-actions [info]="i" (changed)="reload()" />
+            } @else if (i.web) {
+              <!-- Readers: "Wrong series?" (stage 2) when web data is shown. -->
+              <app-wrong-series-flag [nodeId]="i.anchorNodeId" [title]="i.title || i.anchorDisplayName" />
             }
           </div>
         </footer>

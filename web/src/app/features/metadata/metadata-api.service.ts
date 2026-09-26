@@ -5,6 +5,8 @@ import { catchError } from 'rxjs/operators';
 
 import {
   ApiError,
+  CreateMetadataFlagRequest,
+  FolderMetadataContentDto,
   FolderMetadataPrecedenceDto,
   IdentifyContextDto,
   IdentifyPreviewDto,
@@ -12,9 +14,25 @@ import {
   IdentifySearchRequest,
   IdentifySearchResultDto,
   LinkSeriesRequest,
+  MetadataFlagDto,
+  MetadataFlagPageDto,
+  MetadataFlagState,
+  MetadataFolderContent,
+  MetadataMatchEstimateDto,
+  MetadataMatchLibraryRequest,
+  MetadataMatchRunDto,
+  MetadataMatchRunsDto,
+  MetadataMyFlagDto,
+  MetadataMyFlagStateDto,
   MetadataPrecedence,
   MetadataPurgeResultDto,
+  MetadataReattachResultDto,
   MetadataRefreshResultDto,
+  MetadataReviewBulkAction,
+  MetadataReviewBulkResultDto,
+  MetadataReviewPageDto,
+  MetadataReviewSummaryDto,
+  MetadataReviewTab,
   MetadataSettingsDto,
   NodeSeriesLinkChangeDto,
   SeriesInfoDto,
@@ -131,6 +149,91 @@ export class MetadataApiService {
     return this.delete<void>(`/admin/metadata/folders/${encodeURIComponent(nodeId)}/precedence`);
   }
 
+  // --- Stage 2: folder Content (Auto / Doujinshi & adult one-shots / Not doujinshi) ---
+
+  /** Own value, effective value (inherited like reading direction) and the detector's suggestion. */
+  getFolderContent(nodeId: string): Observable<FolderMetadataContentDto> {
+    return this.get<FolderMetadataContentDto>(`/admin/metadata/folders/${encodeURIComponent(nodeId)}/content`);
+  }
+
+  setFolderContent(nodeId: string, content: MetadataFolderContent): Observable<FolderMetadataContentDto> {
+    return this.put<FolderMetadataContentDto>(`/admin/metadata/folders/${encodeURIComponent(nodeId)}/content`, { content });
+  }
+
+  /** Clears the folder's own value; the nearest ancestor's (or Auto) applies again. */
+  clearFolderContent(nodeId: string): Observable<FolderMetadataContentDto> {
+    return this.delete<FolderMetadataContentDto>(`/admin/metadata/folders/${encodeURIComponent(nodeId)}/content`);
+  }
+
+  // --- Stage 2: review dashboard (reading a tab never contacts a provider) ---
+
+  getReviewSummary(libraryId: string | null = null): Observable<MetadataReviewSummaryDto> {
+    return this.get<MetadataReviewSummaryDto>('/admin/metadata/review/summary', params({ library: libraryId }));
+  }
+
+  getReview(tab: MetadataReviewTab, libraryId: string | null = null, cursor: string | null = null, limit = 50): Observable<MetadataReviewPageDto> {
+    return this.get<MetadataReviewPageDto>('/admin/metadata/review', params({ tab, library: libraryId, cursor, limit }));
+  }
+
+  /** Links the stored candidate `rank` (1-based); one gated GET when its record is not stored yet. */
+  acceptCandidate(nodeId: string, rank: number): Observable<NodeSeriesLinkChangeDto> {
+    return this.post<NodeSeriesLinkChangeDto>(`/admin/metadata/review/${encodeURIComponent(nodeId)}/accept`, { rank });
+  }
+
+  /** At most 200 nodes per call. */
+  reviewBulk(action: MetadataReviewBulkAction, nodeIds: string[]): Observable<MetadataReviewBulkResultDto> {
+    return this.post<MetadataReviewBulkResultDto>('/admin/metadata/review/bulk', { action, nodeIds });
+  }
+
+  reattachMissing(nodeId: string, targetNodeId: string): Observable<MetadataReattachResultDto> {
+    return this.post<MetadataReattachResultDto>(`/admin/metadata/missing/${encodeURIComponent(nodeId)}/reattach`, { targetNodeId });
+  }
+
+  deleteMissing(nodeId: string): Observable<void> {
+    return this.delete<void>(`/admin/metadata/missing/${encodeURIComponent(nodeId)}`);
+  }
+
+  // --- Stage 2: runs + "Match this library now" ---
+
+  getRuns(libraryId: string | null = null, cursor: string | null = null, limit = 20): Observable<MetadataMatchRunsDto> {
+    return this.get<MetadataMatchRunsDto>('/admin/metadata/runs', params({ library: libraryId, cursor, limit }));
+  }
+
+  cancelRun(runId: string): Observable<MetadataMatchRunDto> {
+    return this.post<MetadataMatchRunDto>(`/admin/metadata/runs/${encodeURIComponent(runId)}/cancel`, {});
+  }
+
+  /** Local estimate only (no network). */
+  getMatchEstimate(libraryId: string, retryUnmatched = false): Observable<MetadataMatchEstimateDto> {
+    return this.get<MetadataMatchEstimateDto>(`/admin/metadata/libraries/${encodeURIComponent(libraryId)}/match/estimate`,
+      params({ retryUnmatched: retryUnmatched ? 'true' : null }));
+  }
+
+  /** Queues the library; the background worker sends the requests within the gate and budget. */
+  matchLibrary(libraryId: string, request: MetadataMatchLibraryRequest): Observable<MetadataMatchRunDto> {
+    return this.post<MetadataMatchRunDto>(`/admin/metadata/libraries/${encodeURIComponent(libraryId)}/match`, request);
+  }
+
+  // --- Stage 2: "Wrong series?" flags ---
+
+  /** Any signed-in user with access to the node; the note is plain text (max 500). */
+  createFlag(nodeId: string, request: CreateMetadataFlagRequest): Observable<MetadataMyFlagDto> {
+    return this.post<MetadataMyFlagDto>(`/nodes/${encodeURIComponent(nodeId)}/series-info/flags`, request);
+  }
+
+  /** The caller's own flag on the node's anchor (only their own). */
+  getMyFlag(nodeId: string): Observable<MetadataMyFlagStateDto> {
+    return this.get<MetadataMyFlagStateDto>(`/nodes/${encodeURIComponent(nodeId)}/series-info/flags/mine`);
+  }
+
+  getFlags(state: 'open' | 'resolved' | 'all' = 'open', libraryId: string | null = null, cursor: string | null = null, limit = 50): Observable<MetadataFlagPageDto> {
+    return this.get<MetadataFlagPageDto>('/admin/metadata/flags', params({ state, library: libraryId, cursor, limit }));
+  }
+
+  resolveFlag(flagId: string, outcome: Exclude<MetadataFlagState, 'Open'>): Observable<MetadataFlagDto> {
+    return this.post<MetadataFlagDto>(`/admin/metadata/flags/${encodeURIComponent(flagId)}/resolve`, { outcome });
+  }
+
   private get<T>(path: string, params?: HttpParams): Observable<T> {
     return this.http.get<T>(this.baseUrl + path, { params, withCredentials: true }).pipe(catchError(toApiError));
   }
@@ -146,6 +249,15 @@ export class MetadataApiService {
   private delete<T>(path: string): Observable<T> {
     return this.http.delete<T>(this.baseUrl + path, { withCredentials: true }).pipe(catchError(toApiError));
   }
+}
+
+/** Query parameters with the null / undefined ones left out. */
+function params(values: Record<string, string | number | null | undefined>): HttpParams {
+  let p = new HttpParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== null && value !== undefined && value !== '') p = p.set(key, String(value));
+  }
+  return p;
 }
 
 /** Maps an HTTP failure to the server's `ApiError` shape (status kept for 404 handling). */

@@ -6,7 +6,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { of, throwError } from 'rxjs';
 
 import { AuthService } from '../../core/auth/auth.service';
-import { CatalogNodeDto, IdentifyContextDto, MetadataSettingsDto, SeriesInfoDto } from '../../core/api/api-types';
+import { CatalogNodeDto, FolderMetadataContentDto, IdentifyContextDto, MetadataSettingsDto, SeriesInfoDto } from '../../core/api/api-types';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
 import { MetadataStateService } from './metadata-state.service';
 import { MetadataApiService } from './metadata-api.service';
@@ -145,7 +145,7 @@ describe('SeriesSelectionActionsComponent', () => {
     libraries: [{ libraryId: 'lib1', name: 'L', fetchEnabled: true, showSeriesInfo: libraryShow, linkCount: 0 }],
   }) as MetadataSettingsDto;
 
-  function create(settings = settingsFor(true, true), openMenu = true) {
+  function create(settings = settingsFor(true, true), openMenu = true, content: FolderMetadataContentDto | 'none' | null = null) {
     const api = {
       getSettings: vi.fn(() => of(settings)),
       getSeriesInfo: vi.fn(() => of(seriesInfo({ state: 'None' }))),
@@ -153,6 +153,11 @@ describe('SeriesSelectionActionsComponent', () => {
       clearDontMatch: vi.fn(() => of({})),
       setFolderPrecedence: vi.fn(() => of({})),
       clearFolderPrecedence: vi.fn(() => of(undefined)),
+      // Stage 2 Content: 'none' = a server without the setting (501).
+      getFolderContent: vi.fn((id: string) => (content === 'none' ? throwError(() => ({ status: 501 }))
+        : of(content ?? { nodeId: id, effective: 'Auto' }))),
+      setFolderContent: vi.fn(() => of({})),
+      clearFolderContent: vi.fn(() => of({})),
     };
     TestBed.configureTestingModule({
       imports: [Host],
@@ -198,6 +203,21 @@ describe('SeriesSelectionActionsComponent', () => {
     click('[data-testid="bulk-precedence-comicinfo"]');
     expect(api.setFolderPrecedence).toHaveBeenCalledTimes(1);
     expect(api.setFolderPrecedence).toHaveBeenCalledWith('f1', 'ComicInfoFirst');
+  });
+  it('sets the Content of the selected folders only, showing the one folder\'s value and suggestion (stage 2)', () => {
+    const { api } = create(undefined, true, { nodeId: 'f1', content: null, effective: 'Auto', suggested: 'DoujinshiAndAdultOneShots' });
+    expect(api.getFolderContent).toHaveBeenCalledWith('f1');
+    expect(document.querySelector('[data-testid="bulk-content-caption"]')!.textContent).toBe('Content: Auto (default)');
+    expect(document.querySelector('[data-testid="bulk-content-DoujinshiAndAdultOneShots"]')!.textContent).toContain('suggested');
+    click('[data-testid="bulk-content-NotDoujinshi"]');
+    expect(api.setFolderContent.mock.calls).toEqual([['f1', 'NotDoujinshi']]);
+    click('[data-testid="bulk-content-inherit"]');
+    expect(api.clearFolderContent.mock.calls).toEqual([['f1']]);
+  });
+
+  it('hides the Content section when the server has no Content setting', () => {
+    create(undefined, true, 'none');
+    expect(document.querySelector('[data-testid="bulk-content-caption"]')).toBeNull();
   });
 });
 
