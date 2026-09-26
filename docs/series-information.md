@@ -18,6 +18,15 @@ A link made on a folder applies to the folder and everything inside it, so every
 
 These actions are in the panel's and series page's **Admin** menu, and in the **Series** menu of the browse selection bar (hidden while **Show series information** is off for that library or globally).
 
+## Search by alternative title
+
+Once a folder or archive is linked to a series, **Search** also finds it by any of that series' alternative titles: a folder named `Dungeon Meshi` turns up for `Delicious in Dungeon`. These hits appear in their own **Series matches** row above the normal results (at most 20, on the first page of results), and each card adds a caption such as `aka Delicious in Dungeon` (the shortest matching title; hover for the full text). A folder that is also a normal name match is shown once, in **Series matches**.
+
+- Only links that are in use count (**Confirmed** or automatic); folders marked **Don't match** and matches awaiting review never appear.
+- The row follows the same access rules as the rest of search: libraries you cannot see, and Private libraries while Incognito is on, contribute nothing.
+- When **Show series information** is off, globally or for a library, that library's alternative titles are not searchable.
+- Searching runs entirely on your server; nothing is sent to MangaUpdates.
+
 ## Identify a series (admins)
 
 Before you can look anything up, turn on **Fetch series information from the web** (see [Admin settings](#admin-settings)) and the **Fetch** switch of the library.

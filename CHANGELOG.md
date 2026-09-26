@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Search finds series by their alternative titles.** A folder or archive linked to a series can now be found by any of that series' alternative names (a folder named `Dungeon Meshi` is found by `Delicious in Dungeon`). Those hits appear in a **Series matches** row above the normal results, each card captioned `aka <matched title>`; a folder that also matches by name shows only once. Private libraries stay hidden in Incognito, and libraries with **Show series information** off are not searchable this way. See [Search by alternative title](docs/series-information.md#search-by-alternative-title).
+
 ### Changed
 
 - **Reader: archives are called archives.** The previous/next buttons, their tooltips, the end-of-folder messages, the loading and error messages and the reading help now say "archive" instead of "chapter" (for example **Next archive**, "Preparing this archive…"), because an archive can be a chapter, a volume or anything else. The "New chapters" row on Home keeps its name. See [Moving between archives](docs/reader.md#moving-between-archives).
