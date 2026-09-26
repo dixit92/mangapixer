@@ -16,11 +16,17 @@ import { seriesInfo } from './series-info.testing';
  * nextUnread, and the hidden / missing states.
  */
 describe('SeriesPageComponent', () => {
-  function create(nodeId: string, info: SeriesInfoDto | 'error', nextUnread: CatalogNodeDto | null = null, admin = false) {
+  function create(
+    nodeId: string, info: SeriesInfoDto | 'error', nextUnread: CatalogNodeDto | null = null, admin = false,
+    archiveNode: Partial<CatalogNodeDto> | null = null,
+  ) {
     const metadata = {
       getSeriesInfo: vi.fn(() => (info === 'error' ? throwError(() => ({ error: 'not_found' })) : of(info))),
     };
-    const api = { browseLibrary: vi.fn(() => of({ items: [], totalCount: 0, nextCursor: null, hasMore: false, nextUnread })) };
+    const api = {
+      browseLibrary: vi.fn(() => of({ items: [], totalCount: 0, nextCursor: null, hasMore: false, nextUnread })),
+      getNode: vi.fn(() => of(archiveNode as CatalogNodeDto)),
+    };
     TestBed.configureTestingModule({
       imports: [SeriesPageComponent],
       providers: [
@@ -60,13 +66,46 @@ describe('SeriesPageComponent', () => {
       ],
     }));
     expect(navigate).not.toHaveBeenCalled();
-    expect(el.textContent).toContain('About this synthetic series.');
+    // The description appears ONCE (About), not also in the header summary.
+    expect(el.textContent!.split('About this synthetic series.').length - 1).toBe(1);
+    expect(el.querySelector('.hero .description')).toBeNull();
+    // Both sources exist: the precedence line is shown.
+    expect(el.querySelector('[data-testid="series-precedence"]')).not.toBeNull();
     expect(el.textContent).toContain('Story');
     const rows = el.querySelectorAll('[data-testid="series-items"] tbody tr');
     expect(rows.length).toBe(2);
     expect(rows[1].textContent).toContain('Ch 2'); // title falls back to the display name
     const browse = el.querySelector('[data-testid="browse-folder"]') as HTMLAnchorElement;
     expect(browse.getAttribute('href')).toBe('/libraries/lib1/browse/series-1');
+  });
+
+  it('shows no precedence line unless both web data and ComicInfo exist', () => {
+    const { el } = create('series-1', seriesInfo({
+      nodeId: 'series-1', anchorNodeId: 'series-1', state: 'ComicInfo', comicInfo: { itemsWithComicInfo: 1, itemsTotal: 1 },
+    }));
+    expect(el.textContent).toContain('ComicInfo: 1 of 1 items');
+    expect(el.querySelector('[data-testid="series-precedence"]')).toBeNull();
+  });
+
+  it('offers Read + Show in folder (not Browse folder) for an archive anchor', () => {
+    const { el, api } = create('a1', seriesInfo({
+      nodeId: 'a1', nodeKind: 'Archive', anchorNodeId: 'a1', anchorKind: 'Archive',
+    }), null, false, { id: 'a1', parentId: 'f9', readingState: 'Unread' });
+    expect(api.getNode).toHaveBeenCalledWith('a1');
+    expect(el.querySelector('[data-testid="browse-folder"]')).toBeNull();
+    const read = el.querySelector('[data-testid="read-archive"]') as HTMLAnchorElement;
+    expect(read.getAttribute('href')).toBe('/reader/a1');
+    expect(read.textContent).toContain('Read');
+    const show = el.querySelector('[data-testid="show-in-folder"]') as HTMLAnchorElement;
+    expect(show.getAttribute('href')).toBe('/libraries/lib1/browse/f9');
+    expect(api.browseLibrary).not.toHaveBeenCalled();
+  });
+
+  it('says Continue reading for an archive anchor in progress', () => {
+    const { el } = create('a1', seriesInfo({
+      nodeId: 'a1', nodeKind: 'Archive', anchorNodeId: 'a1', anchorKind: 'Archive',
+    }), null, false, { id: 'a1', parentId: 'f9', readingState: 'InProgress' });
+    expect(el.querySelector('[data-testid="read-archive"]')!.textContent).toContain('Continue reading');
   });
 
   it('offers Continue reading from the folder\'s next unread archive', () => {

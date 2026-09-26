@@ -6,6 +6,7 @@ import { of } from 'rxjs';
 import { IdentifyContextDto, SeriesInfoDto } from '../../core/api/api-types';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
 import { MetadataApiService } from './metadata-api.service';
+import { MetadataStateService } from './metadata-state.service';
 import { SeriesAdminActionsComponent } from './series-admin-actions.component';
 import { seriesInfo } from './series-info.testing';
 
@@ -42,12 +43,14 @@ describe('SeriesAdminActionsComponent', () => {
       setFolderPrecedence: vi.fn(() => of({ nodeId: info.nodeId, precedence: 'WebFirst' })),
       clearFolderPrecedence: vi.fn(() => of(undefined)),
     };
+    const state = { announce: vi.fn(), refresh: vi.fn() };
     TestBed.configureTestingModule({
       imports: [HostComponent],
       providers: [
         provideNoopAnimations(),
         { provide: MetadataApiService, useValue: api },
         { provide: IdentifyDialogService, useValue: dialog },
+        { provide: MetadataStateService, useValue: state },
       ],
     });
     const fixture = TestBed.createComponent(HostComponent);
@@ -55,7 +58,7 @@ describe('SeriesAdminActionsComponent', () => {
     fixture.detectChanges();
     (fixture.nativeElement.querySelector('[data-testid="series-admin-menu"]') as HTMLButtonElement).click();
     fixture.detectChanges();
-    return { fixture, api, dialog };
+    return { fixture, api, dialog, state };
   }
 
   const item = (sel: string) => document.querySelector(sel) as HTMLButtonElement | null;
@@ -94,10 +97,11 @@ describe('SeriesAdminActionsComponent', () => {
   });
 
   it('marks a node Don\'t match and reports the change', () => {
-    const { fixture, api } = create(seriesInfo({ nodeId: 'f1' }));
+    const { fixture, api, state } = create(seriesInfo({ nodeId: 'f1' }));
     item('[data-testid="dont-match"]')!.click();
     expect(api.setDontMatch).toHaveBeenCalledWith('f1');
     expect(fixture.componentInstance.changes).toBe(1);
+    expect(state.refresh).toHaveBeenCalledWith('f1'); // browse (i) / top bar re-derive in place
   });
 
   it('offers Clear instead when the node itself is Don\'t match', () => {
@@ -112,15 +116,17 @@ describe('SeriesAdminActionsComponent', () => {
     expect(item('[data-testid="unlink"]')).toBeNull();
     TestBed.resetTestingModule();
     document.querySelectorAll('.cdk-overlay-container').forEach((c) => (c.innerHTML = ''));
-    const { api } = create(seriesInfo({ nodeId: 'f1', state: 'Web', link: { state: 'Confirmed', nodeId: 'f1', inherited: false } }));
+    const { api, state } = create(seriesInfo({ nodeId: 'f1', state: 'Web', link: { state: 'Confirmed', nodeId: 'f1', inherited: false } }));
     item('[data-testid="unlink"]')!.click();
     expect(api.unlink).toHaveBeenCalledWith('f1');
+    expect(state.refresh).toHaveBeenCalledWith('f1');
   });
 
   it('sets and clears folder precedence, and hides it for archives', () => {
-    const { api } = create(seriesInfo({ nodeId: 'f1', nodeKind: 'Folder' }));
+    const { api, state } = create(seriesInfo({ nodeId: 'f1', nodeKind: 'Folder' }));
     item('[data-testid="precedence-comicinfo"]')!.click();
     expect(api.setFolderPrecedence).toHaveBeenCalledWith('f1', 'ComicInfoFirst');
+    expect(state.refresh).not.toHaveBeenCalled(); // precedence never changes the card (i)
     TestBed.resetTestingModule();
     document.querySelectorAll('.cdk-overlay-container').forEach((c) => (c.innerHTML = ''));
     create(seriesInfo({ nodeId: 'a1', nodeKind: 'Archive' }));

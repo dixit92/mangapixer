@@ -147,3 +147,11 @@ export function ageLabel(iso: string | null | undefined, now: number = Date.now(
 export function hasSeriesContent(info: Pick<SeriesInfoDto, 'state'> | null | undefined): boolean {
   return !!info && info.state !== 'None' && info.state !== 'DontMatch';
 }
+
+/**
+ * The precedence line only matters when both sources exist: web data AND ComicInfo
+ * (series page Sources, overlay footer). Admins change it from the admin menu.
+ */
+export function showsPrecedence(info: Pick<SeriesInfoDto, 'web' | 'comicInfo'> | null | undefined): boolean {
+  return !!info?.web && (info.comicInfo?.itemsWithComicInfo ?? 0) > 0;
+}

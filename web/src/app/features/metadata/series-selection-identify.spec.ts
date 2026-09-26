@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { of } from 'rxjs';
 
 import { CatalogNodeDto } from '../../core/api/api-types';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
@@ -24,7 +25,7 @@ describe('SeriesSelectionActionsComponent - Identify', () => {
     const dialog = { open: vi.fn(() => Promise.resolve(true)) };
     TestBed.configureTestingModule({
       imports: [Host],
-      providers: [provideNoopAnimations(), { provide: MetadataApiService, useValue: {} }, { provide: IdentifyDialogService, useValue: dialog }],
+      providers: [provideNoopAnimations(), { provide: MetadataApiService, useValue: { getSettings: () => of({ showSeriesInfo: true, libraries: [] }) } }, { provide: IdentifyDialogService, useValue: dialog }],
     });
     const fixture = TestBed.createComponent(Host);
     fixture.detectChanges();

@@ -11,7 +11,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { CatalogNodeDto, SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
 import { SeriesAdminActionsComponent } from './series-admin-actions.component';
-import { ageLabel, creditGroups, precedenceLabel } from './series-info-labels';
+import { ageLabel, creditGroups, precedenceLabel, showsPrecedence } from './series-info-labels';
 import { SeriesInfoSummaryComponent } from './series-info-summary.component';
 
 /**
@@ -21,7 +21,9 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
  * so Back does not bounce). Same DTO and summary component as the overlay, so the
  * two never disagree. Sections: About, Details, In your library (ComicInfo items),
  * Sources, Admin. On phone the sections are collapsible (About open) and everything
- * stacks in one column.
+ * stacks in one column. The description appears once (About), not in the header. A
+ * FOLDER anchor offers "Browse folder" (+ "Continue reading"); an ARCHIVE anchor offers
+ * "Read" / "Continue reading" (the reader) + "Show in folder" (its parent folder).
  */
 @Component({
   selector: 'app-series-page',
@@ -36,15 +38,24 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
         <p class="state">This series page is not available.</p>
       } @else if (info(); as i) {
         <nav class="back">
-          <a [routerLink]="browseLink()"><mat-icon>arrow_back</mat-icon> Back to folder</a>
+          <a [routerLink]="folderLink()"><mat-icon>arrow_back</mat-icon> Back to folder</a>
         </nav>
 
         <header class="hero">
-          <app-series-info-summary [info]="i" />
+          <app-series-info-summary [info]="i" [showDescription]="false" />
           <div class="hero-actions">
-            <a mat-stroked-button [routerLink]="browseLink()" data-testid="browse-folder">
-              <mat-icon>folder_open</mat-icon> Browse folder
-            </a>
+            @if (i.anchorKind === 'Folder') {
+              <a mat-stroked-button [routerLink]="folderLink()" data-testid="browse-folder">
+                <mat-icon>folder_open</mat-icon> Browse folder
+              </a>
+            } @else {
+              <a mat-flat-button [routerLink]="['/reader', i.anchorNodeId]" data-testid="read-archive">
+                <mat-icon>play_arrow</mat-icon> {{ archiveInProgress() ? 'Continue reading' : 'Read' }}
+              </a>
+              <a mat-stroked-button [routerLink]="folderLink()" data-testid="show-in-folder">
+                <mat-icon>folder_open</mat-icon> Show in folder
+              </a>
+            }
             @if (continueTarget(); as next) {
               <a mat-flat-button [routerLink]="['/reader', next.id]" data-testid="continue-reading">
                 <mat-icon>play_arrow</mat-icon> Continue reading
@@ -110,7 +121,9 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
               <p class="muted small"><a [href]="url" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">{{ url }}</a></p>
             }
           }
-          <p class="muted">Precedence: {{ precedence() }}</p>
+          @if (showPrecedence()) {
+            <p class="muted" data-testid="series-precedence">Precedence: {{ precedence() }}</p>
+          }
         </details>
 
         @if (auth.isAdmin()) {
@@ -166,6 +179,8 @@ export class SeriesPageComponent implements OnInit {
   readonly loading = signal(true);
   readonly notFound = signal(false);
   readonly continueTarget = signal<CatalogNodeDto | null>(null);
+  /** An archive anchor's own node (its parent folder and reading state). */
+  readonly archiveNode = signal<CatalogNodeDto | null>(null);
 
   /** Phone layout: sections start collapsed except About. Read once at creation. */
   readonly phone = typeof matchMedia === 'function' && matchMedia('(max-width: 599.98px)').matches;
@@ -176,14 +191,18 @@ export class SeriesPageComponent implements OnInit {
     return i ? precedenceLabel(i) : '';
   });
 
-  /** "Browse folder": the anchor folder itself, or an archive anchor's reader. */
-  readonly browseLink = computed(() => {
+  readonly showPrecedence = computed(() => showsPrecedence(this.info()));
+
+  /** "Browse folder" / "Show in folder": the anchor folder itself, or an archive anchor's parent folder. */
+  readonly folderLink = computed(() => {
     const i = this.info();
     if (!i) return ['/libraries'];
-    return i.anchorKind === 'Folder'
-      ? ['/libraries', i.libraryId, 'browse', i.anchorNodeId]
-      : ['/reader', i.anchorNodeId];
+    if (i.anchorKind === 'Folder') return ['/libraries', i.libraryId, 'browse', i.anchorNodeId];
+    const parentId = this.archiveNode()?.parentId;
+    return parentId ? ['/libraries', i.libraryId, 'browse', parentId] : ['/libraries', i.libraryId, 'browse'];
   });
+
+  readonly archiveInProgress = computed(() => this.archiveNode()?.readingState === 'InProgress');
 
   readonly detailRows = computed(() => {
     const i = this.info();
@@ -232,7 +251,14 @@ export class SeriesPageComponent implements OnInit {
   /** "Continue reading": the folder's existing next-to-read archive (no new API). */
   private loadContinue(info: SeriesInfoDto): void {
     this.continueTarget.set(null);
-    if (info.anchorKind !== 'Folder' || info.state === 'None' || info.state === 'DontMatch') return;
+    this.archiveNode.set(null);
+    if (info.anchorKind === 'Archive') {
+      this.api.getNode(info.anchorNodeId)
+        .pipe(catchError(() => of(null)))
+        .subscribe((node) => this.archiveNode.set(node));
+      return;
+    }
+    if (info.state === 'None' || info.state === 'DontMatch') return;
     this.api.browseLibrary(info.libraryId, info.anchorNodeId, null, 1)
       .pipe(catchError(() => of(null)))
       .subscribe((page) => this.continueTarget.set(page?.nextUnread ?? null));

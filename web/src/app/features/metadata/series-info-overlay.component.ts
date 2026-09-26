@@ -10,7 +10,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
 import { SeriesAdminActionsComponent } from './series-admin-actions.component';
-import { ageLabel, precedenceLabel } from './series-info-labels';
+import { ageLabel, precedenceLabel, showsPrecedence } from './series-info-labels';
 import { SeriesInfoOverlayData } from './series-info-overlay.service';
 import { SeriesInfoSummaryComponent } from './series-info-summary.component';
 
@@ -129,11 +129,8 @@ export class SeriesInfoOverlayComponent implements OnInit {
     return i ? precedenceLabel(i) : '';
   });
 
-  /** Precedence only matters when both sources exist (or for admins, who can change it). */
-  readonly showPrecedence = computed(() => {
-    const i = this.info();
-    return !!i && (i.state === 'WebAndComicInfo' || (this.auth.isAdmin() && i.nodeKind === 'Folder' && i.state !== 'None'));
-  });
+  /** Precedence only matters when both sources exist (web data and ComicInfo). */
+  readonly showPrecedence = computed(() => showsPrecedence(this.info()));
 
   ngOnInit(): void {
     this.reload();
