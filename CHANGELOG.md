@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.24.2] - 2026-09-26
+
+### Fixed
+
+- **Name sort is no longer case-sensitive.** Folders and archives whose names start with a lower-case letter used to list after every capitalised name (`Zebra` before `apple`), and the A-Z jump rail could not reach them. Name sort now ignores case (`apple`, `Banana`, `cherry`); names that differ only in case sit next to each other, capitalised first. Punctuation such as `[` and `_` now lists before letters. Page order inside archives is unchanged. **Upgrade note:** a data-only database migration updates the stored sort keys on first start (a snapshot is taken before it runs); no rescan is needed. See [Sorting](docs/library-layout.md#sorting).
+
 ## [1.24.1] - 2026-09-26
 
 ### Fixed
