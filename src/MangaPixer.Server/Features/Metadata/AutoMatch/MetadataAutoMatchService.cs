@@ -143,8 +143,10 @@ public sealed class MetadataAutoMatchService
     /// <summary>
     /// Post-scan: queues the works among the folders created since
     /// <paramref name="since"/> and their parents (a new child can change a parent's
-    /// class). Only called when automatic matching is on. Returns how many works
-    /// were queued (0 = no run is created).
+    /// class), and the folders that gained archives (a new doujin in an artist folder
+    /// is its own work). Works that already have a queue row are skipped, so a new
+    /// chapter below a linked or decided series costs nothing. Only called when
+    /// automatic matching is on. Returns how many works were queued (0 = no run is created).
     /// </summary>
     public async Task<int> EnqueueNewFoldersAsync(long libraryId, DateTimeOffset since, CancellationToken ct = default)
     {
@@ -153,13 +155,13 @@ public sealed class MetadataAutoMatchService
         var folder = (int)CatalogNodeKind.Folder;
         var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
         var created = await _db.CatalogNodes.AsNoTracking()
-            .Where(n => n.LibraryId == libraryId && n.Kind == folder && n.Availability != tombstoned && n.CreatedAt >= since)
-            .Select(n => new { n.Id, n.ParentId })
+            .Where(n => n.LibraryId == libraryId && n.Availability != tombstoned && n.CreatedAt >= since)
+            .Select(n => new { n.Id, n.ParentId, n.Kind })
             .ToListAsync(ct);
         if (created.Count == 0)
             return 0;
 
-        var scope = new HashSet<long>(created.Select(c => c.Id));
+        var scope = new HashSet<long>(created.Where(c => c.Kind == folder).Select(c => c.Id));
         foreach (var c in created)
             if (c.ParentId is { } parent)
                 scope.Add(parent);

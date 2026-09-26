@@ -89,6 +89,25 @@ public sealed class AutoMatchServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PostScan_NewArchive_InACollectionFolder_IsQueued_ANewChapterOfAQueuedSeriesIsNot()
+    {
+        var shelf = await _db.AddFolderAsync(null, "Collection Shelf");
+        foreach (var title in new[] { "Alpha Story.cbz", "Beta Tale.cbz", "Gamma Saga.cbz", "Delta Night.cbz", "Epsilon Dawn.cbz" })
+            await _db.AddArchiveAsync(shelf, title);
+        var series = await SeriesAsync("Zeta Saga");
+        Assert.Equal(6, await EnqueueAsync()); // five archive works + the series
+
+        var since = DateTimeOffset.UtcNow.AddSeconds(1);
+        await Task.Delay(1100);
+        var fresh = await _db.AddArchiveAsync(shelf, "Eta Voyage.cbz");
+        await _db.AddArchiveAsync(series, "Zeta Saga v03");
+
+        Assert.Equal(1, await _h.Service().EnqueueNewFoldersAsync(_db.LibraryId, since));
+        Assert.Equal((int)MatchLevel.Archive, (await QueueOfAsync(fresh)).Level);
+        Assert.Equal(0, _h.Handler.CallCount);
+    }
+
+    [Fact]
     public async Task PostScanHook_AutomaticOff_QueuesNothing_ButCarryOverStillRuns()
     {
         await SeriesAsync("Alpha Saga");
