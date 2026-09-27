@@ -37,7 +37,7 @@ describe('ReviewRowComponent', () => {
     expect(cands).toHaveLength(2);
     expect(cands[0].textContent).toContain('Synthetic Saga');
     expect(cands[0].textContent).toContain('Manga · 2014 · 14 vols');
-    expect(cands[0].textContent).toContain('0.90');
+    expect(cands[0].textContent).toContain('90%');
     expect(all('[data-testid="review-reason"]').map((c) => c.textContent!.trim())).toEqual(['Close second']);
     expect(el.textContent).toContain('Library One');
     expect(el.textContent).toContain('24 items');
@@ -78,6 +78,7 @@ describe('ReviewRowComponent', () => {
       updatedAt: '2026-09-24T00:00:00Z', imageUrl: '/api/v1/metadata/images/x' } });
     const { el } = create(item, 'AutoLinked');
     expect(el.querySelector('[data-testid="review-link"]')!.textContent).toContain('auto');
+    expect(el.querySelector('[data-testid="review-link"]')!.textContent).toContain('Overall 95%');
     expect(el.querySelector('[data-testid="review-confirm"]')).not.toBeNull();
     TestBed.resetTestingModule();
     expect(create(item, 'AutoLinked', { compact: true }).el.querySelector('[data-testid="review-confirm"]')).toBeNull();
