@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.26.1] - 2026-09-27
+
 ### Fixed
 
 - **Automatic matching: chapters with their own subtitles.** A folder of numbered chapters whose names carry a chapter title (`Title 025 Chapter Name.cbz`, `Title 000 Oneshot.cbz`) is now matched as one series instead of chapter by chapter. When a folder has been matched, or an admin links it or marks it **Don't match**, the review and unmatched rows of the archives inside it are removed, since the folder covers them. To clean up a library matched with 1.26.0, run **Match now** on it.
