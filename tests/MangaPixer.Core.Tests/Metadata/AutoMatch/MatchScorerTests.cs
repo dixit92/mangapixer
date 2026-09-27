@@ -216,8 +216,40 @@ public sealed class MatchScorerTests
 
         Assert.Equal("kr", o.Ranked[0].Candidate.ExternalId);
         Assert.Equal(1.0, o.Ranked[0].TitleScore, 6);
-        Assert.True(o.Ranked[1].Reasons.HasFlag(MatchReason.TypeConflict));
-        Assert.Equal(MatchBand.Auto, o.Band); // 1.02 vs 0.90: lead 0.12
+        // Positive-only (1.27.0, owner option a'): the other origin is neutral, so the lead is only the +0.02.
+        Assert.False(o.Ranked[1].Reasons.HasFlag(MatchReason.TypeConflict));
+        Assert.Equal(MatchBand.NeedsReview, o.Band);
+    }
+
+    [Fact]
+    public void CategoryOrigin_Mismatch_IsNeutral_NoPenaltyAndNoVeto()
+    {
+        // A manhwa filed under a "Manga" folder still auto-links (live run, owner option a').
+        var o = Score(Query(["Some Series"], category: "Manga"), Rec("kr", "Some Series", origin: "Manhwa", webtoon: true));
+
+        Assert.Equal(MatchBand.Auto, o.Band);
+        Assert.Equal(MatchReason.None, o.Ranked[0].Reasons);
+        Assert.Equal(1.0, o.Ranked[0].AdjustedScore, 6);
+    }
+
+    [Theory]
+    [InlineData("Manga", true)]
+    [InlineData(" manhwa ", true)]
+    [InlineData("WEBTOONS", true)]
+    [InlineData("Manga Collection", false)] // whole name only
+    [InlineData("Ongoing", false)] // a shelf word is never a category hint
+    [InlineData(null, false)]
+    public void CategoryFolderName_IsTheExactWholeName(string? name, bool expected) =>
+        Assert.Equal(expected, AutoMatchText.IsCategoryFolderName(name));
+
+    [Fact]
+    public void CategoryAndShelfWords_AreOneStopList_ForCreatorNames()
+    {
+        Assert.True(AutoMatchText.IsCategoryWord("Manhwa"));
+        Assert.True(AutoMatchText.IsCategoryWord("Light Novels"));
+        Assert.False(AutoMatchText.IsAuthorLike("Manga", requireTwoTokens: false));
+        Assert.False(AutoMatchText.IsAuthorLike("Light Novels", requireTwoTokens: true));
+        Assert.Empty(AutoMatchText.CategoryFolderWords.Intersect(AutoMatchText.ShelfWords, StringComparer.OrdinalIgnoreCase));
     }
 
     [Fact]

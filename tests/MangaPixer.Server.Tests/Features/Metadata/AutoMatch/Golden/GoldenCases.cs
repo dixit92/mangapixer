@@ -117,7 +117,9 @@ public static class GoldenCases
         new("F05 romaji, chapters (novel twins filtered)", F("Shingeki no Kyojin", Chaps("Shingeki no Kyojin", 139)), WorkClass.Series, MatchBand.Auto, AttackOnTitan),
         new("F06 English name, volumes", F("Attack on Titan", Vols("Attack on Titan", 34)), WorkClass.Series, MatchBand.Auto, AttackOnTitan),
         new("F07 manhwa under a Manhwa category", F("Solo Leveling", Units(200), "Manhwa"), WorkClass.Series, MatchBand.Auto, SoloLeveling),
-        new("F08 manhwa under a Manga category: origin conflict -> review", F("Solo Leveling", Units(200), "Manga"), WorkClass.Series, MatchBand.NeedsReview, SoloLeveling, Vetoes: MatchReason.TypeConflict),
+        // 1.27.0 band change (intended): the category hint is positive-only (owner option a'), so a manhwa filed
+        // under a "Manga" folder auto-links instead of going to review with a type conflict.
+        new("F08 manhwa under a Manga category: the hint is positive-only, still auto", F("Solo Leveling", Units(200), "Manga"), WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None),
         new("F09 scene-style archive names", F("Vinland Saga", Vols("Vinland Saga", 12, " (2013) (Digital) (Scan Team)")), WorkClass.Series, MatchBand.Auto, VinlandSaga),
         new("F10 meaningless folder name, ComicInfo series", F("Unsorted Batch", Vols("Vinland Saga", 5)), WorkClass.Series, MatchBand.Auto, VinlandSaga, ComicInfo: "Vinland Saga"),
         new("F11 long-running chapters", F("One Piece", Chaps("One Piece", 1100)), WorkClass.Series, MatchBand.Auto, OnePiece),

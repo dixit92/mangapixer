@@ -12,7 +12,7 @@ namespace com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// small <see cref="DerivedVariantDiscount"/>, so a full-name match always wins a tie.</item>
 /// <item><b>Corroboration</b> re-ranks only: small agreements and conflict penalties change the
 /// ADJUSTED score (ordering and margin), never the raw title score the auto threshold reads.
-/// Format (novel / artbook / audio), origin vs the category folder, tall strips vs a print record,
+/// Format (novel / artbook / audio), origin vs the category folder (agreement only, 1.27.0), tall strips vs a print record,
 /// counts (volumes vs volumes, chapters vs chapters - never chapters vs volumes), earliest file year
 /// vs start year, one-shot shape, ComicInfo series, creator tags.</item>
 /// <item><b>Vetoes</b> demote auto to review: any corroboration conflict, a related top pair the
@@ -257,17 +257,14 @@ public sealed class MatchScorer : IMatchScorer
             reasons |= MatchReason.TypeConflict;
         }
 
-        // Origin vs the category folder, and tall strips vs a print record.
+        // Origin vs the category folder: agreement only (owner option a', 2026-09-27). A manhwa filed under a
+        // "Manga" folder is common, so a mismatch is neutral - no penalty, no veto. Tall strips vs a print record
+        // stay a conflict (they measure the pages, not a folder name).
         var origin = AutoMatchText.ParseOrigin(c.Origin);
-        if (origin is { } o && AutoMatchText.OriginsForCategory(ctx.CategoryHint) is { } allowed)
+        if (origin is { } o && AutoMatchText.OriginsForCategory(ctx.CategoryHint) is { } allowed
+            && (allowed.Contains(o) || (c.Webtoon == true && allowed.Contains(MetadataOrigin.Korea))))
         {
-            if (allowed.Contains(o) || (c.Webtoon == true && allowed.Contains(MetadataOrigin.Korea)))
-                delta += OriginAgree;
-            else
-            {
-                delta += Conflict;
-                reasons |= MatchReason.TypeConflict;
-            }
+            delta += OriginAgree;
         }
         if (ctx.TallStrips)
         {

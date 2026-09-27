@@ -39,16 +39,34 @@ public static partial class AutoMatchText
     private static partial Regex TrailingDisambiguator();
 
     /// <summary>
-    /// Words that name a category or a generic shelf, never a creator (E3: "Manga" exists as an
-    /// author name on the provider side, so a naive author match needs this stop list).
+    /// Category folder words (1.27.0: the ONE category list, shared with the server's tree snapshot): a folder
+    /// named exactly one of these (whole name, case-insensitive) is the category hint of the folders below it.
+    /// <c>manga</c> / <c>manhwa</c> / <c>manhua</c> / <c>webtoon(s)</c> also name an origin
+    /// (<see cref="OriginsForCategory"/>); the hint only ever ADDS evidence (owner option a', 2026-09-27).
     /// </summary>
-    private static readonly HashSet<string> s_categoryWords = new(StringComparer.Ordinal)
+    public static IReadOnlySet<string> CategoryFolderWords { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "manga", "manhwa", "manhua", "webtoon", "webtoons", "comic", "comics", "doujin", "doujinshi",
+    };
+
+    /// <summary>
+    /// Shelf words: generic sorting folders (status, format, "misc") that name no work and no creator. Never a
+    /// category hint; with <see cref="CategoryFolderWords"/> they form the creator stop list (E3: "Manga" exists
+    /// as an author name on the provider side).
+    /// </summary>
+    public static IReadOnlySet<string> ShelfWords { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
         "one shots", "oneshots", "one shot", "oneshot", "anthology", "anthologies", "magazine", "magazines",
         "ongoing", "completed", "complete", "finished", "misc", "other", "others", "various", "unsorted",
         "new", "read", "unread", "hentai", "adult", "artbook", "artbooks", "novel", "novels", "light novels",
     };
+
+    /// <summary>Both subsets, compared by scoring form: a category or shelf word, never a creator.</summary>
+    private static readonly HashSet<string> s_categoryWords =
+        new(CategoryFolderWords.Concat(ShelfWords).Select(TitleNormalizer.ScoringForm), StringComparer.Ordinal);
+
+    /// <summary>True when a folder name, whole and trimmed, is a category folder word (the library root is never asked).</summary>
+    public static bool IsCategoryFolderName(string? name) => name is not null && CategoryFolderWords.Contains(name.Trim());
 
     /// <summary>True when the name is a unit subfolder (<c>Volumes</c>, <c>Chapters 1-50</c>, <c>Season 2</c>, <c>Part 3</c>, <c>12</c>).</summary>
     public static bool IsUnitFolderName(string? name)
@@ -68,7 +86,7 @@ public static partial class AutoMatchText
     public static bool IsChapterFolderName(string? name) =>
         IsUnitFolderName(name) && Bare(name).StartsWith("ch", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>A category or generic shelf word ("Manga", "Ongoing", "Doujinshi").</summary>
+    /// <summary>A category or generic shelf word ("Manga", "Ongoing", "Doujinshi"), by scoring form.</summary>
     public static bool IsCategoryWord(string? name) => s_categoryWords.Contains(TitleNormalizer.ScoringForm(name));
 
     /// <summary>
