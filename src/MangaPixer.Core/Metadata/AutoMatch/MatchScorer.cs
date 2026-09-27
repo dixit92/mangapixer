@@ -63,6 +63,9 @@ public sealed class MatchScorer : IMatchScorer
     /// </summary>
     public const double SubtitleHeadCap = 0.80;
 
+    /// <summary>A title pair whose only shared tokens are numbers keeps this share of its similarity (1.27.0).</summary>
+    public const double DigitOnlyOverlapFactor = 0.5;
+
     /// <summary>Related top two need at least this raw title gap to stay auto.</summary>
     public const double RelatedSeparation = 0.10;
 
@@ -110,8 +113,10 @@ public sealed class MatchScorer : IMatchScorer
             && top.TitleScore - second.TitleScore < RelatedSeparation)
             reasons |= MatchReason.RelatedPair;
 
+        // "Close second" only means something for a top that could be reviewed (1.27.0): below the floor the work
+        // is unmatched, and a chip about two equally poor candidates only confuses.
         var margin = top.AdjustedScore - (second?.AdjustedScore ?? 0);
-        if (margin < thresholds.Margin)
+        if (margin < thresholds.Margin && top.TitleScore >= thresholds.ReviewFloor)
             reasons |= MatchReason.CloseSecond;
 
         var autoClass = IsAutoCapable(ctx.Class);
@@ -229,6 +234,9 @@ public sealed class MatchScorer : IMatchScorer
                 else
                 {
                     raw = TitleSimilarity.Score(v.Text, titles[i]);
+                    // A shared number alone is no title evidence (1.27.0: "Title 99" vs an unrelated "... 99").
+                    if (TitleSimilarity.SharesOnlyDigitTokens(v.Text, titles[i]))
+                        raw *= DigitOnlyOverlapFactor;
                     // The leading part of a long title (1.27.0): a name of at least three words that the record
                     // title starts with, word for word, is the same cap - review only, never auto on its own.
                     if (raw < SubtitleHeadCap && IsLeadingPart(v, fullForms[i]))

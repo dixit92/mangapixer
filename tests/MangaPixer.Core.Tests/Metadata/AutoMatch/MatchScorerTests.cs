@@ -116,6 +116,28 @@ public sealed class MatchScorerTests
         Assert.True(partial.Ranked[0].TitleScore < MatchScorer.SubtitleHeadCap);
     }
 
+    [Fact]
+    public void CloseSecond_IsOnlyRaised_WhenTheTopReachesTheReviewFloor()
+    {
+        var poor = Score(Query(["Alpha to Beta Gamma"]), Rec("1", "Unrelated Words Here"), Rec("2", "Other Unrelated Words"));
+        Assert.Equal(MatchBand.Unmatched, poor.Band);
+        Assert.False(poor.Ranked[0].Reasons.HasFlag(MatchReason.CloseSecond));
+
+        var tied = Score(Query(["Sprout"]), Rec("1", "Sprout (OTHER Person)"), Rec("2", "Sprout (THIRD Person)"));
+        Assert.True(tied.Ranked[0].Reasons.HasFlag(MatchReason.CloseSecond));
+    }
+
+    [Fact]
+    public void SharedNumberAlone_IsDamped()
+    {
+        var damped = Score(Query(["Alpha Beta 99"]), Rec("1", "Kappa Lambda 99"));
+        var plain = TitleSimilarity.Score("Alpha Beta 99", "Kappa Lambda 99");
+
+        Assert.True(TitleSimilarity.SharesOnlyDigitTokens("Alpha Beta 99", "Kappa Lambda 99"));
+        Assert.False(TitleSimilarity.SharesOnlyDigitTokens("Alpha Beta 99", "Alpha Kappa 99"));
+        Assert.Equal(plain * MatchScorer.DigitOnlyOverlapFactor, damped.Ranked[0].TitleScore, 6);
+    }
+
     private static MatchQuery WithUnits(MatchQuery q, int volumeLike, int chapterLike, int? localVolumes, int? localChapters) =>
         q with { Context = q.Context with { VolumeLikeCount = volumeLike, ChapterLikeCount = chapterLike, LocalVolumes = localVolumes, LocalChapters = localChapters } };
 
