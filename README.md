@@ -8,13 +8,13 @@
 
 MangaPixer serves your existing manga and comic folders to any browser.
 
-You point it at the directories where your `.cbz` and `.cbr` files already live, and it builds a catalog, generates thumbnails, and gives every user on your server their own reading progress, read marks and "continue reading" shelf. You can have multiple libraries for different types of content (manga, webcomics, graphic novels, etc.), and each folder can have independent properties set (such as reading direction).
+You point it at the directories where your `.cbz` / `.zip` and `.cbr` / `.rar` files already live, and it builds a catalog, generates thumbnails, and gives every user on your server their own reading progress, read marks and "continue reading" shelf. You can have multiple libraries for different types of content (manga, webcomics, graphic novels, etc.), and each folder can have independent properties set (such as reading direction).
 
 Inspired by several great comic servers and readers developed by the community, MangaPixer's main goals are:
 - **Folder-native**. It doesn't enforce a library structure on you. Similar to [YACReader](https://www.yacreader.com/), but with...
 - **Multi-user support**. You can create admin or "normal" users, and admins can expose specific libraries to normal users. Each user has their own reading progress, and users don't interfere with each other.
 - **A good native web reader**. I'm trying to offer as good a reading experience as possible across desktop, iPad/tablet and smartphone without needing an app. An app is to follow later so that you can save and download reliably for offline reading. This is something that you can't do right now.
-- **No metadata required, but supported when it's there**. Folder and file names are enough to browse and read, but MangaPixer also reads the `ComicInfo.xml` inside your archives, and an admin can optionally link series to [MangaUpdates](https://www.mangaupdates.com) for descriptions, authors and cover art (off by default). If your library is organized around metadata first, I'd still recommend checking out [Kavita](https://www.kavitareader.com/) or [Komga](https://komga.org/), although I aim to give you a rich metadata management experience - development is ongoing!
+- **No metadata required, but supported when it's there**. Folder and file names are enough to browse and read, but MangaPixer also reads the `ComicInfo.xml` inside your archives, and an admin can optionally link series to [MangaUpdates](https://www.mangaupdates.com), by hand or automatically, for descriptions, authors and cover art (off by default). If your library is organized around metadata first, I'd still recommend checking out [Kavita](https://www.kavitareader.com/) or [Komga](https://komga.org/), although I aim to give you a rich metadata management experience - development is ongoing!
 - You can also allow users to **mark libraries as "private"** and hide them from the default view. Might be useful if you want to have age-restricted content...restricted.
 
 ### What "folder-native" means
