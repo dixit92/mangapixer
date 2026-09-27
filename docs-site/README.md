@@ -27,7 +27,7 @@ The first build downloads Mermaid from the npm registry, checks its hash and cac
 | `docs-site/hooks.py` | Build-time adaptation of `docs/`: nav, outside links, images, descriptions, JSON-LD, `robots.txt`, Mermaid. |
 | `docs-site/overrides/` | Theme overrides: social and structured-data meta, the landing page, the repository link, styles, the social preview image. |
 | `docs-site/check_links.py` | Offline check of the built site. |
-| `docs-site/make_social_card.py` | Regenerates `overrides/assets/social-card.png` from the app icon and a README screenshot (needs Pillow). |
+| `docs-site/make_social_card.py` | Regenerates `overrides/assets/social-card.png` from the app icon and a drawn library grid - no cover art, since link previews copy it to other sites (needs Pillow). |
 | `docs-site/requirements.in` / `.txt` | Pinned tooling; `.txt` is the hash-locked output of `pip-compile --generate-hashes`. |
 | `docs/CNAME` | The custom domain for GitHub Pages. |
 | `.github/workflows/docs-site.yml` | Builds on `dev`, `main` and pull requests into `dev`; deploys from `main` only. |
