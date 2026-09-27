@@ -1,0 +1,103 @@
+/* MangaPixer docs site: brand colours from the web app (violet) and the landing hero. */
+:root {
+  --md-primary-fg-color: #5e35b1;
+  --md-primary-fg-color--light: #7c4dff;
+  --md-primary-fg-color--dark: #4527a0;
+  --md-accent-fg-color: #7c4dff;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #333333;
+  --md-primary-fg-color--light: #444444;
+  --md-primary-fg-color--dark: #222222;
+  --md-accent-fg-color: #b39dff;
+  --md-typeset-a-color: #b39dff;
+}
+
+.mp-hero {
+  background: #333333;
+  color: #f2f2f2;
+}
+
+.mp-hero__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.6rem 2.4rem;
+  padding: 2rem 0.8rem;
+}
+
+.mp-hero__text {
+  flex: 1 1 20rem;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.mp-hero__text h1 {
+  margin: 0.4rem 0 0.6rem;
+  font-size: 2rem;
+  font-weight: 700;
+  color: inherit;
+}
+
+.mp-hero__logo {
+  display: block;
+  width: 4rem;
+  height: 4rem;
+}
+
+.mp-hero__tagline {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.mp-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* .md-button is only styled inside .md-typeset; the hero sits outside it. */
+.mp-hero .md-button {
+  display: inline-block;
+  margin: 0;
+  padding: 0.5em 1.2em;
+  border: 0.1rem solid #b39dff;
+  border-radius: 0.2rem;
+  font-weight: 700;
+  color: #f2f2f2;
+  transition: background-color 125ms, color 125ms, border-color 125ms;
+}
+
+.mp-hero .md-button--primary {
+  background: #7c4dff;
+  border-color: #7c4dff;
+}
+
+.mp-hero .md-button:hover,
+.mp-hero .md-button:focus-visible {
+  background: #b39dff;
+  border-color: #b39dff;
+  color: #1a1a1a;
+}
+
+.mp-hero__meta {
+  opacity: 0.85;
+}
+
+.mp-hero__meta a {
+  color: #b39dff;
+}
+
+.mp-hero__shot {
+  flex: 1 1 24rem;
+  min-width: 0;
+}
+
+.mp-hero__shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.4rem;
+  box-shadow: 0 0.4rem 1.6rem rgba(0, 0, 0, 0.45);
+}
