@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-09-27
+
 ### Added
 
 - **Series information on hover.** With a mouse or trackpad, resting the pointer on the cover, the title or the (i) of an item that has series information shows a short summary beside it (title, alternative titles, facts, genres and the start of the description) - in the library's card and list views, in Search and on the Favorites page. **More** under the description opens the series page. A click still opens the item and the (i) still opens the full panel. The summary is loaded from your own server only after the pointer rests on an item (moving across the library sends nothing), and it follows **Show series information**. Touch screens are not affected. It is on by default; turn it off in **Settings** > **Series information** (saved to your account). The (i) now also appears on Search results and on the Favorites page. See [Summary on hover](docs/series-information.md#summary-on-hover).
