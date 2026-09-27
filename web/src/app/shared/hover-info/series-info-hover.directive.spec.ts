@@ -73,9 +73,16 @@ describe('SeriesInfoHoverDirective + SeriesInfoHoverService', () => {
     el.querySelector(`[data-id="${id}"] .${part}`) as HTMLElement;
   const popover = () => document.querySelector('[data-testid="series-info-popover"]');
 
+  /** Flushes the fetch and the popover's lazy import (slow the first time). */
   async function settle() {
-    for (let i = 0; i < 5; i++) await vi.advanceTimersByTimeAsync(0);
+    for (let i = 0; i < 5; i++) {
+      await vi.dynamicImportSettled();
+      await vi.advanceTimersByTimeAsync(0);
+    }
   }
+
+  // Load the lazily imported popover chunk once, so no test races its first import.
+  beforeAll(async () => { await import('./series-info-popover.component'); });
 
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => {
