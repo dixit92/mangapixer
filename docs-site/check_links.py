@@ -10,7 +10,8 @@ are not fetched (the check stays deterministic and offline).
 
 It also enforces the privacy rule for the site: no page may load a script,
 stylesheet, font, image or frame from another host at run time (links the
-reader clicks are fine). Standard library only.
+reader clicks are fine), and the theme's repository widget must stay disabled
+(it calls api.github.com from the browser). Standard library only.
 """
 
 from __future__ import annotations
@@ -92,6 +93,8 @@ def main(site_dir: str) -> int:
             elif fragment and target.suffix == ".html" and fragment not in parsed[target].ids:
                 errors.append(f"{where}: missing anchor {link}")
 
+        if 'data-md-component="source"' in page.read_text(encoding="utf-8"):
+            errors.append(f"{page.relative_to(site).as_posix()}: repository widget calls api.github.com")
         for load in collector.loads:
             host = urlsplit(load).hostname
             if (host and host != SITE_HOST) or load.startswith("//"):
