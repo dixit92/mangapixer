@@ -2,7 +2,7 @@
 
 MangaPixer can show a series summary (title, description, authors, genres, publication status, cover art) for your folders and archives. The information comes from two places:
 
-- **ComicInfo.xml** inside your archives. It is read when an archive is analysed; nothing leaves your server.
+- **ComicInfo.xml** inside your archives. It is read when an archive is analyzed; nothing leaves your server.
 - **MangaUpdates**, only if an admin allows it. An admin *identifies* a folder (or a single archive) with a MangaUpdates series; MangaPixer then fetches that series' details and cover once and stores them on your server. With **Automatic matching** on, MangaPixer also matches new series folders on its own (see [Automatic matching](#automatic-matching)).
 
 Folders and archives with information show an **(i)** in the cover's bottom-left corner. It opens a side panel (a bottom sheet on a phone); **Open series page** leads to the full page. A folder that holds several series (an anthology or an author's folder, for example) lists them in the panel instead, without a series page. Inside a series folder, **Series info** in the top bar opens the same panel; an admin inside a folder without information sees **Identify…** there instead (when web lookups are on for the library). The (i) and the top-bar button update as soon as an admin links, unlinks or marks a folder, without reloading the page.
@@ -57,7 +57,7 @@ What the matcher did - links it made, close calls, works without a match and fol
 
 ### Renamed and moved folders
 
-When a folder is renamed or moved, MangaPixer recognises its archives at the new place and moves the folder's link or **Don't match**, its source precedence, its default reading mode and its **Content** setting to the new folder, as long as at least 80% of its archives went to the same new folder. Otherwise (a folder split in two, for example) the settings wait under **Missing folders**, where you can **Re-attach** them to a folder of the same library or delete them. Archives keep their links and reading progress when they move anyway.
+When a folder is renamed or moved, MangaPixer recognizes its archives at the new place and moves the folder's link or **Don't match**, its source precedence, its default reading mode and its **Content** setting to the new folder, as long as at least 80% of its archives went to the same new folder. Otherwise (a folder split in two, for example) the settings wait under **Missing folders**, where you can **Re-attach** them to a folder of the same library or delete them. Archives keep their links and reading progress when they move anyway.
 
 ### Background refresh
 
@@ -81,7 +81,7 @@ Anyone who can see a series' MangaUpdates information can tell the admins it is 
 
 After sending, the panel shows **You reported this**; once an admin has dealt with it, **Reviewed** (you can report again if it is still wrong). You can have one open report per series and send up to 20 reports a day (more on large servers: 2% of the series you can see); the dialog says when you have reached the limit. A report is about the series, not the single archive.
 
-Admins see the reports, with the note, under **Flags** on the [Series metadata page](#series-metadata-page-admins) and resolve them by relinking with **Identify…**, **Unlink**, **Don't match** or **Dismiss**; resolving applies to every open report on that series. Notes are never written to the logs.
+Admins see the reports, with the note, under **Flags** on the [Series metadata page](#series-metadata-page-admins) and resolve them by relinking with **Re-identify…**, **Unlink**, **Don't match** or **Dismiss**; resolving applies to every open report on that series. Notes are never written to the logs.
 
 ## What is sent
 
@@ -93,7 +93,7 @@ Only to `api.mangaupdates.com` (search and series details) and `cdn.mangaupdates
 - MangaUpdates series numbers;
 - a generic `User-Agent: MangaPixer-Metadata`.
 
-Never sent: file paths, your file list, user accounts, reading progress, reports and their notes, cookies, or anything that identifies your server. MangaUpdates sees your server's IP address, as with any web request. Readers' browsers never contact MangaUpdates: covers are stored on your server and served by MangaPixer. Logs record ids, counts, status codes and timings, never search text, folder names or titles.
+Never sent: file paths, your file list, user accounts, reading progress, reports and their notes, cookies, or anything that identifies your server. MangaUpdates sees your server's IP address, as with any web request. Readers' browsers never contact MangaUpdates: covers are stored on your server and served by MangaPixer. Logs record IDs, counts, status codes and timings, never search text, folder names or titles.
 
 MangaPixer is polite to MangaUpdates: at most 2 requests per second (5 per second for cover images), a daily request budget, and when MangaUpdates asks it to slow down it waits (up to an hour) before trying again. Search results are kept in memory for an hour, so repeating a search sends nothing.
 
@@ -119,9 +119,7 @@ To make sure the server never contacts MangaUpdates, whatever is set in the app,
 
 ### Automatic matching settings
 
-**Automatic matching** is one switch for the whole server, off by default. It needs **Fetch from the web**, and it can only be turned on after ticking the box under its own consent text, which explains that folder names are then sent without anyone reviewing them first (see [What is sent](#what-is-sent)). Turning it on sends nothing by itself; matching happens in the background, within the daily budget.
-
-It applies to every library whose **Fetch** switch is on; the card lists them. Links it is sure about go live at once and appear under **Review** > **Auto-linked**; close calls wait under **Needs review**. Linked series are also refreshed in the background (every 30 days while a series is ongoing, every 90 days once it is complete). Turning the switch off stops both; links already made stay until you remove them.
+The **Automatic matching** switch and its consent are described under [Admin settings](#admin-settings), what it does under [Automatic matching](#automatic-matching). Its card lists the libraries it applies to: every library whose **Fetch** switch is on.
 
 **Match now** on a library queues all of its series folders at once. Before you start, it shows a local estimate (nothing is sent to get it): how many folders it will try, about how many requests that takes and how many days at the current budget, and how many are already linked. **Also retry folders that found no match before** includes earlier misses. The first time a library is matched, **Review everything once** keeps every result in **Needs review** instead of linking it, so you can check the matcher on your library before anything goes live.
 
@@ -137,15 +135,15 @@ Higher numbers link less on their own and send more to review. Changes apply to 
 
 The **Review** tab lists what the matcher did, with a count on each list and a library filter:
 
-- **Needs review**: close calls. Each row shows the folder (or archive), where it is, why it is here (for example *Close second*: the runner-up scored almost as high; *Count*: your item count does not fit the record; *Year*, *Type*, *Related series*, *Author*) and the stored candidates. Pick a candidate and **Accept**, or **Identify…** to search yourself, **Don't match**, or **Later** (moves the row to the end of the list).
+- **Needs review**: close calls. Each row shows the folder (or archive), where it is, why it is here (for example *Close second*: the runner-up scored almost as high; *Count*: your item count does not fit the record; *Year*, *Type*, *Related series*, *Author*) and the stored candidates. Pick a candidate and **Accept**, or **Identify…** to search yourself, or **Don't match**.
 - **Auto-linked**: links made automatically, newest first. **Confirm** keeps one (automatic matching never changes a confirmed link), **Change…** opens Identify, **Unlink** and **Don't match**.
 - **Unmatched**: works the matcher found no good candidate for, with the date of the next automatic try.
 - **Don't match**, **Confirmed**: what is marked or linked by hand.
-- **Missing folders**: links, precedence and reading defaults left on a folder that was renamed or moved where MangaPixer could not follow it. **Re-attach to…** opens a folder picker for the same library; **Delete** removes what was left.
+- **Missing folders**: links or **Don't match** marks, source precedence, reading defaults and **Content** left on a folder that was renamed or moved where MangaPixer could not follow it. **Re-attach to…** opens a folder picker for the same library; **Delete** removes what was left.
 
 Archives matched on their own are marked **Archive**; several archives matched together as one work are marked **Archive group**. Candidate covers are not shown until you expand a row (the arrow on the right, or `e`), because each cover is a request to MangaUpdates.
 
-Select rows (the checkbox, `x`, or **Select all**) for bulk actions such as **Accept top candidates**, **Don't match** or **Re-run matching**. Every change shows a message with **Undo**; nothing is sent until that message closes, so **Undo** leaves everything as it was. Keyboard: `j` / `k` move between rows, `a` accept, `d` Don't match, `i` identify, `l` later, `c` confirm, `u` unlink, `x` select, `e` show covers.
+Select rows (the checkbox, `x`, or **Select all**) for bulk actions such as **Accept top candidates**, **Don't match** or **Re-run matching**. Every change shows a message with **Undo**; nothing is sent until that message closes, so **Undo** leaves everything as it was. Keyboard: `j` / `k` move between rows, `a` accept, `d` Don't match, `i` identify, `c` confirm, `u` unlink, `x` select, `e` show covers.
 
 On a phone each row is a card with the candidates as a list to choose from; tap a card and its actions appear in the bar at the bottom. Long-press a card to start selecting; the bottom bar then carries the bulk actions.
 

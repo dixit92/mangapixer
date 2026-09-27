@@ -12,11 +12,12 @@ On desktop and tablet, the toolbar at the top holds:
 
 - **Back to folder**.
 - The page counter (`12 / 40`, or `12-13 / 40` while a double page is showing).
-- **Favorite** (the star): adds the open archive to your [favorites](library-layout.md#favorites).
 - **Previous archive** / **Next archive**. Their tooltips name the neighboring archive. They are disabled at either end of the folder.
 - **Reading mode**.
+- **Bookmark this page** (**Remove bookmark** on a bookmarked page) and **Bookmarks**, which lists this archive's bookmarks so you can jump to or delete one.
+- **Favorite** (the star): adds the open archive to your [favorites](library-layout.md#favorites).
 - **Image fit**, or the **Page width** slider in vertical mode.
-- The reading-direction toggle.
+- The reading-direction toggle (not in vertical mode).
 - **Page transition**, or **Tap to scroll** in vertical mode.
 - **Upscaling** (the magic-wand icon): the picture-quality options described in [Image quality](#image-quality).
 - **Reading help** (`?`).
@@ -40,7 +41,7 @@ On screens narrower than 600 px, the toolbar keeps only **Next archive**, **Full
 - **Image fit**
 - **Reading direction**
 - **Page transition**
-- **Upscaling**, **Page quality** and **Downscale filter** (see [Image quality](#image-quality))
+- **Upscaling** (plus **Enhance quality** while Enhance is selected), **Page quality** and **Downscale filter** (see [Image quality](#image-quality))
 - In vertical mode, **Page width** and **Tap to scroll** replace the paged-only groups.
 - **Previous archive**, **Next archive** and **Reading help**.
 
@@ -69,7 +70,7 @@ Details:
 
 ### Fixing double-page pairing
 
-Scanned releases often insert extra pages (credits, colour pages), so from some point on the pages pair up wrongly: the left half of a spread ends up next to the right half of the previous one. You can fix this anywhere in an archive:
+Scanned releases often insert extra pages (credits, color pages), so from some point on the pages pair up wrongly: the left half of a spread ends up next to the right half of the previous one. You can fix this anywhere in an archive:
 
 - **Pick the other double-page mode.** The highlighted entry, **Double page** or **Double page (shifted)**, shows how the spread on screen is paired. Picking the other one shifts the pairing by one page from this spread on, up to the next wide page. On the first page this is the classic "cover alone" setting.
 - **Press `o`.** The same as picking the other mode.
@@ -198,7 +199,7 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
 | `Esc` | Close an open menu or help. Otherwise exit fullscreen, or go back to the folder if not in fullscreen. |
 | `?` | Show / hide the help overlay |
 
-- In vertical mode only `m`, `s`, `?` and `Esc` (to close help) apply. Scroll with the mouse wheel, trackpad or the usual scroll keys.
+- In vertical mode only `m`, `s`, `e`, `?` and `Esc` (to close help) apply. Scroll with the mouse wheel, trackpad or the usual scroll keys.
 - Shortcuts are ignored while you type in a text field.
 - When the page slider has keyboard focus, the arrow keys step one page and `Home` / `End` jump to the ends.
 

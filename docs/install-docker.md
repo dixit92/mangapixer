@@ -5,7 +5,7 @@ This guide walks through `deploy/compose.yaml`, the canonical way to run the ser
 ## What you need
 
 - Docker Engine with the Compose plugin (`docker compose`). The override example below uses the `!override` tag, which needs Compose 2.24 or later.
-- The two Compose files from this repository (`deploy/compose.yaml` and your own override). The image itself is pulled from the GitHub Container Registry; nothing is built on your machine.
+- `deploy/compose.yaml` from this repository, plus an override file you write yourself (step 2). The image itself is pulled from the GitHub Container Registry; nothing is built on your machine.
 - Your comics or manga in folders that the Docker host can read.
 
 ## What the Compose file sets up

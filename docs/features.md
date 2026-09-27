@@ -8,14 +8,14 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 - Sort by name (ascending or descending), recently added, recently read, or recently updated. Recently updated ranks a folder by its newest archive, like a new chapter.
 - Filter by read state (reading / read / unread) at any folder level. The filter also applies to series folders through their contents, and you can hide empty folders.
 - A-Z jump rail with multilingual collation, infinite scroll in both directions after a jump, and read/reading rollup badges on folders. This means you can tell at a glance whether a folder contains only comics you've read, some you haven't read yet, or nothing you've started at all.
-- Multi-select, including shift/ctrl ranges and touch long-press, to mark items read or unread in bulk. Works on touchscreens too!
+- Multi-select, including shift/ctrl ranges and touch long-press, to mark items read or unread in bulk.
 - Full-text search over titles and folder names (trigram search), with cover thumbnails and a folder-vs-archive badge. Series linked to MangaUpdates are also found by their alternative titles: a `Dungeon Meshi` folder turns up when you search for `Delicious in Dungeon`.
 
 ## Reader
 
 - Four modes: paged left-to-right, paged right-to-left (manga), double-page spreads, and vertical webtoon scrolling. Admins set a default mode per library and per folder, and each user can override it per item or set a personal default.
 - Double-page mode adapts: it shows a single page in narrow portrait, keeps wide spreads whole, and shows both page numbers. When extra pages split a spread across the wrong pair, you can shift the pairing anywhere in an archive, and it is saved for everyone who reads it.
-- Image quality: pages are sent at the size your screen shows them (or full size, your choice), downscaled on the server with a choice of filter to keep screentones clean. Pages shown larger than their resolution can be redrawn on your device's graphics chip: **Crisp** (AMD FSR 1, light) or **Enhance** (the Anime4K line-art upscaler, **Efficient** or **Max quality**), in paged and vertical mode. Enhance uses WebGPU over HTTPS and WebGL2 elsewhere, so both also work over plain `http://` on your LAN, and the reader always shows which engine is running.
+- Image quality: pages are sent at the size your screen shows them (or full size, your choice), downscaled on the server with a choice of filter to keep screentones clean. Pages shown larger than their resolution can be redrawn on your device's graphics chip: **Crisp** (AMD FSR 1, light; the default) or **Enhance** (the Anime4K line-art upscaler, **Efficient** or **Max quality**), in paged and vertical mode. Enhance uses WebGPU over HTTPS and WebGL2 elsewhere, so both also work over plain `http://` on your LAN, and the reader always shows which engine is running.
 - Touch and keyboard navigation: direction-aware swipe zones, arrow keys, a draggable page scrubber, a help overlay (`?`), and immersive fullscreen.
 - Webtoon tap zones and swipe move by a configurable step (90% of the screen by default). Turn them off for free scrolling only.
 - Configurable page-turn animation (Slide / Reveal / None).

@@ -148,8 +148,8 @@ On Unraid, change `6266:8080` to another free port such as `6267:8080`. Then use
 
 ## The container stops the first time it starts after a restore
 
-On Docker Desktop for Windows with a folder bind mount for `/data`, the first start after an API restore can exit right after applying the swap, with `SQLite Error 14: 'unable to open database file'` in the log. The restore has already been applied at that point. **Start the container again** and it comes up normally. (With `restart: unless-stopped` Docker does this for you.) Named Docker volumes, as in the default Compose file, are not affected.
+On Docker Desktop for Windows with a folder bind mount for `/data`, the first start after a restore can exit right after applying the swap, with `SQLite Error 14: 'unable to open database file'` in the log. The restore has already been applied at that point. **Start the container again** and it comes up normally. (With `restart: unless-stopped` Docker does this for you.) Named Docker volumes, as in the default Compose file, are not affected.
 
 ## Restore upload rejected as too large
 
-`Multipart body length limit 134217728 exceeded` means the file is over 128 MiB, the most the server accepts as an upload. Use the manual restore instead ([Backup and restore](backup-and-restore.md#option-2-swap-the-file-by-hand)).
+`Multipart body length limit 536870912 exceeded` (or "Upload exceeds the maximum allowed size") means the file is over the restore upload limit, 512 MiB by default. Raise `MangaPixer__Backups__MaxRestoreUploadBytes` (see [Configuration](configuration.md#backups)), or use the manual restore instead ([Backup and restore](backup-and-restore.md#option-2-swap-the-file-by-hand)). Behind a reverse proxy, the proxy's own upload limit can also reject the file, usually with HTTP 413; see [Reverse proxy and HTTPS](reverse-proxy-and-https.md#requirements-for-the-proxy).

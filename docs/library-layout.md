@@ -10,7 +10,7 @@ A library is one folder you register as an admin. Inside it:
 - Every **supported archive** becomes a readable item. Selecting it opens the [reader](reader.md).
 - Everything else (loose images, text files, PDFs) is ignored.
 
-Names come straight from the file system. An archive's name is its full file name, extension included (`Chapter 001.cbz`). Embedded `ComicInfo.xml` never renames anything; it feeds the [series information](series-information.md) panel instead.
+Names come straight from the filesystem. An archive's name is its full file name, extension included (`Chapter 001.cbz`). Embedded `ComicInfo.xml` never renames anything; it feeds the [series information](series-information.md) panel instead.
 
 There is no special "series" or "chapter" type. By convention a series is a folder and a chapter or volume is an archive inside it, at any depth:
 
@@ -64,7 +64,7 @@ MangaPixer sorts names in **natural order**. The same rules apply to pages insid
 
 - Runs of digits compare as numbers: `Chapter 2` < `Chapter 10`, `page2.png` < `page10.png`.
 - Equal numbers with different zero-padding put the longer padding first: `001` < `01` < `1`.
-- In the library view, letters compare **without regard to case**: `apple` < `Banana` < `cherry`, and a name that differs from another only in case lists right next to it, capitalised form first (`Berserk`, then `berserk`). Page names inside an archive still compare by character code, so uppercase comes before lowercase there (`Cover.png` < `cover.png`). There is no language-specific collation.
+- In the library view, letters compare **without regard to case**: `apple` < `Banana` < `cherry`, and a name that differs from another only in case lists right next to it, capitalized form first (`Berserk`, then `berserk`). Page names inside an archive still compare by character code, so uppercase comes before lowercase there (`Cover.png` < `cover.png`). There is no language-specific collation.
 - Punctuation such as `-`, `_` and `[` sorts before digits and letters: `[Extras]` < `10 Tigers` < `Akira`.
 - Digits sort before letters: `10 Tigers` < `Akira`.
 - Decimals work the way you expect for volume numbers: `Vol.1.5` < `Vol.2`.
@@ -103,14 +103,13 @@ The **Filter** button holds:
 
 - **Show:** **All**, **Reading**, **Read** or **Unread**. For folders, the filter looks at every archive below them.
 - **Hide empty folders:** hides folders with no archive anywhere below them.
-
 - **Favorites only:** shows only the folders and archives you starred.
 
 Filters apply to the current view only and are not saved.
 
 ### Selecting items
 
-Choose **Select** to pick several items for a bulk action, such as marking them read or (for admins) setting a reading direction. In **List** view you can also tick the checkbox on any row directly, without choosing **Select** first; tapping the row itself still opens it. See [Read and unread](reader.md#read-and-unread) for the selection shortcuts.
+Choose **Select** to pick several items for a bulk action, such as marking them read or (for admins) setting a reading direction or using the **Series** menu (see [Series information](series-information.md)). In **List** view you can also tick the checkbox on any row directly, without choosing **Select** first; tapping the row itself still opens it. See [Read and unread](reader.md#read-and-unread) for the selection shortcuts.
 
 ### Jump navigation
 
@@ -150,7 +149,7 @@ After a scan, new archives are analyzed in the background. Their page counts and
 - A library is due once its interval has passed since its **last completed scan**, whether you started that scan or the schedule did. So **Scan now** also pushes the next automatic scan back. A library that has never been scanned is due straight away, so a newly registered library is scanned within a few minutes unless you set it to **Off** first.
 - Nothing is scanned in the first 3 minutes after the server starts. After that, the server checks every minute and scans due libraries **one at a time**. It waits while any scan is running, including one you started.
 - A library whose folder is unreachable (for example an unmounted share) is skipped until the folder is back. The log records this once, not every minute. If an automatic scan fails, it is retried after an hour at the earliest (or after one interval, for hourly scans).
-- **Next scan (approx.)** is an estimate: the scan starts at the first check after that time, and later if another scan is running. "Shortly" means the library is already due.
+- **Next scan (approx.)** is an estimate: the scan starts at the first check after that time, and later if another scan is running. "shortly" means the library is already due.
 - To switch automatic scans off for the whole server, set `MangaPixer:Scanning:Scheduler:Enabled` to `false` (see [Configuration](configuration.md#scanning)). Each library's setting is kept.
 
 **What a rescan does:**
@@ -164,6 +163,7 @@ After a scan, new archives are analyzed in the background. Their page counts and
   - the new file is not still being written.
 
   Otherwise the moved file is treated as a new item.
+- **Moved or renamed folders** keep the settings an admin gave them (reading direction, series link or **Don't match**, source precedence and **Content**) when at least 80% of their archives moved to the same new folder. Otherwise the settings wait under **Missing folders** on the Series metadata page. See [Renamed and moved folders](series-information.md#renamed-and-moved-folders).
 - **Safety net:** if a scan finds that almost everything has vanished (for example an unmounted share), it deletes nothing. The same applies if the library folder itself is unreachable; the scan fails with "Library root is not accessible."
 
 **What is skipped during a scan:**
