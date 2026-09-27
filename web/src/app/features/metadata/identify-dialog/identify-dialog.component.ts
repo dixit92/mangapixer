@@ -154,7 +154,15 @@ type Step = 'search' | 'preview';
                 }
                 <div>
                   <div class="c-title">{{ p.title }}</div>
-                  @if (p.altTitles?.length) { <div class="muted small">+{{ p.altTitles!.length }} alternative title{{ p.altTitles!.length === 1 ? '' : 's' }}</div> }
+                  @if (p.altTitles?.length) {
+                    <!-- The titles the record is known by: what an admin compares with the folder name (owner, 1.26.x). -->
+                    <div class="alt small" data-testid="identify-alt-titles">also: {{ shownAltTitles(p).join(', ') }}
+                      @if (!altTitlesExpanded() && p.altTitles!.length > ALT_TITLE_LIMIT) {
+                        <button type="button" class="more-alts" (click)="altTitlesExpanded.set(true)"
+                                data-testid="identify-alt-more">+{{ p.altTitles!.length - ALT_TITLE_LIMIT }} more</button>
+                      }
+                    </div>
+                  }
                   <div class="muted">{{ pLine(p) }}</div>
                   @if (p.webtoon) { <div class="muted" data-testid="identify-webtoon">{{ p.providerName }}: webtoon</div> }
                   @for (g of credits(p); track g.label) { <div class="small">{{ g.label }}: {{ g.names.join(', ') }}</div> }
@@ -205,6 +213,8 @@ type Step = 'search' | 'preview';
     .note { color: #9a9aa8; font-size: 12px; margin: 4px 0 8px; }
     .muted { color: #9a9aa8; }
     .small { font-size: 12px; }
+    .alt { color: #b8b8c4; margin: 2px 0 4px; overflow-wrap: anywhere; }
+    .more-alts { background: none; border: none; padding: 0 0 0 4px; font: inherit; color: #b39dff; cursor: pointer; text-decoration: underline; }
     .warn { color: #ffb300; font-size: 13px; }
     .error { color: #f44336; }
     .hint { margin: 8px 0; }
@@ -254,6 +264,9 @@ export class IdentifyDialogComponent implements OnInit {
   readonly budgetUsed = signal(0);
   readonly budgetLimit = signal(0);
   readonly preview = signal<IdentifyPreviewDto | null>(null);
+  /** Alternative titles shown before "+N more" in the preview. */
+  readonly ALT_TITLE_LIMIT = 6;
+  readonly altTitlesExpanded = signal(false);
   private readonly previewMethod = signal<MetadataMatchMethod>('Search');
   /** The search result a preview came from: its score (against the confirmed query) is the one shown and stored. */
   private readonly previewCandidate = signal<IdentifyCandidateDto | null>(null);
@@ -289,6 +302,11 @@ export class IdentifyDialogComponent implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  shownAltTitles(p: IdentifyPreviewDto): string[] {
+    const all = p.altTitles ?? [];
+    return this.altTitlesExpanded() ? all : all.slice(0, this.ALT_TITLE_LIMIT);
   }
 
   runSearch(): void {
@@ -394,6 +412,7 @@ export class IdentifyDialogComponent implements OnInit {
     this.error.set(null);
     call.subscribe({
       next: (p) => {
+        this.altTitlesExpanded.set(false);
         this.preview.set(p);
         this.previewMethod.set(method);
         this.previewCandidate.set(candidate);

@@ -185,13 +185,28 @@ describe('IdentifyDialogComponent', () => {
     expect(api.preview).toHaveBeenCalledWith('n1', { provider: 'mangaupdates', externalId: '42' });
   });
 
+  it('lists the alternative titles, folding a long list behind "+N more"', () => {
+    const { c, api, q, render } = create();
+    const many = Array.from({ length: 9 }, (_, i) => `Alt Title ${i + 1}`);
+    api.preview.mockReturnValueOnce(of({ ...preview, altTitles: many }));
+    c.usePreview('mangaupdates', '51239621230', 'Search');
+    render();
+    expect(q('[data-testid="identify-alt-titles"]')!.textContent).toContain('Alt Title 6');
+    expect(q('[data-testid="identify-alt-titles"]')!.textContent).not.toContain('Alt Title 7');
+    (q('[data-testid="identify-alt-more"]') as HTMLButtonElement).click();
+    render();
+    expect(q('[data-testid="identify-alt-titles"]')!.textContent).toContain('Alt Title 9');
+    expect(q('[data-testid="identify-alt-more"]')).toBeNull();
+  });
+
   it('previews side by side with warnings, the webtoon flag and a no-referrer attribution', () => {
     const { c, el, q, render } = create();
     c.usePreview('mangaupdates', '51239621230', 'Search');
     render();
     expect(el.textContent).toContain('41 items');
     expect(el.textContent).toContain('ComicInfo: “Berserk”');
-    expect(el.textContent).toContain('+2 alternative titles');
+    expect(q('[data-testid="identify-alt-titles"]')!.textContent).toContain('also: Beruseruku, Berserk: The Black Swordsman');
+    expect(q('[data-testid="identify-alt-more"]')).toBeNull(); // two titles: nothing folded
     expect(q('[data-testid="identify-webtoon"]')!.textContent).toContain('MangaUpdates: webtoon');
     expect(q('[data-warning="count_mismatch"]')).not.toBeNull();
     const a = el.querySelector('a[href^="https://www.mangaupdates.com"]') as HTMLAnchorElement;
