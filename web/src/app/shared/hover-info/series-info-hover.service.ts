@@ -150,6 +150,7 @@ export class SeriesInfoHoverService {
     });
     this.popover = this.overlayRef.attach(new ComponentPortal(SeriesInfoPopoverComponent, null, this.injector));
     this.popover.setInput('info', info);
+    this.popover.changeDetectorRef.detectChanges(); // render now, so the overlay measures its real size
     this.popover.instance.pointerEnter.subscribe(() => this.clearCloseTimer());
     this.popover.instance.pointerLeave.subscribe(() => this.scheduleClose());
     this.openNodeId = target.nodeId;
