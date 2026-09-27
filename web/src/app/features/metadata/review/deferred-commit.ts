@@ -1,5 +1,5 @@
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { Observable, Subject, of } from 'rxjs';
+import { Observable, ReplaySubject, of } from 'rxjs';
 
 /** One review action whose request waits until its Undo window is over. */
 export interface DeferredAction<T = unknown> {
@@ -73,7 +73,11 @@ export class DeferredCommitQueue {
     if (p.settled) return of(undefined);
     p.settled = true;
     if (this.pending === p) this.pending = null;
-    const settled = new Subject<void>();
+    // A ReplaySubject, not a plain Subject: `p.action.commit()` may resolve synchronously
+    // (as in tests, or a fast local response), completing this notification before
+    // `flush()`'s caller has had a chance to subscribe to it - a plain Subject would
+    // silently drop that emission for a subscriber that arrives after `complete()`.
+    const settled = new ReplaySubject<void>(1);
     p.action.commit().subscribe({
       next: (r) => {
         p.action.committed?.(r);
