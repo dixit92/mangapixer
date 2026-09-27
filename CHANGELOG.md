@@ -24,6 +24,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Upgrade note:** this version adds a database migration (`AddMetadataAutoMatch`: the match queue, runs, stored candidates, flags and folder Content; a snapshot is taken before it runs). The media worker protocol is unchanged (3).
 - **MangaPixer Administration:** the Series metadata card is replaced by a summary tile (items to review, open reports, requests today against the budget, automatic matching on or off) that links to the new page, and the account menu has a **Series metadata** item for admins, with a badge showing the number of items to review plus open reports.
 
+### Fixed
+
+- **MangaPixer Administration on a phone:** library rows showed no name and hid some of their buttons (rename, icon, remove); they now wrap, with every action visible. The version line at the bottom no longer floats over the cards on a phone.
+- **Library Direction** showed an empty box for libraries set to **Inherit**; it now reads **Inherit**.
+
 ## [1.25.0] - 2026-09-26
 
 ### Added
