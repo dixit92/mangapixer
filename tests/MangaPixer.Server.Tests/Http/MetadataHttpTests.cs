@@ -234,6 +234,43 @@ public sealed class MetadataHttpTests : IClassFixture<MangaPixerWebApplicationFa
         Assert.Equal(HttpStatusCode.NotFound, (await admin.PutAsJsonAsync("/api/v1/admin/metadata/libraries/nope", new UpdateMetadataLibraryRequest { FetchEnabled = true })).StatusCode);
     }
 
+    /// <summary>
+    /// 1.27.0 (hover summary): search results and the Favorites page carry the browse
+    /// (i) flag through the public API, and "Show series information" off clears it.
+    /// </summary>
+    [Fact]
+    public async Task SearchAndFavorites_CarryTheSeriesInfoFlag_OverHttp()
+    {
+        var admin = await AdminAsync();
+        async Task<bool?> SearchFlagAsync(string q, string id) =>
+            (await admin.GetFromJsonAsync<SearchResultsDto>($"/api/v1/search?q={Uri.EscapeDataString(q)}", TestJson.Web))!
+                .Items.SingleOrDefault(i => i.Id == id)?.HasSeriesInfo;
+        async Task<Dictionary<string, bool>> FavoriteFlagsAsync() =>
+            (await admin.GetFromJsonAsync<PageResponse<CatalogNodeDto>>("/api/v1/favorites", TestJson.Web))!
+                .Items.ToDictionary(i => i.Id, i => i.HasSeriesInfo);
+
+        foreach (var id in new[] { "mdFolder", "mdPlain" })
+            Assert.Equal(HttpStatusCode.NoContent, (await admin.PostAsync($"/api/v1/nodes/{id}/favorite", null)).StatusCode);
+        try
+        {
+            Assert.True(await SearchFlagAsync("Synthetic Series", "mdFolder"));
+            Assert.False(await SearchFlagAsync("Plain Folder", "mdPlain"));
+            var favorites = await FavoriteFlagsAsync();
+            Assert.True(favorites["mdFolder"]);
+            Assert.False(favorites["mdPlain"]);
+
+            (await admin.PutAsJsonAsync($"/api/v1/admin/metadata/libraries/{LibPubId}", new UpdateMetadataLibraryRequest { ShowSeriesInfo = false })).EnsureSuccessStatusCode();
+            Assert.False(await SearchFlagAsync("Synthetic Series", "mdFolder"));
+            Assert.False((await FavoriteFlagsAsync())["mdFolder"]);
+        }
+        finally
+        {
+            (await admin.PutAsJsonAsync($"/api/v1/admin/metadata/libraries/{LibPubId}", new UpdateMetadataLibraryRequest { ShowSeriesInfo = true })).EnsureSuccessStatusCode();
+            foreach (var id in new[] { "mdFolder", "mdPlain" })
+                await admin.DeleteAsync($"/api/v1/nodes/{id}/favorite");
+        }
+    }
+
     [Fact]
     public async Task ShowSeriesInfoOff_HidesSeriesInfo_AndTheBrowseFlag_ThenComesBack()
     {

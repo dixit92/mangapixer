@@ -948,6 +948,35 @@ public sealed class ReadingStateTests : IDisposable
     }
 
     [Fact]
+    public async Task LibraryPreferences_SeriesInfoOnHover_DefaultsOn_AndRoundTrips()
+    {
+        var (db, userId, _, _, _) = await SetupAsync();
+        try
+        {
+            var auth = new LibraryAuthorizationService(db);
+            var service = new ReadingStateService(db, auth);
+
+            // No row yet, then a row created by the READER preferences: both read as ON.
+            Assert.True((await service.GetLibraryPreferencesAsync(userId)).SeriesInfoOnHover);
+            await service.SetPreferencesAsync(userId, new UserPreferencesDto { ReducedMotion = true });
+            Assert.True((await service.GetLibraryPreferencesAsync(userId)).SeriesInfoOnHover);
+
+            var current = await service.GetLibraryPreferencesAsync(userId);
+            await service.SetLibraryPreferencesAsync(userId, current with { SeriesInfoOnHover = false });
+            var off = await service.GetLibraryPreferencesAsync(userId);
+            Assert.False(off.SeriesInfoOnHover);
+            Assert.Equal(current with { SeriesInfoOnHover = false }, off);
+
+            await service.SetLibraryPreferencesAsync(userId, off with { SeriesInfoOnHover = true });
+            Assert.True((await service.GetLibraryPreferencesAsync(userId)).SeriesInfoOnHover);
+
+            // Reader prefs survived the library-prefs writes.
+            Assert.True((await service.GetPreferencesAsync(userId)).ReducedMotion);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
     public async Task UpdateProgress_UnauthorizedUser_ReturnsUnauthorized()
     {
         var (db, _, _, _, itemId) = await SetupAsync();
