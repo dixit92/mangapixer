@@ -425,6 +425,14 @@ public sealed record LibraryViewPreferencesDto
     /// results get a star badge and are boosted to the top of the result list.
     /// </summary>
     public bool FavoritesSearchProminence { get; init; }
+
+    /// <summary>
+    /// Per-user "Series information on hover" (1.27.0). True (default) = on a device with
+    /// a hovering fine pointer, resting on the cover, title or (i) of an item that shows
+    /// the (i) opens a read-only summary popover. Defaults to true, so a PUT from a
+    /// client that predates this field keeps the option on.
+    /// </summary>
+    public bool SeriesInfoOnHover { get; init; } = true;
 }
 
 /// <summary>
