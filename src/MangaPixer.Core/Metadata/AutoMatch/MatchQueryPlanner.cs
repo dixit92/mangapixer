@@ -8,7 +8,9 @@ namespace com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 ///
 /// Variant order (= <see cref="QueryVariantKind"/> order): ComicInfo series, folder primary,
 /// trailing <c>[English Title]</c>, subtitle split, sequel-number split, archive-derived title,
-/// and for doujin-shaped archives the MangaUpdates <c>&lt;parody&gt; dj - &lt;title&gt;</c> form. Variants are
+/// and for doujin-shaped archives the MangaUpdates <c>&lt;parody&gt; dj - &lt;title&gt;</c> form. One exception
+/// (1.27.0): an archive-derived title that extends the folder name word for word (the folder is the leading
+/// part of a long title) is the second search, right after the folder's own names. Variants are
 /// de-duplicated by their scoring form (a variant that differs only in case or punctuation is one
 /// query).
 /// </summary>
@@ -31,7 +33,13 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
         AddNameVariants(variants, name);
 
         if (TitleNormalizer.ArchiveTitle(archives) is { } archiveTitle)
-            variants.Add(archiveTitle, QueryVariantKind.ArchiveDerivedTitle);
+        {
+            // The archives carry a LONGER name that starts with the folder's (a folder named after the leading
+            // words of a long title, 1.27.0): that name is the second search, right after the folder's own.
+            var extends = name.Primary.Length > 0
+                && TitleNormalizer.ScoringForm(archiveTitle).StartsWith(TitleNormalizer.ScoringForm(name.Primary) + " ", StringComparison.Ordinal);
+            variants.Add(archiveTitle, QueryVariantKind.ArchiveDerivedTitle, extends ? SecondSearch : null);
+        }
         else if (archives.Count == 1 && TitleNormalizer.Normalize(archives[0]).Primary is { Length: > 0 } single)
             variants.Add(single, QueryVariantKind.ArchiveDerivedTitle);
 
@@ -181,13 +189,16 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             list.Add(value);
     }
 
-    /// <summary>Variants in kind order, de-duplicated by scoring form, capped.</summary>
+    /// <summary>Order key between the folder's own names (<see cref="QueryVariantKind.Primary"/>) and the English title.</summary>
+    private const double SecondSearch = (double)QueryVariantKind.Primary + 0.5;
+
+    /// <summary>Variants in kind order (or an explicit order key), de-duplicated by scoring form, capped.</summary>
     private sealed class VariantList
     {
-        private readonly List<QueryVariant> _items = [];
+        private readonly List<(QueryVariant Variant, double Order)> _items = [];
         private readonly HashSet<string> _keys = new(StringComparer.Ordinal);
 
-        public void Add(string? text, QueryVariantKind kind)
+        public void Add(string? text, QueryVariantKind kind, double? order = null)
         {
             var t = text?.Trim();
             if (string.IsNullOrEmpty(t))
@@ -196,14 +207,14 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             // A trailing "!" changes MangaUpdates' results although it scores the same: keep both.
             if (key.Length == 0 || !_keys.Add(t.EndsWith('!') ? key + "!" : key))
                 return;
-            _items.Add(new QueryVariant(t, kind));
+            _items.Add((new QueryVariant(t, kind), order ?? (int)kind));
         }
 
         public IReadOnlyList<QueryVariant> ToList() =>
             _items.Select((v, i) => (v, i))
-                .OrderBy(x => (int)x.v.Kind)
+                .OrderBy(x => x.v.Order)
                 .ThenBy(x => x.i)
-                .Select(x => x.v)
+                .Select(x => x.v.Variant)
                 .Take(MaxVariants)
                 .ToList();
     }

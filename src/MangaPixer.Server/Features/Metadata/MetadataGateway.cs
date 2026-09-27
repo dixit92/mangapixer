@@ -181,11 +181,13 @@ public sealed class MetadataGateway
     /// <summary>
     /// An AUTOMATIC search (stage 2): always with the fixed provider type filter
     /// (owner decision 4a), doujinshi allowed only when <paramref name="allowDoujinshi"/>
-    /// (below a "Doujinshi &amp; adult one-shots" folder). Page 1 only.
+    /// (below a "Doujinshi &amp; adult one-shots" folder). Page 1, or page 2 of the SAME text when the
+    /// matcher asks for it (1.27.0; see <c>AutoMatchLookup</c>).
     /// </summary>
     public Task<ProviderSearchPage> SearchAutomaticAsync(
-        string providerId, long libraryId, string query, bool allowDoujinshi, MetadataCallContext call, CancellationToken ct = default) =>
-        SearchCoreAsync(providerId, libraryId, query, 1, hideDoujinshiAndNovels: true, allowDoujinshi, call, ct);
+        string providerId, long libraryId, string query, bool allowDoujinshi, MetadataCallContext call, CancellationToken ct = default,
+        int page = 1) =>
+        SearchCoreAsync(providerId, libraryId, query, Math.Clamp(page, 1, 2), hideDoujinshiAndNovels: true, allowDoujinshi, call, ct);
 
     private async Task<ProviderSearchPage> SearchCoreAsync(
         string providerId, long libraryId, string query, int page, bool hideDoujinshiAndNovels, bool allowDoujinshi,

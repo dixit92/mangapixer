@@ -115,7 +115,6 @@ public sealed class AutoMatchLookup
     {
         var candidates = found.Candidates;
         var fetched = found.Fetched;
-        var images = found.Images;
 
         // Tier 2: automatic name searches.
         var variants = query.Variants
@@ -124,36 +123,33 @@ public sealed class AutoMatchLookup
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(AutoMatchPolicy.MaxSearchesPerWork)
             .ToList();
+        // Page 1 of each variant in order, stopping at the first confident one.
+        var searches = 0;
+        var withPageTwo = new List<string>();
         foreach (var text in variants)
         {
+            searches++;
             var page = await _gateway.SearchAutomaticAsync(Provider, libraryId, text, allowDoujinshi, call, ct);
-            foreach (var hit in page.Hits)
-            {
-                images.TryAdd(hit.ExternalId, hit.ImageRemoteUrl);
-                if (!fetched.ContainsKey(hit.ExternalId))
-                    candidates[hit.ExternalId] = ToCandidate(hit);
-            }
-
-            // GET the best hit, and the runner-up when its title score is close (alt titles, authors, counts).
-            // Hits are ranked by the scorer (1.27.0; before, by plain similarity, so a disambiguated or
-            // "Title: Subtitle" record lost the GET to a look-alike, and the year / type evidence on the hit
-            // was ignored), and only hits that reach the review floor are fetched - a search that found
-            // nothing usable costs no GET.
-            var pageCandidates = page.Hits.Select(h => h.ExternalId).Distinct(StringComparer.Ordinal)
-                .Select(id => candidates.GetValueOrDefault(id)).OfType<MatchCandidate>().ToList();
-            var ranked = _scorer.Score(query, pageCandidates, thresholds).Ranked;
-            for (var i = 0; i < Math.Min(2, ranked.Count); i++)
-            {
-                if (ranked[i].TitleScore < thresholds.ReviewFloor)
-                    break;
-                if (i == 1 && ranked[0].TitleScore - ranked[1].TitleScore > AutoMatchPolicy.SecondFetchWithin)
-                    break;
-                await FetchIntoAsync(ranked[i].Candidate.ExternalId, libraryId, candidates, fetched, call, ct);
-            }
+            await TakePageAsync(query, page, libraryId, thresholds, found, call, ct);
+            if (page.Hits.Count >= MetadataGateway.SearchPageSize && page.TotalHits > page.Hits.Count)
+                withPageTwo.Add(text);
 
             var interim = _scorer.Score(query, candidates.Values.ToList(), thresholds);
             if (interim.Ranked.Count > 0 && interim.Ranked[0].TitleScore >= AutoMatchPolicy.ConfidentTitle)
                 break;
+        }
+
+        // Then page 2 of the same texts (1.27.0), while the top two are tied or nothing reached the review
+        // floor, inside the same per-work search bound: MangaUpdates ranks short look-alike titles first, so
+        // the right record of a one-word or partial name can sit on page 2.
+        foreach (var text in withPageTwo)
+        {
+            if (searches >= AutoMatchPolicy.MaxSearchesPerWork
+                || !NeedsPageTwo(_scorer.Score(query, candidates.Values.ToList(), thresholds), thresholds))
+                break;
+            searches++;
+            var page = await _gateway.SearchAutomaticAsync(Provider, libraryId, text, allowDoujinshi, call, ct, page: 2);
+            await TakePageAsync(query, page, libraryId, thresholds, found, call, ct);
         }
 
         var outcome = _scorer.Score(query, candidates.Values.ToList(), thresholds);
@@ -165,6 +161,48 @@ public sealed class AutoMatchLookup
             outcome = _scorer.Score(query, candidates.Values.ToList(), thresholds);
         }
         return outcome;
+    }
+
+    /// <summary>Adds a page's hits as candidates and GETs the best one or two (see the loop in <see cref="RetrieveAsync"/>).</summary>
+    private async Task TakePageAsync(MatchQuery query, ProviderSearchPage page, long libraryId, MatchThresholds thresholds,
+        Retrieval found, MetadataCallContext call, CancellationToken ct)
+    {
+        var candidates = found.Candidates;
+        foreach (var hit in page.Hits)
+        {
+            found.Images.TryAdd(hit.ExternalId, hit.ImageRemoteUrl);
+            if (!found.Fetched.ContainsKey(hit.ExternalId))
+                candidates[hit.ExternalId] = ToCandidate(hit);
+        }
+
+        // GET the best hit, and the runner-up when its title score is close (alt titles, authors, counts).
+        // Hits are ranked by the scorer (1.27.0; before, by plain similarity, so a disambiguated or
+        // "Title: Subtitle" record lost the GET to a look-alike, and the year / type evidence on the hit
+        // was ignored), and only hits that reach the review floor are fetched - a search that found
+        // nothing usable costs no GET.
+        var pageCandidates = page.Hits.Select(h => h.ExternalId).Distinct(StringComparer.Ordinal)
+            .Select(id => candidates.GetValueOrDefault(id)).OfType<MatchCandidate>().ToList();
+        var ranked = _scorer.Score(query, pageCandidates, thresholds).Ranked;
+        for (var i = 0; i < Math.Min(2, ranked.Count); i++)
+        {
+            if (ranked[i].TitleScore < thresholds.ReviewFloor)
+                break;
+            if (i == 1 && ranked[0].TitleScore - ranked[1].TitleScore > AutoMatchPolicy.SecondFetchWithin)
+                break;
+            await FetchIntoAsync(ranked[i].Candidate.ExternalId, libraryId, candidates, found.Fetched, call, ct);
+        }
+    }
+
+    /// <summary>Page 1 left the top two tied, or nothing at the review floor (1.27.0).</summary>
+    internal static bool NeedsPageTwo(MatchOutcome interim, MatchThresholds thresholds)
+    {
+        if (interim.Ranked.Count == 0 || interim.Ranked[0].TitleScore < thresholds.ReviewFloor)
+            return true;
+        if (interim.Ranked.Count < 2)
+            return false;
+        var (top, second) = (interim.Ranked[0], interim.Ranked[1]);
+        return second.TitleScore >= top.TitleScore - AutoMatchPolicy.PageTwoTieWithin
+            && top.AdjustedScore - second.AdjustedScore < thresholds.Margin;
     }
 
     private async Task FetchIntoAsync(string externalId, long libraryId, Dictionary<string, MatchCandidate> candidates,
