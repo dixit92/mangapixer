@@ -2068,3 +2068,82 @@ describe('LibraryBrowseComponent list-mode direct select (1.21.0)', () => {
     expect(el.querySelector('.row-select')).toBeNull();
   });
 });
+
+/**
+ * Favorites stacks (1.27.0): a stack tap opens the folder with a transient
+ * `?favorites=1`, which turns the "Favorites only" filter on for the view without
+ * persisting it; clearing the filter drops the param from the URL.
+ */
+describe('LibraryBrowseComponent transient ?favorites=1 (1.27.0)', () => {
+  function setup(favoritesParam: string | null) {
+    const emptyPage = { items: [], totalCount: 0, nextCursor: null, hasMore: false, prevCursor: null, hasPrevious: false, nextUnread: null };
+    const browseLibrary = vi.fn().mockReturnValue(of(emptyPage));
+    const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
+    const apiSpy = {
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name', direction: 'asc', cardSize: '150', libraryPageSize: 50 })),
+      setLibraryPreferences,
+      getLibraries: vi.fn().mockReturnValue(of([])),
+      browseLibrary,
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getNode: vi.fn().mockReturnValue(of({ id: 'f1', parentId: '', libraryId: 'lib1', kind: 'Folder', displayName: 'F', availability: 'Available' })),
+      getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
+    };
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: { isAdmin: () => false } },
+        { provide: ReadStateService, useValue: new ReadStateService() },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : 'f1') }),
+            snapshot: { queryParamMap: { get: (k: string) => (k === 'favorites' ? favoritesParam : null) } },
+          },
+        },
+      ],
+    });
+    const router = TestBed.inject(Router);
+    const navigateByUrl = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    vi.spyOn(router, 'url', 'get').mockReturnValue('/libraries/lib1/browse/f1?favorites=1');
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges();
+    return { comp: fixture.componentInstance, browseLibrary, setLibraryPreferences, navigateByUrl };
+  }
+
+  it('turns "Favorites only" on from ?favorites=1 without persisting it', () => {
+    const { comp, browseLibrary, setLibraryPreferences } = setup('1');
+    expect(comp.favoritesOnly()).toBe(true);
+    expect(comp.filterActive()).toBe(true);
+    expect(browseLibrary.mock.calls[0][9]).toBe(true); // favoritesOnly arg
+    expect(setLibraryPreferences).not.toHaveBeenCalled();
+  });
+
+  it('leaves the filter off without the param', () => {
+    const { comp, browseLibrary } = setup(null);
+    expect(comp.favoritesOnly()).toBe(false);
+    expect(browseLibrary.mock.calls[0][9]).toBe(false);
+  });
+
+  it('clearing the filter drops ?favorites=1 from the URL and reloads unfiltered', () => {
+    const { comp, browseLibrary, setLibraryPreferences, navigateByUrl } = setup('1');
+    comp.toggleFavoritesOnly();
+    expect(comp.favoritesOnly()).toBe(false);
+    expect(navigateByUrl).toHaveBeenCalledTimes(1);
+    expect(String(navigateByUrl.mock.calls[0][0])).toBe('/libraries/lib1/browse/f1');
+    expect(navigateByUrl.mock.calls[0][1]).toEqual({ replaceUrl: true });
+    expect(browseLibrary.mock.calls.at(-1)![9]).toBe(false);
+    expect(setLibraryPreferences).not.toHaveBeenCalled();
+  });
+
+  it('a filter the user toggled themselves never rewrites the URL', () => {
+    const { comp, navigateByUrl } = setup(null);
+    comp.toggleFavoritesOnly();
+    comp.toggleFavoritesOnly();
+    expect(navigateByUrl).not.toHaveBeenCalled();
+  });
+});

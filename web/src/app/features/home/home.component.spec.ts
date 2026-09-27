@@ -154,6 +154,35 @@ describe('HomeComponent', () => {
     expect(headings).toContain('Favorites');
   });
 
+  it('renders a favorites stack as a stacked card opening the folder with ?favorites=1 (1.27.0)', () => {
+    const fixture = createComponent({
+      prefs: { viewMode: 'card', density: 'comfortable', sort: 'name', showFavoritesHomeRow: true },
+      favorites: [
+        { id: 'fold', kind: 'Folder', libraryId: 'L1', displayName: 'Stacked Series', coverUrl: '/api/v1/items/c1/cover', favoriteStackCount: 3, isFavorite: false },
+        { id: 'fold', kind: 'Folder', libraryId: 'L1', displayName: 'Stacked Series', coverUrl: null, isFavorite: true },
+        { id: 'favA', kind: 'Archive', libraryId: 'L1', displayName: 'Fav Alpha', coverUrl: null, isFavorite: true },
+      ],
+    });
+    const el: HTMLElement = fixture.nativeElement;
+    const section = Array.from(el.querySelectorAll('.strip-section'))
+      .find((s) => s.querySelector('h3')?.textContent?.trim() === 'Favorites') as HTMLElement;
+
+    // One stack + two plain cards (the starred folder and its stack do not collide).
+    const stacks = section.querySelectorAll('a.stack-card');
+    expect(stacks.length).toBe(1);
+    expect(section.querySelectorAll('a.cont-card').length).toBe(2);
+
+    const stack = stacks[0] as HTMLAnchorElement;
+    expect(stack.getAttribute('href')).toBe('/libraries/L1/browse/fold?favorites=1');
+    expect(stack.querySelector('.stack.stacked')).not.toBeNull();
+    expect(stack.querySelector('.badge')?.textContent?.trim()).toBe('3');
+    expect(stack.querySelector('.cont-page')?.textContent?.trim()).toBe('3 favorites');
+
+    // Plain cards keep their plain links.
+    const plain = Array.from(section.querySelectorAll('a.cont-card')).map((a) => a.getAttribute('href'));
+    expect(plain).toEqual(['/libraries/L1/browse/fold', '/reader/favA']);
+  });
+
   // --- B1: stacked "New chapters" cards ---
 
   it('renders one stacked card per top-level unit, grouped by library', () => {
