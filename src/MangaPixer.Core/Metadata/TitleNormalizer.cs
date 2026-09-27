@@ -74,14 +74,20 @@ public static partial class TitleNormalizer
     [GeneratedRegex(@"[\[\](){}]", RegexOptions.CultureInvariant)]
     private static partial Regex StrayBracket();
 
-    // Subtitle separator: " - ", " – ", " — ", " ~ " or ": " (NFKC folds the full-width colon).
-    [GeneratedRegex(@"\s+[-\u2013\u2014~]\s+|:\s+", RegexOptions.CultureInvariant)]
+    // Subtitle separator: " - ", " – ", " — ", ": " (NFKC folds the full-width colon) or a tilde with or without
+    // spaces around it (1.27.0: English light-novel titles write "Title ~Subtitle~"; NFKC folds the wave dash).
+    [GeneratedRegex(@"\s+[-\u2013\u2014]\s+|\s*[~\u301C]\s*|:\s+", RegexOptions.CultureInvariant)]
     private static partial Regex SubtitleSeparator();
 
+    // The break before a record title's subtitle: any colon ("Title: Sub", "Title:re"), a tilde, or a spaced dash.
+    [GeneratedRegex(@":|\s*[~\u301C]|\s+[-\u2013\u2014]\s+", RegexOptions.CultureInvariant)]
+    private static partial Regex SubtitleBreak();
+
     // A sequel / part number: "Part 3", "Season 2", "Book II", "Arc 4", "Phase 2", "Stage 3", or a
-    // bare number / roman numeral II-X standing alone before the end or a subtitle separator.
+    // bare number / roman numeral II-X standing alone before the end or a subtitle separator (a tilde
+    // counts with or without a space after it: "Title 99 ~Subtitle~", 1.27.0).
     // Four-digit numbers are years, never sequel numbers.
-    [GeneratedRegex(@"(?<![\p{L}\p{N}/])(?:(?<unit>part|season|book|arc|phase|stage)\s*\.?\s*(?<num>\d{1,3}|[ivx]{1,4})|(?<num>\d{1,3}(?:\.\d)?|ii|iii|iv|v|vi|vii|viii|ix|x))(?=\s*$|\s+[-\u2013\u2014~]\s+|:\s+|\s*[-\u2013\u2014~:]\s*$)",
+    [GeneratedRegex(@"(?<![\p{L}\p{N}/])(?:(?<unit>part|season|book|arc|phase|stage)\s*\.?\s*(?<num>\d{1,3}|[ivx]{1,4})|(?<num>\d{1,3}(?:\.\d)?|ii|iii|iv|v|vi|vii|viii|ix|x))(?=\s*$|\s+[-\u2013\u2014]\s+|\s*[~\u301C]|:\s+|\s*[-\u2013\u2014:]\s*$)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SequelNumber();
 
@@ -245,6 +251,39 @@ public static partial class TitleNormalizer
         }
         result.Sort(StringComparer.Ordinal);
         return result;
+    }
+
+    /// <summary>
+    /// The text before a record title's subtitle break (1.27.0): the first colon (<c>Title: Sub</c>,
+    /// <c>Title:re</c>), tilde (<c>Title ~Sub~</c>, <c>Title~Sub~</c>) or spaced dash (<c>Title - Sub</c>). Null when
+    /// the title has no break, or nothing with a letter precedes it.
+    /// </summary>
+    public static string? SubtitleHead(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            return null;
+        var t = title.Normalize(NormalizationForm.FormKC);
+        var m = SubtitleBreak().Match(t);
+        if (!m.Success || m.Index == 0)
+            return null;
+        var head = TrimEdges(t[..m.Index]);
+        return head.Any(char.IsLetter) && TrimEdges(t[(m.Index + m.Length)..]).Length > 0 ? head : null;
+    }
+
+    /// <summary>
+    /// True when <paramref name="number"/> (a normalized <see cref="NumberTokens"/> value such as <c>99</c>) stands
+    /// as a whole number anywhere in <paramref name="text"/> (<c>Title Level 99 ~Sub~</c>, <c>Level 099</c>).
+    /// </summary>
+    public static bool ContainsNumber(string? text, string number)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+        foreach (Match m in StandaloneNumber().Matches(text.Normalize(NormalizationForm.FormKC)))
+        {
+            if (NormalizeNumber(m.Value) == number)
+                return true;
+        }
+        return false;
     }
 
     /// <summary>

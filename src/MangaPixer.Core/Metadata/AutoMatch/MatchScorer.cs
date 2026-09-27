@@ -55,9 +55,11 @@ public sealed class MatchScorer : IMatchScorer
     public const double CreatorHintAgree = 0.10;
 
     /// <summary>
-    /// The title score of a record whose title, up to its colon, EQUALS the searched name (<c>Title</c> vs
-    /// <c>Title: Long Subtitle</c>, 1.26.1): below the auto threshold, so such a match only ranks the
-    /// record for review and never links it on its own.
+    /// The title score of a record whose title, up to its subtitle break, EQUALS the searched name (<c>Title</c> vs
+    /// <c>Title: Long Subtitle</c>, 1.26.1; <c>Title ~Subtitle~</c> and <c>Title - Subtitle</c>, 1.27.0), or that
+    /// starts, word for word, with a searched name of at least <see cref="LeadingPartMinWords"/> words (the
+    /// leading part of a long title, 1.27.0): below the lowest allowed auto threshold, so such a match only ranks
+    /// the record for review and never links it on its own.
     /// </summary>
     public const double SubtitleHeadCap = 0.80;
 
@@ -138,7 +140,33 @@ public sealed class MatchScorer : IMatchScorer
     /// <summary>Archive-level classes: the author-conflict veto applies.</summary>
     public static bool IsArchiveLevel(WorkClass cls) => cls is WorkClass.CollectionLeaf or WorkClass.ArtistCollection;
 
-    private sealed record PreparedVariant(string Text, IReadOnlyList<string> Numbers, bool Derived);
+    private sealed record PreparedVariant(string Text, IReadOnlyList<string> Numbers, bool Derived, string NumberSource)
+    {
+        /// <summary>The scoring form (compared with heads and record-title prefixes).</summary>
+        public string Form { get; } = TitleNormalizer.ScoringForm(Text);
+
+        public int Words { get; } = TitleNormalizer.ScoringForm(Text).Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+    }
+
+    /// <summary>A name must have at least this many words to count as the leading part of a longer record title.</summary>
+    public const int LeadingPartMinWords = 3;
+
+    private static bool IsLeadingPart(PreparedVariant v, string titleForm) =>
+        v.Words >= LeadingPartMinWords && titleForm.Length > v.Form.Length
+        && titleForm.StartsWith(v.Form + " ", StringComparison.Ordinal);
+
+    /// <summary>
+    /// The pair agrees on sequel / part numbers: the same numbers, or every number only one side reads as a
+    /// sequel number still stands in the other side's text (1.27.0: <c>Title Level 99</c> vs a record
+    /// <c>Title Level 99 ~Subtitle~</c> is the same work, not a sequel mismatch).
+    /// </summary>
+    private static bool NumbersAgree(PreparedVariant v, string title, IReadOnlyList<string> titleNumbers)
+    {
+        if (v.Numbers.SequenceEqual(titleNumbers, StringComparer.Ordinal))
+            return true;
+        return v.Numbers.Except(titleNumbers, StringComparer.Ordinal).All(n => TitleNormalizer.ContainsNumber(title, n))
+            && titleNumbers.Except(v.Numbers, StringComparer.Ordinal).All(n => TitleNormalizer.ContainsNumber(v.NumberSource, n));
+    }
 
     private static List<PreparedVariant> PrepareVariants(IReadOnlyList<QueryVariant> variants)
     {
@@ -150,8 +178,8 @@ public sealed class MatchScorer : IMatchScorer
         return variants
             .Where(v => !string.IsNullOrWhiteSpace(v.Text))
             .Select(v => IsDerived(v.Kind)
-                ? new PreparedVariant(v.Text, sourceNumbers, true)
-                : new PreparedVariant(v.Text, TitleNormalizer.NumberTokens(v.Text), false))
+                ? new PreparedVariant(v.Text, sourceNumbers, true, source?.Text ?? v.Text)
+                : new PreparedVariant(v.Text, TitleNormalizer.NumberTokens(v.Text), false, v.Text))
             .ToList();
     }
 
@@ -170,14 +198,16 @@ public sealed class MatchScorer : IMatchScorer
         if (AutoMatchText.WithoutDisambiguator(c.Title) is { } stripped && !titles.Contains(stripped, StringComparer.OrdinalIgnoreCase))
             titles.Add(stripped);
         var titleNumbers = titles.Select(TitleNormalizer.NumberTokens).ToList();
-        // "Title: Long Subtitle" records also compare by the part before the colon, capped (1.26.1).
+        // "Title: Long Subtitle", "Title ~Subtitle~" and "Title - Subtitle" records also compare by the part
+        // before the break, capped (1.26.1 colon; 1.27.0 tilde and spaced dash).
         var heads = titles
-            .Select(t => t.IndexOf(':', StringComparison.Ordinal) is var i and > 0 ? t[..i].Trim() : null)
-            .Where(h => h is not null && h.Any(char.IsLetter) && !titles.Contains(h, StringComparer.OrdinalIgnoreCase))
+            .Select(TitleNormalizer.SubtitleHead)
+            .Where(h => h is not null && !titles.Contains(h, StringComparer.OrdinalIgnoreCase))
             .Select(h => h!)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         var capped = titles.Count;
+        var fullForms = titles.Select(TitleNormalizer.ScoringForm).ToList();
         titles.AddRange(heads);
         titleNumbers.AddRange(heads.Select(TitleNormalizer.NumberTokens));
 
@@ -192,16 +222,20 @@ public sealed class MatchScorer : IMatchScorer
                 {
                     // Only a head EQUAL to the searched name counts ("Title" vs "Title: Subtitle"), never
                     // a merely similar one - that is how spin-offs ("Title: Side Story") look.
-                    if (TitleNormalizer.ScoringForm(v.Text) != TitleNormalizer.ScoringForm(titles[i]))
+                    if (v.Form != TitleNormalizer.ScoringForm(titles[i]))
                         continue;
                     raw = SubtitleHeadCap;
                 }
                 else
                 {
                     raw = TitleSimilarity.Score(v.Text, titles[i]);
+                    // The leading part of a long title (1.27.0): a name of at least three words that the record
+                    // title starts with, word for word, is the same cap - review only, never auto on its own.
+                    if (raw < SubtitleHeadCap && IsLeadingPart(v, fullForms[i]))
+                        raw = SubtitleHeadCap;
                 }
                 if (raw <= 0) continue;
-                var penalized = !v.Numbers.SequenceEqual(titleNumbers[i], StringComparer.Ordinal);
+                var penalized = !NumbersAgree(v, titles[i], titleNumbers[i]);
                 var s = raw - (penalized ? NumberPenalty : 0) - (v.Derived ? DerivedVariantDiscount : 0);
                 if (s > best)
                 {

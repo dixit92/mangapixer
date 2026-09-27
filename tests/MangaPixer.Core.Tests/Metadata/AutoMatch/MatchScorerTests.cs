@@ -62,6 +62,60 @@ public sealed class MatchScorerTests
         Assert.Equal(MatchBand.Auto, o.Band);
     }
 
+    [Fact]
+    public void TildeSubtitle_AndATitleNumber_ReachReviewWithoutANumberPenalty()
+    {
+        // Live run (V): folder "<Two Words> Level 99"; the record's English alt writes the subtitle
+        // "~Subtitle~" with no space after the tilde, its main title "<Romaji> Level 99: <Subtitle>".
+        var o = Score(Query(["Alpha Beta Level 99"]),
+            Rec("1", "Arufa Beta Reberu 99: Hidden Subtitle Words", alt: ["Alpha Beta Level 99 ~Long Subtitle Words Here~"]));
+
+        Assert.Equal(MatchScorer.SubtitleHeadCap, o.Ranked[0].TitleScore, 3);
+        Assert.False(o.Ranked[0].Reasons.HasFlag(MatchReason.NumberMismatch));
+        Assert.Equal(MatchBand.NeedsReview, o.Band);
+    }
+
+    [Fact]
+    public void SpacedDashSubtitle_HeadEqualToTheName_IsReviewOnly()
+    {
+        var o = Score(Query(["Alpha Beta"]), Rec("1", "Alpha Beta - The Long Subtitle of It"));
+
+        Assert.Equal(MatchScorer.SubtitleHeadCap, o.Ranked[0].TitleScore, 3);
+        Assert.Equal(MatchBand.NeedsReview, o.Band);
+    }
+
+    [Fact]
+    public void SequelNumber_StillPenalized_WhenTheRecordTitleLacksIt()
+    {
+        var o = Score(Query(["Alpha Beta 2"]), Rec("1", "Alpha Beta"));
+        Assert.True(o.Ranked[0].Reasons.HasFlag(MatchReason.NumberMismatch));
+    }
+
+    [Fact]
+    public void LeadingWordsOfALongTitle_AreReviewOnly_EvenAtTheLoosestThresholds()
+    {
+        // Live run (R): the folder is the first three words of a long romaji title.
+        var q = Query(["Alpha to Beta Gamma"]);
+        var record = Rec("1", "Alpha to Beta Gamma Delta Epsilon Zeta Eta Theta Iota Kappa Lambda Mu");
+        var o = Score(q, record);
+        var loosest = _scorer.Score(q, [record], new MatchThresholds(MatchThresholds.AutoTitleMin, MatchThresholds.MarginMin, MatchThresholds.ReviewFloorMin));
+
+        Assert.Equal(MatchScorer.SubtitleHeadCap, o.Ranked[0].TitleScore, 3);
+        Assert.Equal(MatchBand.NeedsReview, o.Band);
+        Assert.Equal(MatchBand.NeedsReview, loosest.Band);
+    }
+
+    [Fact]
+    public void LeadingPart_NeedsThreeWholeWords()
+    {
+        // Two words, or a prefix that ends inside a word, is not "the leading part".
+        var two = Score(Query(["Alpha Beta"]), Rec("1", "Alpha Beta Gamma Delta Epsilon Zeta Eta Theta Iota"));
+        var partial = Score(Query(["Alpha Beta Gam"]), Rec("1", "Alpha Beta Gamma Delta Epsilon Zeta Eta Theta Iota"));
+
+        Assert.True(two.Ranked[0].TitleScore < MatchScorer.SubtitleHeadCap);
+        Assert.True(partial.Ranked[0].TitleScore < MatchScorer.SubtitleHeadCap);
+    }
+
     private static MatchQuery WithHints(MatchQuery q, params string[] hints) => q with { Context = q.Context with { CreatorHints = hints } };
 
     [Fact]

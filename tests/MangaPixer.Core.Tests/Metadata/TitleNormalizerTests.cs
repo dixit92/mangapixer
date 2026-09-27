@@ -246,6 +246,41 @@ public sealed class TitleNormalizerTests
         Assert.Equal(expected, TitleNormalizer.NumberTokens(title));
     }
 
+    [Theory]
+    [InlineData("Alpha Beta Level 99 ~Long Subtitle Here~", new[] { "99" })]
+    [InlineData("Alpha Beta Level 99~Long Subtitle Here~", new[] { "99" })]
+    [InlineData("Alpha Beta 2 ~ Subtitle", new[] { "2" })]
+    public void NumberTokens_ATildeBreakWithOrWithoutASpace_EndsTheNumber(string title, string[] expected) =>
+        Assert.Equal(expected, TitleNormalizer.NumberTokens(title));
+
+    [Fact]
+    public void DerivedVariants_SplitAtATildeWithoutASpaceAfterIt()
+    {
+        var derived = TitleNormalizer.DerivedVariants("Alpha Beta Level 99 ~Long Subtitle Here~");
+        Assert.Contains(new DerivedTitle("Alpha Beta Level 99", DerivedTitleKind.SubtitleSplit), derived);
+    }
+
+    [Theory]
+    [InlineData("Some Title: Long Subtitle", "Some Title")]
+    [InlineData("Some Title:re", "Some Title")]
+    [InlineData("Some Title ~Long Subtitle~", "Some Title")]
+    [InlineData("Some Title~Long Subtitle~", "Some Title")]
+    [InlineData("Some Title - Long Subtitle", "Some Title")]
+    [InlineData("Some-Title Here", null)] // a hyphen inside a word is no break
+    [InlineData("Some Title", null)]
+    [InlineData("Some Title ~", null)] // nothing after the break
+    [InlineData("99: Something", null)] // nothing with a letter before it
+    public void SubtitleHead_IsTheTextBeforeTheFirstBreak(string title, string? expected) =>
+        Assert.Equal(expected, TitleNormalizer.SubtitleHead(title));
+
+    [Theory]
+    [InlineData("Alpha Level 99 ~Sub~", "99", true)]
+    [InlineData("Alpha Level 099", "99", true)]
+    [InlineData("Alpha 1999", "99", false)]
+    [InlineData("Alpha Level", "99", false)]
+    public void ContainsNumber_MatchesWholeNumbersOnly(string text, string number, bool expected) =>
+        Assert.Equal(expected, TitleNormalizer.ContainsNumber(text, number));
+
     [Fact]
     public void DerivedVariants_SplitSubtitleAndSequelNumber()
     {
