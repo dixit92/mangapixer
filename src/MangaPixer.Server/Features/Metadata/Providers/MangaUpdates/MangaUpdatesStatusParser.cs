@@ -1,14 +1,17 @@
 namespace com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 
+using System.Globalization;
 using System.Text.RegularExpressions;
 using com.lifepixer.mangapixer.Core.Metadata;
 
 /// <summary>
 /// Reads MangaUpdates' free-text <c>status</c> ("43 Volumes (Ongoing)", "200
 /// Chapters + Prologue (Complete)  \n15 Volumes (Complete)", often followed by a
-/// Markdown note) into the volume count and the publication status in the
-/// country of origin. Tolerant: anything it cannot read stays null / Unknown, and
-/// the flattened text is kept for display.
+/// Markdown note) into the volume count, the chapter total (1.27.0: the first line
+/// that STARTS with "N Chapters" - season lines such as "S1: 110 Chapters" are parts
+/// of it, never the total) and the publication status in the country of origin.
+/// Tolerant: anything it cannot read stays null / Unknown, and the flattened text is
+/// kept for display.
 /// </summary>
 public static partial class MangaUpdatesStatusParser
 {
@@ -20,7 +23,15 @@ public static partial class MangaUpdatesStatusParser
     [GeneratedRegex(@"\(([^()\n]{1,40})\)", RegexOptions.CultureInvariant)]
     private static partial Regex AnyParenthesis();
 
-    public sealed record Result(int? Volumes, MetadataOriginStatus? Status, string? Text);
+    [GeneratedRegex(@"^[ \t]*(\d{1,5})[ \t]*Chapters?\b", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.CultureInvariant)]
+    private static partial Regex ChapterTotalLine();
+
+    /// <summary>
+    /// <paramref name="Chapters"/> (1.27.0): the stated chapter total ("195 Chapters (Hiatus)"). The API's
+    /// <c>latest_chapter</c> restarts per season on season-renumbered webtoons, so the matcher's count rule
+    /// needs this total as well.
+    /// </summary>
+    public sealed record Result(int? Volumes, MetadataOriginStatus? Status, string? Text, int? Chapters = null);
 
     public static Result Parse(string? status)
     {
@@ -50,7 +61,12 @@ public static partial class MangaUpdatesStatusParser
             }
         }
 
-        return new Result(volumes, origin, text);
+        int? chapters = ChapterTotalLine().Match(text) is { Success: true } c
+            && int.TryParse(c.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n > 0
+                ? n
+                : null;
+
+        return new Result(volumes, origin, text, chapters);
     }
 
     private static MetadataOriginStatus? MapStatusWord(string word)

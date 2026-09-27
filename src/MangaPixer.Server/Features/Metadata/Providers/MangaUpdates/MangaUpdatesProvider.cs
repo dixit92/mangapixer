@@ -290,6 +290,7 @@ public static class MangaUpdatesMapping
             OriginStatus = status.Status,
             OriginVolumes = status.Volumes,
             LatestChapter = s.LatestChapter is > 0 ? s.LatestChapter : null,
+            TotalChapters = status.Chapters,
             StatusText = status.Text,
             LicensedEn = s.Licensed,
             TranslationComplete = s.Completed,

@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangapixer.Tests.Core.Metadata.AutoMatch.Golden;
+namespace com.lifepixer.mangapixer.Tests.Server.Features.Metadata.AutoMatch.Golden;
 
 using System.Globalization;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;

@@ -69,20 +69,53 @@ public sealed class AutoMatchLookup
         if (await TallStripsAsync(archiveIds, ct) is { } tall && tall != query.Context.TallStrips)
             query = query with { Context = query.Context with { TallStrips = tall } };
 
-        var candidates = new Dictionary<string, MatchCandidate>(StringComparer.Ordinal);
-        var fetched = new Dictionary<string, ProviderSeriesRecord>(StringComparer.Ordinal);
-        var images = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var found = new Retrieval();
 
         // Tier 0: a provider id the work's own ComicInfo points at (id only, no name).
         if (await ComicInfoReferenceAsync(archiveIds, ct) is { } reference
             && await _gateway.GetSeriesAsync(reference.Provider, tree.LibraryId, reference.ExternalId, ct, call) is { } hinted)
         {
-            fetched[hinted.ExternalId] = hinted;
-            candidates[hinted.ExternalId] = ToCandidate(hinted);
-            var hintedOutcome = _scorer.Score(query, candidates.Values.ToList(), thresholds);
+            found.Fetched[hinted.ExternalId] = hinted;
+            found.Candidates[hinted.ExternalId] = ToCandidate(hinted);
+            var hintedOutcome = _scorer.Score(query, found.Candidates.Values.ToList(), thresholds);
             if (hintedOutcome.Band == MatchBand.Auto)
-                return new WorkLookupResult(hintedOutcome, classification, fetched, images);
+                return new WorkLookupResult(hintedOutcome, classification, found.Fetched, found.Images);
         }
+
+        var outcome = await RetrieveAsync(query, tree.LibraryId, thresholds, allowDoujinshi, call, found, ct);
+        return new WorkLookupResult(outcome, classification, found.Fetched, found.Images);
+    }
+
+    /// <summary>
+    /// Tier 2 alone, for a query that is already planned: the automatic name searches, the GETs and the final
+    /// score, exactly as <see cref="LookupAsync"/> runs them (the golden set replays recorded provider answers
+    /// through this, so it measures the production retrieval loop and the production mapping).
+    /// </summary>
+    public async Task<WorkLookupResult> SearchAndScoreAsync(
+        MatchQuery query, WorkClassification classification, long libraryId, MatchThresholds thresholds, bool allowDoujinshi,
+        MetadataCallContext call, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        var found = new Retrieval();
+        var outcome = await RetrieveAsync(query, libraryId, thresholds, allowDoujinshi, call, found, ct);
+        return new WorkLookupResult(outcome, classification, found.Fetched, found.Images);
+    }
+
+    /// <summary>What one lookup has collected: candidates by id, full records fetched, hit images.</summary>
+    private sealed class Retrieval
+    {
+        public Dictionary<string, MatchCandidate> Candidates { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, ProviderSeriesRecord> Fetched { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, string?> Images { get; } = new(StringComparer.Ordinal);
+    }
+
+    private async Task<MatchOutcome> RetrieveAsync(
+        MatchQuery query, long libraryId, MatchThresholds thresholds, bool allowDoujinshi, MetadataCallContext call,
+        Retrieval found, CancellationToken ct)
+    {
+        var candidates = found.Candidates;
+        var fetched = found.Fetched;
+        var images = found.Images;
 
         // Tier 2: automatic name searches.
         var variants = query.Variants
@@ -91,28 +124,31 @@ public sealed class AutoMatchLookup
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(AutoMatchPolicy.MaxSearchesPerWork)
             .ToList();
-        var scoringTexts = query.Variants.Select(v => v.Text).ToList();
         foreach (var text in variants)
         {
-            var page = await _gateway.SearchAutomaticAsync(Provider, tree.LibraryId, text, allowDoujinshi, call, ct);
-            var ranked = page.Hits
-                .Select((hit, index) => (Hit: hit, Index: index, Score: TitleSimilarity.Best(scoringTexts, new[] { hit.Title, hit.HitTitle }.OfType<string>())))
-                .OrderByDescending(h => h.Score)
-                .ThenBy(h => h.Index)
-                .ToList();
-            foreach (var (hit, _, _) in ranked)
+            var page = await _gateway.SearchAutomaticAsync(Provider, libraryId, text, allowDoujinshi, call, ct);
+            foreach (var hit in page.Hits)
             {
                 images.TryAdd(hit.ExternalId, hit.ImageRemoteUrl);
                 if (!fetched.ContainsKey(hit.ExternalId))
                     candidates[hit.ExternalId] = ToCandidate(hit);
             }
 
-            // GET the best hit, and the runner-up when it is close (alt titles, authors, counts).
+            // GET the best hit, and the runner-up when its title score is close (alt titles, authors, counts).
+            // Hits are ranked by the scorer (1.27.0; before, by plain similarity, so a disambiguated or
+            // "Title: Subtitle" record lost the GET to a look-alike, and the year / type evidence on the hit
+            // was ignored), and only hits that reach the review floor are fetched - a search that found
+            // nothing usable costs no GET.
+            var pageCandidates = page.Hits.Select(h => h.ExternalId).Distinct(StringComparer.Ordinal)
+                .Select(id => candidates.GetValueOrDefault(id)).OfType<MatchCandidate>().ToList();
+            var ranked = _scorer.Score(query, pageCandidates, thresholds).Ranked;
             for (var i = 0; i < Math.Min(2, ranked.Count); i++)
             {
-                if (i == 1 && ranked[0].Score - ranked[1].Score > AutoMatchPolicy.SecondFetchWithin)
+                if (ranked[i].TitleScore < thresholds.ReviewFloor)
                     break;
-                await FetchIntoAsync(ranked[i].Hit.ExternalId, tree.LibraryId, candidates, fetched, call, ct);
+                if (i == 1 && ranked[0].TitleScore - ranked[1].TitleScore > AutoMatchPolicy.SecondFetchWithin)
+                    break;
+                await FetchIntoAsync(ranked[i].Candidate.ExternalId, libraryId, candidates, fetched, call, ct);
             }
 
             var interim = _scorer.Score(query, candidates.Values.ToList(), thresholds);
@@ -125,10 +161,10 @@ public sealed class AutoMatchLookup
         // An automatic link needs the full record of the chosen candidate.
         if (outcome.Band == MatchBand.Auto && outcome.Ranked.Count > 0 && !fetched.ContainsKey(outcome.Ranked[0].Candidate.ExternalId))
         {
-            await FetchIntoAsync(outcome.Ranked[0].Candidate.ExternalId, tree.LibraryId, candidates, fetched, call, ct);
+            await FetchIntoAsync(outcome.Ranked[0].Candidate.ExternalId, libraryId, candidates, fetched, call, ct);
             outcome = _scorer.Score(query, candidates.Values.ToList(), thresholds);
         }
-        return new WorkLookupResult(outcome, classification, fetched, images);
+        return outcome;
     }
 
     private async Task FetchIntoAsync(string externalId, long libraryId, Dictionary<string, MatchCandidate> candidates,
@@ -187,7 +223,9 @@ public sealed class AutoMatchLookup
         r.OriginVolumes,
         r.LatestChapter is { } chapter ? (int)Math.Floor(chapter) : null,
         r.Creators.Select(c => c.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-        r.Relations.Select(x => new CandidateRelation(x.ExternalId, x.Relation)).ToList());
+        r.Relations.Select(x => new CandidateRelation(x.ExternalId, x.Relation)).ToList(),
+        r.Webtoon,
+        r.TotalChapters);
 
     internal static MatchCandidate ToCandidate(ProviderSearchHit hit) => new(
         Provider,

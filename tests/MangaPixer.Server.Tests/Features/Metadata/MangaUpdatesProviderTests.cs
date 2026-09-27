@@ -358,6 +358,38 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         Assert.NotNull(result.Text);
     }
 
+    [Theory]
+    [InlineData("195 Chapters (Hiatus)  \nS1: 123 Chapters  \nS2: 72 Chapters", 195)]
+    [InlineData("200 Chapters + Prologue (Complete)  \n15 Volumes (Complete)", 200)]
+    [InlineData("18 Volumes (Ongoing)\n652 Chapters (Ongoing)", 652)]
+    [InlineData("1 Chapter (Complete)", 1)]
+    [InlineData("43 Volumes (Ongoing)", null)]
+    [InlineData("24 Volumes (Complete)\n\nS1: 110 Chapters (1-110)", null)] // a season line is a part, never the total
+    [InlineData("Part 1: 60 Chapters", null)]
+    public void StatusParser_ReadsTheChapterTotal_OnlyFromALineThatStartsWithIt(string status, int? chapters) =>
+        Assert.Equal(chapters, MangaUpdatesStatusParser.Parse(status).Chapters);
+
+    [Fact]
+    public void Mapping_CarriesTheChapterTotal_AndTheAutoMatchCandidateKeepsItAndTheWebtoonFlag()
+    {
+        var record = MangaUpdatesMapping.ToRecord(new MuSeries
+        {
+            SeriesId = 42,
+            Title = "Synthetic Tower",
+            Type = "Manhwa",
+            Status = "195 Chapters (Hiatus)\nS1: 123 Chapters\nS2: 72 Chapters",
+            LatestChapter = 18,
+            Categories = [new MuCategory { Category = "Webtoon/Webcomic", Votes = 20, VotesPlus = 20, VotesMinus = 0 }],
+        }, 42);
+        Assert.Equal(195, record.TotalChapters);
+
+        // The live 1.26.1 miss: the candidate the scorer sees had neither (count veto at 195 vs 18).
+        var candidate = com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch.AutoMatchLookup.ToCandidate(record);
+        Assert.Equal(195, candidate.TotalChapters);
+        Assert.Equal(18, candidate.LatestChapter);
+        Assert.True(candidate.Webtoon);
+    }
+
     [Fact]
     public void StatusParser_Empty_IsAllNull() =>
         Assert.Equal(new MangaUpdatesStatusParser.Result(null, null, null), MangaUpdatesStatusParser.Parse("  "));

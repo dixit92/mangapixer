@@ -98,6 +98,12 @@ public sealed record ProviderSeriesRecord
     public MetadataOriginStatus? OriginStatus { get; init; }
     public int? OriginVolumes { get; init; }
     public double? LatestChapter { get; init; }
+
+    /// <summary>
+    /// The chapter total the provider states (MangaUpdates status "195 Chapters (Hiatus)", 1.27.0). Read by the
+    /// auto-match count rule only; not persisted (the status text is).
+    /// </summary>
+    public int? TotalChapters { get; init; }
     public string? StatusText { get; init; }
     public bool? LicensedEn { get; init; }
     public bool? TranslationComplete { get; init; }
