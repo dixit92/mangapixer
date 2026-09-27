@@ -14,7 +14,7 @@ Inspired by several great comic servers and readers developed by the community, 
 - Folder-native. It doesn't enforce a library structure on you. Similar to [YACReader](https://www.yacreader.com/), but with...
 - Multi-user support. You can create admin or "normal" users, and admins can expose specific libraries to normal users. Each user has their own reading progress, and users don't interfere with each other.
 - Good native web support. I'm trying to offer as good a reading experience as possible across desktop, iPad/tablet and smartphone without needing an app. An app is to follow later so that you can save and download reliably.
-- No metadata required, but used when it's there. Folder and file names are enough to browse and read. MangaPixer also reads the `ComicInfo.xml` inside your archives, and an admin can optionally link series to [MangaUpdates](https://www.mangaupdates.com) for descriptions, authors and cover art (off by default). If your library is organized around metadata first, I'd still recommend checking out [Kavita](https://www.kavitareader.com/) or [Komga](https://komga.org/).
+- No metadata required, but used when it's there. Folder and file names are enough to browse and read. MangaPixer also reads the `ComicInfo.xml` inside your archives, and an admin can optionally link series to [MangaUpdates](https://www.mangaupdates.com) for descriptions, authors and cover art, by hand or automatically (off by default). If your library is organized around metadata first, I'd still recommend checking out [Kavita](https://www.kavitareader.com/) or [Komga](https://komga.org/).
 - You can also allow users to mark libraries as "private" and hide them from the default view. Might be useful...
 
 ### What "folder-native" means
@@ -76,7 +76,7 @@ The port is published on loopback only; put a [reverse proxy](docs/reverse-proxy
 - Filter by read state (reading / read / unread) at any folder level. The filter also applies to series folders through their contents, and you can hide empty folders.
 - A-Z jump rail with multilingual collation, infinite scroll in both directions after a jump, and read/reading rollup badges on folders. This means you can tell at a glance whether a folder contains only comics you've read, some you haven't read yet, or nothing you've started at all.
 - Multi-select, including shift/ctrl ranges and touch long-press, to mark items read or unread in bulk. Works on touchscreens too!
-- Full-text search over titles and folder names (trigram search), with cover thumbnails and a folder-vs-archive badge.
+- Full-text search over titles and folder names (trigram search), with cover thumbnails and a folder-vs-archive badge. Series linked to MangaUpdates are also found by their alternative titles: a `Dungeon Meshi` folder turns up when you search for `Delicious in Dungeon`.
 
 **Reader**
 
@@ -93,7 +93,9 @@ The port is published on loopback only; put a [reverse proxy](docs/reverse-proxy
 - Reads the `ComicInfo.xml` inside your archives (series, number, summary, credits, genres, publisher). Nothing leaves your server for this.
 - A card with series information shows an **(i)**: it opens a side panel with the summary, and a full series page lists the items.
 - Admins can link a folder or archive to a [MangaUpdates](https://www.mangaupdates.com) series with **Identify** (search, or paste a MangaUpdates address). Optional and off by default; see [What leaves your server](#what-leaves-your-server).
-- Per folder, admins choose whether web data or `ComicInfo.xml` wins, and can mark a folder **Don't match** when it is not one series. **Show series information** hides it all for everyone.
+- **Automatic matching** (a separate switch with its own consent, also off by default) matches new folders in the background. It tells series, one-shots, artist folders and collections apart by their names and contents, so category folders are never linked themselves. Confident matches go live at once; close calls wait for an admin on the **Series metadata** page (also in the account menu), where each can be accepted, identified by hand or marked **Don't match**. Linked series are refreshed in the background.
+- Readers can report a wrong series with **Wrong series?**; admins see the reports on the same page.
+- Per folder, admins choose whether web data or `ComicInfo.xml` wins, whether it holds doujinshi (**Content**), and can mark a folder **Don't match** when it is not one series. Renamed or moved folders keep these settings. **Show series information** hides it all for everyone.
 
 **Per-user reading state**
 
