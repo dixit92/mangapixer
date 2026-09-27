@@ -8,19 +8,19 @@
 
 MangaPixer serves your existing manga and comic folders to any browser.
 
-You point it at the directories where your `.cbz` and `.cbr` files already live, and it builds a catalog, generates thumbnails, and gives every user on your server their own reading progress, read marks and "continue reading" shelf. You can have multiple libraries for different types of content (manga, webcomics, graphic novels, etc.) and each folder can have independent properties set (such as reading direction).
+You point it at the directories where your `.cbz` and `.cbr` files already live, and it builds a catalog, generates thumbnails, and gives every user on your server their own reading progress, read marks and "continue reading" shelf. You can have multiple libraries for different types of content (manga, webcomics, graphic novels, etc.), and each folder can have independent properties set (such as reading direction).
 
 Inspired by several great comic servers and readers developed by the community, MangaPixer's main goals are:
-- Folder-native. It doesn't enforce a library structure on you. Similar to [YACReader](https://www.yacreader.com/), but with...
-- Multi-user support. You can create admin or "normal" users, and admins can expose specific libraries to normal users. Each user has their own reading progress, and users don't interfere with each other.
-- Good native web support. I'm trying to offer as good a reading experience as possible across desktop, iPad/tablet and smartphone without needing an app. An app is to follow later so that you can save and download reliably.
-- No metadata required, but used when it's there. Folder and file names are enough to browse and read. MangaPixer also reads the `ComicInfo.xml` inside your archives, and an admin can optionally link series to [MangaUpdates](https://www.mangaupdates.com) for descriptions, authors and cover art (off by default). If your library is organized around metadata first, I'd still recommend checking out [Kavita](https://www.kavitareader.com/) or [Komga](https://komga.org/).
-- You can also allow users to mark libraries as "private" and hide them from the default view. Might be useful...
+- **Folder-native**. It doesn't enforce a library structure on you. Similar to [YACReader](https://www.yacreader.com/), but with...
+- **Multi-user support**. You can create admin or "normal" users, and admins can expose specific libraries to normal users. Each user has their own reading progress, and users don't interfere with each other.
+- **A good native web reader**. I'm trying to offer as good a reading experience as possible across desktop, iPad/tablet and smartphone without needing an app. An app is to follow later so that you can save and download reliably for offline reading. This is something that you can't do right now.
+- **No metadata required, but supported when it's there**. Folder and file names are enough to browse and read, but MangaPixer also reads the `ComicInfo.xml` inside your archives, and an admin can optionally link series to [MangaUpdates](https://www.mangaupdates.com) for descriptions, authors and cover art (off by default). If your library is organized around metadata first, I'd still recommend checking out [Kavita](https://www.kavitareader.com/) or [Komga](https://komga.org/), although I aim to give you a rich metadata management experience - development is ongoing!
+- You can also allow users to **mark libraries as "private"** and hide them from the default view. Might be useful if you want to have age-restricted content...restricted.
 
 ### What "folder-native" means
 
-- **Your folders are the library.** Nothing is imported, copied or reorganized. The folder tree you already have *is* the browse tree: series folders, volume sub-folders, loose archives. Whatever.
-- **Source media is never modified.** MangaPixer never writes, renames, moves, deletes, tags or extracts into your library folders. The container mounts them read-only (`:ro`). Everything MangaPixer creates (database, thumbnails, page cache, scratch space) lives in its own data directories.
+- **Your folders are the library.** Nothing is imported, copied or reorganized. The folder tree you already have *is* the navigation tree: series folders, volume subfolders, loose archives. Whatever, and however you've already organized them (or have not organized them)!
+- **Source media is never modified.** MangaPixer never writes, renames, moves, deletes, tags or extracts into your library folders. The container (if you're using the Docker image) mounts them read-only. Everything MangaPixer creates (database, thumbnails, page cache, scratch space) lives in its own data directories.
 - **Moves don't lose your place.** When a rescan finds that an archive was moved or renamed (one missing file and one new file with the same size and content signature), reading state follows the file.
 
 Why folder-native? Because I wanted a way to organize my content freely and not have to do a lot of library management, as long as I understood where everything was. And you might want to do the same.
