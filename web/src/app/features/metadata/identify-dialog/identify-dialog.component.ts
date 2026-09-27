@@ -9,6 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { Observable } from 'rxjs';
 
 import {
@@ -47,7 +48,7 @@ type Step = 'search' | 'preview';
   standalone: true,
   imports: [
     FormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatDialogModule, MatFormFieldModule, MatIconModule, MatInputModule,
-    MatProgressSpinnerModule,
+    MatProgressSpinnerModule, MatTooltipModule,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -124,7 +125,8 @@ type Step = 'search' | 'preview';
                     @if (c.hitTitle) { <div class="muted small">matched as “{{ c.hitTitle }}”</div> }
                     @if (c.format === 'Novel' || c.format === 'Artbook') { <div class="warn small">{{ c.format === 'Novel' ? 'Novel' : 'Artbook' }}, not a comic</div> }
                   </div>
-                  <span class="strength" [attr.data-strength]="c.strength">{{ strength(c) }} {{ percent(c.score) }}</span>
+                  <span class="strength" [attr.data-strength]="c.strength" matTooltip="Title match score">
+                    {{ strength(c) }} {{ percent(c.score) }}%</span>
                   <button mat-stroked-button type="button" [disabled]="busy()" (click)="usePreview(ctx.provider, c.externalId, 'Search', c)">Preview</button>
                 </li>
               }
@@ -183,8 +185,8 @@ type Step = 'search' | 'preview';
           @for (w of p.warnings ?? []; track w.code) {
             <p class="warn" [attr.data-warning]="w.code"><mat-icon inline>warning_amber</mat-icon> {{ w.message }}</p>
           }
-          <p class="muted small">
-            Match: {{ STRENGTH[match().strength] }} {{ percent(match().score) }} · Applies to
+          <p class="muted small" matTooltip="Title similarity only - not adjusted for item count, year, type or origin">
+            Title match: {{ STRENGTH[match().strength] }} {{ percent(match().score) }}% · Applies to
             {{ ctx.nodeKind === 'Folder' ? 'this folder and everything inside' : 'this item only' }}.
           </p>
           @if (p.siteUrl) {
