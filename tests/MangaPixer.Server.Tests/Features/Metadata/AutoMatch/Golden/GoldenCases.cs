@@ -180,7 +180,13 @@ public static class GoldenCases
             WorkClass.Ambiguous, MatchBand.NeedsReview, VinlandSaga),
         new("A10 doujin anatomy: a lone archive of a 7-volume dj record links to it (one archive may hold the whole series)", F("Doujin Shelf", s_doujinShelfLone), WorkClass.CollectionLeaf,
             MatchBand.Auto, YotsubaDjYanda, DoujinAllowed: true, GroupTitle: "Yanda&", Content: ContentSuggestion.DoujinshiAndAdultOneShots),
-        new("A09 mixed folder: review only", F("Berserk", ["Berserk v01.cbz"], subs: [("Berserk Gaiden", 2)]), WorkClass.Mixed, MatchBand.NeedsReview, Berserk),
+        // A Mixed folder is planned the way production plans it (owner decision on loose archives, 2026-09-26): a loose
+        // archive that is its own work is matched on its own (archive level); loose UNITS of one work keep the folder
+        // review-only. (Before 1.27.0 A09 planned the whole folder, a path production no longer takes.)
+        new("A09 mixed folder: a loose archive that is its own work is matched on its own",
+            F("Berserk", ["Berserk v01.cbz"], subs: [("Berserk Gaiden", 2)]), WorkClass.Mixed, MatchBand.Auto, Berserk, GroupTitle: "Berserk"),
+        new("A09b mixed folder: loose units of one work keep the folder review-only",
+            F("Berserk", ["Berserk v01.cbz", "Berserk v02.cbz", "Berserk v03.cbz"], subs: [("Berserk Gaiden", 2)]), WorkClass.Mixed, MatchBand.NeedsReview, Berserk),
 
         // --- 1.27.0: the live automatic-matching run (2026-09-27), as PUBLIC lookalikes ------------
         new("L01 T: season-renumbered webtoon, chapter-token archives (latest chapter 235, status total 652)",

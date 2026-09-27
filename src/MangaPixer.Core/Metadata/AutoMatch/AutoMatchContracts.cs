@@ -44,7 +44,10 @@ public enum WorkClass
     /// <summary>Exactly one non-unit subfolder and no archives: the child is the candidate.</summary>
     Wrapper = 8,
 
-    /// <summary>One non-unit subfolder plus loose archives: review only, never auto.</summary>
+    /// <summary>
+    /// One non-unit subfolder plus loose archives: loose archives that are works of their own are matched one by
+    /// one (archive level, auto possible); loose units of one work keep the folder review-only.
+    /// </summary>
     Mixed = 9,
 
     /// <summary>A unit subfolder (Volumes/, Chapters/, Part N) below a series: inherits, never a candidate.</summary>
@@ -66,7 +69,7 @@ public enum MatchLevel
     /// <summary>Each archive (or numbered archive group) is its own work.</summary>
     Archive = 2,
 
-    /// <summary>A candidate that may be matched but can never be auto-linked (Mixed, Ambiguous).</summary>
+    /// <summary>A candidate that may be matched but can never be auto-linked (Ambiguous; Mixed whose loose archives are units of one work).</summary>
     ReviewOnly = 3,
 }
 

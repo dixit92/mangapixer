@@ -87,7 +87,7 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
     /// The aggregate bands at the default thresholds (1.27.0). A rule change that moves a band must update these on
     /// purpose, with the per-case reason in <see cref="GoldenCases"/>.
     /// </summary>
-    public const int ExpectedAuto = 54, ExpectedReview = 11, ExpectedUnmatched = 2;
+    public const int ExpectedAuto = 55, ExpectedReview = 11, ExpectedUnmatched = 2;
 
     [Fact]
     public async Task Aggregate_BandsAndPrecision_AtTheDefaults()
