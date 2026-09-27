@@ -499,18 +499,15 @@ public sealed class MetadataAutoMatchService
         var now = _time.GetUtcNow();
         for (var attempt = 0; attempt < 3; attempt++)
         {
-            var candidates = await _db.MetadataMatchQueue.AsNoTracking()
+            var next = await _db.MetadataMatchQueue.AsNoTracking()
                 .Where(q => (q.State == QueueState.Pending || (q.State == QueueState.Leased && q.LeaseUntil < now))
                     && (q.NotBefore == null || q.NotBefore <= now)
                     && _db.Libraries.Any(l => l.Id == q.LibraryId && l.MetadataEnabled))
-                .Select(q => new { q.Id, q.Reason, q.EnqueuedAt })
-                .Take(200)
-                .ToListAsync(ct);
-            var next = candidates
-                .OrderBy(c => QueueReason.Priority(c.Reason))
-                .ThenBy(c => c.EnqueuedAt)
-                .ThenBy(c => c.Id)
-                .FirstOrDefault();
+                .OrderBy(QueueReason.Priority)
+                .ThenBy(q => q.EnqueuedAt)
+                .ThenBy(q => q.Id)
+                .Select(q => new { q.Id })
+                .FirstOrDefaultAsync(ct);
             if (next is null)
                 return null;
 

@@ -124,9 +124,15 @@ export class SeriesInfoSummaryComponent {
    */
   readonly moreLink = input<readonly unknown[] | null>(null);
 
+  /**
+   * The series page lists every alternative title under Details, so its header shows only a short
+   * "also: A, B, +N" line instead of the whole list a second time.
+   */
+  readonly shortAltTitles = input(false);
+
   readonly expanded = signal(false);
 
-  private readonly altLimit = computed(() => (this.compact() ? 2 : 50));
+  private readonly altLimit = computed(() => (this.compact() || this.shortAltTitles() ? 2 : 50));
   private readonly genreLimit = computed(() => (this.compact() ? 3 : 50));
 
   readonly altTitles = computed(() => (this.info().altTitles ?? []).slice(0, this.altLimit()));

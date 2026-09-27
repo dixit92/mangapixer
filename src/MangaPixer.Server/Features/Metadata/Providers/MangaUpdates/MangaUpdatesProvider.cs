@@ -288,7 +288,7 @@ public static class MangaUpdatesMapping
             SourceKind = MetadataSourceKind.OnlineApi,
             Title = title,
             AltTitles = alt,
-            Description = MetadataText.Flatten(s.Description, 16 * 1024),
+            Description = MetadataText.Description(s.Description, 16 * 1024),
             Origin = OriginOf(type),
             Format = FormatOf(type),
             Webtoon = WebtoonOf(s.Categories),

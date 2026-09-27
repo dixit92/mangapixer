@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Series page: "also known as" once.** The header of the full series page shows the first two alternative titles and **+N**; the whole list stays under **Details**.
+- **Series descriptions without dead links.** The lists of links at the end of many MangaUpdates descriptions (for example "Original Webtoon: Daum, Kakaopage" or "Official English Translations" with one line per language) are no longer shown as plain text that looks like links; a heading left with nothing under it goes too. Links inside a sentence keep their text. This applies to records fetched or refreshed after the update.
+
+### Fixed
+
+- **Automatic matching picks in the right order with a long queue.** With more than 200 folders waiting, an admin's **Re-run matching** and new folders could wait behind older retries; the queue is now always taken in priority order, oldest first. This also removes a database warning logged once after every start.
+
 ## [1.27.0] - 2026-09-27
 
 ### Added

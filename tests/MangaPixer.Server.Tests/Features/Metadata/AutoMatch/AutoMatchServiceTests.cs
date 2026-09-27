@@ -282,6 +282,43 @@ public sealed class AutoMatchServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Lease_PicksTheHighestPriority_AmongMoreThanTwoHundredDueRows()
+    {
+        // The priority order is applied in SQL: an admin's re-run enqueued last still comes first
+        // when older retries fill more than the old 200-row window.
+        await _h.EnableAutomaticAsync();
+        var enqueuedAt = _h.Time.GetUtcNow().AddHours(-1);
+        for (var i = 0; i < 210; i++)
+        {
+            var node = await _db.AddFolderAsync(null, $"Retry Work {i:D3}");
+            _db.Db.MetadataMatchQueue.Add(new MetadataMatchQueueEntity
+            {
+                NodeId = node.Id,
+                LibraryId = _db.LibraryId,
+                Reason = QueueReason.Retry,
+                State = QueueState.Pending,
+                EnqueuedAt = enqueuedAt.AddSeconds(i),
+            });
+        }
+        var rerun = await _db.AddFolderAsync(null, "Rerun Work");
+        _db.Db.MetadataMatchQueue.Add(new MetadataMatchQueueEntity
+        {
+            NodeId = rerun.Id,
+            LibraryId = _db.LibraryId,
+            Reason = QueueReason.Rerun,
+            State = QueueState.Pending,
+            EnqueuedAt = enqueuedAt.AddMinutes(30),
+        });
+        await _db.Db.SaveChangesAsync();
+
+        var leased = await _h.Service().LeaseNextAsync("w");
+        Assert.Equal(rerun.Id, leased!.NodeId);
+        var second = await _h.Service().LeaseNextAsync("w");
+        Assert.Equal(QueueReason.Retry, second!.Reason);
+        Assert.Equal(enqueuedAt, second.EnqueuedAt); // then the oldest retry
+    }
+
+    [Fact]
     public async Task Lease_SkipsLibrariesWhoseFetchSwitchIsOff()
     {
         await SeriesAsync("Alpha Saga");

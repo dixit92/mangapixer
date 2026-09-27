@@ -43,7 +43,7 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
         </nav>
 
         <header class="hero">
-          <app-series-info-summary [info]="i" [showDescription]="false" />
+          <app-series-info-summary [info]="i" [showDescription]="false" [shortAltTitles]="true" />
           <div class="hero-actions">
             @if (i.anchorKind === 'Folder') {
               <a mat-stroked-button [routerLink]="folderLink()" data-testid="browse-folder">
