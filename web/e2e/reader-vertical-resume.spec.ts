@@ -21,7 +21,6 @@ const SAVED = 17; // zero-based: the bar shows 18 / 30
 const PAGE_W = 200;
 const PAGE_H = 400;
 
-test.describe.configure({ mode: 'serial' });
 test.use({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
 
 // --- a tiny solid-colour PNG (RGB, no dependencies) ----------------------------
