@@ -125,6 +125,13 @@ public enum QueryVariantKind
     SequelNumberSplit = 4,
     ArchiveDerivedTitle = 5,
     DoujinParodyForm = 6,
+
+    /// <summary>
+    /// The title part of a name that also carries a plain-separator author (<c>Title by Author</c>, <c>Title - Chapter |
+    /// Author</c>, <c>Author - Title</c>; 1.27.0). Retrieval only: it scores at most the review-only cap unless a
+    /// creator hint names one of the record's authors.
+    /// </summary>
+    CreatorSplit = 7,
 }
 
 public sealed record QueryVariant(string Text, QueryVariantKind Kind);

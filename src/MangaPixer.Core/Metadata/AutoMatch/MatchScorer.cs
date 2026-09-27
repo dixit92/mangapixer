@@ -145,7 +145,7 @@ public sealed class MatchScorer : IMatchScorer
     /// <summary>Archive-level classes: the author-conflict veto applies.</summary>
     public static bool IsArchiveLevel(WorkClass cls) => cls is WorkClass.CollectionLeaf or WorkClass.ArtistCollection;
 
-    private sealed record PreparedVariant(string Text, IReadOnlyList<string> Numbers, bool Derived, string NumberSource)
+    private sealed record PreparedVariant(string Text, IReadOnlyList<string> Numbers, bool Derived, string NumberSource, QueryVariantKind Kind)
     {
         /// <summary>The scoring form (compared with heads and record-title prefixes).</summary>
         public string Form { get; } = TitleNormalizer.ScoringForm(Text);
@@ -183,13 +183,17 @@ public sealed class MatchScorer : IMatchScorer
         return variants
             .Where(v => !string.IsNullOrWhiteSpace(v.Text))
             .Select(v => IsDerived(v.Kind)
-                ? new PreparedVariant(v.Text, sourceNumbers, true, source?.Text ?? v.Text)
-                : new PreparedVariant(v.Text, TitleNormalizer.NumberTokens(v.Text), false, v.Text))
+                ? new PreparedVariant(v.Text, sourceNumbers, true, source?.Text ?? v.Text, v.Kind)
+                : new PreparedVariant(v.Text, TitleNormalizer.NumberTokens(v.Text), false, v.Text, v.Kind))
             .ToList();
     }
 
     private static bool IsDerived(QueryVariantKind kind) =>
-        kind is QueryVariantKind.SubtitleSplit or QueryVariantKind.SequelNumberSplit;
+        kind is QueryVariantKind.SubtitleSplit or QueryVariantKind.SequelNumberSplit or QueryVariantKind.CreatorSplit;
+
+    /// <summary>Variants that are the folder's (or group's) own name, not a bracket or a split.</summary>
+    private static bool IsOwnName(QueryVariantKind kind) =>
+        kind is QueryVariantKind.Primary or QueryVariantKind.ComicInfoSeries or QueryVariantKind.ArchiveDerivedTitle;
 
     private static ScoredCandidate ScoreOne(MatchCandidate c, List<PreparedVariant> variants, MatchContext ctx)
     {
@@ -216,10 +220,25 @@ public sealed class MatchScorer : IMatchScorer
         titles.AddRange(heads);
         titleNumbers.AddRange(heads.Select(TitleNormalizer.NumberTokens));
 
+        // Creator hints that name this record (its authors, or its "(AUTHOR Name)" disambiguator).
+        var authors = (c.Authors ?? []).Where(a => !string.IsNullOrWhiteSpace(a)).ToList();
+        var hints = (ctx.CreatorHints ?? []).Where(h => !string.IsNullOrWhiteSpace(h)).ToList();
+        var hintNamesRecord = hints.Count > 0 && hints.Any(h => authors
+            .Concat(new[] { c.Title }.Concat(c.AltTitles ?? []).Select(AutoMatchText.DisambiguatorTag).OfType<string>())
+            .Any(n => AutoMatchText.NamesEqual(h, n)));
+
+        // A trailing "[Two Words]" is read both as an English title and as a creator hint (1.27.0): as a title it
+        // may carry an auto link only when the folder's own name also resembles the record, so an author's name
+        // can never auto-link a record that merely has that name as its title.
+        var ownNameResembles = new Lazy<bool>(() => variants.Where(v => IsOwnName(v.Kind))
+            .Any(v => titles.Take(capped).Any(t => TitleSimilarity.Score(v.Text, t) >= TitleSimilarity.PossibleThreshold)));
+
         var best = 0.0;
         var bestPenalized = false;
         foreach (var v in variants)
         {
+            var reviewOnly = (v.Kind == QueryVariantKind.CreatorSplit && !hintNamesRecord)
+                || (v.Kind == QueryVariantKind.EnglishTitle && hints.Any(h => AutoMatchText.NamesEqual(h, v.Text)) && !ownNameResembles.Value);
             for (var i = 0; i < titles.Count; i++)
             {
                 double raw;
@@ -243,6 +262,8 @@ public sealed class MatchScorer : IMatchScorer
                         raw = SubtitleHeadCap;
                 }
                 if (raw <= 0) continue;
+                if (reviewOnly)
+                    raw = Math.Min(raw, SubtitleHeadCap);
                 var penalized = !NumbersAgree(v, titles[i], titleNumbers[i]);
                 var s = raw - (penalized ? NumberPenalty : 0) - (v.Derived ? DerivedVariantDiscount : 0);
                 if (s > best)
@@ -337,7 +358,6 @@ public sealed class MatchScorer : IMatchScorer
         // Creator tags: a tie-break everywhere; a veto at archive level when they name none of
         // the record's authors (undecidable when either side is empty).
         var tags = (ctx.AuthorTags ?? []).Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
-        var authors = (c.Authors ?? []).Where(a => !string.IsNullOrWhiteSpace(a)).ToList();
         var authorBonus = 0.0;
         if (tags.Count > 0 && authors.Count > 0)
         {
@@ -349,15 +369,8 @@ public sealed class MatchScorer : IMatchScorer
 
         // Creator hints from the name: positive only. The record's authors come from a full read;
         // its "(AUTHOR Name)" disambiguator is on every search hit, so ties are broken without a read.
-        var hints = (ctx.CreatorHints ?? []).Where(h => !string.IsNullOrWhiteSpace(h)).ToList();
-        if (hints.Count > 0)
-        {
-            var named = authors
-                .Concat(new[] { c.Title }.Concat(c.AltTitles ?? []).Select(AutoMatchText.DisambiguatorTag).OfType<string>())
-                .ToList();
-            if (hints.Any(h => named.Any(n => AutoMatchText.NamesEqual(h, n))))
-                authorBonus = CreatorHintAgree;
-        }
+        if (hintNamesRecord)
+            authorBonus = CreatorHintAgree;
         delta += authorBonus;
 
         return new ScoredCandidate(c, title, title + delta, reasons);

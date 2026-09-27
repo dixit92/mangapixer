@@ -31,6 +31,7 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
 
         var name = TitleNormalizer.Normalize(folder.DisplayName);
         AddNameVariants(variants, name);
+        AddCreatorSplits(variants, folder.DisplayName);
 
         if (TitleNormalizer.ArchiveTitle(archives) is { } archiveTitle)
         {
@@ -119,6 +120,9 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
         }
         foreach (var d in groupTitle.Derived)
             variants.Add(d.Text, d.Kind == DerivedTitleKind.SubtitleSplit ? QueryVariantKind.SubtitleSplit : QueryVariantKind.SequelNumberSplit);
+        AddCreatorSplits(variants, group.QueryTitle);
+        if (names.Count == 1)
+            AddCreatorSplits(variants, names[0]);
         if (TitleNormalizer.ArchiveTitle(names) is { } archiveTitle)
             variants.Add(archiveTitle, QueryVariantKind.ArchiveDerivedTitle);
 
@@ -174,6 +178,15 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             variants.Add(d.Text, QueryVariantKind.SubtitleSplit);
         foreach (var d in name.Derived.Where(d => d.Kind == DerivedTitleKind.SequelNumberSplit))
             variants.Add(d.Text, QueryVariantKind.SequelNumberSplit);
+    }
+
+    private static void AddCreatorSplits(VariantList variants, string? displayName)
+    {
+        foreach (var title in AutoMatchText.CreatorSplitTitles(displayName))
+        {
+            if (TitleNormalizer.Normalize(title).Primary is { Length: > 0 } clean)
+                variants.Add(clean, QueryVariantKind.CreatorSplit);
+        }
     }
 
     /// <summary>Creator tags carried by at least half of the archives (folder level: a tie-break only).</summary>

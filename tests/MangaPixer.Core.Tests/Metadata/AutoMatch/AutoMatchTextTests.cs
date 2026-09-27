@@ -49,4 +49,26 @@ public sealed class AutoMatchTextTests
     [InlineData("Some Title 001.cbz", null)] // no chapter token: not chapter-like
     public void ChapterNumberOf_IsTheHighestStatedChapter(string name, int? expected) =>
         Assert.Equal(expected, AutoMatchText.ChapterNumberOf(name));
+
+    [Theory]
+    [InlineData("Some Title by Family Given.cbz", new[] { "Family Given" })]
+    [InlineData("Some Title - Chapter 012 | Family Given.cbz", new[] { "Family Given", "Some Title" })]
+    // Either order: both name-like parts of a dash are hints. That costs nothing - a hint only counts when a
+    // record's authors name it.
+    [InlineData("Family Given - Some Title", new[] { "Family Given", "Some Title" })]
+    [InlineData("Some Title 2 - The Return", new[] { "The Return" })]
+    [InlineData("Some Title - Chapter 012", new[] { "Some Title" })]
+    [InlineData("Some Title v01 - 2019", new string[0])]
+    public void CreatorHints_ReadPlainSeparators_InEitherOrder(string name, string[] expected) =>
+        Assert.Equal(expected, AutoMatchText.CreatorHints(name));
+
+    [Theory]
+    [InlineData("Some Title by Family Given.cbz", new[] { "Some Title" })]
+    [InlineData("Some Title - Chapter 012 | Family Given.cbz", new[] { "Some Title - Chapter 012" })]
+    [InlineData("Family Given - Some Title", new[] { "Some Title" })]
+    [InlineData("Frieren - Beyond the End", new string[0])] // a one-word head is a title, not an author
+    [InlineData("Stand by 2 Me", new string[0])] // not a name after "by"
+    [InlineData("Some Title", new string[0])]
+    public void CreatorSplitTitles_AreTheTitlePart(string name, string[] expected) =>
+        Assert.Equal(expected, AutoMatchText.CreatorSplitTitles(name));
 }

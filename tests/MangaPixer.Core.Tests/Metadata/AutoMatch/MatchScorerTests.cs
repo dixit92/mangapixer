@@ -138,6 +138,55 @@ public sealed class MatchScorerTests
         Assert.Equal(plain * MatchScorer.DigitOnlyOverlapFactor, damped.Ranked[0].TitleScore, 6);
     }
 
+    [Fact]
+    public void CreatorSplit_IsReviewOnly_UnlessTheNamedAuthorWroteTheRecord()
+    {
+        // "Family Given - Sprout Garden": the title part is searched, but alone it never links.
+        var planner = new MatchQueryPlanner();
+        var shape = new FolderShape("Family Given - Sprout Garden", 2, ["Family Given - Sprout Garden v01.cbz", "Family Given - Sprout Garden v02.cbz"], []);
+        var q = planner.PlanFolder(shape, new WorkDetector().Classify(shape));
+        Assert.Contains(q.Variants, v => v.Kind == QueryVariantKind.CreatorSplit && v.Text == "Sprout Garden");
+
+        var stranger = _scorer.Score(q, [Rec("1", "Sprout Garden", authors: ["Other Person"])], MatchThresholds.Default);
+        Assert.Equal(MatchScorer.SubtitleHeadCap - MatchScorer.DerivedVariantDiscount, stranger.Ranked[0].TitleScore, 3);
+        Assert.Equal(MatchBand.NeedsReview, stranger.Band);
+
+        var author = _scorer.Score(q, [Rec("1", "Sprout Garden", authors: ["GIVEN Family"])], MatchThresholds.Default);
+        Assert.True(author.Ranked[0].TitleScore >= 0.92, $"title {author.Ranked[0].TitleScore:0.000}");
+        Assert.Equal(MatchBand.Auto, author.Band);
+    }
+
+    [Fact]
+    public void TrailingTwoWordBracket_AsATitle_NeverAutoLinksOnItsOwn()
+    {
+        // "Sprout [Family Given]": the bracket is both an English-title variant and a creator hint. A record
+        // TITLED "Family Given" must not auto-link through it; a record whose title the folder name resembles may.
+        var planner = new MatchQueryPlanner();
+        var shape = new FolderShape("Sprout [Family Given]", 2, ["Sprout v01.cbz", "Sprout v02.cbz"], []);
+        var q = planner.PlanFolder(shape, new WorkDetector().Classify(shape));
+        Assert.Contains(q.Variants, v => v.Kind == QueryVariantKind.EnglishTitle && v.Text == "Family Given");
+
+        var titled = _scorer.Score(q, [Rec("1", "Family Given")], MatchThresholds.Default);
+        Assert.NotEqual(MatchBand.Auto, titled.Band);
+        var loose = _scorer.Score(q, [Rec("1", "Family Given")], new MatchThresholds(MatchThresholds.AutoTitleMin, MatchThresholds.MarginMin, MatchThresholds.ReviewFloorMin));
+        Assert.NotEqual(MatchBand.Auto, loose.Band);
+
+        var real = _scorer.Score(q, [Rec("1", "Sprout", authors: ["Family Given"])], MatchThresholds.Default);
+        Assert.Equal(MatchBand.Auto, real.Band);
+    }
+
+    [Fact]
+    public void RomajiWithEnglishBracket_StillAutoLinks_ByTheEnglishTitle()
+    {
+        // "Romaji [English Title]" (F02 shape): the folder's own name resembles the record, so the bracket may carry it.
+        var q = new MatchQuery(
+            [new QueryVariant("Kappa Meshi", QueryVariantKind.Primary), new QueryVariant("Delicious Kappa", QueryVariantKind.EnglishTitle)],
+            new MatchContext(WorkClass.Series, 5, 5, 0, null, null, false, [], CreatorHints: ["Delicious Kappa"]));
+        var o = _scorer.Score(q, [Rec("1", "Kappa Meshi", alt: ["Delicious Kappa"])], MatchThresholds.Default);
+
+        Assert.Equal(MatchBand.Auto, o.Band);
+    }
+
     private static MatchQuery WithUnits(MatchQuery q, int volumeLike, int chapterLike, int? localVolumes, int? localChapters) =>
         q with { Context = q.Context with { VolumeLikeCount = volumeLike, ChapterLikeCount = chapterLike, LocalVolumes = localVolumes, LocalChapters = localChapters } };
 

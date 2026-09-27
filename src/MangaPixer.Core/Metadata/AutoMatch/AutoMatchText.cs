@@ -145,7 +145,9 @@ public static partial class AutoMatchText
     /// Years, release tags, unit markers and groups without letters are skipped; a name that is
     /// nothing but tags gives none. The scorer only uses a hint when a record's authors (or its
     /// <c>(AUTHOR Name)</c> disambiguator) name it - positive evidence only - so a scan group or an
-    /// English title in brackets costs nothing. Plain separators (<c>Author - Title</c>) are not read yet.
+    /// English title in brackets costs nothing. Since 1.27.0 plain separators are read too, in either order:
+    /// <c>Title by Author</c>, <c>Title - Chapter | Author</c>, <c>Author - Title</c> (a name-like part of 1-4 words
+    /// without digits next to the separator; a subtitle that looks like a name costs nothing either).
     /// </summary>
     public static IReadOnlyList<string> CreatorHints(string? displayName)
     {
@@ -187,7 +189,83 @@ public static partial class AutoMatchText
         rest = TitleNormalizer.SplitUnmatchedBracketTags(rest, out var leading, out var trailing);
         Add(leading);
         Add(trailing);
+
+        // Plain separators, either order (1.27.0): "Title by Author", "Title - Chapter | Author", "Author - Title".
+        foreach (var part in SeparatorNameParts(rest))
+            Add(part);
         return rest.Any(char.IsLetter) ? hints : [];
+    }
+
+    [GeneratedRegex(@"\s*\|\s*", RegexOptions.CultureInvariant)]
+    private static partial Regex PipeSeparator();
+
+    [GeneratedRegex(@"\s+by\s+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex BySeparator();
+
+    [GeneratedRegex(@"\s+[-\u2013\u2014]\s+", RegexOptions.CultureInvariant)]
+    private static partial Regex DashSeparator();
+
+    /// <summary>A plausible creator name next to a plain separator: 1-4 words, letters, no digits, not a category word.</summary>
+    private static bool IsNameLike(string? text)
+    {
+        var t = text?.Trim();
+        return !string.IsNullOrEmpty(t) && t.Any(char.IsLetter) && !t.Any(char.IsDigit)
+            && t.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 4 && IsAuthorLike(t, requireTwoTokens: false)
+            && !VolumeToken().IsMatch(t) && !ChapterToken().IsMatch(t);
+    }
+
+    /// <summary>The name-like parts next to a pipe, a " by " or a spaced dash (the text after them, or the dash's first part).</summary>
+    private static IEnumerable<string> SeparatorNameParts(string rest)
+    {
+        var pipe = PipeSeparator().Split(rest);
+        foreach (var part in pipe.Skip(1))
+            if (IsNameLike(part)) yield return part.Trim();
+        var head = pipe[0];
+        var by = BySeparator().Matches(head);
+        if (by.Count > 0 && head[(by[^1].Index + by[^1].Length)..] is var after && IsNameLike(after))
+            yield return after.Trim();
+        var dash = DashSeparator().Split(head);
+        if (dash.Length >= 2)
+        {
+            if (IsNameLike(dash[0])) yield return dash[0].Trim();
+            if (IsNameLike(dash[^1])) yield return dash[^1].Trim();
+        }
+    }
+
+    /// <summary>
+    /// The title part of a name whose author is written with a plain separator (1.27.0): the text before
+    /// <c> | Author</c> or <c> by Author</c>, and the text after <c>Author - </c> (a name-like first part). Empty
+    /// when the name has none. Retrieval only (<see cref="QueryVariantKind.CreatorSplit"/>).
+    /// </summary>
+    public static IReadOnlyList<string> CreatorSplitTitles(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+            return [];
+        var rest = ArchiveExtension().Replace(displayName.Normalize(NormalizationForm.FormKC).Trim(), string.Empty).Trim();
+        rest = Bare(rest);
+        var result = new List<string>();
+        void Add(string? title)
+        {
+            var t = title?.Trim();
+            if (!string.IsNullOrEmpty(t) && t.Count(char.IsLetter) >= 2 && !result.Contains(t, StringComparer.OrdinalIgnoreCase))
+                result.Add(t);
+        }
+
+        var pipe = PipeSeparator().Split(rest);
+        if (pipe.Length >= 2 && pipe.Skip(1).Any(IsNameLike))
+            Add(pipe[0]);
+        var head = pipe[0];
+        var by = BySeparator().Matches(head);
+        if (by.Count > 0 && IsNameLike(head[(by[^1].Index + by[^1].Length)..]))
+            Add(head[..by[^1].Index]);
+        // "Author - Title" only when no other form named the author, the first part is a name of 2+ words, and
+        // real title text follows (not just "Chapter 012").
+        var dash = DashSeparator().Match(head);
+        if (result.Count == 0 && dash.Success && dash.Index > 0 && IsNameLike(head[..dash.Index])
+            && head[..dash.Index].Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 2
+            && ChapterToken().Replace(VolumeToken().Replace(head[(dash.Index + dash.Length)..], " "), " ").Count(char.IsLetter) >= 2)
+            Add(head[(dash.Index + dash.Length)..]);
+        return result;
     }
 
     /// <summary>The trailing <c>(disambiguator)</c> of a provider title (<c>Sprite (OOBA Douzu)</c> -> <c>OOBA Douzu</c>), or null.</summary>
