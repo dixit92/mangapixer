@@ -33,7 +33,7 @@ class HostComponent {
 
 /**
  * Series information on hover (1.27.0): one controller behind every zone. Nothing is
- * fetched while the pointer sweeps across cards; resting 600 ms fetches once (then the
+ * fetched while the pointer sweeps across cards; resting for the open delay fetches once (then the
  * cache serves it) and opens the popover beside the card; leaving closes after a grace
  * that lets the pointer reach the popover; touch, keyboard, a non-hover device and the
  * user's option turned off open nothing.
@@ -105,7 +105,7 @@ describe('SeriesInfoHoverDirective + SeriesInfoHoverService', () => {
     expect(popover()).toBeNull();
   });
 
-  it('resting 600 ms fetches once and opens the compact summary beside the card; the cache serves the next rest', async () => {
+  it('resting for the open delay fetches once and opens the compact summary beside the card; the cache serves the next rest', async () => {
     const { el, service } = setup();
     pointer('pointerover', zone(el, 'a', 'cover'));
     await vi.advanceTimersByTimeAsync(HOVER_OPEN_DELAY_MS - 50);

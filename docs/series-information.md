@@ -11,7 +11,7 @@ The (i) also appears on **Search** results and on the **Favorites** page (a favo
 
 ### Summary on hover
 
-With a mouse or trackpad, rest the pointer for a moment on the cover, the title or the (i) of an item that shows the (i) - in the library's card and list views, in Search and on the Favorites page. A short summary appears beside it: the title, up to two alternative titles, the facts line, up to three genres and the first lines of the description. You can move the pointer into the summary (for example to use **More** under the description); it closes when the pointer leaves, when you press Esc, click, or scroll. A click still opens the item, and the (i) still opens the full panel.
+With a mouse or trackpad, rest the pointer for a moment on the cover, the title or the (i) of an item that shows the (i) - in the library's card and list views, in Search and on the Favorites page. A short summary appears beside it: the title, up to two alternative titles, the facts line, up to three genres and the first lines of the description. You can move the pointer into the summary; **More** under the description opens the series page. It closes when the pointer leaves, when you press Esc, click, or scroll. A click still opens the item, and the (i) still opens the full panel.
 
 - Nothing is fetched while you just move the pointer across the library: the summary is loaded only after the pointer has rested on one item, from your own server (the same information the panel shows). Nothing is sent to MangaUpdates.
 - It follows **Show series information**: when an admin hides series information for a library or everywhere, there is no (i) and no summary.

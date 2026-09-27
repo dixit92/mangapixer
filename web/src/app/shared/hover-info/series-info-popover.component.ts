@@ -7,8 +7,9 @@ import { SeriesInfoSummaryComponent } from '../../features/metadata/series-info-
  * The hover summary (1.27.0): the compact series summary (the same component the side
  * panel uses, `compact` mode - title, two alternative titles, the facts line, three
  * genres, a six-line description) in a small card beside the hovered item. Read-only
- * and minimally interactive: the pointer may move into it (it stays open) so the
- * description's "More" toggle and text selection work; nothing in it navigates. It is
+ * and minimally interactive: the pointer may move into it (it stays open) so text
+ * selection works, and its "More" opens the series page (owner, 1.27.0 review) instead of
+ * expanding the description in place - the only thing in it that navigates. It is
  * never focused (keyboard and screen-reader users have the (i) and its side panel).
  */
 @Component({
@@ -22,7 +23,7 @@ import { SeriesInfoSummaryComponent } from '../../features/metadata/series-info-
     '(pointerenter)': 'pointerEnter.emit()',
     '(pointerleave)': 'pointerLeave.emit()',
   },
-  template: `<app-series-info-summary [info]="info()" [compact]="true" />`,
+  template: `<app-series-info-summary [info]="info()" [compact]="true" [moreLink]="['/series', info().anchorNodeId]" />`,
   styles: [`
     :host {
       display: block; box-sizing: border-box;

@@ -1,5 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 
 import { SeriesInfoDto } from '../../core/api/api-types';
 import { SeriesInfoSummaryComponent } from './series-info-summary.component';
@@ -107,5 +108,22 @@ describe('SeriesInfoSummaryComponent', () => {
     f.componentRef.setInput('showDescription', false);
     f.detectChanges();
     expect((f.nativeElement as HTMLElement).querySelector('.description')).toBeNull();
+  });
+  it('compact: "More" expands in place, or links to the series page when a moreLink is given (hover, 1.27.0)', () => {
+    TestBed.configureTestingModule({ imports: [SeriesInfoSummaryComponent], providers: [provideRouter([])] });
+    const f = TestBed.createComponent(SeriesInfoSummaryComponent);
+    f.componentRef.setInput('info', seriesInfo({ description: 'A long description.' }));
+    f.componentRef.setInput('compact', true);
+    f.detectChanges();
+    const el = f.nativeElement as HTMLElement;
+    expect(el.querySelector('button.more')!.textContent).toBe('More');
+    expect(el.querySelector('[data-testid="series-more-link"]')).toBeNull();
+
+    f.componentRef.setInput('moreLink', ['/series', 'node42']);
+    f.detectChanges();
+    const link = el.querySelector('[data-testid="series-more-link"]') as HTMLAnchorElement;
+    expect(link.textContent).toBe('More');
+    expect(link.getAttribute('href')).toBe('/series/node42');
+    expect(el.querySelector('button.more')).toBeNull();
   });
 });

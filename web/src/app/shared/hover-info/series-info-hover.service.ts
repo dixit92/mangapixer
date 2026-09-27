@@ -19,7 +19,7 @@ import type { SeriesInfoPopoverComponent } from './series-info-popover.component
 export const HOVER_QUERY = '(hover: hover) and (pointer: fine)';
 
 /** How long the pointer must rest before anything is fetched or shown (owner, 2026-09-27). */
-export const HOVER_OPEN_DELAY_MS = 600;
+export const HOVER_OPEN_DELAY_MS = 400;
 
 /** Grace after leaving, so the pointer can cross a gap (cover -> title, card -> popover). */
 export const HOVER_CLOSE_GRACE_MS = 200;

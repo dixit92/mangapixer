@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 
+import { RouterLink } from '@angular/router';
+
 import { SeriesInfoDto } from '../../core/api/api-types';
 import { creditGroups, itemLine, metaLine } from './series-info-labels';
 
@@ -16,6 +18,7 @@ import { creditGroups, itemLine, metaLine } from './series-info-labels';
  * data, never markup.
  */
 @Component({
+  imports: [RouterLink],
   selector: 'app-series-info-summary',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -65,7 +68,9 @@ import { creditGroups, itemLine, metaLine } from './series-info-labels';
         }
         @if (i.description && showDescription()) {
           <p class="description" [class.clamped]="compact() && !expanded()">{{ i.description }}</p>
-          @if (compact()) {
+          @if (compact() && moreLink(); as link) {
+            <a class="more" [routerLink]="link" data-testid="series-more-link">More</a>
+          } @else if (compact()) {
             <button type="button" class="more" (click)="expanded.set(!expanded())">{{ expanded() ? 'Less' : 'More' }}</button>
           }
         }
@@ -112,6 +117,12 @@ export class SeriesInfoSummaryComponent {
 
   /** False on the series page, which shows the description once, under About. */
   readonly showDescription = input(true);
+
+  /**
+   * When set (the hover summary, 1.27.0 owner decision), "More" is a link there - the series page - instead of
+   * expanding the description in place.
+   */
+  readonly moreLink = input<readonly unknown[] | null>(null);
 
   readonly expanded = signal(false);
 

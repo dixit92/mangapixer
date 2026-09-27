@@ -7,7 +7,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { of } from 'rxjs';
 
 import { ApiService } from '../../../core/api/api.service';
-import { MetadataReviewSummaryDto } from '../../../core/api/api-types';
+import { MetadataReviewSummaryDto, MetadataSettingsDto } from '../../../core/api/api-types';
 import { MetadataReviewStateService } from '../metadata-review-state.service';
 import { AdminMetadataComponent } from './admin-metadata.component';
 import { summary } from './metadata-admin.testing';
@@ -19,7 +19,11 @@ import { summary } from './metadata-admin.testing';
  */
 describe('AdminMetadataComponent', () => {
   function create(query: Record<string, string> = {}) {
-    const state = { summary: signal<MetadataReviewSummaryDto | null>(summary({ needsReview: 7, openFlags: 2 })), refresh: vi.fn() };
+    const settingsState = signal<MetadataSettingsDto | null>(null);
+    const state = {
+      summary: signal<MetadataReviewSummaryDto | null>(summary({ needsReview: 7, openFlags: 2 })), refresh: vi.fn(),
+      settings: settingsState, refreshSettings: vi.fn(), setSettings: vi.fn((v: MetadataSettingsDto) => settingsState.set(v)),
+    };
     TestBed.configureTestingModule({
       imports: [AdminMetadataComponent],
       providers: [
@@ -50,8 +54,10 @@ describe('AdminMetadataComponent', () => {
     // The summary tile (owner decision 2, 1.27.0) sits above the tabs and replaces the old one-line summary.
     expect(el.querySelector('[data-testid="metadata-summary-tile"]')).not.toBeNull();
     expect(el.querySelector('[data-testid="tile-review"]')!.textContent).toContain('7');
-    // Both the Settings tab's own content and the in-page summary tile read settings independently.
-    expect(http.match('/api/v1/admin/metadata/settings')).toHaveLength(2);
+    // The Settings tab reads the settings; the summary card shares them through the state service (1.27.0)
+    // instead of a second, independent read that never saw later changes.
+    expect(http.match('/api/v1/admin/metadata/settings')).toHaveLength(1);
+    expect(state.refreshSettings).toHaveBeenCalled();
   });
 
   it('opens the tab, review list and library named in the query string', () => {
