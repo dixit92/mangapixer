@@ -14,7 +14,7 @@ mapping and automatic retrieval loop; no test ever contacts the real network.
   need it.
 - 2026-09-27 (1.27.0, matcher-accuracy lane): 25 more requests, recorded the same way (limit 60): page 2 of four
   existing searches (the matcher now reads page 2 on a tie or when nothing reaches the review floor), 7 new
-  searches (plus 2 page-2 reads) and 11 GETs for the live-run lookalike cases, and `publishers[]` merged into three
+  searches (plus 2 page-2 reads) and 9 GETs for the live-run lookalike cases, and `publishers[]` merged into three
   existing series files (`13015731700`, `15180124327`, `72274276213`) from a fresh GET - their other fields are the
   2026-09-26 recording.
 - `search.<slug>.json`: `POST /v1/series/search` with `{search, page: 1, perpage: 10, filter_types}`;
