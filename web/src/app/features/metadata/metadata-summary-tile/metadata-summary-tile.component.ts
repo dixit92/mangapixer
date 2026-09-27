@@ -1,11 +1,9 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 
-import { MetadataSettingsDto } from '../../../core/api/api-types';
-import { MetadataApiService } from '../metadata-api.service';
 import { MetadataReviewStateService } from '../metadata-review-state.service';
 import { AdminMetadataTab } from '../admin-metadata/metadata-admin-labels';
 
@@ -104,14 +102,13 @@ import { AdminMetadataTab } from '../admin-metadata/metadata-admin-labels';
   `],
 })
 export class MetadataSummaryTileComponent implements OnInit {
-  private readonly api = inject(MetadataApiService);
   private readonly reviewState = inject(MetadataReviewStateService);
 
   /** True on `/admin/metadata` itself: stats switch that page's tabs instead of navigating. */
   readonly inPage = input(false);
   readonly tabSelect = output<AdminMetadataTab>();
 
-  readonly settings = signal<MetadataSettingsDto | null>(null);
+  readonly settings = this.reviewState.settings;
   readonly summary = this.reviewState.summary;
   readonly needsReview = computed(() => this.summary()?.needsReview ?? 0);
   readonly openFlags = computed(() => this.summary()?.openFlags ?? 0);
@@ -119,9 +116,6 @@ export class MetadataSummaryTileComponent implements OnInit {
 
   ngOnInit(): void {
     this.reviewState.refresh();
-    this.api.getSettings().subscribe({
-      next: (s) => this.settings.set(s),
-      error: () => this.settings.set(null),
-    });
+    this.reviewState.refreshSettings();
   }
 }

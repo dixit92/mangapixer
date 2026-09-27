@@ -22,6 +22,7 @@ import {
   MetadataSettingsDto,
 } from '../../../../core/api/api-types';
 import { MetadataApiService } from '../../metadata-api.service';
+import { MetadataReviewStateService } from '../../metadata-review-state.service';
 import { scorePercent } from '../metadata-admin-labels';
 import { LibraryMatchPanelComponent } from './library-match-panel.component';
 
@@ -407,6 +408,7 @@ export function validateThresholds(
 })
 export class MetadataSettingsComponent implements OnInit {
   private readonly api = inject(MetadataApiService);
+  private readonly reviewState = inject(MetadataReviewStateService);
 
   /** A run was queued from "Match now" (the page switches to Runs). */
   readonly runStarted = output<MetadataMatchRunDto>();
@@ -608,6 +610,8 @@ export class MetadataSettingsComponent implements OnInit {
 
   private apply(s: MetadataSettingsDto): void {
     this.settings.set(s);
+    // Share the saved state with the summary card at the top of the page (1.27.0).
+    this.reviewState.setSettings(s);
     this.budgetText.set(String(s.dailyBudget));
     const t = s.thresholds;
     if (t) {

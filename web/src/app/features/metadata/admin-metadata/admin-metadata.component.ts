@@ -121,6 +121,9 @@ export class AdminMetadataComponent implements OnInit {
     if (tab === this.tab()) return;
     this.tab.set(tab);
     this.syncUrl();
+    // The summary card keeps up with work done meanwhile (a run spending budget, new review items).
+    this.reviewState.refresh();
+    this.reviewState.refreshSettings();
   }
 
   /** The in-page summary tile's stats switch tabs here instead of navigating (decision 2). */

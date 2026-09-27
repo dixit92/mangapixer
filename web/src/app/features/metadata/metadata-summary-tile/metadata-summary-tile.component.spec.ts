@@ -5,6 +5,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { settings, summary } from '../admin-metadata/metadata-admin.testing';
+import { MetadataReviewStateService } from '../metadata-review-state.service';
 import { AdminMetadataTab } from '../admin-metadata/metadata-admin-labels';
 import { MetadataSummaryTileComponent } from './metadata-summary-tile.component';
 
@@ -59,6 +60,21 @@ describe('MetadataSummaryTileComponent', () => {
     fixture.detectChanges();
     expect(text('tile-review')).toBe('– to review');
     expect(text('tile-auto')).toBe('Off automatic matching');
+  });
+
+  it('follows a settings change saved elsewhere on the page without a reload (1.27.0 owner report)', () => {
+    const { fixture, text } = create(true);
+    http.expectOne('/api/v1/admin/metadata/review/summary').flush(summary());
+    http.expectOne('/api/v1/admin/metadata/settings').flush(settings({ autoMatchEnabled: false, budgetUsedToday: 0 }));
+    fixture.detectChanges();
+    expect(text('tile-auto')).toBe('Off automatic matching');
+
+    // The Settings tab saved "Automatic matching" on and shares the server's answer.
+    TestBed.inject(MetadataReviewStateService).setSettings(settings({ autoMatchEnabled: true, budgetUsedToday: 12 }));
+    fixture.detectChanges();
+    expect(text('tile-auto')).toBe('On automatic matching');
+    expect(text('tile-budget')).toBe('12 / 5,000 requests today');
+    // afterEach's http.verify(): no extra request was needed.
   });
 
   it('inPage: has no header/open link, and its stats switch tabs instead of navigating', () => {
