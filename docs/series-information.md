@@ -7,6 +7,17 @@ MangaPixer can show a series summary (title, description, authors, genres, publi
 
 Folders and archives with information show an **(i)** in the cover's bottom-left corner. It opens a side panel (a bottom sheet on a phone); **Open series page** leads to the full page. A folder that holds several series (an anthology or an author's folder, for example) lists them in the panel instead, without a series page. Inside a series folder, **Series info** in the top bar opens the same panel; an admin inside a folder without information sees **Identify…** there instead (when web lookups are on for the library). The (i) and the top-bar button update as soon as an admin links, unlinks or marks a folder, without reloading the page.
 
+The (i) also appears on **Search** results and on the **Favorites** page (a favorites stack shows its folder's).
+
+### Summary on hover
+
+With a mouse or trackpad, rest the pointer for a moment on the cover, the title or the (i) of an item that shows the (i) - in the library's card and list views, in Search and on the Favorites page. A short summary appears beside it: the title, up to two alternative titles, the facts line, up to three genres and the first lines of the description. You can move the pointer into the summary (for example to use **More** under the description); it closes when the pointer leaves, when you press Esc, click, or scroll. A click still opens the item, and the (i) still opens the full panel.
+
+- Nothing is fetched while you just move the pointer across the library: the summary is loaded only after the pointer has rested on one item, from your own server (the same information the panel shows). Nothing is sent to MangaUpdates.
+- It follows **Show series information**: when an admin hides series information for a library or everywhere, there is no (i) and no summary.
+- Touch screens (phones, tablets) are not affected, and keyboard focus does not open it: use the (i) there.
+- Turn it off in **Settings** > **Series information** > **Show series information on hover**. It is on by default and saved to your account.
+
 On the series page the description appears once, under **About**. Genres are shown as text. The precedence line under **Sources** appears only when both MangaUpdates data and ComicInfo exist. A series page for a single archive offers **Read** (or **Continue reading**) and **Show in folder**.
 
 ## Where the information applies

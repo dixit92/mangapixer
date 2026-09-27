@@ -88,6 +88,7 @@ Settings saved to **your account** follow you to every device:
   - **New Chapters**: how many **Days** count as new (default 30, 1–365) and which libraries contribute to the home row (**Show new chapters from**)
   - **Items per load** (**Performance** card): 25, 50 (default), 100 or 200
   - **Favorites**: **Show a "Favorites" row on the home page** and **Highlight favorited results in search**, both off by default
+  - **Series information**: **Show series information on hover**, on by default (see [Series information](series-information.md#summary-on-hover))
 - **Library view:** view mode, sort, sort order, card size and list columns.
 - **Favorites** themselves (see [Library layout](library-layout.md#favorites)).
 
