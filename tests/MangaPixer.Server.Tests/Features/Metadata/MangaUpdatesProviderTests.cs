@@ -390,6 +390,39 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         Assert.True(candidate.Webtoon);
     }
 
+    [Theory]
+    [InlineData("10 Volumes / 60 Chapters; Ongoing", 10, 60)]
+    [InlineData("86 Chapters; Ongoing", null, 86)]
+    [InlineData("22 Volumes; Completed", 22, null)]
+    [InlineData("12 Volumes (Ongoing)", 12, null)]
+    [InlineData("Cancelled", null, null)]
+    [InlineData(null, null, null)]
+    public void PublisherNotes_ReadVolumeAndChapterTotals(string? notes, int? volumes, int? chapters) =>
+        Assert.Equal((volumes, chapters), MangaUpdatesStatusParser.ParsePublisherNotes(notes));
+
+    [Fact]
+    public void Mapping_EnglishTotals_AreTheLargestOfTheEnglishPublishers_AndReachTheCandidate()
+    {
+        var record = MangaUpdatesMapping.ToRecord(new MuSeries
+        {
+            SeriesId = 43,
+            Title = "Synthetic Series",
+            Type = "Manga",
+            Status = "12 Volumes (Ongoing)",
+            Publishers =
+            [
+                new MuPublisher { PublisherName = "Origin House", Type = "Original", Notes = "99 Volumes" },
+                new MuPublisher { PublisherName = "Digital English", Type = "English", Notes = "140 Chapters; Ongoing" },
+                new MuPublisher { PublisherName = "Print English", Type = "English", Notes = "10 Volumes / 60 Chapters; Ongoing" },
+            ],
+        }, 43);
+
+        Assert.Equal(10, record.EnglishVolumes); // the original publisher's notes never count
+        Assert.Equal(140, record.EnglishChapters);
+        var candidate = com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch.AutoMatchLookup.ToCandidate(record);
+        Assert.Equal((10, 140), (candidate.EnglishVolumes, candidate.EnglishChapters));
+    }
+
     [Fact]
     public void StatusParser_Empty_IsAllNull() =>
         Assert.Equal(new MangaUpdatesStatusParser.Result(null, null, null), MangaUpdatesStatusParser.Parse("  "));

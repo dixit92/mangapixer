@@ -248,6 +248,51 @@ public static partial class AutoMatchText
             && archiveName.Any(char.IsDigit);
     }
 
+    // Unit numbers (1.27.0 count rule): the number after a volume / chapter token, the upper end of a range.
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:v|vol|vols|volume|volumes)\.?\s*(?<n>\d{1,4})(?:\.\d+)?(?:\s*-\s*(?<m>\d{1,4})(?:\.\d+)?)?(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex VolumeNumber();
+
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:ch|chap|chapter|chapters|ep|episode)\.?\s*|c|#\s*)(?<n>\d{1,4})(?:\.\d+)?(?:\s*-\s*(?<m>\d{1,4})(?:\.\d+)?)?(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ChapterNumber();
+
+    [GeneratedRegex(@"^\s*(?<n>\d{1,4})(?:\.\d+)?(?![\p{N}])", RegexOptions.CultureInvariant)]
+    private static partial Regex LeadingNumber();
+
+    /// <summary>
+    /// The highest volume number a volume-like archive name states (<c>Title v03</c> -> 3, <c>Vol. 01-05</c> -> 5,
+    /// <c>v02.5</c> -> 2, so an extra never inflates it), or null.
+    /// </summary>
+    public static int? VolumeNumberOf(string? archiveName) =>
+        archiveName is null || !IsVolumeLike(archiveName) ? null : HighestNumber(VolumeNumber().Matches(archiveName));
+
+    /// <summary>
+    /// The highest chapter number a chapter-like archive name states (<c>Title - Chapter 012</c> -> 12,
+    /// <c>c045.5</c> -> 45, <c>001 [Chapter Title]</c> -> 1), or null. A leading 19xx / 20xx is a year, not a chapter.
+    /// </summary>
+    public static int? ChapterNumberOf(string? archiveName)
+    {
+        if (archiveName is null || !IsChapterLike(archiveName))
+            return null;
+        if (HighestNumber(ChapterNumber().Matches(archiveName)) is { } n)
+            return n;
+        var bare = Bare(ArchiveExtension().Replace(archiveName, string.Empty));
+        return LeadingNumber().Match(bare) is { Success: true } m && !YearOnly().IsMatch(m.Groups["n"].Value)
+            ? int.Parse(m.Groups["n"].Value, CultureInfo.InvariantCulture)
+            : null;
+    }
+
+    private static int? HighestNumber(MatchCollection matches)
+    {
+        int? best = null;
+        foreach (Match m in matches)
+        {
+            var value = int.Parse(m.Groups["m"].Success ? m.Groups["m"].Value : m.Groups["n"].Value, CultureInfo.InvariantCulture);
+            if (best is null || value > best)
+                best = value;
+        }
+        return best;
+    }
+
     /// <summary>
     /// The origins a category hint allows: <c>manga</c> -> Japan, <c>manhwa</c> -> Korea,
     /// <c>manhua</c> -> China/Taiwan, <c>webtoon(s)</c> -> Korea or China/Taiwan. Null when the

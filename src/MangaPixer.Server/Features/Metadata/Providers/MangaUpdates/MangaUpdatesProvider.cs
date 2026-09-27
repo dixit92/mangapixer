@@ -227,8 +227,15 @@ public static class MangaUpdatesMapping
         }
 
         var publishers = new List<MetadataJson.Publisher>();
+        int? englishVolumes = null, englishChapters = null;
         foreach (var p in s.Publishers ?? [])
         {
+            if (string.Equals(p.Type?.Trim(), "English", StringComparison.OrdinalIgnoreCase))
+            {
+                var (v, c) = MangaUpdatesStatusParser.ParsePublisherNotes(p.Notes);
+                englishVolumes = Max(englishVolumes, v);
+                englishChapters = Max(englishChapters, c);
+            }
             if (publishers.Count >= 30) break;
             if (MetadataText.Line(p.PublisherName, 256) is not { } name) continue;
             var kind = p.Type?.Trim().ToLowerInvariant() switch
@@ -291,6 +298,8 @@ public static class MangaUpdatesMapping
             OriginVolumes = status.Volumes,
             LatestChapter = s.LatestChapter is > 0 ? s.LatestChapter : null,
             TotalChapters = status.Chapters,
+            EnglishVolumes = englishVolumes,
+            EnglishChapters = englishChapters,
             StatusText = status.Text,
             LicensedEn = s.Licensed,
             TranslationComplete = s.Completed,
@@ -307,6 +316,8 @@ public static class MangaUpdatesMapping
                 : null,
         };
     }
+
+    private static int? Max(int? a, int? b) => a is null ? b : b is null ? a : Math.Max(a.Value, b.Value);
 
     private static string? SiteUrl(string? url) =>
         url is { Length: <= 512 } && Uri.TryCreate(url, UriKind.Absolute, out var uri)

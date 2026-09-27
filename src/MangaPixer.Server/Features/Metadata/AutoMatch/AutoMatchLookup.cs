@@ -263,7 +263,9 @@ public sealed class AutoMatchLookup
         r.Creators.Select(c => c.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
         r.Relations.Select(x => new CandidateRelation(x.ExternalId, x.Relation)).ToList(),
         r.Webtoon,
-        r.TotalChapters);
+        r.TotalChapters,
+        r.EnglishVolumes,
+        r.EnglishChapters);
 
     internal static MatchCandidate ToCandidate(ProviderSearchHit hit) => new(
         Provider,

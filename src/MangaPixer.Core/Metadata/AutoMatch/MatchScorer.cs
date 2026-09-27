@@ -66,7 +66,7 @@ public sealed class MatchScorer : IMatchScorer
     /// <summary>Related top two need at least this raw title gap to stay auto.</summary>
     public const double RelatedSeparation = 0.10;
 
-    /// <summary>A count conflict: local units &gt; <c>CountFactor x published + CountSlack</c>.</summary>
+    /// <summary>A count conflict: the local unit number &gt; <c>CountFactor x published + CountSlack</c>.</summary>
     public const double CountFactor = 1.5;
     public const int CountSlack = 2;
 
@@ -277,17 +277,27 @@ public sealed class MatchScorer : IMatchScorer
             }
         }
 
-        // Counts: volumes vs volumes, chapters vs chapters (the E3 fix); unknown -> no signal. The
-        // latest chapter number restarts per season on renumbered webtoons, so a stated total wins.
-        if (ctx.VolumeLikeCount > 0 && c.Volumes is { } vols && vols > 0)
+        // Counts: volumes vs volumes, chapters vs chapters (the E3 fix); unknown -> no signal. 1.27.0: the local side
+        // is the highest unit NUMBER the names state (extras and x.5 chapters do not inflate it); the published side
+        // is the largest number any source states - the latest chapter (it restarts per season on renumbered
+        // webtoons), the status total, the English publisher's totals. A folder that mixes volume and chapter
+        // archives gives no count signal at all (no subtraction heuristics).
+        if (!(ctx.VolumeLikeCount > 0 && ctx.ChapterLikeCount > 0))
         {
-            if (ctx.VolumeLikeCount > CountFactor * vols + CountSlack) { delta += Conflict; reasons |= MatchReason.CountConflict; }
-            else delta += CountAgree;
-        }
-        if (ctx.ChapterLikeCount > 0 && Math.Max(c.LatestChapter ?? 0, c.TotalChapters ?? 0) is var chapters && chapters > 0)
-        {
-            if (ctx.ChapterLikeCount > CountFactor * chapters + CountSlack) { delta += Conflict; reasons |= MatchReason.CountConflict; }
-            else delta += CountAgree;
+            var localVolumes = ctx.VolumeLikeCount > 0 ? ctx.LocalVolumes ?? ctx.VolumeLikeCount : 0;
+            var localChapters = ctx.ChapterLikeCount > 0 ? ctx.LocalChapters ?? ctx.ChapterLikeCount : 0;
+            var volumes = Math.Max(c.Volumes ?? 0, c.EnglishVolumes ?? 0);
+            var chapters = Math.Max(Math.Max(c.LatestChapter ?? 0, c.TotalChapters ?? 0), c.EnglishChapters ?? 0);
+            if (localVolumes > 0 && volumes > 0)
+            {
+                if (localVolumes > CountFactor * volumes + CountSlack) { delta += Conflict; reasons |= MatchReason.CountConflict; }
+                else delta += CountAgree;
+            }
+            if (localChapters > 0 && chapters > 0)
+            {
+                if (localChapters > CountFactor * chapters + CountSlack) { delta += Conflict; reasons |= MatchReason.CountConflict; }
+                else delta += CountAgree;
+            }
         }
 
         // Year: a file cannot predate the series (English release years bound it from above).

@@ -104,6 +104,13 @@ public sealed record ProviderSeriesRecord
     /// auto-match count rule only; not persisted (the status text is).
     /// </summary>
     public int? TotalChapters { get; init; }
+
+    /// <summary>
+    /// The English publishers' largest stated volume / chapter totals (MangaUpdates <c>publishers[].notes</c> where
+    /// the type is English, 1.27.0; same GET, nothing extra sent). Read by the auto-match count rule; not persisted.
+    /// </summary>
+    public int? EnglishVolumes { get; init; }
+    public int? EnglishChapters { get; init; }
     public string? StatusText { get; init; }
     public bool? LicensedEn { get; init; }
     public bool? TranslationComplete { get; init; }

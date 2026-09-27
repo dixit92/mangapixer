@@ -102,6 +102,9 @@ internal sealed record MuPublisher
 {
     [JsonPropertyName("publisher_name")] public string? PublisherName { get; init; }
     [JsonPropertyName("type")] public string? Type { get; init; }
+
+    /// <summary>Free text such as "10 Volumes / 60 Chapters; Ongoing" (1.27.0: the English totals).</summary>
+    [JsonPropertyName("notes")] public string? Notes { get; init; }
 }
 
 internal sealed record MuTime

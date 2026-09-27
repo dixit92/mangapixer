@@ -69,6 +69,35 @@ public static partial class MangaUpdatesStatusParser
         return new Result(volumes, origin, text, chapters);
     }
 
+    [GeneratedRegex(@"(?<![\p{L}\p{N}.])(\d{1,5})(?:\.\d+)?\s*chapters?\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex NotesChapters();
+
+    [GeneratedRegex(@"(?<![\p{L}\p{N}.])(\d{1,5})(?:\.\d+)?\s*(?:volumes?|vols?)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex NotesVolumes();
+
+    /// <summary>
+    /// The volume and chapter totals of a publisher's <c>notes</c> ("10 Volumes / 60 Chapters; Ongoing",
+    /// "86 Chapters; Ongoing", "12 Volumes (Ongoing)"; 1.27.0). The largest stated number of each, or null.
+    /// </summary>
+    public static (int? Volumes, int? Chapters) ParsePublisherNotes(string? notes)
+    {
+        var text = MetadataText.Flatten(notes, MaxStatusTextLength);
+        if (text is null)
+            return (null, null);
+        return (Largest(NotesVolumes().Matches(text)), Largest(NotesChapters().Matches(text)));
+    }
+
+    private static int? Largest(MatchCollection matches)
+    {
+        int? best = null;
+        foreach (Match m in matches)
+        {
+            if (int.TryParse(m.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n > 0 && (best is null || n > best))
+                best = n;
+        }
+        return best;
+    }
+
     private static MetadataOriginStatus? MapStatusWord(string word)
     {
         var w = word.Trim().ToLowerInvariant();

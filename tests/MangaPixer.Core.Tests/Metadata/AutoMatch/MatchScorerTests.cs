@@ -116,6 +116,47 @@ public sealed class MatchScorerTests
         Assert.True(partial.Ranked[0].TitleScore < MatchScorer.SubtitleHeadCap);
     }
 
+    private static MatchQuery WithUnits(MatchQuery q, int volumeLike, int chapterLike, int? localVolumes, int? localChapters) =>
+        q with { Context = q.Context with { VolumeLikeCount = volumeLike, ChapterLikeCount = chapterLike, LocalVolumes = localVolumes, LocalChapters = localChapters } };
+
+    [Fact]
+    public void Count_ComparesTheHighestUnitNumber_NotTheFileCount()
+    {
+        // 12 archives, but they are volumes 1-6 plus six "x.5" extras: no conflict with a 6-volume record.
+        var extras = Score(WithUnits(Query(["Some Series"]), 12, 0, localVolumes: 6, localChapters: null), Rec("1", "Some Series", volumes: 6));
+        Assert.False(extras.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+
+        // 150 archives that are chapters 950-1100: a 200-chapter record conflicts, by the number.
+        var late = Score(WithUnits(Query(["Some Series"]), 0, 150, null, localChapters: 1100), Rec("1", "Some Series", chapter: 200));
+        Assert.True(late.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+    }
+
+    [Fact]
+    public void Count_MixedVolumeAndChapterArchives_GiveNoCountSignal()
+    {
+        var o = Score(WithUnits(Query(["Some Series"]), 40, 300, 40, 300), Rec("1", "Some Series", volumes: 2, chapter: 10));
+
+        Assert.False(o.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+        Assert.Equal(1.0, o.Ranked[0].AdjustedScore, 6); // neither an agreement nor a conflict
+    }
+
+    [Fact]
+    public void Count_PublishedSide_IsTheLargestNumberOfAnySource()
+    {
+        // Season-renumbered webtoon: latest chapter 18, status total 195 (live run, T).
+        var season = Score(WithUnits(Query(["Some Series"]), 0, 195, null, 195),
+            Rec("1", "Some Series", chapter: 18) with { TotalChapters = 195 });
+        Assert.False(season.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+        Assert.Equal(MatchBand.Auto, season.Band);
+
+        // The English publisher's totals bound it too.
+        var english = Score(WithUnits(Query(["Some Series"]), 30, 0, 30, null),
+            Rec("1", "Some Series", volumes: 12) with { EnglishVolumes = 30, EnglishChapters = 250 });
+        Assert.False(english.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+        var none = Score(WithUnits(Query(["Some Series"]), 30, 0, 30, null), Rec("1", "Some Series", volumes: 12));
+        Assert.True(none.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+    }
+
     private static MatchQuery WithHints(MatchQuery q, params string[] hints) => q with { Context = q.Context with { CreatorHints = hints } };
 
     [Fact]
