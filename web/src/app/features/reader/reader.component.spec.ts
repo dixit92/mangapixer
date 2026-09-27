@@ -3433,7 +3433,7 @@ describe('ReaderComponent Upscaling notice (1.25.0)', () => {
  */
 describe('ReaderComponent 1.27.0 reader fixes', () => {
   const ProgressUrl = '/api/v1/reading/progress/item-1';
-  type Internals = {
+  interface Internals {
     restoredScrollTop: number | null;
     webtoonSaveTimer: ReturnType<typeof setTimeout> | null;
     landedOnLastPage: boolean;
@@ -3441,7 +3441,7 @@ describe('ReaderComponent 1.27.0 reader fixes', () => {
     restoreWebtoonPosition(): void;
     saveProgress(): void;
     scroller: () => { nativeElement: HTMLElement };
-  };
+  }
 
   function create() {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
