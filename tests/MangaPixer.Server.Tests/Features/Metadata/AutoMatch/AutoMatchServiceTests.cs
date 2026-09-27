@@ -108,6 +108,80 @@ public sealed class AutoMatchServiceTests : IAsyncLifetime
         Assert.Equal(0, _h.Handler.CallCount);
     }
 
+    // --- Covered work retirement (1.26.1) ---
+
+    private async Task SeedArchiveReviewAsync(CatalogNodeEntity archive)
+    {
+        await _db.AddLinkAsync(archive, null, SeriesLinkState.NeedsReview);
+        _db.Db.MetadataMatchCandidates.Add(new MetadataMatchCandidateEntity
+        {
+            NodeId = archive.Id,
+            Rank = 1,
+            Provider = "mangaupdates",
+            ExternalId = "777",
+            Title = "Candidate",
+            TitleScore = 0.7,
+            AdjustedScore = 0.7,
+        });
+        await _db.Db.SaveChangesAsync();
+    }
+
+    private async Task SeedUnmatchedAsync(CatalogNodeEntity archive)
+    {
+        _db.Db.MetadataMatchQueue.Add(new MetadataMatchQueueEntity
+        {
+            NodeId = archive.Id,
+            LibraryId = _db.LibraryId,
+            State = QueueState.Done,
+            Outcome = (int)MatchBand.Unmatched,
+            Level = (int)MatchLevel.Archive,
+            EnqueuedAt = DateTimeOffset.UtcNow,
+        });
+        await _db.Db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task FolderWork_Decided_RetiresTheArchiveResultsInsideIt()
+    {
+        // Archive-by-archive results made before the folder was recognized as one series.
+        var folder = await SeriesAsync("Alpha Saga");
+        var archives = await _db.Db.CatalogNodes.Where(n => n.ParentId == folder.Id).OrderBy(n => n.Id).ToListAsync();
+        await SeedArchiveReviewAsync(archives[0]);
+        await SeedUnmatchedAsync(archives[1]);
+        var outside = await _db.AddFolderAsync(null, "Collection Other");
+        var outsideArchive = await _db.AddArchiveAsync(outside, "Gamma Saga");
+        await SeedArchiveReviewAsync(outsideArchive);
+        _h.Search["Alpha Saga"] = [new MuJson.Hit(601, "Alpha Saga")];
+        _h.Records[601] = MuJson.Get(601, "Alpha Saga");
+        await _h.EnableAutomaticAsync();
+        await EnqueueAsync();
+        await _h.DrainAsync();
+
+        Assert.Equal((int)SeriesLinkState.Auto, (await LinkOfAsync(folder))!.State);
+        Assert.Null(await LinkOfAsync(archives[0]));
+        Assert.False(await _db.Db.MetadataMatchCandidates.AnyAsync(c => c.NodeId == archives[0].Id));
+        Assert.False(await _db.Db.MetadataMatchQueue.AnyAsync(q => q.NodeId == archives[1].Id));
+        Assert.Equal((int)SeriesLinkState.NeedsReview, (await LinkOfAsync(outsideArchive))!.State); // not below the folder
+    }
+
+    [Fact]
+    public async Task AdminLinksAFolder_RetiresReviewRowsInside_AndKeepsAdminDecisions()
+    {
+        var folder = await _db.AddFolderAsync(null, "Collection Shelf");
+        var inReview = await _db.AddArchiveAsync(folder, "Alpha Story");
+        var confirmed = await _db.AddArchiveAsync(folder, "Beta Tale");
+        await SeedArchiveReviewAsync(inReview);
+        var record = await _db.AddRecordAsync("888", "Collection Record");
+        await _db.AddLinkAsync(confirmed, record);
+
+        var (code, _) = await _h.Net.Links().LinkAsync(folder.PublicId,
+            new LinkSeriesRequest { Provider = "mangaupdates", ExternalId = "888" }, "admin");
+
+        Assert.Equal(MetadataLinkResultCode.Ok, code);
+        Assert.Null(await LinkOfAsync(inReview));
+        Assert.Equal((int)SeriesLinkState.Confirmed, (await LinkOfAsync(confirmed))!.State);
+    }
+
     // --- Content change -> match again ---
 
     [Fact]

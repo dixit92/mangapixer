@@ -123,6 +123,35 @@ public sealed class TitleNormalizerTests
         Assert.Equal(withExclamation, n.PrimaryWithExclamation);
     }
 
+    public static TheoryData<string[], string?> NumberedHeadCases() => new()
+    {
+        { Enumerable.Range(1, 12).Select(i => $"Cloud Flower {i:000} Title Word{i}.cbz").ToArray(), "Cloud Flower" },
+        { ["Steel Rider 000 Oneshot.cbz", "Steel Rider 001 Rise.cbz", "Steel Rider 002 Iron Fire!.cbz", "Steel Rider 006 HQ Version.cbz"], "Steel Rider" },
+        { Enumerable.Range(1, 6).Select(i => $"Level 1 Hero {i:000} Part Name.cbz").ToArray(), "Level 1 Hero" },
+        { ["Alpha Story.cbz", "Beta Tale.cbz", "Gamma Saga.cbz", "Delta Night.cbz"], null },
+        { ["Alpha Story 1.cbz", "Alpha Story 2.cbz", "Beta Tale.cbz", "Gamma Saga.cbz", "Delta Night.cbz"], null },
+        { ["Same Title 005 Only One.cbz"], null },
+    };
+
+    [Theory]
+    [MemberData(nameof(NumberedHeadCases))]
+    public void NumberedSeriesHead_FindsTheTitleInFrontOfAVaryingChapterNumber(string[] names, string? head) =>
+        Assert.Equal(head, TitleNormalizer.NumberedSeriesHead(names, 0.8));
+
+    [Theory]
+    [InlineData("Family Given] Some Words", "Some Words")]
+    [InlineData("Some Words [Family Given", "Some Words")]
+    [InlineData("Some Words]", "Some Words")]
+    public void Normalize_UnmatchedBracketTag_IsNotPartOfTheTitle(string name, string primary) =>
+        Assert.Equal(primary, TitleNormalizer.Normalize(name).Primary);
+
+    [Fact]
+    public void Normalize_EnglishTitle_SurvivesATrailingCreatorGroup_ButNotAReleaseTag()
+    {
+        Assert.Equal(["Some Words", "Joined Hands"], TitleNormalizer.Normalize("Some Words [Joined Hands] (Family Given)").Variants);
+        Assert.Equal(["Some Words"], TitleNormalizer.Normalize("Some Words [Joined Hands] (Digital)").Variants);
+    }
+
     [Theory]
     [InlineData("Edition Wars")]
     [InlineData("The Editions of Master")]
@@ -184,10 +213,12 @@ public sealed class TitleNormalizerTests
     }
 
     [Theory]
-    [InlineData("Some Title (unclosed", "Some Title unclosed")]
-    [InlineData("Some Title [Tag", "Some Title Tag")]
+    // 1.26.1 (owner): an unmatched bracket marks a tag (a YACReader jump-bar convention), so the
+    // text on its outer side leaves the title; "Some Title) v01" keeps its title (no title text after).
+    [InlineData("Some Title (unclosed", "Some Title")]
+    [InlineData("Some Title [Tag", "Some Title")]
     [InlineData("Some Title) v01", "Some Title")]
-    [InlineData("Some Title (Digital) [Group", "Some Title Group")]
+    [InlineData("Some Title (Digital) [Group", "Some Title")]
     public void Normalize_UnbalancedBracket_DoesNotSurviveIntoPrimary(string input, string expected)
     {
         var primary = TitleNormalizer.Normalize(input).Primary;

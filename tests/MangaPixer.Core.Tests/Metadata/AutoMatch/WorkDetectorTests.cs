@@ -182,6 +182,22 @@ public sealed class WorkDetectorTests
     }
 
     [Fact]
+    public void NumberedChaptersWithSubtitles_AreOneSeries_NotACollection()
+    {
+        // "<Title> 025 <chapter subtitle>" (owner review, 1.26.1): every base differs, the head does not.
+        var subtitled = Enumerable.Range(1, 25).Select(i => $"Cloud Flower {i:000} Title Word{i} Other{i % 7}.cbz").ToArray();
+        var c = _detector.Classify(Folder("Kumo no Hana Senpai [Cloud Flower]", subtitled, depth: 1));
+        var zero = _detector.Classify(Folder("Steel Rider",
+            ["Steel Rider 000 Oneshot.cbz", "Steel Rider 001 Rise.cbz", "Steel Rider 002 Iron Fire!.cbz", "Steel Rider 006 HQ Version.cbz"], depth: 1));
+        var shelf = _detector.Classify(Folder("Anthology Shelf",
+            ["Alpha Story.cbz", "Beta Tale.cbz", "Gamma Saga.cbz", "Delta Night.cbz", "Epsilon Dawn.cbz"]));
+
+        Assert.Equal((WorkClass.Series, MatchLevel.Folder), (c.Class, c.Level));
+        Assert.Equal((WorkClass.Series, MatchLevel.Folder), (zero.Class, zero.Level));
+        Assert.Equal(WorkClass.CollectionLeaf, shelf.Class);
+    }
+
+    [Fact]
     public void DoujinsArtistsTree_OnlyTheArtistFoldersAreMatched_ArchiveByArchive()
     {
         // Doujins/ -> Artists/ -> <artist>/ -> archives: the top two levels are never matched themselves.

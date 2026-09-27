@@ -69,7 +69,8 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             folder.CategoryHint,
             TallStrips: false,
             authorTags,
-            string.IsNullOrWhiteSpace(comicInfoSeries) ? null : comicInfoSeries.Trim());
+            string.IsNullOrWhiteSpace(comicInfoSeries) ? null : comicInfoSeries.Trim(),
+            AutoMatchText.CreatorHints(folder.DisplayName));
         return new MatchQuery(variants.ToList(), context);
     }
 
@@ -132,7 +133,8 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             AutoMatchText.EarliestYear(names),
             folder.CategoryHint,
             TallStrips: false,
-            authorTags);
+            authorTags,
+            CreatorHints: names.SelectMany(AutoMatchText.CreatorHints).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
         return new MatchQuery(variants.ToList(), context);
     }
 

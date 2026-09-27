@@ -39,6 +39,9 @@ public sealed partial record ArchiveNameAnatomy(
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ReleaseTag();
 
+    /// <summary>A parenthesized release tag (year, language, quality, edition or unit marker, scan note).</summary>
+    public static bool IsReleaseTag(string? text) => !string.IsNullOrWhiteSpace(text) && ReleaseTag().IsMatch(text.Trim());
+
     [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:v|vol|vols|volume|volumes|ch|chap|chapter|chapters|c)\.?\s*\d+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex UnitToken();
 

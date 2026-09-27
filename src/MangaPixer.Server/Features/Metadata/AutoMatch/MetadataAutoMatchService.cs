@@ -580,6 +580,9 @@ public sealed class MetadataAutoMatchService
         }
 
         await WriteOutcomeAsync(row, work, lookup, call, ct);
+        // A decided folder-level work speaks for its subtree: archive results inside it are retired.
+        if (work.Work.Level is MatchLevel.Folder or MatchLevel.ReviewOnly)
+            await CoveredWorkRetirement.RetireBelowAsync(_db, tree, work.Work.AnchorNodeId, ct);
         _logger.LogInformation(LogEvents.Metadata.AutoMatchDecided,
             "Automatic matching decided node {NodeId}: {Band} ({Requests} requests, {ElapsedMs} ms)",
             row.NodeId, lookup.Outcome.Band, call.RequestsSent, watch.ElapsedMilliseconds);

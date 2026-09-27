@@ -129,7 +129,11 @@ public enum QueryVariantKind
 
 public sealed record QueryVariant(string Text, QueryVariantKind Kind);
 
-/// <summary>Local signals used to corroborate candidates (never sent anywhere).</summary>
+/// <summary>
+/// Local signals used to corroborate candidates (never sent anywhere). <c>CreatorHints</c> (optional,
+/// 1.26.1): names from trailing <c>[...]</c> / <c>(...)</c> groups of the folder or archive name that may be
+/// an author; positive evidence only - unlike <c>AuthorTags</c> they never veto.
+/// </summary>
 public sealed record MatchContext(
     WorkClass Class,
     int ArchiveCount,
@@ -139,7 +143,8 @@ public sealed record MatchContext(
     string? CategoryHint,
     bool TallStrips,
     IReadOnlyList<string> AuthorTags,
-    string? ComicInfoSeries = null);
+    string? ComicInfoSeries = null,
+    IReadOnlyList<string>? CreatorHints = null);
 
 /// <summary>
 /// What to look up for one work: ordered, de-duplicated variants (the caller sends at most the

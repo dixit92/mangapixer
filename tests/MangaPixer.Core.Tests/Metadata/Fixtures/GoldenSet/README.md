@@ -8,6 +8,9 @@ the real network.
 - Captured 2026-09-26 by the matcher-core lane with a one-off recorder: `User-Agent:
   MangaPixer-Metadata`, at least 0.75 s between requests, PUBLIC well-known titles only (never a name
   from a real library). The request count is recorded in the lane's hand-off.
+- 2026-09-27 (1.26.1, integrator): one more `series.40032173896.json` (the main record of a title already
+  in the set), recorded the same way (one request) when the "Title: Subtitle" head rule made the harness
+  need it.
 - `search.<slug>.json`: `POST /v1/series/search` with `{search, page: 1, perpage: 10, filter_types}`.
   `filter_types` is the fixed automatic-search filter (`Novel`, `Doujinshi`, `Artbook`, `Drama CD`);
   files ending in `.dj.json` were recorded with Doujinshi allowed (the folder Content setting

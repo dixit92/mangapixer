@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Automatic matching: chapters with their own subtitles.** A folder of numbered chapters whose names carry a chapter title (`Title 025 Chapter Name.cbz`, `Title 000 Oneshot.cbz`) is now matched as one series instead of chapter by chapter. When a folder has been matched, or an admin links it or marks it **Don't match**, the review and unmatched rows of the archives inside it are removed, since the folder covers them. To clean up a library matched with 1.26.0, run **Match now** on it.
+- **Automatic matching: author names in file and folder names.** A name in brackets or parentheses anywhere in the name (`Title [Author]`, `[Author] Title`, `Title [English Title] (Author)`), or before a lone closing bracket (`Author] Title`), counts as a possible author. When a MangaUpdates record's author, or its `(AUTHOR Name)` suffix, matches, that record wins over records with the same title. A trailing author no longer hides an `[English Title]` from the search, and text cut off by a lone bracket is no longer searched as part of the title. Items already waiting in **Needs review** keep their candidates; use **Re-run matching** on them.
+- **Automatic matching: records with a long subtitle.** A record titled `Title: Long Subtitle` now ranks first for a folder named `Title`. It is offered for review, never linked on its own.
+
 ## [1.26.0] - 2026-09-27
 
 ### Added

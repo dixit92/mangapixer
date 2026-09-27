@@ -48,6 +48,44 @@ public sealed class MatchScorerTests
         Assert.Equal("1", o.Ranked[0].Candidate.ExternalId);
     }
 
+    private static MatchQuery WithHints(MatchQuery q, params string[] hints) => q with { Context = q.Context with { CreatorHints = hints } };
+
+    [Fact]
+    public void CreatorHint_SeparatesSameTitledRecords_ByTheirDisambiguator()
+    {
+        // "Sprout [Family Given].cbz" in a one-shot collection: three records score 1.00 on the title.
+        var q = WithHints(Query(["Sprout"], WorkClass.CollectionLeaf, archives: 1), "Family Given");
+        var o = Score(q, Rec("1", "Sprout (OTHER Person)"), Rec("2", "Sprout", volumes: 15), Rec("3", "Sprout (FAMILY Given)"));
+
+        Assert.Equal("3", o.Ranked[0].Candidate.ExternalId);
+        Assert.Equal(MatchBand.Auto, o.Band);
+    }
+
+    [Fact]
+    public void CreatorHint_MatchesRecordAuthors_InEitherNameOrder_AndNeverVetoes()
+    {
+        var q = WithHints(Query(["Some Series"]), "Family Given");
+        var agree = Score(q, Rec("1", "Some Series", authors: ["Given Family"]), Rec("2", "Some Series 2nd"));
+        var none = Score(WithHints(Query(["Some Series"]), "English Words"), Rec("1", "Some Series", authors: ["Given Family"]));
+
+        Assert.Equal(1.0 + MatchScorer.CreatorHintAgree, agree.Ranked[0].AdjustedScore, 6);
+        Assert.Equal(1.0, none.Ranked[0].AdjustedScore, 6);
+        Assert.Equal(MatchReason.None, none.Ranked[0].Reasons & MatchScorer.VetoReasons);
+    }
+
+    [Fact]
+    public void RecordTitleWithSubtitle_RanksByTheHeadBeforeTheColon_ButNeverAutoLinks()
+    {
+        var o = Score(Query(["Fake Hero of the Year"]),
+            Rec("1", "Fake Hero of the Year: Ideal Hero? Sorry, a Fake"), Rec("2", "The Year of Nothing"));
+        var exact = Score(Query(["Some Saga"]), Rec("1", "Some Saga"), Rec("2", "Some Saga: Before the Fall"));
+
+        Assert.Equal("1", o.Ranked[0].Candidate.ExternalId);
+        Assert.Equal(MatchScorer.SubtitleHeadCap, o.Ranked[0].TitleScore, 6);
+        Assert.Equal(MatchBand.NeedsReview, o.Band);
+        Assert.Equal(("1", MatchBand.Auto), (exact.Ranked[0].Candidate.ExternalId, exact.Band));
+    }
+
     [Fact]
     public void ExactTitle_ClearLead_IsAuto()
     {
