@@ -124,12 +124,19 @@ test('admin sets and clears folder precedence from the selection bar', async ({ 
   await expect(page.getByText(/Source precedence \(ComicInfo first\) on 1 folder/)).toBeVisible();
   await shot(page, '05-selection-precedence');
 
-  await page.goto(`/series/${series}`);
-  await expect(page.getByTestId('series-page')).toContainText('ComicInfo first (set on a folder)');
+  // The page shows the precedence line only when a series has both web and ComicInfo information
+  // (1.24.2); this fixture is ComicInfo-only, so the effective value is checked through the API.
+  const precedence = async () => {
+    const info = await (await page.request.get(`/api/v1/nodes/${series}/series-info`)).json();
+    return `${info.precedence} / ${info.precedenceSource}`;
+  };
+  await expect.poll(precedence).toBe('ComicInfoFirst / Folder');
 
+  await page.goto(`/series/${series}`);
+  await expect(page.getByTestId('series-precedence')).toHaveCount(0);
   await page.getByTestId('series-admin-menu').click();
   await page.getByTestId('precedence-inherit').click();
-  await expect(page.getByTestId('series-page')).toContainText('Web first (default)');
+  await expect.poll(precedence).toBe('WebFirst / Default');
 });
 
 test('"Show series information" off hides the (i), the top-bar button and the series page', async ({ page }) => {
