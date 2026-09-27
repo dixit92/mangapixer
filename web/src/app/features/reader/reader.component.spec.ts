@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { ApplicationRef } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -14,6 +15,7 @@ import { of, Subject } from 'rxjs';
 import { ReaderComponent } from './reader.component';
 import { ReaderOptionsSheetComponent } from './reader-settings-menu.component';
 import { ReadStateService } from '../../core/reading/read-state.service';
+import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import { WebtoonNavPreferencesService } from './webtoon-nav.service';
 import { UpscaleDirective, UpscaleSupportService } from './upscale.directive';
@@ -3419,5 +3421,228 @@ describe('ReaderComponent Upscaling notice (1.25.0)', () => {
     c.toggleHelp();
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Smooth / Crisp / Enhance');
+  });
+});
+
+/**
+ * 1.27.0 reader fixes: the Vertical view restores the saved page once the strip has
+ * rendered and that restore never saves; scrubbing leaves no stray debounced save;
+ * leaving the page flushes a pending save; a save that loses a revision race is sent
+ * once more; the landed-at-the-end guard covers "near the end"; the phone sheet's
+ * favorite toggle.
+ */
+describe('ReaderComponent 1.27.0 reader fixes', () => {
+  const ProgressUrl = '/api/v1/reading/progress/item-1';
+  type Internals = {
+    restoredScrollTop: number | null;
+    webtoonSaveTimer: ReturnType<typeof setTimeout> | null;
+    landedOnLastPage: boolean;
+    revision: number;
+    restoreWebtoonPosition(): void;
+    saveProgress(): void;
+    scroller: () => { nativeElement: HTMLElement };
+  };
+
+  function create() {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const fixture = TestBed.createComponent(ReaderComponent);
+    const c = fixture.componentInstance;
+    c.itemId.set('item-1');
+    return { fixture, c, i: c as unknown as Internals, http: TestBed.inject(HttpTestingController) };
+  }
+
+  /** A fake strip of equal pages; `scrollTop` is writable like the real one. */
+  function fakeStrip(i: Internals, pages: number, pageHeight: number, clientHeight: number) {
+    const imgs = Array.from({ length: pages }, (_, n) => ({ offsetTop: n * pageHeight, offsetHeight: pageHeight }) as unknown as HTMLElement);
+    const el = { scrollTop: 0, clientHeight, scrollHeight: pages * pageHeight, querySelectorAll: () => imgs } as unknown as HTMLElement;
+    i.scroller = () => ({ nativeElement: el });
+    return el;
+  }
+
+  function vertical(c: ReaderComponent, pages: number, page: number) {
+    c.pages.set(makePages(pages));
+    c.view.set('webtoon');
+    c.phase.set('ready');
+    c.currentPage.set(page);
+  }
+
+  afterEach(() => vi.useRealTimers());
+
+  it('restores the saved page into the strip after the next render, not before', () => {
+    const { c, i } = create();
+    vertical(c, 30, 17);
+    const strip = fakeStrip(i, 30, 1000, 900);
+
+    i.restoreWebtoonPosition();
+    expect(strip.scrollTop).toBe(0); // nothing yet: the strip may not exist before the render
+    TestBed.inject(ApplicationRef).tick();
+
+    expect(strip.scrollTop).toBe(17000);
+    expect(i.restoredScrollTop).toBe(17000);
+  });
+
+  it('the restore scroll keeps the page and saves nothing, even when a later page crosses the middle', () => {
+    vi.useFakeTimers();
+    const { c, i, http } = create();
+    vertical(c, 30, 17);
+    // Short pages: at page 17's top the middle of the screen sits on page 21.
+    const strip = fakeStrip(i, 30, 100, 900);
+    i.restoreWebtoonPosition();
+    TestBed.inject(ApplicationRef).tick();
+
+    c.onWebtoonScroll(); // the event caused by the restore
+    vi.advanceTimersByTime(2000);
+    expect(c.currentPage()).toBe(17);
+    expect(i.webtoonSaveTimer).toBeNull();
+    http.expectNone(ProgressUrl);
+
+    strip.scrollTop = 1750; // the reader scrolls: normal tracking resumes
+    c.onWebtoonScroll();
+    expect(c.currentPage()).toBe(22);
+    vi.advanceTimersByTime(600);
+    const put = http.expectOne(ProgressUrl);
+    expect(put.request.body.pageIndex).toBe(22);
+    put.flush({ revision: 5, alreadyApplied: false });
+  });
+
+  it('does not restore once the reader has left the Vertical view', () => {
+    const { c, i } = create();
+    vertical(c, 30, 17);
+    const strip = fakeStrip(i, 30, 1000, 900);
+    i.restoreWebtoonPosition();
+    c.view.set('paged');
+    TestBed.inject(ApplicationRef).tick();
+    expect(strip.scrollTop).toBe(0);
+    expect(i.restoredScrollTop).toBeNull();
+  });
+
+  it('switching to Vertical and a late Vertical reading mode both restore the current page', () => {
+    const { c, i } = create();
+    c.pages.set(makePages(30));
+    c.view.set('paged');
+    c.phase.set('ready');
+    c.currentPage.set(12);
+    const strip = fakeStrip(i, 30, 1000, 900);
+    c.setView('webtoon');
+    TestBed.inject(ApplicationRef).tick();
+    expect(strip.scrollTop).toBe(12000);
+
+    c.view.set('paged');
+    c.currentPage.set(20);
+    (c as unknown as { applyDefaultMode(mode: string): void }).applyDefaultMode('VerticalWebtoon');
+    TestBed.inject(ApplicationRef).tick();
+    expect(strip.scrollTop).toBe(20000);
+  });
+
+  it('scrolling while scrubbing schedules no save; the release saves once', () => {
+    vi.useFakeTimers();
+    const { c, i, http } = create();
+    vertical(c, 10, 0);
+    const strip = fakeStrip(i, 10, 1000, 900);
+    const rail = {
+      getBoundingClientRect: () => ({ left: 0, width: 100, top: 0, height: 10 }),
+      setPointerCapture: () => undefined, releasePointerCapture: () => undefined,
+    } as unknown as HTMLElement;
+    const ev = (clientX: number) => ({ pointerId: 1, clientX, currentTarget: rail, preventDefault: () => undefined }) as unknown as PointerEvent;
+
+    c.onScrubStart(ev(50));
+    strip.scrollTop = 4000;
+    c.onWebtoonScroll();
+    expect(i.webtoonSaveTimer).toBeNull();
+    c.onScrubEnd(ev(50));
+    vi.advanceTimersByTime(2000);
+    const puts = http.match(ProgressUrl);
+    expect(puts.length).toBe(1);
+    puts[0].flush({ revision: 1, alreadyApplied: false });
+  });
+
+  it('leaving the page sends a pending Vertical save at once', () => {
+    vi.useFakeTimers();
+    const { c, i, http } = create();
+    vertical(c, 10, 0);
+    const strip = fakeStrip(i, 10, 1000, 900);
+    strip.scrollTop = 3000;
+    c.onWebtoonScroll();
+    expect(i.webtoonSaveTimer).not.toBeNull();
+
+    window.dispatchEvent(new Event('pagehide'));
+    const put = http.expectOne(ProgressUrl);
+    expect(put.request.body.pageIndex).toBe(3);
+    put.flush({ revision: 1, alreadyApplied: false });
+    expect(i.webtoonSaveTimer).toBeNull();
+    vi.advanceTimersByTime(2000);
+    http.expectNone(ProgressUrl); // the timer was cleared, not left to save again
+  });
+
+  it('a save that loses a revision race is sent once more on the fresh revision', () => {
+    const { c, i, http } = create();
+    c.pages.set(makePages(10));
+    c.phase.set('ready');
+    c.currentPage.set(4);
+    i.revision = 3;
+
+    i.saveProgress();
+    http.expectOne(ProgressUrl).flush({ error: 'precondition_failed', message: 'Revision mismatch' }, { status: 412, statusText: 'Precondition Failed' });
+    http.expectOne({ method: 'GET', url: ProgressUrl }).flush({
+      itemId: 'item-1', pageIndex: 2, contentVersion: 1, updatedAt: '2026-01-01T00:00:00Z', state: 'InProgress',
+      revision: 7, isStale: false, openPageIndex: 2,
+    });
+    const retry = http.expectOne({ method: 'PUT', url: ProgressUrl });
+    expect(retry.request.headers.get('If-Match')).toBe('"7"');
+    expect(retry.request.body.pageIndex).toBe(4);
+
+    // Only once: a second conflict just refreshes the revision.
+    retry.flush({ error: 'precondition_failed', message: 'Revision mismatch' }, { status: 412, statusText: 'Precondition Failed' });
+    http.expectOne({ method: 'GET', url: ProgressUrl }).flush({
+      itemId: 'item-1', pageIndex: 2, contentVersion: 1, updatedAt: '2026-01-01T00:00:00Z', state: 'InProgress',
+      revision: 8, isStale: false, openPageIndex: 2,
+    });
+    http.expectNone({ method: 'PUT', url: ProgressUrl });
+    expect(i.revision).toBe(8);
+  });
+
+  it('landed at the end via back-navigation: no save anywhere near the end, saves resume before it', () => {
+    const { c, i, http } = create();
+    c.pages.set(makePages(20)); // near the end = index 18 and 19
+    c.view.set('paged');
+    c.phase.set('ready');
+    i.landedOnLastPage = true;
+
+    c.currentPage.set(19);
+    i.saveProgress();
+    c.currentPage.set(18); // one page back is still "the end": saving it would mark the archive read
+    i.saveProgress();
+    http.expectNone(ProgressUrl);
+
+    c.currentPage.set(17);
+    i.saveProgress();
+    const put = http.expectOne(ProgressUrl);
+    expect(put.request.body.pageIndex).toBe(17);
+    put.flush({ revision: 1, alreadyApplied: false });
+    expect(i.landedOnLastPage).toBe(false);
+  });
+
+  it('toggleFavorite flips at once, persists, and reverts on failure', () => {
+    const { c, http } = create();
+    c.toggleFavorite();
+    expect(c.currentFavorite()).toBe(true);
+    http.expectOne({ method: 'POST', url: '/api/v1/nodes/item-1/favorite' }).flush(null);
+    expect(c.currentFavorite()).toBe(true);
+
+    c.toggleFavorite();
+    expect(c.currentFavorite()).toBe(false);
+    http.expectOne({ method: 'DELETE', url: '/api/v1/nodes/item-1/favorite' })
+      .flush({ error: 'http_error', message: 'x' }, { status: 500, statusText: 'Server Error' });
+    expect(c.currentFavorite()).toBe(true);
+  });
+
+  it('a favorite toggled by the desktop star (or anywhere) updates the reader state', () => {
+    const { c, http } = create();
+    TestBed.inject(FavoritesStateService).setFavorite('item-1', true).subscribe();
+    http.expectOne({ method: 'POST', url: '/api/v1/nodes/item-1/favorite' }).flush(null);
+    expect(c.currentFavorite()).toBe(true);
+    TestBed.inject(FavoritesStateService).setFavorite('other-item', false).subscribe();
+    http.expectOne({ method: 'DELETE', url: '/api/v1/nodes/other-item/favorite' }).flush(null);
+    expect(c.currentFavorite()).toBe(true);
   });
 });
