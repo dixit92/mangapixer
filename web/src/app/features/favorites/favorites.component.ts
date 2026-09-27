@@ -131,7 +131,7 @@ import {
     .fav-sub { font-size: 12px; color: #999; }
     /* Stack (1.27.0): the Home "New chapters" stacked-paper edges behind the cover, and
        the number of favorites inside in the top-right corner. */
-    .stack { position: relative; margin-right: 8px; }
+    .stack { position: relative; }
     .stack .cover { position: relative; z-index: 1; }
     .stack::before, .stack::after {
       content: ''; position: absolute; inset: 0; border-radius: 8px; z-index: 0;
