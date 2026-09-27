@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-09-27
+
 ### Added
 
 - **Series information: automatic matching.** A new **Automatic matching** switch (Administration > Series metadata, off by default, with its own consent text) matches series on its own in every library that fetches from the web: after each scan for the new folders and for folders that gained archives (a new doujin in an artist folder is matched on its own; a new chapter of a linked series needs no lookup), or for a whole library with **Match now**, which first shows how many works and requests that is and can send everything to review once. MangaPixer tells series folders, one-shots and collections apart by their names and contents, so category and author folders are never linked themselves; confident matches go live at once, close calls wait in a review list with their candidates, and nothing inside a **Don't match** folder is ever looked up. Automatic lookups use the same daily request budget (no separate limit), send at most one request per second, and leave doujinshi and novels out unless a folder's new **Content** setting says it holds doujinshi. Linked series are refreshed in the background by their MangaUpdates number (at most 100 a day). Three advanced thresholds tune how sure a match must be. See [Automatic matching](docs/series-information.md#automatic-matching) and [What is sent](docs/series-information.md#what-is-sent). **Upgrade note:** a database migration adds the new tables and settings on first start; automatic matching stays off until an admin turns it on.
