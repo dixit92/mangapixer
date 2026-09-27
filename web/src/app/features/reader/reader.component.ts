@@ -1,5 +1,5 @@
 import { Component, inject, signal, computed, effect, untracked, OnInit, OnDestroy, HostListener, ElementRef, viewChild } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
@@ -16,6 +16,7 @@ import { map } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
+import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import {
@@ -835,6 +836,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly readState = inject(ReadStateService);
+  private readonly favorites = inject(FavoritesStateService);
   private readonly bottomSheet = inject(MatBottomSheet);
   private readonly breakpoints = inject(BreakpointObserver);
   // Public so the template can read the persisted page-transition preference.
@@ -879,6 +881,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   /** Whether the currently open chapter (the archive) is favorited (1.21.0). */
   readonly currentFavorite = signal(false);
+  // Keep it in step with a toggle made anywhere (the desktop star, the phone sheet).
+  private readonly favoriteSync = this.favorites.changed$.pipe(takeUntilDestroyed()).subscribe((change) => {
+    if (change.nodeId === this.itemId()) this.currentFavorite.set(change.favorite);
+  });
   readonly phase = signal<ReaderPhase>('preparing');
   readonly statusMessage = signal('Loading…');
   readonly currentPage = signal(0);
@@ -1718,6 +1724,23 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
         this.bookmarks.update((list) => [...list, bookmark].sort((a, b) => a.ordinal - b.ordinal));
       },
       error: () => this.snackBar.open('Could not add the bookmark.', 'Dismiss', { duration: 3000 }),
+    });
+  }
+
+  /**
+   * Phone sheet favorite toggle (1.27.0) - the desktop bar uses the star component,
+   * which works the same way: flip optimistically, persist, revert on error. The
+   * service announces the change, so the desktop star follows.
+   */
+  toggleFavorite(): void {
+    const itemId = this.itemId();
+    const next = !this.currentFavorite();
+    this.currentFavorite.set(next);
+    this.favorites.setFavorite(itemId, next).subscribe({
+      error: () => {
+        if (this.itemId() === itemId) this.currentFavorite.set(!next);
+        this.snackBar.open('Could not update favorites.', 'Dismiss', { duration: 3000 });
+      },
     });
   }
 

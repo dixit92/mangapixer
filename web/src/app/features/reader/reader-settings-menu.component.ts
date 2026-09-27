@@ -441,6 +441,10 @@ export interface ReaderOptionsHost {
   readonly hasNextChapter: Signal<boolean>;
   readonly prevNeighbor: Signal<{ displayName: string } | null>;
   readonly nextNeighbor: Signal<{ displayName: string } | null>;
+  /** Is the page on screen bookmarked (1.27.0 phone bookmark / favorite row)? */
+  readonly isCurrentPageBookmarked: Signal<boolean>;
+  /** Is the open archive a favorite? */
+  readonly currentFavorite: Signal<boolean>;
   chooseView(pref: ViewPref | 'webtoon'): void;
   chooseSpread(shifted: boolean): void;
   setFitMode(mode: FitMode): void;
@@ -449,6 +453,10 @@ export interface ReaderOptionsHost {
   prevChapter(): void;
   nextChapter(): void;
   toggleHelp(): void;
+  /** The desktop bar's handlers, reused by the phone sheet (1.27.0). */
+  toggleBookmark(): void;
+  openBookmarks(): void;
+  toggleFavorite(): void;
 }
 
 /**
@@ -491,6 +499,30 @@ export interface ReaderOptionsHost {
         <h2 id="reader-options-title">Reader options</h2>
         <button mat-icon-button class="close" (click)="close()" aria-label="Close reader options">
           <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
+      <!-- 1.27.0: the desktop bar's Bookmark this page / Bookmarks / Favorite, which the
+           phone bar has no room for. Same handlers and screen-reader labels as desktop;
+           the toggles show their state with the filled glyph and the accent highlight. -->
+      <div class="action-row">
+        <button type="button" class="chip action" (click)="host.toggleBookmark()"
+                [class.selected]="host.isCurrentPageBookmarked()"
+                [attr.aria-pressed]="host.isCurrentPageBookmarked()"
+                [attr.aria-label]="host.isCurrentPageBookmarked() ? 'Remove bookmark from this page' : 'Bookmark this page'">
+          <mat-icon aria-hidden="true">{{ host.isCurrentPageBookmarked() ? 'bookmark' : 'bookmark_border' }}</mat-icon>
+          Bookmark page
+        </button>
+        <button type="button" class="chip action" (click)="bookmarks()" aria-label="Bookmarks" aria-haspopup="dialog">
+          <mat-icon aria-hidden="true">bookmarks</mat-icon>
+          Bookmarks
+        </button>
+        <button type="button" class="chip action" (click)="host.toggleFavorite()"
+                [class.selected]="host.currentFavorite()"
+                [attr.aria-pressed]="host.currentFavorite()"
+                [attr.aria-label]="host.currentFavorite() ? 'Remove from favorites' : 'Add to favorites'">
+          <mat-icon aria-hidden="true">{{ host.currentFavorite() ? 'star' : 'star_border' }}</mat-icon>
+          Favorite
         </button>
       </div>
 
@@ -723,6 +755,9 @@ export interface ReaderOptionsHost {
       .chip:hover:not(.selected) { background: var(--mat-sys-surface-container-highest, rgba(255, 255, 255, 0.08)); }
     }
     .width-slider { width: 100%; margin: 0; }
+    /* Three equal icon-over-label tiles: fits a 320px screen without wrapping. */
+    .action-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .chip.action { flex-direction: column; justify-content: center; gap: 2px; min-height: 56px; padding: 6px 4px; font-size: 13px; line-height: 16px; text-align: center; }
     .chapter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 2px; }
     .chapter { min-height: 44px; }
     .help-row { min-height: 44px; justify-content: flex-start; margin-bottom: 2px; }
@@ -828,6 +863,16 @@ export class ReaderOptionsSheetComponent {
   help(): void {
     this.ref.dismiss();
     this.host.toggleHelp();
+  }
+
+  /**
+   * The bookmarks list is a bottom sheet too, and only one sheet shows at a time:
+   * open it once this sheet has gone, so the reader's dismiss handling for this
+   * one runs first and the chrome stays pinned under the list.
+   */
+  bookmarks(): void {
+    this.ref.afterDismissed().subscribe(() => this.host.openBookmarks());
+    this.ref.dismiss();
   }
 
   close(): void { this.ref.dismiss(); }
