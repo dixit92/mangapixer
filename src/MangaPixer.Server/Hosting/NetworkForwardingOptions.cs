@@ -31,6 +31,51 @@ public sealed class NetworkOptions
 
     /// <summary>Comma-separated CIDR ranges (<c>address/prefix</c>) to trust, or null.</summary>
     public string? KnownNetworks { get; set; }
+
+    /// <summary>
+    /// When false (the default) the instance asks search engines to stay away: <c>/robots.txt</c>
+    /// disallows everything and every response carries <c>X-Robots-Tag: noindex, nofollow</c>
+    /// (see <see cref="SearchIndexing"/>). A private library server has nothing to index.
+    /// </summary>
+    public bool AllowSearchIndexing { get; set; }
+}
+
+/// <summary>
+/// Search-engine opt-out for a running instance (1.27.0): the <c>X-Robots-Tag</c> header on every
+/// response and a <c>/robots.txt</c> that disallows crawling, unless
+/// <see cref="NetworkOptions.AllowSearchIndexing"/> is on. There is no robots meta tag in
+/// <c>index.html</c>: a static tag could not follow the setting, and the header on the HTML
+/// response carries the same instruction.
+/// </summary>
+public static class SearchIndexing
+{
+    /// <summary>The header value sent while indexing is not allowed.</summary>
+    public const string NoIndexHeaderValue = "noindex, nofollow";
+
+    /// <summary>robots.txt body while indexing is not allowed.</summary>
+    public const string DisallowAll = "User-agent: *\nDisallow: /\n";
+
+    /// <summary>robots.txt body when an admin allows indexing (an empty Disallow allows all).</summary>
+    public const string AllowAll = "User-agent: *\nDisallow:\n";
+
+    /// <summary>
+    /// Adds the header just before each response starts, so it also survives responses that are
+    /// rebuilt later in the pipeline (the exception handler clears headers before writing).
+    /// </summary>
+    public static IApplicationBuilder UseSearchIndexingHeader(this IApplicationBuilder app, bool allowIndexing)
+    {
+        if (allowIndexing)
+            return app;
+        return app.Use((context, next) =>
+        {
+            context.Response.OnStarting(() =>
+            {
+                context.Response.Headers["X-Robots-Tag"] = NoIndexHeaderValue;
+                return Task.CompletedTask;
+            });
+            return next(context);
+        });
+    }
 }
 
 /// <summary>

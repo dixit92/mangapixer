@@ -39,6 +39,7 @@ Set them to the owner of your host folders so the files on the host belong to yo
 | `ASPNETCORE_URLS` | `http://+:8080` (set in the image) | Address and port the server listens on inside the container. |
 | `MangaPixer:Network:KnownProxies` (`MangaPixer__Network__KnownProxies`) | not set | Extra reverse-proxy IP addresses to trust, comma-separated (for example `203.0.113.7`). |
 | `MangaPixer:Network:KnownNetworks` (`MangaPixer__Network__KnownNetworks`) | not set | Extra reverse-proxy networks to trust, as comma-separated CIDR ranges (for example `203.0.113.0/24`). |
+| `MangaPixer:Network:AllowSearchIndexing` (`MangaPixer__Network__AllowSearchIndexing`) | `false` | Whether search engines may index this server. While it is `false`, `/robots.txt` asks every crawler to stay away and every response carries an `X-Robots-Tag: noindex, nofollow` header, so your sign-in page does not show up in search results even when the server is reachable from the internet. Set `true` only if you really want it listed. |
 
 The server always trusts proxies on loopback and the private IPv4 ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`); the two keys above add to that list, they do not replace it. Only set them if your reverse proxy connects from some other address. See [Reverse proxy and HTTPS](reverse-proxy-and-https.md#what-the-server-sees-behind-a-proxy).
 
