@@ -85,6 +85,13 @@ export interface CatalogNodeDto {
    * Drives the card (i). Optional so older fixtures keep compiling.
    */
   hasSeriesInfo?: boolean;
+  /**
+   * Favorites stacking (1.27.0): set only on a `GET /favorites` item that stands for a
+   * STACK - this folder holds this many (>= 2) of the user's starred archives as direct
+   * children. The item is the folder; `isFavorite` is the folder's own star. Null or
+   * absent everywhere else.
+   */
+  favoriteStackCount?: number | null;
 }
 
 export interface BreadcrumbEntry {
