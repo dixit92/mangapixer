@@ -6,7 +6,7 @@ namespace com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 ///
 /// <list type="bullet">
 /// <item><b>Title</b>: the stage-1 <see cref="TitleSimilarity"/> over every (variant, record title /
-/// alt title) pair - a title's trailing <c>(disambiguator)</c> also counts stripped - minus <see cref="NumberPenalty"/> when the pair disagrees on a sequel / part
+/// alt title) pair - the MAIN title's trailing <c>(disambiguator)</c> also counts stripped - minus <see cref="NumberPenalty"/> when the pair disagrees on a sequel / part
 /// number (<see cref="TitleNormalizer.NumberTokens"/>). Retrieval-only variants (subtitle and
 /// sequel-number splits) are compared with the numbers of the name they came from and carry a
 /// small <see cref="DerivedVariantDiscount"/>, so a full-name match always wins a tie.</item>
@@ -164,11 +164,11 @@ public sealed class MatchScorer : IMatchScorer
         var titles = new List<string> { c.Title };
         titles.AddRange(c.AltTitles ?? []);
         titles = titles.Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
-        foreach (var stripped in titles.Select(AutoMatchText.WithoutDisambiguator).OfType<string>().ToList())
-        {
-            if (!titles.Contains(stripped, StringComparer.OrdinalIgnoreCase))
-                titles.Add(stripped);
-        }
+        // Only the MAIN title's trailing "(disambiguator)" counts stripped (1.27.0): MangaUpdates names same-titled
+        // records "Word (AUTHOR Name)", so the stripped main title is the plain name. An ALT or hit title
+        // "Word (Other Name)" is another record's name for a different work - stripped, it scored a false 1.00.
+        if (AutoMatchText.WithoutDisambiguator(c.Title) is { } stripped && !titles.Contains(stripped, StringComparer.OrdinalIgnoreCase))
+            titles.Add(stripped);
         var titleNumbers = titles.Select(TitleNormalizer.NumberTokens).ToList();
         // "Title: Long Subtitle" records also compare by the part before the colon, capped (1.26.1).
         var heads = titles

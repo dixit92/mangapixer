@@ -48,6 +48,20 @@ public sealed class MatchScorerTests
         Assert.Equal("1", o.Ranked[0].Candidate.ExternalId);
     }
 
+    [Fact]
+    public void Disambiguator_IsStrippedFromTheMainTitleOnly_NeverFromAnAltTitle()
+    {
+        // Live run (B): the right record is "Sprout (FAMILY Given)"; another record carries the ALT title
+        // "Sprout (OTHER Person)" (its main title is a different name). Stripped, that alt scored a false 1.00
+        // and tied the right record.
+        var o = Score(Query(["Sprout"]), Rec("1", "Sprout (FAMILY Given)"), Rec("2", "Hana no Me", alt: ["Sprout (OTHER Person)"]));
+
+        Assert.Equal("1", o.Ranked[0].Candidate.ExternalId);
+        Assert.Equal(1.0, o.Ranked[0].TitleScore, 3);
+        Assert.True(o.Ranked[1].TitleScore < 0.92, $"alt with disambiguator scored {o.Ranked[1].TitleScore:0.000}");
+        Assert.Equal(MatchBand.Auto, o.Band);
+    }
+
     private static MatchQuery WithHints(MatchQuery q, params string[] hints) => q with { Context = q.Context with { CreatorHints = hints } };
 
     [Fact]
