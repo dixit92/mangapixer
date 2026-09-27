@@ -1,5 +1,4 @@
 import { vi } from 'vitest';
-import { ApplicationRef } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -3444,7 +3443,17 @@ describe('ReaderComponent 1.27.0 reader fixes', () => {
   }
 
   function create() {
-    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [
+        ...baseProviders(),
+        // A complete route stub, so ngOnInit (run by the render tests) completes.
+        { provide: ActivatedRoute, useValue: {
+          paramMap: of({ get: () => 'item-1' }),
+          snapshot: { queryParamMap: { get: () => null } },
+        } },
+      ],
+    });
     const fixture = TestBed.createComponent(ReaderComponent);
     const c = fixture.componentInstance;
     c.itemId.set('item-1');
@@ -3469,13 +3478,14 @@ describe('ReaderComponent 1.27.0 reader fixes', () => {
   afterEach(() => vi.useRealTimers());
 
   it('restores the saved page into the strip after the next render, not before', () => {
-    const { c, i } = create();
+    const { fixture, c, i } = create();
+    fixture.detectChanges(); // ngOnInit
     vertical(c, 30, 17);
     const strip = fakeStrip(i, 30, 1000, 900);
 
     i.restoreWebtoonPosition();
     expect(strip.scrollTop).toBe(0); // nothing yet: the strip may not exist before the render
-    TestBed.inject(ApplicationRef).tick();
+    fixture.detectChanges(); // renders the strip, then runs the after-render hooks
 
     expect(strip.scrollTop).toBe(17000);
     expect(i.restoredScrollTop).toBe(17000);
@@ -3483,12 +3493,13 @@ describe('ReaderComponent 1.27.0 reader fixes', () => {
 
   it('the restore scroll keeps the page and saves nothing, even when a later page crosses the middle', () => {
     vi.useFakeTimers();
-    const { c, i, http } = create();
+    const { fixture, c, i, http } = create();
+    fixture.detectChanges(); // ngOnInit
     vertical(c, 30, 17);
     // Short pages: at page 17's top the middle of the screen sits on page 21.
     const strip = fakeStrip(i, 30, 100, 900);
     i.restoreWebtoonPosition();
-    TestBed.inject(ApplicationRef).tick();
+    fixture.detectChanges(); // renders the strip, then runs the after-render hooks
 
     c.onWebtoonScroll(); // the event caused by the restore
     vi.advanceTimersByTime(2000);
@@ -3506,31 +3517,33 @@ describe('ReaderComponent 1.27.0 reader fixes', () => {
   });
 
   it('does not restore once the reader has left the Vertical view', () => {
-    const { c, i } = create();
+    const { fixture, c, i } = create();
+    fixture.detectChanges(); // ngOnInit
     vertical(c, 30, 17);
     const strip = fakeStrip(i, 30, 1000, 900);
     i.restoreWebtoonPosition();
     c.view.set('paged');
-    TestBed.inject(ApplicationRef).tick();
+    fixture.detectChanges(); // renders the strip, then runs the after-render hooks
     expect(strip.scrollTop).toBe(0);
     expect(i.restoredScrollTop).toBeNull();
   });
 
   it('switching to Vertical and a late Vertical reading mode both restore the current page', () => {
-    const { c, i } = create();
+    const { fixture, c, i } = create();
+    fixture.detectChanges(); // ngOnInit
     c.pages.set(makePages(30));
     c.view.set('paged');
     c.phase.set('ready');
     c.currentPage.set(12);
     const strip = fakeStrip(i, 30, 1000, 900);
     c.setView('webtoon');
-    TestBed.inject(ApplicationRef).tick();
+    fixture.detectChanges(); // renders the strip, then runs the after-render hooks
     expect(strip.scrollTop).toBe(12000);
 
     c.view.set('paged');
     c.currentPage.set(20);
     (c as unknown as { applyDefaultMode(mode: string): void }).applyDefaultMode('VerticalWebtoon');
-    TestBed.inject(ApplicationRef).tick();
+    fixture.detectChanges(); // renders the strip, then runs the after-render hooks
     expect(strip.scrollTop).toBe(20000);
   });
 
