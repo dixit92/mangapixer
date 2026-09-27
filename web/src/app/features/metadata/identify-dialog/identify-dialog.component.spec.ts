@@ -157,6 +157,7 @@ describe('IdentifyDialogComponent', () => {
     const items = el.querySelectorAll('[data-testid="identify-results"] li');
     expect(items.length).toBe(3);
     expect(items[0].querySelector('img')!.getAttribute('src')).toBe('/api/v1/admin/metadata/candidates/tok1/image');
+    expect(items[0].textContent).toContain('Strong 97%'); // owner decision, 1.27.0: whole percent, not a raw 0-1 score
     expect(items[1].textContent).toContain('matched as “Berserk Counterattack”');
     expect(items[2].textContent).toContain('Novel, not a comic');
     expect(q('.results-head')!.textContent).toContain('4/5000');
@@ -216,6 +217,7 @@ describe('IdentifyDialogComponent', () => {
     expect(el.textContent).toContain('this folder and everything inside');
     expect(el.textContent).toContain('Manga · Japan · 1989'); // the provider type, like the results list
     expect(el.textContent).not.toContain('Comic ·');
+    expect(el.textContent).toContain('Title match: Strong 97%'); // labelled: title similarity only, distinct from a review row's Overall score
   });
 
   it('links, closes with true and offers Undo that restores the previous state', () => {

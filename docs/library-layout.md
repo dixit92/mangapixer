@@ -165,7 +165,7 @@ After a scan, new archives are analyzed in the background. Their page counts and
   - the new file is not still being written.
 
   Otherwise the moved file is treated as a new item.
-- **Moved or renamed folders** keep the settings an admin gave them (reading direction, series link or **Don't match**, source precedence and **Content**) when at least 80% of their archives moved to the same new folder. Otherwise the settings wait under **Missing folders** on the Series metadata page. See [Renamed and moved folders](series-information.md#renamed-and-moved-folders).
+- **Moved or renamed folders** keep the settings an admin gave them (reading direction, series link or **Don't match**, source precedence and **Content**) when at least 80% of their archives moved to the same new folder. Otherwise the settings wait under **Missing folders** on the Metadata Manager page. See [Renamed and moved folders](series-information.md#renamed-and-moved-folders).
 - **Safety net:** if a scan finds that almost everything has vanished (for example an unmounted share), it deletes nothing. The same applies if the library folder itself is unreachable; the scan fails with "Library root is not accessible."
 
 **What is skipped during a scan:**

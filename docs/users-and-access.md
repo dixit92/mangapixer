@@ -19,10 +19,10 @@ There are two roles, shown as **Admin** and **Reader** in the user list.
 |---|---|---|
 | Read libraries | Only the libraries an admin has granted | Every library |
 | Own settings, password, reading progress | Yes | Yes |
-| **MangaPixer Administration** (libraries and their icons, scans, users, backups, analytics, audit trail, series metadata, update checker, log level, YACReader import) | No | Yes |
+| **MangaPixer Administration** (libraries and their icons, scans, users, backups, analytics, audit trail, update checker, log level, YACReader import) | No | Yes |
 | Set reading direction for libraries and folders | No | Yes |
 
-Admins open the admin page from the account menu (**MangaPixer Administration**); the same menu has a **Series metadata** item for the [Series metadata page](series-information.md#series-metadata-page-admins). The server always keeps at least one active admin: it refuses to disable or demote the last one.
+Admins open the admin page from the account menu (**MangaPixer Administration**); the same menu has a **Metadata Manager** item for the [Metadata Manager page](series-information.md#series-metadata-page-admins). The server always keeps at least one active admin: it refuses to disable or demote the last one.
 
 ## Creating users
 

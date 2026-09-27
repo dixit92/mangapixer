@@ -14,6 +14,15 @@ import { formatLabel } from '../series-info-labels';
 
 /** Display helpers for the admin metadata page (stage 2): tabs, reasons, runs, flags. Pure; unit-tested. */
 
+/**
+ * The Metadata Manager page's own tabs (`/admin/metadata`, renamed from "Series
+ * metadata", owner decision 1, 1.27.0). Shared with the summary tile that sits above
+ * them (`MetadataSummaryTileComponent`) so its in-page stats can switch to one without a
+ * circular import between the two components.
+ */
+export type AdminMetadataTab = 'settings' | 'review' | 'flags' | 'runs';
+export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 'review', 'flags', 'runs'];
+
 export interface ReviewTabDef {
   tab: MetadataReviewTab;
   label: string;
@@ -101,9 +110,30 @@ export function reviewCandidateLine(c: Pick<MetadataReviewCandidateDto, 'provide
   return parts.join(' · ');
 }
 
-/** Two-decimal score as the matcher's thresholds are written (0.94). */
-export function score2(value: number | null | undefined): string {
-  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '';
+/**
+ * A 0-1 score as a whole percent (owner decision, 1.27.0: percent everywhere a score is
+ * shown, matching the Identify dialog). `null` for a missing or invalid score.
+ */
+export function scorePercent(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.round(Math.max(0, Math.min(1, value)) * 100) : null;
+}
+
+/** "92%" for a review row's score, or '' when there is none. */
+export function scorePercentLabel(value: number | null | undefined): string {
+  const p = scorePercent(value);
+  return p === null ? '' : `${p}%`;
+}
+
+/**
+ * A review row shows the matcher's ADJUSTED overall score (title match plus item count,
+ * year, type and origin evidence) - a different number from the Identify dialog's
+ * title-only match score (owner decision, 1.27.0). The tooltip spells out both so an
+ * admin is never left guessing which is which.
+ */
+export function overallScoreTip(c: { titleScore?: number | null; adjustedScore?: number | null }): string {
+  const title = scorePercentLabel(c.titleScore) || 'unknown';
+  const overall = scorePercentLabel(c.adjustedScore) || 'unknown';
+  return `Overall ${overall}: title match ${title}, adjusted for item count, year, type and origin evidence.`;
 }
 
 export const FLAG_REASON_LABELS: Record<MetadataFlagReason, string> = {

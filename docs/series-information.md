@@ -54,7 +54,7 @@ Before you can look anything up, turn on **Fetch series information from the web
 - **Doujinshi.** Automatic searches leave doujinshi, novels, artbooks and drama CDs out, like **Hide doujinshi & novels**; a folder's [Content](#folder-content) setting can allow doujinshi below it.
 - **Thresholds** can be adjusted under [Automatic matching settings](#automatic-matching-settings).
 
-What the matcher did - links it made, close calls, works without a match and folders it could not follow - is listed on the [Review tab](#review) of the Series metadata page.
+What the matcher did - links it made, close calls, works without a match and folders it could not follow - is listed on the [Review tab](#review) of the Metadata Manager page.
 
 ### Renamed and moved folders
 
@@ -82,7 +82,7 @@ Anyone who can see a series' MangaUpdates information can tell the admins it is 
 
 After sending, the panel shows **You reported this**; once an admin has dealt with it, **Reviewed** (you can report again if it is still wrong). You can have one open report per series and send up to 20 reports a day (more on large servers: 2% of the series you can see); the dialog says when you have reached the limit. A report is about the series, not the single archive.
 
-Admins see the reports, with the note, under **Flags** on the [Series metadata page](#series-metadata-page-admins) and resolve them by relinking with **Re-identify…**, **Unlink**, **Don't match** or **Dismiss**; resolving applies to every open report on that series. Notes are never written to the logs.
+Admins see the reports, with the note, under **Flags** on the [Metadata Manager page](#series-metadata-page-admins) and resolve them by relinking with **Re-identify…**, **Unlink**, **Don't match** or **Dismiss**; resolving applies to every open report on that series. Notes are never written to the logs.
 
 ## What is sent
 
@@ -100,9 +100,12 @@ MangaPixer is polite to MangaUpdates: at most 2 requests per second (5 per secon
 
 Series data is provided by [MangaUpdates](https://www.mangaupdates.com) as-is and is credited to it wherever it is shown.
 
-## Series metadata page (admins)
+<a id="series-metadata-page-admins"></a>
+## Metadata Manager page (admins)
 
-**MangaPixer Administration** shows a **Series metadata** tile: how many folders wait for review, open reports, requests used today against the budget, and whether automatic matching is on. It opens the **Series metadata** page (`/admin/metadata`), which has four tabs: **Settings**, **Review**, **Flags** and **Runs**. Admins can also open it from the account menu (**Series metadata**). When folders wait for review or reports are open, the account icon shows their number on a badge, and the menu item shows the same number and opens **Review** (or **Flags** when only reports wait).
+*Renamed from "Series metadata" in 1.27.0; the route is still `/admin/metadata`.*
+
+Admins open **Metadata Manager** from the account menu. Its own summary tile - to review, open reports, requests used today against the budget, and whether automatic matching is on - sits at the top of the page itself, above four tabs: **Settings**, **Review**, **Flags** and **Runs**; tapping a number in the tile switches straight to its tab. When folders wait for review or reports are open, the account icon shows their number on a badge, and the menu item shows the same number and opens **Review** (or **Flags** when only reports wait).
 
 ### Admin settings
 
@@ -126,9 +129,9 @@ The **Automatic matching** switch and its consent are described under [Admin set
 
 **Advanced: matching thresholds** changes how sure the matcher must be:
 
-- **Auto-link title score** (0.85-0.99, default 0.92): the top candidate's title must match at least this well to link on its own;
-- **Lead over the runner-up** (0.05-0.30, default 0.10): and beat the second candidate by at least this much;
-- **Review floor** (0.40-0.90, default 0.60, below the auto-link score): below this a folder counts as unmatched instead of waiting for review.
+- **Auto-link title score** (85-99%, default 92%): the top candidate's title must match at least this well to link on its own;
+- **Lead over the runner-up** (5-30%, default 10%): and beat the second candidate by at least this much;
+- **Review floor** (40-90%, default 60%, below the auto-link score): below this a folder counts as unmatched instead of waiting for review.
 
 Higher numbers link less on their own and send more to review. Changes apply to the next matching; **Reset to defaults** restores all three.
 

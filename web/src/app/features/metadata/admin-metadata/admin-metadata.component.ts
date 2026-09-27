@@ -6,19 +6,22 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { ApiService } from '../../../core/api/api.service';
 import { MetadataReviewTab } from '../../../core/api/api-types';
 import { MetadataReviewStateService } from '../metadata-review-state.service';
+import { MetadataSummaryTileComponent } from '../metadata-summary-tile/metadata-summary-tile.component';
 import { ReviewDashboardComponent, ReviewLibraryOption } from '../review/review-dashboard.component';
 import { MetadataFlagsComponent } from './flags/metadata-flags.component';
-import { REVIEW_TABS } from './metadata-admin-labels';
+import { ADMIN_METADATA_TABS, AdminMetadataTab, REVIEW_TABS } from './metadata-admin-labels';
 import { MetadataRunsComponent } from './runs/metadata-runs.component';
 import { MetadataSettingsComponent } from './settings/metadata-settings.component';
 
-export type AdminMetadataTab = 'settings' | 'review' | 'flags' | 'runs';
-export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 'review', 'flags', 'runs'];
+export { ADMIN_METADATA_TABS, type AdminMetadataTab };
 
 /**
- * `/admin/metadata` (metadata stage 2, decision 4c): the dedicated series-metadata admin
- * page with tabs Settings / Review / Flags / Runs; the main admin page keeps a summary
- * tile that links here. The tab (and the review list + library) live in the query string
+ * `/admin/metadata` (metadata stage 2, decision 4c; renamed to "Metadata Manager" by
+ * the owner, 1.27.0): the dedicated admin page with tabs Settings / Review / Flags /
+ * Runs. The summary tile that used to sit on the main admin page now lives at the TOP
+ * of this page instead, above the tabs, replacing the plain one-line summary it used to
+ * show here - its stats switch tabs in place (`onTileTab`) rather than navigating. The
+ * tab (and the review list + library) live in the query string
  * (`?tab=review&list=AutoLinked&library=...`), so the tile, the nav badge and a bookmark
  * open the right place. Each tab's content is created when it is first shown.
  */
@@ -27,21 +30,16 @@ export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 're
   standalone: true,
   imports: [
     RouterLink, MatIconModule, MatTabsModule, MetadataSettingsComponent, ReviewDashboardComponent, MetadataFlagsComponent,
-    MetadataRunsComponent,
+    MetadataRunsComponent, MetadataSummaryTileComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page" data-testid="admin-metadata">
       <nav class="back"><a routerLink="/admin"><mat-icon>arrow_back</mat-icon> MangaPixer Administration</a></nav>
       <header class="head">
-        <h1>Series metadata</h1>
-        @if (reviewState.summary(); as s) {
-          <p class="sub" data-testid="admin-metadata-summary">
-            {{ s.needsReview }} to review · {{ s.openFlags }} open flag{{ s.openFlags === 1 ? '' : 's' }} ·
-            {{ s.autoLinked }} auto-linked · {{ s.confirmed }} confirmed
-          </p>
-        }
+        <h1>Metadata Manager</h1>
       </header>
+      <app-metadata-summary-tile [inPage]="true" (tabSelect)="onTileTab($event)" />
       <mat-tab-group [selectedIndex]="index()" (selectedIndexChange)="select($event)" animationDuration="0ms"
                      mat-stretch-tabs="false" mat-align-tabs="start">
         <mat-tab label="Settings">
@@ -83,7 +81,6 @@ export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 're
     .back mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin: 8px 0 4px; }
     h1 { font-size: 24px; font-weight: 500; margin: 0; }
-    .sub { margin: 0; color: #9a9aa8; font-size: 14px; }
     .tab { padding: 16px 2px 0; }
     .count { margin-left: 6px; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 9px; background: #7c4dff; color: #fff;
       line-height: 18px; }
@@ -124,6 +121,11 @@ export class AdminMetadataComponent implements OnInit {
     if (tab === this.tab()) return;
     this.tab.set(tab);
     this.syncUrl();
+  }
+
+  /** The in-page summary tile's stats switch tabs here instead of navigating (decision 2). */
+  onTileTab(tab: AdminMetadataTab): void {
+    this.select(ADMIN_METADATA_TABS.indexOf(tab));
   }
 
   onReviewState(state: { tab: MetadataReviewTab; library: string | null }): void {

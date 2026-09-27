@@ -343,17 +343,30 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
       return;
     }
     if (tab === this.tab()) return;
-    this.queue.flush();
     this.tab.set(tab);
     this.stateChange.emit({ tab, library: this.library() });
-    this.reload();
+    this.reloadAfterFlush();
   }
 
   setLibrary(library: string | null): void {
-    this.queue.flush();
     this.library.set(library);
     this.stateChange.emit({ tab: this.tab(), library });
-    this.reload();
+    this.reloadAfterFlush();
+  }
+
+  /**
+   * Waits for a still-pending row action's deferred commit to settle before reloading
+   * the list and summary - otherwise a just-confirmed (etc.) row could be missing from
+   * the freshly-loaded tab until a manual refresh (owner bug report, 1.27.0). The view
+   * clears and shows its spinner right away for instant feedback; the actual fetch
+   * (`reload()`) waits for the flush to settle, on both success and failure, so it
+   * always reflects the commit's outcome.
+   */
+  private reloadAfterFlush(): void {
+    this.loading.set(true);
+    this.error.set(null);
+    this.resetView();
+    this.queue.flush().subscribe(() => this.reload());
   }
 
   reload(): void {

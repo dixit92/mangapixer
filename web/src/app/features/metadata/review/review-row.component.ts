@@ -9,10 +9,11 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MetadataReviewItemDto, MetadataReviewTab } from '../../../core/api/api-types';
 import {
   MATCH_LEVEL_LABELS,
+  overallScoreTip,
   reasonLabel,
   reasonTip,
   reviewCandidateLine,
-  score2,
+  scorePercentLabel,
   workClassLabel,
 } from '../admin-metadata/metadata-admin-labels';
 import { MetadataApiService } from '../metadata-api.service';
@@ -124,7 +125,8 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
               <span class="tag flag" matTooltip="A reader reported this series as wrong"><mat-icon inline>flag</mat-icon> {{ it.openFlagCount }}</span>
             }
             @for (r of it.reasons ?? []; track r) {
-              <span class="chip" [matTooltip]="tip(r)" data-testid="review-reason">{{ reason(r) }}</span>
+              <span class="chip" [matTooltip]="tip(r)" matTooltipPosition="above" [matTooltipShowDelay]="TOOLTIP_SHOW_DELAY"
+                    [matTooltipHideDelay]="0" data-testid="review-reason">{{ reason(r) }}</span>
             }
           </div>
         </div>
@@ -143,7 +145,7 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
             <mat-icon inline>link</mat-icon>
             {{ link.title || link.externalId }}
             <span class="muted">· {{ link.state === 'Auto' ? 'auto' : 'confirmed' }}
-              @if (link.matchScore !== null && link.matchScore !== undefined) { {{ score(link.matchScore) }} }
+              @if (link.matchScore !== null && link.matchScore !== undefined) { · Overall {{ scoreLabel(link.matchScore) }} }
               · {{ link.updatedAt | date: 'mediumDate' }}</span>
           </p>
         }
@@ -169,10 +171,11 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
                   <span class="cand-title">{{ c.title }}</span>
                   <span class="muted">{{ line(c) }}</span>
                 </span>
-                <span class="score" [matTooltip]="'Title ' + score(c.titleScore) + ', adjusted ' + score(c.adjustedScore)">
-                  {{ score(c.adjustedScore) }}</span>
+                <span class="score" [matTooltip]="overallTip(c)" matTooltipPosition="above" [matTooltipShowDelay]="TOOLTIP_SHOW_DELAY"
+                      [matTooltipHideDelay]="0">{{ scoreLabel(c.adjustedScore) }}</span>
                 @for (r of c.reasons ?? []; track r) {
-                  <span class="chip small" [matTooltip]="tip(r)">{{ reason(r) }}</span>
+                  <span class="chip small" [matTooltip]="tip(r)" matTooltipPosition="above" [matTooltipShowDelay]="TOOLTIP_SHOW_DELAY"
+                        [matTooltipHideDelay]="0">{{ reason(r) }}</span>
                 }
               </span>
             </mat-radio-button>
@@ -289,8 +292,16 @@ export class ReviewRowComponent {
 
   readonly reason = reasonLabel;
   readonly tip = reasonTip;
-  readonly score = score2;
+  readonly scoreLabel = scorePercentLabel;
+  readonly overallTip = overallScoreTip;
   readonly line = reviewCandidateLine;
+  /**
+   * A short delay before a reason/score chip's tooltip shows, with an immediate hide:
+   * sweeping the mouse across several adjacent chips (a candidate's reasons, then the
+   * next candidate's score right below) no longer pops more than one tooltip at a time,
+   * nor leaves the previous one's fade-out overlapping the next (owner bug report, 1.27.0).
+   */
+  readonly TOOLTIP_SHOW_DELAY = 200;
 
   posterUrl(token: string): string {
     return this.api.candidateImageUrl(token);
