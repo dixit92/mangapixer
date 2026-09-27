@@ -11,6 +11,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { ApiService } from '../../core/api/api.service';
 import { ApiError, LibraryDto, LibraryViewPreferencesDto } from '../../core/api/api-types';
 import { ReadingPreferencesCardComponent } from './reading-preferences-card.component';
+import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series-info-hover-preference.service';
 
 /**
  * Settings component. Allows the user to change their password and to mark
@@ -204,6 +205,32 @@ import { ReadingPreferencesCardComponent } from './reading-preferences-card.comp
       </mat-card-content>
     </mat-card>
 
+    <mat-card class="hover-info-card">
+      <mat-card-header>
+        <mat-card-title>Series information</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p class="hint">
+          With a mouse or trackpad, resting the pointer on the cover, the title or the (i) of an
+          item that has series information shows a short summary beside it. The (i) still opens
+          the full panel. Touch screens are not affected.
+        </p>
+        @if (favoritesLoaded()) {
+          <div class="fav-toggle">
+            <mat-checkbox [checked]="seriesInfoOnHover()" [disabled]="hoverSaving()"
+                          (change)="setSeriesInfoOnHover($event)" data-testid="series-info-on-hover">
+              Show series information on hover
+            </mat-checkbox>
+          </div>
+          @if (hoverError()) {
+            <div class="error">{{ hoverError() }}</div>
+          }
+        } @else {
+          <p class="muted">Loading…</p>
+        }
+      </mat-card-content>
+    </mat-card>
+
     <mat-card class="performance-card">
       <mat-card-header>
         <mat-card-title>Performance</mat-card-title>
@@ -258,6 +285,7 @@ export class SettingsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
+  private readonly hoverPreference = inject(SeriesInfoHoverPreferenceService);
 
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -317,6 +345,11 @@ export class SettingsComponent implements OnInit {
   readonly favoritesSaving = signal(false);
   readonly favoritesError = signal<string | null>(null);
 
+  // Series information on hover (1.27.0): per-user, on the same blob, ON by default.
+  readonly seriesInfoOnHover = signal(true);
+  readonly hoverSaving = signal(false);
+  readonly hoverError = signal<string | null>(null);
+
   readonly form = this.fb.nonNullable.group({
     currentPassword: ['', Validators.required],
     newPassword: ['', [Validators.required, Validators.minLength(8)]],
@@ -345,6 +378,7 @@ export class SettingsComponent implements OnInit {
         this.homeWindowLoaded.set(true);
         this.showFavoritesHomeRow.set(p.showFavoritesHomeRow ?? false);
         this.favoritesSearchProminence.set(p.favoritesSearchProminence ?? false);
+        this.seriesInfoOnHover.set(p.seriesInfoOnHover ?? true);
         this.favoritesLoaded.set(true);
       },
       error: () => {
@@ -414,6 +448,34 @@ export class SettingsComponent implements OnInit {
       this.favoritesSearchProminence,
       change.checked,
     );
+  }
+
+  /**
+   * Persist "Series information on hover" (1.27.0): optimistic like the favorites toggles,
+   * echoing the whole blob back; the hover controller follows the saved value (and the
+   * reverted one on failure) so the choice applies at once, without a reload.
+   */
+  setSeriesInfoOnHover(change: MatCheckboxChange): void {
+    const next = change.checked;
+    const previous = this.seriesInfoOnHover();
+    this.seriesInfoOnHover.set(next);
+    this.hoverPreference.set(next);
+    this.hoverSaving.set(true);
+    this.hoverError.set(null);
+
+    const body: LibraryViewPreferencesDto = {
+      ...(this.libraryPrefs ?? { viewMode: 'card', density: 'comfortable', sort: 'name' }),
+      seriesInfoOnHover: next,
+    };
+    this.api.setLibraryPreferences(body).subscribe({
+      next: () => { this.libraryPrefs = body; this.hoverSaving.set(false); },
+      error: (err: ApiError) => {
+        this.seriesInfoOnHover.set(previous);
+        this.hoverPreference.set(previous);
+        this.hoverSaving.set(false);
+        this.hoverError.set(err.message || 'Failed to save the series information setting');
+      },
+    });
   }
 
   /**

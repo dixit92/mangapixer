@@ -856,6 +856,7 @@ public sealed class ReadingStateService
             ListColumns = prefs.ListColumns,
             ShowFavoritesHomeRow = prefs.ShowFavoritesHomeRow,
             FavoritesSearchProminence = prefs.FavoritesSearchProminence,
+            SeriesInfoOnHover = prefs.SeriesInfoOnHover,
         };
     }
 
@@ -887,6 +888,7 @@ public sealed class ReadingStateService
         prefs.ListColumns = preferences.ListColumns;
         prefs.ShowFavoritesHomeRow = preferences.ShowFavoritesHomeRow;
         prefs.FavoritesSearchProminence = preferences.FavoritesSearchProminence;
+        prefs.SeriesInfoOnHover = preferences.SeriesInfoOnHover;
 
         await _db.SaveChangesAsync(ct);
     }

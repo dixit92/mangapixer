@@ -847,14 +847,64 @@ public sealed class CatalogBrowseService
         if (hidden)
             return nodes;
 
-        var pageIds = rows.Select(r => r.InternalId).ToList();
+        var has = await NodesWithOwnSeriesInfoAsync(rows.Select(r => (r.InternalId, r.Kind)).ToList(), ct);
+        if (has.Count == 0)
+            return nodes;
+
+        var publicIdsWithInfo = rows.Where(r => has.Contains(r.InternalId)).Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
+        return nodes.Select(n => publicIdsWithInfo.Contains(n.Id) ? n with { HasSeriesInfo = true } : n).ToList();
+    }
+
+    /// <summary>
+    /// <see cref="CatalogNodeDto.HasSeriesInfo"/> for nodes that may span libraries
+    /// (search results and the Favorites page, 1.27.0 - the hover summary needs the
+    /// same flag the browse (i) uses): the browse rule, with "Show series information"
+    /// checked per node's library and globally. Batched like browse: one settings check,
+    /// one id lookup, then the same fixed set of queries.
+    /// </summary>
+    private async Task<List<CatalogNodeDto>> ApplyHasSeriesInfoByPublicIdAsync(
+        List<CatalogNodeDto> nodes, CancellationToken ct)
+    {
+        if (nodes.Count == 0)
+            return nodes;
+
+        var globallyHidden = await _db.AppSettings
+            .AnyAsync(s => s.Id == AppSettingsEntity.SingletonId && s.MetadataSeriesInfoHidden, ct);
+        if (globallyHidden)
+            return nodes;
+
+        var publicIds = nodes.Select(n => n.Id).Distinct().ToList();
+        var rows = await _db.CatalogNodes
+            .Where(n => publicIds.Contains(n.PublicId) && !n.Library!.MetadataSeriesInfoHidden)
+            .Select(n => new { n.Id, n.PublicId, n.Kind })
+            .ToListAsync(ct);
+        if (rows.Count == 0)
+            return nodes;
+
+        var has = await NodesWithOwnSeriesInfoAsync(rows.Select(r => (r.Id, r.Kind)).ToList(), ct);
+        if (has.Count == 0)
+            return nodes;
+
+        var publicIdsWithInfo = rows.Where(r => has.Contains(r.Id)).Select(r => r.PublicId).ToHashSet(StringComparer.Ordinal);
+        return nodes.Select(n => publicIdsWithInfo.Contains(n.Id) ? n with { HasSeriesInfo = true } : n).ToList();
+    }
+
+    /// <summary>
+    /// The internal ids among <paramref name="nodes"/> that have their OWN series
+    /// information (the rule on <see cref="ApplyHasSeriesInfoAsync"/>); the caller has
+    /// already applied "Show series information". At most four queries whatever the count.
+    /// </summary>
+    private async Task<HashSet<long>> NodesWithOwnSeriesInfoAsync(
+        IReadOnlyList<(long InternalId, int Kind)> nodes, CancellationToken ct)
+    {
+        var pageIds = nodes.Select(r => r.InternalId).ToList();
         var has = (await _db.NodeSeriesLinks
             .Where(l => pageIds.Contains(l.NodeId) && l.RecordId != null
                 && (l.State == (int)SeriesLinkState.Confirmed || l.State == (int)SeriesLinkState.Auto))
             .Select(l => l.NodeId)
             .ToListAsync(ct)).ToHashSet();
 
-        var archiveIds = rows.Where(r => r.Kind == (int)CatalogNodeKind.Archive).Select(r => r.InternalId).ToList();
+        var archiveIds = nodes.Where(r => r.Kind == (int)CatalogNodeKind.Archive).Select(r => r.InternalId).ToList();
         if (archiveIds.Count > 0)
         {
             has.UnionWith(await (
@@ -864,7 +914,7 @@ public sealed class CatalogBrowseService
                 select e.NodeId).ToListAsync(ct));
         }
 
-        var folderIds = rows.Where(r => r.Kind == (int)CatalogNodeKind.Folder).Select(r => r.InternalId).ToList();
+        var folderIds = nodes.Where(r => r.Kind == (int)CatalogNodeKind.Folder).Select(r => r.InternalId).ToList();
         if (folderIds.Count > 0)
         {
             var depth1 = await (
@@ -893,11 +943,7 @@ public sealed class CatalogBrowseService
             }
         }
 
-        if (has.Count == 0)
-            return nodes;
-
-        var publicIdsWithInfo = rows.Where(r => has.Contains(r.InternalId)).Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
-        return nodes.Select(n => publicIdsWithInfo.Contains(n.Id) ? n with { HasSeriesInfo = true } : n).ToList();
+        return has;
     }
 
     /// <summary>
@@ -1210,6 +1256,10 @@ public sealed class CatalogBrowseService
         // truthful IsFavorite flag here.
         results = await ApplyFavoritesAsync(results, userId, ct);
 
+        // Series information (1.27.0): the same (i) flag as browse, for the card (i) and
+        // the hover summary. Batched, fixed cost per page.
+        results = await ApplyHasSeriesInfoByPublicIdAsync(results, ct);
+
         // Alt-title matches (1.26.0): first page only, one extra query.
         var seriesMatches = cursor is null
             ? await SearchSeriesMatchesAsync(connection, userId, ftsQuery, libIds, ct)
@@ -1306,7 +1356,9 @@ public sealed class CatalogBrowseService
         }
 
         nodes = await ApplyFavoritesAsync(nodes, userId, ct);
-        return nodes.Select(n => new SeriesMatchDto { Node = n, MatchedTitle = titles[n.Id] }).ToList();
+        // Every anchor has its OWN confirmed / auto web link and shown series information
+        // (the query above), which is exactly the browse (i) rule - no extra query.
+        return nodes.Select(n => new SeriesMatchDto { Node = n with { HasSeriesInfo = true }, MatchedTitle = titles[n.Id] }).ToList();
     }
 
     /// <summary>
@@ -1487,6 +1539,9 @@ public sealed class CatalogBrowseService
                 }).ToList();
             }
         }
+
+        // Series information (1.27.0): the browse (i) flag, batched for the page.
+        nodes = await ApplyHasSeriesInfoByPublicIdAsync(nodes, ct);
 
         string? nextCursor = null;
         if (hasMore && pageEntries.Count > 0)

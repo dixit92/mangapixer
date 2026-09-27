@@ -346,6 +346,12 @@ export interface LibraryViewPreferencesDto {
    * the top of the result list.
    */
   favoritesSearchProminence?: boolean;
+  /**
+   * Per-user "Series information on hover" (1.27.0). Default true (server-side): on a
+   * device with a hovering fine pointer, resting on the cover, title or (i) of an item
+   * that shows the (i) opens a read-only series summary popover.
+   */
+  seriesInfoOnHover?: boolean;
 }
 
 // --- YACReader progress import (1.2.0, admin-only) ---

@@ -5613,6 +5613,9 @@
           },
           "favoritesSearchProminence": {
             "type": "boolean"
+          },
+          "seriesInfoOnHover": {
+            "type": "boolean"
           }
         }
       },
