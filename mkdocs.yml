@@ -15,7 +15,6 @@ site_description: >-
 site_author: MangaPixer contributors
 repo_url: https://github.com/dixit92/mangapixer
 repo_name: dixit92/mangapixer
-edit_uri: edit/dev/docs/
 copyright: Copyright &copy; 2026 Lifepixer LLC. MangaPixer is released under the MIT License.
 
 docs_dir: docs
