@@ -77,13 +77,13 @@ public sealed class FavoritesServiceTests : IDisposable
     }
 
     private static async Task<CatalogNodeEntity> AddNodeAsync(
-        MangaPixerDbContext db, long libraryId, CatalogNodeKind kind, string name, string sortKey)
+        MangaPixerDbContext db, long libraryId, CatalogNodeKind kind, string name, string sortKey, long? parentId = null)
     {
         var node = new CatalogNodeEntity
         {
             PublicId = OpaqueId.Encode(Random.Shared.NextInt64(1, long.MaxValue)),
             LibraryId = libraryId,
-            ParentId = null,
+            ParentId = parentId,
             Kind = (int)kind,
             DisplayName = name,
             RelativePath = "/private/" + name,
@@ -297,5 +297,198 @@ public sealed class FavoritesServiceTests : IDisposable
         Assert.Equal(1, incognito.TotalCount);
         Assert.DoesNotContain(incognito.Items, i => i.Id == privNode.PublicId);
         Assert.Contains(incognito.Items, i => i.Id == pubNode.PublicId);
+    }
+
+    // --- Stacking (1.27.0) ---
+
+    private static async Task StarAtAsync(MangaPixerDbContext db, long userId, CatalogNodeEntity node, DateTimeOffset at)
+    {
+        db.Favorites.Add(new FavoriteEntity { UserId = userId, CatalogNodeId = node.Id, CreatedAt = at });
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task ListFavorites_ArchivesSharingAFolder_StackAtTheirNewestFavorite()
+    {
+        await using var db = await NewDbAsync();
+        var userId = await AddUserAsync(db, "admin");
+        var libId = await AddLibraryAsync(db, "Lib");
+        var folder = await AddNodeAsync(db, libId, CatalogNodeKind.Folder, "Berserk", "0Berserk");
+        var v1 = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "Berserk v01", "1Berserk v01", folder.Id);
+        var v2 = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "Berserk v02", "1Berserk v02", folder.Id);
+        var loose = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "Akira", "1Akira");
+
+        var t0 = DateTimeOffset.UtcNow;
+        await StarAtAsync(db, userId, v1, t0);
+        await StarAtAsync(db, userId, loose, t0.AddMinutes(1));
+        await StarAtAsync(db, userId, v2, t0.AddMinutes(2));
+
+        var page = await NewBrowseService(db).ListFavoritesAsync(userId);
+
+        // The stack sits at v2's place (newest), ahead of the loose archive; v1 is not repeated.
+        Assert.Equal(2, page.TotalCount);
+        Assert.Equal(new[] { folder.PublicId, loose.PublicId }, page.Items.Select(i => i.Id).ToArray());
+        var stack = page.Items[0];
+        Assert.Equal(CatalogNodeKind.Folder, stack.Kind);
+        Assert.Equal("Berserk", stack.DisplayName);
+        Assert.Equal(2, stack.FavoriteStackCount);
+        Assert.False(stack.IsFavorite); // the folder itself is not starred
+        // Folder cover: its first archive by sort key.
+        Assert.Equal($"/api/v1/items/{v1.PublicId}/cover", stack.CoverUrl);
+        Assert.Null(page.Items[1].FavoriteStackCount);
+        Assert.True(page.Items[1].IsFavorite);
+    }
+
+    [Fact]
+    public async Task ListFavorites_OneStarredArchiveInAFolder_StaysASingleCard()
+    {
+        await using var db = await NewDbAsync();
+        var userId = await AddUserAsync(db, "admin");
+        var libId = await AddLibraryAsync(db, "Lib");
+        var folder = await AddNodeAsync(db, libId, CatalogNodeKind.Folder, "Monster", "0Monster");
+        var only = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "Monster v01", "1Monster v01", folder.Id);
+        await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "Monster v02", "1Monster v02", folder.Id);
+        await StarAtAsync(db, userId, only, DateTimeOffset.UtcNow);
+
+        var page = await NewBrowseService(db).ListFavoritesAsync(userId);
+
+        var item = Assert.Single(page.Items);
+        Assert.Equal(only.PublicId, item.Id);
+        Assert.Null(item.FavoriteStackCount);
+    }
+
+    [Fact]
+    public async Task ListFavorites_GroupsByDirectParent_AndStarredFoldersStayCards()
+    {
+        await using var db = await NewDbAsync();
+        var userId = await AddUserAsync(db, "admin");
+        var libId = await AddLibraryAsync(db, "Lib");
+        // Series > Arc > chapters. Two starred chapters in Arc, one starred volume directly in
+        // Series: the stack is Arc (direct parent), never the top-level Series.
+        var series = await AddNodeAsync(db, libId, CatalogNodeKind.Folder, "One Piece", "0One Piece");
+        var arc = await AddNodeAsync(db, libId, CatalogNodeKind.Folder, "Arc 1", "0Arc 1", series.Id);
+        var c1 = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "Ch 1", "1Ch 1", arc.Id);
+        var c2 = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "Ch 2", "1Ch 2", arc.Id);
+        var extra = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "Extra", "1Extra", series.Id);
+        // Two starred FOLDERS under the same parent never stack.
+        var other = await AddNodeAsync(db, libId, CatalogNodeKind.Folder, "Arc 2", "0Arc 2", series.Id);
+
+        var t0 = DateTimeOffset.UtcNow;
+        await StarAtAsync(db, userId, c1, t0);
+        await StarAtAsync(db, userId, c2, t0.AddMinutes(1));
+        await StarAtAsync(db, userId, extra, t0.AddMinutes(2));
+        await StarAtAsync(db, userId, arc, t0.AddMinutes(3));
+        await StarAtAsync(db, userId, other, t0.AddMinutes(4));
+
+        var page = await NewBrowseService(db).ListFavoritesAsync(userId);
+
+        Assert.Equal(4, page.TotalCount);
+        Assert.Equal(
+            new[] { (other.PublicId, (int?)null), (arc.PublicId, null), (extra.PublicId, null), (arc.PublicId, 2) },
+            page.Items.Select(i => (i.Id, i.FavoriteStackCount)).ToArray());
+        // The Arc stack carries the folder's own star (Arc itself is starred too).
+        Assert.True(page.Items[3].IsFavorite);
+        Assert.DoesNotContain(page.Items, i => i.Id == series.PublicId);
+    }
+
+    [Fact]
+    public async Task ListFavorites_StackSpanningAPageBoundary_AppearsOnceAndPagingWalksEverything()
+    {
+        await using var db = await NewDbAsync();
+        var userId = await AddUserAsync(db, "admin");
+        var libId = await AddLibraryAsync(db, "Lib");
+        var folder = await AddNodeAsync(db, libId, CatalogNodeKind.Folder, "Dorohedoro", "0Dorohedoro");
+        var d1 = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "D1", "1D1", folder.Id);
+        var d2 = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "D2", "1D2", folder.Id);
+        var d3 = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "D3", "1D3", folder.Id);
+        var a = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "A", "1A");
+        var b = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "B", "1B");
+        var c = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "C", "1C");
+
+        // Flat newest-first this would be: c, d3, b, d2, a, d1 - the stack's members
+        // interleave with singles and would land on three different pages of size 2.
+        var t0 = DateTimeOffset.UtcNow;
+        await StarAtAsync(db, userId, d1, t0);
+        await StarAtAsync(db, userId, a, t0.AddMinutes(1));
+        await StarAtAsync(db, userId, d2, t0.AddMinutes(2));
+        await StarAtAsync(db, userId, b, t0.AddMinutes(3));
+        await StarAtAsync(db, userId, d3, t0.AddMinutes(4));
+        await StarAtAsync(db, userId, c, t0.AddMinutes(5));
+
+        var svc = NewBrowseService(db);
+        foreach (var size in new[] { 1, 2, 3 })
+        {
+            var seen = new List<string>();
+            string? cursor = null;
+            do
+            {
+                var page = await svc.ListFavoritesAsync(userId, cursor, pageSize: size);
+                Assert.Equal(4, page.TotalCount);
+                seen.AddRange(page.Items.Select(i => i.Id));
+                cursor = page.HasMore ? page.NextCursor : null;
+            } while (cursor is not null);
+
+            Assert.Equal(new[] { c.PublicId, folder.PublicId, b.PublicId, a.PublicId }, seen);
+        }
+    }
+
+    [Fact]
+    public async Task ListFavorites_StackCountsOnlyVisibleFavorites()
+    {
+        await using var db = await NewDbAsync();
+        var userId = await AddUserAsync(db, "admin");
+        var libId = await AddLibraryAsync(db, "Lib");
+        var privLib = await AddLibraryAsync(db, "Hidden");
+
+        // Tombstoned member: the folder keeps one visible starred archive -> no stack.
+        var folder = await AddNodeAsync(db, libId, CatalogNodeKind.Folder, "Vagabond", "0Vagabond");
+        var live = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "V1", "1V1", folder.Id);
+        var gone = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "V2", "1V2", folder.Id);
+        gone.Availability = (int)CatalogNodeAvailability.Tombstoned;
+
+        // A stack inside a library the user marks Private.
+        var privFolder = await AddNodeAsync(db, privLib, CatalogNodeKind.Folder, "Hidden Series", "0Hidden");
+        var p1 = await AddNodeAsync(db, privLib, CatalogNodeKind.Archive, "P1", "1P1", privFolder.Id);
+        var p2 = await AddNodeAsync(db, privLib, CatalogNodeKind.Archive, "P2", "1P2", privFolder.Id);
+
+        var t0 = DateTimeOffset.UtcNow;
+        await StarAtAsync(db, userId, live, t0);
+        await StarAtAsync(db, userId, gone, t0.AddMinutes(1));
+        await StarAtAsync(db, userId, p1, t0.AddMinutes(2));
+        await StarAtAsync(db, userId, p2, t0.AddMinutes(3));
+        db.PrivateLibraries.Add(new PrivateLibraryEntity { UserId = userId, LibraryId = privLib, MarkedAt = t0 });
+        await db.SaveChangesAsync();
+
+        var browse = NewBrowseService(db);
+
+        var normal = await browse.ListFavoritesAsync(userId, incognito: false);
+        Assert.Equal(
+            new[] { (privFolder.PublicId, (int?)2), (live.PublicId, null) },
+            normal.Items.Select(i => (i.Id, i.FavoriteStackCount)).ToArray());
+
+        var incognito = await browse.ListFavoritesAsync(userId, incognito: true);
+        Assert.Equal(1, incognito.TotalCount);
+        var only = Assert.Single(incognito.Items);
+        Assert.Equal(live.PublicId, only.Id);
+        Assert.Null(only.FavoriteStackCount);
+    }
+
+    [Fact]
+    public async Task ListFavorites_ReaderWithoutGrant_SeesNoStack()
+    {
+        await using var db = await NewDbAsync();
+        var readerId = await AddUserAsync(db, "reader", admin: false);
+        var libId = await AddLibraryAsync(db, "Lib");
+        var folder = await AddNodeAsync(db, libId, CatalogNodeKind.Folder, "Blame", "0Blame");
+        var b1 = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "B1", "1B1", folder.Id);
+        var b2 = await AddNodeAsync(db, libId, CatalogNodeKind.Archive, "B2", "1B2", folder.Id);
+        // Rows left behind after the reader's grant was revoked.
+        await StarAtAsync(db, readerId, b1, DateTimeOffset.UtcNow);
+        await StarAtAsync(db, readerId, b2, DateTimeOffset.UtcNow.AddMinutes(1));
+
+        var page = await NewBrowseService(db).ListFavoritesAsync(readerId);
+
+        Assert.Equal(0, page.TotalCount);
+        Assert.Empty(page.Items);
     }
 }

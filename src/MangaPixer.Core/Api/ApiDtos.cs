@@ -158,6 +158,15 @@ public sealed record CatalogNodeDto
     /// walk); drives the card (i). Defaults false so older clients ignore it.
     /// </summary>
     public bool HasSeriesInfo { get; init; }
+
+    /// <summary>
+    /// Favorites stacking (1.27.0): set only on a <c>GET /favorites</c> item that stands
+    /// for a STACK - this folder holds this many of the user's starred archives as direct
+    /// children (at least 2, counting only favorites the viewer can see). The item is the
+    /// folder itself; its <see cref="IsFavorite"/> is the folder's own star. Null
+    /// everywhere else, so older clients show a plain folder card.
+    /// </summary>
+    public int? FavoriteStackCount { get; init; }
 }
 
 /// <summary>

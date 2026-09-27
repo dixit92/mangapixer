@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, effect, viewChild, ElementRef, NgZone, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
@@ -747,6 +747,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
 })
 export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly zone = inject(NgZone);
   private readonly api = inject(ApiService);
@@ -1148,6 +1149,11 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
         this.sort.set(this.storedSort);
         this.sortDirection.set(this.storedDirection);
       }
+      // Transient "Favorites only" from a favorites STACK tap (1.27.0): `?favorites=1`
+      // turns the filter on for this view; like the toolbar toggle it is never persisted.
+      // Absent the param the filter keeps its session value.
+      this.favoritesFromQuery = qpMap?.get('favorites') === '1';
+      if (this.favoritesFromQuery) this.favoritesOnly.set(true);
       this.resetList();
       this.loadLibraryName(libId);
       this.loadNodes();
@@ -1418,11 +1424,28 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   toggleFavoritesOnly(event?: Event): void {
     event?.stopPropagation();
     this.favoritesOnly.update((v) => !v);
+    if (!this.favoritesOnly()) this.dropFavoritesQueryParam();
     this.resetList();
     this.loadNodes();
     if (this.shouldShowJumpRail()) this.loadJumpIndex(this.libraryId());
     else this.jumpBuckets.set([]);
     this.scrollToTop('auto');
+  }
+
+  /** Whether `?favorites=1` (a favorites stack tap, 1.27.0) turned the filter on. */
+  private favoritesFromQuery = false;
+
+  /**
+   * Clearing the filter drops the transient `?favorites=1` from the URL (1.27.0), so a
+   * reload or a shared link shows the unfiltered folder. Replaces the history entry and
+   * keeps any other query param; the route params do not change, so nothing reloads.
+   */
+  private dropFavoritesQueryParam(): void {
+    if (!this.favoritesFromQuery) return;
+    this.favoritesFromQuery = false;
+    const tree = this.router.parseUrl(this.router.url);
+    delete tree.queryParams['favorites'];
+    void this.router.navigateByUrl(tree, { replaceUrl: true });
   }
 
   /**

@@ -63,12 +63,22 @@ public sealed class FavoritesHttpTests : IClassFixture<MangaPixerWebApplicationF
             NewNode("favArcB", lib.Id, 1, "FavAlpha 002.cbz", "1FavAlpha 002"),
             NewNode("favPriv", privLib.Id, 1, "FavAlpha Private.cbz", "1FavAlpha Private"));
         await db.SaveChangesAsync();
+
+        // Stacking (1.27.0): a folder with two archives as direct children.
+        var stackDir = NewNode("favStackDir", lib.Id, 0, "FavStack Folder", "0FavStack");
+        db.CatalogNodes.Add(stackDir);
+        await db.SaveChangesAsync();
+        db.CatalogNodes.AddRange(
+            NewNode("favStackA", lib.Id, 1, "FavStack 001.cbz", "1FavStack 001", stackDir.Id),
+            NewNode("favStackB", lib.Id, 1, "FavStack 002.cbz", "1FavStack 002", stackDir.Id));
+        await db.SaveChangesAsync();
     }
 
-    private static CatalogNodeEntity NewNode(string pub, long libId, int kind, string name, string sortKey) => new()
+    private static CatalogNodeEntity NewNode(string pub, long libId, int kind, string name, string sortKey, long? parentId = null) => new()
     {
         PublicId = pub,
         LibraryId = libId,
+        ParentId = parentId,
         Kind = kind,
         DisplayName = name,
         RelativePath = name,
@@ -168,6 +178,59 @@ public sealed class FavoritesHttpTests : IClassFixture<MangaPixerWebApplicationF
         var page2 = await GetFavoritesAsync(client, pageSize: 2, cursor: page1.NextCursor);
         Assert.Equal(new[] { "favFolder" }, page2.Items.Select(i => i.Id).ToArray());
         Assert.False(page2.HasMore);
+    }
+
+    // --- Stacking (1.27.0) ---
+
+    [Fact]
+    public async Task GetFavorites_ArchivesSharingAFolder_ComeBackAsOneStack()
+    {
+        await SeedAsync();
+        var client = await GetAuthenticatedClientAsync();
+        await ClearFavoritesAsync();
+
+        await client.PostAsync("/api/v1/nodes/favStackA/favorite", null);
+        await Task.Delay(10);
+        await client.PostAsync("/api/v1/nodes/favArcA/favorite", null);
+        await Task.Delay(10);
+        await client.PostAsync("/api/v1/nodes/favStackB/favorite", null);
+
+        var response = await client.GetAsync("/api/v1/favorites");
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadAsStringAsync();
+        // Wire shape: camelCase count on the stack item, absent/null elsewhere.
+        Assert.Contains("\"favoriteStackCount\":2", json, StringComparison.Ordinal);
+        var page = System.Text.Json.JsonSerializer.Deserialize<PageResponse<CatalogNodeDto>>(json, TestJson.Web)!;
+
+        Assert.Equal(2, page.TotalCount);
+        Assert.Equal(new[] { "favStackDir", "favArcA" }, page.Items.Select(i => i.Id).ToArray());
+        var stack = page.Items[0];
+        Assert.Equal(CatalogNodeKind.Folder, stack.Kind);
+        Assert.Equal(LibPubId, stack.LibraryId);
+        Assert.Equal(2, stack.FavoriteStackCount);
+        Assert.False(stack.IsFavorite);
+        Assert.Null(page.Items[1].FavoriteStackCount);
+    }
+
+    [Fact]
+    public async Task Browse_FavoritesOnly_OpensAStack_WithoutTouchingSavedPreferences()
+    {
+        await SeedAsync();
+        var client = await GetAuthenticatedClientAsync();
+        await ClearFavoritesAsync();
+        await client.PostAsync("/api/v1/nodes/favStackA/favorite", null);
+        await client.PostAsync("/api/v1/nodes/favStackB/favorite", null);
+
+        var before = await client.GetStringAsync("/api/v1/reading/library-preferences");
+
+        // What a stack tap loads: the folder's browse with the favorites-only filter.
+        var response = await client.GetAsync($"/api/v1/libraries/{LibPubId}/browse?parentId=favStackDir&favoritesOnly=true");
+        response.EnsureSuccessStatusCode();
+        var page = await response.Content.ReadFromJsonAsync<PageResponse<CatalogNodeDto>>(TestJson.Web);
+        Assert.Equal(new[] { "favStackA", "favStackB" }, page!.Items.Select(i => i.Id).ToArray());
+
+        var after = await client.GetStringAsync("/api/v1/reading/library-preferences");
+        Assert.Equal(before, after);
     }
 
     // --- IsFavorite in browse + search ---

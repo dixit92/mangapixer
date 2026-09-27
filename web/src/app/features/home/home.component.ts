@@ -22,6 +22,13 @@ import {
 } from '../../core/api/api-types';
 import { readerModeGlyph } from '../../shared/reader-mode-glyph';
 import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
+import {
+  favoriteLink,
+  favoriteQueryParams,
+  favoriteStackLabel,
+  favoriteTrackKey,
+  isFavoriteStack,
+} from '../favorites/favorite-stack';
 
 /**
  * Home page. The library **sidebar was promoted to the app shell**
@@ -133,14 +140,31 @@ import { LibraryIconComponent } from '../../shared/library-icon/library-icon.com
         <section class="strip-section">
           <h3>Favorites</h3>
           <div class="strip">
-            @for (node of favorites(); track node.id) {
-              <a class="cont-card" [routerLink]="favLink(node)">
-                <div class="cover">
-                  @if (favCover(node); as src) { <img appCover [src]="src" alt="" loading="lazy"> }
-                  <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
-                </div>
-                <div class="cont-title" [title]="node.displayName">{{ node.displayName }}</div>
-              </a>
+            @for (node of favorites(); track favTrack(node)) {
+              @if (favIsStack(node)) {
+                <!-- Stack (1.27.0): starred archives sharing a folder; opens that folder
+                     with a transient "Favorites only" filter (?favorites=1). -->
+                <a class="stack-card" [routerLink]="favLink(node)" [queryParams]="favParams(node)"
+                   [attr.aria-label]="node.displayName + ', ' + favStackLabel(node)">
+                  <div class="stack stacked">
+                    <div class="cover">
+                      @if (favCover(node); as src) { <img appCover [src]="src" alt="" loading="lazy"> }
+                      <mat-icon class="cover-fallback">folder</mat-icon>
+                      <span class="badge" [matTooltip]="favStackLabel(node)">{{ node.favoriteStackCount }}</span>
+                    </div>
+                  </div>
+                  <div class="cont-title" [title]="node.displayName">{{ node.displayName }}</div>
+                  <div class="cont-page">{{ favStackLabel(node) }}</div>
+                </a>
+              } @else {
+                <a class="cont-card" [routerLink]="favLink(node)">
+                  <div class="cover">
+                    @if (favCover(node); as src) { <img appCover [src]="src" alt="" loading="lazy"> }
+                    <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
+                  </div>
+                  <div class="cont-title" [title]="node.displayName">{{ node.displayName }}</div>
+                </a>
+              }
             }
           </div>
         </section>
@@ -503,10 +527,27 @@ export class HomeComponent implements OnInit {
     });
   }
 
-  /** Home row link: folders open browse, archives open the reader (1.21.0). */
+  /** Home row link: folders (and stacks) open browse, archives open the reader (1.21.0). */
   favLink(node: CatalogNodeDto): string[] {
-    if (node.kind === 'Folder') return ['/libraries', node.libraryId, 'browse', node.id];
-    return ['/reader', node.id];
+    return favoriteLink(node);
+  }
+
+  /** Favorites stacks (1.27.0): a folder holding two or more starred archives. */
+  favIsStack(node: CatalogNodeDto): boolean {
+    return isFavoriteStack(node);
+  }
+
+  /** A stack opens its folder with the transient `?favorites=1` filter (1.27.0). */
+  favParams(node: CatalogNodeDto): Record<string, string> | null {
+    return favoriteQueryParams(node);
+  }
+
+  favStackLabel(node: CatalogNodeDto): string {
+    return favoriteStackLabel(node);
+  }
+
+  favTrack(node: CatalogNodeDto): string {
+    return favoriteTrackKey(node);
   }
 
   /** Cover URL for a favorite row card: folder cover if resolved, else the archive cover. */
