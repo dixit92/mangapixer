@@ -390,12 +390,23 @@ public sealed class MatchScorerTests
     }
 
     [Fact]
-    public void TallStrips_ConflictWithAPrintRecord()
+    public void TallStrips_AreAHintOnly_APrintRecordIsNotAConflict()
     {
+        // Owner, 1.27.0 review: Japanese vertical manga exist - tall pages favour webtoon records but never block.
         var o = Score(Query(["Some Series"], tall: true), Rec("1", "Some Series", origin: "Manga", webtoon: false));
 
-        Assert.True(o.Ranked[0].Reasons.HasFlag(MatchReason.TypeConflict));
-        Assert.Equal(MatchBand.NeedsReview, o.Band);
+        Assert.False(o.Ranked[0].Reasons.HasFlag(MatchReason.TypeConflict));
+        Assert.Equal(MatchBand.Auto, o.Band);
+    }
+
+    [Fact]
+    public void TallStrips_FavourAWebtoonRecord_OverAPrintRecordOfTheSameTitle()
+    {
+        var o = Score(Query(["Some Series"], tall: true),
+            Rec("jp", "Some Series", origin: "Manga", webtoon: false), Rec("kr", "Some Series", origin: "Manhwa"));
+
+        Assert.Equal("kr", o.Ranked[0].Candidate.ExternalId);
+        Assert.True(o.Ranked[0].AdjustedScore > o.Ranked[1].AdjustedScore);
     }
 
     [Fact]

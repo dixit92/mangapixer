@@ -309,16 +309,10 @@ public sealed class MatchScorer : IMatchScorer
         {
             delta += OriginAgree;
         }
-        if (ctx.TallStrips)
-        {
-            if (c.Webtoon == true || origin is MetadataOrigin.Korea or MetadataOrigin.ChinaTaiwan)
-                delta += OriginAgree;
-            else if (c.Webtoon == false && origin == MetadataOrigin.Japan)
-            {
-                delta += Conflict;
-                reasons |= MatchReason.TypeConflict;
-            }
-        }
+        // Tall strips are a hint, never a blocker (owner, 1.27.0 review: there are Japanese vertical manga): they
+        // favour webtoon / Korean / Chinese records and say nothing against a print record.
+        if (ctx.TallStrips && (c.Webtoon == true || origin is MetadataOrigin.Korea or MetadataOrigin.ChinaTaiwan))
+            delta += OriginAgree;
 
         // Counts: volumes vs volumes, chapters vs chapters (the E3 fix); unknown -> no signal. 1.27.0: the local side
         // is the highest unit NUMBER the names state (extras and x.5 chapters do not inflate it); the published side
