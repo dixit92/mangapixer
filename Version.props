@@ -322,6 +322,14 @@
          tap turn on WebKit (iPad). Browse: the list-view favorite star moves off the thumbnail
          into the row markers. Unraid: install from Community Applications; the duplicate
          deploy/unraid/mangapixer.xml is removed (dixit92/unraid-templates is its only home). -->
+    <!-- 1.27.0 - MINOR over 1.26.1 ("Metadata Continuation" cycle, 2026-09-27). Automatic matching fixes from
+         the first live run (status-text chapter totals and the webtoon flag reach the matcher, disambiguator only on
+         the main title, ~ / - subtitle heads and leading words of a long title for review, page-2 search, category
+         folders and tall pages only add evidence, count from unit numbers + English totals, author separators);
+         Metadata Manager (renamed page, summary card on it, percent scores); series information on hover (per-user,
+         migration AddSeriesInfoOnHover); favorites stacked by folder; "near the end" counts as read; phone reader
+         bookmarks / favorite; vertical reopen fix; noindex for instances; public docs site. Worker protocol
+         unchanged (3). Bugfixes ship as 1.27.x. -->
     <!-- 1.25.0 - MINOR over 1.24.2 ("WebGL2 Enhance and Metadata Auto-Match" cycle, first of its two releases,
          2026-09-26). Reader upscaling without HTTPS: Upscaling (was Rendering) is Smooth / Crisp (AMD FSR 1 on WebGL2, the new
          default) / Enhance (Anime4K on WebGPU, else WebGL2 Efficient); the selected choice names its upscaler, a choice that
@@ -357,8 +365,8 @@
          iPhone/iPad add-to-home-screen hint; analytics totals caption; a real OpenAPI drift check.
          Worker protocol unchanged (2). Bugfixes ship as 1.23.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <MangaPixerVersionMinor>26</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
+    <MangaPixerVersionMinor>27</MangaPixerVersionMinor>
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

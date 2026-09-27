@@ -10,11 +10,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Metadata stage 2 golden set: recorded MangaUpdates responses (see the README there). -->
-    <EmbeddedResource Include="Metadata\Fixtures\GoldenSet\*.json" LogicalName="GoldenSet.%(Filename)%(Extension)" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />

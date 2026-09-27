@@ -228,6 +228,8 @@ public sealed class MetadataReviewService
             : [];
         var trails = await TrailsAsync(nodes.Values.ToList(), ct);
         var archiveCounts = await ArchiveCountsAsync(nodes.Values.Where(n => n.Kind == (int)CatalogNodeKind.Folder).Select(n => n.Id).ToList(), ct);
+        var folderCovers = await Catalog.FolderCovers.ResolveAsync(_db,
+            nodes.Values.Where(n => n.Kind == (int)CatalogNodeKind.Folder).Select(n => n.Id).ToList(), ct);
 
         var memberIds = queue.Values.SelectMany(q => Members(q)).Distinct().ToList();
         var memberPublic = await _db.CatalogNodes.AsNoTracking().Where(n => memberIds.Contains(n.Id))
@@ -242,9 +244,13 @@ public sealed class MetadataReviewService
             queue.TryGetValue(id, out var q);
             var members = q is null ? [] : Members(q);
             var library = libraries.GetValueOrDefault(node.LibraryId);
+            var coverUrl = node.Kind == (int)CatalogNodeKind.Folder
+                ? folderCovers.TryGetValue(node.Id, out var coverId) ? Catalog.FolderCovers.ArchiveCoverUrl(coverId) : null
+                : node.Availability != (int)CatalogNodeAvailability.Tombstoned ? Catalog.FolderCovers.ArchiveCoverUrl(node.PublicId) : null;
             items.Add(new MetadataReviewItemDto
             {
                 NodeId = node.PublicId,
+                CoverUrl = coverUrl,
                 NodeKind = (CatalogNodeKind)node.Kind,
                 DisplayName = node.DisplayName,
                 LibraryId = library.PublicId ?? string.Empty,

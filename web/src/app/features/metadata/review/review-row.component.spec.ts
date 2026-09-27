@@ -37,7 +37,7 @@ describe('ReviewRowComponent', () => {
     expect(cands).toHaveLength(2);
     expect(cands[0].textContent).toContain('Synthetic Saga');
     expect(cands[0].textContent).toContain('Manga · 2014 · 14 vols');
-    expect(cands[0].textContent).toContain('0.90');
+    expect(cands[0].textContent).toContain('90%');
     expect(all('[data-testid="review-reason"]').map((c) => c.textContent!.trim())).toEqual(['Close second']);
     expect(el.textContent).toContain('Library One');
     expect(el.textContent).toContain('24 items');
@@ -60,6 +60,11 @@ describe('ReviewRowComponent', () => {
     expect(el.querySelector('.thumb img')!.getAttribute('src')).toBe('/api/v1/items/n1/cover');
   });
 
+  it('shows a folder\'s cover (its first archive, as browse) instead of a folder icon', () => {
+    const { el } = create(reviewItem({ nodeId: 'f1', nodeKind: 'Folder', coverUrl: '/api/v1/items/a9/cover' }), 'NeedsReview');
+    expect(el.querySelector('.thumb img')!.getAttribute('src')).toBe('/api/v1/items/a9/cover');
+  });
+
   it('emits Accept with the chosen rank and the tab\'s other actions', () => {
     const { el, events } = create(reviewItem(), 'NeedsReview', { rank: 2 });
     (el.querySelector('[data-testid="review-accept"]') as HTMLButtonElement).click();
@@ -73,6 +78,7 @@ describe('ReviewRowComponent', () => {
       updatedAt: '2026-09-24T00:00:00Z', imageUrl: '/api/v1/metadata/images/x' } });
     const { el } = create(item, 'AutoLinked');
     expect(el.querySelector('[data-testid="review-link"]')!.textContent).toContain('auto');
+    expect(el.querySelector('[data-testid="review-link"]')!.textContent).toContain('Overall 95%');
     expect(el.querySelector('[data-testid="review-confirm"]')).not.toBeNull();
     TestBed.resetTestingModule();
     expect(create(item, 'AutoLinked', { compact: true }).el.querySelector('[data-testid="review-confirm"]')).toBeNull();

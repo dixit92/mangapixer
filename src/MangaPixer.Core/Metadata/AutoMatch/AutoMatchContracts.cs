@@ -44,7 +44,10 @@ public enum WorkClass
     /// <summary>Exactly one non-unit subfolder and no archives: the child is the candidate.</summary>
     Wrapper = 8,
 
-    /// <summary>One non-unit subfolder plus loose archives: review only, never auto.</summary>
+    /// <summary>
+    /// One non-unit subfolder plus loose archives: loose archives that are works of their own are matched one by
+    /// one (archive level, auto possible); loose units of one work keep the folder review-only.
+    /// </summary>
     Mixed = 9,
 
     /// <summary>A unit subfolder (Volumes/, Chapters/, Part N) below a series: inherits, never a candidate.</summary>
@@ -66,7 +69,7 @@ public enum MatchLevel
     /// <summary>Each archive (or numbered archive group) is its own work.</summary>
     Archive = 2,
 
-    /// <summary>A candidate that may be matched but can never be auto-linked (Mixed, Ambiguous).</summary>
+    /// <summary>A candidate that may be matched but can never be auto-linked (Ambiguous; Mixed whose loose archives are units of one work).</summary>
     ReviewOnly = 3,
 }
 
@@ -125,6 +128,13 @@ public enum QueryVariantKind
     SequelNumberSplit = 4,
     ArchiveDerivedTitle = 5,
     DoujinParodyForm = 6,
+
+    /// <summary>
+    /// The title part of a name that also carries a plain-separator author (<c>Title by Author</c>, <c>Title - Chapter |
+    /// Author</c>, <c>Author - Title</c>; 1.27.0). Retrieval only: it scores at most the review-only cap unless a
+    /// creator hint names one of the record's authors.
+    /// </summary>
+    CreatorSplit = 7,
 }
 
 public sealed record QueryVariant(string Text, QueryVariantKind Kind);
@@ -133,6 +143,9 @@ public sealed record QueryVariant(string Text, QueryVariantKind Kind);
 /// Local signals used to corroborate candidates (never sent anywhere). <c>CreatorHints</c> (optional,
 /// 1.26.1): names from trailing <c>[...]</c> / <c>(...)</c> groups of the folder or archive name that may be
 /// an author; positive evidence only - unlike <c>AuthorTags</c> they never veto.
+/// <c>LocalVolumes</c> / <c>LocalChapters</c> (optional, 1.27.0): what the count rule compares - the highest unit
+/// number the archive names state (decimals and extras do not inflate it), or the archive count of unit
+/// subfolders whose archive names are not read; null falls back to <c>VolumeLikeCount</c> / <c>ChapterLikeCount</c>.
 /// </summary>
 public sealed record MatchContext(
     WorkClass Class,
@@ -144,7 +157,9 @@ public sealed record MatchContext(
     bool TallStrips,
     IReadOnlyList<string> AuthorTags,
     string? ComicInfoSeries = null,
-    IReadOnlyList<string>? CreatorHints = null);
+    IReadOnlyList<string>? CreatorHints = null,
+    int? LocalVolumes = null,
+    int? LocalChapters = null);
 
 /// <summary>
 /// What to look up for one work: ordered, de-duplicated variants (the caller sends at most the
@@ -169,6 +184,9 @@ public sealed record CandidateRelation(string ExternalId, string Relation);
 /// <c>TotalChapters</c> (optional, added by the matcher-core lane): the provider's total chapter count when
 /// it states one (MangaUpdates status "652 Chapters (Ongoing)"); <c>LatestChapter</c> restarts per season for
 /// season-renumbered webtoons, so the count rule compares chapters with the larger of the two.
+/// <c>EnglishVolumes</c> / <c>EnglishChapters</c> (optional, 1.27.0): the English publisher's totals (MangaUpdates
+/// <c>publishers[].notes</c> such as "10 Volumes / 60 Chapters; Ongoing"); the count rule reads the largest
+/// published number of any source.
 /// </summary>
 public sealed record MatchCandidate(
     string Provider,
@@ -183,7 +201,9 @@ public sealed record MatchCandidate(
     IReadOnlyList<string> Authors,
     IReadOnlyList<CandidateRelation> Relations,
     bool? Webtoon = null,
-    int? TotalChapters = null);
+    int? TotalChapters = null,
+    int? EnglishVolumes = null,
+    int? EnglishChapters = null);
 
 /// <summary>
 /// Admin-adjustable thresholds (owner decision 13), validated against the bounds below.

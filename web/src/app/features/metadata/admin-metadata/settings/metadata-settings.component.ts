@@ -22,6 +22,8 @@ import {
   MetadataSettingsDto,
 } from '../../../../core/api/api-types';
 import { MetadataApiService } from '../../metadata-api.service';
+import { MetadataReviewStateService } from '../../metadata-review-state.service';
+import { scorePercent } from '../metadata-admin-labels';
 import { LibraryMatchPanelComponent } from './library-match-panel.component';
 
 /** Consent text version the page shows; must equal the server's `currentConsentVersion`. */
@@ -41,17 +43,25 @@ export function parseDailyBudget(raw: string | number | null | undefined): numbe
   return value >= 1 && value <= 1_000_000 ? value : null;
 }
 
-/** The threshold form as typed. */
+/** The threshold form as typed: WHOLE PERCENTS (owner decision, 1.27.0), e.g. "92" for 0.92. */
 export interface ThresholdText {
   autoTitle: string;
   margin: string;
   reviewFloor: string;
 }
 
+/** A 0-1 bound as the whole percent shown in a hint or an error message. */
+function boundPercent(value: number): number {
+  return scorePercent(value) ?? 0;
+}
+
 /**
  * Validates the three thresholds against their bounds (decision 13), the review floor
- * strictly below the auto-link score; the server validates the same. Returns the parsed
- * values or the first problem in words.
+ * strictly below the auto-link score; the server validates the same. The UI edge is
+ * whole percents (owner decision, 1.27.0) - the API and DB keep 0-1 values, so a percent
+ * is parsed and divided by 100 before it is compared with the (0-1) bounds or sent, and
+ * round-trips exactly back to the same whole percent on the next load (`apply()` below).
+ * Returns the parsed 0-1 values or the first problem in words.
  */
 export function validateThresholds(
   text: ThresholdText,
@@ -59,20 +69,20 @@ export function validateThresholds(
 ): { value: MetadataMatchThresholdsDto } | { error: string } {
   const parse = (raw: string) => {
     const t = raw.trim();
-    return /^\d*\.?\d+$/.test(t) ? Number(t) : NaN;
+    return /^\d{1,3}$/.test(t) ? Number(t) / 100 : NaN;
   };
   const autoTitle = parse(text.autoTitle);
   const margin = parse(text.margin);
   const reviewFloor = parse(text.reviewFloor);
   const within = (v: number, min: number, max: number) => Number.isFinite(v) && v >= min - 1e-9 && v <= max + 1e-9;
   if (!within(autoTitle, bounds.autoTitleMin, bounds.autoTitleMax)) {
-    return { error: `Auto-link title score must be from ${bounds.autoTitleMin} to ${bounds.autoTitleMax}.` };
+    return { error: `Auto-link title score must be from ${boundPercent(bounds.autoTitleMin)}% to ${boundPercent(bounds.autoTitleMax)}%.` };
   }
   if (!within(margin, bounds.marginMin, bounds.marginMax)) {
-    return { error: `Lead over the runner-up must be from ${bounds.marginMin} to ${bounds.marginMax}.` };
+    return { error: `Lead over the runner-up must be from ${boundPercent(bounds.marginMin)}% to ${boundPercent(bounds.marginMax)}%.` };
   }
   if (!within(reviewFloor, bounds.reviewFloorMin, bounds.reviewFloorMax)) {
-    return { error: `Review floor must be from ${bounds.reviewFloorMin} to ${bounds.reviewFloorMax}.` };
+    return { error: `Review floor must be from ${boundPercent(bounds.reviewFloorMin)}% to ${boundPercent(bounds.reviewFloorMax)}%.` };
   }
   if (reviewFloor >= autoTitle) return { error: 'The review floor must be below the auto-link title score.' };
   return { value: { autoTitle, margin, reviewFloor } };
@@ -292,21 +302,24 @@ export function validateThresholds(
                 <form class="thresholds" (ngSubmit)="saveThresholds()">
                   <mat-form-field appearance="outline" subscriptSizing="dynamic">
                     <mat-label>Auto-link title score</mat-label>
-                    <input matInput name="autoTitle" inputmode="decimal" [ngModel]="thresholdText().autoTitle"
+                    <input matInput name="autoTitle" inputmode="numeric" [ngModel]="thresholdText().autoTitle"
                            (ngModelChange)="setThreshold('autoTitle', $event)" data-testid="md-th-auto">
-                    <mat-hint>{{ b.autoTitleMin }}–{{ b.autoTitleMax }}, default {{ s.defaultThresholds?.autoTitle }}</mat-hint>
+                    <span matSuffix>%</span>
+                    <mat-hint>{{ pct(b.autoTitleMin) }}–{{ pct(b.autoTitleMax) }}%, default {{ pct(s.defaultThresholds?.autoTitle) }}%</mat-hint>
                   </mat-form-field>
                   <mat-form-field appearance="outline" subscriptSizing="dynamic">
                     <mat-label>Lead over the runner-up</mat-label>
-                    <input matInput name="margin" inputmode="decimal" [ngModel]="thresholdText().margin"
+                    <input matInput name="margin" inputmode="numeric" [ngModel]="thresholdText().margin"
                            (ngModelChange)="setThreshold('margin', $event)" data-testid="md-th-margin">
-                    <mat-hint>{{ b.marginMin }}–{{ b.marginMax }}, default {{ s.defaultThresholds?.margin }}</mat-hint>
+                    <span matSuffix>%</span>
+                    <mat-hint>{{ pct(b.marginMin) }}–{{ pct(b.marginMax) }}%, default {{ pct(s.defaultThresholds?.margin) }}%</mat-hint>
                   </mat-form-field>
                   <mat-form-field appearance="outline" subscriptSizing="dynamic">
                     <mat-label>Review floor</mat-label>
-                    <input matInput name="reviewFloor" inputmode="decimal" [ngModel]="thresholdText().reviewFloor"
+                    <input matInput name="reviewFloor" inputmode="numeric" [ngModel]="thresholdText().reviewFloor"
                            (ngModelChange)="setThreshold('reviewFloor', $event)" data-testid="md-th-floor">
-                    <mat-hint>{{ b.reviewFloorMin }}–{{ b.reviewFloorMax }}, default {{ s.defaultThresholds?.reviewFloor }}</mat-hint>
+                    <span matSuffix>%</span>
+                    <mat-hint>{{ pct(b.reviewFloorMin) }}–{{ pct(b.reviewFloorMax) }}%, default {{ pct(s.defaultThresholds?.reviewFloor) }}%</mat-hint>
                   </mat-form-field>
                   <div class="th-actions">
                     <button mat-stroked-button type="submit" [disabled]="saving() || !thresholdsDirty() || !!thresholdError()"
@@ -395,6 +408,7 @@ export function validateThresholds(
 })
 export class MetadataSettingsComponent implements OnInit {
   private readonly api = inject(MetadataApiService);
+  private readonly reviewState = inject(MetadataReviewStateService);
 
   /** A run was queued from "Match now" (the page switches to Runs). */
   readonly runStarted = output<MetadataMatchRunDto>();
@@ -524,6 +538,11 @@ export class MetadataSettingsComponent implements OnInit {
     this.thresholdText.update((t) => ({ ...t, [key]: value }));
   }
 
+  /** A 0-1 threshold value (bound or default) as the whole percent the inputs show. */
+  pct(value: number | null | undefined): number | '' {
+    return scorePercent(value) ?? '';
+  }
+
   saveThresholds(): void {
     const r = this.thresholdCheck();
     if (!r || 'error' in r) return;
@@ -591,9 +610,15 @@ export class MetadataSettingsComponent implements OnInit {
 
   private apply(s: MetadataSettingsDto): void {
     this.settings.set(s);
+    // Share the saved state with the summary card at the top of the page (1.27.0).
+    this.reviewState.setSettings(s);
     this.budgetText.set(String(s.dailyBudget));
     const t = s.thresholds;
-    if (t) this.thresholdText.set({ autoTitle: String(t.autoTitle), margin: String(t.margin), reviewFloor: String(t.reviewFloor) });
+    if (t) {
+      this.thresholdText.set({
+        autoTitle: String(this.pct(t.autoTitle)), margin: String(this.pct(t.margin)), reviewFloor: String(this.pct(t.reviewFloor)),
+      });
+    }
   }
 
   private fail(err: ApiError): void {

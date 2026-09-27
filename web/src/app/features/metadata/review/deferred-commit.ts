@@ -1,5 +1,5 @@
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { Observable } from 'rxjs';
+import { Observable, ReplaySubject, of } from 'rxjs';
 
 /** One review action whose request waits until its Undo window is over. */
 export interface DeferredAction<T = unknown> {
@@ -51,9 +51,15 @@ export class DeferredCommitQueue {
     });
   }
 
-  /** Sends the pending action now (a new action, a tab change, leaving the page). */
-  flush(): void {
-    if (this.pending) this.commit(this.pending);
+  /**
+   * Sends the pending action now (a new action, a tab change, leaving the page) and
+   * completes once it has settled - `committed`/`failed` have run and the caller can
+   * safely reload. The commit is started eagerly (not on subscribe), so a caller that
+   * only wants "flush and forget" (leaving the page) can call this without subscribing
+   * and the request still goes out.
+   */
+  flush(): Observable<void> {
+    return this.pending ? this.commit(this.pending) : of(undefined);
   }
 
   private undo(p: Pending): void {
@@ -63,13 +69,27 @@ export class DeferredCommitQueue {
     p.action.undone();
   }
 
-  private commit(p: Pending): void {
-    if (p.settled) return;
+  private commit(p: Pending): Observable<void> {
+    if (p.settled) return of(undefined);
     p.settled = true;
     if (this.pending === p) this.pending = null;
+    // A ReplaySubject, not a plain Subject: `p.action.commit()` may resolve synchronously
+    // (as in tests, or a fast local response), completing this notification before
+    // `flush()`'s caller has had a chance to subscribe to it - a plain Subject would
+    // silently drop that emission for a subscriber that arrives after `complete()`.
+    const settled = new ReplaySubject<void>(1);
     p.action.commit().subscribe({
-      next: (r) => p.action.committed?.(r),
-      error: (e: unknown) => p.action.failed?.(e),
+      next: (r) => {
+        p.action.committed?.(r);
+        settled.next();
+        settled.complete();
+      },
+      error: (e: unknown) => {
+        p.action.failed?.(e);
+        settled.next();
+        settled.complete();
+      },
     });
+    return settled.asObservable();
   }
 }

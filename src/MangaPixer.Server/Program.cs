@@ -364,6 +364,10 @@ public sealed partial class Program
             // are deferred rather than half-implemented.
             app.UseForwardedHeaders();
 
+            // Search engines (1.27.0): instances ask not to be indexed unless
+            // MangaPixer:Network:AllowSearchIndexing is on (see SearchIndexing).
+            app.UseSearchIndexingHeader(networkOptions.AllowSearchIndexing);
+
             // Unhandled-error middleware: app-level capture of 500s.
             // The exception goes to the log (file sink gets the trace); the client
             // gets a sanitized response with no internals.
@@ -479,6 +483,14 @@ public sealed partial class Program
             // OpenAPI endpoint (audit defect D35). Served at /openapi/v1.json.
             // No private data is exposed — only route shapes and DTO schemas.
             app.MapOpenApi("/openapi/v1.json");
+
+            // robots.txt (1.27.0): without it the SPA fallback below answered with
+            // index.html and a 200. Anonymous, plain text, no private data.
+            app.MapMethods("/robots.txt", ["GET", "HEAD"], () => Results.Text(
+                    networkOptions.AllowSearchIndexing ? SearchIndexing.AllowAll : SearchIndexing.DisallowAll,
+                    "text/plain; charset=utf-8"))
+                .AllowAnonymous()
+                .ExcludeFromDescription();
 
             // Static files — serve Angular bundle from wwwroot/
             var wwwrootPath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");

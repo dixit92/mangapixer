@@ -570,6 +570,86 @@ public sealed class ReadingStateTests : IDisposable
     }
 
     [Fact]
+    public async Task NearTheEnd_Completes_SetsReadMark_AndOpensAtStart()
+    {
+        var (db, userId, _, _, itemId) = await SetupAsync();
+        try
+        {
+            var auth = new LibraryAuthorizationService(db);
+            var service = new ReadingStateService(db, auth);
+
+            // 1.27.0: page 9 of 10 (index 8) is within the last page of the end
+            // (n = max(1, 5% of 10) = 1), so it completes like the last page does.
+            await service.UpdateProgressAsync(userId, itemId, 8, 1, mutationId: "mut-1");
+
+            Assert.True(await service.IsReadAsync(userId, itemId));
+            var progress = await service.GetProgressAsync(userId, itemId);
+            Assert.Equal(ReadingState.Completed, progress!.State);
+            Assert.Equal(8, progress.PageIndex);
+            Assert.Equal(0, progress.OpenPageIndex);   // read + at the end -> page 1
+            Assert.Empty(await service.GetContinueReadingAsync(userId));
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task JustBeforeTheEnd_StaysInProgress_Unmarked()
+    {
+        var (db, userId, _, _, itemId) = await SetupAsync();
+        try
+        {
+            var auth = new LibraryAuthorizationService(db);
+            var service = new ReadingStateService(db, auth);
+
+            // Page 8 of 10 (index 7): two pages follow, so it is still mid-read.
+            await service.UpdateProgressAsync(userId, itemId, 7, 1, mutationId: "mut-1");
+
+            Assert.False(await service.IsReadAsync(userId, itemId));
+            var progress = await service.GetProgressAsync(userId, itemId);
+            Assert.Equal(ReadingState.InProgress, progress!.State);
+            Assert.Equal(7, progress.OpenPageIndex);
+            Assert.Single(await service.GetContinueReadingAsync(userId));
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task NearTheEnd_ExistingRowsAreNotRewritten()
+    {
+        // No migration: a row saved near the end before 1.27.0 keeps its state and no
+        // read-mark appears until the next save reaches the end.
+        var (db, userId, _, _, itemId) = await SetupAsync();
+        try
+        {
+            db.ReadingProgress.Add(new ReadingProgressEntity
+            {
+                UserId = userId,
+                ItemId = itemId,
+                ContentVersion = 1,
+                EntryKey = OpaqueId.Encode(8),
+                Ordinal = 8,
+                State = (int)ReadingState.InProgress,
+                Revision = 3,
+                LastMutationId = "old",
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+
+            var auth = new LibraryAuthorizationService(db);
+            var service = new ReadingStateService(db, auth);
+
+            var before = await service.GetProgressAsync(userId, itemId);
+            Assert.Equal(ReadingState.InProgress, before!.State);
+            Assert.Equal(8, before.OpenPageIndex);     // no mark: resume exactly
+            Assert.False(await service.IsReadAsync(userId, itemId));
+
+            await service.UpdateProgressAsync(userId, itemId, 8, 1, mutationId: "new", expectedRevision: 3);
+            Assert.True(await service.IsReadAsync(userId, itemId));
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
     public async Task ReadMark_IsSticky_AcrossBackwardNavigation()
     {
         var (db, userId, _, _, itemId) = await SetupAsync();
@@ -863,6 +943,35 @@ public sealed class ReadingStateTests : IDisposable
                 Direction = "",
             });
             Assert.Equal("", (await service.GetLibraryPreferencesAsync(userId)).Direction);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task LibraryPreferences_SeriesInfoOnHover_DefaultsOn_AndRoundTrips()
+    {
+        var (db, userId, _, _, _) = await SetupAsync();
+        try
+        {
+            var auth = new LibraryAuthorizationService(db);
+            var service = new ReadingStateService(db, auth);
+
+            // No row yet, then a row created by the READER preferences: both read as ON.
+            Assert.True((await service.GetLibraryPreferencesAsync(userId)).SeriesInfoOnHover);
+            await service.SetPreferencesAsync(userId, new UserPreferencesDto { ReducedMotion = true });
+            Assert.True((await service.GetLibraryPreferencesAsync(userId)).SeriesInfoOnHover);
+
+            var current = await service.GetLibraryPreferencesAsync(userId);
+            await service.SetLibraryPreferencesAsync(userId, current with { SeriesInfoOnHover = false });
+            var off = await service.GetLibraryPreferencesAsync(userId);
+            Assert.False(off.SeriesInfoOnHover);
+            Assert.Equal(current with { SeriesInfoOnHover = false }, off);
+
+            await service.SetLibraryPreferencesAsync(userId, off with { SeriesInfoOnHover = true });
+            Assert.True((await service.GetLibraryPreferencesAsync(userId)).SeriesInfoOnHover);
+
+            // Reader prefs survived the library-prefs writes.
+            Assert.True((await service.GetPreferencesAsync(userId)).ReducedMotion);
         }
         finally { await db.DisposeAsync(); }
     }

@@ -502,6 +502,14 @@ public sealed class ReaderPreferencesEntity
     /// </summary>
     public bool FavoritesSearchProminence { get; set; }
 
+    /// <summary>
+    /// Per-user "Series information on hover" (1.27.0): on a device with a hovering fine
+    /// pointer, resting on an item that shows the (i) opens a small read-only summary
+    /// popover. ON by default: new rows start true, and the migration that added this
+    /// column gives every existing row true.
+    /// </summary>
+    public bool SeriesInfoOnHover { get; set; } = true;
+
     public UserEntity? User { get; set; }
 }
 

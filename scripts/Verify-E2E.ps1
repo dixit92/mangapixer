@@ -8,7 +8,11 @@
     the steps here):
       1. Build the release image from deploy/Dockerfile.
       2. Run the container on a free loopback port with throwaway state
-         volumes and an empty synthetic media dir mounted read-only.
+         volumes and a throwaway media dir mounted read-only. The media dir
+         holds the synthetic ComicInfo library from
+         web/e2e/fixtures/make-series-fixtures.mjs (under /media/fixtures), so
+         the series-information specs run instead of skipping
+         (-SkipSeriesFixtures leaves it empty).
       3. Health-gate on GET /health.
       4. Create the first administrator via POST /api/v1/auth/setup. A fresh
          instance has zero users (no default credentials), so the login test
@@ -22,7 +26,8 @@
 
     The HTML report is written to web/playwright-report/ (CI uploads it on
     failure). This script never publishes, tags, pushes, or writes to source
-    media (the media mount is :ro and points at an empty throwaway dir).
+    media (the media mount is :ro and points at a throwaway dir holding only
+    generated synthetic archives).
 
     Usage: pwsh ./scripts/Verify-E2E.ps1
 #>
@@ -39,7 +44,10 @@ param(
     [string]$AdminPassword = "AdminPass123!",
     # Reuse an already-built image / an existing web/node_modules when iterating.
     [switch]$SkipBuild,
-    [switch]$SkipNpmCi
+    [switch]$SkipNpmCi,
+    # Leave the media dir empty (no synthetic series library); the
+    # series-information specs then skip, as before 1.27.0.
+    [switch]$SkipSeriesFixtures
 )
 
 $ErrorActionPreference = "Stop"
@@ -89,8 +97,10 @@ $stateVolumes = [ordered]@{
     "/cache"   = "$ContainerName-cache"
     "/scratch" = "$ContainerName-scratch"
 }
-# An empty media dir mounted read-only honours the source-media invariant.
-# home.spec.ts only exercises login, so no library content is required.
+# A throwaway media dir mounted read-only honours the source-media invariant.
+# It holds only the generated synthetic series library (every name invented),
+# which the series-information specs register and scan themselves.
+$seriesFixtureRoot = "/media/fixtures"
 $tempMedia = Join-Path ([System.IO.Path]::GetTempPath()) "mangapixer-e2e-media-$PID"
 
 function Remove-E2EEnvironment {
@@ -117,6 +127,10 @@ try {
     # Stage 2: Run the container on the free loopback port with throwaway storage
     Invoke-Stage "Run container" {
         New-Item -ItemType Directory -Force -Path $tempMedia | Out-Null
+        if (-not $SkipSeriesFixtures) {
+            node web/e2e/fixtures/make-series-fixtures.mjs (Join-Path $tempMedia "fixtures") 2>&1 | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "series fixture generation failed" }
+        }
 
         # Clear any leftovers from a previous run.
         docker rm -f $ContainerName 2>$null | Out-Null
@@ -194,12 +208,13 @@ try {
         $env:E2E_BASE_URL = $baseUrl
         $env:E2E_ADMIN_USER = $AdminUser
         $env:E2E_ADMIN_PASSWORD = $AdminPassword
+        if (-not $SkipSeriesFixtures) { $env:E2E_SERIES_FIXTURE_ROOT = $seriesFixtureRoot }
         try {
             npm --prefix web run e2e 2>&1 | Out-Host
             if ($LASTEXITCODE -ne 0) { throw "Playwright e2e failed (report in web/playwright-report/)" }
         }
         finally {
-            Remove-Item Env:E2E_BASE_URL, Env:E2E_ADMIN_USER, Env:E2E_ADMIN_PASSWORD -ErrorAction SilentlyContinue
+            Remove-Item Env:E2E_BASE_URL, Env:E2E_ADMIN_USER, Env:E2E_ADMIN_PASSWORD, Env:E2E_SERIES_FIXTURE_ROOT -ErrorAction SilentlyContinue
         }
     }
 }

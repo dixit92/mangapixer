@@ -65,7 +65,7 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
 
         <!-- Admin nav badge (metadata stage 2): series to review + open flags. -->
         <button mat-icon-button [matMenuTriggerFor]="userMenu" (menuOpened)="refreshAttention()"
-                [attr.aria-label]="adminAttention() ? 'Account menu, ' + adminAttention() + ' series metadata items need attention' : 'Account menu'">
+                [attr.aria-label]="adminAttention() ? 'Account menu, ' + adminAttention() + ' Metadata Manager items need attention' : 'Account menu'">
           <mat-icon [matBadge]="adminAttention()" [matBadgeHidden]="!adminAttention()" matBadgeSize="small"
                     matBadgeColor="accent" aria-hidden="true" data-testid="admin-attention-badge">account_circle</mat-icon>
         </button>
@@ -86,7 +86,7 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
             </button>
             <!-- Always listed for admins; with items waiting it opens Review or Flags and shows the count. -->
             <button mat-menu-item routerLink="/admin/metadata" [queryParams]="metadataTab() ? { tab: metadataTab() } : null" data-testid="nav-metadata">
-              <mat-icon>fact_check</mat-icon>Series metadata
+              <mat-icon>fact_check</mat-icon>Metadata Manager
               @if (adminAttention()) {
                 <span class="menu-count">{{ adminAttention() }}</span>
               }
@@ -168,7 +168,7 @@ export class LayoutComponent {
 
   /** Series to review + open flags (admins only; 0 hides the badge). */
   readonly adminAttention = computed(() => (this.auth.isAdmin() ? this.metadataReview.attention() : 0));
-  /** The Series metadata menu item opens Review, or Flags when only flags wait; otherwise the default tab. */
+  /** The Metadata Manager menu item opens Review, or Flags when only flags wait; otherwise the default tab. */
   readonly metadataTab = computed(() =>
     (this.metadataReview.summary()?.needsReview ?? 0) > 0 ? 'review' : this.adminAttention() > 0 ? 'flags' : null);
 

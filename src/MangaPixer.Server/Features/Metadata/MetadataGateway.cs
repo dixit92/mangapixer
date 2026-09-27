@@ -143,11 +143,11 @@ public sealed class MetadataGateway
             .FirstOrDefaultAsync(ct);
         if (global is not { MetadataEnabled: true } || global.MetadataConsentVersion != MetadataConsent.CurrentVersion)
             return new MetadataGatewayException(StatusCodes.Status409Conflict, "metadata_disabled",
-                "Fetching series information from the web is off. An admin can turn it on in Admin > Series metadata.");
+                "Fetching series information from the web is off. An admin can turn it on in Metadata Manager.");
         if (origin == MetadataCallOrigin.Automatic
             && (!global.MetadataAutoMatchEnabled || global.MetadataAutoConsentVersion != AutoMatch.MetadataAutoConsent.CurrentVersion))
             return new MetadataGatewayException(StatusCodes.Status409Conflict, "automatic_off",
-                "Automatic matching is off. An admin can turn it on in Admin > Series metadata.");
+                "Automatic matching is off. An admin can turn it on in Metadata Manager.");
 
         var libraryEnabled = await _db.Libraries.AsNoTracking()
             .Where(l => l.Id == libraryId)
@@ -181,11 +181,13 @@ public sealed class MetadataGateway
     /// <summary>
     /// An AUTOMATIC search (stage 2): always with the fixed provider type filter
     /// (owner decision 4a), doujinshi allowed only when <paramref name="allowDoujinshi"/>
-    /// (below a "Doujinshi &amp; adult one-shots" folder). Page 1 only.
+    /// (below a "Doujinshi &amp; adult one-shots" folder). Page 1, or page 2 of the SAME text when the
+    /// matcher asks for it (1.27.0; see <c>AutoMatchLookup</c>).
     /// </summary>
     public Task<ProviderSearchPage> SearchAutomaticAsync(
-        string providerId, long libraryId, string query, bool allowDoujinshi, MetadataCallContext call, CancellationToken ct = default) =>
-        SearchCoreAsync(providerId, libraryId, query, 1, hideDoujinshiAndNovels: true, allowDoujinshi, call, ct);
+        string providerId, long libraryId, string query, bool allowDoujinshi, MetadataCallContext call, CancellationToken ct = default,
+        int page = 1) =>
+        SearchCoreAsync(providerId, libraryId, query, Math.Clamp(page, 1, 2), hideDoujinshiAndNovels: true, allowDoujinshi, call, ct);
 
     private async Task<ProviderSearchPage> SearchCoreAsync(
         string providerId, long libraryId, string query, int page, bool hideDoujinshiAndNovels, bool allowDoujinshi,
@@ -336,7 +338,7 @@ public sealed class MetadataGateway
 
     private static MetadataGatewayException BudgetExhausted() =>
         new(StatusCodes.Status429TooManyRequests, "budget_exhausted",
-            "Today's metadata request budget is used up. It resets at 00:00 UTC; an admin can raise it in Admin > Series metadata.");
+            "Today's metadata request budget is used up. It resets at 00:00 UTC; an admin can raise it in Metadata Manager.");
 
     /// <summary>Classifies a failed call, updates the persisted backoff / last error, and returns the error to throw.</summary>
     private async Task<MetadataGatewayException> FailAsync(string providerId, string operation, long libraryId, Exception ex, long elapsedMs, CancellationToken ct)

@@ -306,7 +306,8 @@ public sealed class CatalogController : ControllerBase
     /// Lists the current user's favorites (1.21.0), keyset-paged like browse and ordered
     /// recently-favorited (newest first). Flows through the same visibility chokepoint +
     /// X-Incognito signal as browse/search, so a favorite in a Private library appears
-    /// only in an incognito session.
+    /// only in an incognito session. Starred archives sharing a direct parent folder come
+    /// back as one stack item for that folder (<c>FavoriteStackCount</c>, 1.27.0).
     /// </summary>
     [HttpGet("favorites")]
     public async Task<IActionResult> GetFavorites(

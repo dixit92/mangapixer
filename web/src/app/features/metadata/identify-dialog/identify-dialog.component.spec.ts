@@ -28,7 +28,7 @@ describe('IdentifyDialogComponent', () => {
     suggestions: ['Berserk', 'Berserk Deluxe'],
     budgetUsedToday: 3,
     dailyBudget: 5000,
-    local: { displayName: '[Grp] Berserk (1989)', itemCount: 41, comicInfoSeries: 'Berserk', tallStrips: false, yearHint: 1989 },
+    local: { displayName: '[Grp] Berserk (1989)', itemCount: 41, comicInfoSeries: 'Berserk', tallStrips: false, yearHint: 1989, coverUrl: '/api/v1/items/a1/cover' },
     ...overrides,
   });
 
@@ -157,6 +157,7 @@ describe('IdentifyDialogComponent', () => {
     const items = el.querySelectorAll('[data-testid="identify-results"] li');
     expect(items.length).toBe(3);
     expect(items[0].querySelector('img')!.getAttribute('src')).toBe('/api/v1/admin/metadata/candidates/tok1/image');
+    expect(items[0].textContent).toContain('Strong 97%'); // owner decision, 1.27.0: whole percent, not a raw 0-1 score
     expect(items[1].textContent).toContain('matched as “Berserk Counterattack”');
     expect(items[2].textContent).toContain('Novel, not a comic');
     expect(q('.results-head')!.textContent).toContain('4/5000');
@@ -185,13 +186,29 @@ describe('IdentifyDialogComponent', () => {
     expect(api.preview).toHaveBeenCalledWith('n1', { provider: 'mangaupdates', externalId: '42' });
   });
 
+  it('lists the alternative titles, folding a long list behind "+N more"', () => {
+    const { c, api, q, render } = create();
+    const many = Array.from({ length: 9 }, (_, i) => `Alt Title ${i + 1}`);
+    api.preview.mockReturnValueOnce(of({ ...preview, altTitles: many }));
+    c.usePreview('mangaupdates', '51239621230', 'Search');
+    render();
+    expect(q('[data-testid="identify-alt-titles"]')!.textContent).toContain('Alt Title 6');
+    expect(q('[data-testid="identify-alt-titles"]')!.textContent).not.toContain('Alt Title 7');
+    (q('[data-testid="identify-alt-more"]') as HTMLButtonElement).click();
+    render();
+    expect(q('[data-testid="identify-alt-titles"]')!.textContent).toContain('Alt Title 9');
+    expect(q('[data-testid="identify-alt-more"]')).toBeNull();
+  });
+
   it('previews side by side with warnings, the webtoon flag and a no-referrer attribution', () => {
     const { c, el, q, render } = create();
     c.usePreview('mangaupdates', '51239621230', 'Search');
     render();
     expect(el.textContent).toContain('41 items');
     expect(el.textContent).toContain('ComicInfo: “Berserk”');
-    expect(el.textContent).toContain('+2 alternative titles');
+    expect(q('[data-testid="identify-alt-titles"]')!.textContent).toContain('also: Beruseruku, Berserk: The Black Swordsman');
+    expect(q('[data-testid="identify-alt-more"]')).toBeNull(); // two titles: nothing folded
+    expect(q('[data-testid="identify-local-cover"]')!.getAttribute('src')).toBe('/api/v1/items/a1/cover');
     expect(q('[data-testid="identify-webtoon"]')!.textContent).toContain('MangaUpdates: webtoon');
     expect(q('[data-warning="count_mismatch"]')).not.toBeNull();
     const a = el.querySelector('a[href^="https://www.mangaupdates.com"]') as HTMLAnchorElement;
@@ -200,6 +217,7 @@ describe('IdentifyDialogComponent', () => {
     expect(el.textContent).toContain('this folder and everything inside');
     expect(el.textContent).toContain('Manga · Japan · 1989'); // the provider type, like the results list
     expect(el.textContent).not.toContain('Comic ·');
+    expect(el.textContent).toContain('Title match: Strong 97%'); // labelled: title similarity only, distinct from a review row's Overall score
   });
 
   it('links, closes with true and offers Undo that restores the previous state', () => {

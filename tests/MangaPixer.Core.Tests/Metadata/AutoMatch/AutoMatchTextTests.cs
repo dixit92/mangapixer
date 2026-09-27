@@ -29,4 +29,46 @@ public sealed class AutoMatchTextTests
     [InlineData("Sprout (2019)", null)]
     public void DisambiguatorTag_IsTheProviderAuthorSuffix(string title, string? tag) =>
         Assert.Equal(tag, AutoMatchText.DisambiguatorTag(title));
+
+    [Theory]
+    [InlineData("Some Title v03 (Digital).cbz", 3)]
+    [InlineData("Some Title Vol. 01-05.cbz", 5)]
+    [InlineData("Some Title v02.5.cbz", 2)]
+    [InlineData("Some Title - Chapter 012.cbz", null)] // a chapter, not a volume
+    [InlineData("Some Title Extra.cbz", null)]
+    public void VolumeNumberOf_IsTheHighestStatedVolume(string name, int? expected) =>
+        Assert.Equal(expected, AutoMatchText.VolumeNumberOf(name));
+
+    [Theory]
+    [InlineData("Some Title - Chapter 012.cbz", 12)]
+    [InlineData("Some Title c045.5.cbz", 45)]
+    [InlineData("Some Title Ch. 001-010.cbz", 10)]
+    [InlineData("001 [Chapter Title].cbz", 1)]
+    [InlineData("0150 [Chapter Title].cbz", 150)]
+    [InlineData("Some Title v01.cbz", null)]
+    [InlineData("Some Title 001.cbz", null)] // no chapter token: not chapter-like
+    public void ChapterNumberOf_IsTheHighestStatedChapter(string name, int? expected) =>
+        Assert.Equal(expected, AutoMatchText.ChapterNumberOf(name));
+
+    [Theory]
+    [InlineData("Some Title by Family Given.cbz", new[] { "Family Given" })]
+    [InlineData("Some Title - Chapter 012 | Family Given.cbz", new[] { "Family Given", "Some Title" })]
+    // Either order: both name-like parts of a dash are hints. That costs nothing - a hint only counts when a
+    // record's authors name it.
+    [InlineData("Family Given - Some Title", new[] { "Family Given", "Some Title" })]
+    [InlineData("Some Title 2 - The Return", new[] { "The Return" })]
+    [InlineData("Some Title - Chapter 012", new[] { "Some Title" })]
+    [InlineData("Some Title v01 - 2019", new string[0])]
+    public void CreatorHints_ReadPlainSeparators_InEitherOrder(string name, string[] expected) =>
+        Assert.Equal(expected, AutoMatchText.CreatorHints(name));
+
+    [Theory]
+    [InlineData("Some Title by Family Given.cbz", new[] { "Some Title" })]
+    [InlineData("Some Title - Chapter 012 | Family Given.cbz", new[] { "Some Title - Chapter 012" })]
+    [InlineData("Family Given - Some Title", new[] { "Some Title" })]
+    [InlineData("Frieren - Beyond the End", new string[0])] // a one-word head is a title, not an author
+    [InlineData("Stand by 2 Me", new string[0])] // not a name after "by"
+    [InlineData("Some Title", new string[0])]
+    public void CreatorSplitTitles_AreTheTitlePart(string name, string[] expected) =>
+        Assert.Equal(expected, AutoMatchText.CreatorSplitTitles(name));
 }

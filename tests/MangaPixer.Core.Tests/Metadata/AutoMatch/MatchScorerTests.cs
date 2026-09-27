@@ -48,6 +48,203 @@ public sealed class MatchScorerTests
         Assert.Equal("1", o.Ranked[0].Candidate.ExternalId);
     }
 
+    [Fact]
+    public void Disambiguator_IsStrippedFromTheMainTitleOnly_NeverFromAnAltTitle()
+    {
+        // Live run (B): the right record is "Sprout (FAMILY Given)"; another record carries the ALT title
+        // "Sprout (OTHER Person)" (its main title is a different name). Stripped, that alt scored a false 1.00
+        // and tied the right record.
+        var o = Score(Query(["Sprout"]), Rec("1", "Sprout (FAMILY Given)"), Rec("2", "Hana no Me", alt: ["Sprout (OTHER Person)"]));
+
+        Assert.Equal("1", o.Ranked[0].Candidate.ExternalId);
+        Assert.Equal(1.0, o.Ranked[0].TitleScore, 3);
+        Assert.True(o.Ranked[1].TitleScore < 0.92, $"alt with disambiguator scored {o.Ranked[1].TitleScore:0.000}");
+        Assert.Equal(MatchBand.Auto, o.Band);
+    }
+
+    [Fact]
+    public void TildeSubtitle_AndATitleNumber_ReachReviewWithoutANumberPenalty()
+    {
+        // Live run (V): folder "<Two Words> Level 99"; the record's English alt writes the subtitle
+        // "~Subtitle~" with no space after the tilde, its main title "<Romaji> Level 99: <Subtitle>".
+        var o = Score(Query(["Alpha Beta Level 99"]),
+            Rec("1", "Arufa Beta Reberu 99: Hidden Subtitle Words", alt: ["Alpha Beta Level 99 ~Long Subtitle Words Here~"]));
+
+        Assert.Equal(MatchScorer.SubtitleHeadCap, o.Ranked[0].TitleScore, 3);
+        Assert.False(o.Ranked[0].Reasons.HasFlag(MatchReason.NumberMismatch));
+        Assert.Equal(MatchBand.NeedsReview, o.Band);
+    }
+
+    [Fact]
+    public void SpacedDashSubtitle_HeadEqualToTheName_IsReviewOnly()
+    {
+        var o = Score(Query(["Alpha Beta"]), Rec("1", "Alpha Beta - The Long Subtitle of It"));
+
+        Assert.Equal(MatchScorer.SubtitleHeadCap, o.Ranked[0].TitleScore, 3);
+        Assert.Equal(MatchBand.NeedsReview, o.Band);
+    }
+
+    [Fact]
+    public void SequelNumber_StillPenalized_WhenTheRecordTitleLacksIt()
+    {
+        var o = Score(Query(["Alpha Beta 2"]), Rec("1", "Alpha Beta"));
+        Assert.True(o.Ranked[0].Reasons.HasFlag(MatchReason.NumberMismatch));
+    }
+
+    [Fact]
+    public void LeadingWordsOfALongTitle_AreReviewOnly_EvenAtTheLoosestThresholds()
+    {
+        // Live run (R): the folder is the first three words of a long romaji title.
+        var q = Query(["Alpha to Beta Gamma"]);
+        var record = Rec("1", "Alpha to Beta Gamma Delta Epsilon Zeta Eta Theta Iota Kappa Lambda Mu");
+        var o = Score(q, record);
+        var loosest = _scorer.Score(q, [record], new MatchThresholds(MatchThresholds.AutoTitleMin, MatchThresholds.MarginMin, MatchThresholds.ReviewFloorMin));
+
+        Assert.Equal(MatchScorer.SubtitleHeadCap, o.Ranked[0].TitleScore, 3);
+        Assert.Equal(MatchBand.NeedsReview, o.Band);
+        Assert.Equal(MatchBand.NeedsReview, loosest.Band);
+    }
+
+    [Fact]
+    public void LeadingPart_NeedsThreeWholeWords()
+    {
+        // Two words, or a prefix that ends inside a word, is not "the leading part".
+        var two = Score(Query(["Alpha Beta"]), Rec("1", "Alpha Beta Gamma Delta Epsilon Zeta Eta Theta Iota"));
+        var partial = Score(Query(["Alpha Beta Gam"]), Rec("1", "Alpha Beta Gamma Delta Epsilon Zeta Eta Theta Iota"));
+
+        Assert.True(two.Ranked[0].TitleScore < MatchScorer.SubtitleHeadCap);
+        Assert.True(partial.Ranked[0].TitleScore < MatchScorer.SubtitleHeadCap);
+    }
+
+    [Fact]
+    public void CloseSecond_IsOnlyRaised_WhenTheTopReachesTheReviewFloor()
+    {
+        var poor = Score(Query(["Alpha to Beta Gamma"]), Rec("1", "Unrelated Words Here"), Rec("2", "Other Unrelated Words"));
+        Assert.Equal(MatchBand.Unmatched, poor.Band);
+        Assert.False(poor.Ranked[0].Reasons.HasFlag(MatchReason.CloseSecond));
+
+        var tied = Score(Query(["Sprout"]), Rec("1", "Sprout (OTHER Person)"), Rec("2", "Sprout (THIRD Person)"));
+        Assert.True(tied.Ranked[0].Reasons.HasFlag(MatchReason.CloseSecond));
+    }
+
+    [Fact]
+    public void SharedNumberAlone_IsDamped()
+    {
+        var damped = Score(Query(["Alpha Beta 99"]), Rec("1", "Kappa Lambda 99"));
+        var plain = TitleSimilarity.Score("Alpha Beta 99", "Kappa Lambda 99");
+
+        Assert.True(TitleSimilarity.SharesOnlyDigitTokens("Alpha Beta 99", "Kappa Lambda 99"));
+        Assert.False(TitleSimilarity.SharesOnlyDigitTokens("Alpha Beta 99", "Alpha Kappa 99"));
+        Assert.Equal(plain * MatchScorer.DigitOnlyOverlapFactor, damped.Ranked[0].TitleScore, 6);
+    }
+
+    [Fact]
+    public void CreatorSplit_IsReviewOnly_UnlessTheNamedAuthorWroteTheRecord()
+    {
+        // "Family Given - Sprout Garden": the title part is searched, but alone it never links.
+        var planner = new MatchQueryPlanner();
+        var shape = new FolderShape("Family Given - Sprout Garden", 2, ["Family Given - Sprout Garden v01.cbz", "Family Given - Sprout Garden v02.cbz"], []);
+        var q = planner.PlanFolder(shape, new WorkDetector().Classify(shape));
+        Assert.Contains(q.Variants, v => v.Kind == QueryVariantKind.CreatorSplit && v.Text == "Sprout Garden");
+
+        var stranger = _scorer.Score(q, [Rec("1", "Sprout Garden", authors: ["Other Person"])], MatchThresholds.Default);
+        Assert.Equal(MatchScorer.SubtitleHeadCap - MatchScorer.DerivedVariantDiscount, stranger.Ranked[0].TitleScore, 3);
+        Assert.Equal(MatchBand.NeedsReview, stranger.Band);
+
+        var author = _scorer.Score(q, [Rec("1", "Sprout Garden", authors: ["GIVEN Family"])], MatchThresholds.Default);
+        Assert.True(author.Ranked[0].TitleScore >= 0.92, $"title {author.Ranked[0].TitleScore:0.000}");
+        Assert.Equal(MatchBand.Auto, author.Band);
+    }
+
+    [Fact]
+    public void TrailingTwoWordBracket_AsATitle_NeverAutoLinksOnItsOwn()
+    {
+        // "Sprout [Family Given]": the bracket is both an English-title variant and a creator hint. A record
+        // TITLED "Family Given" must not auto-link through it; a record whose title the folder name resembles may.
+        var planner = new MatchQueryPlanner();
+        var shape = new FolderShape("Sprout [Family Given]", 2, ["Sprout v01.cbz", "Sprout v02.cbz"], []);
+        var q = planner.PlanFolder(shape, new WorkDetector().Classify(shape));
+        Assert.Contains(q.Variants, v => v.Kind == QueryVariantKind.EnglishTitle && v.Text == "Family Given");
+
+        var titled = _scorer.Score(q, [Rec("1", "Family Given")], MatchThresholds.Default);
+        Assert.NotEqual(MatchBand.Auto, titled.Band);
+        var loose = _scorer.Score(q, [Rec("1", "Family Given")], new MatchThresholds(MatchThresholds.AutoTitleMin, MatchThresholds.MarginMin, MatchThresholds.ReviewFloorMin));
+        Assert.NotEqual(MatchBand.Auto, loose.Band);
+
+        var real = _scorer.Score(q, [Rec("1", "Sprout", authors: ["Family Given"])], MatchThresholds.Default);
+        Assert.Equal(MatchBand.Auto, real.Band);
+    }
+
+    [Fact]
+    public void RomajiWithEnglishBracket_StillAutoLinks_ByTheEnglishTitle()
+    {
+        // "Romaji [English Title]" (F02 shape): the folder's own name resembles the record, so the bracket may carry it.
+        var q = new MatchQuery(
+            [new QueryVariant("Kappa Meshi", QueryVariantKind.Primary), new QueryVariant("Delicious Kappa", QueryVariantKind.EnglishTitle)],
+            new MatchContext(WorkClass.Series, 5, 5, 0, null, null, false, [], CreatorHints: ["Delicious Kappa"]));
+        var o = _scorer.Score(q, [Rec("1", "Kappa Meshi", alt: ["Delicious Kappa"])], MatchThresholds.Default);
+
+        Assert.Equal(MatchBand.Auto, o.Band);
+    }
+
+    [Fact]
+    public void AnAliasThatIsTheMainTitlesHead_IsReviewOnly()
+    {
+        // A spin-off "Alpha Beta - Side Name" lists "Alpha Beta" as an alias; the series "Alpha Beta - Main
+        // Subtitle" is only reached by its head. Neither may auto-link the name both share.
+        var o = Score(Query(["Alpha Beta"]),
+            Rec("spin", "Alpha Beta - Side Name Diary", alt: ["Alpha Beta"]),
+            Rec("main", "Alpha Beta - Main Subtitle Words", alt: ["Alpha Beta ~Main Subtitle Words~"]));
+
+        Assert.All(o.Ranked, r => Assert.Equal(MatchScorer.SubtitleHeadCap, r.TitleScore, 3));
+        Assert.Equal(MatchBand.NeedsReview, o.Band);
+
+        // A plain alias of a record whose main title has no subtitle is still a full match.
+        var plain = Score(Query(["Alpha Beta"]), Rec("1", "Arufa Beta", alt: ["Alpha Beta"]));
+        Assert.Equal(MatchBand.Auto, plain.Band);
+    }
+
+    private static MatchQuery WithUnits(MatchQuery q, int volumeLike, int chapterLike, int? localVolumes, int? localChapters) =>
+        q with { Context = q.Context with { VolumeLikeCount = volumeLike, ChapterLikeCount = chapterLike, LocalVolumes = localVolumes, LocalChapters = localChapters } };
+
+    [Fact]
+    public void Count_ComparesTheHighestUnitNumber_NotTheFileCount()
+    {
+        // 12 archives, but they are volumes 1-6 plus six "x.5" extras: no conflict with a 6-volume record.
+        var extras = Score(WithUnits(Query(["Some Series"]), 12, 0, localVolumes: 6, localChapters: null), Rec("1", "Some Series", volumes: 6));
+        Assert.False(extras.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+
+        // 150 archives that are chapters 950-1100: a 200-chapter record conflicts, by the number.
+        var late = Score(WithUnits(Query(["Some Series"]), 0, 150, null, localChapters: 1100), Rec("1", "Some Series", chapter: 200));
+        Assert.True(late.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+    }
+
+    [Fact]
+    public void Count_MixedVolumeAndChapterArchives_GiveNoCountSignal()
+    {
+        var o = Score(WithUnits(Query(["Some Series"]), 40, 300, 40, 300), Rec("1", "Some Series", volumes: 2, chapter: 10));
+
+        Assert.False(o.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+        Assert.Equal(1.0, o.Ranked[0].AdjustedScore, 6); // neither an agreement nor a conflict
+    }
+
+    [Fact]
+    public void Count_PublishedSide_IsTheLargestNumberOfAnySource()
+    {
+        // Season-renumbered webtoon: latest chapter 18, status total 195 (live run, T).
+        var season = Score(WithUnits(Query(["Some Series"]), 0, 195, null, 195),
+            Rec("1", "Some Series", chapter: 18) with { TotalChapters = 195 });
+        Assert.False(season.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+        Assert.Equal(MatchBand.Auto, season.Band);
+
+        // The English publisher's totals bound it too.
+        var english = Score(WithUnits(Query(["Some Series"]), 30, 0, 30, null),
+            Rec("1", "Some Series", volumes: 12) with { EnglishVolumes = 30, EnglishChapters = 250 });
+        Assert.False(english.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+        var none = Score(WithUnits(Query(["Some Series"]), 30, 0, 30, null), Rec("1", "Some Series", volumes: 12));
+        Assert.True(none.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+    }
+
     private static MatchQuery WithHints(MatchQuery q, params string[] hints) => q with { Context = q.Context with { CreatorHints = hints } };
 
     [Fact]
@@ -148,8 +345,40 @@ public sealed class MatchScorerTests
 
         Assert.Equal("kr", o.Ranked[0].Candidate.ExternalId);
         Assert.Equal(1.0, o.Ranked[0].TitleScore, 6);
-        Assert.True(o.Ranked[1].Reasons.HasFlag(MatchReason.TypeConflict));
-        Assert.Equal(MatchBand.Auto, o.Band); // 1.02 vs 0.90: lead 0.12
+        // Positive-only (1.27.0, owner option a'): the other origin is neutral, so the lead is only the +0.02.
+        Assert.False(o.Ranked[1].Reasons.HasFlag(MatchReason.TypeConflict));
+        Assert.Equal(MatchBand.NeedsReview, o.Band);
+    }
+
+    [Fact]
+    public void CategoryOrigin_Mismatch_IsNeutral_NoPenaltyAndNoVeto()
+    {
+        // A manhwa filed under a "Manga" folder still auto-links (live run, owner option a').
+        var o = Score(Query(["Some Series"], category: "Manga"), Rec("kr", "Some Series", origin: "Manhwa", webtoon: true));
+
+        Assert.Equal(MatchBand.Auto, o.Band);
+        Assert.Equal(MatchReason.None, o.Ranked[0].Reasons);
+        Assert.Equal(1.0, o.Ranked[0].AdjustedScore, 6);
+    }
+
+    [Theory]
+    [InlineData("Manga", true)]
+    [InlineData(" manhwa ", true)]
+    [InlineData("WEBTOONS", true)]
+    [InlineData("Manga Collection", false)] // whole name only
+    [InlineData("Ongoing", false)] // a shelf word is never a category hint
+    [InlineData(null, false)]
+    public void CategoryFolderName_IsTheExactWholeName(string? name, bool expected) =>
+        Assert.Equal(expected, AutoMatchText.IsCategoryFolderName(name));
+
+    [Fact]
+    public void CategoryAndShelfWords_AreOneStopList_ForCreatorNames()
+    {
+        Assert.True(AutoMatchText.IsCategoryWord("Manhwa"));
+        Assert.True(AutoMatchText.IsCategoryWord("Light Novels"));
+        Assert.False(AutoMatchText.IsAuthorLike("Manga", requireTwoTokens: false));
+        Assert.False(AutoMatchText.IsAuthorLike("Light Novels", requireTwoTokens: true));
+        Assert.Empty(AutoMatchText.CategoryFolderWords.Intersect(AutoMatchText.ShelfWords, StringComparer.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -161,12 +390,23 @@ public sealed class MatchScorerTests
     }
 
     [Fact]
-    public void TallStrips_ConflictWithAPrintRecord()
+    public void TallStrips_AreAHintOnly_APrintRecordIsNotAConflict()
     {
+        // Owner, 1.27.0 review: Japanese vertical manga exist - tall pages favour webtoon records but never block.
         var o = Score(Query(["Some Series"], tall: true), Rec("1", "Some Series", origin: "Manga", webtoon: false));
 
-        Assert.True(o.Ranked[0].Reasons.HasFlag(MatchReason.TypeConflict));
-        Assert.Equal(MatchBand.NeedsReview, o.Band);
+        Assert.False(o.Ranked[0].Reasons.HasFlag(MatchReason.TypeConflict));
+        Assert.Equal(MatchBand.Auto, o.Band);
+    }
+
+    [Fact]
+    public void TallStrips_FavourAWebtoonRecord_OverAPrintRecordOfTheSameTitle()
+    {
+        var o = Score(Query(["Some Series"], tall: true),
+            Rec("jp", "Some Series", origin: "Manga", webtoon: false), Rec("kr", "Some Series", origin: "Manhwa"));
+
+        Assert.Equal("kr", o.Ranked[0].Candidate.ExternalId);
+        Assert.True(o.Ranked[0].AdjustedScore > o.Ranked[1].AdjustedScore);
     }
 
     [Fact]

@@ -220,19 +220,23 @@ describe('MetadataSettingsComponent', () => {
     expect(text).toContain('not Beta (Fetch off)');
   });
 
-  it('validates thresholds against the bounds and saves or resets them', () => {
-    const { c } = create();
-    c.setThreshold('reviewFloor', '0.95');
-    expect(c.thresholdError()).toContain('Review floor must be from 0.4 to 0.9');
-    c.setThreshold('reviewFloor', '0.7');
-    c.setThreshold('autoTitle', '0.95');
+  it('validates thresholds against the bounds and saves or resets them, as whole percents', () => {
+    const { c, q } = create();
+    // The stored 0.92/0.10/0.60 (fractions) round-trip exactly to the percents the inputs show.
+    expect(c.thresholdText()).toEqual({ autoTitle: '92', margin: '10', reviewFloor: '60' });
+    c.setThreshold('reviewFloor', '95');
+    expect(c.thresholdError()).toContain('Review floor must be from 40% to 90%');
+    c.setThreshold('reviewFloor', '70');
+    c.setThreshold('autoTitle', '95');
     expect(c.thresholdError()).toBeNull();
     expect(c.thresholdsDirty()).toBe(true);
+    expect(q('[data-testid="md-th-auto"]')!.closest('mat-form-field')!.textContent).toContain('%');
     c.saveThresholds();
     const put = http.expectOne({ method: 'PUT', url: SETTINGS });
     expect(put.request.body).toEqual({ thresholds: { autoTitle: 0.95, margin: 0.1, reviewFloor: 0.7 } });
     put.flush(settings({ thresholds: { autoTitle: 0.95, margin: 0.1, reviewFloor: 0.7 }, thresholdsAreDefault: false }));
     expect(c.thresholdsDirty()).toBe(false);
+    expect(c.thresholdText()).toEqual({ autoTitle: '95', margin: '10', reviewFloor: '70' }); // round-tripped back to percents
     c.resetThresholds();
     expect(http.expectOne({ method: 'PUT', url: SETTINGS }).request.body).toEqual({ resetThresholds: true });
   });
@@ -269,17 +273,17 @@ describe('parseDailyBudget', () => {
 
 describe('validateThresholds', () => {
   const bounds = settings().thresholdBounds!;
-  it('accepts the defaults and the bounds themselves', () => {
-    expect(validateThresholds({ autoTitle: '0.92', margin: '0.10', reviewFloor: '0.60' }, bounds))
+  it('accepts the defaults and the bounds themselves, as whole percents', () => {
+    expect(validateThresholds({ autoTitle: '92', margin: '10', reviewFloor: '60' }, bounds))
       .toEqual({ value: { autoTitle: 0.92, margin: 0.1, reviewFloor: 0.6 } });
-    expect('value' in validateThresholds({ autoTitle: '0.99', margin: '.05', reviewFloor: '0.9' }, bounds)).toBe(true);
+    expect('value' in validateThresholds({ autoTitle: '99', margin: '5', reviewFloor: '90' }, bounds)).toBe(true);
   });
   it('rejects out-of-bounds, non-numbers and a floor at or above the auto score', () => {
-    expect(validateThresholds({ autoTitle: '0.8', margin: '0.1', reviewFloor: '0.6' }, bounds)).toEqual(
-      { error: 'Auto-link title score must be from 0.85 to 0.99.' });
-    expect(validateThresholds({ autoTitle: '0.9', margin: 'x', reviewFloor: '0.6' }, bounds)).toEqual(
-      { error: 'Lead over the runner-up must be from 0.05 to 0.3.' });
-    expect(validateThresholds({ autoTitle: '0.86', margin: '0.1', reviewFloor: '0.9' }, bounds)).toEqual(
+    expect(validateThresholds({ autoTitle: '80', margin: '10', reviewFloor: '60' }, bounds)).toEqual(
+      { error: 'Auto-link title score must be from 85% to 99%.' });
+    expect(validateThresholds({ autoTitle: '90', margin: 'x', reviewFloor: '60' }, bounds)).toEqual(
+      { error: 'Lead over the runner-up must be from 5% to 30%.' });
+    expect(validateThresholds({ autoTitle: '86', margin: '10', reviewFloor: '90' }, bounds)).toEqual(
       { error: 'The review floor must be below the auto-link title score.' });
   });
 });

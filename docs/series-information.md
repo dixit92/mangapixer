@@ -7,6 +7,17 @@ MangaPixer can show a series summary (title, description, authors, genres, publi
 
 Folders and archives with information show an **(i)** in the cover's bottom-left corner. It opens a side panel (a bottom sheet on a phone); **Open series page** leads to the full page. A folder that holds several series (an anthology or an author's folder, for example) lists them in the panel instead, without a series page. Inside a series folder, **Series info** in the top bar opens the same panel; an admin inside a folder without information sees **Identify…** there instead (when web lookups are on for the library). The (i) and the top-bar button update as soon as an admin links, unlinks or marks a folder, without reloading the page.
 
+The (i) also appears on **Search** results and on the **Favorites** page (a favorites stack shows its folder's).
+
+### Summary on hover
+
+With a mouse or trackpad, rest the pointer for a moment on the cover, the title or the (i) of an item that shows the (i) - in the library's card and list views, in Search and on the Favorites page. A short summary appears beside it: the title, up to two alternative titles, the facts line, up to three genres and the first lines of the description. You can move the pointer into the summary; **More** under the description opens the series page. It closes when the pointer leaves, when you press Esc, click, or scroll. A click still opens the item, and the (i) still opens the full panel.
+
+- Nothing is fetched while you just move the pointer across the library: the summary is loaded only after the pointer has rested on one item, from your own server (the same information the panel shows). Nothing is sent to MangaUpdates.
+- It follows **Show series information**: when an admin hides series information for a library or everywhere, there is no (i) and no summary.
+- Touch screens (phones, tablets) are not affected, and keyboard focus does not open it: use the (i) there.
+- Turn it off in **Settings** > **Series information** > **Show series information on hover**. It is on by default and saved to your account.
+
 On the series page the description appears once, under **About**. Genres are shown as text. The precedence line under **Sources** appears only when both MangaUpdates data and ComicInfo exist. A series page for a single archive offers **Read** (or **Continue reading**) and **Show in folder**.
 
 ## Where the information applies
@@ -46,15 +57,18 @@ Before you can look anything up, turn on **Fetch series information from the web
 **Automatic matching** (see [Admin settings](#admin-settings)) is one switch for the whole server, off by default. It applies to every library whose **Fetch** switch is on. Turning it on sends nothing by itself; it needs its own consent, separate from the one for **Fetch from the web**.
 
 - **What is matched.** After each scan, MangaPixer looks at the folders the scan found, and at folders that gained archives, and decides from their names and contents what each one is: a series (chapters or volumes of one work, also with `Volumes` / `Chapters` subfolders), a one-shot, or a collection of different works (an anthology, an artist's folder). Series folders are matched as a whole; in a collection folder each archive, or each numbered group such as `Title 1` / `Title 2`, is matched on its own. Archives lying loose next to other folders are matched one by one too (a one-shot, or a whole series kept in one archive), unless they look like volumes or chapters of one work. Category and container folders (`Manga`, an author's folder of series) are never matched themselves; the series inside them are. Folders that are unclear go to review and are never linked automatically.
-- **Chapters and names.** Numbered chapters with their own chapter titles (`Title 025 Chapter Name`) are one series. A name in brackets or parentheses anywhere in a folder or file name (`Title [Author]`, `Title [English Title] (Author)`, or `Author] Title` with a lone bracket) is taken as a possible author: a record by that author, or whose MangaUpdates title carries it as `(AUTHOR Name)`, wins over records with the same title. It is only used as evidence, never sent on its own. A record titled `Title: Long Subtitle` is offered for review for a folder named `Title`, but never linked automatically.
+- **Chapters and names.** Numbered chapters with their own chapter titles (`Title 025 Chapter Name`) are one series. A name in brackets or parentheses anywhere in a folder or file name (`Title [Author]`, `Title [English Title] (Author)`, or `Author] Title` with a lone bracket), or next to a plain separator (`Title by Author`, `Title - Chapter 12 | Author`, `Author - Title`), is taken as a possible author: a record by that author, or whose MangaUpdates title carries it as `(AUTHOR Name)`, wins over records with the same title. It is only used as evidence, never on its own: a two-word name in brackets at the end (`Title [Two Words]`) can be an English title or an author, and it links a record automatically only when the folder's own name fits that record too.
+- **Partial names.** A record titled `Title: Long Subtitle`, `Title ~Long Subtitle~` or `Title - Long Subtitle` is offered for review for a folder named `Title`, and so is a long title whose first three or more words are the folder's name, but none of these is linked automatically. When the archives carry the longer name, that name is searched second. A number that belongs to the title (`Title Level 99`) is not mistaken for a sequel number. When the right record is not on the first page of results - a one-word title, or nothing close enough - the second page of the same search is read too.
+- **Counts.** A folder that holds far more volumes or chapters than the series has published goes to review. MangaPixer compares the highest volume or chapter number in the file names (so `12.5` chapters and extras do not add up) with the largest count MangaUpdates states: the latest chapter, the chapter total in the status (webtoons that restart their chapter numbers each season), and the English publishers' totals. A folder that mixes volumes and chapters is not compared.
+- **Category folders.** A folder named exactly `Manga`, `Manhwa`, `Manhua` or `Webtoon(s)` above a series gives a small preference to records of that origin. It never counts against a record: a manhwa kept in a `Manga` folder is still linked.
 - **What is never matched.** Anything with a link already (confirmed or automatic), anything inside a folder marked **Don't match**, and anything inside a linked series (a new chapter of a linked series is covered by its link, so it costs no request).
 - **Confident matches go live at once** and are listed under **Auto-linked** so you can check them: **Confirm**, **Unlink**, **Identify…** or **Don't match**. Close calls go to **Needs review** with up to five stored candidates; nothing from them is shown to readers until you accept one. Works with no good match are listed under **Unmatched** and tried again after 30, 90 and 180 days, then not any more.
 - **Match now** (per library) matches a whole library at once; see [Automatic matching settings](#automatic-matching-settings).
-- **Pacing.** Automatic lookups send at most one request per second, so Identify stays responsive, and they count in the same daily budget as everything else: when it is used up, automatic matching waits for the next day (00:00 UTC). Raise the budget if you want it to go faster. When MangaUpdates asks MangaPixer to slow down, automatic matching pauses too.
+- **Pacing.** Automatic lookups send at most one request per second, so Identify stays responsive. A work costs at most four searches (a second page counts as one) plus a few record lookups, and only records that could match are looked up. Automatic lookups count in the same daily budget as everything else: when it is used up, automatic matching waits for the next day (00:00 UTC). Raise the budget if you want it to go faster. When MangaUpdates asks MangaPixer to slow down, automatic matching pauses too.
 - **Doujinshi.** Automatic searches leave doujinshi, novels, artbooks and drama CDs out, like **Hide doujinshi & novels**; a folder's [Content](#folder-content) setting can allow doujinshi below it.
 - **Thresholds** can be adjusted under [Automatic matching settings](#automatic-matching-settings).
 
-What the matcher did - links it made, close calls, works without a match and folders it could not follow - is listed on the [Review tab](#review) of the Series metadata page.
+What the matcher did - links it made, close calls, works without a match and folders it could not follow - is listed on the [Review tab](#review) of the Metadata Manager page.
 
 ### Renamed and moved folders
 
@@ -82,7 +96,7 @@ Anyone who can see a series' MangaUpdates information can tell the admins it is 
 
 After sending, the panel shows **You reported this**; once an admin has dealt with it, **Reviewed** (you can report again if it is still wrong). You can have one open report per series and send up to 20 reports a day (more on large servers: 2% of the series you can see); the dialog says when you have reached the limit. A report is about the series, not the single archive.
 
-Admins see the reports, with the note, under **Flags** on the [Series metadata page](#series-metadata-page-admins) and resolve them by relinking with **Re-identify…**, **Unlink**, **Don't match** or **Dismiss**; resolving applies to every open report on that series. Notes are never written to the logs.
+Admins see the reports, with the note, under **Flags** on the [Metadata Manager page](#series-metadata-page-admins) and resolve them by relinking with **Re-identify…**, **Unlink**, **Don't match** or **Dismiss**; resolving applies to every open report on that series. Notes are never written to the logs.
 
 ## What is sent
 
@@ -100,9 +114,12 @@ MangaPixer is polite to MangaUpdates: at most 2 requests per second (5 per secon
 
 Series data is provided by [MangaUpdates](https://www.mangaupdates.com) as-is and is credited to it wherever it is shown.
 
-## Series metadata page (admins)
+<a id="series-metadata-page-admins"></a>
+## Metadata Manager page (admins)
 
-**MangaPixer Administration** shows a **Series metadata** tile: how many folders wait for review, open reports, requests used today against the budget, and whether automatic matching is on. It opens the **Series metadata** page (`/admin/metadata`), which has four tabs: **Settings**, **Review**, **Flags** and **Runs**. Admins can also open it from the account menu (**Series metadata**). When folders wait for review or reports are open, the account icon shows their number on a badge, and the menu item shows the same number and opens **Review** (or **Flags** when only reports wait).
+*Renamed from "Series metadata" in 1.27.0; the route is still `/admin/metadata`.*
+
+Admins open **Metadata Manager** from the account menu. Its own summary tile - to review, open reports, requests used today against the budget, and whether automatic matching is on - sits at the top of the page itself, above four tabs: **Settings**, **Review**, **Flags** and **Runs**; tapping a number in the tile switches straight to its tab. When folders wait for review or reports are open, the account icon shows their number on a badge, and the menu item shows the same number and opens **Review** (or **Flags** when only reports wait).
 
 ### Admin settings
 
@@ -126,9 +143,9 @@ The **Automatic matching** switch and its consent are described under [Admin set
 
 **Advanced: matching thresholds** changes how sure the matcher must be:
 
-- **Auto-link title score** (0.85-0.99, default 0.92): the top candidate's title must match at least this well to link on its own;
-- **Lead over the runner-up** (0.05-0.30, default 0.10): and beat the second candidate by at least this much;
-- **Review floor** (0.40-0.90, default 0.60, below the auto-link score): below this a folder counts as unmatched instead of waiting for review.
+- **Auto-link title score** (85-99%, default 92%): the top candidate's title must match at least this well to link on its own;
+- **Lead over the runner-up** (5-30%, default 10%): and beat the second candidate by at least this much;
+- **Review floor** (40-90%, default 60%, below the auto-link score): below this a folder counts as unmatched instead of waiting for review.
 
 Higher numbers link less on their own and send more to review. Changes apply to the next matching; **Reset to defaults** restores all three.
 

@@ -79,6 +79,56 @@ public sealed class HasSeriesInfoBrowseTests
     }
 
     /// <summary>
+    /// Search results and the Favorites page (1.27.0) carry the same flag as browse, so
+    /// their cards can show the (i) and the hover summary; "Show series information" is
+    /// honoured per library (a result from a hidden library loses it) and globally.
+    /// </summary>
+    [Fact]
+    public async Task SearchAndFavorites_CarryTheBrowseFlag_PerLibraryAndGlobalToggle()
+    {
+        await using var t = await MetadataTestDb.CreateAsync();
+        await DatabaseInitialization.ConfigureDatabaseAsync(t.Db); // search index + triggers
+        var otherLib = await t.AddLibraryAsync("metalib2", "Meta Lib 2");
+        var ciFolder = await t.AddFolderAsync(null, "Hoverzeta CI Folder");
+        await t.AddComicInfoAsync(await t.AddArchiveAsync(ciFolder, "v1"), "Series");
+        var plainFolder = await t.AddFolderAsync(null, "Hoverzeta Plain Folder");
+        await t.AddArchiveAsync(plainFolder, "no-ci");
+        var ciArchive = await t.AddArchiveAsync(null, "Hoverzeta CI Archive");
+        await t.AddComicInfoAsync(ciArchive, "Own");
+        var otherFolder = await t.AddFolderAsync(null, "Hoverzeta Other Folder", libraryId: otherLib.Id);
+        await t.AddComicInfoAsync(await t.AddArchiveAsync(otherFolder, "v1"), "Other");
+        var (admin, browse) = await BrowseAsAdminAsync(t);
+        foreach (var node in new[] { ciFolder, plainFolder, ciArchive, otherFolder })
+            t.Db.Favorites.Add(new FavoriteEntity { UserId = admin.Id, CatalogNodeId = node.Id, CreatedAt = DateTimeOffset.UtcNow });
+        await t.Db.SaveChangesAsync();
+
+        async Task<Dictionary<string, bool>> SearchFlagsAsync() =>
+            (await browse.SearchAsync(admin.Id, "Hoverzeta")).Items.ToDictionary(i => i.DisplayName, i => i.HasSeriesInfo);
+        async Task<Dictionary<string, bool>> FavoriteFlagsAsync() =>
+            (await browse.ListFavoritesAsync(admin.Id)).Items.ToDictionary(i => i.DisplayName, i => i.HasSeriesInfo);
+
+        foreach (var flags in new[] { await SearchFlagsAsync(), await FavoriteFlagsAsync() })
+        {
+            Assert.Equal(4, flags.Count);
+            Assert.True(flags["Hoverzeta CI Folder"]);
+            Assert.False(flags["Hoverzeta Plain Folder"]);
+            Assert.True(flags["Hoverzeta CI Archive"]);
+            Assert.True(flags["Hoverzeta Other Folder"]);
+        }
+
+        await t.Settings().UpdateLibraryAsync("metalib2", new UpdateMetadataLibraryRequest { ShowSeriesInfo = false }, "admin");
+        foreach (var flags in new[] { await SearchFlagsAsync(), await FavoriteFlagsAsync() })
+        {
+            Assert.True(flags["Hoverzeta CI Folder"]);
+            Assert.False(flags["Hoverzeta Other Folder"]);
+        }
+
+        await t.Settings().UpdateAsync(new UpdateMetadataSettingsRequest { ShowSeriesInfo = false }, "admin");
+        Assert.DoesNotContain(true, (await SearchFlagsAsync()).Values);
+        Assert.DoesNotContain(true, (await FavoriteFlagsAsync()).Values);
+    }
+
+    /// <summary>
     /// Performance contract: the flag costs the same number of SQL commands for a
     /// 500-card page as for a 20-card page (batched, no per-card query). Command
     /// counts are deterministic, unlike wall-clock asserts.

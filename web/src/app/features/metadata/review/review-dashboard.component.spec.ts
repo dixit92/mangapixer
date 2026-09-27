@@ -47,7 +47,7 @@ describe('ReviewDashboardComponent', () => {
   ];
 
   function create(opts: { pages?: Partial<Record<MetadataReviewTab, MetadataReviewItemDto[]>>; phone?: boolean;
-    failIds?: string[]; reviewError?: number; tab?: MetadataReviewTab } = {}) {
+    failIds?: string[]; reviewError?: number; tab?: MetadataReviewTab; apiOverrides?: Record<string, unknown> } = {}) {
     const snack = fakeSnackBar();
     const pages = opts.pages ?? { NeedsReview: rows };
     const api = {
@@ -64,6 +64,7 @@ describe('ReviewDashboardComponent', () => {
       deleteMissing: vi.fn(() => of(undefined)),
       reattachMissing: vi.fn((nodeId: string, targetNodeId: string) => of({ nodeId, targetNodeId, link: true,
         precedence: false, readerDefault: false, content: false })),
+      ...opts.apiOverrides,
     };
     const dialog = {
       openDialogs: [] as unknown[],
@@ -245,5 +246,32 @@ describe('ReviewDashboardComponent', () => {
     c.onRowAction({ action: 'accept', item: rows[0], rank: 1 });
     fixture.destroy();
     expect(api.acceptCandidate).toHaveBeenCalledWith('n1', 1);
+  });
+
+  /**
+   * Regression (1.27.0 owner report): switching Auto-linked -> Confirmed right after
+   * confirming a row must not reload the new tab until the deferred commit actually
+   * landed - otherwise the just-confirmed row is missing until a manual refresh.
+   */
+  it('waits for a pending commit to settle before loading the tab switched to', () => {
+    const bulk$ = new Subject<{ action: string; succeeded: number; failed: number; results: { nodeId: string; code: string }[] }>();
+    const confirmed = reviewItem({ nodeId: 'z', displayName: 'Confirmed Saga', candidates: [] });
+    const { c, api, el, fixture } = create({
+      tab: 'AutoLinked',
+      pages: { AutoLinked: rows, Confirmed: [confirmed] },
+      apiOverrides: { reviewBulk: vi.fn(() => bulk$) },
+    });
+    c.onRowAction({ action: 'confirm', item: rows[0] });
+    (el.querySelector('[data-testid="review-tab-Confirmed"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    // The Undo window already closed (a row action moved focus to a new tab), so the
+    // commit was sent, but its response has not arrived yet: the new tab must not have
+    // loaded from the server yet.
+    expect(api.getReview).not.toHaveBeenCalledWith('Confirmed', null);
+    bulk$.next({ action: 'Confirm', succeeded: 1, failed: 0, results: [{ nodeId: 'n1', code: 'ok' }] });
+    bulk$.complete();
+    fixture.detectChanges();
+    expect(api.getReview).toHaveBeenCalledWith('Confirmed', null);
+    expect(el.querySelectorAll('[data-testid="review-name"]')[0].textContent).toContain('Confirmed Saga');
   });
 });

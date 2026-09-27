@@ -2,12 +2,14 @@ import {
   REVIEW_TABS,
   daysLabel,
   plural,
+  overallScoreTip,
   reasonLabel,
   reasonTip,
   reviewCandidateLine,
   reviewTabDef,
   runProgress,
-  score2,
+  scorePercent,
+  scorePercentLabel,
   waitingLabel,
   workClassLabel,
 } from './metadata-admin-labels';
@@ -32,10 +34,20 @@ describe('metadata admin labels', () => {
   it('formats candidates, scores and work classes', () => {
     expect(reviewCandidateLine({ providerType: 'Manga', year: 2014, volumes: 14 })).toBe('Manga · 2014 · 14 vols');
     expect(reviewCandidateLine({ providerType: null, format: 'Novel', year: null, volumes: 1 })).toBe('Novel · 1 vol');
-    expect(score2(0.9449)).toBe('0.94');
-    expect(score2(null)).toBe('');
+    expect(scorePercent(0.9449)).toBe(94);
+    expect(scorePercent(null)).toBeNull();
+    expect(scorePercentLabel(0.9449)).toBe('94%');
+    expect(scorePercentLabel(1.4)).toBe('100%'); // clamped
+    expect(scorePercentLabel(undefined)).toBe('');
     expect(workClassLabel('SeriesWithUnits')).toBe('Series with volume folders');
     expect(workClassLabel(null)).toBe('');
+  });
+
+  it('labels a review candidate\'s overall score distinctly from its title-only score', () => {
+    expect(overallScoreTip({ titleScore: 1, adjustedScore: 0.92 })).toBe(
+      'Overall 92%: title match 100%, adjusted for item count, year, type and origin evidence.');
+    expect(overallScoreTip({ titleScore: null, adjustedScore: null })).toBe(
+      'Overall unknown: title match unknown, adjusted for item count, year, type and origin evidence.');
   });
 
   it('computes run progress and explains waiting codes', () => {

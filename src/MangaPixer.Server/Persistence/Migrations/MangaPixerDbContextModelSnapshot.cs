@@ -1434,6 +1434,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<bool>("ReducedMotion")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("SeriesInfoOnHover")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("ShowFavoritesHomeRow")
                         .HasColumnType("INTEGER");
 

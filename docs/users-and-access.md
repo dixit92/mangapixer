@@ -19,10 +19,10 @@ There are two roles, shown as **Admin** and **Reader** in the user list.
 |---|---|---|
 | Read libraries | Only the libraries an admin has granted | Every library |
 | Own settings, password, reading progress | Yes | Yes |
-| **MangaPixer Administration** (libraries and their icons, scans, users, backups, analytics, audit trail, series metadata, update checker, log level, YACReader import) | No | Yes |
+| **MangaPixer Administration** (libraries and their icons, scans, users, backups, analytics, audit trail, update checker, log level, YACReader import) | No | Yes |
 | Set reading direction for libraries and folders | No | Yes |
 
-Admins open the admin page from the account menu (**MangaPixer Administration**); the same menu has a **Series metadata** item for the [Series metadata page](series-information.md#series-metadata-page-admins). The server always keeps at least one active admin: it refuses to disable or demote the last one.
+Admins open the admin page from the account menu (**MangaPixer Administration**); the same menu has a **Metadata Manager** item for the [Metadata Manager page](series-information.md#series-metadata-page-admins). The server always keeps at least one active admin: it refuses to disable or demote the last one.
 
 ## Creating users
 
@@ -88,6 +88,7 @@ Settings saved to **your account** follow you to every device:
   - **New Chapters**: how many **Days** count as new (default 30, 1–365) and which libraries contribute to the home row (**Show new chapters from**)
   - **Items per load** (**Performance** card): 25, 50 (default), 100 or 200
   - **Favorites**: **Show a "Favorites" row on the home page** and **Highlight favorited results in search**, both off by default
+  - **Series information**: **Show series information on hover**, on by default (see [Series information](series-information.md#summary-on-hover))
 - **Library view:** view mode, sort, sort order, card size and list columns.
 - **Favorites** themselves (see [Library layout](library-layout.md#favorites)).
 

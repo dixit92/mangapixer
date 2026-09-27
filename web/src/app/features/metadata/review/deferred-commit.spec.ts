@@ -73,4 +73,53 @@ describe('DeferredCommitQueue', () => {
     q.flush();
     expect(failed).toHaveBeenCalledWith({ message: 'boom' });
   });
+
+  /** Regression (1.27.0): a caller (a tab/library switch) must be able to wait for the commit to land. */
+  describe('flush() as a completion signal', () => {
+    it('completes once a pending commit settles, after committed() ran', () => {
+      const { bar } = fakeSnackBar();
+      const q = new DeferredCommitQueue(bar);
+      const commit$ = new Subject<string>();
+      const committed = vi.fn();
+      q.run({ label: 'x', commit: () => commit$, undone: vi.fn(), committed });
+      const after = vi.fn();
+      q.flush().subscribe(after);
+      expect(after).not.toHaveBeenCalled();
+      expect(committed).not.toHaveBeenCalled();
+      commit$.next('ok');
+      commit$.complete();
+      expect(committed).toHaveBeenCalledWith('ok');
+      expect(after).toHaveBeenCalledTimes(1);
+    });
+
+    it('completes once a pending commit settles even when it fails', () => {
+      const { bar } = fakeSnackBar();
+      const q = new DeferredCommitQueue(bar);
+      const commit$ = new Subject<never>();
+      const failed = vi.fn();
+      q.run({ label: 'x', commit: () => commit$, undone: vi.fn(), failed });
+      const after = vi.fn();
+      q.flush().subscribe(after);
+      commit$.error({ message: 'boom' });
+      expect(failed).toHaveBeenCalledWith({ message: 'boom' });
+      expect(after).toHaveBeenCalledTimes(1);
+    });
+
+    it('completes at once when nothing is pending', () => {
+      const { bar } = fakeSnackBar();
+      const q = new DeferredCommitQueue(bar);
+      const after = vi.fn();
+      q.flush().subscribe(after);
+      expect(after).toHaveBeenCalledTimes(1);
+    });
+
+    it('still sends the pending commit when flush() is not subscribed to (leaving the page)', () => {
+      const { bar } = fakeSnackBar();
+      const q = new DeferredCommitQueue(bar);
+      const commit = vi.fn(() => of('ok'));
+      q.run({ label: 'x', commit, undone: vi.fn() });
+      q.flush(); // no .subscribe()
+      expect(commit).toHaveBeenCalledTimes(1);
+    });
+  });
 });

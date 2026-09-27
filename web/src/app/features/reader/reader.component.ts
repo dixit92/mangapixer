@@ -1,5 +1,5 @@
-import { Component, inject, signal, computed, effect, untracked, OnInit, OnDestroy, HostListener, ElementRef, viewChild } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { Component, inject, signal, computed, effect, untracked, OnInit, OnDestroy, HostListener, ElementRef, viewChild, afterNextRender, Injector } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
@@ -16,6 +16,7 @@ import { map } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
+import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import {
@@ -27,6 +28,7 @@ import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode, B
 import { targetMaxDim, withMaxDim, VariantFitMode } from './page-variant';
 import { UpscaleDirective, UpscaleSupportService } from './upscale.directive';
 import { nextUpscaler } from './upscale-engine';
+import { isNearEnd } from './near-end';
 import { WebtoonEnhanceHostDirective, WebtoonUpscaleDirective } from './webtoon-upscale.directive';
 import { PageLoadIndicatorComponent, WebtoonPageComponent } from './page-load-state.component';
 import {
@@ -835,6 +837,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly readState = inject(ReadStateService);
+  private readonly favorites = inject(FavoritesStateService);
   private readonly bottomSheet = inject(MatBottomSheet);
   private readonly breakpoints = inject(BreakpointObserver);
   // Public so the template can read the persisted page-transition preference.
@@ -845,6 +848,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   // notice - the same resolution the settings menu shows.
   private readonly upscaleSupport = inject(UpscaleSupportService);
   private readonly installHint = inject(InstallHintService);
+  private readonly injector = inject(Injector);
   readonly fitOptions = FIT_OPTIONS;
 
   /**
@@ -879,6 +883,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   /** Whether the currently open chapter (the archive) is favorited (1.21.0). */
   readonly currentFavorite = signal(false);
+  // Keep it in step with a toggle made anywhere (the desktop star, the phone sheet).
+  private readonly favoriteSync = this.favorites.changed$.pipe(takeUntilDestroyed()).subscribe((change) => {
+    if (change.nodeId === this.itemId()) this.currentFavorite.set(change.favorite);
+  });
   readonly phase = signal<ReaderPhase>('preparing');
   readonly statusMessage = signal('Loading…');
   readonly currentPage = signal(0);
@@ -1211,6 +1219,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private pollAttempts = 0;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private webtoonSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  // The strip's scrollTop right after the reader itself restored the position (1.27.0):
+  // the scroll event that causes is not the reader scrolling, so it neither moves the
+  // page nor saves it.
+  private restoredScrollTop: number | null = null;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private lastPointerReveal = 0;
   private static readonly ChromeIdleMs = 3000;
@@ -1475,12 +1487,16 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   }
 
   private applyDefaultMode(mode: ReaderMode): void {
+    const wasWebtoon = this.view() === 'webtoon';
     switch (mode) {
       case 'PagedRtl': this.view.set('paged'); this.direction.set('rtl'); break;
       case 'DoubleSpread': this.view.set('spread'); break;
       case 'VerticalWebtoon': this.view.set('webtoon'); break;
       default: this.view.set('paged'); this.direction.set('ltr');
     }
+    // The mode can answer after the saved position was shown (in the paged view):
+    // bring that page into the strip too.
+    if (this.view() === 'webtoon' && !wasWebtoon && this.phase() === 'ready') this.restoreWebtoonPosition();
   }
 
   /**
@@ -1721,6 +1737,23 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     });
   }
 
+  /**
+   * Phone sheet favorite toggle (1.27.0) - the desktop bar uses the star component,
+   * which works the same way: flip optimistically, persist, revert on error. The
+   * service announces the change, so the desktop star follows.
+   */
+  toggleFavorite(): void {
+    const itemId = this.itemId();
+    const next = !this.currentFavorite();
+    this.currentFavorite.set(next);
+    this.favorites.setFavorite(itemId, next).subscribe({
+      error: () => {
+        if (this.itemId() === itemId) this.currentFavorite.set(!next);
+        this.snackBar.open('Could not update favorites.', 'Dismiss', { duration: 3000 });
+      },
+    });
+  }
+
   /** BookmarksPanelHost: jump to a bookmark's page (panel row tap). */
   jumpToBookmark(bookmark: BookmarkDto): void {
     this.seekToPage(bookmark.ordinal);
@@ -1888,8 +1921,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     if (this.view() === 'webtoon') {
       // Warm the first few pages ahead on entry (before any scroll fires).
       this.prefetchWebtoonAhead(index);
-      // Scroll the saved page into view once the DOM is present.
-      queueMicrotask(() => this.scrollWebtoonTo(index));
+      this.restoreWebtoonPosition();
     }
   }
 
@@ -2182,6 +2214,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   onScrubStart(event: PointerEvent): void {
     if (this.pageCount() === 0) return;
     this.scrubbing.set(true);
+    this.clearWebtoonSaveTimer(); // the release saves
     const el = event.currentTarget as HTMLElement;
     el.setPointerCapture?.(event.pointerId); // keep receiving moves outside the strip
     this.scrubFromClientX(event.clientX, el);
@@ -2199,7 +2232,28 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     if (!this.scrubbing()) return;
     this.scrubbing.set(false);
     (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+    this.clearWebtoonSaveTimer();
     this.saveProgress();
+  }
+
+  private clearWebtoonSaveTimer(): void {
+    if (this.webtoonSaveTimer) { clearTimeout(this.webtoonSaveTimer); this.webtoonSaveTimer = null; }
+  }
+
+  /**
+   * Leaving the page or the app (1.27.0): send a Vertical scroll position still waiting
+   * on its debounce now - a phone may suspend the page before the timer fires.
+   */
+  @HostListener('window:pagehide')
+  flushPendingSave(): void {
+    if (!this.webtoonSaveTimer) return;
+    this.clearWebtoonSaveTimer();
+    this.saveProgress();
+  }
+
+  @HostListener('document:visibilitychange')
+  onVisibilityChange(): void {
+    if (document.visibilityState === 'hidden') this.flushPendingSave();
   }
 
   private scrubFromClientX(clientX: number, el: HTMLElement): void {
@@ -2598,9 +2652,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // Vertical keeps the pins - the strip-sized pages are big enough.
     if (view === 'webtoon' && !wasWebtoon) this.pageUrlCache.clear();
     this.refreshVariantTarget();
-    if (view === 'webtoon' && !wasWebtoon) {
-      queueMicrotask(() => this.scrollWebtoonTo(this.currentPage()));
-    }
+    if (view === 'webtoon' && !wasWebtoon) this.restoreWebtoonPosition();
   }
 
   /**
@@ -2752,6 +2804,12 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   onWebtoonScroll(): void {
     const el = this.scroller()?.nativeElement;
     if (!el) return;
+    if (this.restoredScrollTop !== null) {
+      // The reader's own restore scroll: the page is already right, nothing to save.
+      const own = Math.abs(el.scrollTop - this.restoredScrollTop) <= 1;
+      this.restoredScrollTop = null;
+      if (own) return;
+    }
     const imgs = el.querySelectorAll<HTMLElement>('.webtoon-page');
     let idx = this.currentPage();
     // Reaching the true bottom of the scroller must always resolve to the last
@@ -2776,9 +2834,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       // Warm the next few pages ahead of the scroll position so a fast vertical
       // scroll doesn't outrun native lazy-load.
       this.prefetchWebtoonAhead(idx);
-      // Debounce progress writes while scrolling.
+      // Debounce progress writes while scrolling. A scrub saves once on release.
       if (this.webtoonSaveTimer) clearTimeout(this.webtoonSaveTimer);
-      this.webtoonSaveTimer = setTimeout(() => this.saveProgress(), 600);
+      this.webtoonSaveTimer = this.scrubbing() ? null : setTimeout(() => this.saveProgress(), 600);
     }
     // 1.7.1 (owner revert): webtoon no longer auto-advances chapters on scroll —
     // the scroll-up-at-top gesture fought the fullscreen-exit gesture on touch.
@@ -2786,13 +2844,32 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // remain the only way to move between chapters in webtoon.
   }
 
-  private scrollWebtoonTo(index: number): void {
+  private scrollWebtoonTo(index: number): boolean {
     const el = this.scroller()?.nativeElement;
-    if (!el) return;
+    if (!el) return false;
     const img = el.querySelectorAll<HTMLElement>('.webtoon-page')[index];
     if (img) {
       el.scrollTop = img.offsetTop;
     }
+    return !!img;
+  }
+
+  /**
+   * Bring the current page into the Vertical strip once the strip exists (1.27.0 reopen
+   * fix). The strip renders on the change detection AFTER the view / phase switch, so
+   * scrolling straight away (a microtask, before 1.27.0) found no scroller and silently
+   * did nothing: the bar showed the saved page, the strip page 1, and the first scroll
+   * then saved ~page 1 over the stored position. The position is restored after the next
+   * render, and the scroll event that causes is marked as the reader's own.
+   */
+  private restoreWebtoonPosition(): void {
+    afterNextRender({
+      write: () => {
+        if (this.view() !== 'webtoon' || this.phase() !== 'ready') return;
+        if (!this.scrollWebtoonTo(this.currentPage())) return;
+        this.restoredScrollTop = this.scroller()!.nativeElement.scrollTop;
+      },
+    }, { injector: this.injector });
   }
 
   // --- Webtoon tap-to-scroll (added 1.11.0) ---
@@ -2863,19 +2940,22 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     return spread ? spread[spread.length - 1] : this.currentPage();
   }
 
-  private saveProgress(): void {
+  private saveProgress(retryOnConflict = true): void {
     if (this.phase() !== 'ready' || this.pageCount() === 0) return;
-    // Suppress the save while parked on a chapter's last page that we merely landed on
-    // via previous-chapter back-navigation — persisting it would complete (and, per the
+    const pageIndex = this.effectivePageIndex();
+    // Suppress the save while parked at the end of a chapter we merely landed on via
+    // previous-chapter back-navigation — persisting it would complete (and, per the
     // sticky read-mark feature, mark read) a chapter the reader never actually read.
-    // The moment they navigate off that last page, resume normal saving.
+    // "The end" is the last page or near it (1.27.0, the server's rule - near-end.ts),
+    // so stepping back a page from the landed last page still saves nothing. The
+    // moment they move before that, resume normal saving.
     if (this.landedOnLastPage) {
-      if (this.currentPage() >= this.pageCount() - 1) return;
+      if (isNearEnd(pageIndex, this.pageCount())) return;
       this.landedOnLastPage = false;
     }
-    const pageIndex = this.effectivePageIndex();
+    const itemId = this.itemId();
     const entry = this.pages()[pageIndex];
-    this.api.updateProgress(this.itemId(), {
+    this.api.updateProgress(itemId, {
       pageIndex,
       expectedContentVersion: this.contentVersion,
       mutationId: this.newMutationId(),
@@ -2884,8 +2964,14 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       next: (res) => { this.revision = res.revision; },
       error: (err: ApiError) => {
         if (err?.error === 'precondition_failed') {
-          this.api.getProgress(this.itemId()).subscribe({
-            next: (p) => { this.revision = p.revision; },
+          this.api.getProgress(itemId).subscribe({
+            next: (p) => {
+              this.revision = p.revision;
+              // 1.27.0: the save lost a race (an earlier save of ours still in flight,
+              // or another device) - send it once more on the fresh revision, with the
+              // page on screen now, instead of dropping the latest position.
+              if (retryOnConflict && this.itemId() === itemId) this.saveProgress(false);
+            },
             error: () => { /* leave revision as-is */ },
           });
         }

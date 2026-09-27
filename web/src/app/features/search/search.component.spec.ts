@@ -5,6 +5,9 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 
 import { SearchComponent } from './search.component';
+import { By } from '@angular/platform-browser';
+import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
+import { MetadataStateService } from '../metadata/metadata-state.service';
 import { ApiService } from '../../core/api/api.service';
 import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
 
@@ -109,6 +112,27 @@ describe('SearchComponent', () => {
     const img = card.querySelector('.cover img') as HTMLImageElement | null;
     expect(img).not.toBeNull();
     expect(img!.getAttribute('src')).toBe('/api/v1/items/a1/cover');
+  });
+
+  it('shows the (i) and the hover zones (cover, title) only on results with series information (1.27.0)', () => {
+    setup([
+      makeNode({ id: 's1', kind: 'Folder', displayName: 'Series One', hasSeriesInfo: true }),
+      makeNode({ id: 's2', kind: 'Folder', displayName: 'Series Two', hasSeriesInfo: false }),
+    ]);
+    runSearch('series');
+
+    const cards = fixture.nativeElement.querySelectorAll('.result-card') as NodeListOf<HTMLElement>;
+    expect(cards[0].querySelector('.cover [data-testid="info-toggle"]')).not.toBeNull();
+    expect(cards[1].querySelector('[data-testid="info-toggle"]')).toBeNull();
+    const zones = fixture.debugElement.queryAll(By.directive(SeriesInfoHoverDirective))
+      .map((d) => d.injector.get(SeriesInfoHoverDirective).nodeId() ?? '-');
+    expect(zones).toEqual(['s1', 's1', '-', '-']);
+
+    // A link change elsewhere updates the result in place.
+    TestBed.inject(MetadataStateService).announce('s2', true);
+    fixture.detectChanges();
+    expect(cards[1].querySelector('[data-testid="info-toggle"]')).not.toBeNull();
+    expect(fixture.componentInstance.results().find((n) => n.id === 's2')!.hasSeriesInfo).toBe(true);
   });
 });
 

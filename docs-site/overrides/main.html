@@ -1,0 +1,44 @@
+{#- Site-wide SEO meta on top of the Material theme. Canonical URL and meta
+    description come from the theme (site_url, page.meta.description). -#}
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {%- set seo = config.extra.seo -%}
+  {%- if page and page.is_homepage -%}
+    {%- set share_title = config.site_name ~ " - " ~ seo.tagline -%}
+  {%- elif page and page.title -%}
+    {%- set share_title = (page.title | striptags) ~ " - " ~ config.site_name -%}
+  {%- else -%}
+    {%- set share_title = config.site_name -%}
+  {%- endif -%}
+  {%- set share_description = (page.meta.description if page and page.meta and page.meta.description else config.site_description) -%}
+  {%- set share_image = config.site_url ~ seo.image %}
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{ config.site_name | e }}">
+  <meta property="og:title" content="{{ share_title | e }}">
+  <meta property="og:description" content="{{ share_description | e }}">
+  {%- if page and page.canonical_url %}
+  <meta property="og:url" content="{{ page.canonical_url | e }}">
+  {%- endif %}
+  <meta property="og:image" content="{{ share_image | e }}">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="{{ seo.image_alt | e }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ share_title | e }}">
+  <meta name="twitter:description" content="{{ share_description | e }}">
+  <meta name="twitter:image" content="{{ share_image | e }}">
+  <meta name="twitter:image:alt" content="{{ seo.image_alt | e }}">
+  <link rel="apple-touch-icon" href="{{ 'assets/icons/apple-touch-icon.png' | url }}">
+  <meta name="theme-color" content="#333333">
+{% endblock %}
+
+{% block scripts %}
+  {#- Self-hosted Mermaid (see hooks.py), only on pages with a diagram; loaded
+      before the theme bundle so the theme never falls back to its CDN copy. -#}
+  {%- if page and page.content and 'class="mermaid"' in page.content %}
+  <script src="{{ config.extra.mermaid_script | url }}"></script>
+  {%- endif %}
+  {{ super() }}
+{% endblock %}

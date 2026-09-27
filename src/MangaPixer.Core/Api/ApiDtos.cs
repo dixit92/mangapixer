@@ -158,6 +158,15 @@ public sealed record CatalogNodeDto
     /// walk); drives the card (i). Defaults false so older clients ignore it.
     /// </summary>
     public bool HasSeriesInfo { get; init; }
+
+    /// <summary>
+    /// Favorites stacking (1.27.0): set only on a <c>GET /favorites</c> item that stands
+    /// for a STACK - this folder holds this many of the user's starred archives as direct
+    /// children (at least 2, counting only favorites the viewer can see). The item is the
+    /// folder itself; its <see cref="IsFavorite"/> is the folder's own star. Null
+    /// everywhere else, so older clients show a plain folder card.
+    /// </summary>
+    public int? FavoriteStackCount { get; init; }
 }
 
 /// <summary>
@@ -225,7 +234,8 @@ public sealed record ReadingProgressDto
     /// per-archive at read time and NON-DESTRUCTIVELY (the stored <see cref="PageIndex"/>
     /// is never rewritten because of this). For an item WITHOUT a read-mark this equals
     /// <see cref="PageIndex"/> (resume where you left off). For a READ item (has a
-    /// read-mark): the last page (PageIndex &gt;= PageCount-1) always opens at 0; a
+    /// read-mark): a position at the end - the last page or near it, see
+    /// <see cref="NearEndRule"/> (1.27.0) - always opens at 0; a
     /// mid-archive position opens at 0 when the user's
     /// <see cref="UserPreferencesDto.AlwaysOpenReadFromStart"/> is on, else resumes; no
     /// saved position opens at 0. Keys off POSITION, not the Completed enum, so it is
@@ -415,6 +425,14 @@ public sealed record LibraryViewPreferencesDto
     /// results get a star badge and are boosted to the top of the result list.
     /// </summary>
     public bool FavoritesSearchProminence { get; init; }
+
+    /// <summary>
+    /// Per-user "Series information on hover" (1.27.0). True (default) = on a device with
+    /// a hovering fine pointer, resting on the cover, title or (i) of an item that shows
+    /// the (i) opens a read-only summary popover. Defaults to true, so a PUT from a
+    /// client that predates this field keeps the option on.
+    /// </summary>
+    public bool SeriesInfoOnHover { get; init; } = true;
 }
 
 /// <summary>

@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
@@ -16,6 +17,7 @@ import { MetadataApiService } from '../metadata/metadata-api.service';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import { SeriesInfoOverlayService } from '../metadata/series-info-overlay.service';
 import { seriesInfo } from '../metadata/series-info.testing';
+import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 
 /**
  * Series-info wiring in browse (1.24.0): the card (i) (cover bottom-left) and the
@@ -34,10 +36,10 @@ describe('LibraryBrowseComponent series info (1.24.0)', () => {
     } as CatalogNodeDto;
   }
 
-  function setup(viewMode: 'card' | 'list', nodes: CatalogNodeDto[], parentId: string | null = null, admin = false) {
+  function setup(viewMode: 'card' | 'list', nodes: CatalogNodeDto[], parentId: string | null = null, admin = false, prefs: Record<string, unknown> = {}) {
     const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
     const apiSpy = {
-      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode, density: 'comfortable', sort: 'name', direction: 'asc' })),
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode, density: 'comfortable', sort: 'name', direction: 'asc', ...prefs })),
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),
@@ -61,7 +63,7 @@ describe('LibraryBrowseComponent series info (1.24.0)', () => {
         { provide: ApiService, useValue: apiSpy },
         { provide: MetadataApiService, useValue: metadata },
         { provide: SeriesInfoOverlayService, useValue: { open } },
-        { provide: AuthService, useValue: { isAdmin: () => admin } },
+        { provide: AuthService, useValue: { isAdmin: () => admin, currentUser: () => null } },
         { provide: ReadStateService, useValue: new ReadStateService() },
         { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : parentId) }) } },
       ],
@@ -136,6 +138,45 @@ describe('LibraryBrowseComponent series info (1.24.0)', () => {
     expect(markers[1].querySelector('[data-testid="info-toggle"]')).toBeNull();
     const children = Array.from(markers[0].children).map((c) => c.tagName.toLowerCase());
     expect(children.indexOf('app-star-toggle')).toBeLessThan(children.indexOf('app-info-toggle'));
+  });
+
+  /** Hover zones (1.27.0): `[class]: nodeId-or-null` for every zone in the listing. */
+  function hoverZones(fixture: ComponentFixture<unknown>): string[] {
+    return fixture.debugElement.queryAll(By.directive(SeriesInfoHoverDirective)).map((d) => {
+      const zone = d.nativeElement as HTMLElement;
+      const kind = zone.tagName.toLowerCase() === 'app-info-toggle' ? 'info' : zone.classList.contains('cover') ? 'cover' : 'title';
+      return `${kind}:${d.injector.get(SeriesInfoHoverDirective).nodeId() ?? '-'}`;
+    });
+  }
+
+  it('card view (1.27.0): the cover and the title are hover zones only for items that show the (i)', () => {
+    const { fixture, comp } = setup('card', [node('with', 'Folder', true), node('without', 'Archive', false)]);
+    expect(hoverZones(fixture)).toEqual(['cover:with', 'title:with', 'cover:-', 'title:-']);
+
+    comp.toggleSelectMode(); // taps select there: no hover either
+    fixture.detectChanges();
+    expect(hoverZones(fixture)).toEqual(['cover:-', 'title:-', 'cover:-', 'title:-']);
+  });
+
+  it('list view (1.27.0): the thumbnail, the title and the (i) are hover zones', () => {
+    const { fixture } = setup('list', [node('with', 'Archive', true)]);
+    expect(hoverZones(fixture)).toEqual(['cover:with', 'title:with', 'info:with']);
+  });
+
+  it('a link change turns the hover zones on in place (1.27.0)', () => {
+    const { fixture } = setup('card', [node('a', 'Folder', false)]);
+    TestBed.inject(MetadataStateService).announce('a', true);
+    fixture.detectChanges();
+    expect(hoverZones(fixture)).toEqual(['cover:a', 'title:a']);
+  });
+
+  it('a view change echoes the options it does not own (1.27.0), so it never resets them', () => {
+    const { comp, apiSpy } = setup('card', [node('a', 'Folder', false)], null, false,
+      { seriesInfoOnHover: false, showFavoritesHomeRow: true, favoritesSearchProminence: true });
+    comp.setCardSize(200);
+    expect(apiSpy.setLibraryPreferences).toHaveBeenCalledWith(expect.objectContaining({
+      cardSize: '200', seriesInfoOnHover: false, showFavoritesHomeRow: true, favoritesSearchProminence: true,
+    }));
   });
 
   it('shows the top-bar Series info button inside a folder, not at the library root', () => {

@@ -85,6 +85,13 @@ export interface CatalogNodeDto {
    * Drives the card (i). Optional so older fixtures keep compiling.
    */
   hasSeriesInfo?: boolean;
+  /**
+   * Favorites stacking (1.27.0): set only on a `GET /favorites` item that stands for a
+   * STACK - this folder holds this many (>= 2) of the user's starred archives as direct
+   * children. The item is the folder; `isFavorite` is the folder's own star. Null or
+   * absent everywhere else.
+   */
+  favoriteStackCount?: number | null;
 }
 
 export interface BreadcrumbEntry {
@@ -339,6 +346,12 @@ export interface LibraryViewPreferencesDto {
    * the top of the result list.
    */
   favoritesSearchProminence?: boolean;
+  /**
+   * Per-user "Series information on hover" (1.27.0). Default true (server-side): on a
+   * device with a hovering fine pointer, resting on the cover, title or (i) of an item
+   * that shows the (i) opens a read-only series summary popover.
+   */
+  seriesInfoOnHover?: boolean;
 }
 
 // --- YACReader progress import (1.2.0, admin-only) ---
@@ -1180,6 +1193,8 @@ export interface IdentifyLocalDto {
   comicInfoSeries?: string | null;
   tallStrips?: boolean | null;
   yearHint?: number | null;
+  /** Local cover: the archive's own, or the folder's first archive. */
+  coverUrl?: string | null;
 }
 
 /** GET /admin/metadata/nodes/{id}/identify - no network. */
@@ -1365,6 +1380,8 @@ export interface MetadataReviewItemDto {
   /** Up to 3 ancestor display names below the library root, outermost first. */
   trail?: string[];
   missing?: boolean;
+  /** Local cover: the archive's own, or a folder's first archive (as browse shows it). */
+  coverUrl?: string | null;
   workClass?: WorkClass | null;
   matchLevel?: MatchLevel | null;
   itemCount: number;

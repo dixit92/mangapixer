@@ -14,12 +14,6 @@ using Microsoft.EntityFrameworkCore;
 /// </summary>
 public sealed class LibraryTreeSnapshot
 {
-    /// <summary>Ancestor names that mark a category folder (the corroboration's category hint).</summary>
-    private static readonly HashSet<string> s_categoryWords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "manga", "manhwa", "manhua", "webtoon", "webtoons", "comic", "comics", "doujinshi", "doujin",
-    };
-
     public sealed record Node(long Id, long? ParentId, bool IsFolder, string Name, string SortKey);
 
     private readonly Dictionary<long, Node> _nodes;
@@ -137,14 +131,16 @@ public sealed class LibraryTreeSnapshot
             CategoryHint(folderId));
     }
 
-    /// <summary>The nearest ancestor named like a category (e.g. <c>manhwa</c>), lower-cased; null when none.</summary>
+    /// <summary>
+    /// The nearest ancestor named exactly like a category (<see cref="AutoMatchText.CategoryFolderWords"/>, e.g.
+    /// <c>manhwa</c>), lower-cased; null when none. The library root is not a node, so it is never read.
+    /// </summary>
     public string? CategoryHint(long folderId)
     {
         foreach (var node in Ancestors(folderId))
         {
-            var name = node.Name.Trim();
-            if (s_categoryWords.Contains(name))
-                return name.ToLowerInvariant();
+            if (AutoMatchText.IsCategoryFolderName(node.Name))
+                return node.Name.Trim().ToLowerInvariant();
         }
         return null;
     }

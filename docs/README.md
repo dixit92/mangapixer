@@ -27,7 +27,7 @@ These guides are for people who run MangaPixer on their own hardware. They descr
 |---|---|
 | [Features](features.md) | Everything MangaPixer does, by area, and the supported archive and image formats. |
 | [Reader](reader.md) | Page modes, fit, image quality (Page quality, Downscale filter, Enhance), reading direction, page-turn animation, keyboard/touch controls, prefetch, resume position, read state. |
-| [Series information](series-information.md) | Series details from ComicInfo.xml and, if an admin allows it, MangaUpdates: the panel and series page, search by alternative title, Identify and automatic matching, what is sent, the Series metadata page for admins. |
+| [Series information](series-information.md) | Series details from ComicInfo.xml and, if an admin allows it, MangaUpdates: the panel and series page, search by alternative title, Identify and automatic matching, what is sent, the Metadata Manager page for admins. |
 
 ## Help
 
@@ -36,3 +36,4 @@ These guides are for people who run MangaPixer on their own hardware. They descr
 | [Troubleshooting](troubleshooting.md) | Health checks, logs, sign-in problems, scans that miss files, archives that won't open, missing thumbnails, backups that stopped, permission errors, port conflicts, restore problems. |
 | [FAQ](faq.md) | Short answers to common questions. |
 | [Privacy and security](privacy-and-security.md) | No telemetry, what leaves your server when an admin turns on an internet feature, how sessions and logs are protected, reporting a vulnerability. |
+| [MangaPixer compared](comparison.md) | How MangaPixer differs from Komga, Kavita and YACReader, and when another server is the better fit. |

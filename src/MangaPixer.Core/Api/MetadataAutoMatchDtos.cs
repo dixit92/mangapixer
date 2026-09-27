@@ -218,6 +218,12 @@ public sealed record MetadataReviewItemDto
     /// <summary>True when the node was removed by a scan (Missing folders tab).</summary>
     public bool Missing { get; init; }
 
+    /// <summary>
+    /// The local cover (1.26.x): an archive's own, or a folder's first archive - the thumbnail browse
+    /// shows, so it can be compared with the candidates' covers. Null when there is none.
+    /// </summary>
+    public string? CoverUrl { get; init; }
+
     /// <summary>The detector's class, when the work went through matching.</summary>
     public WorkClass? WorkClass { get; init; }
     public MatchLevel? MatchLevel { get; init; }

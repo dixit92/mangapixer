@@ -8,7 +8,9 @@ namespace com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 ///
 /// Variant order (= <see cref="QueryVariantKind"/> order): ComicInfo series, folder primary,
 /// trailing <c>[English Title]</c>, subtitle split, sequel-number split, archive-derived title,
-/// and for doujin-shaped archives the MangaUpdates <c>&lt;parody&gt; dj - &lt;title&gt;</c> form. Variants are
+/// and for doujin-shaped archives the MangaUpdates <c>&lt;parody&gt; dj - &lt;title&gt;</c> form. One exception
+/// (1.27.0): an archive-derived title that extends the folder name word for word (the folder is the leading
+/// part of a long title) is the second search, right after the folder's own names. Variants are
 /// de-duplicated by their scoring form (a variant that differs only in case or punctuation is one
 /// query).
 /// </summary>
@@ -29,9 +31,16 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
 
         var name = TitleNormalizer.Normalize(folder.DisplayName);
         AddNameVariants(variants, name);
+        AddCreatorSplits(variants, folder.DisplayName);
 
         if (TitleNormalizer.ArchiveTitle(archives) is { } archiveTitle)
-            variants.Add(archiveTitle, QueryVariantKind.ArchiveDerivedTitle);
+        {
+            // The archives carry a LONGER name that starts with the folder's (a folder named after the leading
+            // words of a long title, 1.27.0): that name is the second search, right after the folder's own.
+            var extends = name.Primary.Length > 0
+                && TitleNormalizer.ScoringForm(archiveTitle).StartsWith(TitleNormalizer.ScoringForm(name.Primary) + " ", StringComparison.Ordinal);
+            variants.Add(archiveTitle, QueryVariantKind.ArchiveDerivedTitle, extends ? SecondSearch : null);
+        }
         else if (archives.Count == 1 && TitleNormalizer.Normalize(archives[0]).Primary is { Length: > 0 } single)
             variants.Add(single, QueryVariantKind.ArchiveDerivedTitle);
 
@@ -45,15 +54,25 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
         var volumeLike = archives.Count(AutoMatchText.IsVolumeLike);
         var chapterLike = archives.Count(AutoMatchText.IsChapterLike);
         var archiveCount = archives.Count;
+        // The count rule compares unit NUMBERS (1.27.0): the highest one the names state; unit subfolders add
+        // their archive count (their archive names are not read here).
+        var localVolumes = HighestOrZero(archives.Select(AutoMatchText.VolumeNumberOf));
+        var localChapters = HighestOrZero(archives.Select(AutoMatchText.ChapterNumberOf));
         foreach (var sub in folder.Subfolders ?? [])
         {
             if (sub.DescendantArchiveCount <= 0 || !AutoMatchText.IsUnitFolderName(sub.DisplayName))
                 continue;
             archiveCount += sub.DescendantArchiveCount;
             if (AutoMatchText.IsVolumeFolderName(sub.DisplayName))
+            {
                 volumeLike += sub.DescendantArchiveCount;
+                localVolumes = Math.Max(localVolumes, sub.DescendantArchiveCount);
+            }
             else if (AutoMatchText.IsChapterFolderName(sub.DisplayName))
+            {
                 chapterLike += sub.DescendantArchiveCount;
+                localChapters = Math.Max(localChapters, sub.DescendantArchiveCount);
+            }
         }
 
         var years = new List<int>();
@@ -70,9 +89,13 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             TallStrips: false,
             authorTags,
             string.IsNullOrWhiteSpace(comicInfoSeries) ? null : comicInfoSeries.Trim(),
-            AutoMatchText.CreatorHints(folder.DisplayName));
+            AutoMatchText.CreatorHints(folder.DisplayName),
+            localVolumes > 0 ? localVolumes : null,
+            localChapters > 0 ? localChapters : null);
         return new MatchQuery(variants.ToList(), context);
     }
+
+    private static int HighestOrZero(IEnumerable<int?> numbers) => numbers.Max() ?? 0;
 
     public MatchQuery PlanArchiveGroup(FolderShape folder, WorkClassification classification, ArchiveGroup group)
     {
@@ -97,6 +120,9 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
         }
         foreach (var d in groupTitle.Derived)
             variants.Add(d.Text, d.Kind == DerivedTitleKind.SubtitleSplit ? QueryVariantKind.SubtitleSplit : QueryVariantKind.SequelNumberSplit);
+        AddCreatorSplits(variants, group.QueryTitle);
+        if (names.Count == 1)
+            AddCreatorSplits(variants, names[0]);
         if (TitleNormalizer.ArchiveTitle(names) is { } archiveTitle)
             variants.Add(archiveTitle, QueryVariantKind.ArchiveDerivedTitle);
 
@@ -134,7 +160,9 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             folder.CategoryHint,
             TallStrips: false,
             authorTags,
-            CreatorHints: names.SelectMany(AutoMatchText.CreatorHints).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
+            CreatorHints: names.SelectMany(AutoMatchText.CreatorHints).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            LocalVolumes: names.Select(AutoMatchText.VolumeNumberOf).Max(),
+            LocalChapters: names.Select(AutoMatchText.ChapterNumberOf).Max());
         return new MatchQuery(variants.ToList(), context);
     }
 
@@ -150,6 +178,15 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             variants.Add(d.Text, QueryVariantKind.SubtitleSplit);
         foreach (var d in name.Derived.Where(d => d.Kind == DerivedTitleKind.SequelNumberSplit))
             variants.Add(d.Text, QueryVariantKind.SequelNumberSplit);
+    }
+
+    private static void AddCreatorSplits(VariantList variants, string? displayName)
+    {
+        foreach (var title in AutoMatchText.CreatorSplitTitles(displayName))
+        {
+            if (TitleNormalizer.Normalize(title).Primary is { Length: > 0 } clean)
+                variants.Add(clean, QueryVariantKind.CreatorSplit);
+        }
     }
 
     /// <summary>Creator tags carried by at least half of the archives (folder level: a tie-break only).</summary>
@@ -181,13 +218,16 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             list.Add(value);
     }
 
-    /// <summary>Variants in kind order, de-duplicated by scoring form, capped.</summary>
+    /// <summary>Order key between the folder's own names (<see cref="QueryVariantKind.Primary"/>) and the English title.</summary>
+    private const double SecondSearch = (double)QueryVariantKind.Primary + 0.5;
+
+    /// <summary>Variants in kind order (or an explicit order key), de-duplicated by scoring form, capped.</summary>
     private sealed class VariantList
     {
-        private readonly List<QueryVariant> _items = [];
+        private readonly List<(QueryVariant Variant, double Order)> _items = [];
         private readonly HashSet<string> _keys = new(StringComparer.Ordinal);
 
-        public void Add(string? text, QueryVariantKind kind)
+        public void Add(string? text, QueryVariantKind kind, double? order = null)
         {
             var t = text?.Trim();
             if (string.IsNullOrEmpty(t))
@@ -196,14 +236,14 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             // A trailing "!" changes MangaUpdates' results although it scores the same: keep both.
             if (key.Length == 0 || !_keys.Add(t.EndsWith('!') ? key + "!" : key))
                 return;
-            _items.Add(new QueryVariant(t, kind));
+            _items.Add((new QueryVariant(t, kind), order ?? (int)kind));
         }
 
         public IReadOnlyList<QueryVariant> ToList() =>
             _items.Select((v, i) => (v, i))
-                .OrderBy(x => (int)x.v.Kind)
+                .OrderBy(x => x.v.Order)
                 .ThenBy(x => x.i)
-                .Select(x => x.v)
+                .Select(x => x.v.Variant)
                 .Take(MaxVariants)
                 .ToList();
     }
