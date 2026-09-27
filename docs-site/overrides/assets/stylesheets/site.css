@@ -57,10 +57,16 @@
   gap: 0.5rem;
 }
 
+/* .md-button is only styled inside .md-typeset; the hero sits outside it. */
 .mp-hero .md-button {
+  display: inline-block;
   margin: 0;
+  padding: 0.5em 1.2em;
+  border: 0.1rem solid #b39dff;
+  border-radius: 0.2rem;
+  font-weight: 700;
   color: #f2f2f2;
-  border-color: #b39dff;
+  transition: background-color 125ms, color 125ms, border-color 125ms;
 }
 
 .mp-hero .md-button--primary {
