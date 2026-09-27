@@ -5,6 +5,8 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 
 import { FavoritesComponent } from './favorites.component';
+import { By } from '@angular/platform-browser';
+import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { ApiService } from '../../core/api/api.service';
 import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
 import { CatalogNodeDto, PageResponse } from '../../core/api/api-types';
@@ -42,6 +44,21 @@ describe('FavoritesComponent stacks (1.27.0)', () => {
   }
 
   afterEach(() => vi.restoreAllMocks());
+
+  it('shows the (i) and the hover zones on singles and stacks with series information (1.27.0)', () => {
+    const { el, fixture } = setup(page([
+      node('fold', 'Folder', { favoriteStackCount: 2, isFavorite: false, hasSeriesInfo: true }),
+      node('arc', 'Archive', { hasSeriesInfo: true }),
+      node('plain', 'Archive', { hasSeriesInfo: false }),
+    ]));
+    const cards = el.querySelectorAll('.fav-card');
+    expect(cards[0].querySelector('.cover [data-testid="info-toggle"]')).not.toBeNull();
+    expect(cards[1].querySelector('.cover [data-testid="info-toggle"]')).not.toBeNull();
+    expect(cards[2].querySelector('[data-testid="info-toggle"]')).toBeNull();
+    const zones = fixture.debugElement.queryAll(By.directive(SeriesInfoHoverDirective))
+      .map((d) => d.injector.get(SeriesInfoHoverDirective).nodeId() ?? '-');
+    expect(zones).toEqual(['fold', 'fold', 'arc', 'arc', '-', '-']);
+  });
 
   it('renders a stack as a stacked card that opens the folder filtered to favorites', () => {
     const { el } = setup(page([
