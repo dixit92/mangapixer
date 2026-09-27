@@ -14,7 +14,7 @@ Inspired by several great comic servers and readers developed by the community, 
 - Folder-native. It doesn't enforce a library structure on you. Similar to [YACReader](https://www.yacreader.com/), but with...
 - Multi-user support. You can create admin or "normal" users, and admins can expose specific libraries to normal users. Each user has their own reading progress, and users don't interfere with each other.
 - Good native web support. I'm trying to offer as good a reading experience as possible across desktop, iPad/tablet and smartphone without needing an app. An app is to follow later so that you can save and download reliably.
-- No metadata required, but used when it's there. Folder and file names are enough to browse and read. MangaPixer also reads the `ComicInfo.xml` inside your archives, and an admin can optionally link series to [MangaUpdates](https://www.mangaupdates.com) for descriptions, authors and cover art, by hand or automatically (off by default). If your library is organized around metadata first, I'd still recommend checking out [Kavita](https://www.kavitareader.com/) or [Komga](https://komga.org/).
+- No metadata required, but used when it's there. Folder and file names are enough to browse and read. MangaPixer also reads the `ComicInfo.xml` inside your archives, and an admin can optionally link series to [MangaUpdates](https://www.mangaupdates.com) for descriptions, authors and cover art (off by default). If your library is organized around metadata first, I'd still recommend checking out [Kavita](https://www.kavitareader.com/) or [Komga](https://komga.org/).
 - You can also allow users to mark libraries as "private" and hide them from the default view. Might be useful...
 
 ### What "folder-native" means
@@ -74,6 +74,7 @@ In every case, add your libraries under **Administration** after signing in. In 
 - **Series information:** read from `ComicInfo.xml`, and optionally from MangaUpdates, linked by hand or automatically (off by default).
 - **Multi-user:** admin and reader roles, per-library access, activation links, private libraries and Incognito.
 - **Low-maintenance:** scheduled scans, persistent thumbnails, automatic database backups, and YACReader progress import.
+- **Private by default:** no telemetry or analytics, no default credentials, and your media folders are only ever read. Nothing leaves your server until an admin turns on an optional internet feature ([details](docs/privacy-and-security.md)).
 - **Formats:** ZIP (`.cbz`, `.zip`) and RAR (`.cbr`, `.rar`) with JPEG, PNG, WebP, AVIF, GIF, BMP or TIFF pages. Solid RAR and 7-Zip archives, PDF and EPUB are not supported yet.
 
 The full list is in [Features](docs/features.md).
@@ -86,14 +87,6 @@ All guides live in [`docs/`](docs/README.md):
 - **Set up and run:** [Configuration reference](docs/configuration.md), [Library layout](docs/library-layout.md), [Users and access](docs/users-and-access.md), [Backup and restore](docs/backup-and-restore.md), [Reverse proxy and HTTPS](docs/reverse-proxy-and-https.md)
 - **Use:** [Features](docs/features.md), [Reader](docs/reader.md), [Series information](docs/series-information.md)
 - **Help:** [Troubleshooting](docs/troubleshooting.md), [FAQ](docs/faq.md), [Privacy and security](docs/privacy-and-security.md)
-
-## Privacy and security
-
-No telemetry, analytics or phone-home, and no default credentials. Your media folders are only ever read, and logs never contain paths or titles.
-
-### What leaves your server
-
-Nothing until an admin turns it on: the Update Checker and [MangaUpdates](https://www.mangaupdates.com) lookups are both optional and off by default. Details: [Privacy and security](docs/privacy-and-security.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Building from source and contributing
 
