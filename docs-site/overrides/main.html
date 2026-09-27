@@ -33,3 +33,12 @@
   <link rel="apple-touch-icon" href="{{ 'assets/icons/apple-touch-icon.png' | url }}">
   <meta name="theme-color" content="#333333">
 {% endblock %}
+
+{% block scripts %}
+  {#- Self-hosted Mermaid (see hooks.py), only on pages with a diagram; loaded
+      before the theme bundle so the theme never falls back to its CDN copy. -#}
+  {%- if page and page.content and 'class="mermaid"' in page.content %}
+  <script src="{{ config.extra.mermaid_script | url }}"></script>
+  {%- endif %}
+  {{ super() }}
+{% endblock %}

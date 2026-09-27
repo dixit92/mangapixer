@@ -6,16 +6,23 @@ adapt it for the site at build time without changing the Markdown files:
 - the nav is read from the tables in docs/README.md (the docs index);
 - links to repository files outside docs/ (../CHANGELOG.md, ../LICENSE, ...)
   point at the file on GitHub; ../assets/ images are copied into the site;
-- each page gets a meta description from its first paragraph;
+- each page's meta description is its "What it covers" text from that index;
+- mermaid diagrams render with a pinned, hash-checked Mermaid copy served from
+  the site itself (the theme would otherwise load it from a CDN);
 - the home page uses the landing template and carries the JSON-LD block;
 - robots.txt allows crawling and names the sitemap.
 """
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import io
 import json
 import posixpath
 import re
+import tarfile
+import urllib.request
 from pathlib import Path
 
 from mkdocs.config.defaults import MkDocsConfig
@@ -35,10 +42,21 @@ EXTRA_FILES = {
 }
 SCREENSHOT_DIR = "assets/screenshots"
 
+# Mermaid for the diagrams in docs/, fetched once at build time from the npm
+# registry, checked against the package's published integrity hash, cached in
+# docs-site/.cache (git-ignored) and served from the site. Stay on 11.x: the
+# theme's diagram integration is written for the Mermaid 11 API.
+MERMAID_VERSION = "11.17.2"
+MERMAID_INTEGRITY = (
+    "sha512-V6K3C8EBdEsPFZXSKMJe6ppQOENxuHARr9GvHX4hh47lAbhMRD9qf4oEK7LoaRQxULMa80/qt5gHO73aCleBBg=="
+)
+MERMAID_SCRIPT = f"assets/javascripts/mermaid-{MERMAID_VERSION}.min.js"
+CACHE_DIR = REPO_ROOT / "docs-site" / ".cache"
+
 # [text](../target) and ![alt](../target), with an optional #anchor.
 _PARENT_LINK = re.compile(r"(\]\()\.\./([^)\s#]+)(#[^)\s]*)?(\))")
 _SECTION = re.compile(r"^##\s+(.+?)\s*$")
-_INDEX_ROW = re.compile(r"^\|\s*\[([^\]]+)\]\(([^)#\s]+\.md)\)\s*\|")
+_INDEX_ROW = re.compile(r"^\|\s*\[([^\]]+)\]\(([^)#\s]+\.md)\)\s*\|\s*(.*?)\s*\|\s*$")
 _FENCE = re.compile(r"^(```|~~~)")
 
 
@@ -53,9 +71,11 @@ def _version() -> str:
     return f"{version}-{parts[3]}" if parts[3] else version
 
 
-def _nav_from_index(docs_dir: Path) -> list:
-    """Home, then one section per '## Heading' with the pages its table links."""
+def _read_index(docs_dir: Path) -> tuple[list, dict[str, str]]:
+    """Nav (Home, then one section per '## Heading' with the pages its table
+    links) and each page's "What it covers" text."""
     nav: list = [{"Home": INDEX_PAGE}]
+    summaries: dict[str, str] = {}
     section: list | None = None
     for line in (docs_dir / INDEX_PAGE).read_text(encoding="utf-8").splitlines():
         heading = _SECTION.match(line)
@@ -66,11 +86,38 @@ def _nav_from_index(docs_dir: Path) -> list:
         row = _INDEX_ROW.match(line)
         if row and section is not None:
             section.append({row.group(1): row.group(2)})
-    return [entry for entry in nav if next(iter(entry.values()))]
+            summaries[row.group(2)] = _plain(row.group(3))
+    return [entry for entry in nav if next(iter(entry.values()))], summaries
+
+
+def _plain(markdown: str) -> str:
+    text = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", markdown)
+    return " ".join(re.sub(r"[*_`]", "", text).split())
+
+
+def _mermaid_script() -> Path:
+    """The cached Mermaid bundle, downloaded and verified on first use."""
+    cached = CACHE_DIR / f"mermaid-{MERMAID_VERSION}"
+    script, licence = cached / "mermaid.min.js", cached / "LICENSE"
+    if script.is_file() and licence.is_file():
+        return cached
+    url = f"https://registry.npmjs.org/mermaid/-/mermaid-{MERMAID_VERSION}.tgz"
+    with urllib.request.urlopen(url, timeout=60) as response:
+        tarball = response.read()
+    algorithm, expected = MERMAID_INTEGRITY.split("-", 1)
+    actual = base64.b64encode(hashlib.new(algorithm, tarball).digest()).decode()
+    if actual != expected:
+        raise ValueError(f"mermaid {MERMAID_VERSION}: integrity mismatch for {url}")
+    cached.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(fileobj=io.BytesIO(tarball), mode="r:gz") as archive:
+        for member, target in (("package/dist/mermaid.min.js", script), ("package/LICENSE", licence)):
+            target.write_bytes(archive.extractfile(member).read())
+    return cached
 
 
 def on_config(config: MkDocsConfig) -> MkDocsConfig:
-    config.nav = _nav_from_index(Path(config.docs_dir))
+    config.nav, config.extra["summaries"] = _read_index(Path(config.docs_dir))
+    config.extra["mermaid_script"] = MERMAID_SCRIPT
     version = _version()
     config.extra["version"] = version
     seo = config.extra["seo"]
@@ -108,6 +155,12 @@ def on_files(files: Files, config: MkDocsConfig) -> Files:
             extra[f"{SCREENSHOT_DIR}/{image.name}"] = f"{SCREENSHOT_DIR}/{image.name}"
     for site_path, repo_path in extra.items():
         files.append(File.generated(config, site_path, abs_src_path=str(REPO_ROOT / repo_path)))
+    if any("```mermaid" in Path(f.abs_src_path).read_text(encoding="utf-8")
+           for f in files.documentation_pages()):
+        mermaid = _mermaid_script()
+        files.append(File.generated(config, MERMAID_SCRIPT, abs_src_path=str(mermaid / "mermaid.min.js")))
+        files.append(File.generated(config, MERMAID_SCRIPT.replace(".min.js", ".LICENSE.txt"),
+                                    abs_src_path=str(mermaid / "LICENSE")))
     return files
 
 
@@ -128,24 +181,6 @@ def _rewrite_parent_links(markdown: str) -> str:
     return "".join(out)
 
 
-def _description(markdown: str, limit: int = 160) -> str | None:
-    """Plain text of the first paragraph, cut at a word boundary."""
-    in_fence = False
-    for block in re.split(r"\n\s*\n", markdown):
-        stripped = block.strip()
-        if _FENCE.match(stripped):
-            in_fence = not in_fence
-        if in_fence or not stripped or stripped[0] in "#|<>!-*`" or stripped[0].isdigit():
-            continue
-        text = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", stripped)
-        text = re.sub(r"[*_`]", "", text)
-        text = " ".join(text.split())
-        if len(text) > limit:
-            text = text[: limit - 1].rsplit(" ", 1)[0].rstrip(",.;:") + "…"
-        return text
-    return None
-
-
 def on_page_markdown(markdown: str, page: Page, config: MkDocsConfig, files: Files) -> str:
     # docs/ pages all sit at the top level, so ../ always means the repository root.
     if posixpath.dirname(page.file.src_uri):
@@ -154,10 +189,8 @@ def on_page_markdown(markdown: str, page: Page, config: MkDocsConfig, files: Fil
     if page.is_homepage:
         page.meta.setdefault("template", "home.html")
         page.meta.setdefault("description", config.site_description)
-    else:
-        description = _description(markdown)
-        if description:
-            page.meta.setdefault("description", description)
+    elif page.file.src_uri in config.extra["summaries"]:
+        page.meta.setdefault("description", config.extra["summaries"][page.file.src_uri])
     return markdown
 
 

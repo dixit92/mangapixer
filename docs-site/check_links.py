@@ -6,12 +6,16 @@ Every internal href/src in the generated HTML (relative, root-relative, or an
 absolute URL on the site's own host) must resolve to a file in the build
 output, and every #fragment must match an id on the target page. The sitemap
 and robots.txt must exist and name only pages that were built. External links
-are not fetched (the check stays deterministic and offline). Standard library
-only, so it runs before or without the site requirements.
+are not fetched (the check stays deterministic and offline).
+
+It also enforces the privacy rule for the site: no page may load a script,
+stylesheet, font, image or frame from another host at run time (links the
+reader clicks are fine). Standard library only.
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
@@ -26,6 +30,7 @@ class _Collector(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.ids: set[str] = set()
         self.links: list[str] = []
+        self.loads: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = dict(attrs)
@@ -35,6 +40,11 @@ class _Collector(HTMLParser):
         for key in ("href", "src"):
             if values.get(key) and not (tag == "link" and values.get("rel") in ("canonical",)):
                 self.links.append(values[key])
+        # Resources the browser fetches on its own, without a click.
+        if tag in ("script", "img", "iframe", "source", "video", "audio") and values.get("src"):
+            self.loads.append(values["src"])
+        if tag == "link" and values.get("href") and values.get("rel") not in ("canonical", "alternate", "next", "prev"):
+            self.loads.append(values["href"])
 
 
 def _target(site: Path, page: Path, link: str) -> tuple[Path, str] | None:
@@ -81,6 +91,16 @@ def main(site_dir: str) -> int:
                 errors.append(f"{where}: broken link {link}")
             elif fragment and target.suffix == ".html" and fragment not in parsed[target].ids:
                 errors.append(f"{where}: missing anchor {link}")
+
+        for load in collector.loads:
+            host = urlsplit(load).hostname
+            if (host and host != SITE_HOST) or load.startswith("//"):
+                errors.append(f"{page.relative_to(site).as_posix()}: loads a third-party resource {load}")
+
+    for sheet in sorted(site.rglob("*.css")):
+        for url in re.findall(r"(?:url\(|@import\s+)['\"]?((?:https?:)?//[^'\")\s]+)", sheet.read_text(encoding="utf-8")):
+            if urlsplit(url).hostname != SITE_HOST:
+                errors.append(f"{sheet.relative_to(site).as_posix()}: loads a third-party resource {url}")
 
     sitemap = site / "sitemap.xml"
     robots = site / "robots.txt"

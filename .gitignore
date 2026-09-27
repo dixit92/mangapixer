@@ -110,3 +110,4 @@ deploy/compose.unraid.override.yaml
 
 # Documentation site build output (mkdocs build)
 /site/
+/docs-site/.cache/
