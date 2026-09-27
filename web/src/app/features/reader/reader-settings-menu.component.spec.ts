@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { Subject } from 'rxjs';
 import { WritableSignal, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
@@ -473,10 +474,10 @@ describe('ReaderSettingsMenuComponent', () => {
 describe('ReaderOptionsSheetComponent', () => {
   function makeHost(overrides: Partial<{
     view: ReaderView; viewPref: ViewPref | null; shifted: boolean; fit: FitMode; dir: ReadingDirection;
-    prev: boolean; next: boolean; narrow: boolean;
+    prev: boolean; next: boolean; narrow: boolean; bookmarked: boolean; favorite: boolean;
   }> = {}) {
     const o = { view: 'paged' as ReaderView, viewPref: null as ViewPref | null, shifted: true, fit: 'screen' as FitMode,
-      dir: 'ltr' as ReadingDirection, prev: false, next: true, narrow: false, ...overrides };
+      dir: 'ltr' as ReadingDirection, prev: false, next: true, narrow: false, bookmarked: false, favorite: false, ...overrides };
     const host: ReaderOptionsHost = {
       view: signal(o.view),
       viewPref: signal(o.viewPref),
@@ -489,6 +490,8 @@ describe('ReaderOptionsSheetComponent', () => {
       hasNextChapter: signal(o.next),
       prevNeighbor: signal(o.prev ? { displayName: 'Ch 0' } : null),
       nextNeighbor: signal(o.next ? { displayName: 'Ch 2' } : null),
+      isCurrentPageBookmarked: signal(o.bookmarked),
+      currentFavorite: signal(o.favorite),
       chooseView: vi.fn(),
       chooseSpread: vi.fn(),
       setFitMode: vi.fn(),
@@ -497,12 +500,16 @@ describe('ReaderOptionsSheetComponent', () => {
       prevChapter: vi.fn(),
       nextChapter: vi.fn(),
       toggleHelp: vi.fn(),
+      toggleBookmark: vi.fn(),
+      openBookmarks: vi.fn(),
+      toggleFavorite: vi.fn(),
     };
     return host;
   }
 
   function create(host: ReaderOptionsHost = makeHost()) {
-    const ref = { dismiss: vi.fn() };
+    const dismissed = new Subject<void>();
+    const ref = { dismiss: vi.fn(() => { dismissed.next(); dismissed.complete(); }), afterDismissed: () => dismissed.asObservable() };
     // Reset first so a single test may call create() several times (the
     // activeLayout test creates the sheet once per layout scenario).
     TestBed.resetTestingModule();
@@ -806,6 +813,57 @@ describe('ReaderOptionsSheetComponent', () => {
       TestBed.inject(ReaderPreferencesService).setPageQuality('full');
       c.pickDownscaleFilter('sharp');
       expect(TestBed.inject(ReaderPreferencesService).downscaleFilter()).toBe('balanced');
+    });
+  });
+
+  describe('Bookmark / Bookmarks / Favorite row (1.27.0 phone reader)', () => {
+    const action = (el: HTMLElement, text: string) =>
+      Array.from(el.querySelectorAll<HTMLButtonElement>('.action-row button')).find((b) => (b.textContent ?? '').includes(text))!;
+
+    it('offers the three desktop actions with the desktop screen-reader labels', () => {
+      const { el } = create();
+      const buttons = Array.from(el.querySelectorAll<HTMLButtonElement>('.action-row button'));
+      expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['Bookmark this page', 'Bookmarks', 'Add to favorites']);
+      expect(action(el, 'Bookmark page').getAttribute('aria-pressed')).toBe('false');
+      expect(action(el, 'Favorite').getAttribute('aria-pressed')).toBe('false');
+      expect(action(el, 'Bookmarks').getAttribute('aria-haspopup')).toBe('dialog');
+      // Touch targets: real buttons, reachable by keyboard.
+      for (const b of buttons) expect(b.tagName).toBe('BUTTON');
+    });
+
+    it('shows the live state: filled glyph, highlight, pressed, and the "remove" labels', () => {
+      const host = makeHost();
+      const { fixture, el } = create(host);
+      (host.isCurrentPageBookmarked as ReturnType<typeof signal<boolean>>).set(true);
+      (host.currentFavorite as ReturnType<typeof signal<boolean>>).set(true);
+      fixture.detectChanges();
+      const bookmark = action(el, 'Bookmark page');
+      const favorite = action(el, 'Favorite');
+      expect(bookmark.getAttribute('aria-label')).toBe('Remove bookmark from this page');
+      expect(bookmark.getAttribute('aria-pressed')).toBe('true');
+      expect(bookmark.classList.contains('selected')).toBe(true);
+      expect(bookmark.querySelector('mat-icon')?.textContent?.trim()).toBe('bookmark');
+      expect(favorite.getAttribute('aria-label')).toBe('Remove from favorites');
+      expect(favorite.getAttribute('aria-pressed')).toBe('true');
+      expect(favorite.querySelector('mat-icon')?.textContent?.trim()).toBe('star');
+    });
+
+    it('the toggles call the reader handlers and keep the sheet open', () => {
+      const { el, host, ref } = create();
+      action(el, 'Bookmark page').click();
+      action(el, 'Favorite').click();
+      expect(host.toggleBookmark).toHaveBeenCalledTimes(1);
+      expect(host.toggleFavorite).toHaveBeenCalledTimes(1);
+      expect(ref.dismiss).not.toHaveBeenCalled();
+    });
+
+    it('Bookmarks closes this sheet first, then opens the bookmarks list once it has gone', () => {
+      const { el, host, ref } = create();
+      action(el, 'Bookmarks').click();
+      expect(ref.dismiss).toHaveBeenCalledTimes(1);
+      expect(host.openBookmarks).toHaveBeenCalledTimes(1);
+      const opened = (host.openBookmarks as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+      expect(ref.dismiss.mock.invocationCallOrder[0]).toBeLessThan(opened);
     });
   });
 

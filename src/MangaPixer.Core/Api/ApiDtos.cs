@@ -234,7 +234,8 @@ public sealed record ReadingProgressDto
     /// per-archive at read time and NON-DESTRUCTIVELY (the stored <see cref="PageIndex"/>
     /// is never rewritten because of this). For an item WITHOUT a read-mark this equals
     /// <see cref="PageIndex"/> (resume where you left off). For a READ item (has a
-    /// read-mark): the last page (PageIndex &gt;= PageCount-1) always opens at 0; a
+    /// read-mark): a position at the end - the last page or near it, see
+    /// <see cref="NearEndRule"/> (1.27.0) - always opens at 0; a
     /// mid-archive position opens at 0 when the user's
     /// <see cref="UserPreferencesDto.AlwaysOpenReadFromStart"/> is on, else resumes; no
     /// saved position opens at 0. Keys off POSITION, not the Completed enum, so it is

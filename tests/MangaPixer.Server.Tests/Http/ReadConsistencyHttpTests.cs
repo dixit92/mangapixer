@@ -156,6 +156,37 @@ public sealed class ReadConsistencyHttpTests : IClassFixture<MangaPixerWebApplic
     }
 
     [Fact]
+    public async Task NearTheEnd_MarksRead_AndOpensAtStart_OverHttp()
+    {
+        // 1.27.0: 19/20 counts as finished - read-mark set, reopens at page 1, and it
+        // leaves Continue reading. 18/20 of a second archive stays a mid-read resume.
+        var nearEnd = await SeedItemAsync("rc-ne-done", pageCount: 20);
+        var midRead = await SeedItemAsync("rc-ne-mid", pageCount: 20);
+        var client = await ClientAsync();
+        await SetPreferenceAsync(client, false);
+
+        await PutProgressAsync(client, nearEnd, 18, ifMatch: null, mutationId: "rc-ne-18");
+        await PutProgressAsync(client, midRead, 17, ifMatch: null, mutationId: "rc-ne-17");
+
+        var done = await GetProgressAsync(client, nearEnd);
+        Assert.Equal(ReadingState.Completed, done.State);
+        Assert.Equal(18, done.PageIndex);      // stored position untouched
+        Assert.Equal(0, done.OpenPageIndex);
+        var doneMark = await client.GetFromJsonAsync<ReadMarkDto>($"/api/v1/reading/{nearEnd}/read", TestJson.Web);
+        Assert.True(doneMark!.IsRead);
+
+        var mid = await GetProgressAsync(client, midRead);
+        Assert.Equal(ReadingState.InProgress, mid.State);
+        Assert.Equal(17, mid.OpenPageIndex);
+        var midMark = await client.GetFromJsonAsync<ReadMarkDto>($"/api/v1/reading/{midRead}/read", TestJson.Web);
+        Assert.False(midMark!.IsRead);
+
+        var cont = await client.GetStringAsync("/api/v1/reading/continue");
+        Assert.DoesNotContain(nearEnd, cont);
+        Assert.Contains(midRead, cont);
+    }
+
+    [Fact]
     public async Task Preferences_AlwaysOpenReadFromStart_RoundTrips()
     {
         var client = await ClientAsync();

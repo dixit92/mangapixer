@@ -35,8 +35,9 @@ For a reader with no Safari bars at all, add MangaPixer to the Home Screen (**Sh
 
 ### On phones
 
-On screens narrower than 600 px, the toolbar keeps only **Next archive**, **Fullscreen** and **Reader options** (⋮). **Reader options** opens a bottom sheet with every other setting:
+On screens narrower than 600 px, the toolbar keeps only **Next archive**, **Fullscreen** and **Reader options** (⋮). **Reader options** opens a bottom sheet with everything else:
 
+- **Bookmark page**, **Bookmarks** and **Favorite**, the same actions as the desktop toolbar's bookmark buttons and star. A bookmarked page or a favorite archive shows the filled icon, highlighted. **Bookmarks** closes the sheet and opens the list of this archive's bookmarks.
 - **Layout**
 - **Image fit**
 - **Reading direction**
@@ -45,7 +46,7 @@ On screens narrower than 600 px, the toolbar keeps only **Next archive**, **Full
 - In vertical mode, **Page width** and **Tap to scroll** replace the paged-only groups.
 - **Previous archive**, **Next archive** and **Reading help**.
 
-Changing a setting keeps the sheet open.
+Changing a setting, bookmarking the page or favoriting the archive keeps the sheet open.
 
 ![The Reader options bottom sheet on a phone in vertical mode: Layout, Page width, Tap to scroll, Upscaling with Crisp selected (AMD FSR 1), and Page quality](../assets/screenshots/docs-reader-phone-options.png)
 
@@ -252,20 +253,40 @@ On the server, the page you are looking at always takes priority over prefetchin
 
 ## Where you resume
 
-The server saves your position as you read, including when you let go of the page slider. When you open an archive again:
+The server saves your position as you read, including when you let go of the page slider and when you switch away from the browser or app. When you open an archive again:
 
 | Archive state | Opens on |
 |---|---|
 | Never opened | Page 1 |
 | Started, not finished | The page where you left off |
-| Finished (you reached the last page) | Page 1 |
-| Marked read, but you last stopped partway through | Where you left off, or page 1 if **Always open read archives from the start** is on |
+| Finished (you reached the end: the last page or [near it](#near-the-end-counts-as-finished)) | Page 1 |
+| Marked read, but you last stopped partway through (before the end) | Where you left off, or page 1 if **Always open read archives from the start** is on |
+
+This works the same in every mode: in vertical mode the archive opens scrolled to that page.
 
 **Always open read archives from the start** is in **Settings** > **Reading**. It is off by default and saved to your account.
 
 ## Read and unread
 
-**Reaching the last page marks an archive as read.** In vertical mode, scrolling to the very bottom counts. The read mark is sticky: going back to an earlier page later does not make the archive unread again. Arriving on an archive's last page through **Previous archive** does not mark it read.
+**Reaching the end marks an archive as read**: the last page, or near it (below). In vertical mode, scrolling to the very bottom counts. The read mark is sticky: going back to an earlier page later does not make the archive unread again. Arriving at the end of an archive through **Previous archive** does not mark it read, even if you then step back a page or two; going back past the end does resume saving.
+
+### Near the end counts as finished
+
+Stopping on page 19 of 20 counts the same as stopping on page 20. A position is at the end when at most **n** pages follow it, where **n** is 5% of the archive's pages rounded down, at least 1 and at most 5:
+
+| Pages in the archive | Pages that count as the end |
+|---|---|
+| 1 | page 1 |
+| 2 | page 2 (the first page never counts) |
+| 3 to 39 | the last 2 pages (19/20 and 20/20) |
+| 40 to 59 | the last 3 pages |
+| 60 to 79 | the last 4 pages |
+| 80 to 99 | the last 5 pages |
+| 100 or more | the last 6 pages (195/200 counts, 190/200 does not) |
+
+The same rule both marks the archive read and decides that a read archive opens on page 1, so an archive that reopens at the start always shows as read. In double page mode, a spread counts once its later page is at the end.
+
+This rule applies from version 1.27.0 on. Existing reading positions and read marks are not changed: an archive you left on page 19 of 20 before the update keeps its **Reading** state and resumes there, and is marked read the next time you reach the end.
 
 There is no mark-read button inside the reader. To mark archives or whole folders yourself, use the library view:
 

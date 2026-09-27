@@ -103,7 +103,9 @@ public sealed class ReadingStateService
     /// <summary>
     /// Computes the page index the reader should OPEN at (1.9.0), keyed off POSITION
     /// (Ordinal vs PageCount) rather than the Completed enum so it is robust to the
-    /// re-read State-flip. See <see cref="ReadingProgressDto.OpenPageIndex"/>.
+    /// re-read State-flip. "At the end" is <see cref="NearEndRule"/> (1.27.0), the same
+    /// rule that sets the read-mark on completion. See
+    /// <see cref="ReadingProgressDto.OpenPageIndex"/>.
     /// </summary>
     internal static int ComputeOpenPageIndex(bool hasMark, int ordinal, int? pageCount, bool alwaysOpenReadFromStart)
     {
@@ -111,9 +113,9 @@ public sealed class ReadingStateService
         if (!hasMark)
             return ordinal < 0 ? 0 : ordinal;
 
-        // Read archive, finished on the last page: always reopen from the start,
-        // regardless of the preference.
-        if (pageCount is int pc && pc > 0 && ordinal >= pc - 1)
+        // Read archive, finished at the end (1.27.0: the last page or near it, see
+        // NearEndRule): always reopen from the start, regardless of the preference.
+        if (NearEndRule.IsAtEnd(ordinal, pageCount))
             return 0;
 
         // Read archive, mid-position: start from page 1 only when opted in; otherwise
@@ -177,8 +179,9 @@ public sealed class ReadingStateService
                 return UpdateProgressResult.PreconditionFailed(currentRevision);
         }
 
-        var pageCount = item.PageCount ?? 0;
-        var isCompleted = pageCount > 0 && pageIndex >= pageCount - 1;
+        // Reaching the end - the last page or near it (1.27.0, NearEndRule) - completes
+        // the item. The same rule decides where a read archive reopens.
+        var isCompleted = NearEndRule.IsAtEnd(pageIndex, item.PageCount);
         var state = isCompleted ? (int)ReadingState.Completed : (int)ReadingState.InProgress;
 
         // Applies this write to an existing tracked progress row. Shared by the
@@ -236,7 +239,8 @@ public sealed class ReadingStateService
             ApplyUpdate(progress);
         }
 
-        // Sticky read-mark: reaching the last page auto-marks the item read (1.2.0).
+        // Sticky read-mark: reaching the end auto-marks the item read (1.2.0; near the
+        // end counts since 1.27.0).
         // Tracked here so it commits atomically with the progress row. Backward
         // navigation takes the re-reading branch above (isCompleted == false), so it
         // never removes the mark.

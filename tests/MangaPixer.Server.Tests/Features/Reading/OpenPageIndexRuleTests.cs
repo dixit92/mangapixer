@@ -36,6 +36,31 @@ public sealed class OpenPageIndexRuleTests
             hasMark: true, ordinal, pageCount, alwaysFromStart));
     }
 
+    // 1.27.0 near the end counts as the end (NearEndRule): a read archive saved within
+    // the last n = min(5, max(1, 5%)) pages reopens at page 1 with the option off.
+    [Theory]
+    [InlineData(18, 20)]   // 19/20 - owner example
+    [InlineData(19, 21)]   // 20/21
+    [InlineData(94, 100)]  // 95/100
+    [InlineData(194, 200)] // 195/200 - owner example
+    [InlineData(1, 2)]     // two pages: only the last one
+    [InlineData(0, 1)]
+    public void Mark_NearTheEnd_OpensAtStart(int ordinal, int pageCount)
+        => Assert.Equal(0, ReadingStateService.ComputeOpenPageIndex(
+            hasMark: true, ordinal, pageCount, alwaysOpenReadFromStart: false));
+
+    // Just outside the near-end zone: a read archive resumes the saved spot (option off).
+    [Theory]
+    [InlineData(17, 20)]   // 18/20
+    [InlineData(18, 21)]   // 19/21
+    [InlineData(93, 100)]  // 94/100
+    [InlineData(189, 200)] // 190/200 - owner example: resume mid
+    [InlineData(193, 200)] // 194/200
+    [InlineData(0, 2)]     // page 1 of 2 is never the end
+    public void Mark_JustBeforeTheEnd_Resumes(int ordinal, int pageCount)
+        => Assert.Equal(ordinal, ReadingStateService.ComputeOpenPageIndex(
+            hasMark: true, ordinal, pageCount, alwaysOpenReadFromStart: false));
+
     // Read archive, mid-archive saved position: resume when the option is OFF (default),
     // start from page 1 when it is ON.
     [Fact]
