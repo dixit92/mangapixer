@@ -1,0 +1,106 @@
+# MangaPixer documentation site (https://mangapixer.com), built from docs/ in place.
+#
+# docs/ stays the single source: the pages render on GitHub as they are, and
+# docs-site/hooks.py adapts them for the site at build time (nav from the
+# docs/README.md tables, links to files outside docs/ rewritten to GitHub, the
+# screenshots and icons copied in, robots.txt). Build tooling only: nothing here
+# ships in the product image. See docs-site/README.md for the build commands.
+
+site_name: MangaPixer
+site_url: https://mangapixer.com/
+site_description: >-
+  A self-hosted, multi-user, folder-native manga and comic library server with
+  a web reader. Serves the CBZ and CBR folders you already have to any browser;
+  runs in Docker, on Unraid or standalone on Windows.
+site_author: MangaPixer contributors
+repo_url: https://github.com/dixit92/mangapixer
+repo_name: dixit92/mangapixer
+edit_uri: edit/dev/docs/
+copyright: Copyright &copy; 2026 Lifepixer LLC. MangaPixer is released under the MIT License.
+
+docs_dir: docs
+site_dir: site
+strict: true
+use_directory_urls: true
+
+# The nav is generated from docs/README.md by docs-site/hooks.py (on_config);
+# a page missing from that index fails the build.
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+hooks:
+  - docs-site/hooks.py
+
+theme:
+  name: material
+  custom_dir: docs-site/overrides
+  language: en
+  # No Google Fonts (privacy): the theme falls back to the system font stack.
+  font: false
+  logo: assets/icons/icon-circle.png
+  favicon: assets/icons/favicon.ico
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - toc.follow
+
+extra_css:
+  - assets/stylesheets/site.css
+
+plugins:
+  # Local search index (lunr, runs in the browser); no external service.
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: false
+  - pymdownx.inlinehilite
+  - toc:
+      permalink: true
+      # GitHub-style heading ids, so #anchors written for GitHub work here too.
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+
+extra:
+  generator: false
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/dixit92/mangapixer
+      name: MangaPixer on GitHub
+  # Used by docs-site/overrides/main.html for Open Graph, Twitter card and JSON-LD.
+  seo:
+    image: assets/social-card.png
+    tagline: self-hosted manga and comic server with a web reader
+    image_alt: MangaPixer - self-hosted manga and comic server with a web reader
+    license: https://opensource.org/license/mit
+    download_url: https://github.com/dixit92/mangapixer/releases

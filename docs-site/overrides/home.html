@@ -1,0 +1,37 @@
+{#- Landing page: docs/README.md (the docs index) under a short hero. The
+    hero reuses the README tagline and introduction sentence. -#}
+{% extends "main.html" %}
+
+{% block htmltitle %}
+  <title>{{ config.site_name }} - {{ config.extra.seo.tagline }}</title>
+{% endblock %}
+
+{% block extrahead %}
+  {{ super() }}
+  <script type="application/ld+json">
+{{ config.extra.jsonld }}
+  </script>
+{% endblock %}
+
+{% block hero %}
+<section class="mp-hero" aria-labelledby="mp-hero-title">
+  <div class="mp-hero__inner md-grid">
+    <div class="mp-hero__text">
+      <img class="mp-hero__logo" src="{{ 'assets/icons/icon-circle.png' | url }}" alt="" width="96" height="96">
+      <h1 id="mp-hero-title">MangaPixer</h1>
+      <p class="mp-hero__tagline">A self-hosted, multi-user, folder-native manga and comic library server with a web reader. Also works standalone on Windows!</p>
+      <p>MangaPixer serves your existing manga and comic folders to any browser.</p>
+      <p class="mp-hero__actions">
+        <a class="md-button md-button--primary" href="{{ 'install-docker/' | url }}">Install with Docker</a>
+        <a class="md-button" href="{{ 'install-unraid/' | url }}">Unraid</a>
+        <a class="md-button" href="{{ 'install-windows/' | url }}">Windows</a>
+        <a class="md-button" href="{{ 'features/' | url }}">Features</a>
+      </p>
+      <p class="mp-hero__meta">Free and open source (MIT) &middot; version {{ config.extra.version }} &middot; <a href="{{ config.repo_url }}">GitHub</a></p>
+    </div>
+    <div class="mp-hero__shot">
+      <img src="{{ 'assets/screenshots/home-desktop.jpg' | url }}" alt="MangaPixer home on desktop: Continue reading, New chapters and the library grid" width="1600" height="780" loading="eager">
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -107,3 +107,6 @@ deploy/compose.unraid.override.yaml
 
 # Per-worktree lane contract (multi-agent coordination scratch, not tracked)
 .lane-prompt.md
+
+# Documentation site build output (mkdocs build)
+/site/
