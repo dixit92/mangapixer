@@ -41,14 +41,17 @@ describe('AdminMetadataComponent', () => {
     return { fixture, el, c: fixture.componentInstance, state, navigate, http };
   }
 
-  it('opens on Settings by default, shows the four tabs and the counts', () => {
+  it('opens on Settings by default, shows the four tabs, the counts and the summary tile', () => {
     const { el, c, state, http } = create();
     expect(c.tab()).toBe('settings');
     expect(state.refresh).toHaveBeenCalled();
     const labels = Array.from(el.querySelectorAll('[role="tab"]')).map((t) => t.textContent!.replace(/\s+/g, ' ').trim());
     expect(labels).toEqual(['Settings', 'Review 7', 'Flags 2', 'Runs']);
-    expect(el.querySelector('[data-testid="admin-metadata-summary"]')!.textContent).toContain('7 to review');
-    http.expectOne('/api/v1/admin/metadata/settings'); // the Settings tab loaded its content
+    // The summary tile (owner decision 2, 1.27.0) sits above the tabs and replaces the old one-line summary.
+    expect(el.querySelector('[data-testid="metadata-summary-tile"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="tile-review"]')!.textContent).toContain('7');
+    // Both the Settings tab's own content and the in-page summary tile read settings independently.
+    expect(http.match('/api/v1/admin/metadata/settings')).toHaveLength(2);
   });
 
   it('opens the tab, review list and library named in the query string', () => {
@@ -76,5 +79,12 @@ describe('AdminMetadataComponent', () => {
     c.onReviewState({ tab: 'Unmatched', library: 'lib1' });
     expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({
       queryParams: { tab: 'review', list: 'Unmatched', library: 'lib1' } }));
+  });
+
+  it('the summary tile\'s stats switch tabs in place instead of navigating away', () => {
+    const { c, el, navigate } = create();
+    (el.querySelector('[data-testid="tile-auto"]') as HTMLButtonElement).click();
+    expect(c.tab()).toBe('runs');
+    expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { tab: 'runs', list: null, library: null } }));
   });
 });

@@ -1,10 +1,12 @@
 import { test, expect, Page, APIRequestContext, Request, Route } from '@playwright/test';
 
 /**
- * The series-metadata admin page (metadata stage 2, lane C) - NEVER the real network:
- * - the main admin page shows the summary tile (Logging stays the last card) and opens
- *   /admin/metadata, whose four tabs render with the stage-2 endpoints implemented OR
- *   still answering 501 (the page explains that instead of breaking);
+ * The Metadata Manager admin page (metadata stage 2, lane C; renamed from "Series
+ * metadata" in 1.27.0) - NEVER the real network:
+ * - the account menu opens /admin/metadata (the main admin page has no tile of its own
+ *   any more - Logging stays its last card), whose own summary tile sits above four
+ *   tabs that render with the stage-2 endpoints implemented OR still answering 501 (the
+ *   page explains that instead of breaking);
  * - "Automatic matching" is consent-gated: the switch is disabled until the automatic-
  *   lookups consent is ticked, NO automatic-matching call is made before that, and
  *   turning it on is one settings PUT (no match / run request, no provider request,
@@ -72,24 +74,37 @@ function watchForeignRequests(page: Page, baseURL: string): string[] {
   return foreign;
 }
 
-test('admin page: summary tile opens /admin/metadata with four tabs; Logging stays last', async ({ page, baseURL }) => {
+test('account menu opens Metadata Manager (/admin/metadata) with its own summary tile and four tabs; admin page has no tile', async ({ page, baseURL }) => {
   const foreign = watchForeignRequests(page, baseURL!);
   await login(page);
   await page.goto('/admin');
-  const tile = page.getByTestId('metadata-summary-tile');
-  await expect(tile).toBeVisible();
+  // 1.27.0: the summary tile no longer sits on the main admin page (owner decision 2) - admins
+  // reach Metadata Manager from the account menu instead, which keeps its own attention badge.
+  await expect(page.getByTestId('metadata-summary-tile')).toHaveCount(0);
   await expect(page.getByTestId('metadata-settings-card')).toHaveCount(0); // the card moved
   const lastCard = await page.locator('app-admin').evaluate((el) => el.lastElementChild?.tagName.toLowerCase());
   expect(lastCard).toBe('app-debug-log-card');
-  await tile.scrollIntoViewIfNeeded();
-  await shot(page, 'c-01-admin-summary-tile');
 
-  await tile.getByTestId('tile-open').click();
+  await page.locator('button', { has: page.getByTestId('admin-attention-badge') }).click();
+  await page.getByTestId('nav-metadata').click();
   await expect(page).toHaveURL(/\/admin\/metadata$/);
+  // The summary tile now lives at the TOP of the page itself, above the tabs, in place of the
+  // old one-line summary.
+  const tile = page.getByTestId('metadata-summary-tile');
+  await expect(tile).toBeVisible();
+  await expect(tile.getByTestId('tile-open')).toHaveCount(0); // in-page: no self-link
+  await tile.scrollIntoViewIfNeeded();
+  await shot(page, 'c-01-metadata-manager-tile');
+
   const tabs = page.locator('.mat-mdc-tab-header').getByRole('tab');
   await expect(tabs).toHaveCount(4);
   await expect(page.getByTestId('metadata-settings-card')).toBeVisible();
   await shot(page, 'c-02-settings-tab', true);
+
+  // The tile's own stats switch tabs in place (owner decision 2).
+  await tile.getByTestId('tile-review').click();
+  await expect(page).toHaveURL(/tab=review/);
+  await page.goto('/admin/metadata');
 
   // Review / Flags / Runs render their data, or explain that the server does not have them yet.
   for (const [name, testId, url] of [

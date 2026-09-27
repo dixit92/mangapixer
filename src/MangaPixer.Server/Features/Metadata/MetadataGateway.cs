@@ -143,11 +143,11 @@ public sealed class MetadataGateway
             .FirstOrDefaultAsync(ct);
         if (global is not { MetadataEnabled: true } || global.MetadataConsentVersion != MetadataConsent.CurrentVersion)
             return new MetadataGatewayException(StatusCodes.Status409Conflict, "metadata_disabled",
-                "Fetching series information from the web is off. An admin can turn it on in Admin > Series metadata.");
+                "Fetching series information from the web is off. An admin can turn it on in Metadata Manager.");
         if (origin == MetadataCallOrigin.Automatic
             && (!global.MetadataAutoMatchEnabled || global.MetadataAutoConsentVersion != AutoMatch.MetadataAutoConsent.CurrentVersion))
             return new MetadataGatewayException(StatusCodes.Status409Conflict, "automatic_off",
-                "Automatic matching is off. An admin can turn it on in Admin > Series metadata.");
+                "Automatic matching is off. An admin can turn it on in Metadata Manager.");
 
         var libraryEnabled = await _db.Libraries.AsNoTracking()
             .Where(l => l.Id == libraryId)
@@ -336,7 +336,7 @@ public sealed class MetadataGateway
 
     private static MetadataGatewayException BudgetExhausted() =>
         new(StatusCodes.Status429TooManyRequests, "budget_exhausted",
-            "Today's metadata request budget is used up. It resets at 00:00 UTC; an admin can raise it in Admin > Series metadata.");
+            "Today's metadata request budget is used up. It resets at 00:00 UTC; an admin can raise it in Metadata Manager.");
 
     /// <summary>Classifies a failed call, updates the persisted backoff / last error, and returns the error to throw.</summary>
     private async Task<MetadataGatewayException> FailAsync(string providerId, string operation, long libraryId, Exception ex, long elapsedMs, CancellationToken ct)
