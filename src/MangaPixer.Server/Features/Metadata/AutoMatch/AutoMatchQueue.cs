@@ -46,8 +46,18 @@ public static class AutoMatchPolicy
     public static readonly TimeSpan FailureRetry = TimeSpan.FromMinutes(30);
     public const int MaxAttempts = 3;
 
-    /// <summary>At most this many query variants are sent per work.</summary>
+    /// <summary>
+    /// At most this many searches are sent per work - query variants and page-2 reads together (1.27.0: a
+    /// page-2 read spends one of them; nothing else about a work's request bound changed).
+    /// </summary>
     public const int MaxSearchesPerWork = 4;
+
+    /// <summary>
+    /// Page 2 of the same search text is read (1.27.0) when page 1 left the top two tied - raw title scores
+    /// within this of each other and the adjusted lead below the margin - or nothing at the review floor, and
+    /// the provider reports more hits than page 1 held.
+    /// </summary>
+    public const double PageTwoTieWithin = 0.02;
 
     /// <summary>A variant whose best raw title score reaches this stops the variant loop.</summary>
     public const double ConfidentTitle = 0.85;

@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangapixer.Tests.Core.Metadata.AutoMatch.Golden;
+namespace com.lifepixer.mangapixer.Tests.Server.Features.Metadata.AutoMatch.Golden;
 
 using System.Globalization;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
@@ -38,6 +38,9 @@ public static class GoldenCases
     private static IEnumerable<string> Chaps(string title, int n) =>
         Enumerable.Range(1, n).Select(i => string.Create(CultureInfo.InvariantCulture, $"{title} - Chapter {i:000}.cbz"));
 
+    private static IEnumerable<string> ChapTokens(string title, int n) =>
+        Enumerable.Range(1, n).Select(i => string.Create(CultureInfo.InvariantCulture, $"{title} Ch. {i:000}.cbz"));
+
     private static IEnumerable<string> Units(int n) =>
         Enumerable.Range(1, n).Select(i => string.Create(CultureInfo.InvariantCulture, $"{i:000} [Chapter Title {i}].cbz"));
 
@@ -68,6 +71,10 @@ public static class GoldenCases
     private const string Punpun = "21944750964";
     private const string FirePunch = "32334361267";
     private const string YotsubaDjYanda = "57918701059";
+    private const string TenseiKizoku = "46692009496";
+    private const string IsekaiCheatSkill = "15495823031";
+    private const string Kingdom = "4324727424";
+    private const string BerserkOfGluttonyComic = "74072114866";
 
     private static readonly string[] s_artistFolder =
     [
@@ -117,7 +124,9 @@ public static class GoldenCases
         new("F05 romaji, chapters (novel twins filtered)", F("Shingeki no Kyojin", Chaps("Shingeki no Kyojin", 139)), WorkClass.Series, MatchBand.Auto, AttackOnTitan),
         new("F06 English name, volumes", F("Attack on Titan", Vols("Attack on Titan", 34)), WorkClass.Series, MatchBand.Auto, AttackOnTitan),
         new("F07 manhwa under a Manhwa category", F("Solo Leveling", Units(200), "Manhwa"), WorkClass.Series, MatchBand.Auto, SoloLeveling),
-        new("F08 manhwa under a Manga category: origin conflict -> review", F("Solo Leveling", Units(200), "Manga"), WorkClass.Series, MatchBand.NeedsReview, SoloLeveling, Vetoes: MatchReason.TypeConflict),
+        // 1.27.0 band change (intended): the category hint is positive-only (owner option a'), so a manhwa filed
+        // under a "Manga" folder auto-links instead of going to review with a type conflict.
+        new("F08 manhwa under a Manga category: the hint is positive-only, still auto", F("Solo Leveling", Units(200), "Manga"), WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None),
         new("F09 scene-style archive names", F("Vinland Saga", Vols("Vinland Saga", 12, " (2013) (Digital) (Scan Team)")), WorkClass.Series, MatchBand.Auto, VinlandSaga),
         new("F10 meaningless folder name, ComicInfo series", F("Unsorted Batch", Vols("Vinland Saga", 5)), WorkClass.Series, MatchBand.Auto, VinlandSaga, ComicInfo: "Vinland Saga"),
         new("F11 long-running chapters", F("One Piece", Chaps("One Piece", 1100)), WorkClass.Series, MatchBand.Auto, OnePiece),
@@ -172,6 +181,35 @@ public static class GoldenCases
         new("A10 doujin anatomy: a lone archive of a 7-volume dj record links to it (one archive may hold the whole series)", F("Doujin Shelf", s_doujinShelfLone), WorkClass.CollectionLeaf,
             MatchBand.Auto, YotsubaDjYanda, DoujinAllowed: true, GroupTitle: "Yanda&", Content: ContentSuggestion.DoujinshiAndAdultOneShots),
         new("A09 mixed folder: review only", F("Berserk", ["Berserk v01.cbz"], subs: [("Berserk Gaiden", 2)]), WorkClass.Mixed, MatchBand.NeedsReview, Berserk),
+
+        // --- 1.27.0: the live automatic-matching run (2026-09-27), as PUBLIC lookalikes ------------
+        new("L01 T: season-renumbered webtoon, chapter-token archives (latest chapter 235, status total 652)",
+            F("Tower of God", ChapTokens("Tower of God", 600), "Manhwa"), WorkClass.Series, MatchBand.Auto, TowerOfGod, Vetoes: MatchReason.None),
+        new("L02 category hint positive-only: a webtoon under a Manga folder", F("Tower of God", Units(600), "Manga"),
+            WorkClass.Series, MatchBand.Auto, TowerOfGod, Vetoes: MatchReason.None),
+        new("L03 count by number: six volumes plus six .5 extras", F("Akira", Vols("Akira", 6).Concat(Vols("Akira", 6, ".5"))),
+            WorkClass.Series, MatchBand.Auto, Akira, Vetoes: MatchReason.None),
+        // The series and its spin-off are named "<Title> - <Subtitle>" / "<Title> ~Subtitle~"; the spin-off also lists the bare
+        // "<Title>" as an alias. Both are the shared head: review, the series first (1.26.1 would have auto-linked the spin-off).
+        new("L04 V: tilde / dash subtitle heads, spin-off alias", F("Tensei Kizoku no Isekai Boukenroku", Vols("Tensei Kizoku no Isekai Boukenroku", 5)),
+            WorkClass.Series, MatchBand.NeedsReview, TenseiKizoku),
+        // Like the live run: the long record is on neither page 1 nor page 2 - unmatched, and no "close second" chip.
+        new("L05 R: the leading words of a long title", F("Isekai de Cheat Skill", Vols("Isekai de Cheat Skill", 3)), WorkClass.Series, MatchBand.Unmatched,
+            Vetoes: MatchReason.None),
+        // The archive title extends the folder name, so it is the second search; two related records (the series and its
+        // "Girls Side" spin-off) share that whole name before their subtitles - review, the series first.
+        new("L06 R: the archives carry the whole long title", F("Isekai de Cheat Skill",
+            Vols("Isekai de Cheat Skill wo Te ni Shita Ore wa, Genjitsu Sekai wo mo Musou Suru", 5)), WorkClass.Series, MatchBand.NeedsReview, IsekaiCheatSkill),
+        new("L07 one-word title with many look-alike records", F("Kingdom", Vols("Kingdom", 70)), WorkClass.Series, MatchBand.Auto, Kingdom),
+        // The webtoon record's alt "Berserk of Gluttony (Webtoon)" scored a false 1.00 once stripped and tied the manga (1.26.1: review).
+        new("L11 B trap: another record's alt title carries a (disambiguator)", F("Berserk of Gluttony", Vols("Berserk of Gluttony", 8)), WorkClass.Series,
+            MatchBand.Auto, BerserkOfGluttonyComic),
+        new("L12 English totals reach the count rule (IZE Press 13+2 volumes, five chapter platforms at 201)",
+            F("Solo Leveling", Vols("Solo Leveling", 15), "Manhwa"), WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None),
+        new("L08 author before a plain dash", F("Urasawa Naoki - Monster", Vols("Monster", 18)), WorkClass.Series, MatchBand.Auto, MonsterUrasawa),
+        new("L09 author after \"by\" in a collection", F("Shelf", ["Look Back by Fujimoto Tatsuki.cbz", "Akira v01.cbz", "Oyasumi Punpun v01.cbz"]),
+            WorkClass.CollectionLeaf, MatchBand.Auto, LookBack, GroupTitle: "Look Back by Fujimoto Tatsuki"),
+        new("L10 trailing [Two Words] that is the author", F("Monster [Urasawa Naoki]", Vols("Monster", 18)), WorkClass.Series, MatchBand.Auto, MonsterUrasawa),
 
         // --- Detector only ---------------------------------------------------------------------
         new("D01 category container", F("Manga", [], depth: 1, subs: [("Berserk", 41), ("Vinland Saga", 12), ("One Piece", 1100)]), WorkClass.CollectionContainer),

@@ -34,6 +34,36 @@ public sealed class MatchQueryPlannerTests
     }
 
     [Fact]
+    public void ArchiveTitle_ThatExtendsTheFolderName_IsTheSecondSearch()
+    {
+        // The folder is the leading words of a long title; the archives carry the whole title.
+        var q = PlanFolder(Folder("Alpha to Beta Gamma [Some English Name]",
+            ["Alpha to Beta Gamma Delta Epsilon Zeta v01.cbz", "Alpha to Beta Gamma Delta Epsilon Zeta v02.cbz"]));
+
+        Assert.Equal(
+        [
+            ("Alpha to Beta Gamma", QueryVariantKind.Primary),
+            ("Alpha to Beta Gamma Delta Epsilon Zeta", QueryVariantKind.ArchiveDerivedTitle),
+            ("Some English Name", QueryVariantKind.EnglishTitle),
+        ], q.Variants.Select(v => (v.Text, v.Kind)));
+    }
+
+    [Fact]
+    public void Context_LocalUnits_AreTheHighestNumbers_AndUnitSubfolderCounts()
+    {
+        var names = Enumerable.Range(1, 6).Select(i => $"Some Series v0{i}.cbz")
+            .Concat(Enumerable.Range(1, 6).Select(i => $"Some Series v0{i}.5.cbz")).ToArray();
+        var q = PlanFolder(Folder("Some Series", names));
+        Assert.Equal(12, q.Context.VolumeLikeCount);
+        Assert.Equal(6, q.Context.LocalVolumes);
+        Assert.Null(q.Context.LocalChapters);
+
+        var units = PlanFolder(Folder("Some Series", [], subs: [("Volumes", 11), ("Chapters", 80)]));
+        Assert.Equal(11, units.Context.LocalVolumes);
+        Assert.Equal(80, units.Context.LocalChapters);
+    }
+
+    [Fact]
     public void Variants_DedupeIgnoresCaseAndPunctuation()
     {
         var q = PlanFolder(Folder("Re:Zero Story", ["Re Zero Story v01.cbz", "re zero story v02.cbz"]));

@@ -39,16 +39,34 @@ public static partial class AutoMatchText
     private static partial Regex TrailingDisambiguator();
 
     /// <summary>
-    /// Words that name a category or a generic shelf, never a creator (E3: "Manga" exists as an
-    /// author name on the provider side, so a naive author match needs this stop list).
+    /// Category folder words (1.27.0: the ONE category list, shared with the server's tree snapshot): a folder
+    /// named exactly one of these (whole name, case-insensitive) is the category hint of the folders below it.
+    /// <c>manga</c> / <c>manhwa</c> / <c>manhua</c> / <c>webtoon(s)</c> also name an origin
+    /// (<see cref="OriginsForCategory"/>); the hint only ever ADDS evidence (owner option a', 2026-09-27).
     /// </summary>
-    private static readonly HashSet<string> s_categoryWords = new(StringComparer.Ordinal)
+    public static IReadOnlySet<string> CategoryFolderWords { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "manga", "manhwa", "manhua", "webtoon", "webtoons", "comic", "comics", "doujin", "doujinshi",
+    };
+
+    /// <summary>
+    /// Shelf words: generic sorting folders (status, format, "misc") that name no work and no creator. Never a
+    /// category hint; with <see cref="CategoryFolderWords"/> they form the creator stop list (E3: "Manga" exists
+    /// as an author name on the provider side).
+    /// </summary>
+    public static IReadOnlySet<string> ShelfWords { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
         "one shots", "oneshots", "one shot", "oneshot", "anthology", "anthologies", "magazine", "magazines",
         "ongoing", "completed", "complete", "finished", "misc", "other", "others", "various", "unsorted",
         "new", "read", "unread", "hentai", "adult", "artbook", "artbooks", "novel", "novels", "light novels",
     };
+
+    /// <summary>Both subsets, compared by scoring form: a category or shelf word, never a creator.</summary>
+    private static readonly HashSet<string> s_categoryWords =
+        new(CategoryFolderWords.Concat(ShelfWords).Select(TitleNormalizer.ScoringForm), StringComparer.Ordinal);
+
+    /// <summary>True when a folder name, whole and trimmed, is a category folder word (the library root is never asked).</summary>
+    public static bool IsCategoryFolderName(string? name) => name is not null && CategoryFolderWords.Contains(name.Trim());
 
     /// <summary>True when the name is a unit subfolder (<c>Volumes</c>, <c>Chapters 1-50</c>, <c>Season 2</c>, <c>Part 3</c>, <c>12</c>).</summary>
     public static bool IsUnitFolderName(string? name)
@@ -68,7 +86,7 @@ public static partial class AutoMatchText
     public static bool IsChapterFolderName(string? name) =>
         IsUnitFolderName(name) && Bare(name).StartsWith("ch", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>A category or generic shelf word ("Manga", "Ongoing", "Doujinshi").</summary>
+    /// <summary>A category or generic shelf word ("Manga", "Ongoing", "Doujinshi"), by scoring form.</summary>
     public static bool IsCategoryWord(string? name) => s_categoryWords.Contains(TitleNormalizer.ScoringForm(name));
 
     /// <summary>
@@ -127,7 +145,9 @@ public static partial class AutoMatchText
     /// Years, release tags, unit markers and groups without letters are skipped; a name that is
     /// nothing but tags gives none. The scorer only uses a hint when a record's authors (or its
     /// <c>(AUTHOR Name)</c> disambiguator) name it - positive evidence only - so a scan group or an
-    /// English title in brackets costs nothing. Plain separators (<c>Author - Title</c>) are not read yet.
+    /// English title in brackets costs nothing. Since 1.27.0 plain separators are read too, in either order:
+    /// <c>Title by Author</c>, <c>Title - Chapter | Author</c>, <c>Author - Title</c> (a name-like part of 1-4 words
+    /// without digits next to the separator; a subtitle that looks like a name costs nothing either).
     /// </summary>
     public static IReadOnlyList<string> CreatorHints(string? displayName)
     {
@@ -169,7 +189,83 @@ public static partial class AutoMatchText
         rest = TitleNormalizer.SplitUnmatchedBracketTags(rest, out var leading, out var trailing);
         Add(leading);
         Add(trailing);
+
+        // Plain separators, either order (1.27.0): "Title by Author", "Title - Chapter | Author", "Author - Title".
+        foreach (var part in SeparatorNameParts(rest))
+            Add(part);
         return rest.Any(char.IsLetter) ? hints : [];
+    }
+
+    [GeneratedRegex(@"\s*\|\s*", RegexOptions.CultureInvariant)]
+    private static partial Regex PipeSeparator();
+
+    [GeneratedRegex(@"\s+by\s+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex BySeparator();
+
+    [GeneratedRegex(@"\s+[-\u2013\u2014]\s+", RegexOptions.CultureInvariant)]
+    private static partial Regex DashSeparator();
+
+    /// <summary>A plausible creator name next to a plain separator: 1-4 words, letters, no digits, not a category word.</summary>
+    private static bool IsNameLike(string? text)
+    {
+        var t = text?.Trim();
+        return !string.IsNullOrEmpty(t) && t.Any(char.IsLetter) && !t.Any(char.IsDigit)
+            && t.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 4 && IsAuthorLike(t, requireTwoTokens: false)
+            && !VolumeToken().IsMatch(t) && !ChapterToken().IsMatch(t);
+    }
+
+    /// <summary>The name-like parts next to a pipe, a " by " or a spaced dash (the text after them, or the dash's first part).</summary>
+    private static IEnumerable<string> SeparatorNameParts(string rest)
+    {
+        var pipe = PipeSeparator().Split(rest);
+        foreach (var part in pipe.Skip(1))
+            if (IsNameLike(part)) yield return part.Trim();
+        var head = pipe[0];
+        var by = BySeparator().Matches(head);
+        if (by.Count > 0 && head[(by[^1].Index + by[^1].Length)..] is var after && IsNameLike(after))
+            yield return after.Trim();
+        var dash = DashSeparator().Split(head);
+        if (dash.Length >= 2)
+        {
+            if (IsNameLike(dash[0])) yield return dash[0].Trim();
+            if (IsNameLike(dash[^1])) yield return dash[^1].Trim();
+        }
+    }
+
+    /// <summary>
+    /// The title part of a name whose author is written with a plain separator (1.27.0): the text before
+    /// <c> | Author</c> or <c> by Author</c>, and the text after <c>Author - </c> (a name-like first part). Empty
+    /// when the name has none. Retrieval only (<see cref="QueryVariantKind.CreatorSplit"/>).
+    /// </summary>
+    public static IReadOnlyList<string> CreatorSplitTitles(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+            return [];
+        var rest = ArchiveExtension().Replace(displayName.Normalize(NormalizationForm.FormKC).Trim(), string.Empty).Trim();
+        rest = Bare(rest);
+        var result = new List<string>();
+        void Add(string? title)
+        {
+            var t = title?.Trim();
+            if (!string.IsNullOrEmpty(t) && t.Count(char.IsLetter) >= 2 && !result.Contains(t, StringComparer.OrdinalIgnoreCase))
+                result.Add(t);
+        }
+
+        var pipe = PipeSeparator().Split(rest);
+        if (pipe.Length >= 2 && pipe.Skip(1).Any(IsNameLike))
+            Add(pipe[0]);
+        var head = pipe[0];
+        var by = BySeparator().Matches(head);
+        if (by.Count > 0 && IsNameLike(head[(by[^1].Index + by[^1].Length)..]))
+            Add(head[..by[^1].Index]);
+        // "Author - Title" only when no other form named the author, the first part is a name of 2+ words, and
+        // real title text follows (not just "Chapter 012").
+        var dash = DashSeparator().Match(head);
+        if (result.Count == 0 && dash.Success && dash.Index > 0 && IsNameLike(head[..dash.Index])
+            && head[..dash.Index].Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 2
+            && ChapterToken().Replace(VolumeToken().Replace(head[(dash.Index + dash.Length)..], " "), " ").Count(char.IsLetter) >= 2)
+            Add(head[(dash.Index + dash.Length)..]);
+        return result;
     }
 
     /// <summary>The trailing <c>(disambiguator)</c> of a provider title (<c>Sprite (OOBA Douzu)</c> -> <c>OOBA Douzu</c>), or null.</summary>
@@ -228,6 +324,51 @@ public static partial class AutoMatchText
             return true;
         return !VolumeToken().IsMatch(archiveName) && TitleNormalizer.ArchiveBaseTitle(archiveName).Length == 0
             && archiveName.Any(char.IsDigit);
+    }
+
+    // Unit numbers (1.27.0 count rule): the number after a volume / chapter token, the upper end of a range.
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:v|vol|vols|volume|volumes)\.?\s*(?<n>\d{1,4})(?:\.\d+)?(?:\s*-\s*(?<m>\d{1,4})(?:\.\d+)?)?(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex VolumeNumber();
+
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:ch|chap|chapter|chapters|ep|episode)\.?\s*|c|#\s*)(?<n>\d{1,4})(?:\.\d+)?(?:\s*-\s*(?<m>\d{1,4})(?:\.\d+)?)?(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ChapterNumber();
+
+    [GeneratedRegex(@"^\s*(?<n>\d{1,4})(?:\.\d+)?(?![\p{N}])", RegexOptions.CultureInvariant)]
+    private static partial Regex LeadingNumber();
+
+    /// <summary>
+    /// The highest volume number a volume-like archive name states (<c>Title v03</c> -> 3, <c>Vol. 01-05</c> -> 5,
+    /// <c>v02.5</c> -> 2, so an extra never inflates it), or null.
+    /// </summary>
+    public static int? VolumeNumberOf(string? archiveName) =>
+        archiveName is null || !IsVolumeLike(archiveName) ? null : HighestNumber(VolumeNumber().Matches(archiveName));
+
+    /// <summary>
+    /// The highest chapter number a chapter-like archive name states (<c>Title - Chapter 012</c> -> 12,
+    /// <c>c045.5</c> -> 45, <c>001 [Chapter Title]</c> -> 1), or null. A leading 19xx / 20xx is a year, not a chapter.
+    /// </summary>
+    public static int? ChapterNumberOf(string? archiveName)
+    {
+        if (archiveName is null || !IsChapterLike(archiveName))
+            return null;
+        if (HighestNumber(ChapterNumber().Matches(archiveName)) is { } n)
+            return n;
+        var bare = Bare(ArchiveExtension().Replace(archiveName, string.Empty));
+        return LeadingNumber().Match(bare) is { Success: true } m && !YearOnly().IsMatch(m.Groups["n"].Value)
+            ? int.Parse(m.Groups["n"].Value, CultureInfo.InvariantCulture)
+            : null;
+    }
+
+    private static int? HighestNumber(MatchCollection matches)
+    {
+        int? best = null;
+        foreach (Match m in matches)
+        {
+            var value = int.Parse(m.Groups["m"].Success ? m.Groups["m"].Value : m.Groups["n"].Value, CultureInfo.InvariantCulture);
+            if (best is null || value > best)
+                best = value;
+        }
+        return best;
     }
 
     /// <summary>

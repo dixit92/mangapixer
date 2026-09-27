@@ -55,6 +55,19 @@ public sealed class AutoMatchUnitTests
     }
 
     [Fact]
+    public void Snapshot_CategoryHint_IsTheNearestExactCategoryName_NeverAShelfWord()
+    {
+        var tree = LibraryTreeSnapshot.FromNodes(1,
+        [
+            F(1, null, "Manhwa"), F(2, 1, "Ongoing"), F(3, 2, "Alpha Saga"), A(10, 3, "Alpha Saga 001"),
+            F(4, null, "Manga Collection"), F(5, 4, "Beta Tale"), A(11, 5, "Beta Tale v01"),
+        ]);
+
+        Assert.Equal("manhwa", tree.CategoryHint(3)); // "Ongoing" (a shelf word) is skipped
+        Assert.Null(tree.CategoryHint(5)); // whole name only
+    }
+
+    [Fact]
     public void Select_QueuesSeriesLikeFoldersAndArchiveWorks_NotContainersOrUnits()
     {
         var works = AutoMatchWorkSelector.Select(Tree(), new FakeWorkDetector(), new Dictionary<long, SeriesLinkState>());

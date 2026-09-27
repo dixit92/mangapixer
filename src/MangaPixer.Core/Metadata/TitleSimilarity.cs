@@ -55,6 +55,18 @@ public static class TitleSimilarity
         return best;
     }
 
+    /// <summary>
+    /// True when the two titles share at least one token and every shared token is digits only
+    /// (<c>Some Title 99</c> vs <c>Other Words 99</c>, 1.27.0): the similarity then rests on the number alone.
+    /// </summary>
+    public static bool SharesOnlyDigitTokens(string? a, string? b)
+    {
+        var x = Tokens(TitleNormalizer.ScoringForm(a)).ToHashSet(StringComparer.Ordinal);
+        var y = Tokens(TitleNormalizer.ScoringForm(b));
+        var common = y.Where(x.Contains).ToList();
+        return common.Count > 0 && common.All(t => t.All(char.IsAsciiDigit));
+    }
+
     /// <summary>Strong / Possible / Weak label for a score.</summary>
     public static MatchStrength Label(double score) =>
         score >= StrongThreshold ? MatchStrength.Strong
