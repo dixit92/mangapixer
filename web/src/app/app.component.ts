@@ -42,6 +42,11 @@ import { InstallHintService } from './shared/install-hint/install-hint.service';
       pointer-events: none;
       z-index: 1;
     }
+    /* On a phone a fixed line floats over the page's cards while scrolling (owner report,
+       1.25.0 RC): there it is an ordinary last line instead. */
+    @media (max-width: 599.98px) {
+      .app-footer { position: static; padding: 8px 16px; }
+    }
   `],
 })
 export class AppComponent implements OnInit {

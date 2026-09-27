@@ -107,6 +107,23 @@ describe('AdminComponent directory browser row', () => {
     return { fixture, apiSpy, row };
   }
 
+  it('shows "Inherit" in a library\'s Direction box when it has no default of its own', async () => {
+    const { fixture, apiSpy } = setup({ name: 'x', path: '/library-root/x', hasChildren: false });
+    // Each row's auto-scan control loads its library.
+    Object.assign(apiSpy, { getLibrary: vi.fn((id: string) => of({ id, name: id, scanSchedule: 'Daily' } as unknown as LibraryDto)) });
+    fixture.componentInstance.libraries.set([
+      { id: 'l1', name: 'Shelf', itemCount: 3, defaultReaderMode: null } as unknown as LibraryDto,
+      { id: 'l2', name: 'Strips', itemCount: 2, defaultReaderMode: 'VerticalWebtoon' } as unknown as LibraryDto,
+    ]);
+    fixture.detectChanges();
+    await fixture.whenStable(); // mat-select settles its selected label after its options
+    fixture.detectChanges();
+    const shown = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.dir-select .mat-mdc-select-value')]
+      .map((e) => e.textContent!.trim());
+    expect(shown[0]).toBe('Inherit');
+    expect(shown[1]).toBe('Vertical');
+  });
+
   it('renders the row as a real, natively-focusable <button> (not a bare <div>)', () => {
     const { row } = setup({ name: 'Folder A', path: '/library-root/Folder A', hasChildren: false });
     expect(row).not.toBeNull();

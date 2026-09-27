@@ -25,7 +25,7 @@ describe('SeriesSelectionActionsComponent - Identify', () => {
     const dialog = { open: vi.fn(() => Promise.resolve(true)) };
     TestBed.configureTestingModule({
       imports: [Host],
-      providers: [provideNoopAnimations(), { provide: MetadataApiService, useValue: { getSettings: () => of({ showSeriesInfo: true, libraries: [] }) } }, { provide: IdentifyDialogService, useValue: dialog }],
+      providers: [provideNoopAnimations(), { provide: MetadataApiService, useValue: { getSettings: () => of({ showSeriesInfo: true, libraries: [] }), getFolderContent: (id: string) => of({ nodeId: id, effective: 'Auto' }) } }, { provide: IdentifyDialogService, useValue: dialog }],
     });
     const fixture = TestBed.createComponent(Host);
     fixture.detectChanges();
