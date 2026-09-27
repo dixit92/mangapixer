@@ -7,7 +7,8 @@ import { test, expect, Page, APIRequestContext } from '@playwright/test';
  *
  * Needs the synthetic fixture library from `e2e/fixtures/make-series-fixtures.mjs`
  * visible to the SERVER at E2E_SERIES_FIXTURE_ROOT (for example `/media/fixtures`).
- * Without it the suite skips - the default E2E flow mounts an empty media directory.
+ * `scripts/Verify-E2E.ps1` generates it under `/media/fixtures` and sets the variable; without it (or with
+ * `-SkipSeriesFixtures`) the suite skips.
  * Optional: E2E_SCREENSHOT_DIR saves the reviewed screenshots.
  */
 const ADMIN_USER = process.env['E2E_ADMIN_USER'] ?? 'admin';
