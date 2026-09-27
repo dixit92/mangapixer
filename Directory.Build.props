@@ -14,7 +14,7 @@
     <Product>MangaPixer</Product>
     <Company />
     <Authors>Smit Dixit</Authors>
-    <Copyright>Copyright (c) 2026 Smit Dixit</Copyright>
+    <Copyright>Copyright (c) 2026 Lifepixer LLC</Copyright>
     <Description>Folder-native comic/manga server and Angular reader.</Description>
 
     <!-- Version propagation from Version.props -->
