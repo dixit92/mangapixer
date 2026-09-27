@@ -25,6 +25,18 @@ public sealed class SearchIndexingHttpTests
         Assert.Equal("noindex, nofollow", RobotsHeader(response));
     }
 
+    [Fact]
+    public async Task Default_RobotsTxt_AnswersHead()
+    {
+        await using var factory = new MangaPixerWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/robots.txt"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("noindex, nofollow", RobotsHeader(response));
+    }
+
     [Theory]
     [InlineData("/api/v1/system/info")]   // anonymous API
     [InlineData("/api/v1/auth/me")]        // 401 without a session

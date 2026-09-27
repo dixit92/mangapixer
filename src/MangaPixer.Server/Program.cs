@@ -486,7 +486,7 @@ public sealed partial class Program
 
             // robots.txt (1.27.0): without it the SPA fallback below answered with
             // index.html and a 200. Anonymous, plain text, no private data.
-            app.MapGet("/robots.txt", () => Results.Text(
+            app.MapMethods("/robots.txt", ["GET", "HEAD"], () => Results.Text(
                     networkOptions.AllowSearchIndexing ? SearchIndexing.AllowAll : SearchIndexing.DisallowAll,
                     "text/plain; charset=utf-8"))
                 .AllowAnonymous()
