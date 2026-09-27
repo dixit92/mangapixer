@@ -1,4 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -11,6 +12,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api/api.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
+import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
+import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
+import { MetadataStateService } from '../metadata/metadata-state.service';
 import { CatalogNodeDto, SearchResultsDto, SeriesMatchDto } from '../../core/api/api-types';
 
 /**
@@ -30,6 +34,8 @@ import { CatalogNodeDto, SearchResultsDto, SeriesMatchDto } from '../../core/api
     MatTooltipModule,
     CoverImageDirective,
     StarToggleComponent,
+    InfoToggleComponent,
+    SeriesInfoHoverDirective,
   ],
   template: `
     <h2>Search</h2>
@@ -62,8 +68,10 @@ import { CatalogNodeDto, SearchResultsDto, SeriesMatchDto } from '../../core/api
     }
 
     <ng-template #card let-node="node" let-aka="aka">
-      <a [routerLink]="getNodeLink(node)" class="result-card">
-        <div class="cover">
+      <!-- Series info (1.27.0): the (i) in the cover's bottom-left corner as in browse, and
+           the cover and title are hover zones for the summary popover. -->
+      <a #cardEl [routerLink]="getNodeLink(node)" class="result-card">
+        <div class="cover" [appSeriesInfoHover]="node.hasSeriesInfo ? node.id : null" [hoverAnchor]="cardEl">
           @if (coverSrc(node); as src) {
             <img appCover [src]="src" alt="" loading="lazy">
           }
@@ -80,8 +88,10 @@ import { CatalogNodeDto, SearchResultsDto, SeriesMatchDto } from '../../core/api
           @if (prominence()) {
             <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
           }
+          <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
         </div>
-        <div class="result-title" [title]="node.displayName">{{ node.displayName }}</div>
+        <div class="result-title" [title]="node.displayName"
+             [appSeriesInfoHover]="node.hasSeriesInfo ? node.id : null" [hoverAnchor]="cardEl">{{ node.displayName }}</div>
         @if (aka) {
           <div class="result-aka" [matTooltip]="aka">aka {{ aka }}</div>
         }
@@ -143,6 +153,13 @@ export class SearchComponent {
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
+    // A link change (identify dialog, admin menu) updates the result in place (1.27.0).
+    inject(MetadataStateService).changed$.pipe(takeUntilDestroyed()).subscribe(({ nodeId, hasSeriesInfo }) => {
+      const patch = (n: CatalogNodeDto) => (n.id === nodeId ? { ...n, hasSeriesInfo } : n);
+      this.results.update((list) => list.map(patch));
+      this.seriesMatches.update((list) => list.map((m) => ({ ...m, node: patch(m.node) })));
+    });
+
     // Favorites search prominence is a per-user preference in the library-view blob.
     this.api.getLibraryPreferences().subscribe({
       next: (prefs) => this.prominence.set(prefs.favoritesSearchProminence ?? false),

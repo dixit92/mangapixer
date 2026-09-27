@@ -10,6 +10,8 @@ import { ApiService } from '../../core/api/api.service';
 import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
+import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
+import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { CatalogNodeDto } from '../../core/api/api-types';
 import {
   favoriteLink,
@@ -26,6 +28,9 @@ import {
  * same keyset paging as browse. Unstarring a card here (or anywhere else, via
  * `FavoritesStateService.changed$`) drops it from the list in place.
  *
+ * Series info (1.27.0): the (i) in the cover's bottom-left corner and the hover summary
+ * (cover and title), for singles and stacks alike (a stack's is its folder's).
+ *
  * Stacks (1.27.0): two or more starred archives in one folder arrive as ONE item for that
  * folder (`favoriteStackCount`), shown as a stacked card that opens the folder filtered to
  * favorites (`?favorites=1`, transient). See `favorite-stack.ts`.
@@ -41,6 +46,8 @@ import {
     MatTooltipModule,
     CoverImageDirective,
     StarToggleComponent,
+    InfoToggleComponent,
+    SeriesInfoHoverDirective,
   ],
   template: `
     <h2>Favorites</h2>
@@ -53,25 +60,27 @@ import {
                  folder with a transient "Favorites only" filter; no star here (it would
                  star the folder itself). -->
             <div class="fav-card">
-              <a [routerLink]="getNodeLink(node)" [queryParams]="stackParams(node)" class="fav-link stack-link"
+              <a #cardEl [routerLink]="getNodeLink(node)" [queryParams]="stackParams(node)" class="fav-link stack-link"
                  [attr.aria-label]="node.displayName + ', ' + stackLabel(node)">
                 <div class="stack">
-                  <div class="cover">
+                  <div class="cover" [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">
                     @if (coverSrc(node); as src) {
                       <img appCover [src]="src" alt="" loading="lazy">
                     }
                     <mat-icon class="cover-fallback">folder</mat-icon>
                     <span class="count-badge" [matTooltip]="stackLabel(node)">{{ node.favoriteStackCount }}</span>
+                    <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
                   </div>
                 </div>
-                <div class="fav-title" [title]="node.displayName">{{ node.displayName }}</div>
+                <div class="fav-title" [title]="node.displayName"
+                     [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">{{ node.displayName }}</div>
                 <div class="fav-sub">{{ stackLabel(node) }}</div>
               </a>
             </div>
           } @else {
             <div class="fav-card">
-              <a [routerLink]="getNodeLink(node)" class="fav-link">
-                <div class="cover">
+              <a #cardEl [routerLink]="getNodeLink(node)" class="fav-link">
+                <div class="cover" [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">
                   @if (coverSrc(node); as src) {
                     <img appCover [src]="src" alt="" loading="lazy">
                   }
@@ -80,8 +89,10 @@ import {
                     <mat-icon>{{ kindIcon(node) }}</mat-icon>
                   </span>
                   <app-star-toggle [nodeId]="node.id" [favorite]="true" [overlay]="true" [compact]="true" />
+                  <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
                 </div>
-                <div class="fav-title" [title]="node.displayName">{{ node.displayName }}</div>
+                <div class="fav-title" [title]="node.displayName"
+                     [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">{{ node.displayName }}</div>
               </a>
             </div>
           }
@@ -203,6 +214,11 @@ export class FavoritesComponent implements OnInit, OnDestroy {
 
   getNodeLink(node: CatalogNodeDto): string[] {
     return favoriteLink(node);
+  }
+
+  /** Series info (1.27.0): the (i) and the hover summary, for the item's own information. */
+  hoverNodeId(node: CatalogNodeDto): string | null {
+    return node.hasSeriesInfo ? node.id : null;
   }
 
   isStack(node: CatalogNodeDto): boolean {

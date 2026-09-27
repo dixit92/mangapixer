@@ -20,6 +20,7 @@ import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/fol
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
 import { ContinueRowComponent } from '../../shared/continue-row/continue-row.component';
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
+import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { SeriesInfoButtonComponent } from '../metadata/series-info-button.component';
 import { SeriesSelectionActionsComponent } from '../metadata/series-selection-actions.component';
 import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
@@ -76,6 +77,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     StarToggleComponent,
     ContinueRowComponent,
     InfoToggleComponent,
+    SeriesInfoHoverDirective,
     SeriesInfoButtonComponent,
     SeriesSelectionActionsComponent,
   ],
@@ -429,13 +431,15 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               <mat-icon>{{ isSelected(node) ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
             </button>
           }
-          <a class="node-card" [routerLink]="selectMode() ? null : getNodeLink(node)"
+          <a #cardEl class="node-card" [routerLink]="selectMode() ? null : getNodeLink(node)"
              (click)="onCardClick($event, node)"
              (pointerdown)="onCardPointerDown($event, node)"
              (pointerup)="onCardPointerUp()"
              (pointercancel)="onCardPointerCancel()"
              (pointerleave)="onCardPointerCancel()">
-            <div class="cover">
+            <!-- Series information on hover (1.27.0): the cover, the title and the (i) are
+                 hover zones of the item that shows the (i); the popover sits beside the card. -->
+            <div class="cover" [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">
               @if (node.coverUrl) {
                 <img appCover [src]="node.coverUrl" alt="" loading="lazy">
               }
@@ -470,7 +474,8 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               }
             </div>
             <div class="node-text">
-              <div class="node-title" [title]="node.displayName">{{ node.displayName }}</div>
+              <div class="node-title" [title]="node.displayName"
+                   [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">{{ node.displayName }}</div>
               <div class="node-sub">
                 @if (node.pageCount !== null) { {{ node.pageCount }} pages }
                 @else if (node.kind === 'Folder' && node.childArchiveCount !== null) { {{ node.childArchiveCount }} items }
@@ -484,7 +489,8 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               <div class="row-markers">
                 <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" />
                 @if (!selectMode()) {
-                  <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [compact]="true" />
+                  <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [compact]="true"
+                                   [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl" />
                 }
                 <ng-container *ngTemplateOutlet="markers; context: { $implicit: node }" />
               </div>
@@ -982,6 +988,10 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   // `undefined`, which the DTO binds as 0 and the server writes unconditionally,
   // silently resetting the window to its 30-day default on every sort/view/card change.
   private storedHomeRecentWindowDays: number | undefined = undefined;
+  // The whole last-loaded preferences blob (1.27.0): persistView() echoes the fields
+  // this component does not own (favorites toggles, series info on hover) so a view
+  // change never resets them - the server writes every field unconditionally.
+  private storedPrefs: LibraryViewPreferencesDto | null = null;
 
   /** How many currently-selected nodes are folders (gates the Direction action). */
   readonly selectedFolderCount = computed(() => {
@@ -1063,6 +1073,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
         this.storedSort = this.sort();
         this.storedDirection = this.sortDirection();
         this.storedHomeRecentWindowDays = p.homeRecentWindowDays;
+        this.storedPrefs = p;
         this.subscribeToRoute();
       },
       error: () => this.subscribeToRoute(), // keep defaults, still load
@@ -1463,6 +1474,11 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       && !this.favoritesOnly();
   }
 
+  /** The hover-summary zone id (1.27.0): only items that show the (i), never in select mode. */
+  hoverNodeId(node: CatalogNodeDto): string | null {
+    return node.hasSeriesInfo && !this.selectMode() ? node.id : null;
+  }
+
   getNodeLink(node: CatalogNodeDto): string[] {
     if (node.kind === 'Folder') {
       return ['/libraries', this.libraryId(), 'browse', node.id];
@@ -1584,6 +1600,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     // it, but the server overwrites the field unconditionally on every write, so
     // omitting it here would silently reset the user's window to the 30-day default.
     this.api.setLibraryPreferences({
+      ...this.storedPrefs,
       viewMode: this.viewMode(),
       density: this.density(),
       sort: this.storedSort,

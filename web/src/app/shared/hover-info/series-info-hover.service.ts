@@ -1,4 +1,4 @@
-import { ComponentRef, Injectable, Injector, effect, inject, signal } from '@angular/core';
+import { ComponentRef, Injectable, Injector, inject, signal } from '@angular/core';
 import {
   OverlayRef,
   createCloseScrollStrategy,
@@ -10,10 +10,9 @@ import { NavigationStart, Router } from '@angular/router';
 import { Subscription, filter } from 'rxjs';
 
 import { SeriesInfoDto } from '../../core/api/api-types';
-import { ApiService } from '../../core/api/api.service';
-import { AuthService } from '../../core/auth/auth.service';
 import { hasSeriesContent } from '../../features/metadata/series-info-labels';
 import { SeriesInfoCacheService } from './series-info-cache.service';
+import { SeriesInfoHoverPreferenceService } from './series-info-hover-preference.service';
 import type { SeriesInfoPopoverComponent } from './series-info-popover.component';
 
 /** Only devices whose primary pointer hovers precisely (mouse, trackpad). */
@@ -44,19 +43,13 @@ export function canHover(): boolean {
  *   focus (the (i) and its side panel serve keyboard users) or without a hovering fine
  *   pointer (touch: no change).
  * - Honours the per-user "Series information on hover" option (server-side, default
- *   ON), loaded once per signed-in user; Settings updates it through `setEnabled`.
+ *   ON) through `SeriesInfoHoverPreferenceService`.
  */
 @Injectable({ providedIn: 'root' })
 export class SeriesInfoHoverService {
   private readonly injector = inject(Injector);
-  private readonly api = inject(ApiService);
-  private readonly auth = inject(AuthService);
   private readonly cache = inject(SeriesInfoCacheService);
-
-  /** The user's option; null until loaded (treated as off until then). */
-  private readonly enabled = signal<boolean | null>(null);
-  private prefUserId: string | null = null;
-  private prefLoading = false;
+  private readonly preference = inject(SeriesInfoHoverPreferenceService);
 
   private target: { nodeId: string; anchor: HTMLElement } | null = null;
   private openTimer: ReturnType<typeof setTimeout> | null = null;
@@ -71,15 +64,9 @@ export class SeriesInfoHoverService {
   readonly openFor = signal<string | null>(null);
 
   constructor() {
-    // A different signed-in user has their own option: reload it on the next hover.
-    effect(() => {
-      const id = this.auth.currentUser()?.id ?? null;
-      if (id !== this.prefUserId) {
-        this.prefUserId = id;
-        this.enabled.set(null);
-        this.cache.clear();
-        this.close();
-      }
+    this.preference.userChanged$.subscribe(() => {
+      this.cache.clear();
+      this.close();
     });
     inject(Router).events.pipe(filter((e) => e instanceof NavigationStart)).subscribe(() => this.close());
     if (typeof document !== 'undefined') {
@@ -91,28 +78,13 @@ export class SeriesInfoHoverService {
     }
   }
 
-  /** Settings: the option changed (after an optimistic save or its revert). */
-  setEnabled(value: boolean): void {
-    this.enabled.set(value);
-    if (!value) this.close();
-  }
-
-  isEnabled(): boolean {
-    return this.enabled() === true;
-  }
-
-  /** Loads the option once per user (hover zones call this when they appear). */
+  /** Hover zones call this when they appear: loads the user's option once. */
   ensurePreference(): void {
-    if (this.enabled() !== null || this.prefLoading || !this.auth.currentUser()) return;
-    this.prefLoading = true;
-    this.api.getLibraryPreferences().subscribe({
-      next: (p) => { this.prefLoading = false; this.enabled.set(p.seriesInfoOnHover ?? true); },
-      error: () => { this.prefLoading = false; },
-    });
+    this.preference.ensureLoaded();
   }
 
   enter(nodeId: string, anchor: HTMLElement): void {
-    if (!this.isEnabled() || !canHover()) return;
+    if (!this.preference.enabled() || !canHover()) return;
     if (this.target?.nodeId === nodeId) {
       // Another zone of the same item (cover -> title), or back from the popover.
       this.clearCloseTimer();
