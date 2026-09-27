@@ -95,9 +95,9 @@ No telemetry, analytics or phone-home, and no default credentials. Your media fo
 
 Nothing until an admin turns it on: the Update Checker and [MangaUpdates](https://www.mangaupdates.com) lookups are both optional and off by default. Details: [Privacy and security](docs/privacy-and-security.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
-## Contributing
+## Building from source and contributing
 
-Issues and suggestions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers building from source, the toolchain and the repository layout. Before opening a pull request, run `pwsh ./scripts/Verify-Quick.ps1`, and keep to the invariants in [`AGENTS.md`](AGENTS.md): source media stays read-only, no personal data in tracked files, no default credentials, and every new service is wired and tested through its public surface. Agentic development is welcome, but know what you're doing.
+To build from source you need the .NET 10 SDK, Node.js 24 and PowerShell 7, or just Docker with the official SDK containers; the commands and the repository layout are in [CONTRIBUTING.md](CONTRIBUTING.md). Issues and suggestions are welcome. Before opening a pull request, run `pwsh ./scripts/Verify-Quick.ps1`, and keep to the invariants in [`AGENTS.md`](AGENTS.md): source media stays read-only, no personal data in tracked files, no default credentials, and every new service is wired and tested through its public surface. Agentic development is welcome, but know what you're doing.
 
 ## License
 
