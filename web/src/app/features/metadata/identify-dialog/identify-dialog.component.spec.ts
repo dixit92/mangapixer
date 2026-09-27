@@ -28,7 +28,7 @@ describe('IdentifyDialogComponent', () => {
     suggestions: ['Berserk', 'Berserk Deluxe'],
     budgetUsedToday: 3,
     dailyBudget: 5000,
-    local: { displayName: '[Grp] Berserk (1989)', itemCount: 41, comicInfoSeries: 'Berserk', tallStrips: false, yearHint: 1989 },
+    local: { displayName: '[Grp] Berserk (1989)', itemCount: 41, comicInfoSeries: 'Berserk', tallStrips: false, yearHint: 1989, coverUrl: '/api/v1/items/a1/cover' },
     ...overrides,
   });
 
@@ -207,6 +207,7 @@ describe('IdentifyDialogComponent', () => {
     expect(el.textContent).toContain('ComicInfo: “Berserk”');
     expect(q('[data-testid="identify-alt-titles"]')!.textContent).toContain('also: Beruseruku, Berserk: The Black Swordsman');
     expect(q('[data-testid="identify-alt-more"]')).toBeNull(); // two titles: nothing folded
+    expect(q('[data-testid="identify-local-cover"]')!.getAttribute('src')).toBe('/api/v1/items/a1/cover');
     expect(q('[data-testid="identify-webtoon"]')!.textContent).toContain('MangaUpdates: webtoon');
     expect(q('[data-warning="count_mismatch"]')).not.toBeNull();
     const a = el.querySelector('a[href^="https://www.mangaupdates.com"]') as HTMLAnchorElement;

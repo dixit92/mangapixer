@@ -1589,52 +1589,9 @@ public sealed class CatalogBrowseService
     /// mapping folder internal ID → cover archive public ID. Folders with no
     /// non-tombstoned descendant archive are omitted.
     /// </summary>
-    private async Task<Dictionary<long, string>> ResolveFolderCoversAsync(
+    private Task<Dictionary<long, string>> ResolveFolderCoversAsync(
         List<long> folderInternalIds,
-        CancellationToken ct)
-    {
-        var result = new Dictionary<long, string>();
-        if (folderInternalIds.Count == 0)
-            return result;
-
-        var ids = string.Join(",", folderInternalIds);
-        var connection = _db.Database.GetDbConnection();
-        var wasOpen = connection.State == System.Data.ConnectionState.Open;
-        if (!wasOpen) await connection.OpenAsync(ct);
-        try
-        {
-            using var command = connection.CreateCommand();
-            command.CommandText = $"""
-                WITH RECURSIVE descendants(RootId, NodeId, Kind, SortKey, Availability) AS (
-                    SELECT r.Id, cn.Id, cn.Kind, cn.SortKey, cn.Availability
-                    FROM catalog_nodes r
-                    JOIN catalog_nodes cn ON cn.ParentId = r.Id
-                    WHERE r.Id IN ({ids})
-                    UNION ALL
-                    SELECT d.RootId, cn.Id, cn.Kind, cn.SortKey, cn.Availability
-                    FROM descendants d
-                    JOIN catalog_nodes cn ON cn.ParentId = d.NodeId
-                ),
-                ranked AS (
-                    SELECT d.RootId, cn.PublicId AS CoverPublicId,
-                           ROW_NUMBER() OVER (PARTITION BY d.RootId ORDER BY d.SortKey, d.NodeId) AS rn
-                    FROM descendants d
-                    JOIN catalog_nodes cn ON d.NodeId = cn.Id
-                    WHERE d.Kind = 1 AND d.Availability != 5
-                )
-                SELECT RootId, CoverPublicId FROM ranked WHERE rn = 1;
-                """;
-
-            using var reader = await command.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct))
-                result[reader.GetInt64(0)] = reader.GetString(1);
-        }
-        finally
-        {
-            if (!wasOpen) await connection.CloseAsync();
-        }
-        return result;
-    }
+        CancellationToken ct) => FolderCovers.ResolveAsync(_db, folderInternalIds, ct);
 
     /// <summary>
     /// Resolves the derived read rollup (1.6.0) for each folder in

@@ -1180,6 +1180,8 @@ export interface IdentifyLocalDto {
   comicInfoSeries?: string | null;
   tallStrips?: boolean | null;
   yearHint?: number | null;
+  /** Local cover: the archive's own, or the folder's first archive. */
+  coverUrl?: string | null;
 }
 
 /** GET /admin/metadata/nodes/{id}/identify - no network. */
@@ -1365,6 +1367,8 @@ export interface MetadataReviewItemDto {
   /** Up to 3 ancestor display names below the library root, outermost first. */
   trail?: string[];
   missing?: boolean;
+  /** Local cover: the archive's own, or a folder's first archive (as browse shows it). */
+  coverUrl?: string | null;
   workClass?: WorkClass | null;
   matchLevel?: MatchLevel | null;
   itemCount: number;

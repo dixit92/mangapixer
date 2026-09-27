@@ -141,10 +141,18 @@ type Step = 'search' | 'preview';
           <div class="compare">
             <section>
               <h3>Your {{ ctx.nodeKind === 'Folder' ? 'folder' : 'item' }}</h3>
-              <div class="c-title">{{ ctx.local.displayName }}</div>
-              <div class="muted">{{ ctx.local.itemCount }} item{{ ctx.local.itemCount === 1 ? '' : 's' }}</div>
-              @if (ctx.local.comicInfoSeries) { <div class="muted">ComicInfo: “{{ ctx.local.comicInfoSeries }}”</div> }
-              <div class="muted">Pages: {{ tall(ctx.local.tallStrips) }}</div>
+              <div class="pv">
+                @if (ctx.local.coverUrl && !localCoverFailed()) {
+                  <!-- The local thumbnail next to the record's cover, to compare them (owner, 1.26.x). -->
+                  <img class="poster" [src]="ctx.local.coverUrl" alt="" (error)="localCoverFailed.set(true)" data-testid="identify-local-cover">
+                }
+                <div>
+                  <div class="c-title">{{ ctx.local.displayName }}</div>
+                  <div class="muted">{{ ctx.local.itemCount }} item{{ ctx.local.itemCount === 1 ? '' : 's' }}</div>
+                  @if (ctx.local.comicInfoSeries) { <div class="muted">ComicInfo: “{{ ctx.local.comicInfoSeries }}”</div> }
+                  <div class="muted">Pages: {{ tall(ctx.local.tallStrips) }}</div>
+                </div>
+              </div>
             </section>
             <section>
               <h3>{{ p.providerName }}</h3>
@@ -267,6 +275,7 @@ export class IdentifyDialogComponent implements OnInit {
   /** Alternative titles shown before "+N more" in the preview. */
   readonly ALT_TITLE_LIMIT = 6;
   readonly altTitlesExpanded = signal(false);
+  readonly localCoverFailed = signal(false);
   private readonly previewMethod = signal<MetadataMatchMethod>('Search');
   /** The search result a preview came from: its score (against the confirmed query) is the one shown and stored. */
   private readonly previewCandidate = signal<IdentifyCandidateDto | null>(null);

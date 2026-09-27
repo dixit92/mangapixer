@@ -62,6 +62,7 @@ public sealed class MetadataIdentifyServiceTests : IAsyncLifetime
         Assert.Equal("Dungeon Meshi", ctx.Local.ComicInfoSeries);
         Assert.True(ctx.Local.TallStrips);
         Assert.Equal(2014, ctx.Local.YearHint);
+        Assert.Equal($"/api/v1/items/{a1.PublicId}/cover", ctx.Local.CoverUrl); // the folder's first archive, as browse
         Assert.Equal(5000, ctx.DailyBudget);
         Assert.Equal(0, _h.Handler.CallCount);
 

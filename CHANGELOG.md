@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Series metadata review and Identify show your cover.** Folders in the review lists show their thumbnail (the cover of their first archive, as in browse) instead of a folder icon, and the Identify preview shows your folder's or archive's cover next to the MangaUpdates cover, so the two can be compared at a glance.
+- **Identify lists the alternative titles** of the previewed record ("also: …", the first six, then **+N more**) instead of only counting them.
+- API (admin): review items and the identify context's `local` part have a `coverUrl`.
+
 ## [1.26.1] - 2026-09-27
 
 ### Fixed

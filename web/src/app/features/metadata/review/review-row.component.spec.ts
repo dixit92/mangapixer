@@ -60,6 +60,11 @@ describe('ReviewRowComponent', () => {
     expect(el.querySelector('.thumb img')!.getAttribute('src')).toBe('/api/v1/items/n1/cover');
   });
 
+  it('shows a folder\'s cover (its first archive, as browse) instead of a folder icon', () => {
+    const { el } = create(reviewItem({ nodeId: 'f1', nodeKind: 'Folder', coverUrl: '/api/v1/items/a9/cover' }), 'NeedsReview');
+    expect(el.querySelector('.thumb img')!.getAttribute('src')).toBe('/api/v1/items/a9/cover');
+  });
+
   it('emits Accept with the chosen rank and the tab\'s other actions', () => {
     const { el, events } = create(reviewItem(), 'NeedsReview', { rank: 2 });
     (el.querySelector('[data-testid="review-accept"]') as HTMLButtonElement).click();

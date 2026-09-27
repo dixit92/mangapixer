@@ -73,6 +73,9 @@ public sealed record IdentifyLocalDto
 
     /// <summary>A year found in the name, e.g. <c>(1989)</c>.</summary>
     public int? YearHint { get; init; }
+
+    /// <summary>The local cover (1.26.x): the archive's own, or the folder's first archive, as browse shows it.</summary>
+    public string? CoverUrl { get; init; }
 }
 
 /// <summary>

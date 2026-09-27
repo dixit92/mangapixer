@@ -332,6 +332,7 @@ public sealed class MetadataAutoMatchHttpTests
         var page = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=NeedsReview"));
         var item = Assert.Single(page.Items);
         Assert.Equal("amReview", item.NodeId);
+        Assert.Null(item.CoverUrl); // a folder without archives has no cover
         Assert.Equal(WorkClass.Series, item.WorkClass);
         Assert.Equal(["close_second"], item.Reasons);
         Assert.Equal([1, 2], item.Candidates.Select(c => c.Rank).ToArray());
@@ -353,6 +354,8 @@ public sealed class MetadataAutoMatchHttpTests
             new MetadataReviewBulkRequest { Action = MetadataReviewBulkAction.Confirm, NodeIds = ["amAuto", "nope"] }));
         Assert.Equal(1, bulk.Succeeded);
         Assert.Equal("not_found", bulk.Results.Single(r => r.NodeId == "nope").Code);
+        var allConfirmed = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=Confirmed&limit=10"));
+        Assert.Equal("/api/v1/items/amArc/cover", allConfirmed.Items.Single(i => i.NodeId == "amLinked").CoverUrl); // its first archive, as browse
         var confirmed = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=Confirmed&limit=1"));
         Assert.Equal(3, confirmed.Total);
         Assert.True(confirmed.HasMore);

@@ -5265,6 +5265,12 @@
               "string"
             ],
             "format": "int32"
+          },
+          "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -6742,6 +6748,12 @@
           },
           "missing": {
             "type": "boolean"
+          },
+          "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "workClass": {
             "oneOf": [

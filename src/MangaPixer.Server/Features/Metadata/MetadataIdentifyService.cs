@@ -550,6 +550,10 @@ public sealed class MetadataIdentifyService
             ComicInfoSeries = comicInfoSeries,
             TallStrips = tall,
             YearHint = TitleNormalizer.Normalize(node.DisplayName).YearHint,
+            CoverUrl = node.Kind == (int)CatalogNodeKind.Folder
+                ? (await Catalog.FolderCovers.ResolveAsync(_db, [node.Id], ct)).TryGetValue(node.Id, out var coverId)
+                    ? Catalog.FolderCovers.ArchiveCoverUrl(coverId) : null
+                : Catalog.FolderCovers.ArchiveCoverUrl(node.PublicId),
         };
     }
 

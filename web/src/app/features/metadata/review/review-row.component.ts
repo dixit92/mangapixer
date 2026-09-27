@@ -274,11 +274,16 @@ export class ReviewRowComponent {
     return level ? MATCH_LEVEL_LABELS[level] ?? level : '';
   });
 
-  /** Local images only: the stored poster of the current link, or an archive's own cover. */
+  /**
+   * Local images only: the stored poster of the current link, else the node's own cover - an
+   * archive's, or a folder's first archive as browse shows it - so it can be compared with the
+   * candidates' covers (owner, 1.26.x).
+   */
   readonly thumbUrl = computed(() => {
     const it = this.item();
     if (this.thumbFailed()) return null;
     if (it.link?.imageUrl) return it.link.imageUrl;
+    if (it.coverUrl) return it.coverUrl;
     return it.nodeKind === 'Archive' && !it.missing ? `/api/v1/items/${encodeURIComponent(it.nodeId)}/cover` : null;
   });
 
