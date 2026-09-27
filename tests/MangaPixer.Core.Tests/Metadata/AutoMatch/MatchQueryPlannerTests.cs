@@ -108,6 +108,15 @@ public sealed class MatchQueryPlannerTests
     }
 
     [Fact]
+    public void FolderWithEnglishTitleAndCreator_SearchesBoth_AndCarriesTheCreatorHint()
+    {
+        var q = PlanFolder(Folder("Tsunagu Te [Joined Hands] (Family Given)", ["Tsunagu Te v01.cbz", "Tsunagu Te v02.cbz"]));
+
+        Assert.Contains(q.Variants, v => v.Text == "Joined Hands" && v.Kind == QueryVariantKind.EnglishTitle);
+        Assert.Contains("Family Given", q.Context.CreatorHints!);
+    }
+
+    [Fact]
     public void Plan_IsDeterministic()
     {
         var f = Folder("Some Series [English Name Here]", ["English Name Here v01.cbz", "English Name Here v02.cbz"]);

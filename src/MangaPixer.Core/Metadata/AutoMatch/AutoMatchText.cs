@@ -110,6 +110,79 @@ public static partial class AutoMatchText
         return p.Length > 0 && t.Length > 0 && (" " + t + " ").Contains(" " + p + " ", StringComparison.Ordinal);
     }
 
+    [GeneratedRegex(@"\.(?:cbz|zip|cbr|rar|cb7|7z|cbt|tar|pdf|epub)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ArchiveExtension();
+
+    [GeneratedRegex(@"^(?:19|20)\d{2}$", RegexOptions.CultureInvariant)]
+    private static partial Regex YearOnly();
+
+    [GeneratedRegex(@"^(?<circle>[^()]*?)\s*\((?<artist>[^()]+)\)\s*$", RegexOptions.CultureInvariant)]
+    private static partial Regex InnerCircleArtist();
+
+    /// <summary>
+    /// Creator hints of a display name (owner review, 1.26.1): the text of every bracket group, anywhere
+    /// in the name (<c>[Family Given] Title</c>, <c>Title [Family Given]</c>, <c>Title [English Title]
+    /// (Family Given)</c>; <c>[Circle (Artist)]</c> gives both names), and of unmatched brackets
+    /// (<c>Family Given] Title</c>, a YACReader jump-bar convention, and <c>Title [Family Given</c>).
+    /// Years, release tags, unit markers and groups without letters are skipped; a name that is
+    /// nothing but tags gives none. The scorer only uses a hint when a record's authors (or its
+    /// <c>(AUTHOR Name)</c> disambiguator) name it - positive evidence only - so a scan group or an
+    /// English title in brackets costs nothing. Plain separators (<c>Author - Title</c>) are not read yet.
+    /// </summary>
+    public static IReadOnlyList<string> CreatorHints(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+            return [];
+        var rest = ArchiveExtension().Replace(displayName.Normalize(NormalizationForm.FormKC).Trim(), string.Empty).Trim();
+        var hints = new List<string>();
+        void Add(string? text)
+        {
+            text = text?.Trim();
+            if (string.IsNullOrEmpty(text) || !text.Any(char.IsLetter) || YearOnly().IsMatch(text)
+                || ArchiveNameAnatomy.IsReleaseTag(text) || VolumeToken().IsMatch(text) || ChapterToken().IsMatch(text)
+                || text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 5
+                || hints.Contains(text, StringComparer.OrdinalIgnoreCase))
+                return;
+            hints.Add(text);
+        }
+
+        for (var round = 0; round < 4; round++)
+        {
+            var groups = BracketGroup().Matches(rest);
+            if (groups.Count == 0)
+                break;
+            foreach (Match g in groups)
+            {
+                var inner = g.Value[1..^1];
+                if (InnerCircleArtist().Match(inner) is { Success: true } ca)
+                {
+                    Add(ca.Groups["circle"].Value); // "[Circle (Artist)]" gives both names
+                    Add(ca.Groups["artist"].Value);
+                }
+                else
+                {
+                    Add(inner);
+                }
+            }
+            rest = BracketGroup().Replace(rest, " ");
+        }
+        rest = TitleNormalizer.SplitUnmatchedBracketTags(rest, out var leading, out var trailing);
+        Add(leading);
+        Add(trailing);
+        return rest.Any(char.IsLetter) ? hints : [];
+    }
+
+    /// <summary>The trailing <c>(disambiguator)</c> of a provider title (<c>Sprite (OOBA Douzu)</c> -> <c>OOBA Douzu</c>), or null.</summary>
+    public static string? DisambiguatorTag(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            return null;
+        var m = TrailingDisambiguator().Match(title);
+        return m.Success && m.Groups["tag"].Value.Any(char.IsLetter) && m.Groups["head"].Value.Any(char.IsLetterOrDigit)
+            ? m.Groups["tag"].Value.Trim()
+            : null;
+    }
+
     /// <summary>
     /// A provider title without its trailing disambiguator (MangaUpdates names same-titled records
     /// <c>Look Back (FUJIMOTO Tatsuki)</c>, <c>Jigokuraku (KAKU Yuuji)</c>); null when there is none.

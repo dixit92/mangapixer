@@ -96,6 +96,14 @@ public static partial class TitleNormalizer
     [GeneratedRegex(@"^[\p{P}\p{S}\p{N}\s]*$", RegexOptions.CultureInvariant)]
     private static partial Regex NoLetters();
 
+    // A standalone chapter-like number inside a name: "Title 025 Subtitle", "Title 012.5 Subtitle".
+    [GeneratedRegex(@"(?<![\p{L}\p{N}.])\d{1,4}(?:\.\d+)?(?![\p{L}\p{N}])", RegexOptions.CultureInvariant)]
+    private static partial Regex StandaloneNumber();
+
+    // One parenthesized group after a trailing [English Title]: "(Family Given)".
+    [GeneratedRegex(@"^\(([^()\[\]]{2,60})\)$", RegexOptions.CultureInvariant)]
+    private static partial Regex LoneParenGroup();
+
     /// <summary>
     /// Normalizes a display name into query variants and hints. Never returns
     /// null; an empty or all-tag input yields an empty <see cref="NormalizedTitle.Primary"/>.
@@ -122,7 +130,16 @@ public static partial class TitleNormalizer
         {
             var after = s[(lastSquare.Index + lastSquare.Length)..];
             var inner = lastSquare.Groups[1].Value.Trim();
-            var tagsAfter = YearGroup().Replace(after, " ").IndexOfAny(['[', ']', '(', ')', '{', '}']) >= 0;
+            var afterNoYear = YearGroup().Replace(after, " ").Trim();
+            var tagsAfter = afterNoYear.IndexOfAny(['[', ']', '(', ')', '{', '}']) >= 0;
+            // "Title [English Title] (Family Given)": one creator-looking group after the English
+            // title does not make it a scanlation tag (owner test, 1.26.1). Release tags still do.
+            if (tagsAfter && LoneParenGroup().Match(afterNoYear) is { Success: true } paren
+                && paren.Groups[1].Value.Any(char.IsLetter)
+                && !AutoMatch.ArchiveNameAnatomy.IsReleaseTag(paren.Groups[1].Value.Trim()))
+            {
+                tagsAfter = false;
+            }
             if (!tagsAfter && CountWords(inner) >= 2 && inner.Any(char.IsLetter))
                 englishVariant = inner;
         }
@@ -265,6 +282,49 @@ public static partial class TitleNormalizer
     }
 
     /// <summary>
+    /// The title that numbered chapters of one work share in front of their number, when the
+    /// names also carry a per-chapter subtitle (<c>Title 025 Subtitle</c>, <c>Title 000 Oneshot</c>):
+    /// the longest head that at least <paramref name="minShare"/> of the archives have in front of
+    /// a number that VARIES between them. Null when no head qualifies. Bracket groups are ignored.
+    /// </summary>
+    public static string? NumberedSeriesHead(IReadOnlyList<string> archiveNames, double minShare)
+    {
+        ArgumentNullException.ThrowIfNull(archiveNames);
+        if (archiveNames.Count < 2)
+            return null;
+        // head key -> (spellings, numbers seen, archives carrying it)
+        var heads = new Dictionary<string, (List<string> Spellings, HashSet<string> Numbers, int Count)>(StringComparer.Ordinal);
+        foreach (var name in archiveNames)
+        {
+            var s = (name ?? string.Empty).Normalize(NormalizationForm.FormKC).Trim();
+            s = StripArchiveExtension(s);
+            if (!s.Contains(' ', StringComparison.Ordinal))
+                s = s.Replace('_', ' ').Replace('.', ' ');
+            s = Whitespace().Replace(RemoveBracketGroups(s), " ").Trim();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (Match number in StandaloneNumber().Matches(s))
+            {
+                var head = TrimEdges(s[..number.Index]);
+                var key = ScoringForm(head);
+                if (key.Length == 0 || NoLetters().IsMatch(head) || !seen.Add(key))
+                    continue;
+                if (!heads.TryGetValue(key, out var entry))
+                    entry = ([], new HashSet<string>(StringComparer.Ordinal), 0);
+                entry.Spellings.Add(head);
+                entry.Numbers.Add(NormalizeNumber(number.Value) ?? number.Value);
+                heads[key] = (entry.Spellings, entry.Numbers, entry.Count + 1);
+            }
+        }
+        var best = heads
+            .Where(h => h.Value.Numbers.Count >= 2 && (double)h.Value.Count / archiveNames.Count >= minShare)
+            .OrderByDescending(h => h.Value.Count)
+            .ThenByDescending(h => h.Key.Length)
+            .ThenBy(h => h.Key, StringComparer.Ordinal)
+            .FirstOrDefault();
+        return best.Key is null ? null : best.Value.Spellings.Order(StringComparer.Ordinal).First();
+    }
+
+    /// <summary>
     /// The dominant archive-derived title of a folder: the base title
     /// (<see cref="ArchiveBaseTitle"/>) that at least half of the archives share
     /// (compared by <see cref="ScoringForm"/>), or null. Deterministic: the ordinal-first
@@ -374,8 +434,41 @@ public static partial class TitleNormalizer
             if (next == s) break;
             s = next;
         }
-        return StrayBracket().Replace(s, " ");
+        return StrayBracket().Replace(SplitUnmatchedBracketTags(s, out _, out _), " ");
     }
+
+    /// <summary>
+    /// Unmatched tag brackets (1.26.1, owner): <c>Family Given] Title</c> - a YACReader jump-bar
+    /// convention - and <c>Title [Family Given</c>. Call after balanced groups are removed, so every
+    /// bracket left is unmatched: the text before a lone closing bracket at the start, and after a
+    /// lone opening bracket at the end, is a tag; the rest is returned. Only splits when both sides
+    /// have letters, so a title is never emptied.
+    /// </summary>
+    public static string SplitUnmatchedBracketTags(string s, out string? leading, out string? trailing)
+    {
+        leading = trailing = null;
+        var firstClose = s.IndexOfAny([']', ')', '}']);
+        var firstOpen = s.IndexOfAny(['[', '(', '{']);
+        if (firstClose > 0 && (firstOpen < 0 || firstOpen > firstClose)
+            && s[..firstClose].Any(char.IsLetter) && HasTitleText(s[(firstClose + 1)..]))
+        {
+            leading = s[..firstClose].Trim();
+            s = s[(firstClose + 1)..];
+        }
+        var lastOpen = s.LastIndexOfAny(['[', '(', '{']);
+        var lastClose = s.LastIndexOfAny([']', ')', '}']);
+        if (lastOpen >= 0 && lastClose < lastOpen
+            && HasTitleText(s[..lastOpen]) && s[(lastOpen + 1)..].Any(char.IsLetter))
+        {
+            trailing = s[(lastOpen + 1)..].Trim();
+            s = s[..lastOpen];
+        }
+        return s;
+    }
+
+    // Title text: at least two letters once volume / chapter / number tokens are gone ("v01" is not).
+    private static bool HasTitleText(string s) =>
+        HashNumber().Replace(ChapterToken().Replace(VolumeToken().Replace(s, " "), " "), " ").Count(char.IsLetter) >= 2;
 
     private static bool IsApostrophe(char ch) =>
         ch is '\'' or '\u2018' or '\u2019' or '\u02BC' or '`' or '\u00B4';

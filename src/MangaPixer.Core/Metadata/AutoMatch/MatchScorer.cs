@@ -47,6 +47,20 @@ public sealed class MatchScorer : IMatchScorer
     public const double ComicInfoAgree = 0.05;
     public const double AuthorAgree = 0.05;
 
+    /// <summary>
+    /// A creator hint from the name (<c>Title [Family Given]</c>) names the record's author or its
+    /// <c>(AUTHOR Name)</c> disambiguator (1.26.1): enough to separate same-titled records by the margin.
+    /// Includes <see cref="AuthorAgree"/> when both apply (the total author bonus is this value).
+    /// </summary>
+    public const double CreatorHintAgree = 0.10;
+
+    /// <summary>
+    /// The title score of a record whose title, up to its colon, EQUALS the searched name (<c>Title</c> vs
+    /// <c>Title: Long Subtitle</c>, 1.26.1): below the auto threshold, so such a match only ranks the
+    /// record for review and never links it on its own.
+    /// </summary>
+    public const double SubtitleHeadCap = 0.80;
+
     /// <summary>Related top two need at least this raw title gap to stay auto.</summary>
     public const double RelatedSeparation = 0.10;
 
@@ -156,6 +170,16 @@ public sealed class MatchScorer : IMatchScorer
                 titles.Add(stripped);
         }
         var titleNumbers = titles.Select(TitleNormalizer.NumberTokens).ToList();
+        // "Title: Long Subtitle" records also compare by the part before the colon, capped (1.26.1).
+        var heads = titles
+            .Select(t => t.IndexOf(':', StringComparison.Ordinal) is var i and > 0 ? t[..i].Trim() : null)
+            .Where(h => h is not null && h.Any(char.IsLetter) && !titles.Contains(h, StringComparer.OrdinalIgnoreCase))
+            .Select(h => h!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var capped = titles.Count;
+        titles.AddRange(heads);
+        titleNumbers.AddRange(heads.Select(TitleNormalizer.NumberTokens));
 
         var best = 0.0;
         var bestPenalized = false;
@@ -163,7 +187,19 @@ public sealed class MatchScorer : IMatchScorer
         {
             for (var i = 0; i < titles.Count; i++)
             {
-                var raw = TitleSimilarity.Score(v.Text, titles[i]);
+                double raw;
+                if (i >= capped)
+                {
+                    // Only a head EQUAL to the searched name counts ("Title" vs "Title: Subtitle"), never
+                    // a merely similar one - that is how spin-offs ("Title: Side Story") look.
+                    if (TitleNormalizer.ScoringForm(v.Text) != TitleNormalizer.ScoringForm(titles[i]))
+                        continue;
+                    raw = SubtitleHeadCap;
+                }
+                else
+                {
+                    raw = TitleSimilarity.Score(v.Text, titles[i]);
+                }
                 if (raw <= 0) continue;
                 var penalized = !v.Numbers.SequenceEqual(titleNumbers[i], StringComparer.Ordinal);
                 var s = raw - (penalized ? NumberPenalty : 0) - (v.Derived ? DerivedVariantDiscount : 0);
@@ -253,13 +289,27 @@ public sealed class MatchScorer : IMatchScorer
         // the record's authors (undecidable when either side is empty).
         var tags = (ctx.AuthorTags ?? []).Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
         var authors = (c.Authors ?? []).Where(a => !string.IsNullOrWhiteSpace(a)).ToList();
+        var authorBonus = 0.0;
         if (tags.Count > 0 && authors.Count > 0)
         {
             if (tags.Any(t => authors.Any(a => AutoMatchText.NamesEqual(t, a))))
-                delta += AuthorAgree;
+                authorBonus = AuthorAgree;
             else if (IsArchiveLevel(ctx.Class))
                 reasons |= MatchReason.AuthorConflict;
         }
+
+        // Creator hints from the name: positive only. The record's authors come from a full read;
+        // its "(AUTHOR Name)" disambiguator is on every search hit, so ties are broken without a read.
+        var hints = (ctx.CreatorHints ?? []).Where(h => !string.IsNullOrWhiteSpace(h)).ToList();
+        if (hints.Count > 0)
+        {
+            var named = authors
+                .Concat(new[] { c.Title }.Concat(c.AltTitles ?? []).Select(AutoMatchText.DisambiguatorTag).OfType<string>())
+                .ToList();
+            if (hints.Any(h => named.Any(n => AutoMatchText.NamesEqual(h, n))))
+                authorBonus = CreatorHintAgree;
+        }
+        delta += authorBonus;
 
         return new ScoredCandidate(c, title, title + delta, reasons);
     }

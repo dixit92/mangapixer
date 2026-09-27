@@ -358,7 +358,7 @@
          Worker protocol unchanged (2). Bugfixes ship as 1.23.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
     <MangaPixerVersionMinor>26</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

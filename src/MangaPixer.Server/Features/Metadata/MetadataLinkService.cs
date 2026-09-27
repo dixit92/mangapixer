@@ -343,6 +343,15 @@ public sealed class MetadataLinkService
         await AutoMatch.MetadataOutcomeCounters.CountChangeAsync(_db, nodeId, before, newState, newExternalId, ct);
         if (before is { State: (int)SeriesLinkState.NeedsReview })
             await _db.MetadataMatchCandidates.Where(c => c.NodeId == nodeId).ExecuteDeleteAsync(ct);
+
+        // A folder linked or marked Don't match by an admin speaks for its subtree (1.26.1).
+        if (newState is SeriesLinkState.Confirmed or SeriesLinkState.DontMatch
+            && await _db.CatalogNodes.AsNoTracking().Where(n => n.Id == nodeId && n.Kind == (int)CatalogNodeKind.Folder)
+                .Select(n => (long?)n.LibraryId).FirstOrDefaultAsync(ct) is { } libraryId)
+        {
+            var tree = await AutoMatch.LibraryTreeSnapshot.LoadAsync(_db, libraryId, ct);
+            await AutoMatch.CoveredWorkRetirement.RetireBelowAsync(_db, tree, nodeId, ct);
+        }
     }
 
     private async Task<NodeSeriesLinkDto> ToDtoAsync(NodeSeriesLinkEntity link, string nodePublicId, CancellationToken ct)

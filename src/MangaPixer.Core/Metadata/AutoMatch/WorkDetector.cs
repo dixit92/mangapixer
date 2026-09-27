@@ -182,6 +182,14 @@ public sealed class WorkDetector : IWorkDetector
         if (unitShare >= UnitNamedShare || baseShare >= DominantBaseShare || matchShare >= FolderMatchShare)
             return Result(WorkClass.Series, MatchLevel.Folder, ["archives are units of one work: " + shares], content: content);
 
+        // "Title 025 Subtitle" chapters: the per-chapter subtitle makes every base different, but
+        // the title in front of a varying number is shared (owner review, 1.26.1).
+        if (TitleNormalizer.NumberedSeriesHead(archives, DominantBaseShare) is not null)
+        {
+            return Result(WorkClass.Series, MatchLevel.Folder,
+                ["archives are numbered chapters of one title (with chapter subtitles): " + shares], content: content);
+        }
+
         // "Head - Subtitle" names sharing one head: a series with subtitled volumes or a creator
         // folder with unbracketed names - the shape cannot tell, so neither level is safe.
         var heads = bases.Where(b => b.Length > 0)
