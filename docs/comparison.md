@@ -25,5 +25,5 @@ The descriptions of the other projects summarize their own documentation as of S
 ## Choose another server if
 
 - **Your library is organized around metadata**, or you want to edit and curate metadata heavily: Komga and Kavita both do this well.
-- **You need PDF or EPUB**, OPDS for third-party reading apps, or e-reader sync: Komga and Kavita support these; MangaPixer does not yet.
+- **You need PDF or EPUB**, OPDS for third-party reading apps, or e-reader sync: Komga and Kavita support some or all of these; MangaPixer does not yet.
 - **You mostly read on one computer** with a desktop app: YACReader is a long-standing, folder-based desktop reader, and MangaPixer can [import its read progress](backup-and-restore.md#importing-reading-progress-from-yacreader).
