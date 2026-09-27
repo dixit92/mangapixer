@@ -187,6 +187,23 @@ public sealed class MatchScorerTests
         Assert.Equal(MatchBand.Auto, o.Band);
     }
 
+    [Fact]
+    public void AnAliasThatIsTheMainTitlesHead_IsReviewOnly()
+    {
+        // A spin-off "Alpha Beta - Side Name" lists "Alpha Beta" as an alias; the series "Alpha Beta - Main
+        // Subtitle" is only reached by its head. Neither may auto-link the name both share.
+        var o = Score(Query(["Alpha Beta"]),
+            Rec("spin", "Alpha Beta - Side Name Diary", alt: ["Alpha Beta"]),
+            Rec("main", "Alpha Beta - Main Subtitle Words", alt: ["Alpha Beta ~Main Subtitle Words~"]));
+
+        Assert.All(o.Ranked, r => Assert.Equal(MatchScorer.SubtitleHeadCap, r.TitleScore, 3));
+        Assert.Equal(MatchBand.NeedsReview, o.Band);
+
+        // A plain alias of a record whose main title has no subtitle is still a full match.
+        var plain = Score(Query(["Alpha Beta"]), Rec("1", "Arufa Beta", alt: ["Alpha Beta"]));
+        Assert.Equal(MatchBand.Auto, plain.Band);
+    }
+
     private static MatchQuery WithUnits(MatchQuery q, int volumeLike, int chapterLike, int? localVolumes, int? localChapters) =>
         q with { Context = q.Context with { VolumeLikeCount = volumeLike, ChapterLikeCount = chapterLike, LocalVolumes = localVolumes, LocalChapters = localChapters } };
 

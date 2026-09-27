@@ -83,6 +83,36 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
             Assert.True(top?.Candidate.ExternalId == id, $"chosen {top?.Candidate.ExternalId}, expected {id}: {detail}");
     }
 
+    /// <summary>
+    /// The aggregate bands at the default thresholds (1.27.0). A rule change that moves a band must update these on
+    /// purpose, with the per-case reason in <see cref="GoldenCases"/>.
+    /// </summary>
+    public const int ExpectedAuto = 54, ExpectedReview = 11, ExpectedUnmatched = 2;
+
+    [Fact]
+    public async Task Aggregate_BandsAndPrecision_AtTheDefaults()
+    {
+        var (_, auto, autoCorrect, review, unmatched) = await CountAsync(MatchThresholds.Default, _ => true);
+
+        Assert.Equal(auto, autoCorrect); // precision 100%: every auto link is the expected record
+        Assert.Equal((ExpectedAuto, ExpectedReview, ExpectedUnmatched), (auto, review, unmatched));
+    }
+
+    [Fact]
+    public async Task RecordedEnglishPublisherNotes_ReachTheCandidate_ThroughTheProductionMapping()
+    {
+        var missing = new List<string>();
+        using var net = new GatewayHarness(env.Db, s_unpaced);
+        net.Handler.Respond = request => GoldenFixtures.Respond(request, missing);
+        var record = await net.Gateway().GetSeriesAsync("mangaupdates", env.Db.LibraryId, "15180124327", CancellationToken.None, MetadataCallContext.Automatic());
+        var candidate = AutoMatchLookup.ToCandidate(record!);
+
+        Assert.Empty(missing);
+        Assert.Equal((15, 201), (candidate.EnglishVolumes, candidate.EnglishChapters)); // "13+2 Volumes", "201 Chapters"
+        Assert.Equal(200, candidate.TotalChapters); // "200 Chapters + Prologue (Complete)"
+        Assert.True(candidate.Webtoon);
+    }
+
     [Fact]
     public async Task Report_AutoRateAndPrecision()
     {
@@ -107,6 +137,55 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
             if (name == "default")
                 Assert.Equal(auto, autoCorrect);
         }
+
+        // Archive-level works (collection / artist folders, loose archives) reported separately (1.27.0).
+        var (_, archiveAuto, archiveCorrect, archiveReview, archiveUnmatched) = await CountAsync(MatchThresholds.Default, c => c.GroupTitle is not null);
+        var archiveTotal = archiveAuto + archiveReview + archiveUnmatched;
+        var archiveLine = FormattableString.Invariant(
+            $"GOLDEN archive-level: {archiveTotal} works, auto {archiveAuto} ({100.0 * archiveAuto / Math.Max(1, archiveTotal):0.0}%), precision {archiveCorrect}/{archiveAuto}");
+        output.WriteLine(archiveLine);
+        Console.WriteLine(archiveLine);
+
+        // Measure only (1.27.0 lane brief): would a different auto threshold per work class help? Auto count and
+        // precision per class across the admin-adjustable auto range, margin and floor at their defaults.
+        foreach (var cls in GoldenCases.All.Where(c => c.Band is not null).Select(c => s_detector.Classify(c.Folder).Class).Distinct().Order())
+        {
+            var parts = new List<string>();
+            foreach (var autoTitle in new[] { 0.85, 0.88, 0.90, 0.92, 0.95, 0.99 })
+            {
+                var t = MatchThresholds.Default with { AutoTitle = autoTitle };
+                var (_, a, ok, _, _) = await CountAsync(t, c => s_detector.Classify(c.Folder).Class == cls);
+                parts.Add(FormattableString.Invariant($"{autoTitle:0.00}: {ok}/{a}"));
+            }
+            var line = $"GOLDEN per-class {cls}: " + string.Join(", ", parts);
+            output.WriteLine(line);
+            Console.WriteLine(line);
+        }
+    }
+
+    private async Task<(int Matched, int Auto, int AutoCorrect, int Review, int Unmatched)> CountAsync(MatchThresholds thresholds, Func<GoldenCase, bool> filter)
+    {
+        int matched = 0, auto = 0, autoCorrect = 0, review = 0, unmatched = 0;
+        foreach (var c in GoldenCases.All.Where(c => c.Band is not null && filter(c)))
+        {
+            if ((await ExecuteAsync(c, thresholds)).Outcome is not { } o) continue;
+            matched++;
+            var topId = o.Ranked.Count > 0 ? o.Ranked[0].Candidate.ExternalId : null;
+            switch (o.Band)
+            {
+                case MatchBand.Auto:
+                    auto++;
+                    if (c.ExpectedId is not null && topId == c.ExpectedId) autoCorrect++;
+                    break;
+                case MatchBand.NeedsReview:
+                    review++;
+                    break;
+                default:
+                    unmatched++;
+                    break;
+            }
+        }
+        return (matched, auto, autoCorrect, review, unmatched);
     }
 
     private async Task<(string Report, int Auto, int AutoCorrect)> AggregateAsync(MatchThresholds thresholds)

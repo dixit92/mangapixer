@@ -69,15 +69,17 @@ public static partial class MangaUpdatesStatusParser
         return new Result(volumes, origin, text, chapters);
     }
 
-    [GeneratedRegex(@"(?<![\p{L}\p{N}.])(\d{1,5})(?:\.\d+)?\s*chapters?\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // "86 Chapters", "13+2 Volumes" (a sum), "18 Physical Volumes" (up to two words between the number and the unit).
+    [GeneratedRegex(@"(?<![\p{L}\p{N}.+])(\d{1,5})(?:\s*\+\s*(\d{1,5}))?(?:\.\d+)?\s*(?:[\p{L}-]+\s+){0,2}chapters?\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex NotesChapters();
 
-    [GeneratedRegex(@"(?<![\p{L}\p{N}.])(\d{1,5})(?:\.\d+)?\s*(?:volumes?|vols?)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?<![\p{L}\p{N}.+])(\d{1,5})(?:\s*\+\s*(\d{1,5}))?(?:\.\d+)?\s*(?:[\p{L}-]+\s+){0,2}(?:volumes?|vols?)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex NotesVolumes();
 
     /// <summary>
     /// The volume and chapter totals of a publisher's <c>notes</c> ("10 Volumes / 60 Chapters; Ongoing",
-    /// "86 Chapters; Ongoing", "12 Volumes (Ongoing)"; 1.27.0). The largest stated number of each, or null.
+    /// "86 Chapters; Ongoing", "12 Volumes (Ongoing)", "13+2 Volumes; Complete", "18 Physical Volumes"; 1.27.0). The
+    /// largest stated number of each, or null.
     /// </summary>
     public static (int? Volumes, int? Chapters) ParsePublisherNotes(string? notes)
     {
@@ -92,7 +94,11 @@ public static partial class MangaUpdatesStatusParser
         int? best = null;
         foreach (Match m in matches)
         {
-            if (int.TryParse(m.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n > 0 && (best is null || n > best))
+            if (!int.TryParse(m.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var n))
+                continue;
+            if (m.Groups[2].Success && int.TryParse(m.Groups[2].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var extra))
+                n += extra;
+            if (n > 0 && (best is null || n > best))
                 best = n;
         }
         return best;

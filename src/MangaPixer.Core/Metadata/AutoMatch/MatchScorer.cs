@@ -215,6 +215,20 @@ public sealed class MatchScorer : IMatchScorer
             .Select(h => h!)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        // An ALT title that is just the head of the record's own main title ("Title" on a record named
+        // "Title - Spin-off Name") is the franchise's short name, not this record's full name (1.27.0, found in the
+        // golden recordings: a spin-off listed the series name as an alias and scored a clean 1.00). It counts like
+        // a head: capped, review only.
+        if (TitleNormalizer.SubtitleHead(c.Title) is { } mainHead)
+        {
+            var headForm = TitleNormalizer.ScoringForm(mainHead);
+            foreach (var alias in titles.Skip(1).Where(t => TitleNormalizer.ScoringForm(t) == headForm).ToList())
+            {
+                titles.Remove(alias);
+                if (!heads.Contains(alias, StringComparer.OrdinalIgnoreCase))
+                    heads.Add(alias);
+            }
+        }
         var capped = titles.Count;
         var fullForms = titles.Select(TitleNormalizer.ScoringForm).ToList();
         titles.AddRange(heads);

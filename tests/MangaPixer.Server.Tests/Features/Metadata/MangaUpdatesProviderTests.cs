@@ -395,6 +395,9 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
     [InlineData("86 Chapters; Ongoing", null, 86)]
     [InlineData("22 Volumes; Completed", 22, null)]
     [InlineData("12 Volumes (Ongoing)", 12, null)]
+    [InlineData("13+2 Volumes; Complete", 15, null)]
+    [InlineData("18 Physical Volumes; Complete | 9 Physical Perfect Edition Omnibuses; Complete", 18, null)]
+    [InlineData("Digital, Print", null, null)]
     [InlineData("Cancelled", null, null)]
     [InlineData(null, null, null)]
     public void PublisherNotes_ReadVolumeAndChapterTotals(string? notes, int? volumes, int? chapters) =>
