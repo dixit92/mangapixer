@@ -185,6 +185,21 @@ public sealed record SearchResultsDto
     public required int TotalCount { get; init; }
     public string? NextCursor { get; init; }
     public bool HasMore { get; init; }
+
+    /// <summary>
+    /// Series whose alternative titles matched the query (first page only, at most 20).
+    /// Null on later pages.
+    /// </summary>
+    public IReadOnlyList<SeriesMatchDto>? SeriesMatches { get; init; }
+}
+
+/// <summary>A catalog node found through a linked series' alternative title.</summary>
+public sealed record SeriesMatchDto
+{
+    public required CatalogNodeDto Node { get; init; }
+
+    /// <summary>The best (shortest) title of the linked series that matched the query.</summary>
+    public required string MatchedTitle { get; init; }
 }
 
 /// <summary>

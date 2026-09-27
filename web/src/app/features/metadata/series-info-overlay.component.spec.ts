@@ -25,6 +25,7 @@ describe('SeriesInfoOverlayComponent', () => {
     sheetRef.dismiss.mockClear();
     const api = {
       getSeriesInfo: vi.fn(() => (info === 'error' ? throwError(() => ({ error: 'not_found' })) : of(info))),
+      getMyFlag: vi.fn(() => of({ canFlag: true, flag: null })),
     };
     const providers: unknown[] = [
       provideNoopAnimations(),
@@ -106,6 +107,19 @@ describe('SeriesInfoOverlayComponent', () => {
     TestBed.resetTestingModule();
     const both = create(seriesInfo({ state: 'WebAndComicInfo', web, comicInfo: { itemsWithComicInfo: 2, itemsTotal: 3 } }));
     expect(both.el.textContent).toContain('Precedence: Web first');
+  });
+
+  it('offers readers "Wrong series?" only when web data is shown, never to admins (stage 2)', () => {
+    const web = { provider: 'mangaupdates', providerName: 'MangaUpdates', fetchedAt: new Date().toISOString() };
+    const reader = create(seriesInfo({ state: 'Web', web, anchorNodeId: 'anchor-1' }));
+    expect(reader.el.querySelector('[data-testid="wrong-series"]')).not.toBeNull();
+    expect(reader.api.getMyFlag).toHaveBeenCalledWith('anchor-1');
+    TestBed.resetTestingModule();
+    const ciOnly = create(seriesInfo({ state: 'ComicInfo', comicInfo: { itemsWithComicInfo: 1, itemsTotal: 1 } }));
+    expect(ciOnly.el.querySelector('app-wrong-series-flag')).toBeNull();
+    TestBed.resetTestingModule();
+    const admin = create(seriesInfo({ state: 'Web', web }), { admin: true });
+    expect(admin.el.querySelector('app-wrong-series-flag')).toBeNull();
   });
 
   it('shows an error state when the node cannot be loaded', () => {

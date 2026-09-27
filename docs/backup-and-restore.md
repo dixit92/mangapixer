@@ -32,7 +32,7 @@ Backups are an emergency copy, so it often makes sense to keep them on a differe
 
 Before it saves, the server checks the folder: it must be absolute, its parent folder must already exist (only the last folder is created for you), it must be writable, and it must not be inside, or contain, the data, cache, scratch or media folders, any library folder, or the program folder. System and temporary folders (for example `/tmp`, `/etc`, `C:\Windows`, a drive root) are refused. Links are followed, so a symbolic link cannot point the backups into a library. Use **Test** to run all checks without saving. Both **Test** and **Save** ask for your current password, because this setting decides where a full copy of the database is written; wrong passwords count toward the sign-in rate limit, and every change is recorded in the audit trail.
 
-The server writes a small `.mangapixer-backups.json` marker file into the folder. It is how the server recognises the folder later; do not delete it. If another MangaPixer server already uses the folder, saving is refused so two servers never delete each other's snapshots; after a reinstall you can take the folder over through the API (`adoptExistingMarker`).
+The server writes a small `.mangapixer-backups.json` marker file into the folder. It is how the server recognizes the folder later; do not delete it. If another MangaPixer server already uses the folder, saving is refused so two servers never delete each other's snapshots; after a reinstall you can take the folder over through the API (`adoptExistingMarker`).
 
 When you change the location and the current folder holds rotating snapshots, the card offers **Move existing snapshots (N files, X MB)**, checked by default. The server then moves them in the background while the card shows the progress; settings are saved straight away and backups keep running. Each snapshot is copied to the new folder, checked (size and SHA-256), and only then removed from the old one, so a failure or a restart never loses a snapshot. Only `rotating-*.db` snapshots move: the marker, the safety snapshots and any other file stay. A file of the same name that is already in the new folder is never overwritten; if it is identical, the old copy is removed, otherwise both are kept. When the move is done, the normal **Keep the newest** limit applies in the new folder. Any snapshot that could not be moved is listed with the reason and stays in the old folder.
 
@@ -70,6 +70,7 @@ A backup is **the database only**. That covers:
 - libraries (name, folder path, reading direction) and the catalog of folders and archives,
 - reading progress, read marks, bookmarks, **Continue reading** dismissals,
 - per-user settings, including Private libraries and New Chapters options,
+- series information: links to MangaUpdates, folder settings such as **Don't match** and **Content**, and the data fetched from the web,
 - sessions that existed when the snapshot was taken.
 
 It does **not** contain:
@@ -79,6 +80,7 @@ It does **not** contain:
 | Your comics and manga | Your media folders | Never touched by the server. Back them up separately. |
 | Sign-in keys | `<data root>/keys` | Everyone has to sign in again. Nothing else is lost. |
 | Cover thumbnails | `<data root>/thumbnails` | Regenerated automatically at start-up, or with **Regenerate thumbnails**. |
+| Series cover art fetched from MangaUpdates | `<data root>/metadata-images` | Series information shows no cover image. |
 | Page cache | cache root | Rebuilt as people read. |
 | Scratch files | scratch root | Temporary; not needed. |
 | Logs | `<data root>/logs` | Only needed for troubleshooting. |
@@ -93,7 +95,9 @@ docker compose -f deploy/compose.yaml cp mangapixer:/data/backups ./mangapixer-b
 
 ## Restoring a backup
 
-There is no restore button in the web app yet. You restore with a single API call, or by swapping the file by hand while the server is stopped.
+You can restore from the web app, with a single API call, or by swapping the file by hand while the server is stopped.
+
+In **MangaPixer Administration** > **Backups**, **Restore from a snapshot** lists the rotating snapshots on disk, each with a **Restore** button, and **Restore from an uploaded file** takes a backup file from your computer. Both work like the API upload below: the file is checked, the current database is saved as a `pre-restore-*.db` snapshot, and the restore applies when you restart the server.
 
 ### Option 1: upload through the API
 
@@ -121,14 +125,14 @@ There is no restore button in the web app yet. You restore with a single API cal
 
    Nothing has changed yet. The live database is never overwritten while in use.
 
-2. **Restart the server** (`docker compose ... restart`, or restart the container on Unraid). During start-up, before it opens the database, the server:
+2. **Restart the server** (`docker compose ... restart`, restart the container on Unraid, or **Restart Server** in the Windows tray app). During start-up, before it opens the database, the server:
    - checks the staged file again,
    - moves the current database aside as `mangapixer.db.replaced-<timestamp>`,
    - puts the backup in its place.
 
    If anything fails, it puts the original back and logs "Pending DB restore did not apply".
 
-Uploads are limited to 128 MiB. For a larger database, use option 2.
+Uploads are limited to 512 MiB by default (`MangaPixer__Backups__MaxRestoreUploadBytes`, see [Configuration](configuration.md#backups)). For a larger database, use option 2.
 
 ### Option 2: swap the file by hand
 

@@ -23,7 +23,7 @@ MangaPixer is listed in Community Applications. Open the Unraid **Apps** tab, se
 1. Check the **Name** (`mangapixer`) and the **Web UI Port** (`6266`); change the port if something else already uses it.
 2. **Appdata** (`/config`): the default is `/mnt/user/appdata/MangaPixer`. The database, backups, thumbnails and page cache live here; back this folder up.
 3. Fill in:
-   - **PUID** and **PGID**: Check your Unraid user's ID with `ls -ln /mnt/user/appdata`. Defaults are `99` (`nobody`) and `100` (`users`).
+   - **PUID** and **PGID**: check your Unraid user's ID with `ls -ln /mnt/user/appdata`. Defaults are `99` (`nobody`) and `100` (`users`).
    - **Media**: set the host path to your comics or manga share (for example `/mnt/user/Manga`); it is mounted read-only at `/media/manga`. For another share, select **Add another Path** and use a sibling container path such as `/media/comics`, also read-only. Never mount one share inside another (for example one at `/media` and another at `/media/comics`): Docker would have to create a folder inside your first share.
 4. Click **Apply**.
 5. The container starts. Once it is running, visit `http://<unraid-ip>:6266` and create the first admin on the welcome screen. Then register your libraries with root paths such as `/media/manga`, as in [step 6 of the Docker guide](install-docker.md#step-6-add-a-library).
@@ -54,7 +54,7 @@ Copy `deploy/compose.unraid.yaml` from the repository to a folder on the server,
 Set `MANGAPIXER_VERSION` to the release you want (see the [Releases page](https://github.com/dixit92/mangapixer/releases)). If it is unset, the file falls back to `latest`, which moves with every release.
 
 ```sh
-export MANGAPIXER_VERSION=1.25.0
+export MANGAPIXER_VERSION=1.26.0
 ```
 
 To run an unreleased build instead, clone the repository on the server and add `deploy/compose.build.yaml` to the `-f` list in step 4; Compose then builds the image from the clone. `pwsh ./scripts/Package-Release.ps1` on another machine still produces a loadable `.tar` if you prefer to build elsewhere and `docker load` it.
@@ -119,11 +119,12 @@ Port 6266 is published on every interface, but the server itself only speaks pla
 ```text
 /mnt/user/appdata/MangaPixer/
 ├── data/
-│   ├── mangapixer.db          database (plus -wal / -shm files while running)
+│   ├── mangapixer.db         database (plus -wal / -shm files while running)
 │   ├── keys/                 sign-in cookie keys (owner-only permissions)
 │   ├── logs/                 daily log files, 7 kept
 │   ├── backups/              rotating-*, pre-migration-*, pre-restore-* snapshots
-│   └── thumbnails/           cover thumbnails
+│   ├── thumbnails/           cover thumbnails
+│   └── metadata-images/      series cover art fetched from MangaUpdates (if enabled)
 ├── cache/                    page image cache (1 GiB budget, disposable)
 └── scratch/                  temporary work folders (disposable)
 ```

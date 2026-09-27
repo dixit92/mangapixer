@@ -2,7 +2,8 @@ import { test, expect, Page, APIRequestContext } from '@playwright/test';
 
 /**
  * Series metadata network controls (1.24.0, lane B2) - NEVER the real network:
- * - the admin "Series metadata" card: the web switch stays disabled until the consent
+ * - the Settings tab of /admin/metadata (the stage-1 "Series metadata" card moved there in
+ *   stage 2): the web switch stays disabled until the consent
  *   checkbox is ticked, and enabling it makes no lookup (budget stays 0, no error, and
  *   the browser contacts no host but MangaPixer);
  * - Identify is disabled with its reason when web lookups are off, and the identify
@@ -66,13 +67,15 @@ test('settings card: consent gates the web switch; enabling makes no lookup', as
   await login(page);
   await setFetch(page, false);
   const usedBefore = (await settings(page)).budgetUsedToday;
-  await page.goto('/admin');
+  await page.goto('/admin/metadata');
 
   const card = page.getByTestId('metadata-settings-card');
   await card.scrollIntoViewIfNeeded();
-  await expect(card.getByTestId('md-consent-text')).toContainText('What is never sent:');
   const fetchSwitch = card.getByTestId('md-fetch').getByRole('switch');
   const consented = await card.getByTestId('md-consented').count();
+  // After consent the text folds behind "What is sent?".
+  if (consented) await card.getByTestId('md-consent-toggle').click();
+  await expect(card.getByTestId('md-consent-text')).toContainText('What is never sent:');
   if (!consented) {
     await expect(fetchSwitch).toBeDisabled();
     await shot(page, 'b2-01-settings-consent-required');

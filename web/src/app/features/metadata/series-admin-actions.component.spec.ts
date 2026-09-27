@@ -1,9 +1,10 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of } from 'rxjs';
+import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
+import { Subject, of, throwError } from 'rxjs';
 
-import { IdentifyContextDto, SeriesInfoDto } from '../../core/api/api-types';
+import { FolderMetadataContentDto, IdentifyContextDto, SeriesInfoDto } from '../../core/api/api-types';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
 import { MetadataApiService } from './metadata-api.service';
 import { MetadataStateService } from './metadata-state.service';
@@ -32,7 +33,7 @@ describe('SeriesAdminActionsComponent', () => {
     unavailableMessage: fetchAvailable ? null : 'Fetching series information from the web is off for this library.',
   });
 
-  function create(info: SeriesInfoDto, fetchAvailable = false) {
+  function create(info: SeriesInfoDto, fetchAvailable = false, content: FolderMetadataContentDto | null = null) {
     const dialog = { open: vi.fn(() => Promise.resolve(true)) };
     const api = {
       getIdentifyContext: vi.fn(() => of(context(fetchAvailable))),
@@ -42,6 +43,10 @@ describe('SeriesAdminActionsComponent', () => {
       unlink: vi.fn(() => of({ nodeId: info.nodeId })),
       setFolderPrecedence: vi.fn(() => of({ nodeId: info.nodeId, precedence: 'WebFirst' })),
       clearFolderPrecedence: vi.fn(() => of(undefined)),
+      // Stage 2 Content setting; null = a server without it (501).
+      getFolderContent: vi.fn(() => (content ? of(content) : throwError(() => ({ status: 501 })))),
+      setFolderContent: vi.fn((id: string, value: string) => of({ nodeId: id, content: value, effective: value })),
+      clearFolderContent: vi.fn((id: string) => of({ nodeId: id, content: null, effective: 'Auto' })),
     };
     const state = { announce: vi.fn(), refresh: vi.fn() };
     TestBed.configureTestingModule({
@@ -131,5 +136,61 @@ describe('SeriesAdminActionsComponent', () => {
     document.querySelectorAll('.cdk-overlay-container').forEach((c) => (c.innerHTML = ''));
     create(seriesInfo({ nodeId: 'a1', nodeKind: 'Archive' }));
     expect(item('[data-testid="precedence-web"]')).toBeNull();
+  });
+
+  it('says what a Content change queued again, and offers "Match again" when it asked first', () => {
+    const action = new Subject<void>();
+    const open = vi.spyOn(MatSnackBar.prototype, 'open')
+      .mockReturnValue({ onAction: () => action } as unknown as MatSnackBarRef<TextOnlySnackBar>);
+    const { api, fixture } = create(seriesInfo({ nodeId: 'f1', nodeKind: 'Folder' }), false, { nodeId: 'f1', effective: 'Auto' });
+    fixture.detectChanges();
+    api.setFolderContent.mockReturnValueOnce(of({ nodeId: 'f1', content: 'DoujinshiAndAdultOneShots', effective: 'DoujinshiAndAdultOneShots',
+      rematch: { affected: 6, queued: 6 } }) as never);
+    item('[data-testid="content-DoujinshiAndAdultOneShots"]')!.click();
+    expect(open).toHaveBeenLastCalledWith('Content set: Doujinshi & adult one-shots · 6 items below queued to match again', 'Close', { duration: 5000 });
+
+    const rematch = vi.fn(() => of({ affected: 250, queued: 250 }));
+    (api as unknown as { rematchFolderContent: typeof rematch }).rematchFolderContent = rematch;
+    api.setFolderContent.mockReturnValueOnce(of({ nodeId: 'f1', content: 'DoujinshiAndAdultOneShots', effective: 'DoujinshiAndAdultOneShots',
+      rematch: { affected: 250, queued: 0, needsConfirmation: true } }) as never);
+    (fixture.nativeElement.querySelector('[data-testid="series-admin-menu"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    item('[data-testid="content-DoujinshiAndAdultOneShots"]')!.click();
+    expect(open.mock.calls.at(-1)![1]).toBe('Match again');
+    expect(open.mock.calls.at(-1)![0]).toContain('250 items below were matched without this setting');
+    expect(rematch).not.toHaveBeenCalled();
+    action.next();
+    expect(rematch).toHaveBeenCalledWith('f1');
+    expect(open).toHaveBeenLastCalledWith('250 items queued to match again', 'Close', { duration: 3000 });
+    open.mockRestore();
+  });
+
+  it('shows the folder Content setting with its source and the detector\'s suggestion (stage 2)', () => {
+    const { fixture, api } = create(seriesInfo({ nodeId: 'f1', nodeKind: 'Folder' }), false,
+      { nodeId: 'f1', content: null, effective: 'Auto', sourceNodeId: 'p1', suggested: 'DoujinshiAndAdultOneShots' });
+    fixture.detectChanges();
+    expect(api.getFolderContent).toHaveBeenCalledWith('f1');
+    expect(document.querySelector('[data-testid="content-caption"]')!.textContent).toBe('Content: Auto (inherited)');
+    expect(item('[data-testid="content-DoujinshiAndAdultOneShots"]')!.textContent).toContain('suggested');
+    expect(item('[data-testid="content-inherit"]')).toBeNull(); // nothing of its own to clear
+    item('[data-testid="content-DoujinshiAndAdultOneShots"]')!.click();
+    expect(api.setFolderContent).toHaveBeenCalledWith('f1', 'DoujinshiAndAdultOneShots');
+    expect(fixture.componentInstance.changes).toBe(0); // Content never changes the shown information
+  });
+
+  it('clears an own Content value, and hides the section without the server setting or for archives', () => {
+    const { api } = create(seriesInfo({ nodeId: 'f1', nodeKind: 'Folder' }), false,
+      { nodeId: 'f1', content: 'NotDoujinshi', effective: 'NotDoujinshi' });
+    expect(document.querySelector('[data-testid="content-caption"]')!.textContent).toBe('Content: Not doujinshi (set here)');
+    item('[data-testid="content-inherit"]')!.click();
+    expect(api.clearFolderContent).toHaveBeenCalledWith('f1');
+    TestBed.resetTestingModule();
+    document.querySelectorAll('.cdk-overlay-container').forEach((c) => (c.innerHTML = ''));
+    create(seriesInfo({ nodeId: 'f2', nodeKind: 'Folder' }));
+    expect(document.querySelector('[data-testid="content-caption"]')).toBeNull();
+    TestBed.resetTestingModule();
+    document.querySelectorAll('.cdk-overlay-container').forEach((c) => (c.innerHTML = ''));
+    const archive = create(seriesInfo({ nodeId: 'a1', nodeKind: 'Archive' }), false, { nodeId: 'a1', effective: 'Auto' });
+    expect(archive.api.getFolderContent).not.toHaveBeenCalled();
   });
 });

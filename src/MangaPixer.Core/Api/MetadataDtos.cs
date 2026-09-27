@@ -194,6 +194,25 @@ public sealed record MetadataSettingsDto
     public required MetadataComicInfoStatsDto ComicInfo { get; init; }
     public required int WebRecordCount { get; init; }
     public required IReadOnlyList<MetadataLibrarySettingsDto> Libraries { get; init; }
+
+    // Stage 2 (auto-match). One global switch (owner decision 3): it applies to every
+    // library whose "Fetch from the web" is on, within the one daily budget.
+
+    /// <summary>Global "Automatic matching" switch (off by default).</summary>
+    public bool AutoMatchEnabled { get; init; }
+
+    /// <summary>Automatic-lookups consent version the admin accepted, or null (separate from the v1 fetch consent).</summary>
+    public int? AcceptedAutoConsentVersion { get; init; }
+    public int CurrentAutoConsentVersion { get; init; }
+    public DateTimeOffset? AutoConsentAt { get; init; }
+
+    /// <summary>Effective thresholds (the defaults when not set).</summary>
+    public MetadataMatchThresholdsDto? Thresholds { get; init; }
+    public MetadataMatchThresholdsDto? DefaultThresholds { get; init; }
+    public MetadataMatchThresholdBoundsDto? ThresholdBounds { get; init; }
+
+    /// <summary>True when no threshold was changed from its default.</summary>
+    public bool ThresholdsAreDefault { get; init; } = true;
 }
 
 public sealed record MetadataComicInfoStatsDto
@@ -218,6 +237,9 @@ public sealed record MetadataLibrarySettingsDto
     /// <summary>Library precedence override; null = default (web first).</summary>
     public MetadataPrecedence? Precedence { get; init; }
     public required int LinkCount { get; init; }
+
+    /// <summary>True when automatic matching runs for this library (global switch + automatic consent + this library's Fetch).</summary>
+    public bool AutoMatchActive { get; init; }
 }
 
 /// <summary>
@@ -234,6 +256,20 @@ public sealed record UpdateMetadataSettingsRequest
     /// <summary>A positive integer; see <see cref="ResetDailyBudget"/> to return to the default.</summary>
     public int? DailyBudget { get; init; }
     public bool ResetDailyBudget { get; init; }
+
+    /// <summary>
+    /// Turns the global Automatic matching switch on or off. On requires
+    /// <see cref="AcceptedAutoConsentVersion"/> = the current automatic consent version
+    /// and "Fetch from the web" on (or turned on in the same request).
+    /// </summary>
+    public bool? AutoMatchEnabled { get; init; }
+    public int? AcceptedAutoConsentVersion { get; init; }
+
+    /// <summary>All three thresholds, validated against their bounds (and review floor below auto title).</summary>
+    public MetadataMatchThresholdsDto? Thresholds { get; init; }
+
+    /// <summary>Back to <c>MatchThresholds.Default</c>.</summary>
+    public bool ResetThresholds { get; init; }
 }
 
 /// <summary>Partial update of one library's toggles; null fields are left unchanged.</summary>

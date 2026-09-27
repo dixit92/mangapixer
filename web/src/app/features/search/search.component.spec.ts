@@ -255,3 +255,81 @@ describe('SearchComponent favorites prominence (1.21.0)', () => {
     expect(fixture.nativeElement.querySelector('app-star-toggle')).toBeNull();
   });
 });
+
+/** Alt-title "Series matches" row (1.26.0). */
+describe('SearchComponent series matches (1.26.0)', () => {
+  let fixture: ComponentFixture<SearchComponent>;
+
+  function setup(response: SearchResultsDto): void {
+    const apiSpy = {
+      search: vi.fn().mockReturnValue(of(response)),
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+    };
+    TestBed.configureTestingModule({
+      imports: [SearchComponent],
+      providers: [provideRouter([]), provideNoopAnimations(), { provide: ApiService, useValue: apiSpy }],
+    });
+    fixture = TestBed.createComponent(SearchComponent);
+    fixture.detectChanges();
+    fixture.componentInstance.query = 'delicious';
+    fixture.componentInstance.onSearch();
+    vi.advanceTimersByTime(300);
+    fixture.detectChanges();
+  }
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+
+  it('renders a Series matches row with an "aka" caption above the normal results', () => {
+    setup({
+      query: 'delicious',
+      items: [makeNode({ id: 'n1', displayName: 'Delicious Sweets' })],
+      totalCount: 1,
+      nextCursor: null,
+      hasMore: false,
+      seriesMatches: [{ node: makeNode({ id: 's1', kind: 'Folder', displayName: 'Dungeon Folder' }), matchedTitle: 'Delicious in Dungeon' }],
+    });
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.series-matches .section-heading')?.textContent?.trim()).toBe('Series matches');
+    const aka = el.querySelector('.series-matches .result-aka') as HTMLElement;
+    expect(aka.textContent?.trim()).toBe('aka Delicious in Dungeon');
+    expect(el.querySelectorAll('.result-card').length).toBe(2);
+    expect(el.querySelectorAll('.result-aka').length).toBe(1);
+  });
+
+  it('shows an anchor that is also a normal hit only once, in Series matches', () => {
+    const anchor = makeNode({ id: 's1', kind: 'Folder', displayName: 'Delicious Folder' });
+    setup({
+      query: 'delicious',
+      items: [anchor, makeNode({ id: 'n1', displayName: 'Delicious Sweets' })],
+      totalCount: 2,
+      nextCursor: null,
+      hasMore: false,
+      seriesMatches: [{ node: anchor, matchedTitle: 'Delicious in Dungeon' }],
+    });
+
+    expect(fixture.componentInstance.results().map((n) => n.id)).toEqual(['n1']);
+    expect(fixture.componentInstance.totalCount()).toBe(1);
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('.result-card').length).toBe(2);
+  });
+
+  it('shows the row alone (no "No results") when only series matches exist, and no row when absent', () => {
+    setup({
+      query: 'delicious',
+      items: [],
+      totalCount: 0,
+      nextCursor: null,
+      hasMore: false,
+      seriesMatches: [{ node: makeNode({ id: 's1', kind: 'Folder', displayName: 'Dungeon Folder' }), matchedTitle: 'Delicious in Dungeon' }],
+    });
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.no-results')).toBeNull();
+    expect(el.querySelector('.series-matches')).not.toBeNull();
+  });
+
+  it('renders no Series matches row when the response has none', () => {
+    setup({ query: 'x', items: [makeNode({ id: 'n1' })], totalCount: 1, nextCursor: null, hasMore: false });
+    expect((fixture.nativeElement as HTMLElement).querySelector('.series-matches')).toBeNull();
+  });
+});

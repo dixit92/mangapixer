@@ -27,7 +27,7 @@ MangaPixer keeps its own files in three places, and only ever *reads* your libra
 
 | Place | What is in it | Keep it safe? |
 |---|---|---|
-| **Data** (`/data`, or `/config/data` on Unraid) | The database, sign-in keys, logs, backups, and cover thumbnails | **Yes.** This is what to back up. |
+| **Data** (`/data`, or `/config/data` on Unraid) | The database, sign-in keys, logs, backups, cover thumbnails and fetched series covers | **Yes.** This is what to back up. |
 | **Cache** (`/cache`) | Page images already extracted from archives | No. Deleting it only makes the next reads a little slower. |
 | **Scratch** (`/scratch`) | Files that exist for a moment while a page is extracted, and YACReader imports | No. |
 
@@ -35,7 +35,7 @@ See [Configuration](configuration.md#storage) for the settings and size limits, 
 
 ### The database
 
-Everything MangaPixer knows is in one SQLite file, `mangapixer.db`: your libraries, folders and archives, users, reading progress, read marks, bookmarks, favorites and settings. There is no database server to install.
+Everything MangaPixer knows is in one SQLite file, `mangapixer.db`: your libraries, folders and archives, users, reading progress, read marks, bookmarks, favorites, series information and settings. There is no database server to install.
 
 The catalog part of the database (which folders and archives exist) is a mirror of your folders, rebuilt by scanning. The personal part (progress, marks, favorites, accounts) exists nowhere else, which is why the server backs the database up for you (see [Backup and restore](backup-and-restore.md)).
 
@@ -63,7 +63,7 @@ When the reader asks for a page:
 
 Meanwhile the reader **prefetches**: it quietly loads the next few pages (and the previous couple) so that turning a page feels instant. In vertical (webtoon) mode it loads a few pages below where you are scrolling, and each strip page is sized from its own shape, so very tall strips stay sharp.
 
-**Enhance** is different: it runs entirely in your browser, on your device's graphics chip, and only when a page is shown larger than its original resolution. The server is not involved. See [Image quality](reader.md#image-quality).
+**Upscaling** (**Crisp** and **Enhance**) is different: it runs entirely in your browser, on your device's graphics chip, and only when a page is shown larger than its original resolution. The server is not involved. See [Image quality](reader.md#image-quality).
 
 ## Memory and background work
 
@@ -84,11 +84,12 @@ Background work that runs without anyone asking:
 | Cleanup of expired sign-ins | Hourly |
 | Page cache trimming | After each write that goes over the limit, and a full pass daily |
 | Update check | Only if an admin turned on the Update Checker: at most once a day |
-| ComicInfo read | In the background for archives analysed before 1.24.0 (new archives are read during analysis); local only |
+| ComicInfo read | In the background for archives analyzed before 1.24.0 (new archives are read during analysis); local only |
+| Series matching and refresh | Only if an admin turned on **Automatic matching**: after scans and in the background, within the daily request budget |
 
 ## Privacy by design
 
-- **Nothing leaves your network** unless an admin turns on the Update Checker (it asks GitHub whether a newer release exists and sends nothing about your server) or web series information (admins can then look series up on MangaUpdates; only the search text they confirm and record numbers are sent, see [Series information](series-information.md#what-is-sent)). There is no telemetry, analytics or remote font or icon loading, and no automatic metadata lookups.
+- **Nothing leaves your network** unless an admin turns on the Update Checker (it asks GitHub whether a newer release exists and sends nothing about your server) or web series information (admins can then look series up on MangaUpdates; only the search text they confirm and record numbers are sent, see [Series information](series-information.md#what-is-sent)). With the separate **Automatic matching** switch (its own consent text, off by default), new series folders and archives that are their own work are also looked up in the background, by their cleaned names, in libraries that fetch from the web. There is no telemetry, analytics or remote font or icon loading.
 - **Logs never contain** file or folder paths, titles, passwords, tokens, cookies or client IP addresses (see [Troubleshooting](troubleshooting.md#logs)).
 - **Admin pages show counts and times, never titles or paths**, including the Analytics section (see [Users and access](users-and-access.md#analytics)).
 - **Your media is never written to.** The server has no code path that writes into a library folder, and the install guides mount media read-only on top of that.

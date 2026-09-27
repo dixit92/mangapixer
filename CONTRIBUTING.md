@@ -45,7 +45,7 @@ All verification is **script-driven**. Local runs and CI call the same scripts i
 | Tier | Command | What it runs | When to use it |
 |---|---|---|---|
 | Quick | `pwsh ./scripts/Verify-Quick.ps1` | Privacy preflight, `dotnet format` check, Debug build, all .NET tests | Your normal edit-build-test loop |
-| Full | `pwsh ./scripts/Verify.ps1 -Configuration Release` | Privacy preflight, locked restore, `dotnet format` check, Release build, all .NET tests, `npm ci` + lint + production build of the web app, Compose file validation | Before opening or updating a pull request (this is what CI runs) |
+| Full | `pwsh ./scripts/Verify.ps1 -Configuration Release` | Privacy preflight, locked restore, `dotnet format` check, Release build, all .NET tests, `npm ci`, OpenAPI drift check, lint, production build and Vitest unit tests of the web app, Compose file validation | Before opening or updating a pull request (this is what CI runs) |
 | Contracts | `pwsh ./scripts/Verify-Contracts.ps1` | `Version.props` / `web/package.json` version match, contract/ordering/protocol tests, OpenAPI drift check (needs `web/node_modules`, so run it after the Full tier or `npm --prefix web ci`) | Any change to API routes, DTOs, EF migrations, the worker protocol, or versions |
 | Smoke | `pwsh ./scripts/Smoke-Container.ps1` | Builds the image, runs it against a synthetic library with a read-only media mount, and exercises the full HTTP flow, restart persistence, source-media immutability, and log hygiene | Changes to hosting, Docker, storage, or anything the HTTP flow touches |
 | E2E | `pwsh ./scripts/Verify-E2E.ps1` | Builds the image, runs it on a free loopback port with throwaway storage, provisions the first admin via first-run setup, installs Chromium, and runs the Playwright browser suite (`web/e2e`) against it; always tears the container down | Changes to the web reader, auth/login flow, or anything a browser exercises end to end |
@@ -56,7 +56,7 @@ The scripts never modify code to make a check pass. Fix the reported issue inste
 
 The privacy preflight accepts a normal clone with its `origin` remote. It fails only if a remote URL embeds a credential, such as `https://user:token@host/...` or a token-looking string; use a credential helper or SSH instead, and rotate any secret that ended up in a URL.
 
-The web app's Vitest unit suite is not part of the tiers above — run it yourself when you change anything under `web/`:
+The Full tier runs the web app's Vitest unit suite. To run only that suite while you change anything under `web/`:
 
 ```text
 npm --prefix web run test:ci   # Vitest unit tests

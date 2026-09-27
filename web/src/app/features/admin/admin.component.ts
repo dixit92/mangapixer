@@ -32,7 +32,7 @@ import {
 import { libraryPathCopy } from './library-path-copy';
 import { DebugLogCardComponent } from './debug-log-card.component';
 import { UpdateCheckCardComponent } from './update-check-card.component';
-import { MetadataSettingsCardComponent } from './metadata-settings-card/metadata-settings-card.component';
+import { MetadataSummaryTileComponent } from './metadata-summary-tile/metadata-summary-tile.component';
 import { BackupSettingsCardComponent } from './backup-settings-card.component';
 import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
 import { LibraryIconPickerComponent } from './library-icon-picker/library-icon-picker.component';
@@ -54,7 +54,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
     CommonModule,
     DebugLogCardComponent,
     UpdateCheckCardComponent,
-    MetadataSettingsCardComponent,
+    MetadataSummaryTileComponent,
     AnalyticsCardComponent,
     BackupSettingsCardComponent,
     FormsModule,
@@ -112,10 +112,11 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
                   <mat-form-field appearance="fill" class="dir-select"
                                   floatLabel="always" subscriptSizing="dynamic">
                     <mat-label>Direction</mat-label>
-                    <mat-select [value]="lib.defaultReaderMode"
-                                (selectionChange)="setLibraryDirection(lib, $event.value)">
+                    <!-- mat-select shows nothing for a null value, so "Inherit" is the 'inherit' sentinel here. -->
+                    <mat-select [value]="lib.defaultReaderMode ?? 'inherit'"
+                                (selectionChange)="setLibraryDirection(lib, $event.value === 'inherit' ? null : $event.value)">
                       @for (opt of directionOptions; track opt.label) {
-                        <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+                        <mat-option [value]="opt.value ?? 'inherit'">{{ opt.label }}</mat-option>
                       }
                     </mat-select>
                   </mat-form-field>
@@ -545,8 +546,8 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
       </mat-card-content>
     </mat-card>
 
-    <!-- Series metadata (1.24.0 lane B2): consent-gated web fetch, budget, per-library toggles -->
-    <app-metadata-settings-card />
+    <!-- Series metadata (stage 2): a summary tile; settings, review, flags and runs live on /admin/metadata -->
+    <app-metadata-summary-tile />
 
     <!-- Update Checker (opt-in, off by default) -->
     <app-update-check-card />
@@ -599,6 +600,15 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
       flex: 0 0 auto;
     }
     .dir-select { width: 150px; }
+    /* Phone: the meta slot (Direction + up to six buttons) is wider than the screen, so it
+       squeezed the library name to nothing and clipped rename / icon / remove (owner report,
+       1.25.0 RC). Below 600px the row wraps: icon + name + counts, then the controls. */
+    @media (max-width: 599.98px) {
+      ::ng-deep .mat-mdc-list-item:has(.lib-meta) { flex-wrap: wrap; padding-bottom: 8px; }
+      ::ng-deep .mat-mdc-list-item:has(.lib-meta) .mdc-list-item__content { flex: 1 1 0; min-width: 0; }
+      .lib-meta { display: flex; width: 100%; flex: 1 0 100%; flex-wrap: wrap; justify-content: flex-start; gap: 4px; margin: 4px 0 0 0 !important; }
+      .lib-meta .dir-select { flex: 1 0 100%; width: 100%; }
+    }
     .yac-panel {
       margin: 4px 0 12px 56px; padding: 12px 16px;
       border: 1px solid rgba(124, 77, 255, 0.5); border-radius: 8px;

@@ -2,13 +2,13 @@
 
 The server speaks **plain HTTP only**, on port 8080 inside the container. It has no TLS support, no HTTP-to-HTTPS redirect and no HSTS. For HTTPS, put a reverse proxy in front of it and let the proxy handle certificates.
 
-The canonical Compose file already prepares for this. It publishes the port on `127.0.0.1` only, so the server is unreachable from the network except through a proxy running on the same host. (The Unraid file publishes port 6266 on all interfaces instead; point your proxy at that.)
+The canonical Compose file already prepares for this. It publishes the port on `127.0.0.1` only, so the server is unreachable from the network except through a proxy running on the same host. (The Unraid template and Compose file publish port 6266 on all interfaces instead; point your proxy at that.)
 
 ## Requirements for the proxy
 
 - **Give MangaPixer its own hostname** (or its own port). Serving it under a sub-path such as `https://example.lan/mangapixer/` is not supported: the app expects to live at `/`.
 - **Pass the original `Host` header through, and send `X-Forwarded-For` and `X-Forwarded-Proto`.** The server uses them for [activation links](#activation-links), secure cookies and sign-in rate limiting (see [What the server sees behind a proxy](#what-the-server-sees-behind-a-proxy)). Caddy sends all three by default.
-- **Allow uploads up to 128 MiB** if you want to restore backups through the proxy (see [Backup and restore](backup-and-restore.md#restoring-a-backup)).
+- **Allow uploads up to 512 MiB** (the server's default restore limit) if you want to restore backups through the proxy (see [Backup and restore](backup-and-restore.md#restoring-a-backup)).
 - **Allow slow responses.** The first page of an archive on a drive that has to spin up can take a minute or more. Page requests stay open until the page is ready.
 - No WebSocket or streaming configuration is needed; everything is ordinary HTTP requests.
 
@@ -42,7 +42,7 @@ server {
     ssl_certificate     /etc/ssl/comics.example.lan.crt;
     ssl_certificate_key /etc/ssl/comics.example.lan.key;
 
-    client_max_body_size 128m;   # backup restore uploads
+    client_max_body_size 512m;   # backup restore uploads
     proxy_read_timeout   300s;   # first pages from sleeping drives
 
     location / {

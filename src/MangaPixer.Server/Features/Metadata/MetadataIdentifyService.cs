@@ -5,6 +5,7 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Admin;
+using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 using com.lifepixer.mangapixer.Server.Logging;
@@ -102,6 +103,8 @@ public sealed class MetadataIdentifyService
                 suggestions.Add(q);
         }
         var normalized = TitleNormalizer.Normalize(node.DisplayName);
+        // "BLAME!" finds the record "Blame!" where "BLAME" does not: the name as written comes first.
+        Add(normalized.PrimaryWithExclamation);
         foreach (var v in normalized.Variants)
             Add(v);
         if (local.ComicInfoSeries is { } ciSeries)
@@ -110,6 +113,7 @@ public sealed class MetadataIdentifyService
             Add(node.DisplayName);
 
         var ownLink = await _db.NodeSeriesLinks.AsNoTracking().FirstOrDefaultAsync(l => l.NodeId == node.Id, ct);
+        var (content, _) = await MetadataFolderContentService.ResolveAsync(_db, node.Id, ct);
 
         return new IdentifyContextDto
         {
@@ -129,6 +133,7 @@ public sealed class MetadataIdentifyService
             BackoffUntil = await _backoff.ActiveUntilAsync(ct),
             CurrentLink = ownLink is null ? null : await ToLinkDtoAsync(ownLink, node.PublicId, ct),
             Local = local,
+            DoujinshiContent = content == MetadataFolderContent.DoujinshiAndAdultOneShots,
         };
     }
 
@@ -355,7 +360,7 @@ public sealed class MetadataIdentifyService
         return (bytes, type);
     }
 
-    private string IssueImageToken(string provider, long libraryId, string url)
+    internal string IssueImageToken(string provider, long libraryId, string url)
     {
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
         _cache.Set(TokenKey(token), new CandidateImage(provider, libraryId, url), CandidateTtl);
@@ -413,7 +418,8 @@ public sealed class MetadataIdentifyService
         return record;
     }
 
-    private static void Apply(MetadataRecordEntity record, ProviderSeriesRecord fetched, DateTimeOffset now)
+    /// <summary>Maps a fetched provider record onto the stored entity (shared by identify, auto-match and refresh).</summary>
+    internal static void Apply(MetadataRecordEntity record, ProviderSeriesRecord fetched, DateTimeOffset now)
     {
         record.SourceKind = (int)fetched.SourceKind;
         record.RecordKind = 0;
@@ -436,6 +442,8 @@ public sealed class MetadataIdentifyService
         record.CategoriesJson = MetadataJson.WriteList(fetched.Categories);
         record.PublishersJson = MetadataJson.WriteList(fetched.Publishers);
         record.CrossIdsJson = fetched.CrossIds.Count == 0 ? null : System.Text.Json.JsonSerializer.Serialize(fetched.CrossIds);
+        record.PublicationsJson = MetadataJson.WriteList(fetched.Publications);
+        record.RelationsJson = MetadataJson.WriteList(fetched.Relations);
         record.SiteUrl = fetched.SiteUrl;
         if (!string.Equals(record.ImageRemoteUrl, fetched.ImageRemoteUrl, StringComparison.Ordinal))
         {
@@ -449,13 +457,13 @@ public sealed class MetadataIdentifyService
     }
 
     /// <summary>Fetches and stores the record's poster; returns true when a new image was stored. Never throws for provider trouble.</summary>
-    private async Task<bool> TryStoreImageAsync(MetadataRecordEntity record, long libraryId, CancellationToken ct)
+    internal async Task<bool> TryStoreImageAsync(MetadataRecordEntity record, long libraryId, CancellationToken ct, MetadataCallContext? call = null)
     {
         if (record.ImageRemoteUrl is not { } url)
             return false;
         try
         {
-            var bytes = await _gateway.FetchImageAsync(record.Provider, libraryId, url, ct);
+            var bytes = await _gateway.FetchImageAsync(record.Provider, libraryId, url, ct, call);
             var version = record.ImageVersion + 1;
             await _images.PublishAsync(record.Id, version, bytes, ct);
             record.ImageVersion = version;
@@ -479,7 +487,7 @@ public sealed class MetadataIdentifyService
         return false;
     }
 
-    private async Task<string> NewPublicIdAsync(CancellationToken ct)
+    internal async Task<string> NewPublicIdAsync(CancellationToken ct)
     {
         while (true)
         {

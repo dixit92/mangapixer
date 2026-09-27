@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, effect, inject } from '@angular/core';
 import { RouterOutlet, RouterLink, Router, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs/operators';
@@ -7,9 +7,11 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatBadgeModule } from '@angular/material/badge';
 
 import { AuthService } from '../core/auth/auth.service';
 import { IncognitoService } from '../core/incognito/incognito.service';
+import { MetadataReviewStateService } from '../features/metadata/metadata-review-state.service';
 import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
 
 /**
@@ -39,6 +41,7 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
     MatButtonModule,
     MatIconModule,
     MatMenuModule,
+    MatBadgeModule,
     LibrarySidebarComponent,
   ],
   template: `
@@ -60,8 +63,11 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
         <button mat-button routerLink="/libraries">Libraries</button>
         <button mat-button routerLink="/search">Search</button>
 
-        <button mat-icon-button [matMenuTriggerFor]="userMenu">
-          <mat-icon>account_circle</mat-icon>
+        <!-- Admin nav badge (metadata stage 2): series to review + open flags. -->
+        <button mat-icon-button [matMenuTriggerFor]="userMenu" (menuOpened)="refreshAttention()"
+                [attr.aria-label]="adminAttention() ? 'Account menu, ' + adminAttention() + ' series metadata items need attention' : 'Account menu'">
+          <mat-icon [matBadge]="adminAttention()" [matBadgeHidden]="!adminAttention()" matBadgeSize="small"
+                    matBadgeColor="accent" aria-hidden="true" data-testid="admin-attention-badge">account_circle</mat-icon>
         </button>
         <mat-menu #userMenu="matMenu">
           <div class="user-info">
@@ -77,6 +83,13 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
           @if (auth.isAdmin()) {
             <button mat-menu-item routerLink="/admin">
               <mat-icon>admin_panel_settings</mat-icon>MangaPixer Administration
+            </button>
+            <!-- Always listed for admins; with items waiting it opens Review or Flags and shows the count. -->
+            <button mat-menu-item routerLink="/admin/metadata" [queryParams]="metadataTab() ? { tab: metadataTab() } : null" data-testid="nav-metadata">
+              <mat-icon>fact_check</mat-icon>Series metadata
+              @if (adminAttention()) {
+                <span class="menu-count">{{ adminAttention() }}</span>
+              }
             </button>
           }
           <button mat-menu-item (click)="logout()">
@@ -140,6 +153,10 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
       display: flex; align-items: center; gap: 8px; opacity: 0.85;
     }
     .user-info mat-icon { font-size: 20px; width: 20px; height: 20px; }
+    .menu-count {
+      margin-left: 8px; padding: 0 7px; border-radius: 9px; font-size: 11px; font-weight: 600;
+      line-height: 18px; background: #7c4dff; color: #fff;
+    }
   `],
 })
 export class LayoutComponent {
@@ -147,6 +164,25 @@ export class LayoutComponent {
   readonly incognito = inject(IncognitoService);
   private readonly router = inject(Router);
   private readonly breakpointObserver = inject(BreakpointObserver);
+  private readonly metadataReview = inject(MetadataReviewStateService);
+
+  /** Series to review + open flags (admins only; 0 hides the badge). */
+  readonly adminAttention = computed(() => (this.auth.isAdmin() ? this.metadataReview.attention() : 0));
+  /** The Series metadata menu item opens Review, or Flags when only flags wait; otherwise the default tab. */
+  readonly metadataTab = computed(() =>
+    (this.metadataReview.summary()?.needsReview ?? 0) > 0 ? 'review' : this.adminAttention() > 0 ? 'flags' : null);
+
+  constructor() {
+    // Load the counts once an admin is signed in; clear them on sign-out.
+    effect(() => {
+      if (this.auth.isAdmin()) this.metadataReview.refresh();
+      else this.metadataReview.clear();
+    });
+  }
+
+  refreshAttention(): void {
+    if (this.auth.isAdmin()) this.metadataReview.refresh();
+  }
 
   /**
    * Whether the app-shell library sidebar (and the two-column, gutter-padded

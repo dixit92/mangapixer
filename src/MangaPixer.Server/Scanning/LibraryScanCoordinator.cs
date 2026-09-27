@@ -57,6 +57,17 @@ public sealed class LibraryScanCoordinator
     /// </summary>
     private readonly HashSet<long> _recencyParentSeeds = [];
 
+    /// <summary>
+    /// Metadata carry-over ledger (stage 2): (moved archive, its OLD parent folder)
+    /// for every archive recognised as moved this scan, appended in the existing move
+    /// branch only - no query, no file read, nothing when nothing moved. Capped at
+    /// <see cref="MoveLedgerCap"/>; above it the ledger is dropped (carry-over skipped).
+    /// </summary>
+    private readonly List<ScanMove> _moveLedger = [];
+    private bool _moveLedgerTruncated;
+
+    public const int MoveLedgerCap = 100_000;
+
     public LibraryScanCoordinator(
         MangaPixerDbContext db,
         IReadOnlyLibraryFileSystem fs,
@@ -148,6 +159,8 @@ public sealed class LibraryScanCoordinator
             NodesUpdated = reconciliation.NodesUpdated,
             NodesMoved = reconciliation.NodesMoved,
             NodesTombstoned = reconciliation.NodesTombstoned,
+            Moves = _moveLedgerTruncated ? [] : _moveLedger,
+            MoveLedgerTruncated = _moveLedgerTruncated,
         };
     }
 
@@ -347,7 +360,13 @@ public sealed class LibraryScanCoordinator
                 // Capture the OLD parent before it is overwritten so its (now smaller)
                 // descendant set is recomputed alongside the new location's.
                 if (moved.ParentId is long oldParentId)
+                {
                     movedOldParentIds.Add(oldParentId);
+                    if (_moveLedger.Count < MoveLedgerCap)
+                        _moveLedger.Add(new ScanMove(moved.Id, oldParentId));
+                    else
+                        _moveLedgerTruncated = true;
+                }
                 recencyAffectedArchives.Add(moved);
                 moved.RelativePath = obs.RelativePath;
                 moved.PathKey = obs.PathKey;
@@ -675,4 +694,13 @@ public sealed class ScanResult
     /// </summary>
     public int NodesMoved { get; init; }
     public int NodesTombstoned { get; init; }
+
+    /// <summary>Metadata carry-over ledger: moved archives with their old parent folder (empty when none, or truncated).</summary>
+    public IReadOnlyList<ScanMove> Moves { get; init; } = [];
+
+    /// <summary>True when more than <see cref="LibraryScanCoordinator.MoveLedgerCap"/> archives moved (carry-over skipped).</summary>
+    public bool MoveLedgerTruncated { get; init; }
 }
+
+/// <summary>An archive recognised as moved by a scan, with the folder it was in before.</summary>
+public readonly record struct ScanMove(long ArchiveNodeId, long OldParentId);

@@ -41,6 +41,13 @@ public sealed record IdentifyContextDto
     public NodeSeriesLinkDto? CurrentLink { get; init; }
 
     public required IdentifyLocalDto Local { get; init; }
+
+    /// <summary>
+    /// True when the node is in (or is) a folder whose Content is "Doujinshi &amp; adult one-shots"
+    /// (the nearest folder with a Content row wins); the dialog then starts with "Hide doujinshi
+    /// &amp; novels" unticked, the same rule automatic matching follows.
+    /// </summary>
+    public bool DoujinshiContent { get; init; }
 }
 
 /// <summary>A parsed provider reference.</summary>

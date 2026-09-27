@@ -2,8 +2,11 @@ namespace com.lifepixer.mangapixer.Tests.Server.Features.Metadata;
 
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Admin;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -216,6 +219,65 @@ public sealed class MetadataLinkServiceTests
         Assert.Equal(2, t.RemovedRecordIds.Count);
         Assert.Contains(await t.Db.AuditEvents.Select(a => a.Action).ToListAsync(), a => a == AuditActions.MetadataPurge);
     }
+
+    /// <summary>
+    /// Owner (2026-09-26): after a purge, "Match this library now" looks the library up again - so the purge
+    /// forgets FINISHED queue rows (they would block the insert-if-absent enqueue) but never pending or leased
+    /// ones, and never another library's.
+    /// </summary>
+    [Fact]
+    public async Task Purge_Library_ForgetsFinishedMatchWork_KeepsPendingLeasedAndOtherLibraries()
+    {
+        await using var t = await MetadataTestDb.CreateAsync();
+        var other = await t.AddLibraryAsync("purge-queue-other", "Other");
+        var done = await t.AddFolderAsync(null, "Done");
+        var failed = await t.AddFolderAsync(null, "Failed");
+        var pending = await t.AddFolderAsync(null, "Pending");
+        var leased = await t.AddFolderAsync(null, "Leased");
+        var elsewhere = await t.AddFolderAsync(null, "Elsewhere", other.Id);
+        var now = DateTimeOffset.UtcNow;
+        t.Db.MetadataMatchQueue.AddRange(
+            QueueRow(done.Id, t.LibraryId, QueueState.Done, now),
+            QueueRow(failed.Id, t.LibraryId, QueueState.Failed, now),
+            QueueRow(pending.Id, t.LibraryId, QueueState.Pending, now),
+            QueueRow(leased.Id, t.LibraryId, QueueState.Leased, now),
+            QueueRow(elsewhere.Id, other.Id, QueueState.Done, now));
+        await t.Db.SaveChangesAsync();
+
+        await t.Links().PurgeAsync(t.LibraryPublicId, "admin");
+
+        t.Db.ChangeTracker.Clear();
+        var left = await t.Db.MetadataMatchQueue.Select(q => q.NodeId).ToListAsync();
+        Assert.Equal(new[] { pending.Id, leased.Id, elsewhere.Id }.Order(), left.Order());
+    }
+
+    [Fact]
+    public async Task Unlink_ForgetsTheNodesFinishedMatchWork()
+    {
+        await using var t = await MetadataTestDb.CreateAsync();
+        var folder = await t.AddFolderAsync(null, "Auto linked");
+        var sibling = await t.AddFolderAsync(null, "Sibling");
+        await t.AddLinkAsync(folder, await t.AddRecordAsync("60", "Some Series"));
+        var now = DateTimeOffset.UtcNow;
+        t.Db.MetadataMatchQueue.AddRange(
+            QueueRow(folder.Id, t.LibraryId, QueueState.Done, now),
+            QueueRow(sibling.Id, t.LibraryId, QueueState.Done, now));
+        await t.Db.SaveChangesAsync();
+
+        await t.Links().RemoveAsync(folder.PublicId, onlyDontMatch: false, "admin");
+
+        t.Db.ChangeTracker.Clear();
+        Assert.Equal([sibling.Id], await t.Db.MetadataMatchQueue.Select(q => q.NodeId).ToListAsync());
+    }
+
+    private static MetadataMatchQueueEntity QueueRow(long nodeId, long libraryId, int state, DateTimeOffset now) => new()
+    {
+        NodeId = nodeId,
+        LibraryId = libraryId,
+        State = state,
+        Level = (int)MatchLevel.Folder,
+        EnqueuedAt = now,
+    };
 
     [Fact]
     public async Task Purge_UnknownLibrary_IsLibraryNotFound()

@@ -8,7 +8,7 @@ Security fixes are made on the **latest minor release line only**. A fix ships a
 
 | Version | Supported |
 |---|---|
-| Latest minor line (currently 1.14.x) | Yes |
+| Latest minor line | Yes |
 | Any older minor line | No, please upgrade |
 
 The newest version is always listed on the Releases page and in [CHANGELOG.md](CHANGELOG.md).
@@ -20,9 +20,7 @@ Please report it privately through GitHub's private vulnerability reporting:
 
 1. Open the repository's **Security** tab.
 2. Choose **Report a vulnerability**.
-
 3. Fill in the advisory form. Only the maintainers can see it.
-
 
 If you cannot use GitHub, e-mail the maintainer instead: [smitdixit92@gmail.com](mailto:smitdixit92@gmail.com).
 
@@ -56,7 +54,7 @@ These are the security properties MangaPixer is designed to hold. A way to break
 - **CSRF.** State-changing API requests require an antiforgery token that is tied to an `HttpOnly`, `SameSite=Strict` cookie.
 - **Authorization.** Non-admin users can reach only the libraries an administrator has granted them. That applies to browse, search, home, and direct item, page, and thumbnail requests. (The per-user "Private" library flag with Incognito mode is a convenience that hides a library from the user's own listings. It is not an access control, and direct links still work for that user by design.)
 - **Source media is never modified.** The server and worker only read library directories. Nothing is written, moved, renamed, deleted, or extracted into them. Thumbnails and caches live in the server's own storage. Any path that leads to a write, or to reading a file outside a configured library (path traversal, for example through archive entry names), is in scope.
-- **Privacy.** API responses never expose server file paths. Logs are designed not to contain paths, titles, passwords, tokens, cookies, or archive entry names. The app makes no telemetry, analytics, or third-party network calls.
+- **Privacy.** API responses never expose server file paths. Logs are designed not to contain paths, titles, passwords, tokens, cookies, or archive entry names. The app makes no telemetry, analytics, or third-party network calls, except the optional Update Checker and MangaUpdates series lookups, which are off by default and only an admin can turn on (see [What leaves your server](docs/privacy-and-security.md#what-leaves-your-server)). Sending anything beyond what that page lists is in scope.
 - **Archive handling.** Archives are opened in a separate worker process. Crafted archives or images that crash the server, escape the worker, or exhaust resources far beyond their size are in scope.
 
 ### Out of scope
@@ -68,6 +66,6 @@ These are the security properties MangaPixer is designed to hold. A way to break
 
 ## Hardening tips for operators
 
-- Put MangaPixer behind a reverse proxy that terminates HTTPS. The Compose files publish the port on loopback (`127.0.0.1`) only, by design.
-- Keep the media mounts read-only (`:ro`), as the shipped Compose files do.
+- Put MangaPixer behind a reverse proxy that terminates HTTPS. The canonical Compose file publishes the port on loopback (`127.0.0.1`) only, by design; the Unraid template and Compose file publish it on all interfaces for LAN access.
+- Keep the media mounts read-only (`:ro`), as the shipped examples do.
 - Upgrade to new releases promptly. Only the latest minor line receives fixes.

@@ -26,6 +26,12 @@ public sealed record MetadataRateLimitOptions
         QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
         AutoReplenishment = true,
     };
+
+    /// <summary>
+    /// Minimum spacing between AUTOMATIC requests (stage 2: at most 1 request/s, so
+    /// the 2 req/s API bucket always has room for an admin).
+    /// </summary>
+    public TimeSpan AutomaticInterval { get; init; } = TimeSpan.FromSeconds(1);
 }
 
 /// <summary>
@@ -36,11 +42,39 @@ public sealed record MetadataRateLimitOptions
 public sealed class MetadataGatewayState : IDisposable
 {
     private int _failureStreak;
+    private readonly SemaphoreSlim _automaticGate = new(1, 1);
+    private readonly TimeSpan _automaticInterval;
+    private long _lastAutomaticTicks;
 
     public MetadataGatewayState(MetadataRateLimitOptions options)
     {
         ApiLimiter = new TokenBucketRateLimiter(options.Api);
         ImageLimiter = new TokenBucketRateLimiter(options.Images);
+        _automaticInterval = options.AutomaticInterval;
+    }
+
+    /// <summary>
+    /// Waits until an automatic request may start: automatic requests are serialized
+    /// process-wide and spaced by <see cref="MetadataRateLimitOptions.AutomaticInterval"/>.
+    /// </summary>
+    public async Task PaceAutomaticAsync(CancellationToken ct)
+    {
+        await _automaticGate.WaitAsync(ct);
+        try
+        {
+            var last = Interlocked.Read(ref _lastAutomaticTicks);
+            if (last != 0)
+            {
+                var wait = _automaticInterval - System.Diagnostics.Stopwatch.GetElapsedTime(last);
+                if (wait > TimeSpan.Zero)
+                    await Task.Delay(wait, ct);
+            }
+            Interlocked.Exchange(ref _lastAutomaticTicks, System.Diagnostics.Stopwatch.GetTimestamp());
+        }
+        finally
+        {
+            _automaticGate.Release();
+        }
     }
 
     public RateLimiter ApiLimiter { get; }
@@ -55,5 +89,6 @@ public sealed class MetadataGatewayState : IDisposable
         ApiLimiter.Dispose();
         ImageLimiter.Dispose();
         StateLock.Dispose();
+        _automaticGate.Dispose();
     }
 }

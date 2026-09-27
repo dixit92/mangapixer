@@ -136,6 +136,13 @@ describe('IdentifyDialogComponent', () => {
     expect(api.search).toHaveBeenNthCalledWith(2, 'n1', 'Berserk', 2, false);
   });
 
+  it('starts with the filter off in a doujinshi folder (Content "Doujinshi & adult one-shots")', () => {
+    const { c, api, q } = create(ctx({ doujinshiContent: true }));
+    expect((q('[data-testid="identify-hide-doujinshi"] input') as HTMLInputElement).checked).toBe(false);
+    c.runSearch();
+    expect(api.search).toHaveBeenCalledWith('n1', 'Berserk', 1, false);
+  });
+
   it('keeps a long name from widening the dialog: full name in the title tooltip', () => {
     const long = 'A Very Long Archive Name v00 (2008) [Some Scan Team] [OneShot] Extra Words To Overflow.cbz';
     const { q } = create(ctx({ displayName: long, suggestions: [long] }));

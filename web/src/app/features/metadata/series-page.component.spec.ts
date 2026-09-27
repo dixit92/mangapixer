@@ -22,6 +22,7 @@ describe('SeriesPageComponent', () => {
   ) {
     const metadata = {
       getSeriesInfo: vi.fn(() => (info === 'error' ? throwError(() => ({ error: 'not_found' })) : of(info))),
+      getMyFlag: vi.fn(() => of({ canFlag: true, flag: null })),
     };
     const api = {
       browseLibrary: vi.fn(() => of({ items: [], totalCount: 0, nextCursor: null, hasMore: false, nextUnread })),
@@ -132,5 +133,15 @@ describe('SeriesPageComponent', () => {
   it('shows the admin section to admins', () => {
     const { el } = create('series-1', seriesInfo({ nodeId: 'series-1', anchorNodeId: 'series-1' }), null, true);
     expect(el.querySelector('app-series-admin-actions')).not.toBeNull();
+  });
+
+  it('offers readers "Wrong series?" when web data is shown (stage 2), admins get the admin section instead', () => {
+    const web = { provider: 'mangaupdates', providerName: 'MangaUpdates', fetchedAt: new Date().toISOString() };
+    const info = seriesInfo({ nodeId: 'series-1', anchorNodeId: 'series-1', state: 'Web', web });
+    const reader = create('series-1', info);
+    expect(reader.el.querySelector('[data-testid="wrong-series"]')).not.toBeNull();
+    TestBed.resetTestingModule();
+    const admin = create('series-1', info, null, true);
+    expect(admin.el.querySelector('app-wrong-series-flag')).toBeNull();
   });
 });

@@ -1210,6 +1210,11 @@ public sealed class CatalogBrowseService
         // truthful IsFavorite flag here.
         results = await ApplyFavoritesAsync(results, userId, ct);
 
+        // Alt-title matches (1.26.0): first page only, one extra query.
+        var seriesMatches = cursor is null
+            ? await SearchSeriesMatchesAsync(connection, userId, ftsQuery, libIds, ct)
+            : null;
+
         return new SearchResultsDto
         {
             Query = query,
@@ -1217,7 +1222,91 @@ public sealed class CatalogBrowseService
             TotalCount = totalCount,
             NextCursor = nextCursor,
             HasMore = hasMore,
+            SeriesMatches = seriesMatches,
         };
+    }
+
+    private const int MaxSeriesMatches = 20;
+
+    /// <summary>
+    /// Nodes linked (Confirmed or Auto; never NeedsReview or DontMatch) to a metadata
+    /// record with a title matching the query. Same visibility as catalog search
+    /// (<paramref name="libIds"/> is the viewer's visible set, narrowed to the requested
+    /// library); libraries and instances with "Show series information" off are excluded.
+    /// Distinct anchors, first 20 by SortKey, each with its shortest matching title.
+    /// </summary>
+    private async Task<List<SeriesMatchDto>> SearchSeriesMatchesAsync(
+        System.Data.Common.DbConnection connection, long userId, string ftsQuery, string libIds, CancellationToken ct)
+    {
+        var globallyHidden = await _db.AppSettings
+            .AnyAsync(s => s.Id == AppSettingsEntity.SingletonId && s.MetadataSeriesInfoHidden, ct);
+        if (globallyHidden)
+            return [];
+
+        var sql = $"""
+            SELECT cn.Id, cn.PublicId, cn.Kind, cn.DisplayName, cn.Availability,
+                   parent.PublicId AS ParentPublicId,
+                   lib.PublicId AS LibraryPublicId,
+                   h.title AS MatchedTitle
+            FROM (SELECT record_id, title FROM series_search WHERE series_search MATCH @query) h
+            JOIN node_series_links l ON l.RecordId = h.record_id AND l.State IN ({(int)SeriesLinkState.Confirmed}, {(int)SeriesLinkState.Auto})
+            JOIN catalog_nodes cn ON cn.Id = l.NodeId
+            LEFT JOIN catalog_nodes parent ON cn.ParentId = parent.Id
+            JOIN libraries lib ON cn.LibraryId = lib.Id
+            WHERE cn.Availability != 5
+            AND cn.LibraryId IN ({libIds})
+            AND lib.MetadataSeriesInfoHidden = 0
+            ORDER BY cn.SortKey, length(h.title), h.title
+            LIMIT 2000
+            """;
+
+        var nodes = new List<CatalogNodeDto>();
+        var titles = new Dictionary<string, string>();
+        var folderInternalToPublic = new Dictionary<long, string>();
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = sql;
+            command.Parameters.Add(new Microsoft.Data.Sqlite.SqliteParameter("@query", ftsQuery));
+            using var reader = await command.ExecuteReaderAsync(ct);
+            while (nodes.Count < MaxSeriesMatches && await reader.ReadAsync(ct))
+            {
+                var publicId = reader.GetString(reader.GetOrdinal("PublicId"));
+                if (titles.ContainsKey(publicId))
+                    continue;
+                var kind = (CatalogNodeKind)reader.GetInt32(reader.GetOrdinal("Kind"));
+                titles[publicId] = reader.GetString(reader.GetOrdinal("MatchedTitle"));
+                nodes.Add(new CatalogNodeDto
+                {
+                    Id = publicId,
+                    ParentId = reader.IsDBNull(reader.GetOrdinal("ParentPublicId"))
+                        ? ""
+                        : reader.GetString(reader.GetOrdinal("ParentPublicId")),
+                    LibraryId = reader.GetString(reader.GetOrdinal("LibraryPublicId")),
+                    Kind = kind,
+                    DisplayName = reader.GetString(reader.GetOrdinal("DisplayName")),
+                    Availability = (CatalogNodeAvailability)reader.GetInt32(reader.GetOrdinal("Availability")),
+                });
+                if (kind == CatalogNodeKind.Folder)
+                    folderInternalToPublic[reader.GetInt64(reader.GetOrdinal("Id"))] = publicId;
+            }
+        }
+
+        if (nodes.Count == 0)
+            return [];
+
+        if (folderInternalToPublic.Count > 0)
+        {
+            var covers = await ResolveFolderCoversAsync(folderInternalToPublic.Keys.ToList(), ct);
+            var coversByPublicId = folderInternalToPublic
+                .Where(kv => covers.ContainsKey(kv.Key))
+                .ToDictionary(kv => kv.Value, kv => covers[kv.Key]);
+            nodes = nodes.Select(n => n.Kind == CatalogNodeKind.Folder && coversByPublicId.TryGetValue(n.Id, out var cover)
+                ? n with { CoverUrl = $"/api/v1/items/{cover}/cover" }
+                : n).ToList();
+        }
+
+        nodes = await ApplyFavoritesAsync(nodes, userId, ct);
+        return nodes.Select(n => new SeriesMatchDto { Node = n, MatchedTitle = titles[n.Id] }).ToList();
     }
 
     /// <summary>

@@ -6,9 +6,9 @@ These guides are for people who run MangaPixer on their own hardware. They descr
 
 | Page | What it covers |
 |---|---|
-| [Install with Docker](install-docker.md) | The canonical Compose setup: volumes, media mounts, ports, first-run setup, upgrades, where backups land. |
 | [Install on Unraid](install-unraid.md) | The Unraid template or Compose file: single `/config` folder, `PUID`/`PGID`, media shares, upgrades. |
 | [Install on Windows](install-windows.md) | The native package since 1.13.0: the MSI installer, the tray app, ports and LAN access, where data lives, upgrades and uninstall. |
+| [Install with Docker](install-docker.md) | The canonical Compose setup: volumes, media mounts, ports, first-run setup, upgrades, where backups land. |
 
 ## Set up and run
 
@@ -25,12 +25,14 @@ These guides are for people who run MangaPixer on their own hardware. They descr
 
 | Page | What it covers |
 |---|---|
+| [Features](features.md) | Everything MangaPixer does, by area, and the supported archive and image formats. |
 | [Reader](reader.md) | Page modes, fit, image quality (Page quality, Downscale filter, Enhance), reading direction, page-turn animation, keyboard/touch controls, prefetch, resume position, read state. |
-| [Series information](series-information.md) | Series details from ComicInfo.xml and, if an admin allows it, MangaUpdates: the panel and series page, Identify, what is sent, the admin settings. |
+| [Series information](series-information.md) | Series details from ComicInfo.xml and, if an admin allows it, MangaUpdates: the panel and series page, search by alternative title, Identify and automatic matching, what is sent, the Series metadata page for admins. |
 
 ## Help
 
 | Page | What it covers |
 |---|---|
-| [Troubleshooting](troubleshooting.md) | Health checks, logs, scans that miss files, missing thumbnails, backups that stopped, permission errors, port conflicts. |
+| [Troubleshooting](troubleshooting.md) | Health checks, logs, sign-in problems, scans that miss files, archives that won't open, missing thumbnails, backups that stopped, permission errors, port conflicts, restore problems. |
 | [FAQ](faq.md) | Short answers to common questions. |
+| [Privacy and security](privacy-and-security.md) | No telemetry, what leaves your server when an admin turns on an internet feature, how sessions and logs are protected, reporting a vulnerability. |

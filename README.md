@@ -8,19 +8,19 @@
 
 MangaPixer serves your existing manga and comic folders to any browser.
 
-You point it at the directories where your `.cbz` and `.cbr` files already live, and it builds a catalog, generates thumbnails, and gives every user on your server their own reading progress, read marks and "continue reading" shelf. You can have multiple libraries for different types of content (manga, webcomics, graphic novels, etc.) and each folder can have independent properties set (such as reading direction).
+You point it at the directories where your `.cbz` and `.cbr` files already live, and it builds a catalog, generates thumbnails, and gives every user on your server their own reading progress, read marks and "continue reading" shelf. You can have multiple libraries for different types of content (manga, webcomics, graphic novels, etc.), and each folder can have independent properties set (such as reading direction).
 
 Inspired by several great comic servers and readers developed by the community, MangaPixer's main goals are:
-- Folder-native. It doesn't enforce a library structure on you. Similar to [YACReader](https://www.yacreader.com/), but with...
-- Multi-user support. You can create admin or "normal" users, and admins can expose specific libraries to normal users. Each user has their own reading progress, and users don't interfere with each other.
-- Good native web support. I'm trying to offer as good a reading experience as possible across desktop, iPad/tablet and smartphone without needing an app. An app is to follow later so that you can save and download reliably.
-- No metadata required, but used when it's there. Folder and file names are enough to browse and read. MangaPixer also reads the `ComicInfo.xml` inside your archives, and an admin can optionally link series to [MangaUpdates](https://www.mangaupdates.com) for descriptions, authors and cover art (off by default). If your library is organized around metadata first, I'd still recommend checking out [Kavita](https://www.kavitareader.com/) or [Komga](https://komga.org/).
-- You can also allow users to mark libraries as "private" and hide them from the default view. Might be useful...
+- **Folder-native**. It doesn't enforce a library structure on you. Similar to [YACReader](https://www.yacreader.com/), but with...
+- **Multi-user support**. You can create admin or "normal" users, and admins can expose specific libraries to normal users. Each user has their own reading progress, and users don't interfere with each other.
+- **A good native web reader**. I'm trying to offer as good a reading experience as possible across desktop, iPad/tablet and smartphone without needing an app. An app is to follow later so that you can save and download reliably for offline reading. This is something that you can't do right now.
+- **No metadata required, but supported when it's there**. Folder and file names are enough to browse and read, but MangaPixer also reads the `ComicInfo.xml` inside your archives, and an admin can optionally link series to [MangaUpdates](https://www.mangaupdates.com) for descriptions, authors and cover art (off by default). If your library is organized around metadata first, I'd still recommend checking out [Kavita](https://www.kavitareader.com/) or [Komga](https://komga.org/), although I aim to give you a rich metadata management experience - development is ongoing!
+- You can also allow users to **mark libraries as "private"** and hide them from the default view. Might be useful if you want to have age-restricted content...restricted.
 
 ### What "folder-native" means
 
-- **Your folders are the library.** Nothing is imported, copied or reorganized. The folder tree you already have *is* the browse tree: series folders, volume sub-folders, loose archives. Whatever.
-- **Source media is never modified.** MangaPixer never writes, renames, moves, deletes, tags or extracts into your library folders. The container mounts them read-only (`:ro`). Everything MangaPixer creates (database, thumbnails, page cache, scratch space) lives in its own data directories.
+- **Your folders are the library.** Nothing is imported, copied or reorganized. The folder tree you already have *is* the navigation tree: series folders, volume subfolders, loose archives. Whatever, and however you've already organized them (or have not organized them)!
+- **Source media is never modified.** MangaPixer never writes, renames, moves, deletes, tags or extracts into your library folders. The container (if you're using the Docker image) mounts them read-only. Everything MangaPixer creates (database, thumbnails, page cache, scratch space) lives in its own data directories.
 - **Moves don't lose your place.** When a rescan finds that an archive was moved or renamed (one missing file and one new file with the same size and content signature), reading state follows the file.
 
 Why folder-native? Because I wanted a way to organize my content freely and not have to do a lot of library management, as long as I understood where everything was. And you might want to do the same.
@@ -35,143 +35,62 @@ Why folder-native? Because I wanted a way to organize my content freely and not 
 |---|---|
 | ![Home on an iPad with the collapsible library sidebar](assets/screenshots/home-tablet.jpg) | ![The phone reader with the compact toolbar](assets/screenshots/reader-phone.jpg) |
 
-## Quick start (Docker Compose)
+## Quick start
 
-You need Docker with Compose v2. The Compose file pulls the published image from the GitHub Container Registry. Full guide: [Install with Docker](docs/install-docker.md).
+### Unraid
 
-1. Clone the repository, or download just `deploy/compose.yaml` into a folder.
-2. Mount your libraries read-only in a `deploy/compose.override.yaml` (git-ignored):
+MangaPixer is in Community Applications. Open the **Apps** tab, search for **MangaPixer**, click **Install**, point **Media** at your manga or comics share (it is mounted read-only), and click **Apply**. Then open `http://<unraid-ip>:6266` and create the first admin account. Details: [Install on Unraid](docs/install-unraid.md).
 
-   ```yaml
-   services:
-     mangapixer:
-       volumes:
-         - /path/to/your/manga:/media/manga:ro
-         - /path/to/your/comics:/media/comics:ro
-   ```
+### Windows
 
-3. From that folder, pull and start the version you want (see [Releases](https://github.com/dixit92/mangapixer/releases)):
+Download `MangaPixer-<version>-windows-x64.msi` from [Releases](https://github.com/dixit92/mangapixer/releases) and run it; no Docker needed. Double-click the MangaPixer tray icon to open the app, then create the first admin account. Details: [Install on Windows](docs/install-windows.md).
 
-   ```bash
-   export MANGAPIXER_VERSION=1.25.0
-   docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d
-   ```
+### Docker Compose
 
-4. Open <http://127.0.0.1:8080>, create the first admin account on the setup screen, then add a library under **Administration** and scan it.
+Download [`deploy/compose.yaml`](deploy/compose.yaml), add your libraries read-only in a `compose.override.yaml` next to it:
 
-The port is published on loopback only; put a [reverse proxy](docs/reverse-proxy-and-https.md) in front for other devices. Your database, keys, backups and thumbnails live in the `mangapixer-data` volume: back that one up. To upgrade, set `MANGAPIXER_VERSION` to the new version, run `pull` and then the same `up -d`; schema upgrades run at startup after an automatic backup. Building from source is one overlay away: see the Docker guide.
+```yaml
+services:
+  mangapixer:
+    volumes:
+      - /path/to/your/manga:/media/manga:ro
+```
 
-**Unraid:** `deploy/compose.unraid.yaml` uses a single appdata folder and `PUID`/`PGID`. See [Install on Unraid](docs/install-unraid.md).
+then start it and open <http://127.0.0.1:8080> to create the first admin account:
 
-**Windows:** a native tray app with a per-user MSI installer, no Docker needed. Download `MangaPixer-<version>-windows-x64.msi` from [Releases](https://github.com/dixit92/mangapixer/releases); see [Install on Windows](docs/install-windows.md).
+```bash
+MANGAPIXER_VERSION=1.26.0 docker compose -f compose.yaml -f compose.override.yaml up -d
+```
 
-[FAQ - in case you're in a hurry](docs/faq.md)
+Details, upgrades and reaching it from other devices: [Install with Docker](docs/install-docker.md).
+
+In every case, add your libraries under **Administration** after signing in. In a hurry? See the [FAQ](docs/faq.md).
 
 ## Features
 
-**Library and browsing**
+- **Folder-native library:** card and list views, sorting, read-state filters, an A-Z rail, bulk read marks and full-text search.
+- **A reader for every screen:** paged (left-to-right or manga), double-page spreads and vertical webtoon, with touch and keyboard controls and on-device upscaling (**Crisp** and **Enhance**).
+- **Per-user reading state:** progress, read marks, "Continue reading" and "New chapters" for every user.
+- **Series information:** read from `ComicInfo.xml`, and optionally from MangaUpdates, linked by hand or automatically (off by default).
+- **Multi-user:** admin and reader roles, per-library access, activation links, private libraries and Incognito.
+- **Low-maintenance:** scheduled scans, persistent thumbnails, automatic database backups, and YACReader progress import.
+- **Private by default:** no telemetry or analytics, no default credentials, and your media folders are only ever read. Nothing leaves your server until an admin turns on an optional internet feature ([details](docs/privacy-and-security.md)).
+- **Formats:** ZIP (`.cbz`, `.zip`) and RAR (`.cbr`, `.rar`) with JPEG, PNG, WebP, AVIF, GIF, BMP or TIFF pages. Solid RAR and 7-Zip archives, PDF and EPUB are not supported yet.
 
-- Browse the folder hierarchy in a card view (with a card-size slider) or a list view.
-- Sort by name (ascending or descending), recently added, recently read, or recently updated. Recently updated ranks a folder by its newest archive, like a new chapter.
-- Filter by read state (reading / read / unread) at any folder level. The filter also applies to series folders through their contents, and you can hide empty folders.
-- A-Z jump rail with multilingual collation, infinite scroll in both directions after a jump, and read/reading rollup badges on folders. This means you can tell at a glance whether a folder contains only comics you've read, some you haven't read yet, or nothing you've started at all.
-- Multi-select, including shift/ctrl ranges and touch long-press, to mark items read or unread in bulk. Works on touchscreens too!
-- Full-text search over titles and folder names (trigram search), with cover thumbnails and a folder-vs-archive badge.
-
-**Reader**
-
-- Four modes: paged left-to-right, paged right-to-left (manga), double-page spreads, and vertical webtoon scrolling. Admins set a default mode per library and per folder, and each user can override it per item or set a personal default.
-- Double-page mode adapts: it shows a single page in narrow portrait, keeps wide spreads whole, and shows both page numbers. When extra pages split a spread across the wrong pair, you can shift the pairing anywhere in an archive, and it is saved for everyone who reads it.
-- Image quality: pages are sent at the size your screen shows them (or full size, your choice), downscaled on the server with a choice of filter to keep screentones clean. Pages shown larger than their resolution can be redrawn on your device's graphics chip: **Crisp** (AMD FSR 1, light) or **Enhance** (the Anime4K line-art upscaler, **Efficient** or **Max quality**), in paged and vertical mode. Enhance uses WebGPU over HTTPS and WebGL2 elsewhere, so both also work over plain `http://` on your LAN, and the reader always shows which engine is running.
-- Touch and keyboard navigation: direction-aware swipe zones, arrow keys, a draggable page scrubber, a help overlay (`?`), and immersive fullscreen.
-- Webtoon tap zones and swipe move by a configurable step (90% of the screen by default). Turn them off for free scrolling only.
-- Configurable page-turn animation (Slide / Reveal / None).
-- Auto-advance to the next or previous archive, plus page prefetch around the current position.
-
-**Series information**
-
-- Reads the `ComicInfo.xml` inside your archives (series, number, summary, credits, genres, publisher). Nothing leaves your server for this.
-- A card with series information shows an **(i)**: it opens a side panel with the summary, and a full series page lists the items.
-- Admins can link a folder or archive to a [MangaUpdates](https://www.mangaupdates.com) series with **Identify** (search, or paste a MangaUpdates address). Optional and off by default; see [What leaves your server](#what-leaves-your-server).
-- Per folder, admins choose whether web data or `ComicInfo.xml` wins, and can mark a folder **Don't match** when it is not one series. **Show series information** hides it all for everyone.
-
-**Per-user reading state**
-
-- Each user has their own progress, read marks and "Continue reading" row. You can dismiss items from the row, and finished ones hide automatically.
-- A "Start reading" / continue shortcut on each folder that opens the next unread item.
-- Optional "always open read items from the start" preference.
-
-**Home**
-
-- "Continue reading": one row across all your libraries.
-- "New chapters": recently added archives, grouped by library and stacked per top-level folder (latest chapter plus a "+N" badge). Each user chooses the time window in days (30 by default) and which libraries contribute.
-- A grid of your libraries.
-
-**Multi-user, privacy and access**
-
-- No default credentials. A fresh instance shows a first-run setup screen, and the first admin account is created there (see [First-run setup](docs/users-and-access.md#first-run-setup)).
-- Admin and reader roles, with per-user library access grants.
-- Onboard users with a password, or with a single-use activation link that expires after 48 hours so the user sets their own password.
-- **Private libraries and Incognito:** each user can mark libraries as private. While Incognito is on (the default for every new browser session), private libraries are hidden from browse, home and search.
-- Login rate limiting, CSRF protection on authenticated state-changing requests, forced password change, per-user session revocation, and last-admin protection.
-
-**Administration and operations**
-
-- Add, rename and remove libraries from the web UI, using a folder picker confined to the media root. Removing a library deletes only MangaPixer's own metadata and thumbnails; your files are untouched.
-- Scans run per library or across all libraries, and can be canceled. Each library is also rescanned automatically on its own schedule (daily by default; hourly, every 6 hours, weekly or off). There is no filesystem watching yet.
-- Persistent thumbnails that survive restarts and cache clears. A background backfill fills them in and yields to active readers. Thumbnails can be regenerated per library.
-- Automatic rotating database backups (daily, 7 kept by default) and on-demand backups. A validated backup can be uploaded for restore; it is applied atomically on the next restart, with rollback if that fails (see [Backup and restore](docs/backup-and-restore.md)).
-- Runtime log-level control (global and per subsystem) and a diagnostics export.
-- YACReader progress import: if a library folder contains a YACReader library database, an admin can preview its read progress and import it into their own account. The YACReader data is only read.
-- Health endpoints (`/health`, `/health/ready`) and an OpenAPI document at `/openapi/v1.json` (the checked-in contract is `contracts/openapi.json`).
-- Web app manifest and icons, so MangaPixer can be added to a phone or tablet home screen.
-
-## Supported formats
-
-| | Formats |
-|---|---|
-| Archives | ZIP (`.cbz`, `.zip`), RAR 4 and RAR 5 (`.cbr`, `.rar`) |
-| Page images | JPEG, PNG, WebP, AVIF, GIF, BMP, TIFF |
-
-Archives are read in place by a managed library (no external `7z` or `unrar` binary), and pages are decoded in a separate, supervised worker process so a malformed file cannot take the server down. Not supported yet: **solid RAR and 7-Zip archives** (scanned and listed, but the reader cannot open them; repack them as `.cbz`), PDF, EPUB, CBT and folders of loose images. Details: [Supported archive formats](docs/library-layout.md#supported-archive-formats).
+The full list is in [Features](docs/features.md).
 
 ## Documentation
 
 All guides live in [`docs/`](docs/README.md):
 
-- **Install:** [Docker](docs/install-docker.md), [Unraid](docs/install-unraid.md), [Windows](docs/install-windows.md)
+- **Install:** [Unraid](docs/install-unraid.md), [Windows](docs/install-windows.md), [Docker](docs/install-docker.md)
 - **Set up and run:** [Configuration reference](docs/configuration.md), [Library layout](docs/library-layout.md), [Users and access](docs/users-and-access.md), [Backup and restore](docs/backup-and-restore.md), [Reverse proxy and HTTPS](docs/reverse-proxy-and-https.md)
-- **Use:** [Reader](docs/reader.md), [Series information](docs/series-information.md)
-- **Help:** [Troubleshooting](docs/troubleshooting.md), [FAQ](docs/faq.md)
+- **Use:** [Features](docs/features.md), [Reader](docs/reader.md), [Series information](docs/series-information.md)
+- **Help:** [Troubleshooting](docs/troubleshooting.md), [FAQ](docs/faq.md), [Privacy and security](docs/privacy-and-security.md)
 
-## Configuration
+## Building from source and contributing
 
-Settings follow ASP.NET Core conventions: `appsettings.json` or environment variables, with `:` written as `__`. The ones most self-hosters touch are the storage roots (`MangaPixer__Storage__DataRoot`, `CacheRoot`, `ScratchRoot`; the image sets `/data`, `/cache`, `/scratch`), `MangaPixer__Storage__MediaRoot` (the folder the admin picker may browse, `/media` by default) and `MangaPixer__Media__MaxConcurrentJobs` (set `1` on a low-memory NAS). Log verbosity is changed at runtime from the Administration page. Every key, with defaults, is in the [configuration reference](docs/configuration.md).
-
-## Privacy and security
-
-- **No telemetry, analytics or phone-home.** Fonts and icons are bundled and served by your own server, never from a CDN.
-- **Two optional internet features, both off by default and switched on only by an admin:** the Update Checker and fetching series information from MangaUpdates (see below).
-- **Logs never contain paths or titles**, only IDs, counts, timings and sanitized error codes. Reader-facing API responses never contain filesystem paths.
-- **Source media is read-only**, enforced by the code and by the `:ro` mounts.
-- **No default credentials.** The first admin is created by you on the setup screen, and that endpoint refuses once any user exists.
-- Session cookies use ASP.NET Core Data Protection; the keys live in `<DataRoot>/keys`, so treat the data volume as sensitive.
-
-### What leaves your server
-
-Out of the box, nothing: MangaPixer makes no internet requests until an admin turns something on. The **Update Checker** asks GitHub once a day whether a newer release exists. **Fetch series information from the web** (Administration > Series metadata, after a consent text, and per library) lets an admin look a folder up on [MangaUpdates](https://www.mangaupdates.com): only the search text the admin confirms in the Identify dialog, MangaUpdates record numbers, a fixed list of types to leave out (when **Hide doujinshi & novels** is ticked) and a generic `User-Agent` are sent, only to `api.mangaupdates.com` and `cdn.mangaupdates.com`, and only when an admin presses Search, Look up, Link or Refresh. File paths, your file list, user accounts and reading progress are never sent. Fetched data and cover art are stored on your server and served from it, so readers' browsers never contact MangaUpdates. `Metadata__NetworkDisabled=true` switches the feature off regardless of the admin setting. Details: [Series information](docs/series-information.md#what-is-sent).
-
-Series data fetched from the web is provided by [MangaUpdates](https://www.mangaupdates.com) and credited to it wherever it is shown.
-
-To report a vulnerability, see [SECURITY.md](SECURITY.md).
-
-## Building from source
-
-The toolchain is .NET SDK 10.0.4xx, Node.js 24 and PowerShell 7, or the official SDK containers if you have none of them installed. Build, test and verification commands, the repository layout and how to run a local instance are in [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Contributing
-
-Issues and suggestions are welcome. Before opening a pull request, read [CONTRIBUTING.md](CONTRIBUTING.md), run `pwsh ./scripts/Verify-Quick.ps1`, and keep to the invariants in [`AGENTS.md`](AGENTS.md): source media stays read-only, no personal data in tracked files, no default credentials, and every new service is wired and tested through its public surface. Agentic development is welcome, but know what you're doing. 
+To build from source you need the .NET 10 SDK, Node.js 24 and PowerShell 7, or just Docker with the official SDK containers; the commands and the repository layout are in [CONTRIBUTING.md](CONTRIBUTING.md). Issues and suggestions are welcome. Before opening a pull request, run `pwsh ./scripts/Verify-Quick.ps1`, and keep to the invariants in [`AGENTS.md`](AGENTS.md): source media stays read-only, no personal data in tracked files, no default credentials, and every new service is wired and tested through its public surface. Agentic development is welcome, but know what you're doing.
 
 ## License
 

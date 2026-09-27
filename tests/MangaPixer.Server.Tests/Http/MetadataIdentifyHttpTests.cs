@@ -375,9 +375,13 @@ public sealed class MetadataNetworkWebApplicationFactory : WebApplicationFactory
     private ILogger? _originalLogger;
     private HttpClient? _admin;
 
-    public MetadataNetworkWebApplicationFactory(bool failOnAnyRequest = false, bool networkDisabled = false, CollectingSink? sink = null)
+    private readonly Action<IServiceCollection>? _configureServices;
+
+    public MetadataNetworkWebApplicationFactory(bool failOnAnyRequest = false, bool networkDisabled = false, CollectingSink? sink = null,
+        Action<IServiceCollection>? configureServices = null)
     {
         _sink = sink;
+        _configureServices = configureServices;
         Handler.FailOnAnyRequest = failOnAnyRequest;
         foreach (var dir in new[] { DataRoot, Path.Combine(_tempRoot, "cache"), Path.Combine(_tempRoot, "scratch") })
             Directory.CreateDirectory(dir);
@@ -392,6 +396,8 @@ public sealed class MetadataNetworkWebApplicationFactory : WebApplicationFactory
             {
                 ["MangaPixer:Scanning:Scheduler:Enabled"] = "false",
                 ["Metadata:NetworkDisabled"] = networkDisabled ? "true" : "false",
+                // Stage 2: tests drive automatic-matching passes directly.
+                ["Metadata:AutoMatch:WorkerEnabled"] = "false",
             });
         using (TestHostStorageOverride.Push(storage))
         {
@@ -417,6 +423,8 @@ public sealed class MetadataNetworkWebApplicationFactory : WebApplicationFactory
 
             foreach (var name in new[] { MetadataHttp.MangaUpdatesApiClient, MetadataHttp.MangaUpdatesImageClient, UpdateCheckService.HttpClientName })
                 services.AddHttpClient(name).ConfigurePrimaryHttpMessageHandler(() => Handler);
+
+            _configureServices?.Invoke(services);
 
             if (_sink is not null)
             {

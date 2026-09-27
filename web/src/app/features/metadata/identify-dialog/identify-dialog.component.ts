@@ -35,8 +35,9 @@ type Step = 'search' | 'preview';
  *    "Use it" when ComicInfo already points to a series;
  * 2. ranked results with server-proxied thumbnails;
  * 3. preview beside the local folder, warnings, then Link (with Undo).
- * "Hide doujinshi & novels" (on by default, 1.24.0 polish) adds a FIXED type filter to
- * the search; it carries no user data. Link and Undo are announced through
+ * "Hide doujinshi & novels" (on by default, 1.24.0 polish; off below a folder whose Content
+ * is "Doujinshi & adult one-shots", 1.26.0) adds a FIXED type filter to the search; it
+ * carries no user data. Link and Undo are announced through
  * `MetadataStateService`, so the card (i) and the top-bar button update in place.
  * When the switches are off it shows why and makes no call. Every request goes to
  * MangaPixer; the browser never contacts a provider.
@@ -244,7 +245,7 @@ export class IdentifyDialogComponent implements OnInit {
   readonly step = signal<Step>('search');
   readonly query = signal('');
   readonly reference = signal('');
-  /** "Hide doujinshi & novels": on by default; applies to the next Search. */
+  /** "Hide doujinshi & novels": on by default, off in a doujinshi folder; applies to the next Search. */
   readonly hideDoujinshi = signal(true);
   readonly searched = signal(false);
   readonly candidates = signal<IdentifyCandidateDto[]>([]);
@@ -278,6 +279,7 @@ export class IdentifyDialogComponent implements OnInit {
       next: (ctx) => {
         this.context.set(ctx);
         this.query.set(ctx.suggestions?.[0] ?? '');
+        this.hideDoujinshi.set(!ctx.doujinshiContent);
         this.budgetUsed.set(ctx.budgetUsedToday);
         this.budgetLimit.set(ctx.dailyBudget);
         this.loading.set(false);

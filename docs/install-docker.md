@@ -5,7 +5,7 @@ This guide walks through `deploy/compose.yaml`, the canonical way to run the ser
 ## What you need
 
 - Docker Engine with the Compose plugin (`docker compose`). The override example below uses the `!override` tag, which needs Compose 2.24 or later.
-- The two Compose files from this repository (`deploy/compose.yaml` and your own override). The image itself is pulled from the GitHub Container Registry; nothing is built on your machine.
+- `deploy/compose.yaml` from this repository, plus an override file you write yourself (step 2). The image itself is pulled from the GitHub Container Registry; nothing is built on your machine.
 - Your comics or manga in folders that the Docker host can read.
 
 ## What the Compose file sets up
@@ -70,11 +70,11 @@ pwsh ./scripts/Get-MangaPixerVersion.ps1
 Then set it in your shell. Set it again in every new shell before you run `docker compose`, or Compose looks for an image under the fallback tag.
 
 ```sh
-export MANGAPIXER_VERSION=1.25.0          # bash / zsh
+export MANGAPIXER_VERSION=1.26.0          # bash / zsh
 ```
 
 ```powershell
-$env:MANGAPIXER_VERSION = "1.25.0"         # PowerShell
+$env:MANGAPIXER_VERSION = "1.26.0"         # PowerShell
 ```
 
 ## Step 4: start

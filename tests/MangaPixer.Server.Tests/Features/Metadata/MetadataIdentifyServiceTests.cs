@@ -65,9 +65,45 @@ public sealed class MetadataIdentifyServiceTests : IAsyncLifetime
         Assert.Equal(5000, ctx.DailyBudget);
         Assert.Equal(0, _h.Handler.CallCount);
 
+        Assert.False(ctx.DoujinshiContent);
+
         await _h.EnableAsync();
         Assert.True((await _h.Identify().GetContextAsync(folder.PublicId))!.FetchAvailable);
         Assert.Null(await _h.Identify().GetContextAsync("missing"));
+    }
+
+    [Fact]
+    public async Task Context_NameWithTrailingExclamation_IsTheFirstSuggestion()
+    {
+        var folder = await _db.AddFolderAsync(null, "SOME TITLE! Master Edition");
+        await _db.AddArchiveAsync(folder, "SOME TITLE! Master Edition.cbz");
+
+        var ctx = await _h.Identify().GetContextAsync(folder.PublicId);
+
+        Assert.Equal(["SOME TITLE!", "SOME TITLE"], ctx!.Suggestions);
+    }
+
+    [Fact]
+    public async Task Context_DoujinshiContent_FollowsTheNearestFolderContent()
+    {
+        var shelf = await _db.AddFolderAsync(null, "Circles");
+        var inner = await _db.AddFolderAsync(shelf, "Some Circle");
+        var archive = await _db.AddArchiveAsync(inner, "(C99) [Some Circle] Title (Parody).cbz");
+        var other = await _db.AddFolderAsync(null, "Manga");
+
+        Assert.False((await _h.Identify().GetContextAsync(archive.PublicId))!.DoujinshiContent);
+
+        _db.Db.FolderMetadataContents.Add(new FolderMetadataContentEntity { NodeId = shelf.Id, Content = (int)MetadataFolderContent.DoujinshiAndAdultOneShots });
+        await _db.Db.SaveChangesAsync();
+        Assert.True((await _h.Identify().GetContextAsync(archive.PublicId))!.DoujinshiContent);
+        Assert.True((await _h.Identify().GetContextAsync(shelf.PublicId))!.DoujinshiContent);
+        Assert.False((await _h.Identify().GetContextAsync(other.PublicId))!.DoujinshiContent);
+
+        // A nearer folder set back to Auto wins over the ancestor.
+        _db.Db.FolderMetadataContents.Add(new FolderMetadataContentEntity { NodeId = inner.Id, Content = (int)MetadataFolderContent.Auto });
+        await _db.Db.SaveChangesAsync();
+        Assert.False((await _h.Identify().GetContextAsync(archive.PublicId))!.DoujinshiContent);
+        Assert.Equal(0, _h.Handler.CallCount);
     }
 
     // --- Search ---

@@ -108,8 +108,9 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         Assert.True(r.LicensedEn);
         Assert.False(r.TranslationComplete);
         Assert.Equal(10, r.AltTitles.Count);
-        Assert.Contains(new MetadataJson.Creator("MIURA Kentaro", "author"), r.Creators);
-        Assert.Contains(new MetadataJson.Creator("MIURA Kentaro", "artist"), r.Creators);
+        // Stage 2 keeps the provider's person id (facet-ready; spellings merge by id).
+        Assert.Contains(new MetadataJson.Creator("MIURA Kentaro", "author", "22635311083"), r.Creators);
+        Assert.Contains(new MetadataJson.Creator("MIURA Kentaro", "artist", "22635311083"), r.Creators);
         Assert.Contains(new MetadataJson.Publisher("Hakusensha", "original"), r.Publishers);
         Assert.Contains(new MetadataJson.Publisher("Dark Horse", "english"), r.Publishers);
         Assert.Contains("Seinen", r.Genres);
@@ -141,6 +142,7 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         Assert.Contains(r.Categories, c => c.Name == "Webtoon/Webcomic" && c.Votes == 64);
         Assert.Contains("Daum", r.Description);
         Assert.DoesNotContain("https://", r.Description);
+        // A credit without an author_id keeps a null provider id.
         Assert.Contains(new MetadataJson.Creator("DISCIPLES (Redice Studio)", "artist"), r.Creators);
     }
 

@@ -73,6 +73,7 @@ public sealed class LibraryScanLauncher
         var leaseId = lease.Id;
         var scanRevision = lease.ScanRevision;
         var ownerTag = lease.LeaseOwner ?? "server";
+        var scanStartedAt = lease.StartedAt;
 
         var completion = Task.Run(async () =>
         {
@@ -148,6 +149,17 @@ public sealed class LibraryScanLauncher
                     using (var comicInfoScope = _scopeFactory.CreateScope())
                         comicInfoScope.ServiceProvider
                             .GetService<com.lifepixer.mangapixer.Server.Features.Metadata.ComicInfoBackfillService>()?.RequestRun();
+
+                    // Metadata stage 2: folder-rename carry-over along the move ledger,
+                    // then (one boolean read when automatic matching is off) queueing of
+                    // this scan's new folders. Lease and maintenance are already released;
+                    // no network here - the auto-match worker sends requests later.
+                    using (var metadataScope = _scopeFactory.CreateScope())
+                    {
+                        if (metadataScope.ServiceProvider
+                                .GetService<com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch.MetadataPostScanHook>() is { } hook)
+                            await hook.OnScanCompletedAsync(libraryId, scanStartedAt, result, CancellationToken.None);
+                    }
                 }
             }
             catch (OperationCanceledException)
