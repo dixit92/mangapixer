@@ -9,6 +9,7 @@ import { MatCheckboxChange } from '@angular/material/checkbox';
 import { MatSelectChange } from '@angular/material/select';
 
 import { SettingsComponent } from './settings.component';
+import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series-info-hover-preference.service';
 
 function checkboxChange(checked: boolean): MatCheckboxChange {
   return { checked } as MatCheckboxChange;
@@ -376,5 +377,83 @@ describe('SettingsComponent — New Chapters library picker', () => {
 
     expect(cmp.isHomeLibraryShown('L1')).toBe(true); // reverted
     expect(cmp.homeLibrariesError()).toBe('nope');
+  });
+});
+
+/**
+ * "Series information on hover" (1.27.0): a per-user checkbox on the library-view
+ * preferences blob, ON by default (also when the server predates the field), saved
+ * optimistically with the whole blob echoed back, reverted on failure; the hover
+ * controller's preference follows at once.
+ */
+describe('SettingsComponent - Series information on hover', () => {
+  let httpMock: HttpTestingController;
+
+  function createComponent(prefs: Record<string, unknown>) {
+    TestBed.configureTestingModule({
+      imports: [SettingsComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations()],
+    });
+    const fixture = TestBed.createComponent(SettingsComponent);
+    httpMock = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    httpMock.expectOne('/api/v1/libraries').flush([]);
+    httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: [] });
+    httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: [] });
+    httpMock.expectOne('/api/v1/reading/library-preferences').flush({
+      viewMode: 'card', density: 'comfortable', sort: 'name', listColumns: 3, showFavoritesHomeRow: true, ...prefs,
+    });
+    httpMock.expectOne('/api/v1/reading/preferences').flush({
+      defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false,
+      preferredBackground: null, alwaysOpenReadFromStart: false,
+    });
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  afterEach(() => httpMock.verify());
+
+  it('shows the checkbox ON by default, also when the stored blob has no field yet', () => {
+    const fixture = createComponent({});
+    expect(fixture.componentInstance.seriesInfoOnHover()).toBe(true);
+    const box = fixture.nativeElement.querySelector('[data-testid="series-info-on-hover"] input') as HTMLInputElement;
+    expect(box.checked).toBe(true);
+  });
+
+  it('reflects a stored OFF', () => {
+    expect(createComponent({ seriesInfoOnHover: false }).componentInstance.seriesInfoOnHover()).toBe(false);
+  });
+
+  it('turning it off PUTs the whole blob with only the one field changed and updates the hover preference', () => {
+    const cmp = createComponent({ seriesInfoOnHover: true }).componentInstance;
+    const pref = TestBed.inject(SeriesInfoHoverPreferenceService);
+    pref.set(true);
+
+    cmp.setSeriesInfoOnHover(checkboxChange(false));
+    expect(cmp.seriesInfoOnHover()).toBe(false); // optimistic
+    expect(pref.enabled()).toBe(false);
+    const req = httpMock.expectOne('/api/v1/reading/library-preferences');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({
+      viewMode: 'card', density: 'comfortable', sort: 'name', listColumns: 3, showFavoritesHomeRow: true,
+      seriesInfoOnHover: false,
+    });
+    req.flush(null);
+    expect(cmp.hoverSaving()).toBe(false);
+  });
+
+  it('reverts the checkbox and the hover preference when the save fails', () => {
+    const cmp = createComponent({ seriesInfoOnHover: true }).componentInstance;
+    const pref = TestBed.inject(SeriesInfoHoverPreferenceService);
+
+    cmp.setSeriesInfoOnHover(checkboxChange(false));
+    httpMock.expectOne('/api/v1/reading/library-preferences').flush(
+      { error: 'server_error', message: 'nope', detail: null, correlationId: null },
+      { status: 500, statusText: 'Server Error' },
+    );
+
+    expect(cmp.seriesInfoOnHover()).toBe(true);
+    expect(pref.enabled()).toBe(true);
+    expect(cmp.hoverError()).toBe('nope');
   });
 });
