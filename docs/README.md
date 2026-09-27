@@ -36,3 +36,4 @@ These guides are for people who run MangaPixer on their own hardware. They descr
 | [Troubleshooting](troubleshooting.md) | Health checks, logs, sign-in problems, scans that miss files, archives that won't open, missing thumbnails, backups that stopped, permission errors, port conflicts, restore problems. |
 | [FAQ](faq.md) | Short answers to common questions. |
 | [Privacy and security](privacy-and-security.md) | No telemetry, what leaves your server when an admin turns on an internet feature, how sessions and logs are protected, reporting a vulnerability. |
+| [MangaPixer compared](comparison.md) | How MangaPixer differs from Komga, Kavita and YACReader, and when another server is the better fit. |
