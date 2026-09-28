@@ -250,7 +250,7 @@ async function mockStage2(page: Page): Promise<Mocked> {
   return seen;
 }
 
-test('review dashboard with synthetic contract-shaped data: keyboard, deferred Undo, posters on expand', async ({ page, baseURL }) => {
+test('review dashboard with synthetic contract-shaped data: keyboard, deferred Undo, selected covers, other posters on expand', async ({ page, baseURL }) => {
   const foreign = watchForeignRequests(page, baseURL!);
   await login(page);
   const seen = await mockStage2(page);
@@ -260,11 +260,14 @@ test('review dashboard with synthetic contract-shaped data: keyboard, deferred U
   await expect(rows).toHaveCount(3);
   await expect(page.getByTestId('review-tab-AutoLinked')).toContainText('41');
   await expect(page.getByTestId('admin-attention-badge')).toContainText('5'); // 3 to review + 2 flags
-  expect(seen.images).toEqual([]); // candidate posters cost requests: none before expanding
+  // 1.28.0 (owner): each row shows the SELECTED candidate's cover next to yours - one image per row (rank 1 here);
+  // every other candidate's poster still costs nothing until its row is expanded.
+  const tokens = () => [...new Set(seen.images.map((u) => u.split('/candidates/')[1].split('/')[0]))].sort();
+  await expect.poll(tokens).toEqual(['tok-14-1', 'tok-17-1', 'tok-20-1']);
   await shot(page, 'c-05-review-desktop', true);
 
-  await page.keyboard.press('e'); // expand the focused row: its posters load now
-  await expect.poll(() => seen.images.length).toBe(3);
+  await page.keyboard.press('e'); // expand the focused row: its other candidates' posters load now
+  await expect.poll(tokens).toEqual(['tok-14-1', 'tok-17-1', 'tok-20-1', 'tok-22-2', 'tok-22-3']);
   await shot(page, 'c-06-review-expanded');
 
   await page.keyboard.press('j');
