@@ -229,6 +229,14 @@ describe('MetadataSettingsComponent', () => {
     expect(stale.q('[data-testid="md-auto-consent"]')).not.toBeNull();
   });
 
+  it('the Automatic matching card says "Waiting for consent" while a renewed consent is pending (1.28.0)', () => {
+    const waiting = create(settings({ fetchEnabled: true, autoMatchEnabled: true, consentRenewalNeeded: true }));
+    expect(waiting.q('[data-testid="md-auto-state"]')!.textContent!.trim()).toBe('Waiting for consent');
+    TestBed.resetTestingModule();
+    const on = create(settings({ fetchEnabled: true, autoMatchEnabled: true }));
+    expect(on.q('[data-testid="md-auto-state"]')!.textContent!.trim()).toBe('On');
+  });
+
   it('"Compare covers" is ONE settings PUT, only while Automatic matching is on, and honours the config switch', () => {
     const { q, c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true,
       acceptedAutoConsentVersion: 2, compareCoversEnabled: true }));

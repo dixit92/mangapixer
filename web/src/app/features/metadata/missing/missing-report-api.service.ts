@@ -23,6 +23,11 @@ export class MissingReportApiService {
     return this.http.get<MissingReportPageDto>(this.baseUrl, { params, withCredentials: true });
   }
 
+  /** 1.28.0: the series page's Missing line for any viewer with access to the folder (404 without it). */
+  forNodeViewer(nodeId: string): Observable<MissingSeriesDto> {
+    return this.http.get<MissingSeriesDto>(`/api/v1/nodes/${encodeURIComponent(nodeId)}/missing`, { withCredentials: true });
+  }
+
   forNode(nodeId: string): Observable<MissingSeriesDto> {
     return this.http.get<MissingSeriesDto>(`${this.baseUrl}/${encodeURIComponent(nodeId)}`, { withCredentials: true });
   }

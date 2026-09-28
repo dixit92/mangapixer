@@ -207,7 +207,7 @@ export function validateThresholds(
           <!-- 3. Automatic matching (decisions 2 + 3) -->
           <section class="card" aria-labelledby="md-auto-h" data-testid="md-auto">
             <h3 id="md-auto-h"><mat-icon aria-hidden="true">auto_awesome</mat-icon> Automatic matching
-              <span class="pill" [class.on]="s.autoMatchEnabled" data-testid="md-auto-state">{{ s.autoMatchEnabled ? 'On' : 'Off' }}</span></h3>
+              <span class="pill" [class.on]="s.autoMatchEnabled && !autoWaiting(s)" data-testid="md-auto-state">{{ autoStateLabel(s) }}</span></h3>
             @if ((s.fetchEnabled && !autoConsentCurrent()) || showAutoConsent()) {
             <div class="consent" data-testid="md-auto-consent-text">
               <p>When on, MangaPixer matches new series folders on its own, in the background, in <strong>every library whose
@@ -560,6 +560,18 @@ export class MetadataSettingsComponent implements OnInit {
     this.save(this.api.updateSettings(on
       ? { autoMatchEnabled: true, acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION }
       : { autoMatchEnabled: false }), on ? 'Automatic matching is on' : 'Automatic matching is off');
+  }
+
+  /**
+   * 1.28.0 (owner): after an update that renewed a consent, the server keeps Automatic matching off until an admin
+   * accepts again - the card says so instead of "On".
+   */
+  autoWaiting(s: MetadataSettingsDto): boolean {
+    return !!s.autoMatchEnabled && (!!s.autoConsentRenewalNeeded || !!s.consentRenewalNeeded);
+  }
+
+  autoStateLabel(s: MetadataSettingsDto): string {
+    return this.autoWaiting(s) ? 'Waiting for consent' : s.autoMatchEnabled ? 'On' : 'Off';
   }
 
   /** "Compare covers" (1.28.0): one settings PUT, no consent of its own (the automatic consent covers it). */

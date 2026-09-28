@@ -22,7 +22,9 @@ import { gapDetail, gapsOf, haveSentence } from './missing-labels';
           @for (gap of gapsOf(r); track gap.kind; let last = $last) {
             <span>{{ haveSentence(gap) }}@if (gapDetail(gap); as d) { <span class="detail"> · {{ d }}</span> }</span>@if (!last) { <br /> }
           }
-          <a class="more" routerLink="/admin/metadata" [queryParams]="{ tab: 'missing' }">Missing report</a>
+          @if (showReportLink()) {
+            <a class="more" routerLink="/admin/metadata" [queryParams]="{ tab: 'missing' }">Missing report</a>
+          }
         </p>
       }
     }
@@ -37,6 +39,9 @@ export class SeriesMissingLineComponent {
   private readonly api = inject(MissingReportApiService);
 
   readonly nodeId = input.required<string>();
+
+  /** The link to the admin Missing report (admins only); the line itself is for everyone (1.28.0, owner). */
+  readonly showReportLink = input(false);
   readonly row = signal<MissingSeriesDto | null>(null);
 
   readonly haveSentence = haveSentence;
@@ -47,7 +52,7 @@ export class SeriesMissingLineComponent {
     effect(() => {
       const id = this.nodeId();
       this.row.set(null);
-      this.api.forNode(id).subscribe({ next: (r) => this.row.set(r), error: () => this.row.set(null) });
+      this.api.forNodeViewer(id).subscribe({ next: (r) => this.row.set(r), error: () => this.row.set(null) });
     });
   }
 }

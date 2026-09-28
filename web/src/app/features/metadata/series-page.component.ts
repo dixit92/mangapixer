@@ -64,7 +64,7 @@ import { SeriesMissingLineComponent } from './missing/series-missing-line.compon
               </a>
             }
           </div>
-          @if (auth.isAdmin() && i.anchorKind === 'Folder') { <app-series-missing-line [nodeId]="i.anchorNodeId" /> }
+          @if (i.anchorKind === 'Folder') { <app-series-missing-line [nodeId]="i.anchorNodeId" [showReportLink]="auth.isAdmin()" /> }
         </header>
 
         @if (i.description) {

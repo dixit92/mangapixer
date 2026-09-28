@@ -53,6 +53,14 @@ describe('MetadataSummaryTileComponent', () => {
     expect(el.querySelector('mat-card-title')!.textContent).toBe('Metadata Manager');
   });
 
+  it('says "Waiting for consent" while a renewed consent is pending after an update (1.28.0 owner decision)', () => {
+    const { fixture, text } = create();
+    http.expectOne('/api/v1/admin/metadata/review/summary').flush(summary());
+    http.expectOne('/api/v1/admin/metadata/settings').flush(settings({ autoMatchEnabled: true, autoConsentRenewalNeeded: true }));
+    fixture.detectChanges();
+    expect(text('tile-auto')).toBe('Waiting for consent automatic matching');
+  });
+
   it('shows dashes when the server has no stage-2 summary yet (501)', () => {
     const { fixture, text } = create();
     http.expectOne('/api/v1/admin/metadata/review/summary').flush(null, { status: 501, statusText: 'Not Implemented' });
