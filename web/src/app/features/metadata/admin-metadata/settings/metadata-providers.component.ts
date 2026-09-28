@@ -70,8 +70,8 @@ import { MetadataApiService } from '../../metadata-api.service';
     .pname { font-weight: 500; }
     .hosts { font-size: 12px; color: #9a9aa8; font-family: monospace; overflow-wrap: anywhere; flex: 1 1 auto; }
     .remove { margin-left: auto; }
-    .line { margin: 2px 0 0 24px; font-size: 12px; color: #c8c8d4; }
-    .k { display: inline-block; min-width: 64px; color: #9a9aa8; }
+    .line { display: grid; grid-template-columns: 64px 1fr; gap: 0 6px; margin: 2px 0 0 24px; font-size: 12px; color: #c8c8d4; }
+    .k { color: #9a9aa8; }
     .removed { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 8px; font-size: 13px; }
     .gone { display: inline-flex; align-items: center; gap: 2px; padding-left: 8px; border-radius: 10px;
       border: 1px dashed rgba(255, 255, 255, 0.2); color: #9a9aa8; }
@@ -80,8 +80,8 @@ import { MetadataApiService } from '../../metadata-api.service';
     .muted { color: #9a9aa8; }
     .error { color: #f44336; font-size: 13px; }
     @media (max-width: 599.98px) {
-      .line { margin-left: 4px; }
-      .k { display: block; min-width: 0; }
+      .line { display: block; margin-left: 4px; }
+      .k { display: block; }
     }
   `],
 })
