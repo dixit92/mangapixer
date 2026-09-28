@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Animated pages keep moving.** Crisp and Enhance no longer apply to animated pages (GIF, WebP or PNG with several frames); they drew only one frame, so the animation stopped. Other pages are upscaled as before.
 - A folder queued for review that turned out, by the time it was processed, to be an artist's folder (its author was linked earlier in the same run) was skipped without matching its archives; its archives are now matched in the same run.
 - **Automatic matching picks in the right order with a long queue.** With more than 200 folders waiting, an admin's **Re-run matching** and new folders could wait behind older retries; the queue is now always taken in priority order, oldest first. This also removes a database warning logged once after every start.
 
