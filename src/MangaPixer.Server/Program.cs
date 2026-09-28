@@ -610,6 +610,11 @@ public sealed partial class Program
         services.AddSingleton<Core.Metadata.AutoMatch.IMatchScorer, Core.Metadata.AutoMatch.MatchScorer>();
         services.AddSingleton(sp => Features.Metadata.AutoMatch.MetadataAutoMatchOptions.FromConfiguration(sp.GetRequiredService<IConfiguration>()));
         services.AddSingleton<Features.Metadata.AutoMatch.MetadataAutoMatchState>();
+        // Cover comparison (1.28.0): local hashes cached per process, images hashed by the media worker.
+        services.AddSingleton<Features.Metadata.AutoMatch.CoverHashCache>();
+        services.AddSingleton<Features.Metadata.AutoMatch.ICoverHasher, Features.Metadata.AutoMatch.WorkerCoverHasher>();
+        services.AddSingleton<Features.Metadata.AutoMatch.ICoverCompareSetting, Features.Metadata.AutoMatch.DefaultCoverCompareSetting>();
+        services.AddScoped<Features.Metadata.AutoMatch.AutoMatchCoverComparer>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataAutoMatchService>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataFolderContentService>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataCarryOverService>();

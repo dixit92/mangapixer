@@ -32,8 +32,9 @@ export const CONSENT_TEXT_VERSION = 1;
 /**
  * Automatic-lookups consent text version (stage 2, owner decisions 2 + 3); must equal the
  * server's `currentAutoConsentVersion`. Bump it whenever the text below changes.
+ * v2 (1.28.0): the cover comparison downloads; an earlier consent is not carried over (owner).
  */
-export const AUTO_CONSENT_TEXT_VERSION = 1;
+export const AUTO_CONSENT_TEXT_VERSION = 2;
 
 /** Integer-only daily budget in 1..1,000,000 (the server validates the same range). */
 export function parseDailyBudget(raw: string | number | null | undefined): number | null {
@@ -205,6 +206,11 @@ export function validateThresholds(
                 with a fixed list of types to leave out (doujinshi, novels, artbooks, drama CDs; doujinshi are searched below a
                 folder whose Content is "Doujinshi &amp; adult one-shots"), and MangaUpdates record numbers to refresh linked
                 series. MangaUpdates also sees your server's IP address.</p>
+              <p><strong>Cover comparison:</strong> when two series tie on the title for a folder of volumes or a one-shot,
+                MangaPixer may also download the cover images of those two series from MangaUpdates' image server
+                (cdn.mangaupdates.com), by the address MangaUpdates gave, to compare them with the folder's own cover. These
+                downloads carry nothing from your library. The comparison runs on your server and the downloaded covers are
+                deleted right after.</p>
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or anything
                 that identifies this server. Folders marked "Don't match", and everything inside them, are never looked up.</p>
               <p><strong>Budget:</strong> automatic requests come out of the same daily budget as Identify. When it is spent,

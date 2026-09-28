@@ -126,6 +126,13 @@ public sealed class WorkerLoop
                     await HandleComicInfoAsync(envelope.CorrelationId, request);
                     break;
                 }
+            case "image_hash":
+                {
+                    var request = WorkerProtocolFraming.GetPayload<ImageHashRequest>(envelope)
+                        ?? throw new InvalidDataException("Missing image_hash request payload");
+                    await HandleImageHashAsync(envelope.CorrelationId, request);
+                    break;
+                }
             case "cancel":
                 {
                     // Cancellation is handled by the CancellationToken in the caller
@@ -404,6 +411,35 @@ public sealed class WorkerLoop
             ObservedByteLength = postStamp.ByteLength,
         };
         var envelope = WorkerProtocolFraming.CreateEnvelope("comicinfo_result", correlationId, result);
+        await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, envelope, _shutdownToken);
+    }
+
+    /// <summary>
+    /// Hashes one server-owned image file (protocol v4 cover comparison): a stored cover thumbnail or provider
+    /// image bytes the server wrote to scratch. Decoding happens only here; the answer is the 64-bit hash.
+    /// </summary>
+    private async Task HandleImageHashAsync(string correlationId, ImageHashRequest request)
+    {
+        var maxBytes = request.MaxBytes > 0 ? Math.Min(request.MaxBytes, ImageHashLimits.MaxBytes) : ImageHashLimits.MaxBytes;
+        var maxDimension = request.MaxDimension > 0 ? Math.Min(request.MaxDimension, ImageHashLimits.MaxDimension) : ImageHashLimits.MaxDimension;
+        HashedImage outcome;
+        try
+        {
+            outcome = ImageHasher.HashFile(request.ImagePath, maxBytes, maxDimension);
+        }
+        catch (IOException)
+        {
+            outcome = HashedImage.Failed(ImageHashErrors.Missing);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            outcome = HashedImage.Failed(ImageHashErrors.Missing);
+        }
+
+        var envelope = outcome.Error is { } error
+            ? WorkerProtocolFraming.CreateEnvelope("image_hash_error", correlationId, new ImageHashError { JobId = request.JobId, ErrorType = error })
+            : WorkerProtocolFraming.CreateEnvelope("image_hash_result", correlationId,
+                new ImageHashResult { JobId = request.JobId, Hash = outcome.Hash, Width = outcome.Width, Height = outcome.Height });
         await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, envelope, _shutdownToken);
     }
 

@@ -23,8 +23,14 @@ public sealed record MetadataAutoMatchOptions
     public bool ProviderAuthorFolders { get; init; } = true;
 
     /// <summary>
+    /// Kill switch of the cover comparison (1.28.0): false = never download a candidate cover, whatever the
+    /// "Compare covers" setting says (<c>Metadata:AutoMatch:CompareCovers</c>).
+    /// </summary>
+    public bool CompareCovers { get; init; } = true;
+
+    /// <summary>
     /// Reads <c>Metadata:AutoMatch:WorkerEnabled</c> / <c>StartupDelaySeconds</c> / <c>TickSeconds</c> /
-    /// <c>ProviderAuthorFolders</c>.
+    /// <c>ProviderAuthorFolders</c> / <c>CompareCovers</c>.
     /// </summary>
     public static MetadataAutoMatchOptions FromConfiguration(IConfiguration config)
     {
@@ -38,6 +44,7 @@ public sealed record MetadataAutoMatchOptions
             TickInterval = int.TryParse(section["TickSeconds"], System.Globalization.NumberStyles.Integer,
                 System.Globalization.CultureInfo.InvariantCulture, out var tick) && tick >= 1 ? TimeSpan.FromSeconds(tick) : defaults.TickInterval,
             ProviderAuthorFolders = bool.TryParse(section["ProviderAuthorFolders"], out var authors) ? authors : defaults.ProviderAuthorFolders,
+            CompareCovers = bool.TryParse(section["CompareCovers"], out var covers) ? covers : defaults.CompareCovers,
         };
     }
 }

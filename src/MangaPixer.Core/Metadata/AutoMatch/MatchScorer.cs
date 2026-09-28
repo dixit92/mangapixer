@@ -47,6 +47,9 @@ public sealed class MatchScorer : IMatchScorer
     public const double ComicInfoAgree = 0.05;
     public const double AuthorAgree = 0.05;
 
+    /// <summary>The candidate's cover is the same as the local cover (<see cref="CoverEvidence"/>, 1.28.0; adjusted score only).</summary>
+    public const double CoverAgree = 0.05;
+
     /// <summary>
     /// A creator hint from the name (<c>Title [Family Given]</c>) names the record's author or its
     /// <c>(AUTHOR Name)</c> disambiguator (1.26.1): enough to separate same-titled records by the margin.
@@ -380,6 +383,14 @@ public sealed class MatchScorer : IMatchScorer
         if (hintNamesRecord)
             authorBonus = CreatorHintAgree;
         delta += authorBonus;
+
+        // Cover comparison (1.28.0): positive only, and only on the adjusted score - a tie can be broken, a weak
+        // title never becomes an automatic link.
+        if (ctx.CoverMatches is { Count: > 0 } covers && covers.Contains(c.ExternalId))
+        {
+            delta += CoverAgree;
+            reasons |= MatchReason.CoverMatch;
+        }
 
         return new ScoredCandidate(c, title, title + delta, reasons);
     }

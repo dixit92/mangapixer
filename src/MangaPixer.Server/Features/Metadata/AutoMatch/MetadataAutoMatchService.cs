@@ -50,6 +50,7 @@ public sealed class MetadataAutoMatchService
     private readonly IMatchQueryPlanner? _planner;
     private readonly IMatchScorer? _scorer;
     private readonly bool _providerAuthorFolders;
+    private readonly AutoMatchCoverComparer? _covers;
 
     public MetadataAutoMatchService(
         MangaPixerDbContext db,
@@ -65,7 +66,8 @@ public sealed class MetadataAutoMatchService
         IEnumerable<IWorkDetector> detectors,
         IEnumerable<IMatchQueryPlanner> planners,
         IEnumerable<IMatchScorer> scorers,
-        MetadataAutoMatchOptions? options = null)
+        MetadataAutoMatchOptions? options = null,
+        AutoMatchCoverComparer? covers = null)
     {
         _db = db;
         _gateway = gateway;
@@ -81,6 +83,7 @@ public sealed class MetadataAutoMatchService
         _planner = planners.LastOrDefault();
         _scorer = scorers.LastOrDefault();
         _providerAuthorFolders = (options ?? new MetadataAutoMatchOptions()).ProviderAuthorFolders;
+        _covers = covers;
     }
 
     /// <summary>True when the matcher-core implementations are registered.</summary>
@@ -580,7 +583,7 @@ public sealed class MetadataAutoMatchService
         try
         {
             var allowDoujinshi = await EffectiveContentAsync(work.Work.FolderId, ct) == MetadataFolderContent.DoujinshiAndAdultOneShots;
-            var lookupEngine = new AutoMatchLookup(_db, _gateway, _planner, _scorer);
+            var lookupEngine = new AutoMatchLookup(_db, _gateway, _planner, _scorer, _covers);
             lookup = await lookupEngine.LookupAsync(tree, work.Work, work.Classification, await ThresholdsAsync(ct), allowDoujinshi, call, ct);
         }
         catch (MetadataGatewayException ex) when (IsRefusal(ex))
@@ -601,8 +604,8 @@ public sealed class MetadataAutoMatchService
         if (work.Work.Level is MatchLevel.Folder or MatchLevel.ReviewOnly)
             await CoveredWorkRetirement.RetireBelowAsync(_db, tree, work.Work.AnchorNodeId, ct);
         _logger.LogInformation(LogEvents.Metadata.AutoMatchDecided,
-            "Automatic matching decided node {NodeId}: {Band} ({Requests} requests, {ElapsedMs} ms)",
-            row.NodeId, lookup.Outcome.Band, call.RequestsSent, watch.ElapsedMilliseconds);
+            "Automatic matching decided node {NodeId}: {Band} ({Requests} requests, {Covers} covers compared, {ElapsedMs} ms)",
+            row.NodeId, lookup.Outcome.Band, call.RequestsSent, lookup.CoversCompared, watch.ElapsedMilliseconds);
     }
 
     /// <summary>

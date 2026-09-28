@@ -156,7 +156,7 @@ test('Automatic matching is consent-gated: no automatic-matching call before con
   await expect(autoSwitch).toBeEnabled();
   const put = page.waitForRequest((r) => r.method() === 'PUT' && r.url().endsWith('/api/v1/admin/metadata/settings'));
   await autoSwitch.click();
-  expect((await put).postDataJSON()).toEqual({ autoMatchEnabled: true, acceptedAutoConsentVersion: 1 });
+  expect((await put).postDataJSON()).toEqual({ autoMatchEnabled: true, acceptedAutoConsentVersion: 2 });
   await page.waitForTimeout(800);
   await shot(page, 'c-04-auto-after-switch');
 

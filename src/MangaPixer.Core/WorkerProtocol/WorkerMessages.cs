@@ -28,7 +28,12 @@ public static class WorkerProtocolVersion
     // `unknown_message_type`), but the bump is deliberate (owner decision 6 of the
     // metadata design lock): a mismatched server/worker pair must fail loudly at
     // the handshake instead of silently never reading ComicInfo.
-    public const int Current = 3;
+    //
+    // v4 (1.28.0): cover comparison for automatic matching - the new `image_hash` /
+    // `image_hash_result` / `image_hash_error` messages (ImageHashMessages.cs). Bumped
+    // for the same reason as v3: a v3 worker would answer `unknown_message_type` and
+    // the comparison would silently never run.
+    public const int Current = 4;
 }
 
 /// <summary>

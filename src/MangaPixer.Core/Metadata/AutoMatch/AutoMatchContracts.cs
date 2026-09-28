@@ -147,6 +147,8 @@ public sealed record QueryVariant(string Text, QueryVariantKind Kind);
 /// <c>LocalVolumes</c> / <c>LocalChapters</c> (optional, 1.27.0): what the count rule compares - the highest unit
 /// number the archive names state (decimals and extras do not inflate it), or the archive count of unit
 /// subfolders whose archive names are not read; null falls back to <c>VolumeLikeCount</c> / <c>ChapterLikeCount</c>.
+/// <c>CoverMatches</c> (optional, 1.28.0): external ids of candidates whose cover image is the same as the work's
+/// local cover (<see cref="CoverEvidence"/>); positive evidence only, set by the caller after comparing covers.
 /// </summary>
 public sealed record MatchContext(
     WorkClass Class,
@@ -160,7 +162,8 @@ public sealed record MatchContext(
     string? ComicInfoSeries = null,
     IReadOnlyList<string>? CreatorHints = null,
     int? LocalVolumes = null,
-    int? LocalChapters = null);
+    int? LocalChapters = null,
+    IReadOnlySet<string>? CoverMatches = null);
 
 /// <summary>
 /// What to look up for one work: ordered, de-duplicated variants (the caller sends at most the
@@ -247,6 +250,12 @@ public enum MatchReason
     AuthorConflict = 1 << 6,
     NumberMismatch = 1 << 7,
     ReviewOnlyClass = 1 << 8,
+
+    /// <summary>
+    /// Positive evidence, not a flag against the candidate (1.28.0): its cover is the same as the work's local
+    /// cover. No reason chip (it never demotes); kept so the stored reasons show why a tie was broken.
+    /// </summary>
+    CoverMatch = 1 << 9,
 }
 
 public sealed record ScoredCandidate(MatchCandidate Candidate, double TitleScore, double AdjustedScore, MatchReason Reasons);

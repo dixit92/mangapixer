@@ -57,7 +57,7 @@ export function settings(overrides: Partial<MetadataSettingsDto> = {}): Metadata
     ],
     autoMatchEnabled: false,
     acceptedAutoConsentVersion: null,
-    currentAutoConsentVersion: 1,
+    currentAutoConsentVersion: 2,
     autoConsentAt: null,
     thresholds: { autoTitle: 0.92, margin: 0.1, reviewFloor: 0.6 },
     defaultThresholds: { autoTitle: 0.92, margin: 0.1, reviewFloor: 0.6 },

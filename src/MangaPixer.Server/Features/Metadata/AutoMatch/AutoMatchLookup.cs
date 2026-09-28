@@ -7,12 +7,16 @@ using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
 using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-/// <summary>The result of looking up one work: the scorer's outcome plus every record fetched on the way.</summary>
+/// <summary>
+/// The result of looking up one work: the scorer's outcome plus every record fetched on the way, and how many
+/// candidate covers were compared (1.28.0; 0 when no comparison ran).
+/// </summary>
 public sealed record WorkLookupResult(
     MatchOutcome Outcome,
     WorkClassification Classification,
     IReadOnlyDictionary<string, ProviderSeriesRecord> Fetched,
-    IReadOnlyDictionary<string, string?> HitImages);
+    IReadOnlyDictionary<string, string?> HitImages,
+    int CoversCompared = 0);
 
 /// <summary>
 /// Looks one work up (stage 2, section 2 retrieval tiers) and scores it through the
@@ -24,6 +28,9 @@ public sealed record WorkLookupResult(
 ///   filter, doujinshi allowed below a "Doujinshi &amp; adult one-shots" folder), each
 ///   followed by a GET of the best hit (and the runner-up when it is close), stopping
 ///   at the first confident variant.
+/// - cover comparison (1.28.0, optional <see cref="AutoMatchCoverComparer"/>): when the final score is a tie on
+///   the title for a volume-shaped work, the covers of the two tied candidates are compared with the work's local
+///   cover and a matching one gets a small adjusted-score bonus (never the raw title score).
 /// Every call goes through <see cref="MetadataGateway"/> as <see cref="MetadataCallOrigin.Automatic"/>;
 /// a refusal propagates as <see cref="MetadataGatewayException"/> (the worker waits).
 /// Nothing here writes to the database or logs text.
@@ -38,13 +45,16 @@ public sealed class AutoMatchLookup
     private readonly MetadataGateway _gateway;
     private readonly IMatchQueryPlanner _planner;
     private readonly IMatchScorer _scorer;
+    private readonly AutoMatchCoverComparer? _covers;
 
-    public AutoMatchLookup(MangaPixerDbContext db, MetadataGateway gateway, IMatchQueryPlanner planner, IMatchScorer scorer)
+    public AutoMatchLookup(MangaPixerDbContext db, MetadataGateway gateway, IMatchQueryPlanner planner, IMatchScorer scorer,
+        AutoMatchCoverComparer? covers = null)
     {
         _db = db;
         _gateway = gateway;
         _planner = planner;
         _scorer = scorer;
+        _covers = covers;
     }
 
     public async Task<WorkLookupResult> LookupAsync(
@@ -82,8 +92,9 @@ public sealed class AutoMatchLookup
                 return new WorkLookupResult(hintedOutcome, classification, found.Fetched, found.Images);
         }
 
-        var outcome = await RetrieveAsync(query, tree.LibraryId, thresholds, allowDoujinshi, call, found, ct);
-        return new WorkLookupResult(outcome, classification, found.Fetched, found.Images);
+        var outcome = await RetrieveAsync(query, tree.LibraryId, thresholds, allowDoujinshi, call, found, ct,
+            AutoMatchCoverComparer.CoverArchiveOf(tree, work));
+        return new WorkLookupResult(outcome, classification, found.Fetched, found.Images, found.CoversCompared);
     }
 
     /// <summary>
@@ -93,12 +104,12 @@ public sealed class AutoMatchLookup
     /// </summary>
     public async Task<WorkLookupResult> SearchAndScoreAsync(
         MatchQuery query, WorkClassification classification, long libraryId, MatchThresholds thresholds, bool allowDoujinshi,
-        MetadataCallContext call, CancellationToken ct)
+        MetadataCallContext call, CancellationToken ct, long? coverArchiveId = null)
     {
         ArgumentNullException.ThrowIfNull(query);
         var found = new Retrieval();
-        var outcome = await RetrieveAsync(query, libraryId, thresholds, allowDoujinshi, call, found, ct);
-        return new WorkLookupResult(outcome, classification, found.Fetched, found.Images);
+        var outcome = await RetrieveAsync(query, libraryId, thresholds, allowDoujinshi, call, found, ct, coverArchiveId);
+        return new WorkLookupResult(outcome, classification, found.Fetched, found.Images, found.CoversCompared);
     }
 
     /// <summary>What one lookup has collected: candidates by id, full records fetched, hit images.</summary>
@@ -107,11 +118,12 @@ public sealed class AutoMatchLookup
         public Dictionary<string, MatchCandidate> Candidates { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, ProviderSeriesRecord> Fetched { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, string?> Images { get; } = new(StringComparer.Ordinal);
+        public int CoversCompared { get; set; }
     }
 
     private async Task<MatchOutcome> RetrieveAsync(
         MatchQuery query, long libraryId, MatchThresholds thresholds, bool allowDoujinshi, MetadataCallContext call,
-        Retrieval found, CancellationToken ct)
+        Retrieval found, CancellationToken ct, long? coverArchiveId)
     {
         var candidates = found.Candidates;
         var fetched = found.Fetched;
@@ -153,6 +165,23 @@ public sealed class AutoMatchLookup
         }
 
         var outcome = _scorer.Score(query, candidates.Values.ToList(), thresholds);
+
+        // A tie on the title for a volume-shaped work: compare the two tied candidates' covers with the local cover.
+        if (_covers is not null && coverArchiveId is { } coverArchive
+            && CoverEvidence.TiedPair(outcome, query.Context, thresholds) is { Count: 2 } pair)
+        {
+            var images = pair.Select(p => (p.Candidate.ExternalId,
+                fetched.TryGetValue(p.Candidate.ExternalId, out var record) && record.ImageRemoteUrl is { } stored
+                    ? stored
+                    : found.Images.GetValueOrDefault(p.Candidate.ExternalId))).ToList();
+            var comparison = await _covers.CompareAsync(coverArchive, libraryId, Provider, images, call, ct);
+            found.CoversCompared = comparison.ImagesCompared;
+            if (comparison.Matches.Count > 0)
+            {
+                query = query with { Context = query.Context with { CoverMatches = comparison.Matches } };
+                outcome = _scorer.Score(query, candidates.Values.ToList(), thresholds);
+            }
+        }
 
         // An automatic link needs the full record of the chosen candidate.
         if (outcome.Band == MatchBand.Auto && outcome.Ranked.Count > 0 && !fetched.ContainsKey(outcome.Ranked[0].Candidate.ExternalId))
