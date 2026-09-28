@@ -13,6 +13,7 @@ import { ADMIN_METADATA_TABS, AdminMetadataTab, REVIEW_TABS } from './metadata-a
 import { MetadataRunsComponent } from './runs/metadata-runs.component';
 import { MetadataSettingsComponent } from './settings/metadata-settings.component';
 import { MissingReportComponent } from '../missing/missing-report.component';
+import { ConsentRenewalBannerComponent } from '../consent-renewal-banner.component';
 
 export { ADMIN_METADATA_TABS, type AdminMetadataTab };
 
@@ -31,7 +32,7 @@ export { ADMIN_METADATA_TABS, type AdminMetadataTab };
   standalone: true,
   imports: [
     RouterLink, MatIconModule, MatTabsModule, MetadataSettingsComponent, ReviewDashboardComponent, MetadataFlagsComponent,
-    MetadataRunsComponent, MetadataSummaryTileComponent, MissingReportComponent,
+    MetadataRunsComponent, MetadataSummaryTileComponent, MissingReportComponent, ConsentRenewalBannerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -41,6 +42,7 @@ export { ADMIN_METADATA_TABS, type AdminMetadataTab };
         <h1>Metadata Manager</h1>
       </header>
       <app-metadata-summary-tile [inPage]="true" (tabSelect)="onTileTab($event)" />
+      <app-consent-renewal-banner [inPage]="true" (openSettings)="select(0)" />
       <mat-tab-group [selectedIndex]="index()" (selectedIndexChange)="select($event)" animationDuration="0ms"
                      mat-stretch-tabs="false" mat-align-tabs="start">
         <mat-tab label="Settings">

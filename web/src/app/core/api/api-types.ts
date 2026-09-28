@@ -1132,6 +1132,22 @@ export interface MetadataSettingsDto {
   defaultThresholds?: MetadataMatchThresholdsDto | null;
   thresholdBounds?: MetadataMatchThresholdBoundsDto | null;
   thresholdsAreDefault?: boolean;
+  /** 1.28.0: the approved sites (the provider allowlist), each with whether it is in. */
+  providers?: MetadataProviderDto[];
+  /** 1.28.0: "Fetch from the web" was on under an older consent - off until an admin accepts again. */
+  consentRenewalNeeded?: boolean;
+  /** 1.28.0: Automatic matching was on under an older automatic consent. */
+  autoConsentRenewalNeeded?: boolean;
+}
+
+/** One approved metadata site (1.28.0, the provider allowlist). */
+export interface MetadataProviderDto {
+  id: string;
+  name: string;
+  hosts: string[];
+  usedFor: string;
+  sends: string;
+  allowed: boolean;
 }
 
 export interface UpdateMetadataSettingsRequest {
@@ -1145,6 +1161,8 @@ export interface UpdateMetadataSettingsRequest {
   acceptedAutoConsentVersion?: number | null;
   thresholds?: MetadataMatchThresholdsDto | null;
   resetThresholds?: boolean;
+  /** 1.28.0: the full set of provider ids to keep off the allowlist ([] = all in); null/absent = unchanged. */
+  removedProviders?: string[] | null;
 }
 
 export interface UpdateMetadataLibraryRequest {
@@ -1660,7 +1678,7 @@ export interface NodeDeclaredFactsDto {
 // --- Missing volumes / chapters report (1.28.0, admin-only; stored data only) ---
 
 export type MissingUnitKind = 'Volume' | 'Chapter';
-export type MissingTotalSource = 'English' | 'Origin' | 'LatestChapter';
+export type MissingTotalSource = 'English' | 'Origin' | 'LatestChapter' | 'Converted';
 export type MissingConfidence = 'Low' | 'Medium' | 'High';
 /** Worst first: Behind, Holes, UpToDate, NoTotal, then no verdict (Mixed, NoUnits). */
 export type MissingVerdict = 'Behind' | 'Holes' | 'UpToDate' | 'NoTotal' | 'Mixed' | 'NoUnits';
@@ -1697,6 +1715,8 @@ export interface MissingSeriesDto {
   mixedFolders: number;
   /** An English publisher is listed but no English total is stored (read on the next refresh). */
   englishTotalUnknown: boolean;
+  /** 1.28.0: the stored chapters-per-volume source (an AniList entry), or null. */
+  conversion?: MissingConversionDto | null;
   statusText?: string | null;
   fetchedAt?: string;
 }
@@ -1716,4 +1736,41 @@ export interface MissingReportPageDto {
   summary: MissingReportSummaryDto;
   total: number;
   nextCursor?: string | null;
+}
+
+/** A stored chapters-per-volume source (1.28.0). */
+export interface MissingConversionDto {
+  provider: string;
+  providerName: string;
+  externalId: string;
+  title: string;
+  siteUrl?: string | null;
+  volumes?: number | null;
+  chapters?: number | null;
+  /** Only for a finished entry with both totals. */
+  chaptersPerVolume?: number | null;
+  fetchedAt?: string;
+}
+
+export type MissingConversionOutcome = 'Found' | 'NoCounts' | 'NoMatch';
+
+/** POST /admin/metadata/missing/{nodeId}/conversion */
+export interface MissingConversionResultDto {
+  outcome: MissingConversionOutcome;
+  row: MissingSeriesDto;
+}
+
+/** POST /admin/metadata/missing/conversions */
+export interface MissingConversionBatchRequest {
+  library?: string | null;
+}
+
+export interface MissingConversionBatchResultDto {
+  looked: number;
+  found: number;
+  noCounts: number;
+  noMatch: number;
+  remaining: number;
+  stoppedCode?: string | null;
+  stoppedMessage?: string | null;
 }

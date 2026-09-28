@@ -25,9 +25,13 @@ import { MetadataApiService } from '../../metadata-api.service';
 import { MetadataReviewStateService } from '../../metadata-review-state.service';
 import { scorePercent } from '../metadata-admin-labels';
 import { LibraryMatchPanelComponent } from './library-match-panel.component';
+import { MetadataProvidersComponent } from './metadata-providers.component';
 
-/** Consent text version the page shows; must equal the server's `currentConsentVersion`. */
-export const CONSENT_TEXT_VERSION = 1;
+/**
+ * Consent text version the page shows; must equal the server's `currentConsentVersion`. 2 (1.28.0): the text
+ * describes the provider allowlist (MangaUpdates + AniList); an instance that accepted 1 re-accepts.
+ */
+export const CONSENT_TEXT_VERSION = 2;
 
 /**
  * Automatic-lookups consent text version (stage 2, owner decisions 2 + 3); must equal the
@@ -106,7 +110,7 @@ export function validateThresholds(
   standalone: true,
   imports: [
     DatePipe, FormsModule, MatButtonModule, MatCheckboxModule, MatExpansionModule, MatFormFieldModule, MatIconModule,
-    MatInputModule, MatProgressBarModule, MatSelectModule, MatSlideToggleModule, LibraryMatchPanelComponent,
+    MatInputModule, MatProgressBarModule, MatSelectModule, MatSlideToggleModule, LibraryMatchPanelComponent, MetadataProvidersComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -132,19 +136,28 @@ export function validateThresholds(
             }
             @if (!consentCurrent() || showConsent()) {
             <div class="consent" data-testid="md-consent-text">
-              <p>When on, MangaPixer can look up series details - description, authors, genres, publication status and
-                cover art - on <strong>MangaUpdates</strong> for the libraries you enable below.</p>
-              <p><strong>What is sent:</strong> the search text you confirm in the Identify dialog (usually a folder or
-                file name) and MangaUpdates record numbers. MangaUpdates also sees your server's IP address, as with any
-                web request.</p>
+              <p>When on, MangaPixer can look up series information for the libraries you enable below, on the
+                <strong>allowed sites</strong> listed here - and nowhere else:</p>
+              <ul>
+                <li><strong>MangaUpdates</strong> - description, authors, genres, publication status, English release
+                  totals and cover art. <strong>Sent:</strong> the search text you confirm in the Identify dialog (usually
+                  a folder or file name) and MangaUpdates record numbers.</li>
+                <li><strong>AniList</strong> - volume and chapter totals, to convert chapters to volumes in the Missing
+                  report. <strong>Sent:</strong> the MangaUpdates title of a series that is already linked, or its AniList
+                  record number - never a folder or file name - and only when you ask for it in the Missing report.</li>
+              </ul>
+              <p>You can remove a site from the list at any time; nothing is ever sent to a removed site. Each site also
+                sees your server's IP address, as with any web request.</p>
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or
                 anything that identifies this server.</p>
-              <p><strong>When:</strong> only when an admin runs Identify, Look up or Refresh in an enabled library.
-                Nothing happens automatically unless you also turn on Automatic matching.</p>
-              <p>Fetched information is stored on this server and credited to MangaUpdates, which provides it as-is. You
-                can switch this off at any time; stored information stays until you delete it.</p>
+              <p><strong>When:</strong> only when an admin runs Identify, Look up, Refresh or a Missing-report lookup in an
+                enabled library. Nothing happens automatically unless you also turn on Automatic matching. Automatic matching
+                uses MangaUpdates only.</p>
+              <p>Fetched information is stored on this server and credited to the site that provided it, as-is. You can
+                switch this off at any time; stored information stays until you delete it.</p>
             </div>
             }
+            <app-metadata-providers [settings]="s" [disabled]="saving()" (changed)="apply($event)" />
             @if (consentCurrent()) {
               <p class="muted small" data-testid="md-consented">
                 Consent given {{ s.consentAt | date: 'mediumDate' }} ·
@@ -157,7 +170,7 @@ export function validateThresholds(
               </mat-checkbox>
             }
             <div>
-              <mat-slide-toggle [checked]="s.fetchEnabled" [disabled]="!canToggleFetch()" (change)="setFetch($event.checked)"
+              <mat-slide-toggle [checked]="s.fetchEnabled && consentCurrent()" [disabled]="!canToggleFetch()" (change)="setFetch($event.checked)"
                                 data-testid="md-fetch">
                 Fetch from the web
               </mat-slide-toggle>
@@ -224,7 +237,7 @@ export function validateThresholds(
               </mat-checkbox>
             }
             <div>
-              <mat-slide-toggle [checked]="!!s.autoMatchEnabled" [disabled]="!canToggleAuto()" (change)="setAuto($event.checked)"
+              <mat-slide-toggle [checked]="!!s.autoMatchEnabled && autoConsentCurrent()" [disabled]="!canToggleAuto()" (change)="setAuto($event.checked)"
                                 data-testid="md-auto-switch">
                 Automatic matching
               </mat-slide-toggle>
@@ -376,6 +389,8 @@ export function validateThresholds(
     .muted { color: #999; }
     .consent { font-size: 13px; color: #c8c8d0; border-left: 3px solid #555; padding: 2px 12px; margin: 6px 0 10px; }
     .consent p { margin: 6px 0; }
+    .consent ul { margin: 6px 0; padding-left: 18px; }
+    .consent li { margin: 4px 0; }
     .link { background: none; border: none; padding: 0; font: inherit; color: #b39dff; cursor: pointer; text-decoration: underline; }
     .banner { color: #ffb300; }
     .status { font-size: 13px; margin: 0 0 8px; }
@@ -439,7 +454,8 @@ export class MetadataSettingsComponent implements OnInit {
   readonly canToggleFetch = computed(() => {
     const s = this.settings();
     if (!s || this.saving()) return false;
-    if (s.fetchEnabled) return true;
+    // 1.28.0: on under an older consent reads as off (the server stops it); turning it on again re-accepts.
+    if (s.fetchEnabled && this.consentCurrent()) return true;
     return !s.networkDisabledByConfig && (this.consentCurrent() || this.consentTicked());
   });
 
@@ -454,7 +470,7 @@ export class MetadataSettingsComponent implements OnInit {
   readonly canToggleAuto = computed(() => {
     const s = this.settings();
     if (!s || this.saving()) return false;
-    if (s.autoMatchEnabled) return true;
+    if (s.autoMatchEnabled && this.autoConsentCurrent()) return true;
     return !s.networkDisabledByConfig && s.fetchEnabled && (this.autoConsentCurrent() || this.autoConsentTicked());
   });
 
@@ -608,7 +624,8 @@ export class MetadataSettingsComponent implements OnInit {
     });
   }
 
-  private apply(s: MetadataSettingsDto): void {
+  /** Applies a saved settings state (also from the allowed-sites chips). */
+  apply(s: MetadataSettingsDto): void {
     this.settings.set(s);
     // Share the saved state with the summary card at the top of the page (1.27.0).
     this.reviewState.setSettings(s);

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -8,11 +8,12 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
-import { MissingReportSummaryDto, MissingSeriesDto } from '../../../core/api/api-types';
+import { ApiError, MissingReportSummaryDto, MissingSeriesDto } from '../../../core/api/api-types';
+import { MetadataReviewStateService } from '../metadata-review-state.service';
 import { ReviewLibraryOption } from '../review/review-dashboard.component';
 import { MissingReportApiService } from './missing-report-api.service';
 import {
-  MISSING_CONFIDENCE_LABELS, MISSING_VERDICT_LABELS, gapDetail, gapsOf, haveSentence, noVerdictReason,
+  MISSING_CONFIDENCE_LABELS, MISSING_VERDICT_LABELS, batchSentence, conversionLine, gapDetail, gapsOf, haveSentence, noVerdictReason,
 } from './missing-labels';
 
 type Filter = 'missing' | 'all';
@@ -47,6 +48,17 @@ type Filter = 'missing' | 'all';
             @for (l of libraries(); track l.id) { <mat-option [value]="l.id">{{ l.name }}</mat-option> }
           </mat-select>
         </mat-form-field>
+      </div>
+      <div class="convert-bar" data-testid="missing-convert-bar">
+        @if (aniListReady()) {
+          <button mat-stroked-button type="button" [disabled]="batchBusy()" (click)="lookupBatch()" data-testid="missing-convert-batch"
+                  matTooltip="Asks AniList for up to 20 linked series that have no chapters-per-volume yet (one request each)">
+            <mat-icon>swap_horiz</mat-icon> {{ batchBusy() ? 'Looking up…' : 'Get chapters per volume from AniList' }}
+          </button>
+        } @else if (aniListBlocked(); as why) {
+          <span class="muted small" data-testid="missing-convert-off">Chapters per volume from AniList: {{ why }}</span>
+        }
+        @if (batchMessage()) { <span class="small" role="status" data-testid="missing-convert-result">{{ batchMessage() }}</span> }
       </div>
 
       @if (summary(); as s) {
@@ -85,6 +97,19 @@ type Filter = 'missing' | 'all';
                     }
                   </p>
                 }
+                @if (row.conversion; as conv) {
+                  <p class="note conv" data-testid="missing-conversion">
+                    @if (conv.siteUrl) {
+                      <a [href]="conv.siteUrl" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">{{ conversionLine(conv) }}</a>
+                    } @else { {{ conversionLine(conv) }} }
+                  </p>
+                } @else if (aniListReady() && row.provider === 'mangaupdates') {
+                  <button mat-button type="button" class="conv-btn" [disabled]="busyRow() === row.nodeId" (click)="lookupOne(row)"
+                          data-testid="missing-convert-one">
+                    <mat-icon>swap_horiz</mat-icon> Chapters per volume (AniList)
+                  </button>
+                }
+                @if (rowMessage()[row.nodeId]; as m) { <p class="note" role="status">{{ m }}</p> }
                 @if (noVerdictReason(row); as reason) { <p class="note">{{ reason }}</p> }
                 @if (row.englishTotalUnknown) {
                   <p class="note" data-testid="missing-english-unknown">An English edition is listed; its total is read on the record's next refresh.</p>
@@ -137,6 +162,11 @@ type Filter = 'missing' | 'all';
     .conf.c-Low { color: #ff8a80; }
     .note { margin: 2px 0; font-size: 12px; color: #9a9aa8; }
     .open { flex: none; color: #b39dff; }
+    .convert-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 8px; }
+    .small { font-size: 12px; }
+    .muted { color: #9a9aa8; }
+    .conv a { color: #b39dff; }
+    .conv-btn { font-size: 12px; margin-left: -8px; }
     .state { display: flex; justify-content: center; padding: 32px 0; }
     .error { color: #ff8a80; }
     .empty { display: flex; flex-direction: column; align-items: center; padding: 32px 0; color: #8a8a99; text-align: center; }
@@ -150,6 +180,7 @@ type Filter = 'missing' | 'all';
 })
 export class MissingReportComponent implements OnInit {
   private readonly api = inject(MissingReportApiService);
+  private readonly state = inject(MetadataReviewStateService);
 
   readonly libraries = input<ReviewLibraryOption[]>([]);
   readonly initialLibrary = input<string | null>(null);
@@ -161,6 +192,24 @@ export class MissingReportComponent implements OnInit {
   readonly cursor = signal<string | null>(null);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
+  readonly batchBusy = signal(false);
+  readonly batchMessage = signal<string | null>(null);
+  readonly busyRow = signal<string | null>(null);
+  readonly rowMessage = signal<Record<string, string>>({});
+
+  /** Why an AniList lookup cannot run now (the gateway would refuse it the same way), or null when it can. */
+  readonly aniListBlocked = computed(() => {
+    const s = this.state.settings();
+    if (!s) return 'loading settings…';
+    if (s.networkDisabledByConfig) return 'disabled by the server configuration.';
+    if (!s.fetchEnabled || s.consentRenewalNeeded || s.acceptedConsentVersion !== s.currentConsentVersion) {
+      return 'turn on "Fetch from the web" in Settings first.';
+    }
+    if (!(s.providers ?? []).some((p) => p.id === 'anilist' && p.allowed)) return 'AniList is not an allowed site (Settings).';
+    return null;
+  });
+
+  readonly aniListReady = computed(() => this.aniListBlocked() === null);
 
   readonly verdictLabels = MISSING_VERDICT_LABELS;
   readonly confidenceLabels = MISSING_CONFIDENCE_LABELS;
@@ -168,10 +217,48 @@ export class MissingReportComponent implements OnInit {
   readonly gapDetail = gapDetail;
   readonly gapsOf = gapsOf;
   readonly noVerdictReason = noVerdictReason;
+  readonly conversionLine = conversionLine;
 
   ngOnInit(): void {
     this.library.set(this.initialLibrary());
+    if (!this.state.settings()) this.state.refreshSettings();
     this.load(false);
+  }
+
+  /** One AniList request for this row; the row is replaced by the server's recomputed one. */
+  lookupOne(row: MissingSeriesDto): void {
+    this.busyRow.set(row.nodeId);
+    this.api.lookupConversion(row.nodeId).subscribe({
+      next: (r) => {
+        this.busyRow.set(null);
+        this.items.update((list) => list.map((i) => (i.nodeId === row.nodeId ? r.row : i)));
+        const text = r.outcome === 'Found' ? '' : r.outcome === 'NoCounts'
+          ? 'AniList has this series, but no final volume and chapter totals yet.'
+          : 'No AniList entry matched this series confidently; nothing was stored.';
+        this.rowMessage.update((m) => ({ ...m, [row.nodeId]: text }));
+      },
+      error: (err: { error?: ApiError }) => {
+        this.busyRow.set(null);
+        this.rowMessage.update((m) => ({ ...m, [row.nodeId]: err?.error?.message || 'The lookup failed.' }));
+      },
+    });
+  }
+
+  lookupBatch(): void {
+    this.batchBusy.set(true);
+    this.batchMessage.set(null);
+    this.api.lookupConversions(this.library()).subscribe({
+      next: (r) => {
+        this.batchBusy.set(false);
+        this.batchMessage.set(batchSentence(r));
+        this.load(false);
+        this.state.refreshSettings();
+      },
+      error: () => {
+        this.batchBusy.set(false);
+        this.batchMessage.set('The lookup failed.');
+      },
+    });
   }
 
   setFilter(filter: Filter): void {

@@ -1,4 +1,7 @@
-import { MissingConfidence, MissingSeriesDto, MissingTotalSource, MissingUnitGapDto, MissingVerdict } from '../../../core/api/api-types';
+import {
+  MissingConfidence, MissingConversionBatchResultDto, MissingConversionDto, MissingSeriesDto, MissingTotalSource, MissingUnitGapDto,
+  MissingVerdict,
+} from '../../../core/api/api-types';
 
 // Wording of the missing volumes / chapters report (1.28.0). Pure functions so the tab, the series page line
 // and their specs agree.
@@ -7,6 +10,7 @@ export const MISSING_SOURCE_LABELS: Record<MissingTotalSource, string> = {
   English: 'English',
   Origin: 'original run',
   LatestChapter: 'latest release',
+  Converted: 'estimate',
 };
 
 export const MISSING_CONFIDENCE_LABELS: Record<MissingConfidence, string> = {
@@ -51,7 +55,8 @@ export function haveSentence(gap: MissingUnitGapDto): string {
     ? `${gap.unitCount} ${unitWord(gap, gap.unitCount !== 1)} (up to ${gap.have})`
     : gap.lowest === gap.have ? `${unitWord(gap, false)} ${gap.have}` : `${unitWord(gap)} ${gap.lowest}-${gap.have}`;
   if (gap.available == null || !gap.source) return `You have ${range}; no total known`;
-  return `You have ${range} of ${gap.available} (${MISSING_SOURCE_LABELS[gap.source]})`;
+  const about = gap.source === 'Converted' ? '~' : '';
+  return `You have ${range} of ${about}${gap.available} (${MISSING_SOURCE_LABELS[gap.source]})`;
 }
 
 /** "3 behind", "missing 3-4", "3 behind · missing 3-4, +12 more", or "" when complete. */
@@ -75,4 +80,20 @@ export function noVerdictReason(row: MissingSeriesDto): string | null {
   if (row.verdict === 'Mixed') return 'Volumes and chapters are mixed in one folder, so there is nothing to compare.';
   if (row.verdict === 'NoUnits') return 'No archive name states a volume or chapter number.';
   return null;
+}
+
+/** "AniList: 116 chapters in 27 volumes, 4.3 per volume" / "AniList: still running, no final totals". */
+export function conversionLine(c: MissingConversionDto): string {
+  if (c.chaptersPerVolume != null && c.volumes && c.chapters) {
+    return `${c.providerName}: ${c.chapters} chapters in ${c.volumes} volumes, ${c.chaptersPerVolume} per volume`;
+  }
+  return `${c.providerName}: no final volume and chapter totals yet`;
+}
+
+/** The batch result in one sentence. */
+export function batchSentence(r: MissingConversionBatchResultDto): string {
+  const parts = [`Looked up ${r.looked}: ${r.found} found, ${r.noCounts} without final totals, ${r.noMatch} no match.`];
+  if (r.remaining > 0) parts.push(`${r.remaining} still without chapters per volume.`);
+  if (r.stoppedMessage) parts.push(`Stopped: ${r.stoppedMessage}`);
+  return parts.join(' ');
 }
