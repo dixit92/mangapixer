@@ -7124,6 +7124,9 @@
           },
           "content": {
             "type": "boolean"
+          },
+          "declared": {
+            "type": "boolean"
           }
         }
       },

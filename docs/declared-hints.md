@@ -38,6 +38,10 @@ When the folder is linked to a MangaUpdates series that says otherwise, a **Conf
 
 A declaration never changes the linked record, and the record never changes the declaration. If the conflict means the folder is linked to the wrong series, use **Identify…** to link the right one; if your declaration is wrong, edit it.
 
+## Declared facts and automatic matching
+
+With **Automatic matching** on, declared facts are used as evidence, only ever in favour of a record: a declared manga, manhwa, manhua or webtoon type prefers records of that origin, and declared creators prefer records by them (a folder of several same-titled series links the one by the declared author). A declaration never rules a record out. See [Automatic matching](series-information.md#automatic-matching).
+
 ## Declared facts and Content
 
 The folder **Content** setting (**Doujinshi & adult one-shots**, see [Series information](series-information.md#folder-content)) stays a separate setting with its own menu; it is not a declared fact.
