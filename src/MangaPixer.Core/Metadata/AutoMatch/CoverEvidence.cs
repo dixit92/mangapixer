@@ -104,8 +104,8 @@ public static class CoverHash
 /// first page of a volume or a one-shot is a cover; the first page of a chapter or a tall strip is not); at most
 /// <see cref="MaxCandidates"/> candidate images per work. Positive only: a candidate whose cover is the same as
 /// the local cover gets <see cref="MatchScorer.CoverAgree"/> on its ADJUSTED score (the lead), never on the raw
-/// title score the auto gate reads; no candidate is ever penalised. When every compared cover matches (the same
-/// art on a series and its spin-off) there is no signal.
+/// title score the auto gate reads; no candidate is ever penalised, and a candidate without a cover is simply not
+/// compared. When every compared cover matches (the same art on a series and its spin-off) there is no signal.
 /// </summary>
 public static class CoverEvidence
 {
@@ -147,19 +147,18 @@ public static class CoverEvidence
         IsTie(outcome, thresholds) && IsVolumeShaped(context) ? [outcome.Ranked[0], outcome.Ranked[1]] : [];
 
     /// <summary>
-    /// The candidates (by external id) whose cover is the same as the local one, given the hashes of the
-    /// compared candidates; empty when fewer than two covers could be compared (one cover alone cannot tell the
-    /// tied records apart), or when none, or every one, matches.
+    /// The candidates (by external id) whose cover is the same as the local one, given the hashes of the covers that
+    /// could be compared (a record without a cover, or whose image failed, is simply not among them: a same cover
+    /// is evidence on its own); empty when none matches, or when two or more were compared and every one matches
+    /// (the same art on both records says nothing about which one it is).
     /// </summary>
     public static IReadOnlySet<string> Matching(ulong localHash, IReadOnlyDictionary<string, ulong> candidateHashes)
     {
         ArgumentNullException.ThrowIfNull(candidateHashes);
-        if (candidateHashes.Count < 2)
-            return new HashSet<string>(StringComparer.Ordinal);
         var same = candidateHashes
             .Where(c => CoverHash.Compare(localHash, c.Value) == CoverVerdict.Same)
             .Select(c => c.Key)
             .ToHashSet(StringComparer.Ordinal);
-        return same.Count == candidateHashes.Count ? new HashSet<string>(StringComparer.Ordinal) : same;
+        return candidateHashes.Count >= 2 && same.Count == candidateHashes.Count ? new HashSet<string>(StringComparer.Ordinal) : same;
     }
 }

@@ -114,7 +114,8 @@ public static class CoverCheck
 /// (the worker reads page 1, as analysis does); hashed once per content version (<see cref="CoverHashCache"/>);</item>
 /// <item>at most <see cref="CoverEvidence.MaxCandidates"/> candidate images, by the image URL the provider returned,
 /// through the gateway's image path (allowlisted host, automatic call: daily budget + automatic pacing), written
-/// to a scratch workspace, hashed by the worker and deleted.</item>
+/// to a scratch workspace, hashed by the worker and deleted; a candidate without an image, or whose image fails,
+/// is not compared (the other one still can be).</item>
 /// </list>
 /// A gateway REFUSAL (budget, backoff, switch) propagates like every automatic call; any other failure means no
 /// signal. Nothing is logged here (no URL, title or path).
@@ -177,7 +178,7 @@ public sealed class AutoMatchCoverComparer
         if (!await _setting.IsEnabledAsync(ct))
             return CoverComparison.Skipped(CoverCheck.Off);
         var withImages = candidates.Where(c => !string.IsNullOrWhiteSpace(c.ImageUrl)).Take(CoverEvidence.MaxCandidates).ToList();
-        if (withImages.Count < 2)
+        if (withImages.Count == 0)
             return CoverComparison.Skipped(CoverCheck.NoImages);
         if (await LocalHashAsync(coverArchiveId, ct) is not { } local)
             return CoverComparison.Skipped(CoverCheck.NoLocalCover);
@@ -194,19 +195,18 @@ public sealed class AutoMatchCoverComparer
             }
             catch (MetadataGatewayException ex) when (!MetadataAutoMatchService.IsRefusal(ex))
             {
-                break; // The image failed: one cover alone cannot break the tie, so the next one is not fetched.
+                continue; // The image failed: no evidence for this candidate.
             }
             var file = Path.Combine(workspace.Path, "candidate-" + compared.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".img");
             await File.WriteAllBytesAsync(file, bytes, ct);
             compared++;
             var hash = await _hasher.HashFileAsync(file, ct);
             File.Delete(file);
-            if (hash is null)
-                break;
-            hashes[externalId] = hash.Value;
+            if (hash is not null)
+                hashes[externalId] = hash.Value;
         }
         var matches = CoverEvidence.Matching(local, hashes);
-        var code = hashes.Count < 2 ? CoverCheck.ImageFailed : matches.Count > 0 ? CoverCheck.Matched : CoverCheck.Compared;
+        var code = hashes.Count == 0 ? CoverCheck.ImageFailed : matches.Count > 0 ? CoverCheck.Matched : CoverCheck.Compared;
         return new CoverComparison(matches, compared, code);
     }
 

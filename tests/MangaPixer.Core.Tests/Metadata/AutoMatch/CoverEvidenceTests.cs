@@ -105,7 +105,7 @@ public sealed class CoverEvidenceTests
     }
 
     [Fact]
-    public void Matching_OnlyWhenBothCoversWereHashed_AndExactlyTheSameOnesDiffer()
+    public void Matching_TheSameCoversOnly_UnlessEveryComparedCoverIsTheSame()
     {
         const ulong local = 0;
         var same = 0x3UL;          // 2 bits apart
@@ -116,7 +116,9 @@ public sealed class CoverEvidenceTests
         Assert.Equal(["a"], CoverEvidence.Matching(local, new Dictionary<string, ulong> { ["a"] = same, ["b"] = unsure }));
         Assert.Empty(CoverEvidence.Matching(local, new Dictionary<string, ulong> { ["a"] = same, ["b"] = same })); // same art on both
         Assert.Empty(CoverEvidence.Matching(local, new Dictionary<string, ulong> { ["a"] = other, ["b"] = unsure }));
-        Assert.Empty(CoverEvidence.Matching(local, new Dictionary<string, ulong> { ["a"] = same })); // one cover cannot break a tie
+        Assert.Equal(["a"], CoverEvidence.Matching(local, new Dictionary<string, ulong> { ["a"] = same })); // the other has no cover
+        Assert.Empty(CoverEvidence.Matching(local, new Dictionary<string, ulong> { ["a"] = unsure }));
+        Assert.Empty(CoverEvidence.Matching(local, new Dictionary<string, ulong>()));
     }
 
     [Fact]

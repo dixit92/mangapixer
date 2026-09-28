@@ -15,8 +15,8 @@ using Xunit;
 /// Service-with-DB tests of the cover comparison's request discipline (1.28.0) through the PRODUCTION lookup
 /// (<see cref="AutoMatchLookup.LookupAsync"/>, real planner and scorer, real gateway over scripted answers): two tied
 /// candidates, at most two image GETs, each counted in the daily budget; nothing downloaded without a stored local
-/// thumbnail, with the setting off, or after the first image failed; a budget refusal propagates like every
-/// automatic call. The hash is faked from the image bytes' last byte; synthetic names only.
+/// thumbnail or with the setting off; a failed image is no evidence for that candidate only; a budget refusal
+/// propagates like every automatic call. The hash is faked from the image bytes' last byte; synthetic names only.
 /// </summary>
 [Trait("Category", "ServiceDb")]
 public sealed class CoverComparisonTests : IAsyncLifetime
@@ -160,15 +160,27 @@ public sealed class CoverComparisonTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AFailedFirstImage_StopsTheComparison_OneCoverCannotBreakATie()
+    public async Task AFailedImage_IsNoEvidenceForThatCandidate_TheOtherCoverStillCounts()
     {
         _images.Remove("901");
 
         var (result, _, _) = await LookupAsync();
 
-        Assert.Equal(1, ImageRequests);
+        Assert.Equal(2, ImageRequests);
+        Assert.Equal(CoverCheck.Matched, result.CoverCheck);
+        Assert.Equal("902", result.Outcome.Ranked[0].Candidate.ExternalId);
+    }
+
+    [Fact]
+    public async Task BothImagesFailing_IsNoSignal()
+    {
+        _images.Clear();
+
+        var (result, _, _) = await LookupAsync();
+
+        Assert.Equal(2, ImageRequests);
         Assert.Equal(CoverCheck.ImageFailed, result.CoverCheck);
-        Assert.Equal(0, (int)(result.Outcome.Ranked[0].Reasons & MatchReason.CoverMatch));
+        Assert.Equal("901", result.Outcome.Ranked[0].Candidate.ExternalId);
     }
 
     [Fact]
