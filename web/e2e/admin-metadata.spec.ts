@@ -135,8 +135,11 @@ test('Automatic matching is consent-gated: no automatic-matching call before con
     if (r.method() === 'PUT' && path === '/api/v1/admin/metadata/settings') settingsPuts.push(r.postDataJSON());
   });
   await login(page);
-  // Start from web lookups on (v1 consent) and automatic matching off.
-  await putSettings(page, { fetchEnabled: true, acceptedConsentVersion: 1 });
+  // Start from web lookups on (the current consent - read from the server, so a consent bump such as
+  // 1.28.0's does not break this test) and automatic matching off.
+  const versions = (await (await page.request.get('/api/v1/admin/metadata/settings')).json()) as
+    { currentConsentVersion: number; currentAutoConsentVersion: number };
+  await putSettings(page, { fetchEnabled: true, acceptedConsentVersion: versions.currentConsentVersion });
   await putSettings(page, { autoMatchEnabled: false });
   const usedBefore = (await settings(page)).budgetUsedToday;
 
@@ -158,7 +161,7 @@ test('Automatic matching is consent-gated: no automatic-matching call before con
   await expect(autoSwitch).toBeEnabled();
   const put = page.waitForRequest((r) => r.method() === 'PUT' && r.url().endsWith('/api/v1/admin/metadata/settings'));
   await autoSwitch.click();
-  expect((await put).postDataJSON()).toEqual({ autoMatchEnabled: true, acceptedAutoConsentVersion: 2 });
+  expect((await put).postDataJSON()).toEqual({ autoMatchEnabled: true, acceptedAutoConsentVersion: versions.currentAutoConsentVersion });
   await page.waitForTimeout(800);
   await shot(page, 'c-04-auto-after-switch');
 
