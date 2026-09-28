@@ -323,11 +323,15 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
         var searches = seen.Count(r => r.Method == HttpMethod.Post);
         var images = seen.Count(r => r.Method == HttpMethod.Get && r.Uri.Host == MetadataHttp.MangaUpdatesImageHost);
         var gets = seen.Count(r => r.Method == HttpMethod.Get) - images;
+        // Re-scoring at other thresholds keeps the cover evidence the lookup found (1.28.0).
+        var covered = result.Outcome.Ranked.Where(r => (r.Reasons & MatchReason.CoverMatch) != 0)
+            .Select(r => r.Candidate.ExternalId).ToHashSet(StringComparer.Ordinal);
+        var rescore = covered.Count == 0 ? query : query with { Context = query.Context with { CoverMatches = covered } };
         var outcome = missing.Count > 0
             ? null
             : thresholds == MatchThresholds.Default
                 ? result.Outcome
-                : s_scorer.Score(query, result.Outcome.Ranked.Select(r => r.Candidate).ToList(), thresholds);
+                : s_scorer.Score(rescore, result.Outcome.Ranked.Select(r => r.Candidate).ToList(), thresholds);
         return new Run(classification, outcome, missing, searches, gets, images);
     }
 
