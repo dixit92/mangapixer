@@ -47,8 +47,13 @@ public sealed class DeclaredEvidenceTests : IAsyncLifetime
     {
         _db.Db.DeclaredFacts.Add(new DeclaredFactEntity
         {
-            LibraryId = _db.LibraryId, NodeId = nodeId, Key = key, Value = value, Position = 0,
-            CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            LibraryId = _db.LibraryId,
+            NodeId = nodeId,
+            Key = key,
+            Value = value,
+            Position = 0,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
         });
         await _db.Db.SaveChangesAsync();
     }
