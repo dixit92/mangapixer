@@ -12,6 +12,7 @@ import { MetadataApiService } from './metadata-api.service';
 import { MetadataStateService } from './metadata-state.service';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
 import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessage } from './folder-content';
+import { DeclaredFactsDialogService } from './declared/declared-facts-dialog.service';
 
 /**
  * Admin menu for one node's series metadata (1.24.0), shared by the overlay and the
@@ -81,6 +82,10 @@ import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessa
         <button mat-menu-item (click)="setPrecedence('ComicInfoFirst')" data-testid="precedence-comicinfo">
           <mat-icon>description</mat-icon> ComicInfo first
         </button>
+        <mat-divider />
+        <button mat-menu-item (click)="editDeclared()" data-testid="declared-facts">
+          <mat-icon>edit_note</mat-icon> Declared facts…
+        </button>
         @if (content(); as c) {
           <mat-divider />
           <span class="caption" data-testid="content-caption">{{ caption() }}</span>
@@ -117,6 +122,7 @@ export class SeriesAdminActionsComponent {
   private readonly snackBar = inject(MatSnackBar);
   private readonly identifyDialog = inject(IdentifyDialogService);
   private readonly metadataState = inject(MetadataStateService);
+  private readonly declaredDialog = inject(DeclaredFactsDialogService);
 
   readonly info = input.required<SeriesInfoDto>();
   readonly changed = output<void>();
@@ -185,6 +191,11 @@ export class SeriesAdminActionsComponent {
         this.identifyReason.set('Could not check whether web lookups are on.');
       },
     });
+  }
+
+  /** Declared type / creators for this folder (1.28.0); the "Declared" line re-reads itself after a save. */
+  editDeclared(): void {
+    void this.declaredDialog.open({ kind: 'folder', id: this.info().nodeId });
   }
 
   identify(): void {

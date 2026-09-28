@@ -36,6 +36,7 @@ import { BackupSettingsCardComponent } from './backup-settings-card.component';
 import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
 import { LibraryIconPickerComponent } from './library-icon-picker/library-icon-picker.component';
 import { LibraryScanScheduleComponent } from './library-scan-schedule/library-scan-schedule.component';
+import { LibraryDeclaredFactsComponent } from '../metadata/declared/library-declared-facts.component';
 import { AnalyticsCardComponent } from './analytics-card/analytics-card.component';
 
 /**
@@ -69,6 +70,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
     LibraryIconComponent,
     LibraryIconPickerComponent,
     LibraryScanScheduleComponent,
+    LibraryDeclaredFactsComponent,
   ],
   template: `
     <h2>Administration</h2>
@@ -162,6 +164,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
                 </span>
               </mat-list-item>
               <app-library-scan-schedule [library]="lib" />
+              <app-library-declared-facts [library]="lib" />
 
               @if (iconPickerLibId() === lib.id) {
                 <div class="lib-panel">
