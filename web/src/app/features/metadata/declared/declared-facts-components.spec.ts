@@ -22,7 +22,7 @@ const FOLDER_SCOPE: DeclaredFactsScopeDto = {
   },
 };
 
-function text(el: HTMLElement): string {
+function text(el: Element): string {
   return (el.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
 
