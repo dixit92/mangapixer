@@ -81,6 +81,7 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<MetadataMatchRunEntity> MetadataMatchRuns => Set<MetadataMatchRunEntity>();
     public DbSet<MetadataMatchCandidateEntity> MetadataMatchCandidates => Set<MetadataMatchCandidateEntity>();
     public DbSet<MetadataFlagEntity> MetadataFlags => Set<MetadataFlagEntity>();
+    public DbSet<DeclaredFactEntity> DeclaredFacts => Set<DeclaredFactEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -107,6 +108,7 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureAppSettings(modelBuilder);
         ConfigureMetadata(modelBuilder);
         ConfigureMetadataAutoMatch(modelBuilder);
+        ConfigureDeclaredFacts(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
@@ -121,6 +123,7 @@ public sealed class MangaPixerDbContext : DbContext
             e.Property(x => x.BackupLocation).HasMaxLength(1024);
             e.Property(x => x.BackupLocationMarkerId).HasMaxLength(32);
             e.Property(x => x.MetadataLastErrorCode).HasMaxLength(32);
+            e.Property(x => x.MetadataProvidersJson).HasMaxLength(4096);
         });
     }
 
@@ -689,6 +692,32 @@ public sealed class MangaPixerDbContext : DbContext
             e.Property(x => x.CorrelationId).HasMaxLength(64);
             e.HasIndex(x => x.Timestamp);
             e.HasIndex(x => x.ActorUserId);
+        });
+    }
+
+    /// <summary>Declared facts (1.28.0): one generic key/value table for folder and library declarations.</summary>
+    private static void ConfigureDeclaredFacts(ModelBuilder mb)
+    {
+        mb.Entity<DeclaredFactEntity>(e =>
+        {
+            e.ToTable("declared_facts");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.Key).IsRequired().HasMaxLength(32);
+            e.Property(x => x.Value).IsRequired().HasMaxLength(200);
+            e.Property(x => x.Role).HasMaxLength(32);
+            // "Effective facts for a library" reads every row of one library at once.
+            e.HasIndex(x => new { x.LibraryId, x.Key });
+            // A folder's own facts (and the cascade from catalog_nodes).
+            e.HasIndex(x => new { x.NodeId, x.Key });
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<LibraryEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.LibraryId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
