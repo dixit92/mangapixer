@@ -17,12 +17,23 @@ mapping and automatic retrieval loop; no test ever contacts the real network.
   searches (plus 2 page-2 reads) and 9 GETs for the live-run lookalike cases, and `publishers[]` merged into three
   existing series files (`13015731700`, `15180124327`, `72274276213`) from a fresh GET - their other fields are the
   2026-09-26 recording.
+- 2026-09-28 (1.28.0, matcher-author-cover lane): 26 more requests, recorded the same way (at least 1 s apart,
+  public titles only): 1 connectivity probe (a GET of an existing record, not stored), page 1 of three existing
+  searches again (`Jigokuraku`, `Tensei Kizoku no Isekai Boukenroku`, `Isekai de Cheat Skill wo Te ni Shita Ore wa,
+  Genjitsu Sekai wo mo Musou Suru`) whose `record.image.url` (`original`, `thumb`) was merged into the existing files
+  (other fields are the earlier recording), 19 cover thumbnails and 3 full covers for the cover comparison.
+- `cover.<image name>.jpg`: a MangaUpdates cover THUMBNAIL (`GET https://cdn.mangaupdates.com/image/thumb/<image name>.<ext>`),
+  re-encoded tiny (at most 80 px, JPEG) - the harness answers an image GET by the file name in the URL. `local.<series
+  id>.webp`: a local cover thumbnail made from that series' full cover (3% cropped per side, at most 96 px, WebP) - the
+  stored thumbnail of a work's volume 1 in the cover cases. Cover images (c) their publishers, via MangaUpdates; used
+  only to test the matcher.
 - `search.<slug>.json`: `POST /v1/series/search` with `{search, page: 1, perpage: 10, filter_types}`;
   `search.<slug>.p2.json` is page 2 (the file carries `"page": 2`).
   `filter_types` is the fixed automatic-search filter (`Novel`, `Doujinshi`, `Artbook`, `Drama CD`);
   files ending in `.dj.json` were recorded with Doujinshi allowed (the folder Content setting
   "Doujinshi & adult one-shots"). Each file keeps the query, the filter and the response trimmed to
-  `total_hits` and, per result, `record.series_id, title, type, year` plus `hit_title`.
+  `total_hits` and, per result, `record.series_id, title, type, year` plus `hit_title` (and, in the three files
+  re-recorded in 1.28.0, `record.image.url`).
 - `series.<id>.json`: `GET /v1/series/{id}`, trimmed to what the matcher reads: `series_id, title,
   associated[].title, type, year, status, latest_chapter, authors[] (name, type)`, the
   `Webtoon/Webcomic` category votes (when present) and `related_series[] (relation_type,
