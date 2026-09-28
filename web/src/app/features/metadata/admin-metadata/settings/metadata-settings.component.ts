@@ -235,6 +235,18 @@ export function validateThresholds(
                 Automatic matching
               </mat-slide-toggle>
             </div>
+            <div class="sub-toggle" data-testid="md-compare-covers-row">
+              <mat-checkbox [checked]="s.compareCoversEnabled !== false"
+                            [disabled]="saving() || !s.autoMatchEnabled || !!s.compareCoversDisabledByConfig"
+                            (change)="setCompareCovers($event.checked)" data-testid="md-compare-covers">
+                Compare covers
+              </mat-checkbox>
+              <p class="muted small">When two series tie on the title for a folder of volumes or a one-shot, download their
+                two covers and prefer the one that is the same picture as the folder's own cover.</p>
+              @if (s.compareCoversDisabledByConfig) {
+                <p class="note" data-testid="md-compare-covers-config">Switched off in the server configuration.</p>
+              }
+            </div>
             @if (!s.fetchEnabled) {
               <p class="note" data-testid="md-auto-needs-fetch">Turn on "Fetch from the web" first.</p>
             }
@@ -395,6 +407,8 @@ export function validateThresholds(
     .pill { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); color: #aaa; }
     .pill.on { background: rgba(76, 175, 80, 0.2); color: #81c784; }
     .coverage { font-size: 13px; margin: 8px 0 0; line-height: 1.9; }
+    .sub-toggle { margin: 4px 0 0 8px; }
+    .sub-toggle p { margin: 0 0 4px 40px; }
     .lib-chip { display: inline-block; padding: 0 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); font-size: 12px; line-height: 20px; }
     .lib-chip.active { background: rgba(179, 157, 255, 0.18); color: #d8ccff; }
     .libs { display: flex; flex-direction: column; gap: 2px; }
@@ -528,6 +542,12 @@ export class MetadataSettingsComponent implements OnInit {
     this.save(this.api.updateSettings(on
       ? { autoMatchEnabled: true, acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION }
       : { autoMatchEnabled: false }), on ? 'Automatic matching is on' : 'Automatic matching is off');
+  }
+
+  /** "Compare covers" (1.28.0): one settings PUT, no consent of its own (the automatic consent covers it). */
+  setCompareCovers(on: boolean): void {
+    if (!this.settings()) return;
+    this.save(this.api.updateSettings({ compareCoversEnabled: on }), on ? 'Covers will be compared' : 'Covers will not be compared');
   }
 
   saveBudget(): void {

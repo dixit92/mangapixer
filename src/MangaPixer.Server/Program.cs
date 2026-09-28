@@ -618,7 +618,7 @@ public sealed partial class Program
         // Cover comparison (1.28.0): local hashes cached per process, images hashed by the media worker.
         services.AddSingleton<Features.Metadata.AutoMatch.CoverHashCache>();
         services.AddSingleton<Features.Metadata.AutoMatch.ICoverHasher, Features.Metadata.AutoMatch.WorkerCoverHasher>();
-        services.AddSingleton<Features.Metadata.AutoMatch.ICoverCompareSetting, Features.Metadata.AutoMatch.DefaultCoverCompareSetting>();
+        services.AddScoped<Features.Metadata.AutoMatch.ICoverCompareSetting, Features.Metadata.AutoMatch.StoredCoverCompareSetting>();
         services.AddScoped<Features.Metadata.AutoMatch.AutoMatchCoverComparer>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataAutoMatchService>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataFolderContentService>();

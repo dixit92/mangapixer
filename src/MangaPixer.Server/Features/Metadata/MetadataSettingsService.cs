@@ -55,6 +55,10 @@ public sealed class MetadataSettingsService
     public bool NetworkDisabledByConfig =>
         bool.TryParse(_configuration[NetworkDisabledConfigKey], out var disabled) && disabled;
 
+    /// <summary>The cover comparison kill switch (<c>Metadata:AutoMatch:CompareCovers=false</c>, 1.28.0).</summary>
+    public bool CompareCoversDisabledByConfig =>
+        bool.TryParse(_configuration["Metadata:AutoMatch:CompareCovers"], out var compare) && !compare;
+
     /// <summary>
     /// True when series information of <paramref name="libraryId"/> must be hidden
     /// (global OR library "Show series information" off).
@@ -140,6 +144,8 @@ public sealed class MetadataSettingsService
             ThresholdBounds = MetadataThresholds.Bounds,
             ThresholdsAreDefault = row is null
                 || (row.MetadataAutoTitleThreshold is null && row.MetadataMarginThreshold is null && row.MetadataReviewFloorThreshold is null),
+            CompareCoversEnabled = row?.MetadataCoverCompareEnabled ?? true,
+            CompareCoversDisabledByConfig = CompareCoversDisabledByConfig,
         };
     }
 
@@ -222,6 +228,11 @@ public sealed class MetadataSettingsService
         {
             row.MetadataAutoMatchEnabled = false;
             audits.Add(AuditActions.MetadataAutoMatchDisable);
+        }
+        if (request.CompareCoversEnabled is { } compare && compare != row.MetadataCoverCompareEnabled)
+        {
+            row.MetadataCoverCompareEnabled = compare;
+            audits.Add(AuditActions.MetadataSettingsChange);
         }
         if (request.ResetThresholds)
         {

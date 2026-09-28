@@ -62,7 +62,7 @@ public sealed class MetadataCoverCompareHttpTests
 
     private static string ImageUrl(long id) => $"https://{MetadataHttp.MangaUpdatesImageHost}/image/thumb/{Sentinel}{id}.png";
 
-    private static async Task<(HttpClient Admin, int Images)> RunAsync(MetadataNetworkWebApplicationFactory factory)
+    private static async Task<(HttpClient Admin, int Images)> RunAsync(MetadataNetworkWebApplicationFactory factory, bool? compareSetting = null)
     {
         using (var scope = factory.Services.CreateScope())
         {
@@ -102,6 +102,7 @@ public sealed class MetadataCoverCompareHttpTests
             AcceptedConsentVersion = MetadataConsent.CurrentVersion,
             AutoMatchEnabled = true,
             AcceptedAutoConsentVersion = MetadataAutoConsent.CurrentVersion,
+            CompareCoversEnabled = compareSetting,
         })).EnsureSuccessStatusCode();
         (await admin.PostAsJsonAsync($"/api/v1/admin/metadata/libraries/{LibPub}/match", new MetadataMatchLibraryRequest())).EnsureSuccessStatusCode();
 
@@ -151,6 +152,23 @@ public sealed class MetadataCoverCompareHttpTests
     }
 
     [Fact]
+    public async Task Settings_CompareCoversOff_RoundTrips_AndTheWorkerDownloadsNoCover()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(configureServices: s => Services(s, compareCovers: true));
+
+        var (admin, images) = await RunAsync(factory, compareSetting: false);
+
+        Assert.Equal(0, images);
+        var settings = (await admin.GetFromJsonAsync<MetadataSettingsDto>("/api/v1/admin/metadata/settings", TestJson.Web))!;
+        Assert.False(settings.CompareCoversEnabled);
+        Assert.False(settings.CompareCoversDisabledByConfig);
+        Assert.True(settings.AutoMatchEnabled); // the sub-toggle needs no consent and leaves the main switch alone
+
+        (await admin.PutAsJsonAsync("/api/v1/admin/metadata/settings", new UpdateMetadataSettingsRequest { CompareCoversEnabled = true })).EnsureSuccessStatusCode();
+        Assert.True((await admin.GetFromJsonAsync<MetadataSettingsDto>("/api/v1/admin/metadata/settings", TestJson.Web))!.CompareCoversEnabled);
+    }
+
+    [Fact]
     public void Wiring_TheComparerAndItsParts_Resolve()
     {
         using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true);
@@ -159,7 +177,7 @@ public sealed class MetadataCoverCompareHttpTests
 
         Assert.NotNull(sp.GetRequiredService<AutoMatchCoverComparer>());
         Assert.IsType<WorkerCoverHasher>(sp.GetRequiredService<ICoverHasher>());
-        Assert.IsType<DefaultCoverCompareSetting>(sp.GetRequiredService<ICoverCompareSetting>());
+        Assert.IsType<StoredCoverCompareSetting>(sp.GetRequiredService<ICoverCompareSetting>());
         Assert.Same(sp.GetRequiredService<CoverHashCache>(), factory.Services.GetRequiredService<CoverHashCache>());
     }
 }

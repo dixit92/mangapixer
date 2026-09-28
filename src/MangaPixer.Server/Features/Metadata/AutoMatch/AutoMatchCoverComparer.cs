@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Media;
 using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>Hashes a server-owned image file (<see cref="CoverHash"/>); null when it cannot be hashed.</summary>
@@ -23,8 +24,7 @@ public sealed class WorkerCoverHasher(MediaWorkerPool pool) : ICoverHasher
 
 /// <summary>
 /// Whether automatic matching may compare covers: the "Compare covers" sub-toggle under Automatic matching (owner
-/// decision (c), 1.28.0: default ON). Until its settings column exists, <see cref="DefaultCoverCompareSetting"/>
-/// answers from the options.
+/// decision (c), 1.28.0: default ON).
 /// </summary>
 public interface ICoverCompareSetting
 {
@@ -32,12 +32,18 @@ public interface ICoverCompareSetting
 }
 
 /// <summary>
-/// The sub-toggle's default (ON), with the <c>Metadata:AutoMatch:CompareCovers</c> kill switch
-/// (<see cref="MetadataAutoMatchOptions.CompareCovers"/>) so the comparison can be held without a code change.
+/// The stored "Compare covers" setting (<c>app_settings.MetadataCoverCompareEnabled</c>, ON when no settings row exists),
+/// AND-ed with the <c>Metadata:AutoMatch:CompareCovers</c> kill switch (<see cref="MetadataAutoMatchOptions.CompareCovers"/>)
+/// so the comparison can be held without a code change.
 /// </summary>
-public sealed class DefaultCoverCompareSetting(MetadataAutoMatchOptions options) : ICoverCompareSetting
+public sealed class StoredCoverCompareSetting(MangaPixerDbContext db, MetadataAutoMatchOptions options) : ICoverCompareSetting
 {
-    public Task<bool> IsEnabledAsync(CancellationToken ct) => Task.FromResult(options.CompareCovers);
+    public async Task<bool> IsEnabledAsync(CancellationToken ct) =>
+        options.CompareCovers
+        && (await db.AppSettings.AsNoTracking()
+            .Where(s => s.Id == AppSettingsEntity.SingletonId)
+            .Select(s => (bool?)s.MetadataCoverCompareEnabled)
+            .FirstOrDefaultAsync(ct) ?? true);
 }
 
 /// <summary>

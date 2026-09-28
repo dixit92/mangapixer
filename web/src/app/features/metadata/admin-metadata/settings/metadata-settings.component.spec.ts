@@ -211,6 +211,31 @@ describe('MetadataSettingsComponent', () => {
     expect(stale.q('[data-testid="md-auto-consent"]')).not.toBeNull();
   });
 
+  it('"Compare covers" is ONE settings PUT, only while Automatic matching is on, and honours the config switch', () => {
+    const { q, c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true,
+      acceptedAutoConsentVersion: 2, compareCoversEnabled: true }));
+    const box = q('[data-testid="md-compare-covers"] input[type="checkbox"]') as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    expect(box.disabled).toBe(false);
+    c.setCompareCovers(false);
+    const put = http.expectOne({ method: 'PUT', url: SETTINGS });
+    expect(put.request.body).toEqual({ compareCoversEnabled: false });
+    put.flush(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true, acceptedAutoConsentVersion: 2,
+      compareCoversEnabled: false }));
+    http.expectNone(() => true);
+    expect(c.message()).toBe('Covers will not be compared');
+    TestBed.resetTestingModule();
+
+    const off = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1 }));
+    expect((off.q('[data-testid="md-compare-covers"] input[type="checkbox"]') as HTMLInputElement).disabled).toBe(true);
+    TestBed.resetTestingModule();
+
+    const held = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true,
+      acceptedAutoConsentVersion: 2, compareCoversDisabledByConfig: true }));
+    expect((held.q('[data-testid="md-compare-covers"] input[type="checkbox"]') as HTMLInputElement).disabled).toBe(true);
+    expect(held.q('[data-testid="md-compare-covers-config"]')).not.toBeNull();
+  });
+
   it('shows which libraries automatic matching covers (every library with Fetch on)', () => {
     const { q } = create(settings({
       fetchEnabled: true, autoMatchEnabled: true,
