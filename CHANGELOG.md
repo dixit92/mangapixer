@@ -15,6 +15,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Series covers in the review lists no longer show as broken images.** A list with many rows asked MangaUpdates for every selected series' cover at once and most were refused; covers now load a few at a time, only for rows on screen, are retried when MangaUpdates is busy, and a cover that still cannot be loaded shows "No cover" with a tap to try again.
 - Removing MangaUpdates from the allowed sites while Automatic matching is on now pauses automatic matching and the background refresh ("MangaUpdates is off the provider allowlist") instead of counting every waiting folder as failed.
+- **Missing report: Season and Part subfolders.** A series kept in `Season 1` / `Season 2` (or `Part 1`, `Book 2`, `12` ...) subfolders is now counted, also one level inside another (`Season 1/Volumes`). When the numbering starts again in each subfolder, the series shows **Numbering restarts** instead of a wrong count. A lone chapter 0 or prologue no longer reads "You have chapter 0 of 223".
+- **Missing report: extras.** A `.5` chapter or volume never fills a number and is never counted as missing.
+- **Identify: the count warning compares like with like.** Volumes are compared with the record's volume total and chapters with its chapter total, and the warning says which ("The record lists 7 volumes; this folder has volumes 1-43."). A folder of chapters gets no warning when the series is counted only in volumes.
+- **Automatic matching: counts.** Volume and chapter subfolders count by the numbers in their file names, not by how many files they hold, and the latest tracked chapter no longer counts against a series that is counted in volumes (a chapter folder of a spin-off was held back for review this way).
 
 ## [1.28.0] - 2026-09-28
 
