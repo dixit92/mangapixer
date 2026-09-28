@@ -22,7 +22,6 @@ public sealed class MissingReportController : ControllerBase
 
     [HttpGet]
     [ProducesResponseType<MissingReportPageDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> List([FromQuery] string? library = null, [FromQuery] bool onlyMissing = false,
         [FromQuery] string? cursor = null, [FromQuery] int limit = 50, CancellationToken ct = default)
     {
@@ -32,7 +31,6 @@ public sealed class MissingReportController : ControllerBase
 
     [HttpGet("{nodeId}")]
     [ProducesResponseType<MissingSeriesDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ForNode(string nodeId, CancellationToken ct = default) =>
         await _report.ForNodeAsync(nodeId, ct) is { } dto ? Ok(dto) : NotFound();
 }
