@@ -37,7 +37,7 @@ describe('SeriesPageComponent', () => {
         { provide: MetadataApiService, useValue: metadata },
         { provide: ApiService, useValue: api },
         { provide: AuthService, useValue: { isAdmin: () => admin } },
-        { provide: MissingReportApiService, useValue: { forNode: vi.fn(() => throwError(() => ({ status: 404 }))) } },
+        { provide: MissingReportApiService, useValue: { forNodeViewer: vi.fn(() => throwError(() => ({ status: 404 }))) } },
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ nodeId })) } },
       ],
     });
