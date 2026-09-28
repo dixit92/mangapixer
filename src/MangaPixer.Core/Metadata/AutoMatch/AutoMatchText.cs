@@ -371,6 +371,77 @@ public static partial class AutoMatchText
         return best;
     }
 
+    // Unit numbers v2 (1.29.0): decimals kept, a range as start / end (the end may repeat the token: "v01-v05").
+    // <t> is the token, so a bracketed single-letter token ("[v2]", a release revision) can be told apart.
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?<t>volumes|volume|vols|vol|v)\.?\s*(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?:(?:volumes|volume|vols|vol|v)\.?\s*)?(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex VolumeUnit();
+
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?<t>chapters|chapter|chap|ch|episode|ep)\.?\s*|(?<t>c)|(?<t>#)\s*)(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?:(?:chapters|chapter|chap|ch|episode|ep)\.?\s*|c|#\s*)?(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ChapterUnit();
+
+    [GeneratedRegex(@"^\s*(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])", RegexOptions.CultureInvariant)]
+    private static partial Regex LeadingUnit();
+
+    /// <summary>
+    /// Every unit number an archive name states (1.29.0; <see cref="UnitNumbers"/>): <c>Title v03 c012</c> -> volume 3,
+    /// chapter 12; <c>c045.5</c> -> chapter 45.5, an extra; <c>Vol. 01-05</c> -> volumes 1 to 5; <c>001 [Chapter Title]</c>
+    /// -> chapter 1 (a bare leading number of a name without a title, as <see cref="ChapterNumberOf"/>; a leading 19xx /
+    /// 20xx is a year). Tokens inside brackets are read only when the rest of the name states none, and then never a
+    /// single-letter token (<c>[v2]</c> is a release revision). A range whose end is a year is one number. Unlike
+    /// <see cref="VolumeNumberOf"/> / <see cref="ChapterNumberOf"/> (the matcher's integers, unchanged), nothing is
+    /// truncated and a name states both kinds.
+    /// </summary>
+    public static UnitNumbers UnitsOf(string? archiveName)
+    {
+        if (string.IsNullOrWhiteSpace(archiveName))
+            return default;
+        var name = ArchiveExtension().Replace(archiveName.Normalize(NormalizationForm.FormKC).Trim(), string.Empty);
+        var outside = Bare(name);
+
+        var volume = RangeOf(VolumeUnit().Matches(outside), allowShortToken: true);
+        var chapter = RangeOf(ChapterUnit().Matches(outside), allowShortToken: true);
+        if (volume is null && chapter is null)
+        {
+            // Only brackets name a unit ("Title (Vol. 3)"); a single letter there is a revision, not a unit.
+            volume = RangeOf(VolumeUnit().Matches(name), allowShortToken: false);
+            chapter = RangeOf(ChapterUnit().Matches(name), allowShortToken: false);
+        }
+        if (volume is null && chapter is null && IsChapterLike(archiveName)
+            && LeadingUnit().Match(outside) is { Success: true } lead && !YearOnly().IsMatch(lead.Groups["n"].Value))
+        {
+            chapter = RangeOf([lead], allowShortToken: true);
+        }
+
+        var extra = chapter is { } c ? decimal.Truncate(c.Start) != c.Start
+            : volume is { } v && decimal.Truncate(v.Start) != v.Start;
+        return new UnitNumbers(volume?.Start, volume?.End, chapter?.Start, chapter?.End, extra);
+    }
+
+    /// <summary>The lowest start and the highest end over the matches; the end is null when it is not above the start.</summary>
+    private static (decimal Start, decimal? End)? RangeOf(IEnumerable<Match> matches, bool allowShortToken)
+    {
+        decimal? start = null, end = null;
+        foreach (var m in matches)
+        {
+            if (!allowShortToken && m.Groups["t"] is { Success: true } t && t.Value.Length == 1)
+                continue;
+            var n = decimal.Parse(m.Groups["n"].Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture);
+            var high = n;
+            if (m.Groups["m"].Success)
+            {
+                var e = decimal.Parse(m.Groups["m"].Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture);
+                // "Title v03 - 2019": a year, not the end of a range.
+                if (e > n && !(n < 1900 && YearOnly().IsMatch(m.Groups["m"].Value)))
+                    high = e;
+            }
+            start = start is null ? n : Math.Min(start.Value, n);
+            end = end is null ? high : Math.Max(end.Value, high);
+        }
+        return start is null ? null : (start.Value, end > start ? end : null);
+    }
+
     /// <summary>
     /// The origins a category hint allows: <c>manga</c> -> Japan, <c>manhwa</c> -> Korea,
     /// <c>manhua</c> -> China/Taiwan, <c>webtoon(s)</c> -> Korea or China/Taiwan. Null when the
