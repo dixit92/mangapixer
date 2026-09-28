@@ -124,6 +124,67 @@ public sealed class MissingReportServiceTests
     }
 
     [Fact]
+    public async Task Report_ReadsSeasonAndPartSubfolders_ButNotSideLinkedOrDontMatchOnes()
+    {
+        // 1.29.0: the live finding's shape - a loose prologue next to Season subfolders - plus the folders that stay out.
+        await using var t = await MetadataTestDb.CreateAsync();
+        var series = await t.AddFolderAsync(null, "Delta Series");
+        await t.AddArchiveAsync(series, "000.cbz");
+        var one = await t.AddFolderAsync(series, "Season 1");
+        for (var i = 1; i <= 3; i++)
+            await t.AddArchiveAsync(one, $"Delta - Chapter {i:D3}");
+        var two = await t.AddFolderAsync(series, "Season 2");
+        await t.AddArchiveAsync(two, "Delta - Chapter 004");
+        await t.AddArchiveAsync(two, "Delta - Chapter 004.5"); // an extra: never fills 5
+        await t.AddArchiveAsync(two, "Delta - Chapter 006");
+        var nested = await t.AddFolderAsync(two, "Volumes"); // one level inside another
+        await t.AddArchiveAsync(nested, "01.cbz");
+        await t.AddArchiveAsync(nested, "02.cbz");
+        var extras = await t.AddFolderAsync(series, "Extras");
+        await t.AddArchiveAsync(extras, "Delta - Chapter 900");
+        var own = await t.AddFolderAsync(series, "Part 3"); // linked to a record of its own
+        await t.AddArchiveAsync(own, "Delta - Chapter 950");
+        await t.AddLinkAsync(own, await RecordAsync(t, "d3", 1));
+        var refused = await t.AddFolderAsync(series, "Part 4"); // Don't match
+        await t.AddArchiveAsync(refused, "Delta - Chapter 960");
+        await t.AddLinkAsync(refused, null, SeriesLinkState.DontMatch);
+        await t.AddLinkAsync(series, await RecordAsync(t, "d", 5, statusText: "5 Volumes (Ongoing)\n10 Chapters"));
+
+        var row = await Service(t).ForNodeAsync(series.PublicId);
+
+        Assert.Equal(MissingVerdict.Behind, row!.Verdict);
+        Assert.Equal((0, 6, 10, 4), (row.Chapters!.Lowest, row.Chapters.Have, row.Chapters.Available, row.Chapters.BehindBy));
+        Assert.Equal([5], row.Chapters.Missing);
+        Assert.Equal((2, 5, 3), (row.Volumes!.Have, row.Volumes.Available, row.Volumes.BehindBy));
+    }
+
+    [Fact]
+    public async Task Report_NumberingThatRestarts_OrALonePrologue_GivesNoVerdict()
+    {
+        await using var t = await MetadataTestDb.CreateAsync();
+        var restart = await t.AddFolderAsync(null, "Epsilon Series");
+        var one = await t.AddFolderAsync(restart, "Season 1");
+        var two = await t.AddFolderAsync(restart, "Season 2");
+        foreach (var (folder, n) in new[] { (one, 1), (one, 2), (one, 3), (two, 1), (two, 2) })
+            await t.AddArchiveAsync(folder, $"Epsilon - Chapter {n:D3}");
+        await t.AddLinkAsync(restart, await RecordAsync(t, "e1", null, statusText: "223 Chapters (Ongoing)"));
+        var prologue = await SeriesAsync(t, "Zeta Series", "000.cbz");
+        await t.AddLinkAsync(prologue, await RecordAsync(t, "z1", null, statusText: "223 Chapters (Ongoing)"));
+
+        var (_, page) = await Service(t).ListAsync(null, onlyMissing: false, cursor: null, limit: 50);
+
+        var r = page!.Items.Single(i => i.DisplayName == "Epsilon Series");
+        Assert.Equal(MissingVerdict.Restarts, r.Verdict);
+        Assert.Null(r.Chapters);
+        var p = page.Items.Single(i => i.DisplayName == "Zeta Series");
+        Assert.Equal(MissingVerdict.NoUnits, p.Verdict);
+        Assert.Null(p.Chapters); // never "chapter 0 of 223"
+        Assert.Equal((2, 0, 2), (page.Summary.Series, page.Summary.Behind, page.Summary.NoVerdict));
+        var (_, onlyMissing) = await Service(t).ListAsync(null, onlyMissing: true, cursor: null, limit: 50);
+        Assert.Empty(onlyMissing!.Items);
+    }
+
+    [Fact]
     public async Task Report_FiltersByLibraryAndMissing_AndPages()
     {
         await using var t = await MetadataTestDb.CreateAsync();
