@@ -124,7 +124,7 @@ Leading punctuation, brackets and spaces are skipped, so `(Title)` and `-Title-`
 
 ## Favorites
 
-Star any folder or archive to keep it within easy reach. The star appears on cards and rows in the library view, on search results, and in the reader toolbar (for the archive you are reading).
+Star any folder or archive to keep it within easy reach. The star appears on cards and rows in the library view, on search results, on the home page's **Continue reading** and **New chapters** cards (bottom-right of the cover; on a New chapters card it stars the folder, or the archive for a loose archive), and in the reader toolbar (for the archive you are reading).
 
 - **Favorites** in the sidebar, above your libraries, lists everything you starred, most recently starred first.
 - **Favorites only** in the **Filter** menu narrows any library view to your starred items.
