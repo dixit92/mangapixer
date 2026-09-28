@@ -114,6 +114,25 @@ MangaPixer is polite to MangaUpdates: at most 2 requests per second (5 per secon
 
 Series data is provided by [MangaUpdates](https://www.mangaupdates.com) as-is and is credited to it wherever it is shown.
 
+## Allowed sites
+
+*New in 1.28.0.*
+
+**Metadata Manager** > **Settings** > **Web lookups** lists the **allowed sites**: every site MangaPixer may contact for series information, each as a card with its name, the hosts it uses, what it is used for and what is sent to it. All approved sites are allowed by default:
+
+| Site | Hosts | Used for | Sent |
+|---|---|---|---|
+| MangaUpdates | `api.mangaupdates.com`, `cdn.mangaupdates.com` | Identify, automatic matching, refresh: series details, cover art, publication status, English release totals | See [What is sent](#what-is-sent) |
+| AniList | `graphql.anilist.co` | Chapters per volume for the [Missing report](missing-report.md#chapters-per-volume-from-anilist), only when an admin asks | The MangaUpdates title of a series that is already linked, or its AniList record number |
+
+Remove a site with the **×** on its card: from then on MangaPixer sends it nothing, whether an admin asks or automatic matching runs. Removed sites are listed under **Not allowed** with **Add back**. Removing or adding back a site takes effect at once and needs no new consent. Identify, automatic matching and refresh use MangaUpdates, so they stay off while it is removed.
+
+### After an update: accept again
+
+When an update changes what MangaPixer may send, or to which sites, the consent you gave earlier no longer covers it. Fetching from the web (and Automatic matching, when its own consent text changed) then stays off after the update, and admins see a banner on the administration pages: "An update changed what MangaPixer may send to metadata sites...". Choose **Review settings**, read the new consent text and the allowed sites, remove any site you don't want, tick the box and turn **Fetch from the web** back on. The banner goes away once every switch that was on has been accepted again, or when you leave it off.
+
+MangaPixer 1.28.0 is such an update: it adds AniList to the allowed sites, so an instance that fetched from the web before has to accept again.
+
 <a id="series-metadata-page-admins"></a>
 ## Metadata Manager page (admins)
 

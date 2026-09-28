@@ -27,10 +27,24 @@ MangaPixer uses the first total the linked record states, in this order:
 | The English publisher's count ("10 Volumes / 60 Chapters; Ongoing") | high | (English) |
 | The count in the country of origin ("14 Volumes (Complete)", "195 Chapters") | medium: the English edition may differ | (original run) |
 | The latest released chapter, for chapters only | low: scanlation releases, not an official total | (latest release) |
+| The other unit's total converted with AniList's chapters per volume (see below) | medium from an English total, low from the origin | ~ (estimate) |
 
 The (i) next to each line says which total was used. If a total is lower than the highest number you have (your copies follow another edition, or the English release is still catching up), MangaPixer moves on to the next total that covers what you have. If no total does, the series counts as up to date against the first one.
 
 Records linked before MangaPixer 1.28.0 don't have the English total stored yet. Until the record is refreshed, the report uses the total in the country of origin and says so under the series ("An English edition is listed; its total is read on the record's next refresh").
+
+## Chapters per volume from AniList
+
+English editions are often counted only in volumes ("18 Volumes"), while you keep chapters, or the other way round. To compare them anyway, MangaPixer can ask [AniList](https://anilist.co) how many chapters and volumes the series has and convert with that ratio. This is the only thing AniList is used for, and it only happens when you ask:
+
+- **Chapters per volume (AniList)** under a series asks for that series.
+- **Get chapters per volume from AniList** above the list asks for up to 20 linked series that don't have it yet (one request each, at most one per second). A series AniList had no match for is not asked again for a day.
+
+MangaPixer sends the MangaUpdates title of the linked series (never a folder or file name), or its AniList number once it is known, and keeps an entry only when its title matches the series and its start year is within a year. The entry's totals are stored on your server; the series line then shows them, for example "AniList: 116 chapters in 27 volumes, 4.3 per volume", with a link to the entry. Only a finished entry gives a ratio, because a running series' totals are not final.
+
+With a ratio, a missing total is estimated from the other unit, marked **~** and **(estimate)**: "You have chapters 1-3 of ~116 (estimate)". The order is then: the English total of the same unit, the English total of the other unit converted, the total in the country of origin, and for chapters the latest release.
+
+The buttons appear only while **Fetch from the web** is on and AniList is one of the [allowed sites](series-information.md#allowed-sites). Every request counts in the daily request budget.
 
 ## Reading a line
 
