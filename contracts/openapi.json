@@ -7700,6 +7700,12 @@
           "missing": {
             "type": "boolean"
           },
+          "parentNodeId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "coverUrl": {
             "type": [
               "null",
