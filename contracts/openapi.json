@@ -820,7 +820,33 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContinueReadingEntry"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContinueReadingEntry"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContinueReadingEntry"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -855,7 +881,33 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContinueReadingEntry"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContinueReadingEntry"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContinueReadingEntry"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -3527,7 +3579,24 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecentChaptersDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecentChaptersDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecentChaptersDto"
+                }
+              }
+            }
           }
         }
       }
@@ -4927,6 +4996,58 @@
           },
           "newPassword": {
             "type": "string"
+          }
+        }
+      },
+      "ContinueReadingEntry": {
+        "required": [
+          "itemId",
+          "libraryId",
+          "libraryName",
+          "displayName",
+          "pageIndex",
+          "contentVersion",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "libraryName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "pageIndex": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "contentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isFavorite": {
+            "type": "boolean"
+          },
+          "hasSeriesInfo": {
+            "type": "boolean"
           }
         }
       },
@@ -7285,6 +7406,99 @@
       },
       "ReaderMode": {
         "type": "integer"
+      },
+      "RecentChaptersDto": {
+        "required": [
+          "libraries"
+        ],
+        "type": "object",
+        "properties": {
+          "libraries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentChaptersLibraryGroup"
+            }
+          }
+        }
+      },
+      "RecentChaptersLibraryGroup": {
+        "required": [
+          "libraryId",
+          "libraryName",
+          "stacks"
+        ],
+        "type": "object",
+        "properties": {
+          "libraryId": {
+            "type": "string"
+          },
+          "libraryName": {
+            "type": "string"
+          },
+          "stacks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentChapterStack"
+            }
+          }
+        }
+      },
+      "RecentChapterStack": {
+        "required": [
+          "id",
+          "displayName",
+          "isFolder",
+          "latestItemId",
+          "latestItemName",
+          "latestAddedAt",
+          "newCount",
+          "readState"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "isFolder": {
+            "type": "boolean"
+          },
+          "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "latestItemId": {
+            "type": "string"
+          },
+          "latestItemName": {
+            "type": "string"
+          },
+          "latestAddedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "newCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "readState": {
+            "type": "string"
+          },
+          "isFavorite": {
+            "type": "boolean"
+          },
+          "hasSeriesInfo": {
+            "type": "boolean"
+          }
+        }
       },
       "RegisterLibraryRequest": {
         "required": [
