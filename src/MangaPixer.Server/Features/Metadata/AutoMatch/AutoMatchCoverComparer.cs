@@ -42,8 +42,8 @@ public sealed class DefaultCoverCompareSetting(MetadataAutoMatchOptions options)
 
 /// <summary>
 /// Process-wide cache of LOCAL cover hashes by (archive, content version) - the 64 bits only, bounded, never
-/// persisted (no new column: a hash is computed lazily when a comparison needs it). Candidate images are never
-/// cached: they are downloaded, hashed and deleted.
+/// persisted (no new column: a hash is computed lazily when a comparison needs it); only successes are cached.
+/// Candidate images are never cached: they are downloaded, hashed and deleted.
 /// </summary>
 public sealed class CoverHashCache
 {
@@ -198,7 +198,8 @@ public sealed class AutoMatchCoverComparer
         if (!File.Exists(path))
             return null; // Not generated yet: try again next time, nothing cached.
         var hash = await _hasher.HashFileAsync(path, ct);
-        _cache.Set(archiveId, version, hash);
+        if (hash is not null)
+            _cache.Set(archiveId, version, hash); // A failure (e.g. every worker busy) is not remembered: next tie, next try.
         return hash;
     }
 }
