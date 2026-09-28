@@ -247,8 +247,12 @@ public sealed class DeclaredFactsServiceTests : IAsyncLifetime
         // A later key (e.g. genre) shares the table; v1 edits never touch it.
         _t.Db.DeclaredFacts.Add(new DeclaredFactEntity
         {
-            LibraryId = _t.LibraryId, NodeId = folder.Id, Key = "genre", Value = "Synthetic Genre",
-            CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            LibraryId = _t.LibraryId,
+            NodeId = folder.Id,
+            Key = "genre",
+            Value = "Synthetic Genre",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
         });
         await _t.Db.SaveChangesAsync();
 
