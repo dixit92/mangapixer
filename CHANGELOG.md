@@ -8,14 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Declared facts.** Admins can state what the works in a folder or a whole library are - their type (manga, manhwa, manhua, webtoon, comic, graphic novel, novel) and their creators, each with an optional role. A declaration applies to everything below it until a folder declares its own. Set it with **Admin** > **Declared facts…** on a folder's series panel or series page, or with **Edit** next to **Declared:** under a library in **Administration** > **Libraries**. MangaPixer never infers them from folder or library names. The series panel and series page show a **Declared:** line, and a **Conflict** badge with what MangaUpdates says when the linked series disagrees on the type or the creators; a declaration never changes the linked record. See [Declared facts](docs/declared-hints.md).
 - **Card controls on the home page.** Cards in **Continue reading** and **New chapters** now have the same controls as the library view: the favorites star and, when there is series information, the (i) and the summary on hover. A Continue reading card is a single archive, so its (i) shows the series it belongs to - for example the linked series folder it sits in. On a New chapters card the star and the (i) belong to the folder (or to the archive, for a loose archive). Both follow **Show series information**, like everywhere else. See [Summary on hover](docs/series-information.md#summary-on-hover).
 
 ### Changed
 
+- **The favorites star sits in the bottom-right corner of every card** - in the library, Search, Favorites and on the home page - so it is in the same place everywhere. In the library, the reading-direction badge of a folder moved to the top-left corner.
 - **Series page: "also known as" once.** The header of the full series page shows the first two alternative titles and **+N**; the whole list stays under **Details**.
 - **Series descriptions without dead links.** The lists of links at the end of many MangaUpdates descriptions (for example "Original Webtoon: Daum, Kakaopage" or "Official English Translations" with one line per language) are no longer shown as plain text that looks like links; a heading left with nothing under it goes too. Links inside a sentence keep their text. This applies to records fetched or refreshed after the update.
 
 - API: `GET /api/v1/reading/continue` and `GET /api/v1/home/recent-chapters` return `isFavorite` and `hasSeriesInfo` per card, and both now declare their response schema in the OpenAPI contract.
+- **Upgrade note:** this version adds a database migration (`AddDeclaredFacts`: a new table for declared facts and two settings columns; a snapshot is taken before it runs).
 
 ### Fixed
 
