@@ -293,10 +293,10 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
         if (c.Band is null)
             return new Run(classification, null, [], 0, 0);
 
-        var query = c.GroupTitle is null
+        var query = DeclaredHints.Apply(c.GroupTitle is null
             ? s_planner.PlanFolder(c.Folder, classification, c.ComicInfo)
             : s_planner.PlanArchiveGroup(c.Folder, classification,
-                classification.ArchiveGroups.Single(g => g.QueryTitle == c.GroupTitle));
+                classification.ArchiveGroups.Single(g => g.QueryTitle == c.GroupTitle)), c.Declared);
 
         var missing = new List<string>();
         using var net = new GatewayHarness(db, s_unpaced);

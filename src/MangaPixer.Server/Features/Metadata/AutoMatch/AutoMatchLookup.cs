@@ -60,7 +60,7 @@ public sealed class AutoMatchLookup
 
     public async Task<WorkLookupResult> LookupAsync(
         LibraryTreeSnapshot tree, DetectedWork work, WorkClassification classification, MatchThresholds thresholds,
-        bool allowDoujinshi, MetadataCallContext call, CancellationToken ct)
+        bool allowDoujinshi, MetadataCallContext call, CancellationToken ct, DeclaredFacts? declared = null)
     {
         var shape = tree.ShapeOf(work.FolderId);
         var archiveIds = ArchivesOf(tree, work);
@@ -79,6 +79,8 @@ public sealed class AutoMatchLookup
         }
         if (await TallStripsAsync(archiveIds, ct) is { } tall && tall != query.Context.TallStrips)
             query = query with { Context = query.Context with { TallStrips = tall } };
+        // What an admin declared for the work's folder (1.28.0): positive-only evidence, never sent.
+        query = DeclaredHints.Apply(query, declared);
 
         var found = new Retrieval();
 

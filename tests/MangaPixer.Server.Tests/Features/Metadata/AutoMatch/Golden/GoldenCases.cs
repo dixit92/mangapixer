@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangapixer.Tests.Server.Features.Metadata.AutoMatch.Golden;
 
 using System.Globalization;
+using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 
 /// <summary>
@@ -11,7 +12,8 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// set, is the exact set of auto-vetoing reasons the top candidate must carry.
 /// <see cref="LocalCover"/> (1.28.0) names the embedded local cover thumbnail of the work (<c>local.*.webp</c>): the
 /// case then runs the cover comparison, and <see cref="CoverImages"/> is the exact number of candidate images it must
-/// download, <see cref="CoverMatchOnTop"/> whether the top candidate carries the cover evidence.
+/// download, <see cref="CoverMatchOnTop"/> whether the top candidate carries the cover evidence. <see cref="Declared"/>
+/// (1.28.0) is what an admin declared for the folder (lane D's facts), applied as the lookup applies it.
 /// </summary>
 public sealed record GoldenCase(
     string Id,
@@ -26,7 +28,8 @@ public sealed record GoldenCase(
     MatchReason? Vetoes = null,
     string? LocalCover = null,
     int? CoverImages = null,
-    bool? CoverMatchOnTop = null)
+    bool? CoverMatchOnTop = null,
+    DeclaredFacts? Declared = null)
 {
     public override string ToString() => Id;
 }
@@ -252,6 +255,18 @@ public static class GoldenCases
         new("C04 cover: a chapter folder is never compared (its first page is not a cover)", F("Re Zero kara Hajimeru Isekai Seikatsu",
             Chaps("Re Zero kara Hajimeru Isekai Seikatsu", 50)), WorkClass.Series, MatchBand.NeedsReview,
             LocalCover: "local.46692009496.webp", CoverImages: 0, CoverMatchOnTop: false),
+
+        // --- 1.28.0: declared facts as positive-only evidence ---------------------------------------
+        // A declared type is the category hint, declared creators are creator hints; neither ever counts against a record.
+        new("H01 declared manhwa (no category folder): the Korean record agrees", F("Solo Leveling", Units(200)),
+            WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), [])),
+        new("H02 a wrong declared type (manga for a manhwa) costs nothing: still auto", F("Solo Leveling", Units(200)),
+            WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manga), [])),
+        // Three records titled "Jigokuraku" tie at 1.00 (C02 / C05); the declared author names one of them.
+        new("H03 declared creator: an undisambiguated one-word title, the declared author picks the record", F("Jigokuraku", Vols("Jigokuraku", 2)),
+            WorkClass.Series, MatchBand.Auto, JigokurakuKaku, Declared: new(null, [new DeclaredCreator("Kaku Yuuji", "author")])),
+        new("H04 a declared creator no candidate has changes nothing (the order stays)", F("Jigokuraku", Vols("Jigokuraku", 2)),
+            WorkClass.Series, MatchBand.NeedsReview, Jigokuraku2005, Declared: new(null, [new DeclaredCreator("Nobody Synthetic", null)])),
 
         // --- 1.27.0: the live automatic-matching run (2026-09-27), as PUBLIC lookalikes ------------
         new("L01 T: season-renumbered webtoon, chapter-token archives (latest chapter 235, status total 652)",
