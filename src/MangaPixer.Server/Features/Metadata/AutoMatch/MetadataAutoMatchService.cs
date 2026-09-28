@@ -49,6 +49,7 @@ public sealed class MetadataAutoMatchService
     private readonly IWorkDetector? _detector;
     private readonly IMatchQueryPlanner? _planner;
     private readonly IMatchScorer? _scorer;
+    private readonly bool _providerAuthorFolders;
 
     public MetadataAutoMatchService(
         MangaPixerDbContext db,
@@ -63,7 +64,8 @@ public sealed class MetadataAutoMatchService
         ILogger<MetadataAutoMatchService> logger,
         IEnumerable<IWorkDetector> detectors,
         IEnumerable<IMatchQueryPlanner> planners,
-        IEnumerable<IMatchScorer> scorers)
+        IEnumerable<IMatchScorer> scorers,
+        MetadataAutoMatchOptions? options = null)
     {
         _db = db;
         _gateway = gateway;
@@ -78,6 +80,7 @@ public sealed class MetadataAutoMatchService
         _detector = detectors.LastOrDefault();
         _planner = planners.LastOrDefault();
         _scorer = scorers.LastOrDefault();
+        _providerAuthorFolders = (options ?? new MetadataAutoMatchOptions()).ProviderAuthorFolders;
     }
 
     /// <summary>True when the matcher-core implementations are registered.</summary>
@@ -125,15 +128,28 @@ public sealed class MetadataAutoMatchService
 
     // --- Detection and enqueueing ---
 
+    /// <summary>
+    /// The library tree for classification, cached per catalog revision; the provider authors it carries
+    /// (the artist-folder rule, 1.28.0) are re-read when the library's links or linked records changed.
+    /// </summary>
     public async Task<LibraryTreeSnapshot> SnapshotAsync(long libraryId, CancellationToken ct)
     {
         var revision = await _db.Libraries.AsNoTracking().Where(l => l.Id == libraryId).Select(l => l.CatalogRevision).FirstOrDefaultAsync(ct);
         if (_state.CachedSnapshot(libraryId, revision) is { } cached)
-            return cached;
-        var snapshot = await LibraryTreeSnapshot.LoadAsync(_db, libraryId, ct);
+        {
+            if (!_providerAuthorFolders || cached.Authors.Stamp == await LibraryTreeSnapshot.LinkStampAsync(_db, libraryId, ct))
+                return cached;
+            var refreshed = cached.WithAuthors(await LibraryTreeSnapshot.LoadProviderAuthorsAsync(_db, libraryId, ct));
+            _state.Cache(refreshed);
+            return refreshed;
+        }
+        var snapshot = await LoadTreeAsync(libraryId, ct);
         _state.Cache(snapshot);
         return snapshot;
     }
+
+    private Task<LibraryTreeSnapshot> LoadTreeAsync(long libraryId, CancellationToken ct) =>
+        LibraryTreeSnapshot.LoadAsync(_db, libraryId, ct, providerAuthors: _providerAuthorFolders);
 
     private async Task<Dictionary<long, SeriesLinkState>> OwnLinksAsync(long libraryId, CancellationToken ct) =>
         await _db.NodeSeriesLinks.AsNoTracking()
@@ -166,7 +182,7 @@ public sealed class MetadataAutoMatchService
             if (c.ParentId is { } parent)
                 scope.Add(parent);
 
-        var tree = await LibraryTreeSnapshot.LoadAsync(_db, libraryId, ct);
+        var tree = await LoadTreeAsync(libraryId, ct);
         _state.Cache(tree);
         var works = AutoMatchWorkSelector.Select(tree, _detector, await OwnLinksAsync(libraryId, ct), scope);
         return await EnqueueAsync(libraryId, works, QueueReason.NewFolder, MetadataMatchRunTrigger.Scan, reviewFirst: false, requeueUnmatched: false, ct);

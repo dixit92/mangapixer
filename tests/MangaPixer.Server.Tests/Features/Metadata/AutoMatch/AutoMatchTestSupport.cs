@@ -200,6 +200,11 @@ public sealed class AutoMatchHarness : IDisposable
         Db.Db, Net.Gateway(), Net.Budget(), Net.Backoff(), Net.Settings(), Net.Identify(), State, new AuditService(Db.Db), Time,
         Net.LoggerFactory.CreateLogger<MetadataAutoMatchService>(), [Detector], [new FakeQueryPlanner()], [new FakeMatchScorer()]);
 
+    /// <summary>The service with another detector (e.g. the real <see cref="WorkDetector"/>) and options.</summary>
+    public MetadataAutoMatchService Service(IWorkDetector detector, MetadataAutoMatchOptions? options = null) => new(
+        Db.Db, Net.Gateway(), Net.Budget(), Net.Backoff(), Net.Settings(), Net.Identify(), State, new AuditService(Db.Db), Time,
+        Net.LoggerFactory.CreateLogger<MetadataAutoMatchService>(), [detector], [new FakeQueryPlanner()], [new FakeMatchScorer()], options);
+
     public MetadataAutoMatchService ServiceWithoutMatcher() => new(
         Db.Db, Net.Gateway(), Net.Budget(), Net.Backoff(), Net.Settings(), Net.Identify(), State, new AuditService(Db.Db), Time,
         Net.LoggerFactory.CreateLogger<MetadataAutoMatchService>(), [], [], []);

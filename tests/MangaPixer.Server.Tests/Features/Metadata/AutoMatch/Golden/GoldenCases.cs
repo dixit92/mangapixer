@@ -29,8 +29,15 @@ public sealed record GoldenCase(
 public static class GoldenCases
 {
     private static FolderShape F(string name, IEnumerable<string> archives, string? category = null, string? parent = null,
-        (string Name, int Count)[]? subs = null, int depth = 2) =>
-        new(name, depth, archives.ToList(), (subs ?? []).Select(s => new ChildFolderShape(s.Name, s.Count)).ToList(), parent, category);
+        (string Name, int Count)[]? subs = null, int depth = 2, string[]? authors = null) =>
+        new(name, depth, archives.ToList(), (subs ?? []).Select(s => new ChildFolderShape(s.Name, s.Count)).ToList(), parent, category, authors);
+
+    /// <summary>
+    /// The author names the server hands to the detector when records by them are linked in the library (1.28.0:
+    /// <c>LibraryTreeSnapshot.ProviderAuthorSet</c>, the provider-author half of the artist-folder rule). Spelled as
+    /// MangaUpdates lists them.
+    /// </summary>
+    private static readonly string[] s_linkedAuthors = ["FUJIMOTO Tatsuki", "URASAWA Naoki", "OTOMO Katsuhiro"];
 
     private static IEnumerable<string> Vols(string title, int n, string suffix = "") =>
         Enumerable.Range(1, n).Select(i => string.Create(CultureInfo.InvariantCulture, $"{title} v{i:00}{suffix}.cbz"));
@@ -84,6 +91,17 @@ public static class GoldenCases
         "[Fujimoto Tatsuki] Fire Punch v02.cbz",
         "[Fujimoto Tatsuki] Fire Punch v03.cbz",
         "[Fujimoto Tatsuki] Berserk v01.cbz",
+    ];
+
+    // The same works without the creator tag: by shape alone neither one work nor a collection (review only).
+    private static readonly string[] s_untaggedArtistFolder =
+    [
+        "Look Back (2021) (Digital).cbz",
+        "Sayonara Eri (2022) (Digital).cbz",
+        "Fire Punch v01.cbz",
+        "Fire Punch v02.cbz",
+        "Fire Punch v03.cbz",
+        "Berserk v01.cbz",
     ];
 
     private static readonly string[] s_collectionLeaf =
@@ -187,6 +205,23 @@ public static class GoldenCases
             F("Berserk", ["Berserk v01.cbz"], subs: [("Berserk Gaiden", 2)]), WorkClass.Mixed, MatchBand.Auto, Berserk, GroupTitle: "Berserk"),
         new("A09b mixed folder: loose units of one work keep the folder review-only",
             F("Berserk", ["Berserk v01.cbz", "Berserk v02.cbz", "Berserk v03.cbz"], subs: [("Berserk Gaiden", 2)]), WorkClass.Mixed, MatchBand.NeedsReview, Berserk),
+
+        // --- 1.28.0: the provider-author half of the artist-folder rule -----------------------------
+        // An untagged folder named like the author of a record linked in the library: an artist collection, matched
+        // archive by archive with the author required to agree (without the linked author: review only, P00 below).
+        new("P01 provider-author artist folder, untagged names: one-shot", F("Fujimoto Tatsuki", s_untaggedArtistFolder, authors: s_linkedAuthors),
+            WorkClass.ArtistCollection, MatchBand.Auto, LookBack, GroupTitle: "Look Back"),
+        new("P02 provider-author artist folder, untagged names: numbered volumes grouped", F("Fujimoto Tatsuki", s_untaggedArtistFolder, authors: s_linkedAuthors),
+            WorkClass.ArtistCollection, MatchBand.Auto, FirePunch, GroupTitle: "Fire Punch"),
+        new("P03 provider-author artist folder: a mis-filed volume, the author conflict alone vetoes auto", F("Fujimoto Tatsuki", s_untaggedArtistFolder, authors: s_linkedAuthors),
+            WorkClass.ArtistCollection, MatchBand.NeedsReview, Berserk, GroupTitle: "Berserk", Vetoes: MatchReason.AuthorConflict),
+        // The other direction: a series whose title is also a linked author's name (a pen name) keeps its series shape.
+        new("P04 a series named like a linked author stays a series", F("Akira", Vols("Akira", 6), authors: ["Akira", .. s_linkedAuthors]),
+            WorkClass.Series, MatchBand.Auto, Akira),
+        new("P05 a one-archive folder named like a linked author stays a one-shot", F("Fujimoto Tatsuki", ["Look Back (2021) (Digital).cbz"], authors: s_linkedAuthors),
+            WorkClass.OneShot),
+        new("P00 the untagged artist folder without a linked author: review only (the 1.27.0 class)", F("Fujimoto Tatsuki", s_untaggedArtistFolder),
+            WorkClass.Ambiguous),
 
         // --- 1.27.0: the live automatic-matching run (2026-09-27), as PUBLIC lookalikes ------------
         new("L01 T: season-renumbered webtoon, chapter-token archives (latest chapter 235, status total 652)",

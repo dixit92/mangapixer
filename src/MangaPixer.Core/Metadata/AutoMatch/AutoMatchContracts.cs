@@ -88,9 +88,10 @@ public sealed record ChildFolderShape(string DisplayName, int DescendantArchiveC
 /// <summary>
 /// One folder, as the detector sees it: display names only (never paths), counts, and the
 /// category hint (the nearest ancestor named like a category, e.g. "manga", "manhwa").
-/// <c>KnownAuthorNames</c> (optional, added by the matcher-core lane): provider author names the
-/// caller already holds (e.g. from linked records); a folder named like one of them is an
-/// artist collection. <c>Depth</c>: 0 = the library root, its direct children 1.
+/// <c>KnownAuthorNames</c> (optional): provider author names the caller already holds locally (the
+/// server passes the creators of records linked in the library, 1.28.0); a leaf of two or more archives
+/// named like one of them, whose shape is not one series, is an artist collection.
+/// <c>Depth</c>: 0 = the library root, its direct children 1.
 /// </summary>
 public sealed record FolderShape(
     string DisplayName,
