@@ -8,8 +8,12 @@ import {
 import { Router, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
+import { By } from '@angular/platform-browser';
+
 import { HomeComponent } from './home.component';
-import { LibraryViewPreferencesDto, RecentChaptersDto } from '../../core/api/api-types';
+import { ContinueReadingEntry, LibraryViewPreferencesDto, RecentChaptersDto } from '../../core/api/api-types';
+import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
+import { MetadataStateService } from '../metadata/metadata-state.service';
 
 /**
  * Home page tests. The library sidebar was promoted to the app shell, so home is
@@ -45,6 +49,7 @@ describe('HomeComponent', () => {
     excluded?: string[];
     libraries?: unknown[];
     favorites?: unknown[];
+    continueReading?: ContinueReadingEntry[];
   }
 
   function createComponent(opts: Options = {}) {
@@ -65,7 +70,7 @@ describe('HomeComponent', () => {
       { id: 'L1', name: 'Alpha', isScanning: false, itemCount: 3, lastScanCompleted: null, defaultReaderMode: 'PagedRtl' },
       { id: 'L2', name: 'Beta', isScanning: false, itemCount: 5, lastScanCompleted: null, defaultReaderMode: null },
     ]);
-    httpMock.expectOne((r) => r.url === '/api/v1/reading/continue').flush([
+    httpMock.expectOne((r) => r.url === '/api/v1/reading/continue').flush(opts.continueReading ?? [
       { itemId: 'i1', displayName: 'One', pageIndex: 2, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z', libraryId: 'L1', libraryName: 'Alpha' },
       { itemId: 'i2', displayName: 'Two', pageIndex: 0, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z', libraryId: 'L2', libraryName: 'Beta' },
     ]);
@@ -463,5 +468,92 @@ describe('HomeComponent', () => {
     expect(section.querySelector('.empty')!.textContent).toContain('libraries shown here');
     // No picker UI on the home page any more - it moved to Settings > New Chapters.
     expect(section.querySelector('.lib-picker-toggle')).toBeNull();
+  });
+
+  // --- Card controls (1.28.0): the (i), the hover summary and the star on both Home rows ---
+
+  const flaggedContinue: ContinueReadingEntry[] = [
+    { itemId: 'i1', displayName: 'One', pageIndex: 2, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z',
+      libraryId: 'L1', libraryName: 'Alpha', hasSeriesInfo: true, isFavorite: true },
+    { itemId: 'i2', displayName: 'Two', pageIndex: 0, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z',
+      libraryId: 'L2', libraryName: 'Beta', hasSeriesInfo: false, isFavorite: false },
+  ];
+  const flaggedRecent: RecentChaptersDto = {
+    libraries: [{
+      libraryId: 'L1', libraryName: 'Alpha', stacks: [
+        { ...stackedRecent.libraries[0].stacks[0], hasSeriesInfo: false, isFavorite: true },
+        { ...stackedRecent.libraries[0].stacks[1], hasSeriesInfo: true, isFavorite: false },
+      ],
+    }],
+  };
+
+  function hoverZones(fixture: ReturnType<typeof createComponent>, selector: string): string[] {
+    return fixture.debugElement.queryAll(By.css(selector)).flatMap((card) =>
+      card.queryAll(By.directive(SeriesInfoHoverDirective))
+        .map((d) => d.injector.get(SeriesInfoHoverDirective).nodeId() ?? '-'));
+  }
+
+  it('shows the (i), the star and the hover zones on Continue-reading cards', () => {
+    const fixture = createComponent({ continueReading: flaggedContinue });
+    const cards = fixture.nativeElement.querySelectorAll('.cont-wrap') as NodeListOf<HTMLElement>;
+
+    expect(cards[0].querySelector('.cover [data-testid="info-toggle"]')).not.toBeNull();
+    expect(cards[1].querySelector('[data-testid="info-toggle"]')).toBeNull();
+    const stars = Array.from(cards).map((c) => c.querySelector('.corner-star button')!.getAttribute('aria-pressed'));
+    expect(stars).toEqual(['true', 'false']);
+    // Cover + title of an item with information; none on the other.
+    expect(hoverZones(fixture, '.cont-wrap')).toEqual(['i1', 'i1', '-', '-']);
+  });
+
+  it('shows the (i), the star and the hover zones on New-chapters stacks (the stack\'s own node)', () => {
+    const fixture = createComponent({ recent: flaggedRecent });
+    const cards = fixture.nativeElement.querySelectorAll('.stack-card') as NodeListOf<HTMLElement>;
+
+    expect(cards[0].querySelector('[data-testid="info-toggle"]')).toBeNull();
+    expect(cards[1].querySelector('.cover [data-testid="info-toggle"]')).not.toBeNull();
+    const stars = Array.from(cards).map((c) => c.querySelector('.corner-star button')!.getAttribute('aria-pressed'));
+    expect(stars).toEqual(['true', 'false']);
+    expect(hoverZones(fixture, '.stack-card')).toEqual(['-', '-', 'a1', 'a1']);
+  });
+
+  it('stars a folder stack through the favorites endpoint without opening the folder', () => {
+    const fixture = createComponent({ recent: flaggedRecent });
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate');
+    const star = fixture.nativeElement.querySelectorAll('.stack-card')[1].querySelector('.corner-star button') as HTMLButtonElement;
+
+    star.click();
+    const req = httpMock.expectOne('/api/v1/nodes/a1/favorite');
+    expect(req.request.method).toBe('POST');
+    req.flush(null);
+    fixture.detectChanges();
+
+    expect(star.getAttribute('aria-pressed')).toBe('true');
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('patches a stack in place on a link change and re-fetches Continue reading (anchor rule)', () => {
+    vi.useFakeTimers();
+    try {
+      const fixture = createComponent({ recent: flaggedRecent, continueReading: flaggedContinue });
+      const state = TestBed.inject(MetadataStateService);
+
+      state.announce('f1', true);
+      // The archive card follows its series folder: an own-rule "false" for it does not hide its (i).
+      state.announce('i1', false);
+      fixture.detectChanges();
+      expect(fixture.componentInstance.recentGroups()[0].stacks[0].hasSeriesInfo).toBe(true);
+      expect(fixture.nativeElement.querySelectorAll('.stack-card')[0].querySelector('[data-testid="info-toggle"]')).not.toBeNull();
+      expect(fixture.nativeElement.querySelectorAll('.cont-wrap')[0].querySelector('[data-testid="info-toggle"]')).not.toBeNull();
+
+      // One re-fetch after the burst settles; the server's answer wins.
+      vi.advanceTimersByTime(300);
+      httpMock.expectOne((r) => r.url === '/api/v1/reading/continue')
+        .flush([{ ...flaggedContinue[0], hasSeriesInfo: false }, flaggedContinue[1]]);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelectorAll('.cont-wrap')[0].querySelector('[data-testid="info-toggle"]')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
