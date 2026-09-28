@@ -186,6 +186,8 @@ The **Review** tab lists what the matcher did, with a count on each list and a l
 
 Archives matched on their own are marked **Archive**; several archives matched together as one work are marked **Archive group**. Candidate covers are not shown until you expand a row (the arrow on the right, or `e`), because each cover is a request to MangaUpdates.
 
+**Compare covers at a glance:** rest the mouse on a row's thumbnail (or tap it on a touch screen) to see your folder's or archive's own cover next to the series cover - the linked record's stored poster on **Auto-linked** and **Confirmed**, the top candidate's image on **Needs review** - large enough to spot a wrong link. On **Needs review** that loads the top candidate's cover like expanding the row does (one request to MangaUpdates, counted in the daily budget); passing the pointer over the list loads nothing.
+
 Select rows (the checkbox, `x`, or **Select all**) for bulk actions such as **Accept top candidates**, **Don't match** or **Re-run matching**. Every change shows a message with **Undo**; nothing is sent until that message closes, so **Undo** leaves everything as it was. Keyboard: `j` / `k` move between rows, `a` accept, `d` Don't match, `i` identify, `c` confirm, `u` unlink, `x` select, `e` show covers.
 
 On a phone each row is a card with the candidates as a list to choose from; tap a card and its actions appear in the bar at the bottom. Long-press a card to start selecting; the bottom bar then carries the bulk actions.
