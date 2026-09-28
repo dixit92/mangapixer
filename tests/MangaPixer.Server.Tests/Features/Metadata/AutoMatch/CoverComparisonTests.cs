@@ -127,6 +127,7 @@ public sealed class CoverComparisonTests : IAsyncLifetime
 
         Assert.Equal(2, ImageRequests);
         Assert.Equal(2, result.CoversCompared);
+        Assert.Equal(CoverCheck.Matched, result.CoverCheck);
         Assert.Equal(3, hasher.Calls); // the local thumbnail + two candidates
         var top = result.Outcome.Ranked[0];
         Assert.Equal("902", top.Candidate.ExternalId); // without the cover, 901 ranks first (same title, id order)
@@ -144,14 +145,16 @@ public sealed class CoverComparisonTests : IAsyncLifetime
 
         Assert.Equal(0, ImageRequests);
         Assert.Equal(0, hasher.Calls);
+        Assert.Equal(CoverCheck.NoLocalCover, result.CoverCheck);
         Assert.Equal("901", result.Outcome.Ranked[0].Candidate.ExternalId);
     }
 
     [Fact]
     public async Task TheSettingOff_DownloadsNothing()
     {
-        var (_, _, hasher) = await LookupAsync(setting: false);
+        var (result, _, hasher) = await LookupAsync(setting: false);
 
+        Assert.Equal(CoverCheck.Off, result.CoverCheck);
         Assert.Equal(0, ImageRequests);
         Assert.Equal(0, hasher.Calls);
     }
@@ -164,6 +167,7 @@ public sealed class CoverComparisonTests : IAsyncLifetime
         var (result, _, _) = await LookupAsync();
 
         Assert.Equal(1, ImageRequests);
+        Assert.Equal(CoverCheck.ImageFailed, result.CoverCheck);
         Assert.Equal(0, (int)(result.Outcome.Ranked[0].Reasons & MatchReason.CoverMatch));
     }
 
@@ -175,6 +179,7 @@ public sealed class CoverComparisonTests : IAsyncLifetime
         var (result, _, _) = await LookupAsync();
 
         Assert.Equal(2, ImageRequests);
+        Assert.Equal(CoverCheck.Compared, result.CoverCheck);
         Assert.Equal("901", result.Outcome.Ranked[0].Candidate.ExternalId);
         Assert.All(result.Outcome.Ranked, r => Assert.Equal(0, (int)(r.Reasons & MatchReason.CoverMatch)));
     }

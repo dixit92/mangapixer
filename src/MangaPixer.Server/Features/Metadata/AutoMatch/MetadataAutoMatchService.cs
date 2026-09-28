@@ -604,8 +604,8 @@ public sealed class MetadataAutoMatchService
         if (work.Work.Level is MatchLevel.Folder or MatchLevel.ReviewOnly)
             await CoveredWorkRetirement.RetireBelowAsync(_db, tree, work.Work.AnchorNodeId, ct);
         _logger.LogInformation(LogEvents.Metadata.AutoMatchDecided,
-            "Automatic matching decided node {NodeId}: {Band} ({Requests} requests, {Covers} covers compared, {ElapsedMs} ms)",
-            row.NodeId, lookup.Outcome.Band, call.RequestsSent, lookup.CoversCompared, watch.ElapsedMilliseconds);
+            "Automatic matching decided node {NodeId}: {Band} ({Requests} requests, {Covers} covers compared: {CoverCheck}, {ElapsedMs} ms)",
+            row.NodeId, lookup.Outcome.Band, call.RequestsSent, lookup.CoversCompared, lookup.CoverCheck, watch.ElapsedMilliseconds);
     }
 
     /// <summary>

@@ -77,10 +77,28 @@ public sealed class CoverHashCache
     }
 }
 
-/// <summary>The result of one cover comparison: the candidates whose cover matched, and how many images were compared.</summary>
-public sealed record CoverComparison(IReadOnlySet<string> Matches, int ImagesCompared)
+/// <summary>
+/// The result of one cover comparison: the candidates whose cover matched, how many images were downloaded, and a
+/// code for the decision log (<see cref="CoverCheck"/>; a code, never a name or address).
+/// </summary>
+public sealed record CoverComparison(IReadOnlySet<string> Matches, int ImagesCompared, string Code)
 {
-    public static CoverComparison None { get; } = new(new HashSet<string>(StringComparer.Ordinal), 0);
+    public static CoverComparison Skipped(string code) => new(new HashSet<string>(StringComparer.Ordinal), 0, code);
+}
+
+/// <summary>Why a cover comparison did or did not run (logged with the decision; codes only).</summary>
+public static class CoverCheck
+{
+    public const string NotConfigured = "not_configured";
+    public const string NoTie = "no_tie";
+    public const string NotVolumeShaped = "not_volume_shaped";
+    public const string NoCoverArchive = "no_cover_archive";
+    public const string Off = "off";
+    public const string NoImages = "no_images";
+    public const string NoLocalCover = "no_local_cover";
+    public const string ImageFailed = "image_failed";
+    public const string Compared = "compared";
+    public const string Matched = "matched";
 }
 
 /// <summary>
@@ -156,11 +174,13 @@ public sealed class AutoMatchCoverComparer
         long coverArchiveId, long libraryId, string provider, IReadOnlyList<(string ExternalId, string? ImageUrl)> candidates,
         MetadataCallContext call, CancellationToken ct)
     {
+        if (!await _setting.IsEnabledAsync(ct))
+            return CoverComparison.Skipped(CoverCheck.Off);
         var withImages = candidates.Where(c => !string.IsNullOrWhiteSpace(c.ImageUrl)).Take(CoverEvidence.MaxCandidates).ToList();
-        if (withImages.Count < 2 || !await _setting.IsEnabledAsync(ct))
-            return CoverComparison.None;
+        if (withImages.Count < 2)
+            return CoverComparison.Skipped(CoverCheck.NoImages);
         if (await LocalHashAsync(coverArchiveId, ct) is not { } local)
-            return CoverComparison.None;
+            return CoverComparison.Skipped(CoverCheck.NoLocalCover);
 
         var hashes = new Dictionary<string, ulong>(StringComparer.Ordinal);
         var compared = 0;
@@ -185,7 +205,9 @@ public sealed class AutoMatchCoverComparer
                 break;
             hashes[externalId] = hash.Value;
         }
-        return new CoverComparison(CoverEvidence.Matching(local, hashes), compared);
+        var matches = CoverEvidence.Matching(local, hashes);
+        var code = hashes.Count < 2 ? CoverCheck.ImageFailed : matches.Count > 0 ? CoverCheck.Matched : CoverCheck.Compared;
+        return new CoverComparison(matches, compared, code);
     }
 
     private async Task<ulong?> LocalHashAsync(long archiveId, CancellationToken ct)

@@ -16,7 +16,8 @@ public sealed record WorkLookupResult(
     WorkClassification Classification,
     IReadOnlyDictionary<string, ProviderSeriesRecord> Fetched,
     IReadOnlyDictionary<string, string?> HitImages,
-    int CoversCompared = 0);
+    int CoversCompared = 0,
+    string CoverCheck = AutoMatch.CoverCheck.NotConfigured);
 
 /// <summary>
 /// Looks one work up (stage 2, section 2 retrieval tiers) and scores it through the
@@ -94,7 +95,7 @@ public sealed class AutoMatchLookup
 
         var outcome = await RetrieveAsync(query, tree.LibraryId, thresholds, allowDoujinshi, call, found, ct,
             AutoMatchCoverComparer.CoverArchiveOf(tree, work));
-        return new WorkLookupResult(outcome, classification, found.Fetched, found.Images, found.CoversCompared);
+        return new WorkLookupResult(outcome, classification, found.Fetched, found.Images, found.CoversCompared, found.CoverCheck);
     }
 
     /// <summary>
@@ -109,7 +110,7 @@ public sealed class AutoMatchLookup
         ArgumentNullException.ThrowIfNull(query);
         var found = new Retrieval();
         var outcome = await RetrieveAsync(query, libraryId, thresholds, allowDoujinshi, call, found, ct, coverArchiveId);
-        return new WorkLookupResult(outcome, classification, found.Fetched, found.Images, found.CoversCompared);
+        return new WorkLookupResult(outcome, classification, found.Fetched, found.Images, found.CoversCompared, found.CoverCheck);
     }
 
     /// <summary>What one lookup has collected: candidates by id, full records fetched, hit images.</summary>
@@ -119,6 +120,7 @@ public sealed class AutoMatchLookup
         public Dictionary<string, ProviderSeriesRecord> Fetched { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, string?> Images { get; } = new(StringComparer.Ordinal);
         public int CoversCompared { get; set; }
+        public string CoverCheck { get; set; } = AutoMatch.CoverCheck.NotConfigured;
     }
 
     private async Task<MatchOutcome> RetrieveAsync(
@@ -167,6 +169,11 @@ public sealed class AutoMatchLookup
         var outcome = _scorer.Score(query, candidates.Values.ToList(), thresholds);
 
         // A tie on the title for a volume-shaped work: compare the two tied candidates' covers with the local cover.
+        if (_covers is not null)
+            found.CoverCheck = !CoverEvidence.IsTie(outcome, thresholds) ? CoverCheck.NoTie
+                : !CoverEvidence.IsVolumeShaped(query.Context) ? CoverCheck.NotVolumeShaped
+                : coverArchiveId is null ? CoverCheck.NoCoverArchive
+                : found.CoverCheck;
         if (_covers is not null && coverArchiveId is { } coverArchive
             && CoverEvidence.TiedPair(outcome, query.Context, thresholds) is { Count: 2 } pair)
         {
@@ -176,6 +183,7 @@ public sealed class AutoMatchLookup
                     ?? (fetched.TryGetValue(p.Candidate.ExternalId, out var record) ? record.ImageRemoteUrl : null))).ToList();
             var comparison = await _covers.CompareAsync(coverArchive, libraryId, Provider, images, call, ct);
             found.CoversCompared = comparison.ImagesCompared;
+            found.CoverCheck = comparison.Code;
             if (comparison.Matches.Count > 0)
             {
                 query = query with { Context = query.Context with { CoverMatches = comparison.Matches } };

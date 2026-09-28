@@ -129,20 +129,22 @@ public static class CoverEvidence
         return context.VolumeLikeCount * 2 >= context.ArchiveCount && context.ChapterLikeCount * 2 < context.ArchiveCount;
     }
 
-    /// <summary>The candidates whose covers are worth comparing (the tied top two), or none.</summary>
-    public static IReadOnlyList<ScoredCandidate> TiedPair(MatchOutcome outcome, MatchContext context, MatchThresholds thresholds)
+    /// <summary>The top two are a close second with raw titles within <see cref="TieWithin"/>, both at or above the floor.</summary>
+    public static bool IsTie(MatchOutcome outcome, MatchThresholds thresholds)
     {
         ArgumentNullException.ThrowIfNull(outcome);
         ArgumentNullException.ThrowIfNull(thresholds);
-        if (outcome.Ranked.Count < 2 || !IsVolumeShaped(context))
-            return [];
+        if (outcome.Ranked.Count < 2)
+            return false;
         var (top, second) = (outcome.Ranked[0], outcome.Ranked[1]);
-        if ((top.Reasons & MatchReason.CloseSecond) == 0
-            || top.TitleScore < thresholds.ReviewFloor || second.TitleScore < thresholds.ReviewFloor
-            || Math.Abs(top.TitleScore - second.TitleScore) > TieWithin)
-            return [];
-        return [top, second];
+        return (top.Reasons & MatchReason.CloseSecond) != 0
+            && top.TitleScore >= thresholds.ReviewFloor && second.TitleScore >= thresholds.ReviewFloor
+            && Math.Abs(top.TitleScore - second.TitleScore) <= TieWithin;
     }
+
+    /// <summary>The candidates whose covers are worth comparing (the tied top two of a volume-shaped work), or none.</summary>
+    public static IReadOnlyList<ScoredCandidate> TiedPair(MatchOutcome outcome, MatchContext context, MatchThresholds thresholds) =>
+        IsTie(outcome, thresholds) && IsVolumeShaped(context) ? [outcome.Ranked[0], outcome.Ranked[1]] : [];
 
     /// <summary>
     /// The candidates (by external id) whose cover is the same as the local one, given the hashes of the
