@@ -245,6 +245,31 @@ public sealed class MatchScorerTests
         Assert.True(none.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
     }
 
+    [Fact]
+    public void Count_ChapterFolder_OfAVolumeRecord_WithOnlyALatestChapter_IsNoConflict()
+    {
+        // Backlog (1.29.0, spin-off shape): 58 chapter archives against a record with 10 volumes whose latest tracked chapter
+        // is 12 - chapters have no total to be compared with, so no Count penalty (the latest release may lag a licence).
+        var spinOff = Score(WithUnits(Query(["Some Series"]), 0, 58, null, 58), Rec("1", "Some Series", volumes: 10, chapter: 12));
+        Assert.False(spinOff.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+        Assert.Equal(MatchBand.Auto, spinOff.Band);
+
+        // A stated chapter total still bounds it.
+        var total = Score(WithUnits(Query(["Some Series"]), 0, 58, null, 58),
+            Rec("1", "Some Series", volumes: 10, chapter: 12) with { TotalChapters = 20 });
+        Assert.True(total.Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+    }
+
+    [Fact]
+    public void Count_UsesThePlannersUnits_OverTheArchiveCounts()
+    {
+        // 40 archives in a Volumes subfolder that are volumes 1-10 (and their x.5 extras): the numbers count.
+        var units = new LocalUnitCounts(40, 0, 1, 10, null, null);
+        var q = Query(["Some Series"], volumes: 40) is var b ? b with { Context = b.Context with { Units = units } } : null;
+        Assert.False(Score(q!, Rec("1", "Some Series", volumes: 10)).Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+        Assert.True(Score(Query(["Some Series"], volumes: 40), Rec("1", "Some Series", volumes: 10)).Ranked[0].Reasons.HasFlag(MatchReason.CountConflict));
+    }
+
     private static MatchQuery WithHints(MatchQuery q, params string[] hints) => q with { Context = q.Context with { CreatorHints = hints } };
 
     [Fact]

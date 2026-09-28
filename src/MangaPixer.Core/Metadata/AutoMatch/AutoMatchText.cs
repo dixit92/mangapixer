@@ -359,6 +359,20 @@ public static partial class AutoMatchText
             : null;
     }
 
+    /// <summary>
+    /// The bare leading number of a name without a volume / chapter token and without a title (<c>01.cbz</c>,
+    /// <c>012 [Title]</c>) - the unit number of an archive inside a <c>Volumes</c> / <c>Chapters</c> subfolder - or null.
+    /// </summary>
+    public static int? BareNumberOf(string? archiveName)
+    {
+        if (archiveName is null || VolumeToken().IsMatch(archiveName) || ChapterToken().IsMatch(archiveName) || !IsChapterLike(archiveName))
+            return null;
+        var bare = Bare(ArchiveExtension().Replace(archiveName, string.Empty));
+        return LeadingNumber().Match(bare) is { Success: true } m && !YearOnly().IsMatch(m.Groups["n"].Value)
+            ? int.Parse(m.Groups["n"].Value, CultureInfo.InvariantCulture)
+            : null;
+    }
+
     private static int? HighestNumber(MatchCollection matches)
     {
         int? best = null;
