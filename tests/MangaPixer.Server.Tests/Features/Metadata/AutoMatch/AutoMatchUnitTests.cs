@@ -55,6 +55,32 @@ public sealed class AutoMatchUnitTests
     }
 
     [Fact]
+    public void Snapshot_ShapeOf_PassesTheProviderAuthors_ExceptToAFolderThatCarriesALinkItself()
+    {
+        var authors = new LibraryTreeSnapshot.ProviderAuthorSet(["Given Family"], new HashSet<long> { 2 }, new LibraryTreeSnapshot.LinkStamp(1, null, null));
+        var tree = LibraryTreeSnapshot.FromNodes(1, Tree().Roots.SelectMany(Flatten), authors);
+
+        Assert.Equal(["Given Family"], tree.ShapeOf(5).KnownAuthorNames);
+        Assert.Null(tree.ShapeOf(2).KnownAuthorNames); // linked itself
+        Assert.Null(Tree().ShapeOf(5).KnownAuthorNames); // no authors loaded
+        Assert.Same(authors, tree.WithAuthors(authors).Authors);
+        Assert.Equal(tree.Count, tree.WithAuthors(LibraryTreeSnapshot.ProviderAuthorSet.None).Count);
+
+        IEnumerable<LibraryTreeSnapshot.Node> Flatten(LibraryTreeSnapshot.Node n)
+        {
+            var source = Tree();
+            var stack = new Stack<LibraryTreeSnapshot.Node>([n]);
+            while (stack.Count > 0)
+            {
+                var current = stack.Pop();
+                yield return current;
+                foreach (var child in source.ChildrenOf(current.Id))
+                    stack.Push(child);
+            }
+        }
+    }
+
+    [Fact]
     public void Snapshot_CategoryHint_IsTheNearestExactCategoryName_NeverAShelfWord()
     {
         var tree = LibraryTreeSnapshot.FromNodes(1,

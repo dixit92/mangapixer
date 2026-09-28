@@ -54,6 +54,18 @@ class StripHostComponent {
   readonly pages = [0, 1, 2];
 }
 
+@Component({
+  selector: 'app-opt-out-host',
+  imports: [WebtoonEnhanceHostDirective, WebtoonUpscaleDirective],
+  template: `
+    <div class="scroller" [appWebtoonEnhanceHost]="null">
+      <img class="webtoon-page" appWebtoonUpscale alt="" />
+      <img class="webtoon-page" [appWebtoonUpscale]="false" alt="" />
+    </div>
+  `,
+})
+class OptOutHostComponent {}
+
 function define(el: object, props: Record<string, unknown>) {
   for (const [k, v] of Object.entries(props)) Object.defineProperty(el, k, { configurable: true, get: () => v });
 }
@@ -109,6 +121,18 @@ describe('WebtoonEnhanceHostDirective / WebtoonUpscaleDirective', () => {
     const pages = fixture.debugElement.queryAll(By.directive(WebtoonUpscaleDirective));
     expect(pages.length).toBe(3);
     for (const p of pages) expect(p.injector.get(WebtoonEnhanceCoordinator)).toBe(shared);
+  });
+
+  it('an img with [appWebtoonUpscale]="false" never registers with the coordinator (1.28.0: animated pages)', () => {
+    TestBed.configureTestingModule({ imports: [OptOutHostComponent] });
+    const fixture = TestBed.createComponent(OptOutHostComponent);
+    const coordinator = fixture.debugElement.query(By.directive(WebtoonEnhanceHostDirective)).injector.get(WebtoonEnhanceCoordinator);
+    const register = vi.spyOn(coordinator, 'register');
+    const unregister = vi.spyOn(coordinator, 'unregister');
+    fixture.detectChanges();
+    expect(register).toHaveBeenCalledTimes(1); // only the still page
+    fixture.destroy();
+    expect(unregister).toHaveBeenCalledTimes(1);
   });
 
   it('the input turns the enhance layer on and off; it is appended after the template nodes', async () => {

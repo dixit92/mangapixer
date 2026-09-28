@@ -322,6 +322,13 @@
          tap turn on WebKit (iPad). Browse: the list-view favorite star moves off the thumbnail
          into the row markers. Unraid: install from Community Applications; the duplicate
          deploy/unraid/mangapixer.xml is removed (dixit92/unraid-templates is its only home). -->
+    <!-- 1.28.0 - MINOR over 1.27.0 ("Matcher and Metadata Polish" cycle, 2026-09-28). Home cards get the favorites star,
+         the (i) and the hover summary; the star sits bottom-right on every card. Declared facts (admin type / creators on folders
+         and libraries, migration AddDeclaredFacts) as matcher evidence and a declared-type search filter; provider-author
+         artist folders; cover comparison as a title tie-break (media worker image_hash). Missing volumes / chapters report,
+         AniList chapters-per-volume on request, provider allowlist, both metadata consents v2 with a renewal banner. Review
+         rows show your cover beside the selected series' cover; animated pages are never upscaled. Worker protocol 4.
+         Bugfixes ship as 1.28.x. -->
     <!-- 1.27.0 - MINOR over 1.26.1 ("Metadata Continuation" cycle, 2026-09-27). Automatic matching fixes from
          the first live run (status-text chapter totals and the webtoon flag reach the matcher, disambiguator only on
          the main title, ~ / - subtitle heads and leading words of a long title for review, page-2 search, category
@@ -365,7 +372,7 @@
          iPhone/iPad add-to-home-screen hint; analytics totals caption; a real OpenAPI drift check.
          Worker protocol unchanged (2). Bugfixes ship as 1.23.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <MangaPixerVersionMinor>27</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>28</MangaPixerVersionMinor>
     <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 

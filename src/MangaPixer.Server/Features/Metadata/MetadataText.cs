@@ -16,6 +16,12 @@ public static partial class MetadataText
     [GeneratedRegex(@"\[([^\[\]]*)\]\((?:[^()\s]|\([^()\s]*\))*\)", RegexOptions.CultureInvariant)]
     private static partial Regex MarkdownLink();
 
+    [GeneratedRegex(@"<\s*a\b[^<>]{0,500}>.*?<\s*/\s*a\s*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex HtmlAnchor();
+
+    [GeneratedRegex(@"\([^()]*\)", RegexOptions.CultureInvariant)]
+    private static partial Regex Parenthesized();
+
     [GeneratedRegex(@"<\s*br\s*/?\s*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex HtmlBreak();
 
@@ -73,6 +79,103 @@ public static partial class MetadataText
         if (s.Length == 0)
             return null;
         return s.Length <= maxLength ? s : s[..maxLength].TrimEnd();
+    }
+
+    /// <summary>
+    /// A provider description: <see cref="Flatten"/> after dropping the lines that held only links
+    /// ("[Original Manga](...) (old link)") and a short "Links:" heading left with nothing under it.
+    /// Flattening keeps only a link's label, so such lines would read as links that go nowhere.
+    /// </summary>
+    public static string? Description(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var lines = value.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+        var drop = new bool[lines.Length];
+        for (var i = 0; i < lines.Length; i++)
+            drop[i] = IsLinkOnly(lines[i]);
+
+        for (var i = 0; i < lines.Length - 1; i++)
+        {
+            if (drop[i] || !drop[i + 1] || !IsShortHeading(lines[i]))
+                continue;
+            // The heading goes only when everything under it, up to a blank line, was a link.
+            var j = i + 1;
+            while (j < lines.Length && drop[j])
+                j++;
+            if (j == lines.Length || string.IsNullOrWhiteSpace(lines[j]))
+                drop[i] = true;
+        }
+
+        var kept = lines.Where((_, i) => !drop[i]);
+        return Flatten(string.Join('\n', kept), maxLength);
+    }
+
+    // "- **Japanese:** " / "*Digital:* " - a list marker and a short label in front of a list of links.
+    [GeneratedRegex(@"^\s*(?:[-*+\u2022]\s+)?(?:[*_]{0,2}[^:\n\[\]]{1,40}:[*_]{0,2})?", RegexOptions.CultureInvariant)]
+    private static partial Regex LinkListLabel();
+
+    // "Piccoma ([Main Story](...), [Side Story](...))": a short name followed by links in parentheses.
+    [GeneratedRegex(@"^([^()\[\]]{1,40}?)\s*\((.*)\)\s*$", RegexOptions.CultureInvariant | RegexOptions.Singleline)]
+    private static partial Regex NamedLinkGroup();
+
+    /// <summary>
+    /// A line that is only a list of links: after an optional short label ("- **French:**"), every item
+    /// between top-level <c>,</c> <c>;</c> <c>|</c> is a link (optionally followed by notes in parentheses,
+    /// "[Site](...) (old link)") or a short name with links in parentheses. A sentence with a link inside
+    /// ("see the [site](...)") is not.
+    /// </summary>
+    private static bool IsLinkOnly(string line)
+    {
+        var s = HtmlAnchor().Replace(line, m => "[" + HtmlTag().Replace(m.Value, string.Empty) + "](a)");
+        if (!MarkdownLink().IsMatch(s))
+            return false;
+        s = LinkListLabel().Replace(s, string.Empty, 1);
+        return TopLevelItems(s).All(IsLinkItem);
+    }
+
+    private static bool IsLinkItem(string item)
+    {
+        var t = WebUtility.HtmlDecode(HtmlTag().Replace(item, " ")).Trim();
+        if (t.Length == 0 || !t.Any(char.IsLetter))
+            return true;
+        if (MarkdownLink().IsMatch(t) && !HasLetters(Parenthesized().Replace(MarkdownLink().Replace(t, " "), " ")))
+            return true;
+        var named = NamedLinkGroup().Match(t);
+        return named.Success
+            && named.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 4
+            && MarkdownLink().IsMatch(named.Groups[2].Value)
+            && !HasLetters(MarkdownLink().Replace(named.Groups[2].Value, " "));
+    }
+
+    private static bool HasLetters(string s) => s.Any(char.IsLetter);
+
+    /// <summary>Splits on <c>,</c> <c>;</c> <c>|</c> outside brackets and parentheses.</summary>
+    private static IEnumerable<string> TopLevelItems(string s)
+    {
+        var depth = 0;
+        var start = 0;
+        for (var i = 0; i < s.Length; i++)
+        {
+            var c = s[i];
+            if (c is '(' or '[')
+                depth++;
+            else if (c is ')' or ']')
+                depth = Math.Max(0, depth - 1);
+            else if (depth == 0 && c is ',' or ';' or '|')
+            {
+                yield return s[start..i];
+                start = i + 1;
+            }
+        }
+        yield return s[start..];
+    }
+
+    private static bool IsShortHeading(string line)
+    {
+        var t = line.Trim().Trim('#', '*', '_', '>', ' ', '\t');
+        return t.Length is > 1 and <= 40 && t.EndsWith(':');
     }
 
     /// <summary>A single-line bounded value (names, titles): flattened, newlines folded to spaces.</summary>

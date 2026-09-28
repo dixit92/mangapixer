@@ -577,6 +577,26 @@ describe('ReaderComponent webtoon Enhance wiring (1.24.0)', () => {
     }
   });
 
+  it('animated pages stay out of upscaling in both views: a canvas would freeze them on one frame (1.28.0)', () => {
+    const { fixture, c } = renderView('webtoon');
+    c.pages.set(makePages(4).map((p, i) => (i === 1 ? { ...p, mediaType: 'image/gif', animationState: 'Animated' } : p)));
+    fixture.detectChanges();
+    const strip = fixture.debugElement.queryAll(By.css('.webtoon-page')).map((d) => d.injector.get(WebtoonUpscaleDirective));
+    expect(strip.map((d) => d.appWebtoonUpscale())).toEqual([true, false, true, true]);
+
+    TestBed.inject(UpscaleSupportService).support.set('ready');
+    c.prefs.setUpscaler('enhance');
+    c.view.set('paged');
+    c.currentPage.set(1); // the animated page
+    fixture.detectChanges();
+    expect(c.upscaleActive()).toBe(true);
+    const paged = fixture.debugElement.query(By.directive(UpscaleDirective)).injector.get(UpscaleDirective);
+    expect(paged.appUpscale()).toBe(false);
+    c.currentPage.set(2); // a still page upscales as before
+    fixture.detectChanges();
+    expect(fixture.debugElement.query(By.directive(UpscaleDirective)).injector.get(UpscaleDirective).appUpscale()).toBe(true);
+  });
+
   it('the host input follows the Upscaling preference (the backend it resolved to, 1.25.0)', () => {
     const { fixture, c } = renderView('webtoon');
     const dir = () => fixture.debugElement.query(By.directive(WebtoonEnhanceHostDirective)).injector.get(WebtoonEnhanceHostDirective);

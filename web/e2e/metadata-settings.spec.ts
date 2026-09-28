@@ -38,9 +38,11 @@ async function settings(page: Page): Promise<{ fetchEnabled: boolean; budgetUsed
 }
 
 async function setFetch(page: Page, on: boolean): Promise<void> {
+  // The current consent version comes from the server (1.28.0 bumped it to 2).
+  const { currentConsentVersion } = (await (await page.request.get('/api/v1/admin/metadata/settings')).json()) as { currentConsentVersion: number };
   const res = await page.request.put('/api/v1/admin/metadata/settings', {
     headers: await csrf(page.request),
-    data: on ? { fetchEnabled: true, acceptedConsentVersion: 1 } : { fetchEnabled: false },
+    data: on ? { fetchEnabled: true, acceptedConsentVersion: currentConsentVersion } : { fetchEnabled: false },
   });
   expect(res.ok(), await res.text()).toBeTruthy();
 }

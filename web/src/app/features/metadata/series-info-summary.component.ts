@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 
 import { SeriesInfoDto } from '../../core/api/api-types';
 import { creditGroups, itemLine, metaLine } from './series-info-labels';
+import { DeclaredFactsLineComponent } from './declared/declared-facts-line.component';
 
 /**
  * Presentational series summary (1.24.0) shared by the overlay and the series page,
@@ -18,7 +19,7 @@ import { creditGroups, itemLine, metaLine } from './series-info-labels';
  * data, never markup.
  */
 @Component({
-  imports: [RouterLink],
+  imports: [RouterLink, DeclaredFactsLineComponent],
   selector: 'app-series-info-summary',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -79,6 +80,7 @@ import { creditGroups, itemLine, metaLine } from './series-info-labels';
         }
       }
     }
+    <app-declared-facts-line [nodeId]="i.nodeId" />
 
     @if (i.item) {
       <section class="item" data-testid="series-item">
@@ -124,9 +126,15 @@ export class SeriesInfoSummaryComponent {
    */
   readonly moreLink = input<readonly unknown[] | null>(null);
 
+  /**
+   * The series page lists every alternative title under Details, so its header shows only a short
+   * "also: A, B, +N" line instead of the whole list a second time.
+   */
+  readonly shortAltTitles = input(false);
+
   readonly expanded = signal(false);
 
-  private readonly altLimit = computed(() => (this.compact() ? 2 : 50));
+  private readonly altLimit = computed(() => (this.compact() || this.shortAltTitles() ? 2 : 50));
   private readonly genreLimit = computed(() => (this.compact() ? 3 : 50));
 
   readonly altTitles = computed(() => (this.info().altTitles ?? []).slice(0, this.altLimit()));

@@ -35,6 +35,7 @@ public sealed class RecentChaptersController : ControllerBase
     /// browse view's filter; omitted or unrecognized → no filter (unchanged behavior).
     /// </summary>
     [HttpGet("home/recent-chapters")]
+    [ProducesResponseType<RecentChaptersDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetRecentChapters(
         [FromQuery] int? perLibrary = null,
         [FromQuery] string? readState = null,

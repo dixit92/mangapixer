@@ -7,6 +7,7 @@ import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CatalogNodeDto, SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
+import { MissingReportApiService } from './missing/missing-report-api.service';
 import { SeriesPageComponent } from './series-page.component';
 import { seriesInfo } from './series-info.testing';
 
@@ -36,6 +37,7 @@ describe('SeriesPageComponent', () => {
         { provide: MetadataApiService, useValue: metadata },
         { provide: ApiService, useValue: api },
         { provide: AuthService, useValue: { isAdmin: () => admin } },
+        { provide: MissingReportApiService, useValue: { forNodeViewer: vi.fn(() => throwError(() => ({ status: 404 }))) } },
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ nodeId })) } },
       ],
     });

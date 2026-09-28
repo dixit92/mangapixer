@@ -112,7 +112,7 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         Assert.Contains(new MetadataJson.Creator("MIURA Kentaro", "author", "22635311083"), r.Creators);
         Assert.Contains(new MetadataJson.Creator("MIURA Kentaro", "artist", "22635311083"), r.Creators);
         Assert.Contains(new MetadataJson.Publisher("Hakusensha", "original"), r.Publishers);
-        Assert.Contains(new MetadataJson.Publisher("Dark Horse", "english"), r.Publishers);
+        Assert.Contains(new MetadataJson.Publisher("Dark Horse", "english", 42), r.Publishers); // 1.28.0: the English totals are kept
         Assert.Contains("Seinen", r.Genres);
         Assert.Equal(MangaUpdatesMapping.MaxStoredCategories, r.Categories.Count);
         Assert.True(r.Categories.Zip(r.Categories.Skip(1)).All(p => p.First.Votes >= p.Second.Votes));
@@ -128,7 +128,7 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Get_SoloLeveling_IsKoreanWebtoon_AndLinksFlattened()
+    public async Task Get_SoloLeveling_IsKoreanWebtoon_AndLinkListsDropped()
     {
         var r = await _h.Provider.GetSeriesAsync(MuFixtures.SoloLevelingId.ToString(), CancellationToken.None);
 
@@ -140,7 +140,13 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         Assert.Equal(15, r.OriginVolumes);
         Assert.True(r.TranslationComplete);
         Assert.Contains(r.Categories, c => c.Name == "Webtoon/Webcomic" && c.Votes == 64);
-        Assert.Contains("Daum", r.Description);
+        // The synopsis stays; the "Original Webtoon:" / "Official ... Translations:" link lists (labels only once
+        // flattened) are dropped with their headings.
+        Assert.StartsWith("From Yen Press:", r.Description);
+        Assert.Contains("Weakest Hunter", r.Description);
+        Assert.DoesNotContain("Daum", r.Description);
+        Assert.DoesNotContain("Translations", r.Description);
+        Assert.DoesNotContain("Piccoma", r.Description);
         Assert.DoesNotContain("https://", r.Description);
         // A credit without an author_id keeps a null provider id.
         Assert.Contains(new MetadataJson.Creator("DISCIPLES (Redice Studio)", "artist"), r.Creators);
@@ -465,6 +471,27 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
     [InlineData("&gt; encoded quote", "encoded quote")]
     public void Text_Flatten_MarkdownMarkers(string raw, string expected) =>
         Assert.Equal(expected, MetadataText.Flatten(raw, 1000));
+
+    [Fact]
+    public void Text_Description_DropsLinkOnlyLines_AndAnEmptyLinksHeading()
+    {
+        const string raw = "A synopsis with [an inline link](https://x.example/a) that stays.\n\n**Links:**\n"
+            + "[Original Manga](https://x.example/o)\n[Original Manga](https://x.example/old) (old link)\n"
+            + "[Official English](https://x.example/en) | <a href=\"https://x.example/ko\">Official Korean</a>\n\n"
+            + "Notes:\nIncludes extra pages.";
+
+        var flat = MetadataText.Description(raw, 1000);
+
+        Assert.Equal("A synopsis with an inline link that stays.\n\nNotes:\nIncludes extra pages.", flat);
+        Assert.Null(MetadataText.Description("[Only](https://x.example/a)", 1000));
+        // A heading with real text under it stays; so does a line whose link sits in a sentence.
+        Assert.Equal("Links:\nsee the site", MetadataText.Description("Links:\nsee the [site](https://x.example)", 1000));
+        // Labelled link lists ("- **Japanese:** ...") go too, including a plain name before links in parentheses.
+        Assert.Null(MetadataText.Description(
+            "**Official Others Translations:**\n- **French:** [Lezhin](https://x.example/l), [Ono](https://x.example/o)\n"
+            + "- **Japanese:** [Lezhin](https://x.example/l), Piccoma ([Main Story](https://x.example/m), [Side Story](https://x.example/s))",
+            1000));
+    }
 
     // --- Images ---
 

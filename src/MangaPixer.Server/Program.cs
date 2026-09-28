@@ -240,7 +240,12 @@ public sealed partial class Program
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.MetadataSettingsService>();
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.MetadataLinkService>();
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.SeriesInfoResolver>();
+            // Batched (i) / hover flag for browse, Search, Favorites and Home cards (1.28.0).
+            builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.SeriesInfoFlagService>();
             builder.Services.AddSingleton<com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MetadataProviderRegistry>();
+            // Declared facts (1.28.0): admin-declared type / creators, local only; the reader feeds the matcher.
+            builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.Declared.DeclaredFactsService>();
+            builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.Declared.IDeclaredFactsReader, com.lifepixer.mangapixer.Server.Features.Metadata.Declared.DeclaredFactsReader>();
             AddMetadataNetwork(builder.Services, dataRoot);
 
             // Operations services
@@ -610,12 +615,23 @@ public sealed partial class Program
         services.AddSingleton<Core.Metadata.AutoMatch.IMatchScorer, Core.Metadata.AutoMatch.MatchScorer>();
         services.AddSingleton(sp => Features.Metadata.AutoMatch.MetadataAutoMatchOptions.FromConfiguration(sp.GetRequiredService<IConfiguration>()));
         services.AddSingleton<Features.Metadata.AutoMatch.MetadataAutoMatchState>();
+        // Cover comparison (1.28.0): local hashes cached per process, images hashed by the media worker.
+        services.AddSingleton<Features.Metadata.AutoMatch.CoverHashCache>();
+        services.AddSingleton<Features.Metadata.AutoMatch.ICoverHasher, Features.Metadata.AutoMatch.WorkerCoverHasher>();
+        services.AddScoped<Features.Metadata.AutoMatch.ICoverCompareSetting, Features.Metadata.AutoMatch.StoredCoverCompareSetting>();
+        services.AddScoped<Features.Metadata.AutoMatch.AutoMatchCoverComparer>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataAutoMatchService>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataFolderContentService>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataCarryOverService>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataPostScanHook>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataRefreshService>();
         services.AddScoped<Features.Metadata.Review.MetadataReviewService>();
+        // Missing volumes / chapters report (1.28.0): stored data only, no request.
+        services.AddScoped<Features.Metadata.Missing.MissingReportService>();
+        // AniList (1.28.0): ONLY the Missing report's chapters-per-volume lookup (admin action); not an
+        // IMetadataProvider, so Identify / auto-match / refresh never see it.
+        services.AddSingleton<Features.Metadata.Providers.AniList.IUnitConversionProvider, Features.Metadata.Providers.AniList.AniListProvider>();
+        services.AddScoped<Features.Metadata.Missing.MissingConversionService>();
         services.AddScoped<Features.Metadata.Flags.MetadataFlagService>();
         services.AddHostedService<Hosting.MetadataAutoMatchHostedService>();
 
@@ -628,6 +644,7 @@ public sealed partial class Program
 
         AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaUpdatesApiClient, Features.Metadata.MetadataHttp.MangaUpdatesApiHost, "application/json");
         AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaUpdatesImageClient, Features.Metadata.MetadataHttp.MangaUpdatesImageHost, "image/*");
+        AddMetadataClient(services, Features.Metadata.MetadataHttp.AniListClient, Features.Metadata.MetadataHttp.AniListHost, "application/json");
     }
 
     internal static IHttpClientBuilder AddMetadataClient(IServiceCollection services, string name, string host, string accept)

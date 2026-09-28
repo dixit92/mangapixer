@@ -49,7 +49,7 @@ import { AdminMetadataTab } from '../admin-metadata/metadata-admin-labels';
               <span class="label">requests today</span>
             </button>
             <button type="button" class="stat" (click)="tabSelect.emit('runs')" data-testid="tile-auto">
-              <span class="value" [class.on]="autoOn()">{{ settings() ? (autoOn() ? 'On' : 'Off') : '–' }}</span>
+              <span class="value" [class.on]="autoOn()">{{ settings() ? (autoWaiting() ? 'Waiting for consent' : autoOn() ? 'On' : 'Off') : '–' }}</span>
               <span class="label">automatic matching</span>
             </button>
           } @else {
@@ -69,7 +69,7 @@ import { AdminMetadataTab } from '../admin-metadata/metadata-admin-labels';
               <span class="label">requests today</span>
             </a>
             <a class="stat" routerLink="/admin/metadata" [queryParams]="{ tab: 'runs' }" data-testid="tile-auto">
-              <span class="value" [class.on]="autoOn()">{{ settings() ? (autoOn() ? 'On' : 'Off') : '–' }}</span>
+              <span class="value" [class.on]="autoOn()">{{ settings() ? (autoWaiting() ? 'Waiting for consent' : autoOn() ? 'On' : 'Off') : '–' }}</span>
               <span class="label">automatic matching</span>
             </a>
           }
@@ -112,7 +112,12 @@ export class MetadataSummaryTileComponent implements OnInit {
   readonly summary = this.reviewState.summary;
   readonly needsReview = computed(() => this.summary()?.needsReview ?? 0);
   readonly openFlags = computed(() => this.summary()?.openFlags ?? 0);
-  readonly autoOn = computed(() => !!this.settings()?.autoMatchEnabled);
+  /** 1.28.0: waiting for a renewed consent after an update (the server treats it as off). */
+  readonly autoWaiting = computed(() => {
+    const s = this.settings();
+    return !!s?.autoMatchEnabled && (!!s.autoConsentRenewalNeeded || !!s.consentRenewalNeeded);
+  });
+  readonly autoOn = computed(() => !!this.settings()?.autoMatchEnabled && !this.autoWaiting());
 
   ngOnInit(): void {
     this.reviewState.refresh();

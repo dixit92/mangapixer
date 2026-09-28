@@ -17,12 +17,27 @@ public sealed class WorkerProtocolTests
     };
 
     [Fact]
-    public void WorkerProtocolVersion_IsThree()
+    public void WorkerProtocolVersion_IsFour()
     {
         // v2 added on-demand page extraction (extract/extract_result/extract_error);
         // v3 (1.24.0) added the ComicInfo read (comicinfo/comicinfo_result/comicinfo_error
-        // and the optional AnalyzeResult.ComicInfo).
-        Assert.Equal(3, WorkerProtocolVersion.Current);
+        // and the optional AnalyzeResult.ComicInfo); v4 (1.28.0) the cover hash for automatic
+        // matching (image_hash/image_hash_result/image_hash_error).
+        Assert.Equal(4, WorkerProtocolVersion.Current);
+    }
+
+    [Fact]
+    public void ImageHashMessages_RoundTrip_WithCamelCase_AndTheFullUnsignedRange()
+    {
+        var request = new ImageHashRequest { JobId = "h1", ImagePath = "/scratch/x.img" };
+        var requestJson = JsonSerializer.Serialize(request, s_options);
+        Assert.Contains("\"imagePath\"", requestJson, StringComparison.Ordinal);
+        var restoredRequest = JsonSerializer.Deserialize<ImageHashRequest>(requestJson, s_options)!;
+        Assert.Equal((ImageHashLimits.MaxBytes, ImageHashLimits.MaxDimension), (restoredRequest.MaxBytes, restoredRequest.MaxDimension));
+
+        var result = new ImageHashResult { JobId = "h1", Hash = ulong.MaxValue - 1, Width = 350, Height = 500 };
+        var restored = JsonSerializer.Deserialize<ImageHashResult>(JsonSerializer.Serialize(result, s_options), s_options)!;
+        Assert.Equal(result, restored);
     }
 
     [Fact]

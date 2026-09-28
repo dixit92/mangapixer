@@ -33,8 +33,15 @@ public static class MetadataJson
     /// <summary>A related record: <c>{externalId, relation}</c> (sequel, prequel, side story, spin-off ...).</summary>
     public sealed record RelatedRecord(string ExternalId, string Relation);
 
-    /// <summary>A publisher credit: <c>{name, kind}</c>.</summary>
-    public sealed record Publisher(string Name, string Kind);
+    /// <summary>
+    /// A publisher credit: <c>{name, kind}</c>, plus (1.28.0, JSON-additive) the volume / chapter totals an ENGLISH
+    /// publisher's notes state ("10 Volumes / 60 Chapters; Ongoing") for the missing volumes / chapters report.
+    /// </summary>
+    public sealed record Publisher(
+        string Name,
+        string Kind,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? Volumes = null,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? Chapters = null);
 
     /// <summary>A provider category with its vote count: <c>{name, votes}</c>.</summary>
     public sealed record Category(string Name, int Votes);

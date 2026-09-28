@@ -56,6 +56,11 @@ describe('StarToggleComponent', () => {
     return fixture.nativeElement.querySelector('app-star-toggle mat-icon')!.textContent!.trim();
   }
 
+  it('sits in the bottom-right cover corner by default (1.28.0: the same corner on every card surface)', () => {
+    const fixture = create(false);
+    expect(fixture.nativeElement.querySelector('app-star-toggle')!.classList).toContain('bottom-right');
+  });
+
   it('renders an empty star with correct aria when not favorited', () => {
     const fixture = create(false);
     expect(icon(fixture)).toBe('star_border');

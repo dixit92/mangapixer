@@ -25,15 +25,20 @@ import { MetadataApiService } from '../../metadata-api.service';
 import { MetadataReviewStateService } from '../../metadata-review-state.service';
 import { scorePercent } from '../metadata-admin-labels';
 import { LibraryMatchPanelComponent } from './library-match-panel.component';
+import { MetadataProvidersComponent } from './metadata-providers.component';
 
-/** Consent text version the page shows; must equal the server's `currentConsentVersion`. */
-export const CONSENT_TEXT_VERSION = 1;
+/**
+ * Consent text version the page shows; must equal the server's `currentConsentVersion`. 2 (1.28.0): the text
+ * describes the provider allowlist (MangaUpdates + AniList); an instance that accepted 1 re-accepts.
+ */
+export const CONSENT_TEXT_VERSION = 2;
 
 /**
  * Automatic-lookups consent text version (stage 2, owner decisions 2 + 3); must equal the
  * server's `currentAutoConsentVersion`. Bump it whenever the text below changes.
+ * v2 (1.28.0): the cover comparison downloads; an earlier consent is not carried over (owner).
  */
-export const AUTO_CONSENT_TEXT_VERSION = 1;
+export const AUTO_CONSENT_TEXT_VERSION = 2;
 
 /** Integer-only daily budget in 1..1,000,000 (the server validates the same range). */
 export function parseDailyBudget(raw: string | number | null | undefined): number | null {
@@ -106,7 +111,7 @@ export function validateThresholds(
   standalone: true,
   imports: [
     DatePipe, FormsModule, MatButtonModule, MatCheckboxModule, MatExpansionModule, MatFormFieldModule, MatIconModule,
-    MatInputModule, MatProgressBarModule, MatSelectModule, MatSlideToggleModule, LibraryMatchPanelComponent,
+    MatInputModule, MatProgressBarModule, MatSelectModule, MatSlideToggleModule, LibraryMatchPanelComponent, MetadataProvidersComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -132,19 +137,29 @@ export function validateThresholds(
             }
             @if (!consentCurrent() || showConsent()) {
             <div class="consent" data-testid="md-consent-text">
-              <p>When on, MangaPixer can look up series details - description, authors, genres, publication status and
-                cover art - on <strong>MangaUpdates</strong> for the libraries you enable below.</p>
-              <p><strong>What is sent:</strong> the search text you confirm in the Identify dialog (usually a folder or
-                file name) and MangaUpdates record numbers. MangaUpdates also sees your server's IP address, as with any
-                web request.</p>
+              <p>When on, MangaPixer can look up series information for the libraries you enable below, on the
+                <strong>allowed sites</strong> listed here - and nowhere else.</p>
+              <p><strong>What is sent:</strong></p>
+              <ul>
+                <li><strong>MangaUpdates</strong> (description, authors, genres, publication status, English release totals,
+                  cover art): the search text you confirm in the Identify dialog (usually a folder or file name) and
+                  MangaUpdates record numbers.</li>
+                <li><strong>AniList</strong> (volume and chapter totals, to convert chapters to volumes in the Missing report):
+                  the MangaUpdates title of a series that is already linked, or its AniList record number - never a folder
+                  or file name - and only when you ask for it in the Missing report.</li>
+              </ul>
+              <p>You can remove a site from the list at any time; nothing is ever sent to a removed site. Each site also
+                sees your server's IP address, as with any web request.</p>
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or
                 anything that identifies this server.</p>
-              <p><strong>When:</strong> only when an admin runs Identify, Look up or Refresh in an enabled library.
-                Nothing happens automatically unless you also turn on Automatic matching.</p>
-              <p>Fetched information is stored on this server and credited to MangaUpdates, which provides it as-is. You
-                can switch this off at any time; stored information stays until you delete it.</p>
+              <p><strong>When:</strong> only when an admin runs Identify, Look up, Refresh or a Missing-report lookup in an
+                enabled library. Nothing happens automatically unless you also turn on Automatic matching. Automatic matching
+                uses MangaUpdates only.</p>
+              <p>Fetched information is stored on this server and credited to the site that provided it, as-is. You can
+                switch this off at any time; stored information stays until you delete it.</p>
             </div>
             }
+            <app-metadata-providers [settings]="s" [disabled]="saving()" (changed)="apply($event)" />
             @if (consentCurrent()) {
               <p class="muted small" data-testid="md-consented">
                 Consent given {{ s.consentAt | date: 'mediumDate' }} ·
@@ -157,7 +172,7 @@ export function validateThresholds(
               </mat-checkbox>
             }
             <div>
-              <mat-slide-toggle [checked]="s.fetchEnabled" [disabled]="!canToggleFetch()" (change)="setFetch($event.checked)"
+              <mat-slide-toggle [checked]="s.fetchEnabled && consentCurrent()" [disabled]="!canToggleFetch()" (change)="setFetch($event.checked)"
                                 data-testid="md-fetch">
                 Fetch from the web
               </mat-slide-toggle>
@@ -192,7 +207,7 @@ export function validateThresholds(
           <!-- 3. Automatic matching (decisions 2 + 3) -->
           <section class="card" aria-labelledby="md-auto-h" data-testid="md-auto">
             <h3 id="md-auto-h"><mat-icon aria-hidden="true">auto_awesome</mat-icon> Automatic matching
-              <span class="pill" [class.on]="s.autoMatchEnabled" data-testid="md-auto-state">{{ s.autoMatchEnabled ? 'On' : 'Off' }}</span></h3>
+              <span class="pill" [class.on]="s.autoMatchEnabled && !autoWaiting(s)" data-testid="md-auto-state">{{ autoStateLabel(s) }}</span></h3>
             @if ((s.fetchEnabled && !autoConsentCurrent()) || showAutoConsent()) {
             <div class="consent" data-testid="md-auto-consent-text">
               <p>When on, MangaPixer matches new series folders on its own, in the background, in <strong>every library whose
@@ -204,7 +219,13 @@ export function validateThresholds(
                 "Series Title" from "Series Title [English Title]" - which <strong>nobody reviews before it is sent</strong>,
                 with a fixed list of types to leave out (doujinshi, novels, artbooks, drama CDs; doujinshi are searched below a
                 folder whose Content is "Doujinshi &amp; adult one-shots"), and MangaUpdates record numbers to refresh linked
-                series. MangaUpdates also sees your server's IP address.</p>
+                series. For a folder declared manga, manhwa or manhua, automatic searches leave the other two types out.
+                MangaUpdates also sees your server's IP address.</p>
+              <p><strong>Cover comparison:</strong> when two series tie on the title for a folder of volumes or a one-shot,
+                MangaPixer may also download the cover images of those two series from MangaUpdates' image server
+                (cdn.mangaupdates.com), by the address MangaUpdates gave, to compare them with the folder's own cover. These
+                downloads carry nothing from your library. The comparison runs on your server and the downloaded covers are
+                deleted right after.</p>
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or anything
                 that identifies this server. Folders marked "Don't match", and everything inside them, are never looked up.</p>
               <p><strong>Budget:</strong> automatic requests come out of the same daily budget as Identify. When it is spent,
@@ -224,10 +245,22 @@ export function validateThresholds(
               </mat-checkbox>
             }
             <div>
-              <mat-slide-toggle [checked]="!!s.autoMatchEnabled" [disabled]="!canToggleAuto()" (change)="setAuto($event.checked)"
+              <mat-slide-toggle [checked]="!!s.autoMatchEnabled && autoConsentCurrent()" [disabled]="!canToggleAuto()" (change)="setAuto($event.checked)"
                                 data-testid="md-auto-switch">
                 Automatic matching
               </mat-slide-toggle>
+            </div>
+            <div class="sub-toggle" data-testid="md-compare-covers-row">
+              <mat-checkbox [checked]="s.compareCoversEnabled !== false"
+                            [disabled]="saving() || !s.autoMatchEnabled || !!s.compareCoversDisabledByConfig"
+                            (change)="setCompareCovers($event.checked)" data-testid="md-compare-covers">
+                Compare covers
+              </mat-checkbox>
+              <p class="muted small">When two series tie on the title for a folder of volumes or a one-shot, download their
+                two covers and prefer the one that is the same picture as the folder's own cover.</p>
+              @if (s.compareCoversDisabledByConfig) {
+                <p class="note" data-testid="md-compare-covers-config">Switched off in the server configuration.</p>
+              }
             </div>
             @if (!s.fetchEnabled) {
               <p class="note" data-testid="md-auto-needs-fetch">Turn on "Fetch from the web" first.</p>
@@ -376,6 +409,8 @@ export function validateThresholds(
     .muted { color: #999; }
     .consent { font-size: 13px; color: #c8c8d0; border-left: 3px solid #555; padding: 2px 12px; margin: 6px 0 10px; }
     .consent p { margin: 6px 0; }
+    .consent ul { margin: 6px 0; padding-left: 18px; }
+    .consent li { margin: 4px 0; }
     .link { background: none; border: none; padding: 0; font: inherit; color: #b39dff; cursor: pointer; text-decoration: underline; }
     .banner { color: #ffb300; }
     .status { font-size: 13px; margin: 0 0 8px; }
@@ -389,6 +424,8 @@ export function validateThresholds(
     .pill { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); color: #aaa; }
     .pill.on { background: rgba(76, 175, 80, 0.2); color: #81c784; }
     .coverage { font-size: 13px; margin: 8px 0 0; line-height: 1.9; }
+    .sub-toggle { margin: 4px 0 0 8px; }
+    .sub-toggle p { margin: 0 0 4px 40px; }
     .lib-chip { display: inline-block; padding: 0 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); font-size: 12px; line-height: 20px; }
     .lib-chip.active { background: rgba(179, 157, 255, 0.18); color: #d8ccff; }
     .libs { display: flex; flex-direction: column; gap: 2px; }
@@ -439,7 +476,8 @@ export class MetadataSettingsComponent implements OnInit {
   readonly canToggleFetch = computed(() => {
     const s = this.settings();
     if (!s || this.saving()) return false;
-    if (s.fetchEnabled) return true;
+    // 1.28.0: on under an older consent reads as off (the server stops it); turning it on again re-accepts.
+    if (s.fetchEnabled && this.consentCurrent()) return true;
     return !s.networkDisabledByConfig && (this.consentCurrent() || this.consentTicked());
   });
 
@@ -454,7 +492,7 @@ export class MetadataSettingsComponent implements OnInit {
   readonly canToggleAuto = computed(() => {
     const s = this.settings();
     if (!s || this.saving()) return false;
-    if (s.autoMatchEnabled) return true;
+    if (s.autoMatchEnabled && this.autoConsentCurrent()) return true;
     return !s.networkDisabledByConfig && s.fetchEnabled && (this.autoConsentCurrent() || this.autoConsentTicked());
   });
 
@@ -522,6 +560,24 @@ export class MetadataSettingsComponent implements OnInit {
     this.save(this.api.updateSettings(on
       ? { autoMatchEnabled: true, acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION }
       : { autoMatchEnabled: false }), on ? 'Automatic matching is on' : 'Automatic matching is off');
+  }
+
+  /**
+   * 1.28.0 (owner): after an update that renewed a consent, the server keeps Automatic matching off until an admin
+   * accepts again - the card says so instead of "On".
+   */
+  autoWaiting(s: MetadataSettingsDto): boolean {
+    return !!s.autoMatchEnabled && (!!s.autoConsentRenewalNeeded || !!s.consentRenewalNeeded);
+  }
+
+  autoStateLabel(s: MetadataSettingsDto): string {
+    return this.autoWaiting(s) ? 'Waiting for consent' : s.autoMatchEnabled ? 'On' : 'Off';
+  }
+
+  /** "Compare covers" (1.28.0): one settings PUT, no consent of its own (the automatic consent covers it). */
+  setCompareCovers(on: boolean): void {
+    if (!this.settings()) return;
+    this.save(this.api.updateSettings({ compareCoversEnabled: on }), on ? 'Covers will be compared' : 'Covers will not be compared');
   }
 
   saveBudget(): void {
@@ -608,7 +664,8 @@ export class MetadataSettingsComponent implements OnInit {
     });
   }
 
-  private apply(s: MetadataSettingsDto): void {
+  /** Applies a saved settings state (also from the allowed-sites chips). */
+  apply(s: MetadataSettingsDto): void {
     this.settings.set(s);
     // Share the saved state with the summary card at the top of the page (1.27.0).
     this.reviewState.setSettings(s);

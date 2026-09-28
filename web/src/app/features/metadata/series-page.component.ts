@@ -14,6 +14,7 @@ import { SeriesAdminActionsComponent } from './series-admin-actions.component';
 import { WrongSeriesFlagComponent } from './flag-dialog/wrong-series-flag.component';
 import { ageLabel, creditGroups, precedenceLabel, showsPrecedence } from './series-info-labels';
 import { SeriesInfoSummaryComponent } from './series-info-summary.component';
+import { SeriesMissingLineComponent } from './missing/series-missing-line.component';
 
 /**
  * The series page `/series/:nodeId` (1.24.0): the canonical, bookmarkable home of a
@@ -29,7 +30,7 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
 @Component({
   selector: 'app-series-page',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, SeriesMissingLineComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page" data-testid="series-page">
@@ -43,7 +44,7 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
         </nav>
 
         <header class="hero">
-          <app-series-info-summary [info]="i" [showDescription]="false" />
+          <app-series-info-summary [info]="i" [showDescription]="false" [shortAltTitles]="true" />
           <div class="hero-actions">
             @if (i.anchorKind === 'Folder') {
               <a mat-stroked-button [routerLink]="folderLink()" data-testid="browse-folder">
@@ -63,6 +64,7 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
               </a>
             }
           </div>
+          @if (i.anchorKind === 'Folder') { <app-series-missing-line [nodeId]="i.anchorNodeId" [showReportLink]="auth.isAdmin()" /> }
         </header>
 
         @if (i.description) {

@@ -20,8 +20,8 @@ import { formatLabel } from '../series-info-labels';
  * them (`MetadataSummaryTileComponent`) so its in-page stats can switch to one without a
  * circular import between the two components.
  */
-export type AdminMetadataTab = 'settings' | 'review' | 'flags' | 'runs';
-export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 'review', 'flags', 'runs'];
+export type AdminMetadataTab = 'settings' | 'review' | 'flags' | 'runs' | 'missing';
+export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 'review', 'flags', 'runs', 'missing'];
 
 export interface ReviewTabDef {
   tab: MetadataReviewTab;
@@ -46,7 +46,7 @@ export const REVIEW_TABS: readonly ReviewTabDef[] = [
   { tab: 'Confirmed', label: 'Confirmed', count: 'confirmed',
     hint: 'Links an admin made or confirmed. Automatic matching never changes these.' },
   { tab: 'MissingFolders', label: 'Missing folders', count: 'missingFolders',
-    hint: 'Links left on folders that were renamed or moved where MangaPixer could not follow them. Re-attach or delete.' },
+    hint: 'Links and declared facts left on folders that were renamed or moved where MangaPixer could not follow them. Re-attach or delete.' },
 ];
 
 export function reviewTabDef(tab: MetadataReviewTab): ReviewTabDef {

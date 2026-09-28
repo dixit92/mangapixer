@@ -1,6 +1,8 @@
 namespace com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 
+using System.Linq.Expressions;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 
 /// <summary>Stored values of <c>metadata_match_queue.State</c>.</summary>
 public static class QueueState
@@ -22,15 +24,15 @@ public static class QueueReason
     public const int Rerun = 3;
     public const int CarryCheck = 4;
 
-    /// <summary>Pick order: an admin's re-run first, then new folders, bulk, retries.</summary>
-    public static int Priority(int reason) => reason switch
-    {
-        Rerun => 0,
-        NewFolder => 1,
-        CarryCheck => 1,
-        Bulk => 2,
-        _ => 3,
-    };
+    /// <summary>
+    /// Pick order: an admin's re-run first, then new folders, bulk, retries. An expression so the
+    /// lease orders in SQL (a row limit without ORDER BY returns an arbitrary set of rows).
+    /// </summary>
+    public static readonly Expression<Func<MetadataMatchQueueEntity, int>> Priority = q =>
+        q.Reason == Rerun ? 0
+        : q.Reason == NewFolder || q.Reason == CarryCheck ? 1
+        : q.Reason == Bulk ? 2
+        : 3;
 }
 
 /// <summary>Re-match timing and limits (stage 2, section 3).</summary>

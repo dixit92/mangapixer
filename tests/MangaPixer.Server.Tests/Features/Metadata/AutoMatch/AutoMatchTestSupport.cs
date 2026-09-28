@@ -200,6 +200,18 @@ public sealed class AutoMatchHarness : IDisposable
         Db.Db, Net.Gateway(), Net.Budget(), Net.Backoff(), Net.Settings(), Net.Identify(), State, new AuditService(Db.Db), Time,
         Net.LoggerFactory.CreateLogger<MetadataAutoMatchService>(), [Detector], [new FakeQueryPlanner()], [new FakeMatchScorer()]);
 
+    /// <summary>The service with another detector (e.g. the real <see cref="WorkDetector"/>) and options.</summary>
+    public MetadataAutoMatchService Service(IWorkDetector detector, MetadataAutoMatchOptions? options = null) => new(
+        Db.Db, Net.Gateway(), Net.Budget(), Net.Backoff(), Net.Settings(), Net.Identify(), State, new AuditService(Db.Db), Time,
+        Net.LoggerFactory.CreateLogger<MetadataAutoMatchService>(), [detector], [new FakeQueryPlanner()], [new FakeMatchScorer()], options);
+
+    /// <summary>The service with the PRODUCTION matcher core (detector, planner, scorer) and a declared-facts reader.</summary>
+    public MetadataAutoMatchService ServiceWithRealMatcher(com.lifepixer.mangapixer.Server.Features.Metadata.Declared.IDeclaredFactsReader? declared = null,
+        MetadataAutoMatchOptions? options = null) => new(
+        Db.Db, Net.Gateway(), Net.Budget(), Net.Backoff(), Net.Settings(), Net.Identify(), State, new AuditService(Db.Db), Time,
+        Net.LoggerFactory.CreateLogger<MetadataAutoMatchService>(), [new WorkDetector()], [new MatchQueryPlanner()], [new MatchScorer()],
+        options, declared: declared);
+
     public MetadataAutoMatchService ServiceWithoutMatcher() => new(
         Db.Db, Net.Gateway(), Net.Budget(), Net.Backoff(), Net.Settings(), Net.Identify(), State, new AuditService(Db.Db), Time,
         Net.LoggerFactory.CreateLogger<MetadataAutoMatchService>(), [], [], []);
@@ -222,13 +234,13 @@ public sealed class AutoMatchHarness : IDisposable
     }
 
     /// <summary>Leases and processes rows until the queue is empty or the gate refuses (like one worker pass).</summary>
-    public async Task<int> DrainAsync(int max = 100)
+    public async Task<int> DrainAsync(int max = 100, IWorkDetector? detector = null)
     {
         var processed = 0;
         for (var i = 0; i < max; i++)
         {
             Db.Db.ChangeTracker.Clear();
-            var service = Service();
+            var service = detector is null ? Service() : Service(detector);
             if (await service.CheckGlobalGateAsync() is not null)
                 break;
             var row = await service.LeaseNextAsync("test");

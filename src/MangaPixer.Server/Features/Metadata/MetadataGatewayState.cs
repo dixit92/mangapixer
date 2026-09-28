@@ -28,6 +28,23 @@ public sealed record MetadataRateLimitOptions
     };
 
     /// <summary>
+    /// <c>graphql.anilist.co</c> (1.28.0): 1 request/s, burst 1 - under AniList's published 90 requests/minute
+    /// (lowered to 30 while degraded, when its 429 + Retry-After takes over). Admin actions only.
+    /// </summary>
+    public TokenBucketRateLimiterOptions AniList { get; init; } = new()
+    {
+        TokenLimit = 1,
+        TokensPerPeriod = 1,
+        ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+        QueueLimit = 25,
+        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+        AutoReplenishment = true,
+    };
+
+    /// <summary>How long AniList is left alone after a 429 / 503 that carries no Retry-After.</summary>
+    public TimeSpan AniListDefaultBackoff { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
     /// Minimum spacing between AUTOMATIC requests (stage 2: at most 1 request/s, so
     /// the 2 req/s API bucket always has room for an admin).
     /// </summary>
@@ -35,9 +52,12 @@ public sealed record MetadataRateLimitOptions
 }
 
 /// <summary>
-/// Process-wide gateway state (singleton, 1.24.0 lane B2): the two token buckets,
+/// Process-wide gateway state (singleton, 1.24.0 lane B2): the token buckets,
 /// the lock that serializes writes of the persisted budget/backoff columns, and
-/// the in-memory streak of consecutive 5xx/timeouts.
+/// the in-memory streak of consecutive 5xx/timeouts. 1.28.0: AniList's bucket and
+/// its backoff, kept in memory (the persisted backoff columns stay MangaUpdates'
+/// own, so an AniList 429 never pauses MangaUpdates; a restart forgets it, and
+/// AniList answers a request that comes too early with another 429).
 /// </summary>
 public sealed class MetadataGatewayState : IDisposable
 {
@@ -50,8 +70,24 @@ public sealed class MetadataGatewayState : IDisposable
     {
         ApiLimiter = new TokenBucketRateLimiter(options.Api);
         ImageLimiter = new TokenBucketRateLimiter(options.Images);
+        AniListLimiter = new TokenBucketRateLimiter(options.AniList);
+        AniListDefaultBackoff = options.AniListDefaultBackoff;
         _automaticInterval = options.AutomaticInterval;
     }
+
+    private long _aniListBackoffUntilTicks;
+
+    public RateLimiter AniListLimiter { get; }
+    public TimeSpan AniListDefaultBackoff { get; }
+
+    /// <summary>The time AniList asked us to wait until, or null.</summary>
+    public DateTimeOffset? AniListBackoffUntil(DateTimeOffset now)
+    {
+        var ticks = Interlocked.Read(ref _aniListBackoffUntilTicks);
+        return ticks > now.UtcTicks ? new DateTimeOffset(ticks, TimeSpan.Zero) : null;
+    }
+
+    public void SetAniListBackoff(DateTimeOffset until) => Interlocked.Exchange(ref _aniListBackoffUntilTicks, until.UtcTicks);
 
     /// <summary>
     /// Waits until an automatic request may start: automatic requests are serialized
@@ -88,6 +124,7 @@ public sealed class MetadataGatewayState : IDisposable
     {
         ApiLimiter.Dispose();
         ImageLimiter.Dispose();
+        AniListLimiter.Dispose();
         StateLock.Dispose();
         _automaticGate.Dispose();
     }

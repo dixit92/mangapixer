@@ -128,6 +128,8 @@ What happens when a page is shown *larger* than its original resolution (a small
 - **Crisp** (default): AMD FidelityFX Super Resolution 1 (FSR 1): an edge-aware upscale plus a light sharpening pass. Cheap on battery, and it works on almost any device, over plain `http://` too.
 - **Enhance**: Anime4K, an upscaler designed for anime and line art. It restores and redraws lines and screentones for the sharpest result, at more graphics work than Crisp.
 
+Animated pages (a GIF, WebP or PNG with several frames) are always shown as they are: Crisp and Enhance draw a page as one still picture, which would stop the animation.
+
 Which graphics engine runs what:
 
 | Choice | Runs on | Needs |

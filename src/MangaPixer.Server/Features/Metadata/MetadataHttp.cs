@@ -4,8 +4,9 @@ using System.Net;
 
 /// <summary>
 /// The metadata network surface in constants (1.24.0, lane B2; owner-approved
-/// gate G1b). Two named clients, both behind <see cref="HostAllowlistHandler"/>:
-/// the MangaUpdates API and its image CDN. Nothing else is reachable.
+/// gate G1b). Named clients, each behind <see cref="HostAllowlistHandler"/> with
+/// its own host only: the MangaUpdates API, its image CDN and (1.28.0) the AniList
+/// GraphQL endpoint. Nothing else is reachable.
 /// </summary>
 public static class MetadataHttp
 {
@@ -17,6 +18,13 @@ public static class MetadataHttp
 
     public const string MangaUpdatesApiHost = "api.mangaupdates.com";
     public const string MangaUpdatesImageHost = "cdn.mangaupdates.com";
+
+    /// <summary>
+    /// Named client for <c>graphql.anilist.co</c> (1.28.0): ONLY the chapters-per-volume lookup of the Missing
+    /// report, by record id or by the linked MangaUpdates title. No images, no search surfaced anywhere else.
+    /// </summary>
+    public const string AniListClient = "AniList";
+    public const string AniListHost = "graphql.anilist.co";
 
     /// <summary>Generic, non-identifying User-Agent: no version, no contact, no browser-UA fallback of any kind.</summary>
     public const string UserAgent = "MangaPixer-Metadata";

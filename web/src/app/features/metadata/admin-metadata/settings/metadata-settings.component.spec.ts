@@ -5,7 +5,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { MetadataSettingsDto } from '../../../../core/api/api-types';
 import { estimate, settings } from '../metadata-admin.testing';
-import { MetadataSettingsComponent, parseDailyBudget, validateThresholds } from './metadata-settings.component';
+import { CONSENT_TEXT_VERSION, MetadataSettingsComponent, parseDailyBudget, validateThresholds } from './metadata-settings.component';
 
 /**
  * Settings tab of /admin/metadata, mocked at the HTTP layer so the real
@@ -58,17 +58,34 @@ describe('MetadataSettingsComponent', () => {
     c.consentTicked.set(true);
     c.setFetch(true);
     const put = http.expectOne({ method: 'PUT', url: SETTINGS });
-    expect(put.request.body).toEqual({ fetchEnabled: true, acceptedConsentVersion: 1 });
-    put.flush(settings({ fetchEnabled: true, acceptedConsentVersion: 1, consentAt: '2026-09-25T00:00:00Z' }));
+    expect(put.request.body).toEqual({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION });
+    put.flush(settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION, consentAt: '2026-09-25T00:00:00Z' }));
     http.expectNone(() => true);
     expect(c.consentCurrent()).toBe(true);
   });
 
   it('turning Fetch off needs no consent', () => {
-    const { c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1 }));
+    const { c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION }));
     expect(c.canToggleFetch()).toBe(true);
     c.setFetch(false);
     expect(http.expectOne({ method: 'PUT', url: SETTINGS }).request.body).toEqual({ fetchEnabled: false });
+  });
+
+  it('after an update that bumped the consent, Fetch reads as off until the admin accepts the new text (1.28.0)', () => {
+    const { c, q } = create(settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION - 1, consentRenewalNeeded: true }));
+    expect(c.consentCurrent()).toBe(false);
+    expect(q('[data-testid="md-consent-text"]')!.textContent).toContain('AniList');
+    expect(q('[data-testid="md-fetch"] [role="switch"]')!.getAttribute('aria-checked')).toBe('false');
+    expect(c.canToggleFetch()).toBe(false);
+    c.consentTicked.set(true);
+    c.setFetch(true);
+    expect(http.expectOne({ method: 'PUT', url: SETTINGS }).request.body).toEqual({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION });
+  });
+
+  it('shows the allowed sites as chips in the Web lookups card (1.28.0)', () => {
+    const { el } = create();
+    expect(Array.from(el.querySelectorAll('[data-testid="md-provider-chip"]')).map((e) => e.getAttribute('data-provider')))
+      .toEqual(['mangaupdates', 'anilist']);
   });
 
   it('re-prompts on a stale consent version and honours the config kill', () => {
@@ -140,8 +157,8 @@ describe('MetadataSettingsComponent', () => {
   });
 
   it('folds both consent texts behind "What is sent?" once accepted', () => {
-    const { q, c, fixture } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true,
-      acceptedAutoConsentVersion: 1 }));
+    const { q, c, fixture } = create(settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION, autoMatchEnabled: true,
+      acceptedAutoConsentVersion: 2 }));
     expect(q('[data-testid="md-consent-text"]')).toBeNull();
     expect(q('[data-testid="md-auto-consent-text"]')).toBeNull();
     q('[data-testid="md-consent-toggle"]')!.click();
@@ -160,11 +177,15 @@ describe('MetadataSettingsComponent', () => {
   });
 
   it('shows the automatic-lookups consent (v2) text: what is sent automatically and never', () => {
-    const { q } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1 }));
+    const { q } = create(settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION }));
     const text = q('[data-testid="md-auto-consent-text"]')!.textContent!.replace(/\s+/g, ' ');
     expect(text).toContain('in every library whose Fetch switch is on');
     expect(text).toContain('What is sent automatically:');
     expect(text).toContain('nobody reviews before it is sent');
+    expect(text).toContain('For a folder declared manga, manhwa or manhua, automatic searches leave the other two types out.');
+    expect(text).toContain('Cover comparison:');
+    expect(text).toContain('download the cover images of those two series from MangaUpdates\' image server (cdn.mangaupdates.com)');
+    expect(text).toContain('These downloads carry nothing from your library.');
     expect(text).toContain('What is never sent:');
     expect(text).toContain('Don\'t match');
     expect(q('[data-testid="md-auto-consent"]')).not.toBeNull();
@@ -176,19 +197,19 @@ describe('MetadataSettingsComponent', () => {
     expect(off.c.canToggleAuto()).toBe(false); // Fetch off
     expect(off.q('[data-testid="md-auto-needs-fetch"]')).not.toBeNull();
     TestBed.resetTestingModule();
-    const { c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1 }));
+    const { c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION }));
     expect(c.canToggleAuto()).toBe(false);
     c.autoConsentTicked.set(true);
     expect(c.canToggleAuto()).toBe(true);
   });
 
   it('turning Automatic matching on is ONE settings PUT with the automatic consent version - no lookup', () => {
-    const { c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1 }));
+    const { c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION }));
     c.autoConsentTicked.set(true);
     c.setAuto(true);
     const put = http.expectOne({ method: 'PUT', url: SETTINGS });
-    expect(put.request.body).toEqual({ autoMatchEnabled: true, acceptedAutoConsentVersion: 1 });
-    put.flush(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true, acceptedAutoConsentVersion: 1,
+    expect(put.request.body).toEqual({ autoMatchEnabled: true, acceptedAutoConsentVersion: 2 });
+    put.flush(settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION, autoMatchEnabled: true, acceptedAutoConsentVersion: 2,
       autoConsentAt: '2026-09-26T00:00:00Z' }));
     http.expectNone(() => true);
     expect(c.autoConsentCurrent()).toBe(true);
@@ -196,15 +217,49 @@ describe('MetadataSettingsComponent', () => {
   });
 
   it('turning Automatic matching off needs no consent; a stale automatic consent re-prompts', () => {
-    const { c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true,
-      acceptedAutoConsentVersion: 1 }));
+    const { c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION, autoMatchEnabled: true,
+      acceptedAutoConsentVersion: 2 }));
     expect(c.canToggleAuto()).toBe(true);
     c.setAuto(false);
     expect(http.expectOne({ method: 'PUT', url: SETTINGS }).request.body).toEqual({ autoMatchEnabled: false });
     TestBed.resetTestingModule();
+    // An earlier consent (v1, before the cover comparison) is not carried over (owner, 1.28.0).
     const stale = create(settings({ fetchEnabled: true, acceptedAutoConsentVersion: 1, currentAutoConsentVersion: 2 }));
     expect(stale.c.autoConsentCurrent()).toBe(false);
     expect(stale.q('[data-testid="md-auto-consent"]')).not.toBeNull();
+  });
+
+  it('the Automatic matching card says "Waiting for consent" while a renewed consent is pending (1.28.0)', () => {
+    const waiting = create(settings({ fetchEnabled: true, autoMatchEnabled: true, consentRenewalNeeded: true }));
+    expect(waiting.q('[data-testid="md-auto-state"]')!.textContent!.trim()).toBe('Waiting for consent');
+    TestBed.resetTestingModule();
+    const on = create(settings({ fetchEnabled: true, autoMatchEnabled: true }));
+    expect(on.q('[data-testid="md-auto-state"]')!.textContent!.trim()).toBe('On');
+  });
+
+  it('"Compare covers" is ONE settings PUT, only while Automatic matching is on, and honours the config switch', () => {
+    const { q, c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true,
+      acceptedAutoConsentVersion: 2, compareCoversEnabled: true }));
+    const box = q('[data-testid="md-compare-covers"] input[type="checkbox"]') as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    expect(box.disabled).toBe(false);
+    c.setCompareCovers(false);
+    const put = http.expectOne({ method: 'PUT', url: SETTINGS });
+    expect(put.request.body).toEqual({ compareCoversEnabled: false });
+    put.flush(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true, acceptedAutoConsentVersion: 2,
+      compareCoversEnabled: false }));
+    http.expectNone(() => true);
+    expect(c.message()).toBe('Covers will not be compared');
+    TestBed.resetTestingModule();
+
+    const off = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1 }));
+    expect((off.q('[data-testid="md-compare-covers"] input[type="checkbox"]') as HTMLInputElement).disabled).toBe(true);
+    TestBed.resetTestingModule();
+
+    const held = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true,
+      acceptedAutoConsentVersion: 2, compareCoversDisabledByConfig: true }));
+    expect((held.q('[data-testid="md-compare-covers"] input[type="checkbox"]') as HTMLInputElement).disabled).toBe(true);
+    expect(held.q('[data-testid="md-compare-covers-config"]')).not.toBeNull();
   });
 
   it('shows which libraries automatic matching covers (every library with Fetch on)', () => {

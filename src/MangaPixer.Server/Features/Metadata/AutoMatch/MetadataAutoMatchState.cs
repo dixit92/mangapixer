@@ -15,7 +15,30 @@ public sealed record MetadataAutoMatchOptions
     /// <summary>The id-only refresh pass runs at most this often.</summary>
     public TimeSpan RefreshInterval { get; init; } = TimeSpan.FromHours(6);
 
-    /// <summary>Reads <c>Metadata:AutoMatch:WorkerEnabled</c> / <c>StartupDelaySeconds</c> / <c>TickSeconds</c>.</summary>
+    /// <summary>
+    /// The provider-author half of the artist-folder rule (1.28.0): a collection-shaped leaf named like the
+    /// author of a record linked in the library is an artist folder. Off = the 1.27.0 detector (the before /
+    /// after switch of the counts-only replay).
+    /// </summary>
+    public bool ProviderAuthorFolders { get; init; } = true;
+
+    /// <summary>
+    /// Kill switch of the cover comparison (1.28.0): false = never download a candidate cover, whatever the
+    /// "Compare covers" setting says (<c>Metadata:AutoMatch:CompareCovers</c>).
+    /// </summary>
+    public bool CompareCovers { get; init; } = true;
+
+    /// <summary>
+    /// On by default (1.28.0, owner-approved privacy wording): automatic searches of a folder whose DECLARED type is manga /
+    /// manhwa / manhua also leave the other two origins out (a type filter sent to the provider). The kill switch is
+    /// <c>Metadata:AutoMatch:DeclaredTypeFilter=false</c>.
+    /// </summary>
+    public bool DeclaredTypeFilter { get; init; } = true;
+
+    /// <summary>
+    /// Reads <c>Metadata:AutoMatch:WorkerEnabled</c> / <c>StartupDelaySeconds</c> / <c>TickSeconds</c> /
+    /// <c>ProviderAuthorFolders</c> / <c>CompareCovers</c> / <c>DeclaredTypeFilter</c>.
+    /// </summary>
     public static MetadataAutoMatchOptions FromConfiguration(IConfiguration config)
     {
         var section = config.GetSection("Metadata:AutoMatch");
@@ -27,6 +50,9 @@ public sealed record MetadataAutoMatchOptions
                 System.Globalization.CultureInfo.InvariantCulture, out var delay) && delay >= 0 ? TimeSpan.FromSeconds(delay) : defaults.StartupDelay,
             TickInterval = int.TryParse(section["TickSeconds"], System.Globalization.NumberStyles.Integer,
                 System.Globalization.CultureInfo.InvariantCulture, out var tick) && tick >= 1 ? TimeSpan.FromSeconds(tick) : defaults.TickInterval,
+            ProviderAuthorFolders = bool.TryParse(section["ProviderAuthorFolders"], out var authors) ? authors : defaults.ProviderAuthorFolders,
+            CompareCovers = bool.TryParse(section["CompareCovers"], out var covers) ? covers : defaults.CompareCovers,
+            DeclaredTypeFilter = bool.TryParse(section["DeclaredTypeFilter"], out var typeFilter) ? typeFilter : defaults.DeclaredTypeFilter,
         };
     }
 }

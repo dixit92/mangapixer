@@ -32,6 +32,23 @@ internal sealed class MangaUpdatesProvider : IMetadataProvider
     /// <summary>The same fixed filter with doujinshi allowed (automatic searches below a doujinshi Content folder).</summary>
     internal static readonly IReadOnlyList<string> HiddenTypesAllowingDoujinshi = ["Novel", "Artbook", "Drama CD"];
 
+    /// <summary>
+    /// The types an automatic search also leaves out when the folder's DECLARED type is one comic origin (1.28.0, off
+    /// unless enabled): the other two origins. Webtoon, comic, graphic novel and novel add nothing (webtoons come from
+    /// every origin; the rest have no MangaUpdates type of their own that is safe to keep alone).
+    /// </summary>
+    internal static IReadOnlyList<string> HiddenForDeclaredType(Core.Metadata.DeclaredType? type) => type switch
+    {
+        Core.Metadata.DeclaredType.Manga => ["Manhwa", "Manhua"],
+        Core.Metadata.DeclaredType.Manhwa => ["Manga", "Manhua"],
+        Core.Metadata.DeclaredType.Manhua => ["Manga", "Manhwa"],
+        _ => [],
+    };
+
+    internal static IReadOnlyList<string>? FilterTypesOf(ProviderSearchQuery query) =>
+        !query.HideDoujinshiAndNovels ? null
+        : [.. query.AllowDoujinshi ? HiddenTypesAllowingDoujinshi : HiddenTypes, .. HiddenForDeclaredType(query.DeclaredType)];
+
     private readonly IHttpClientFactory _httpFactory;
 
     public MangaUpdatesProvider(IHttpClientFactory httpFactory)
@@ -55,8 +72,7 @@ internal sealed class MangaUpdatesProvider : IMetadataProvider
     {
         var client = _httpFactory.CreateClient(MetadataHttp.MangaUpdatesApiClient);
         using var content = JsonContent.Create(new MuSearchRequest(
-            query.Text, query.Page, query.PerPage,
-            !query.HideDoujinshiAndNovels ? null : query.AllowDoujinshi ? HiddenTypesAllowingDoujinshi : HiddenTypes));
+            query.Text, query.Page, query.PerPage, FilterTypesOf(query)));
         using var response = await client.PostAsync(ApiBase + "series/search", content, ct);
         MetadataHttp.EnsureSuccess(response);
         var body = Deserialize<MuSearchResponse>(await MetadataHttp.ReadBoundedAsync(response, MetadataHttp.MaxJsonBytes, ct));
@@ -230,11 +246,12 @@ public static class MangaUpdatesMapping
         int? englishVolumes = null, englishChapters = null;
         foreach (var p in s.Publishers ?? [])
         {
+            int? publisherVolumes = null, publisherChapters = null;
             if (string.Equals(p.Type?.Trim(), "English", StringComparison.OrdinalIgnoreCase))
             {
-                var (v, c) = MangaUpdatesStatusParser.ParsePublisherNotes(p.Notes);
-                englishVolumes = Max(englishVolumes, v);
-                englishChapters = Max(englishChapters, c);
+                (publisherVolumes, publisherChapters) = MangaUpdatesStatusParser.ParsePublisherNotes(p.Notes);
+                englishVolumes = Max(englishVolumes, publisherVolumes);
+                englishChapters = Max(englishChapters, publisherChapters);
             }
             if (publishers.Count >= 30) break;
             if (MetadataText.Line(p.PublisherName, 256) is not { } name) continue;
@@ -244,7 +261,8 @@ public static class MangaUpdatesMapping
                 "english" => "english",
                 _ => "other",
             };
-            publishers.Add(new MetadataJson.Publisher(name, kind));
+            // 1.28.0: the English totals are stored with the publisher (the missing volumes / chapters report).
+            publishers.Add(new MetadataJson.Publisher(name, kind, publisherVolumes, publisherChapters));
         }
 
         var genres = (s.Genres ?? [])
@@ -288,7 +306,7 @@ public static class MangaUpdatesMapping
             SourceKind = MetadataSourceKind.OnlineApi,
             Title = title,
             AltTitles = alt,
-            Description = MetadataText.Flatten(s.Description, 16 * 1024),
+            Description = MetadataText.Description(s.Description, 16 * 1024),
             Origin = OriginOf(type),
             Format = FormatOf(type),
             Webtoon = WebtoonOf(s.Categories),

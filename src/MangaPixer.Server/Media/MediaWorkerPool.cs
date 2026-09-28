@@ -687,6 +687,87 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     internal static readonly TimeSpan ComicInfoReadTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>
+    /// Hashes one SERVER-OWNED image file (a stored cover thumbnail, or provider image bytes written to
+    /// scratch) in a worker (protocol v4 <c>image_hash</c>, 1.28.0): the worker decodes it, the server never
+    /// does. A direct slot like <see cref="ReadComicInfoAsync"/>. Never throws for worker-side problems: every
+    /// failure is an <see cref="ImageHashOutcome"/> error type.
+    /// </summary>
+    public async Task<ImageHashOutcome> HashImageAsync(string imagePath, CancellationToken ct = default)
+    {
+        if (_isShuttingDown)
+            return ImageHashOutcome.Failed("unavailable");
+
+        var slot = await AcquireSlotAsync(ct);
+        if (slot is null)
+            return ImageHashOutcome.Failed("busy");
+
+        var jobId = "imagehash-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            var request = new ImageHashRequest { JobId = jobId, ImagePath = imagePath };
+            var tcs = new TaskCompletionSource<ImageHashOutcome>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            Task HandleMessage(WorkerEnvelope envelope)
+            {
+                if (envelope.CorrelationId != jobId) return Task.CompletedTask;
+                switch (envelope.Type)
+                {
+                    case "image_hash_result":
+                        {
+                            var r = WorkerProtocolFraming.GetPayload<ImageHashResult>(envelope);
+                            tcs.TrySetResult(r is null ? ImageHashOutcome.Failed("hash_failed") : ImageHashOutcome.Ok(r.Hash));
+                            break;
+                        }
+                    case "image_hash_error":
+                        {
+                            var e = WorkerProtocolFraming.GetPayload<ImageHashError>(envelope);
+                            tcs.TrySetResult(ImageHashOutcome.Failed(e?.ErrorType ?? "hash_failed"));
+                            break;
+                        }
+                    case "analyze_error":
+                        {
+                            // A worker-level error for this correlation id (e.g. an unknown message type).
+                            var e = WorkerProtocolFraming.GetPayload<AnalyzeError>(envelope);
+                            tcs.TrySetResult(ImageHashOutcome.Failed(e?.ErrorType ?? "hash_failed"));
+                            break;
+                        }
+                }
+                return Task.CompletedTask;
+            }
+
+            slot.Supervisor.OnMessageReceived += HandleMessage;
+            try
+            {
+                await slot.Supervisor.SendMessageAsync(WorkerProtocolFraming.CreateEnvelope("image_hash", jobId, request), ct);
+                var timeout = Task.Delay(ImageHashTimeout, ct);
+                var done = await Task.WhenAny(tcs.Task, timeout);
+                return done == tcs.Task ? await tcs.Task : ImageHashOutcome.Failed("timeout");
+            }
+            finally
+            {
+                slot.Supervisor.OnMessageReceived -= HandleMessage;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return ImageHashOutcome.Failed("cancelled");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(LogEvents.Worker.ExtractDispatchFailed, ex, "Image hash dispatch failed: {Error}", ex.GetType().Name);
+            return ImageHashOutcome.Failed("hash_failed");
+        }
+        finally
+        {
+            ReleaseSlot(slot);
+            SignalDispatch();
+        }
+    }
+
+    /// <summary>Deadline for one image hash (one decode of an image of at most 4 MiB).</summary>
+    internal static readonly TimeSpan ImageHashTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>
     /// Finds a free worker slot, starting one if under the concurrency cap, and
     /// otherwise waiting briefly for one to free up. Marks the returned slot busy.
     /// Marks itself as a waiting reader for the duration of the call (even the
@@ -1253,6 +1334,18 @@ public sealed record ComicInfoReadOutcome
     public static ComicInfoReadOutcome Ok(ComicInfoOutcome outcome) => new() { Success = true, Outcome = outcome };
 
     public static ComicInfoReadOutcome Failed(string errorType) => new() { Success = false, ErrorType = errorType };
+}
+
+/// <summary>The outcome of <see cref="MediaWorkerPool.HashImageAsync"/>: a 64-bit perceptual hash, or an error type.</summary>
+public sealed record ImageHashOutcome
+{
+    public required bool Success { get; init; }
+    public ulong Hash { get; init; }
+    public string? ErrorType { get; init; }
+
+    public static ImageHashOutcome Ok(ulong hash) => new() { Success = true, Hash = hash };
+
+    public static ImageHashOutcome Failed(string errorType) => new() { Success = false, ErrorType = errorType };
 }
 
 public sealed record PageExtractionOutcome

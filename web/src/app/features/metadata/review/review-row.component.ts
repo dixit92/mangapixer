@@ -17,6 +17,7 @@ import {
   workClassLabel,
 } from '../admin-metadata/metadata-admin-labels';
 import { MetadataApiService } from '../metadata-api.service';
+import { CoverCompareDirective } from './cover-compare/cover-compare.directive';
 
 /** A row action; `rank` for Accept (the chosen stored candidate). */
 export type ReviewRowAction =
@@ -88,22 +89,42 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
 @Component({
   selector: 'app-review-row',
   standalone: true,
-  imports: [DatePipe, MatButtonModule, MatCheckboxModule, MatIconModule, MatRadioModule, MatTooltipModule],
+  imports: [DatePipe, MatButtonModule, MatCheckboxModule, MatIconModule, MatRadioModule, MatTooltipModule, CoverCompareDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @let it = item();
     <div class="row" [class.focused]="focused()" [class.selected]="selected()" [class.compact]="compact()"
          [attr.data-node]="it.nodeId" data-testid="review-row">
-      <div class="head">
+      <div class="layout">
         <mat-checkbox class="sel" [checked]="selected()" (change)="toggleSelect.emit()" [attr.aria-label]="'Select ' + it.displayName"
                       (click)="$event.stopPropagation()" />
-        <button type="button" class="thumb" (click)="focusRow.emit()" [attr.aria-label]="'Focus ' + it.displayName" tabindex="-1">
-          @if (thumbUrl(); as url) {
-            <img [src]="url" alt="" loading="lazy" (error)="thumbFailed.set(true)">
-          } @else {
-            <mat-icon>{{ it.nodeKind === 'Archive' ? 'description' : 'folder' }}</mat-icon>
-          }
-        </button>
+        <!-- 1.28.0 (owner): your cover next to the SELECTED series' cover, always visible and large enough to spot a
+             wrong link without a mouse; hover (or tap) still opens an even larger pair. -->
+        <div class="covers" data-testid="review-covers"
+             [appCoverCompare]="seriesCoverUrl()" [coverCompareLocal]="localCoverUrl()" [coverCompareLabel]="seriesCoverLabel()">
+          <figure class="cover">
+            @if (localCoverUrl(); as url) {
+              @if (!localFailed()) {
+                <img [src]="url" alt="" loading="lazy" (error)="localFailed.set(true)" data-testid="review-local-cover">
+              } @else {
+                <mat-icon>{{ it.nodeKind === 'Archive' ? 'description' : 'folder' }}</mat-icon>
+              }
+            } @else {
+              <mat-icon>{{ it.nodeKind === 'Archive' ? 'description' : 'folder' }}</mat-icon>
+            }
+            <figcaption>Yours</figcaption>
+          </figure>
+          <figure class="cover">
+            @if (seriesCoverUrl(); as url) {
+              <img [src]="url" alt="" loading="lazy" data-testid="review-series-cover">
+            } @else {
+              <span class="none">No cover</span>
+            }
+            <figcaption>{{ it.link && !hasCandidates() ? 'Linked' : 'Selected' }}</figcaption>
+          </figure>
+        </div>
+        <div class="main">
+      <div class="head">
         <div class="title">
           <button type="button" class="name" (click)="focusRow.emit()" data-testid="review-name">{{ it.displayName }}</button>
           <div class="where">
@@ -198,6 +219,8 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
           }
         </div>
       }
+        </div>
+      </div>
     </div>
   `,
   styles: [`
@@ -206,11 +229,19 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
       outline: none; transition: border-color 120ms; }
     .row.focused { border-color: #b39dff; box-shadow: 0 0 0 1px #b39dff inset; }
     .row.selected { background: #242036; }
+    .layout { display: flex; align-items: flex-start; gap: 12px; container-type: inline-size; }
+    .main { flex: 1 1 260px; min-width: 0; }
     .head { display: flex; align-items: flex-start; gap: 10px; }
     .sel { margin-top: 6px; }
-    .thumb { flex: none; width: 48px; height: 68px; border-radius: 6px; overflow: hidden; background: #2a2a36; border: 0; padding: 0;
-      display: flex; align-items: center; justify-content: center; color: #8a8a99; cursor: pointer; }
-    .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .covers { flex: none; display: flex; gap: 8px; cursor: zoom-in; }
+    .cover { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .cover img, .cover > mat-icon, .cover .none { width: 96px; height: 136px; border-radius: 6px; background: #2a2a36; object-fit: cover; }
+    .cover > mat-icon, .cover .none { display: flex; align-items: center; justify-content: center; color: #8a8a99; font-size: 12px; }
+    .cover figcaption { font-size: 11px; color: #9a9aa8; }
+    @container (max-width: 520px) {
+      .covers { flex-basis: 100%; order: -1; justify-content: center; }
+      .cover img, .cover > mat-icon, .cover .none { width: min(150px, 42cqw); height: auto; aspect-ratio: 0.7; }
+    }
     .title { flex: 1 1 auto; min-width: 0; }
     .name { all: unset; cursor: pointer; font-weight: 500; font-size: 15px; overflow-wrap: anywhere; }
     .name:focus-visible { outline: 2px solid #b39dff; }
@@ -225,20 +256,18 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
     .chip { padding: 0 8px; border-radius: 10px; background: rgba(179, 157, 255, 0.16); color: #d8ccff; line-height: 20px; }
     .chip.small { font-size: 11px; line-height: 18px; }
     .expand { flex: none; }
-    .link { margin: 6px 0 0 58px; font-size: 13px; }
-    .note { margin: 6px 0 0 58px; font-size: 12px; color: #9a9aa8; }
+    .link { margin: 6px 0 0; font-size: 13px; }
+    .note { margin: 6px 0 0; font-size: 12px; color: #9a9aa8; }
     .muted { color: #9a9aa8; }
-    .cands { display: flex; flex-direction: column; margin: 6px 0 0 50px; }
+    .cands { display: flex; flex-direction: column; margin: 6px 0 0 -8px; }
     .cand { display: block; }
     .cand-body { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
     .poster { width: 40px; height: 56px; object-fit: cover; border-radius: 4px; background: #2a2a36; }
     .cand-text { display: flex; flex-direction: column; min-width: 180px; }
     .cand-title { font-weight: 500; }
     .score { font-variant-numeric: tabular-nums; font-weight: 600; color: #c5e1a5; }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 0 58px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 0; }
     .actions mat-icon { margin-right: 2px; }
-    .row.compact .link, .row.compact .note { margin-left: 0; }
-    .row.compact .cands { margin-left: 0; }
     .row.compact .sel { display: none; }
     .row.compact.selected .sel, :host-context(.select-mode) .row.compact .sel { display: inline-flex; }
   `],
@@ -263,7 +292,7 @@ export class ReviewRowComponent {
   readonly focusRow = output<void>();
 
   /** A local image that failed to load (no cover yet): show the kind icon instead. */
-  readonly thumbFailed = signal(false);
+  readonly localFailed = signal(false);
 
   readonly actions = computed(() => rowActions(this.tab(), this.item()));
   readonly hasCandidates = computed(() => (this.item().candidates ?? []).length > 0);
@@ -277,18 +306,27 @@ export class ReviewRowComponent {
     return level ? MATCH_LEVEL_LABELS[level] ?? level : '';
   });
 
-  /**
-   * Local images only: the stored poster of the current link, else the node's own cover - an
-   * archive's, or a folder's first archive as browse shows it - so it can be compared with the
-   * candidates' covers (owner, 1.26.x).
-   */
-  readonly thumbUrl = computed(() => {
+  /** The node's own cover: an archive's, or a folder's first archive as browse shows it (1.26.x). */
+  readonly localCoverUrl = computed(() => {
     const it = this.item();
-    if (this.thumbFailed()) return null;
-    if (it.link?.imageUrl) return it.link.imageUrl;
     if (it.coverUrl) return it.coverUrl;
     return it.nodeKind === 'Archive' && !it.missing ? `/api/v1/items/${encodeURIComponent(it.nodeId)}/cover` : null;
   });
+
+  /**
+   * The series cover next to it (1.28.0, owner): the SELECTED candidate's image while candidates are listed (it follows
+   * the radio choice; one request to MangaUpdates when it is first shown), else the link's stored poster.
+   */
+  readonly seriesCoverUrl = computed(() => {
+    const it = this.item();
+    if (this.hasCandidates()) {
+      const chosen = (it.candidates ?? []).find((c) => c.rank === this.rank()) ?? (it.candidates ?? [])[0];
+      return chosen?.imageToken ? this.posterUrl(chosen.imageToken) : null;
+    }
+    return it.link?.imageUrl ?? null;
+  });
+
+  readonly seriesCoverLabel = computed(() => (this.hasCandidates() ? 'Selected series' : 'Linked series'));
 
   readonly reason = reasonLabel;
   readonly tip = reasonTip;

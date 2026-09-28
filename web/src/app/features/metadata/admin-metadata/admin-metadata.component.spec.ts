@@ -45,12 +45,12 @@ describe('AdminMetadataComponent', () => {
     return { fixture, el, c: fixture.componentInstance, state, navigate, http };
   }
 
-  it('opens on Settings by default, shows the four tabs, the counts and the summary tile', () => {
+  it('opens on Settings by default, shows the five tabs, the counts and the summary tile', () => {
     const { el, c, state, http } = create();
     expect(c.tab()).toBe('settings');
     expect(state.refresh).toHaveBeenCalled();
     const labels = Array.from(el.querySelectorAll('[role="tab"]')).map((t) => t.textContent!.replace(/\s+/g, ' ').trim());
-    expect(labels).toEqual(['Settings', 'Review 7', 'Flags 2', 'Runs']);
+    expect(labels).toEqual(['Settings', 'Review 7', 'Flags 2', 'Runs', 'Missing']);
     // The summary tile (owner decision 2, 1.27.0) sits above the tabs and replaces the old one-line summary.
     expect(el.querySelector('[data-testid="metadata-summary-tile"]')).not.toBeNull();
     expect(el.querySelector('[data-testid="tile-review"]')!.textContent).toContain('7');

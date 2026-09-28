@@ -69,6 +69,18 @@ describe('SeriesInfoSummaryComponent', () => {
     expect(f.nativeElement.querySelector('.chip')).toBeNull();
   });
 
+  it('shows a short alternative-title line when the full list is shown elsewhere (series page)', () => {
+    TestBed.configureTestingModule({ imports: [SeriesInfoSummaryComponent], providers: [provideRouter([])] });
+    const fixture = TestBed.createComponent(SeriesInfoSummaryComponent);
+    fixture.componentRef.setInput('info', seriesInfo({ altTitles: ['A', 'B', 'C', 'D', 'E'] }));
+    fixture.componentRef.setInput('shortAltTitles', true);
+    fixture.detectChanges();
+    const alt = (fixture.nativeElement as HTMLElement).querySelector('.alt')!.textContent!;
+    expect(alt).toContain('A, B');
+    expect(alt).toContain('+3');
+    expect(alt).not.toContain('C');
+  });
+
   it('folds alternative titles and genres in compact mode', () => {
     const f = render(seriesInfo({ altTitles: ['A', 'B', 'C', 'D'], genres: ['g1', 'g2', 'g3', 'g4', 'g5'] }), true);
     expect(q(f, '.alt')!.textContent).toContain('A, B');

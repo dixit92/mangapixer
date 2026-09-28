@@ -364,6 +364,7 @@ public static class LogEvents
         public const int PrecedenceChanged = 9021;
         public const int SettingsChanged = 9022;
         public const int Purged = 9023;
+        public const int DeclaredFactsChanged = 9024;
 
         // Network gateway / providers (B2, 9100-9199). Ids, operation, status and
         // elapsed ms only - never query text, titles, URLs or bodies.
@@ -375,6 +376,7 @@ public static class LogEvents
         public const int ImageStored = 9105;
         public const int ImageRejected = 9106;
         public const int ImageStoreFailed = 9107;
+        public const int ConversionLookups = 9108; // 1.28.0: AniList chapters-per-volume batch (counts only)
 
         // Automatic matching (stage 2, 9200-9299). Ids, counts, codes and timings
         // only - never search text, folder names, titles or flag notes.

@@ -203,6 +203,14 @@ export interface ContinueReadingEntry {
   pageIndex: number;
   contentVersion: number;
   updatedAt: string;
+  /** The caller has starred this archive - the Home card's star (1.28.0). Optional for older servers. */
+  isFavorite?: boolean;
+  /**
+   * The card shows the (i) and the hover summary (1.28.0), by the series-info anchor rule:
+   * the nearest web link on the archive or an ancestor folder, or its own ComicInfo.
+   * Optional for older servers.
+   */
+  hasSeriesInfo?: boolean;
 }
 
 /**
@@ -757,6 +765,13 @@ export interface RecentChapterStack {
    * rolls up over its whole subtree; a loose archive stack rolls up over just itself.
    */
   readState: 'read' | 'reading' | 'unread';
+  /** The caller has starred the stack's node (the folder, or the loose archive) (1.28.0). */
+  isFavorite?: boolean;
+  /**
+   * The card shows the (i) and the hover summary (1.28.0): a folder by the browse rule, a
+   * loose archive by the series-info anchor rule.
+   */
+  hasSeriesInfo?: boolean;
 }
 
 /**
@@ -1117,6 +1132,26 @@ export interface MetadataSettingsDto {
   defaultThresholds?: MetadataMatchThresholdsDto | null;
   thresholdBounds?: MetadataMatchThresholdBoundsDto | null;
   thresholdsAreDefault?: boolean;
+  /** 1.28.0: "Compare covers" under Automatic matching (on by default). */
+  compareCoversEnabled?: boolean;
+  /** True when Metadata:AutoMatch:CompareCovers=false switches it off regardless of the setting. */
+  compareCoversDisabledByConfig?: boolean;
+  /** 1.28.0: the approved sites (the provider allowlist), each with whether it is in. */
+  providers?: MetadataProviderDto[];
+  /** 1.28.0: "Fetch from the web" was on under an older consent - off until an admin accepts again. */
+  consentRenewalNeeded?: boolean;
+  /** 1.28.0: Automatic matching was on under an older automatic consent. */
+  autoConsentRenewalNeeded?: boolean;
+}
+
+/** One approved metadata site (1.28.0, the provider allowlist). */
+export interface MetadataProviderDto {
+  id: string;
+  name: string;
+  hosts: string[];
+  usedFor: string;
+  sends: string;
+  allowed: boolean;
 }
 
 export interface UpdateMetadataSettingsRequest {
@@ -1130,6 +1165,10 @@ export interface UpdateMetadataSettingsRequest {
   acceptedAutoConsentVersion?: number | null;
   thresholds?: MetadataMatchThresholdsDto | null;
   resetThresholds?: boolean;
+  /** 1.28.0: "Compare covers"; null leaves it unchanged (no consent of its own). */
+  compareCoversEnabled?: boolean | null;
+  /** 1.28.0: the full set of provider ids to keep off the allowlist ([] = all in); null/absent = unchanged. */
+  removedProviders?: string[] | null;
 }
 
 export interface UpdateMetadataLibraryRequest {
@@ -1556,6 +1595,8 @@ export interface MetadataReattachResultDto {
   precedence: boolean;
   readerDefault: boolean;
   content: boolean;
+  /** 1.28.0: the declared facts moved too (only when the target declared nothing of its own). */
+  declared?: boolean;
 }
 
 export interface SetFolderMetadataContentRequest {
@@ -1579,4 +1620,165 @@ export interface MetadataContentRematchDto {
   queued: number;
   needsConfirmation?: boolean;
   automaticOff?: boolean;
+}
+
+// --- Declared facts (1.28.0) ---
+
+/** Admin-declared type / format of the works below a folder or library. */
+export type DeclaredType = 'Manga' | 'Manhwa' | 'Manhua' | 'Webtoon' | 'Comic' | 'GraphicNovel' | 'Novel';
+
+/** Where an effective declared fact comes from: the node itself, an ancestor folder, or the library. */
+export type DeclaredFactSource = 'Own' | 'Inherited' | 'Library';
+
+export interface DeclaredCreatorDto {
+  name: string;
+  /** author, writer or artist; null = no role. */
+  role?: string | null;
+}
+
+/** PUT /admin/metadata/{folders|libraries}/{id}/declared: replaces the scope's type and creators. */
+export interface SetDeclaredFactsRequest {
+  type?: DeclaredType | null;
+  creators?: DeclaredCreatorDto[] | null;
+}
+
+export interface DeclaredFactValuesDto {
+  type?: DeclaredType | null;
+  creators?: DeclaredCreatorDto[];
+}
+
+export interface EffectiveDeclaredFactsDto {
+  type?: DeclaredType | null;
+  typeSource?: DeclaredFactSource | null;
+  /** Display name of the folder or library that declares the type. */
+  typeFrom?: string | null;
+  creators?: DeclaredCreatorDto[];
+  creatorsSource?: DeclaredFactSource | null;
+  creatorsFrom?: string | null;
+}
+
+/** GET/PUT/DELETE /admin/metadata/{folders|libraries}/{id}/declared */
+export interface DeclaredFactsScopeDto {
+  /** The folder, or null for the library scope. */
+  nodeId?: string | null;
+  libraryId: string;
+  displayName: string;
+  own: DeclaredFactValuesDto;
+  /** What applies from above (parent folders, then the library); empty for a library. */
+  inherited: EffectiveDeclaredFactsDto;
+}
+
+export interface DeclaredFactsConflictDto {
+  providerName: string;
+  type?: boolean;
+  recordType?: string | null;
+  creators?: boolean;
+  recordCreators?: string[];
+}
+
+/** GET /nodes/{id}/declared-facts (Info panel, series page). */
+export interface NodeDeclaredFactsDto {
+  nodeId: string;
+  effective: EffectiveDeclaredFactsDto;
+  conflict?: DeclaredFactsConflictDto | null;
+}
+
+// --- Missing volumes / chapters report (1.28.0, admin-only; stored data only) ---
+
+export type MissingUnitKind = 'Volume' | 'Chapter';
+export type MissingTotalSource = 'English' | 'Origin' | 'LatestChapter' | 'Converted';
+export type MissingConfidence = 'Low' | 'Medium' | 'High';
+/** Worst first: Behind, Holes, UpToDate, NoTotal, then no verdict (Mixed, NoUnits). */
+export type MissingVerdict = 'Behind' | 'Holes' | 'UpToDate' | 'NoTotal' | 'Mixed' | 'NoUnits';
+
+export interface MissingUnitGapDto {
+  kind: MissingUnitKind;
+  archiveCount: number;
+  /** Distinct numbers on disk. */
+  unitCount: number;
+  lowest: number;
+  /** The highest number on disk. */
+  have: number;
+  available?: number | null;
+  source?: MissingTotalSource | null;
+  confidence?: MissingConfidence | null;
+  behindBy: number;
+  /** Holes below `have` (the first 50); `missingCount` has them all. */
+  missing: number[];
+  missingCount: number;
+}
+
+export interface MissingSeriesDto {
+  nodeId: string;
+  displayName: string;
+  libraryId: string;
+  libraryName: string;
+  coverUrl?: string | null;
+  provider: string;
+  recordTitle: string;
+  linkState: SeriesLinkState;
+  verdict: MissingVerdict;
+  volumes?: MissingUnitGapDto | null;
+  chapters?: MissingUnitGapDto | null;
+  mixedFolders: number;
+  /** An English publisher is listed but no English total is stored (read on the next refresh). */
+  englishTotalUnknown: boolean;
+  /** 1.28.0: the stored chapters-per-volume source (an AniList entry), or null. */
+  conversion?: MissingConversionDto | null;
+  statusText?: string | null;
+  fetchedAt?: string;
+}
+
+export interface MissingReportSummaryDto {
+  series: number;
+  behind: number;
+  holes: number;
+  upToDate: number;
+  noTotal: number;
+  noVerdict: number;
+}
+
+/** GET /admin/metadata/missing?library=&onlyMissing=&cursor=&limit= */
+export interface MissingReportPageDto {
+  items: MissingSeriesDto[];
+  summary: MissingReportSummaryDto;
+  total: number;
+  nextCursor?: string | null;
+}
+
+/** A stored chapters-per-volume source (1.28.0). */
+export interface MissingConversionDto {
+  provider: string;
+  providerName: string;
+  externalId: string;
+  title: string;
+  siteUrl?: string | null;
+  volumes?: number | null;
+  chapters?: number | null;
+  /** Only for a finished entry with both totals. */
+  chaptersPerVolume?: number | null;
+  fetchedAt?: string;
+}
+
+export type MissingConversionOutcome = 'Found' | 'NoCounts' | 'NoMatch';
+
+/** POST /admin/metadata/missing/{nodeId}/conversion */
+export interface MissingConversionResultDto {
+  outcome: MissingConversionOutcome;
+  row: MissingSeriesDto;
+}
+
+/** POST /admin/metadata/missing/conversions */
+export interface MissingConversionBatchRequest {
+  library?: string | null;
+}
+
+export interface MissingConversionBatchResultDto {
+  looked: number;
+  found: number;
+  noCounts: number;
+  noMatch: number;
+  remaining: number;
+  stoppedCode?: string | null;
+  stoppedMessage?: string | null;
 }

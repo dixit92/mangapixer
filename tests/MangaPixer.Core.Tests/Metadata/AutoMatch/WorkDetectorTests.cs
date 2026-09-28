@@ -292,6 +292,63 @@ public sealed class WorkDetectorTests
     }
 
     [Fact]
+    public void ProviderAuthor_TurnsACollectionLeafIntoAnArtistCollection_WithTheSameGroups()
+    {
+        string[] archives = ["Alpha Story.cbz", "Beta Tale.cbz", "Gamma Saga.cbz", "Delta Night 1.cbz", "Delta Night 2.cbz"];
+        var before = _detector.Classify(Folder("Given Family", archives));
+        var after = _detector.Classify(Folder("Given Family", archives, knownAuthors: ["Other Person", "Given Family"]));
+
+        Assert.Equal(WorkClass.CollectionLeaf, before.Class);
+        Assert.Equal((WorkClass.ArtistCollection, MatchLevel.Archive), (after.Class, after.Level));
+        Assert.Equal(before.ArchiveGroups.Select(g => g.QueryTitle), after.ArchiveGroups.Select(g => g.QueryTitle));
+    }
+
+    [Fact]
+    public void ProviderAuthor_TurnsUnbracketedAuthorDashTitleNames_FromAmbiguousIntoAnArtistCollection()
+    {
+        // "Name - Title" without brackets: the shape alone cannot tell a creator folder from subtitled volumes
+        // (review only); an author of a linked record named like the folder can.
+        string[] archives = ["Given Family - Alpha Story.cbz", "Given Family - Beta Tale.cbz", "Given Family - Gamma Saga.cbz"];
+
+        Assert.Equal(WorkClass.Ambiguous, _detector.Classify(Folder("Given Family", archives)).Class);
+        Assert.Equal(WorkClass.ArtistCollection, _detector.Classify(Folder("Given Family", archives, knownAuthors: ["Given Family"])).Class);
+    }
+
+    [Fact]
+    public void ProviderAuthor_NeverOverridesASeriesShape_OrAOneShot()
+    {
+        // A series whose title is also a linked record's author (a pen name): its volumes keep it one series.
+        var series = _detector.Classify(Folder("Alpha", Numbered("Alpha v{0:00}.cbz", 6), knownAuthors: ["Alpha"]));
+        var chapters = _detector.Classify(Folder("Given Family", Numbered("{0:000}.cbz", 12), knownAuthors: ["Given Family"]));
+        var single = _detector.Classify(Folder("Given Family", ["Alpha Story.cbz"], knownAuthors: ["Given Family"]));
+
+        Assert.Equal((WorkClass.Series, MatchLevel.Folder), (series.Class, series.Level));
+        Assert.Equal(WorkClass.Series, chapters.Class);
+        Assert.Equal(WorkClass.OneShot, single.Class);
+    }
+
+    [Theory]
+    [InlineData("Given")]             // one token of the author's name is not the author
+    [InlineData("Given Family Works")] // nor is a longer name containing it
+    [InlineData("Gi")]                // too short to be author-like
+    public void ProviderAuthor_NeedsTheWholeNameToBeEqual(string folderName)
+    {
+        string[] archives = ["Alpha Story.cbz", "Beta Tale.cbz", "Gamma Saga.cbz"];
+        var c = _detector.Classify(Folder(folderName, archives, knownAuthors: ["Given Family", "Gi"]));
+
+        Assert.Equal(WorkClass.CollectionLeaf, c.Class);
+    }
+
+    [Fact]
+    public void ProviderAuthor_ReasonCarriesNoNames()
+    {
+        var c = _detector.Classify(Folder("Given Family", ["Alpha Story.cbz", "Beta Tale.cbz", "Gamma Saga.cbz"], knownAuthors: ["Given Family"]));
+
+        Assert.All(c.Reasons, r => Assert.DoesNotContain("Given", r, StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(c.Reasons, r => r.Contains("author of a series linked in this library", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void CategoryWordFolder_IsNeverAnArtistFolder()
     {
         var c = _detector.Classify(Folder("Manga", ["[Manga] Alpha Story.cbz", "[Manga] Beta Tale.cbz"], knownAuthors: ["Manga"]));

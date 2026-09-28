@@ -28,6 +28,8 @@ These guides are for people who run MangaPixer on their own hardware. They descr
 | [Features](features.md) | Everything MangaPixer does, by area, and the supported archive and image formats. |
 | [Reader](reader.md) | Page modes, fit, image quality (Page quality, Downscale filter, Enhance), reading direction, page-turn animation, keyboard/touch controls, prefetch, resume position, read state. |
 | [Series information](series-information.md) | Series details from ComicInfo.xml and, if an admin allows it, MangaUpdates: the panel and series page, search by alternative title, Identify and automatic matching, what is sent, the Metadata Manager page for admins. |
+| [Declared facts](declared-hints.md) | For admins: state the type (manga, manhwa, webtoon, comic, ...) and the creators of a folder or a whole library, how declarations are inherited, and how a disagreement with the linked series is shown. |
+| [Missing volumes and chapters](missing-report.md) | How far behind each linked series is - volumes and chapters you have against the English and original totals, holes in your numbering, and the optional AniList conversion for chapter-only series. |
 
 ## Help
 

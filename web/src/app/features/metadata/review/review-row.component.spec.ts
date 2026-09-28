@@ -8,7 +8,8 @@ import { ReviewRowActionEvent, ReviewRowComponent, rowActions } from './review-r
 
 /**
  * One review row (stage 2, section 5): candidates as a radio list, reason chips, archive
- * rows and archive groups marked, posters ONLY when expanded (each costs a request).
+ * rows and archive groups marked, the other candidates' posters ONLY when expanded (each costs a request);
+ * your cover beside the SELECTED series' cover, always shown (1.28.0).
  */
 describe('ReviewRowComponent', () => {
   function create(item: MetadataReviewItemDto = reviewItem(), tab: MetadataReviewTab = 'NeedsReview',
@@ -43,7 +44,26 @@ describe('ReviewRowComponent', () => {
     expect(el.textContent).toContain('24 items');
   });
 
-  it('loads NO candidate posters until the row is expanded', () => {
+  it('shows your cover next to the SELECTED candidate\'s cover, and follows the radio choice (1.28.0, owner)', () => {
+    const first = create(reviewItem({ coverUrl: '/api/v1/items/a9/cover' }), 'NeedsReview', { rank: 1 });
+    const src = (f: typeof first, id: string) => f.el.querySelector(`[data-testid="${id}"]`)!.getAttribute('src');
+    expect(src(first, 'review-local-cover')).toBe('/api/v1/items/a9/cover');
+    expect(src(first, 'review-series-cover')).toBe('/api/v1/admin/metadata/candidates/tok1/image');
+    first.fixture.componentRef.setInput('rank', 2); // the admin picks the second candidate
+    first.fixture.detectChanges();
+    expect(src(first, 'review-series-cover')).toBe('/api/v1/admin/metadata/candidates/tok2/image');
+    expect(first.el.textContent).toContain('Selected');
+  });
+
+  it('a linked row compares with the link\'s stored poster (no provider request)', () => {
+    const { el } = create(reviewItem({ candidates: [], link: {
+      state: 'Auto', provider: 'mangaupdates', externalId: '1', recordId: 'r1', title: 'Synthetic Saga', matchMethod: 'Auto',
+      matchScore: 1, imageUrl: '/api/v1/nodes/n1/series-info/image?v=r1', updatedAt: '2026-09-28T00:00:00Z' } as never }), 'AutoLinked');
+    expect(el.querySelector('[data-testid="review-series-cover"]')!.getAttribute('src')).toBe('/api/v1/nodes/n1/series-info/image?v=r1');
+    expect(el.textContent).toContain('Linked');
+  });
+
+  it('loads NO other candidate posters until the row is expanded', () => {
     expect(create().all('[data-testid="review-poster"]')).toHaveLength(0);
     TestBed.resetTestingModule();
     const posters = create(reviewItem(), 'NeedsReview', { expanded: true }).all('[data-testid="review-poster"]') as HTMLImageElement[];
@@ -57,12 +77,12 @@ describe('ReviewRowComponent', () => {
     expect(el.querySelector('[data-testid="review-group"]')!.textContent).toContain('Archive group · 3 archives');
     expect(el.textContent).toContain('Archive match');
     // An archive's own cover is local; no candidate poster is involved.
-    expect(el.querySelector('.thumb img')!.getAttribute('src')).toBe('/api/v1/items/n1/cover');
+    expect(el.querySelector('[data-testid="review-local-cover"]')!.getAttribute('src')).toBe('/api/v1/items/n1/cover');
   });
 
   it('shows a folder\'s cover (its first archive, as browse) instead of a folder icon', () => {
     const { el } = create(reviewItem({ nodeId: 'f1', nodeKind: 'Folder', coverUrl: '/api/v1/items/a9/cover' }), 'NeedsReview');
-    expect(el.querySelector('.thumb img')!.getAttribute('src')).toBe('/api/v1/items/a9/cover');
+    expect(el.querySelector('[data-testid="review-local-cover"]')!.getAttribute('src')).toBe('/api/v1/items/a9/cover');
   });
 
   it('emits Accept with the chosen rank and the tab\'s other actions', () => {

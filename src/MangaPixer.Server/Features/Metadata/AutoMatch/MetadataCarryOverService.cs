@@ -16,7 +16,7 @@ using Microsoft.EntityFrameworkCore;
 /// After a scan, the moved-archive ledger tells where each removed folder T went:
 /// every moved archive maps T to the folder at the same relative depth above its new
 /// location. T's rows - link or Don't match, source precedence, folder reader
-/// default and folder Content - are MOVED to that folder N when all moved archives
+/// default, folder Content and (1.28.0) its declared facts - are MOVED to that folder N when all moved archives
 /// agree on one live N, N has no row of that kind, and the moved archives are at
 /// least 80% of T's former archives. Anything else stays on T and shows in the
 /// review dashboard's "Missing folders" tab for a manual re-attach or delete.
@@ -59,7 +59,8 @@ public sealed class MetadataCarryOverService
             .Where(n => _db.NodeSeriesLinks.Any(l => l.NodeId == n.Id && l.State != needsReview)
                 || _db.FolderMetadataPrecedences.Any(p => p.NodeId == n.Id)
                 || _db.FolderReaderDefaults.Any(r => r.NodeId == n.Id)
-                || _db.FolderMetadataContents.Any(c => c.NodeId == n.Id))
+                || _db.FolderMetadataContents.Any(c => c.NodeId == n.Id)
+                || _db.DeclaredFacts.Any(f => f.NodeId == n.Id))
             .Select(n => n.Id);
     }
 
@@ -150,9 +151,9 @@ public sealed class MetadataCarryOverService
         return -1;
     }
 
-    public sealed record MovedRows(bool Link, bool Precedence, bool ReaderDefault, bool Content)
+    public sealed record MovedRows(bool Link, bool Precedence, bool ReaderDefault, bool Content, bool Declared = false)
     {
-        public bool Any => Link || Precedence || ReaderDefault || Content;
+        public bool Any => Link || Precedence || ReaderDefault || Content || Declared;
     }
 
     /// <summary>
@@ -204,9 +205,20 @@ public sealed class MetadataCarryOverService
             content = true;
         }
 
+        // Declared facts (1.28.0) move as one set: all of T's rows, only when N declares nothing of its own.
+        var declared = await _db.DeclaredFacts.AnyAsync(f => f.NodeId == fromNodeId, ct)
+            && !await _db.DeclaredFacts.AnyAsync(f => f.NodeId == toNodeId, ct);
+
         await _db.SaveChangesAsync(ct);
+        if (declared)
+        {
+            await _db.DeclaredFacts.Where(f => f.NodeId == fromNodeId).ExecuteUpdateAsync(u => u
+                .SetProperty(f => f.NodeId, toNodeId)
+                .SetProperty(f => f.LibraryId, toLibrary)
+                .SetProperty(f => f.UpdatedAt, now), ct);
+        }
         await tx.CommitAsync(ct);
-        return new MovedRows(link, precedence, readerDefault, content);
+        return new MovedRows(link, precedence, readerDefault, content, declared);
     }
 
     /// <summary>Manual re-attach of a Missing folders row onto a live folder of the same library.</summary>
@@ -235,6 +247,7 @@ public sealed class MetadataCarryOverService
             Precedence = moved.Precedence,
             ReaderDefault = moved.ReaderDefault,
             Content = moved.Content,
+            Declared = moved.Declared,
         });
     }
 
@@ -249,6 +262,7 @@ public sealed class MetadataCarryOverService
         await _db.FolderMetadataPrecedences.Where(p => p.NodeId == node.Id).ExecuteDeleteAsync(ct);
         await _db.FolderReaderDefaults.Where(r => r.NodeId == node.Id).ExecuteDeleteAsync(ct);
         await _db.FolderMetadataContents.Where(c => c.NodeId == node.Id).ExecuteDeleteAsync(ct);
+        await _db.DeclaredFacts.Where(f => f.NodeId == node.Id).ExecuteDeleteAsync(ct);
         await _db.MetadataMatchCandidates.Where(c => c.NodeId == node.Id).ExecuteDeleteAsync(ct);
         // Records no link references any more go, as on unlink.
         var orphans = await _db.MetadataRecords.Where(r => recordIds.Contains(r.Id) && !_db.NodeSeriesLinks.Any(l => l.RecordId == r.Id))
