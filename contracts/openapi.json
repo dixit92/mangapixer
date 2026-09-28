@@ -3044,6 +3044,154 @@
         }
       }
     },
+    "/api/v1/admin/metadata/missing/{nodeId}/conversion": {
+      "post": {
+        "tags": [
+          "MissingReport"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingConversionResultDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingConversionResultDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingConversionResultDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/metadata/missing/conversions": {
+      "post": {
+        "tags": [
+          "MissingReport"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MissingConversionBatchRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MissingConversionBatchRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/MissingConversionBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingConversionBatchResultDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingConversionBatchResultDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingConversionBatchResultDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/nodes/{nodeId}/series-info/flags": {
       "post": {
         "tags": [
@@ -7152,6 +7300,40 @@
       "MetadataPrecedenceSource": {
         "type": "integer"
       },
+      "MetadataProviderDto": {
+        "required": [
+          "id",
+          "name",
+          "hosts",
+          "usedFor",
+          "sends",
+          "allowed"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "hosts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "usedFor": {
+            "type": "string"
+          },
+          "sends": {
+            "type": "string"
+          },
+          "allowed": {
+            "type": "boolean"
+          }
+        }
+      },
       "MetadataPurgeRequest": {
         "type": "object",
         "properties": {
@@ -7925,11 +8107,176 @@
           },
           "thresholdsAreDefault": {
             "type": "boolean"
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MetadataProviderDto"
+            }
+          },
+          "consentRenewalNeeded": {
+            "type": "boolean"
+          },
+          "autoConsentRenewalNeeded": {
+            "type": "boolean"
           }
         }
       },
       "MissingConfidence": {
         "type": "integer"
+      },
+      "MissingConversionBatchRequest": {
+        "type": "object",
+        "properties": {
+          "library": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "MissingConversionBatchResultDto": {
+        "required": [
+          "looked",
+          "found",
+          "noCounts",
+          "noMatch",
+          "remaining"
+        ],
+        "type": "object",
+        "properties": {
+          "looked": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "found": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "noCounts": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "noMatch": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "remaining": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "stoppedCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "stoppedMessage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "MissingConversionDto": {
+        "required": [
+          "provider",
+          "providerName",
+          "externalId",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "providerName": {
+            "type": "string"
+          },
+          "externalId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "siteUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "volumes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "chapters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "chaptersPerVolume": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?(?:[eE][\u002B-]?\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MissingConversionOutcome": {
+        "type": "integer"
+      },
+      "MissingConversionResultDto": {
+        "required": [
+          "outcome",
+          "row"
+        ],
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/MissingConversionOutcome"
+          },
+          "row": {
+            "$ref": "#/components/schemas/MissingSeriesDto"
+          }
+        }
       },
       "MissingReportPageDto": {
         "required": [
@@ -8100,6 +8447,16 @@
           },
           "englishTotalUnknown": {
             "type": "boolean"
+          },
+          "conversion": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MissingConversionDto"
+              }
+            ]
           },
           "statusText": {
             "type": [
@@ -9251,6 +9608,15 @@
           },
           "resetThresholds": {
             "type": "boolean"
+          },
+          "removedProviders": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
