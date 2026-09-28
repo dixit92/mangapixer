@@ -7822,6 +7822,12 @@
           },
           "thresholdsAreDefault": {
             "type": "boolean"
+          },
+          "compareCoversEnabled": {
+            "type": "boolean"
+          },
+          "compareCoversDisabledByConfig": {
+            "type": "boolean"
           }
         }
       },
@@ -8848,6 +8854,12 @@
           },
           "resetThresholds": {
             "type": "boolean"
+          },
+          "compareCoversEnabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },
