@@ -376,6 +376,7 @@ public static class LogEvents
         public const int ImageStored = 9105;
         public const int ImageRejected = 9106;
         public const int ImageStoreFailed = 9107;
+        public const int ConversionLookups = 9108; // 1.28.0: AniList chapters-per-volume batch (counts only)
 
         // Automatic matching (stage 2, 9200-9299). Ids, counts, codes and timings
         // only - never search text, folder names, titles or flag notes.

@@ -1,0 +1,15 @@
+{
+  "data": {
+    "Media": {
+      "id": 30025,
+      "title": { "romaji": "Hagane no Renkinjutsushi", "english": "Fullmetal Alchemist", "native": "鋼の錬金術師" },
+      "synonyms": ["FMA"],
+      "format": "MANGA",
+      "status": "FINISHED",
+      "volumes": 27,
+      "chapters": 116,
+      "startDate": { "year": 2001 },
+      "siteUrl": "https://anilist.co/manga/30025"
+    }
+  }
+}

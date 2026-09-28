@@ -33,7 +33,7 @@ public sealed class MissingReportService
 
     private sealed record LinkedRow(
         long NodeId, string PublicId, string DisplayName, long LibraryId, int State,
-        string Provider, string Title, int? OriginVolumes, double? LatestChapter, string? StatusText, string? PublishersJson,
+        string Provider, string ExternalId, string Title, int? OriginVolumes, double? LatestChapter, string? StatusText, string? PublishersJson,
         DateTimeOffset FetchedAt);
 
     /// <summary>
@@ -55,7 +55,8 @@ public sealed class MissingReportService
 
         var sw = Stopwatch.StartNew();
         var rows = await LinkedFoldersAsync(libraryId, null, ct);
-        var results = await EvaluateAsync(rows, ct);
+        var conversions = await ConversionsAsync(rows, ct);
+        var results = await EvaluateAsync(rows, conversions, ct);
         var ordered = rows
             .Select(r => (Row: r, Result: results[r.NodeId]))
             .OrderBy(x => x.Result.Verdict)
@@ -76,7 +77,7 @@ public sealed class MissingReportService
             ? ordered.Where(x => x.Result.Verdict is MissingVerdict.Behind or MissingVerdict.Holes).ToList()
             : ordered;
         var page = filtered.Skip(offset).Take(limit).ToList();
-        var items = await ToDtosAsync(page, ct);
+        var items = await ToDtosAsync(page, conversions, ct);
         var next = offset + page.Count;
         _logger.LogDebug("Missing report: {Series} linked series, {Behind} behind, {Holes} with holes, page {Count} in {ElapsedMs} ms",
             summary.Series, summary.Behind, summary.Holes, items.Count, sw.ElapsedMilliseconds);
@@ -98,8 +99,9 @@ public sealed class MissingReportService
         var rows = await LinkedFoldersAsync(null, nodeId, ct);
         if (rows.Count == 0)
             return null;
-        var results = await EvaluateAsync(rows, ct);
-        return (await ToDtosAsync([(rows[0], results[rows[0].NodeId])], ct))[0];
+        var conversions = await ConversionsAsync(rows, ct);
+        var results = await EvaluateAsync(rows, conversions, ct);
+        return (await ToDtosAsync([(rows[0], results[rows[0].NodeId])], conversions, ct))[0];
     }
 
     private async Task<List<LinkedRow>> LinkedFoldersAsync(long? libraryId, long? nodeId, CancellationToken ct)
@@ -116,12 +118,50 @@ public sealed class MissingReportService
             where n.Kind == folder && n.Availability != tombstoned
             join r in _db.MetadataRecords.AsNoTracking() on l.RecordId equals r.Id
             select new LinkedRow(n.Id, n.PublicId, n.DisplayName, n.LibraryId, l.State,
-                r.Provider, r.Title, r.OriginVolumes, r.LatestChapter, r.StatusText, r.PublishersJson, r.FetchedAt);
+                r.Provider, r.ExternalId, r.Title, r.OriginVolumes, r.LatestChapter, r.StatusText, r.PublishersJson, r.FetchedAt);
         return await query.ToListAsync(ct);
     }
 
+    /// <summary>
+    /// The stored chapters-per-volume sources (1.28.0): AniList rows whose cross reference names the linked
+    /// MangaUpdates record, keyed by that record's external id. One query; never a request.
+    /// </summary>
+    private async Task<Dictionary<string, MissingConversionDto>> ConversionsAsync(IReadOnlyList<LinkedRow> rows, CancellationToken ct)
+    {
+        var result = new Dictionary<string, MissingConversionDto>(StringComparer.Ordinal);
+        if (!rows.Any(r => r.Provider == MetadataProviderAllowlist.MangaUpdates))
+            return result;
+        var stored = await _db.MetadataRecords.AsNoTracking()
+            .Where(r => r.Provider == MetadataProviderAllowlist.AniList && r.CrossIdsJson != null)
+            .Select(r => new { r.ExternalId, r.Title, r.SiteUrl, r.OriginVolumes, r.LatestChapter, r.OriginStatus, r.CrossIdsJson, r.FetchedAt })
+            .ToListAsync(ct);
+        foreach (var r in stored.OrderBy(r => r.FetchedAt))
+        {
+            if (MissingConversionService.LinkedMangaUpdatesId(r.CrossIdsJson) is not { } muId)
+                continue;
+            var chapters = r.LatestChapter is { } c ? (int)Math.Floor(c) : (int?)null;
+            result[muId] = new MissingConversionDto
+            {
+                Provider = MetadataProviderAllowlist.AniList,
+                ProviderName = "AniList",
+                ExternalId = r.ExternalId,
+                Title = r.Title,
+                SiteUrl = r.SiteUrl,
+                Volumes = r.OriginVolumes,
+                Chapters = chapters,
+                ChaptersPerVolume = MissingConversionService.Ratio(r.OriginStatus, r.OriginVolumes, chapters),
+                FetchedAt = r.FetchedAt,
+            };
+        }
+        return result;
+    }
+
+    private static MissingConversionDto? ConversionOf(LinkedRow row, IReadOnlyDictionary<string, MissingConversionDto> conversions) =>
+        row.Provider == MetadataProviderAllowlist.MangaUpdates ? conversions.GetValueOrDefault(row.ExternalId) : null;
+
     /// <summary>Evaluates every row with two batched queries (children, then unit-subfolder children).</summary>
-    private async Task<Dictionary<long, MissingUnitsResult>> EvaluateAsync(IReadOnlyList<LinkedRow> rows, CancellationToken ct)
+    private async Task<Dictionary<long, MissingUnitsResult>> EvaluateAsync(
+        IReadOnlyList<LinkedRow> rows, IReadOnlyDictionary<string, MissingConversionDto> conversions, CancellationToken ct)
     {
         var ids = rows.Select(r => r.NodeId).ToList();
         var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
@@ -155,7 +195,7 @@ public sealed class MissingReportService
             var folders = new List<IReadOnlyList<string>> { direct[row.NodeId].ToList() };
             foreach (var unit in unitsOf[row.NodeId])
                 folders.Add(inUnit[unit].ToList());
-            result[row.NodeId] = MissingUnits.Evaluate(folders, TotalsOf(row));
+            result[row.NodeId] = MissingUnits.Evaluate(folders, TotalsOf(row) with { ChaptersPerVolume = ConversionOf(row, conversions)?.ChaptersPerVolume });
         }
         return result;
     }
@@ -173,7 +213,8 @@ public sealed class MissingReportService
             LatestChapter: row.LatestChapter);
     }
 
-    private async Task<List<MissingSeriesDto>> ToDtosAsync(IReadOnlyList<(LinkedRow Row, MissingUnitsResult Result)> page, CancellationToken ct)
+    private async Task<List<MissingSeriesDto>> ToDtosAsync(
+        IReadOnlyList<(LinkedRow Row, MissingUnitsResult Result)> page, IReadOnlyDictionary<string, MissingConversionDto> conversions, CancellationToken ct)
     {
         if (page.Count == 0)
             return [];
@@ -201,6 +242,7 @@ public sealed class MissingReportService
                 Chapters = ToDto(p.Result.Chapters),
                 MixedFolders = p.Result.MixedFolders,
                 EnglishTotalUnknown = english.Count > 0 && english.All(x => x.Volumes is null && x.Chapters is null),
+                Conversion = ConversionOf(p.Row, conversions),
                 StatusText = p.Row.StatusText,
                 FetchedAt = p.Row.FetchedAt,
             };

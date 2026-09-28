@@ -28,6 +28,15 @@ public static class MuFixtures
     public const long BerserkId = 51239621230;
     public const long SoloLevelingId = 15180124327;
 
+    /// <summary>A hand-written AniList GraphQL response (1.28.0).</summary>
+    public static string LoadAniList(string name)
+    {
+        using var stream = typeof(MuFixtures).Assembly.GetManifestResourceStream($"AniList.{name}.json")
+            ?? throw new InvalidOperationException("Missing fixture " + name);
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        return reader.ReadToEnd();
+    }
+
     public static string Load(string name)
     {
         using var stream = typeof(MuFixtures).Assembly.GetManifestResourceStream($"MangaUpdates.{name}.json")
@@ -92,6 +101,19 @@ public sealed class ScriptedHandler : HttpMessageHandler
         var uri = request.RequestUri!;
         if (uri.Host == MetadataHttp.MangaUpdatesImageHost)
             return Bytes(MuFixtures.Png);
+        if (uri.Host == MetadataHttp.AniListHost)
+        {
+            // 1.28.0: the chapters-per-volume lookup (hand-written fixtures, see Fixtures/AniList/README.md).
+            if (body?.Contains("\"search\":\"Hagane no Renkinjutsushi\"", StringComparison.Ordinal) == true)
+                return Json(MuFixtures.LoadAniList("search-fma"));
+            if (body?.Contains("\"id\":30025", StringComparison.Ordinal) == true)
+                return Json(MuFixtures.LoadAniList("get-fma"));
+            if (body?.Contains("\"id\":30002", StringComparison.Ordinal) == true)
+                return Json(MuFixtures.LoadAniList("get-running"));
+            if (body?.Contains("\"search\"", StringComparison.Ordinal) == true)
+                return Json("{\"data\":{\"Page\":{\"media\":[]}}}");
+            return Json("{\"errors\":[{\"message\":\"Not Found.\",\"status\":404}],\"data\":{\"Media\":null}}", HttpStatusCode.NotFound);
+        }
         if (request.Method == HttpMethod.Post && uri.AbsolutePath == "/v1/series/search")
         {
             if (body?.Contains("Solo Leveling", StringComparison.Ordinal) == true)
@@ -175,10 +197,13 @@ public sealed class GatewayHarness : IDisposable
             .ConfigurePrimaryHttpMessageHandler(() => Handler);
         Program.AddMetadataClient(services, MetadataHttp.MangaUpdatesImageClient, MetadataHttp.MangaUpdatesImageHost, "image/*")
             .ConfigurePrimaryHttpMessageHandler(() => Handler);
+        Program.AddMetadataClient(services, MetadataHttp.AniListClient, MetadataHttp.AniListHost, "application/json")
+            .ConfigurePrimaryHttpMessageHandler(() => Handler);
         _http = services.BuildServiceProvider();
         HttpFactory = _http.GetRequiredService<IHttpClientFactory>();
         Provider = new MangaUpdatesProvider(HttpFactory);
         Registry = new MetadataProviderRegistry([Provider]);
+        AniList = new global::com.lifepixer.mangapixer.Server.Features.Metadata.Providers.AniList.AniListProvider(HttpFactory);
     }
 
     public MetadataTestDb Db { get; }
@@ -193,6 +218,14 @@ public sealed class GatewayHarness : IDisposable
     public MetadataImageStore Images { get; }
     internal MangaUpdatesProvider Provider { get; }
     public MetadataProviderRegistry Registry { get; }
+    internal global::com.lifepixer.mangapixer.Server.Features.Metadata.Providers.AniList.AniListProvider AniList { get; }
+
+    /// <summary>The Missing report's chapters-per-volume service over this harness (1.28.0).</summary>
+    public global::com.lifepixer.mangapixer.Server.Features.Metadata.Missing.MissingConversionService Conversion() => new(Db.Db, Gateway(), AniList, Report(),
+        new AuditService(Db.Db), _cache, Time, LoggerFactory.CreateLogger<global::com.lifepixer.mangapixer.Server.Features.Metadata.Missing.MissingConversionService>());
+
+    public global::com.lifepixer.mangapixer.Server.Features.Metadata.Missing.MissingReportService Report() =>
+        new(Db.Db, LoggerFactory.CreateLogger<global::com.lifepixer.mangapixer.Server.Features.Metadata.Missing.MissingReportService>());
 
     public MetadataSettingsService Settings() => new(Db.Db, new AuditService(Db.Db), Config, Time, LoggerFactory.CreateLogger<MetadataSettingsService>());
     public MetadataBudget Budget() => new(Db.Db, State, Time);

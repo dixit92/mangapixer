@@ -27,6 +27,12 @@ public enum MissingTotalSource
 
     /// <summary>The provider's latest chapter (scanlation releases; chapters only).</summary>
     LatestChapter = 2,
+
+    /// <summary>
+    /// 1.28.0: the other unit's total converted with a chapters-per-volume ratio (a finished AniList entry's
+    /// chapters / volumes): an estimate.
+    /// </summary>
+    Converted = 3,
 }
 
 /// <summary>How far the total can be trusted as "what you could own".</summary>
@@ -59,13 +65,17 @@ public enum MissingVerdict
     NoUnits = 5,
 }
 
-/// <summary>The totals a stored record states (any may be null).</summary>
+/// <summary>
+/// The totals a stored record states (any may be null), plus an optional chapters-per-volume ratio that converts a
+/// total of one unit into the other when the record states none of the same unit.
+/// </summary>
 public sealed record PublishedTotals(
     int? EnglishVolumes = null,
     int? EnglishChapters = null,
     int? OriginVolumes = null,
     int? OriginChapters = null,
-    double? LatestChapter = null);
+    double? LatestChapter = null,
+    double? ChaptersPerVolume = null);
 
 /// <summary>One unit kind of one series.</summary>
 public sealed record MissingUnitGap(
@@ -171,18 +181,28 @@ public static partial class MissingUnits
             set.Add(high);
     }
 
+    // Volumes: English volumes, English chapters converted, origin volumes, origin chapters converted.
     private static IEnumerable<(int Total, MissingTotalSource Source, MissingConfidence Confidence)> VolumeTotals(PublishedTotals t)
     {
+        var ratio = t.ChaptersPerVolume is { } r && r >= 1 ? r : (double?)null;
         if (t.EnglishVolumes is { } e && e > 0)
             yield return (e, MissingTotalSource.English, MissingConfidence.High);
+        if (ratio is { } r1 && t.EnglishChapters is { } ec && (int)Math.Floor(ec / r1) is var cv && cv > 0)
+            yield return (cv, MissingTotalSource.Converted, MissingConfidence.Medium);
         if (t.OriginVolumes is { } o && o > 0)
             yield return (o, MissingTotalSource.Origin, MissingConfidence.Medium);
+        if (ratio is { } r2 && t.OriginChapters is { } oc && (int)Math.Floor(oc / r2) is var ov && ov > 0)
+            yield return (ov, MissingTotalSource.Converted, MissingConfidence.Low);
     }
 
+    // Chapters: English chapters, English volumes converted, origin chapters, the latest chapter.
     private static IEnumerable<(int Total, MissingTotalSource Source, MissingConfidence Confidence)> ChapterTotals(PublishedTotals t)
     {
+        var ratio = t.ChaptersPerVolume is { } r && r >= 1 ? r : (double?)null;
         if (t.EnglishChapters is { } e && e > 0)
             yield return (e, MissingTotalSource.English, MissingConfidence.High);
+        if (ratio is { } r1 && t.EnglishVolumes is { } ev && (int)Math.Floor(ev * r1) is var ec && ec > 0)
+            yield return (ec, MissingTotalSource.Converted, MissingConfidence.Medium);
         if (t.OriginChapters is { } o && o > 0)
             yield return (o, MissingTotalSource.Origin, MissingConfidence.Medium);
         if (t.LatestChapter is { } l && l >= 1)

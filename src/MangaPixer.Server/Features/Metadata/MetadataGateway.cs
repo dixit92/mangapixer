@@ -263,6 +263,79 @@ public sealed class MetadataGateway
         }, call, ct);
     }
 
+    /// <summary>
+    /// One gated call to a chapters-per-volume source (1.28.0, AniList; admin actions only). Gates, in order: the
+    /// config kill switch, "Fetch from the web" with the current consent, the library's switch, the provider
+    /// allowlist; then the provider's own in-memory backoff (503), the ONE daily budget (429) and its token bucket
+    /// (1 request/s; a full queue refuses with 429). A 429 / 503 from the provider starts its backoff (Retry-After,
+    /// else <see cref="MetadataGatewayState.AniListDefaultBackoff"/>) and never touches MangaUpdates' persisted
+    /// backoff. The switches are re-checked when the call returns. Logs: provider, operation, status, timing.
+    /// </summary>
+    public async Task<T> ConversionCallAsync<T>(
+        Providers.AniList.IUnitConversionProvider provider, string operation, long libraryId, Func<CancellationToken, Task<T>> call,
+        CancellationToken ct = default)
+    {
+        await ThrowIfSwitchedOffAsync(libraryId, MetadataCallOrigin.Interactive, provider.Id, ct);
+        if (_state.AniListBackoffUntil(DateTimeOffset.UtcNow) is { } until)
+            throw Refuse(libraryId, new MetadataGatewayException(StatusCodes.Status503ServiceUnavailable, "provider_backoff",
+                $"{provider.DisplayName} asked us to slow down. Try again later.", until));
+        if ((await _budget.GetAsync(ct)).Exhausted)
+            throw Refuse(libraryId, BudgetExhausted());
+
+        using var lease = await _state.AniListLimiter.AcquireAsync(1, ct);
+        if (!lease.IsAcquired)
+            throw Refuse(libraryId, new MetadataGatewayException(StatusCodes.Status429TooManyRequests, "provider_busy",
+                "Too many metadata requests are queued. Try again in a moment."));
+        if (!await _budget.TryConsumeAsync(ct))
+            throw Refuse(libraryId, BudgetExhausted());
+
+        var watch = Stopwatch.StartNew();
+        T result;
+        try
+        {
+            result = await call(ct);
+        }
+        catch (Exception ex) when (ex is not MetadataGatewayException && !(ex is OperationCanceledException && ct.IsCancellationRequested))
+        {
+            var status = ex is MetadataHttpStatusException http ? (int)http.Status : 0;
+            _logger.LogWarning(LogEvents.Metadata.ProviderCallFailed, "Metadata {Provider} {Operation} for library {LibraryId} failed: {Status} {Error} in {ElapsedMs} ms",
+                provider.Id, operation, libraryId, status, ex.GetType().Name, watch.ElapsedMilliseconds);
+            throw ex switch
+            {
+                MetadataHttpStatusException { Status: HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable } limited =>
+                    ConversionBackoff(provider, limited),
+                MetadataHttpStatusException => new MetadataGatewayException(StatusCodes.Status502BadGateway, "provider_error",
+                    $"{provider.DisplayName} returned an error. Try again later."),
+                OperationCanceledException or TimeoutException => new MetadataGatewayException(StatusCodes.Status504GatewayTimeout,
+                    "provider_timeout", $"{provider.DisplayName} did not answer in time."),
+                MetadataHostRefusedException refused => new MetadataGatewayException(StatusCodes.Status502BadGateway, refused.Code,
+                    $"{provider.DisplayName} answered with a redirect or an address that is not allowed."),
+                MetadataResponseTooLargeException => new MetadataGatewayException(StatusCodes.Status502BadGateway, "response_too_large",
+                    $"{provider.DisplayName}'s response was too large."),
+                MetadataResponseInvalidException invalid => new MetadataGatewayException(StatusCodes.Status502BadGateway, invalid.Code,
+                    $"{provider.DisplayName}'s response could not be read."),
+                _ => new MetadataGatewayException(StatusCodes.Status502BadGateway, "provider_unreachable",
+                    $"{provider.DisplayName} could not be reached."),
+            };
+        }
+
+        _logger.LogInformation(LogEvents.Metadata.ProviderCall, "Metadata {Provider} {Operation} ({Origin}) for library {LibraryId}: {Status} in {ElapsedMs} ms",
+            provider.Id, operation, MetadataCallOrigin.Interactive, libraryId, 200, watch.ElapsedMilliseconds);
+        await ThrowIfSwitchedOffAsync(libraryId, MetadataCallOrigin.Interactive, provider.Id, ct);
+        return result;
+    }
+
+    private MetadataGatewayException ConversionBackoff(Providers.AniList.IUnitConversionProvider provider, MetadataHttpStatusException limited)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var wait = limited.RetryAfterDelta ?? (limited.RetryAfterDate is { } date ? date - now : _state.AniListDefaultBackoff);
+        wait = TimeSpan.FromSeconds(Math.Clamp(wait.TotalSeconds, 1, 3600));
+        var until = now + wait;
+        _state.SetAniListBackoff(until);
+        return new MetadataGatewayException(StatusCodes.Status503ServiceUnavailable, "provider_backoff",
+            $"{provider.DisplayName} asked us to slow down. Try again later.", until);
+    }
+
     private static readonly IReadOnlySet<string> s_imageHosts =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase) { MetadataHttp.MangaUpdatesImageHost };
 

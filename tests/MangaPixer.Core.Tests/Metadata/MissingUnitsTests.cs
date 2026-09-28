@@ -117,4 +117,24 @@ public sealed class MissingUnitsTests
         Assert.Equal(MissingUnits.MaxListed, r.Volumes.Missing.Count);
         Assert.Equal(197, r.Volumes.MissingCount); // 1 and 4..199
     }
+
+    [Fact]
+    public void ChaptersPerVolume_ConvertsTheEnglishTotal_WhenTheSameUnitHasNone()
+    {
+        // English "18 Volumes" only; chapters on disk; AniList's finished entry has 9.5 chapters per volume.
+        var chapters = MissingUnits.Evaluate(One("Synthetic - Chapter 001", "Synthetic - Chapter 002"),
+            new PublishedTotals(EnglishVolumes: 18, LatestChapter: 200, ChaptersPerVolume: 9.5));
+        Assert.Equal((171, MissingTotalSource.Converted, MissingConfidence.Medium),
+            (chapters.Chapters!.Available, chapters.Chapters.Source, chapters.Chapters.Confidence));
+
+        // A stated chapter total beats the conversion; no ratio, no conversion.
+        Assert.Equal(MissingTotalSource.English, MissingUnits.Evaluate(One("Synthetic - Chapter 001"),
+            new PublishedTotals(EnglishVolumes: 18, EnglishChapters: 60, ChaptersPerVolume: 9.5)).Chapters!.Source);
+        Assert.Equal(MissingTotalSource.LatestChapter, MissingUnits.Evaluate(One("Synthetic - Chapter 001"),
+            new PublishedTotals(EnglishVolumes: 18, LatestChapter: 200)).Chapters!.Source);
+
+        // Volumes from English chapters, before the origin volume count.
+        var volumes = MissingUnits.Evaluate(One("Synthetic v01"), new PublishedTotals(EnglishChapters: 95, OriginVolumes: 20, ChaptersPerVolume: 9.5));
+        Assert.Equal((10, MissingTotalSource.Converted), (volumes.Volumes!.Available, volumes.Volumes.Source));
+    }
 }

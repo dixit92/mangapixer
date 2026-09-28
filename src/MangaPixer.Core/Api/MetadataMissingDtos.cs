@@ -68,6 +68,11 @@ public sealed record MissingSeriesDto
     /// </summary>
     public required bool EnglishTotalUnknown { get; init; }
 
+    /// <summary>
+    /// 1.28.0: the stored chapters-per-volume source for this series (an AniList entry an admin looked up), or null.
+    /// </summary>
+    public MissingConversionDto? Conversion { get; init; }
+
     /// <summary>The stored status text in the country of origin (for example "14 Volumes (Complete)").</summary>
     public string? StatusText { get; init; }
     public DateTimeOffset FetchedAt { get; init; }
@@ -93,4 +98,64 @@ public sealed record MissingReportPageDto
     /// <summary>Rows matching the filter.</summary>
     public required int Total { get; init; }
     public string? NextCursor { get; init; }
+}
+
+/// <summary>A stored chapters-per-volume source (an AniList entry matched to the linked series).</summary>
+public sealed record MissingConversionDto
+{
+    public required string Provider { get; init; }
+    public required string ProviderName { get; init; }
+    public required string ExternalId { get; init; }
+    public required string Title { get; init; }
+    public string? SiteUrl { get; init; }
+    public int? Volumes { get; init; }
+    public int? Chapters { get; init; }
+
+    /// <summary>Chapters / volumes of a FINISHED entry; null while it is running (its totals are not final).</summary>
+    public double? ChaptersPerVolume { get; init; }
+    public DateTimeOffset FetchedAt { get; init; }
+}
+
+/// <summary>What one chapters-per-volume lookup found.</summary>
+public enum MissingConversionOutcome
+{
+    /// <summary>A matching finished entry with volume and chapter totals: the ratio is stored.</summary>
+    Found = 0,
+
+    /// <summary>A matching entry, but without both totals (still running, or not counted): stored, no ratio.</summary>
+    NoCounts = 1,
+
+    /// <summary>No entry matched the linked series confidently; nothing stored.</summary>
+    NoMatch = 2,
+}
+
+/// <summary>POST /admin/metadata/missing/{nodeId}/conversion.</summary>
+public sealed record MissingConversionResultDto
+{
+    public required MissingConversionOutcome Outcome { get; init; }
+
+    /// <summary>The report row after the lookup.</summary>
+    public required MissingSeriesDto Row { get; init; }
+}
+
+/// <summary>POST /admin/metadata/missing/conversions: up to 20 series without a stored source, one request each.</summary>
+public sealed record MissingConversionBatchRequest
+{
+    public string? Library { get; init; }
+}
+
+public sealed record MissingConversionBatchResultDto
+{
+    /// <summary>Lookups sent.</summary>
+    public required int Looked { get; init; }
+    public required int Found { get; init; }
+    public required int NoCounts { get; init; }
+    public required int NoMatch { get; init; }
+
+    /// <summary>Series still without a source (not looked up in this batch, or skipped after a recent miss).</summary>
+    public required int Remaining { get; init; }
+
+    /// <summary>Why the batch stopped early (a gateway code such as <c>budget_exhausted</c>), or null.</summary>
+    public string? StoppedCode { get; init; }
+    public string? StoppedMessage { get; init; }
 }

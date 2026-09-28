@@ -159,4 +159,26 @@ public sealed class MissingReportHttpTests : IClassFixture<MangaPixerWebApplicat
         Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync("/api/v1/admin/metadata/missing")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync("/api/v1/admin/metadata/missing/mrDone")).StatusCode);
     }
+
+    [Fact]
+    public async Task Conversion_IsWired_AndGatedByTheFetchSwitch()
+    {
+        var admin = await AdminAsync();
+
+        // Fetch from the web is off on a fresh instance: refused before any request.
+        var one = await admin.PostAsync("/api/v1/admin/metadata/missing/mrBehind/conversion", null);
+        Assert.Equal(HttpStatusCode.Conflict, one.StatusCode);
+        Assert.Equal("metadata_disabled", (await one.Content.ReadFromJsonAsync<ApiError>(TestJson.Web))!.Error);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsync("/api/v1/admin/metadata/missing/no-such-node/conversion", null)).StatusCode);
+
+        var batch = await OkAsync<MissingConversionBatchResultDto>(
+            await admin.PostAsJsonAsync("/api/v1/admin/metadata/missing/conversions", new MissingConversionBatchRequest { Library = LibPubId }, TestJson.Web));
+        Assert.Equal((0, "metadata_disabled"), (batch.Looked, batch.StoppedCode));
+
+        // The settings list both approved sites, all in.
+        var settings = await OkAsync<MetadataSettingsDto>(await admin.GetAsync("/api/v1/admin/metadata/settings"));
+        Assert.Equal(new[] { "mangaupdates", "anilist" }, settings.Providers.Select(p => p.Id));
+        Assert.All(settings.Providers, p => Assert.True(p.Allowed));
+        Assert.False(settings.ConsentRenewalNeeded);
+    }
 }
