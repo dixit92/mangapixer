@@ -1,8 +1,10 @@
 namespace com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 
 using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -10,20 +12,51 @@ using Microsoft.EntityFrameworkCore;
 /// query (id, parent, kind, display name, sort key - no paths), from which the
 /// auto-match plumbing builds the detector's <see cref="FolderShape"/>s. Pure reads;
 /// never touches the filesystem. Top-level folders have depth 1 (the library root
-/// is not a node).
+/// is not a node). Optionally carries the <see cref="ProviderAuthorSet"/> of the
+/// library (1.28.0): the authors of records already linked in it, read from the local
+/// database only.
 /// </summary>
 public sealed class LibraryTreeSnapshot
 {
     public sealed record Node(long Id, long? ParentId, bool IsFolder, string Name, string SortKey);
 
+    /// <summary>
+    /// Changes whenever a Confirmed / Auto link of the library is added, removed or changed, or a linked
+    /// record is re-fetched: the key under which a cached <see cref="ProviderAuthorSet"/> stays valid.
+    /// </summary>
+    public readonly record struct LinkStamp(int Links, DateTimeOffset? LinksUpdated, DateTimeOffset? RecordsFetched);
+
+    /// <summary>
+    /// The author and artist names of the records linked (Confirmed or Auto) in one library, and the nodes
+    /// carrying those links. Feeds <see cref="FolderShape.KnownAuthorNames"/> (the provider-author half of the
+    /// artist-folder rule); a folder that carries a link itself gets no names.
+    /// </summary>
+    public sealed record ProviderAuthorSet(IReadOnlyList<string> Names, IReadOnlySet<long> LinkedNodeIds, LinkStamp Stamp)
+    {
+        public static ProviderAuthorSet None { get; } = new([], new HashSet<long>(), default);
+    }
+
     private readonly Dictionary<long, Node> _nodes;
     private readonly Dictionary<long, List<Node>> _children;
-    private readonly Dictionary<long, int> _descendantArchives = [];
+    private readonly Dictionary<long, int> _descendantArchives;
 
-    private LibraryTreeSnapshot(long libraryId, long catalogRevision, List<Node> nodes)
+    private LibraryTreeSnapshot(LibraryTreeSnapshot tree, ProviderAuthorSet authors)
+    {
+        LibraryId = tree.LibraryId;
+        CatalogRevision = tree.CatalogRevision;
+        _nodes = tree._nodes;
+        _children = tree._children;
+        _descendantArchives = tree._descendantArchives;
+        Roots = tree.Roots;
+        Authors = authors;
+    }
+
+    private LibraryTreeSnapshot(long libraryId, long catalogRevision, List<Node> nodes, ProviderAuthorSet? authors)
     {
         LibraryId = libraryId;
         CatalogRevision = catalogRevision;
+        Authors = authors ?? ProviderAuthorSet.None;
+        _descendantArchives = [];
         _nodes = nodes.ToDictionary(n => n.Id);
         _children = [];
         foreach (var n in nodes)
@@ -46,7 +79,14 @@ public sealed class LibraryTreeSnapshot
     public IReadOnlyList<Node> Roots { get; }
     public int Count => _nodes.Count;
 
-    public static async Task<LibraryTreeSnapshot> LoadAsync(MangaPixerDbContext db, long libraryId, CancellationToken ct)
+    /// <summary>The provider authors this snapshot hands to the detector (<see cref="ProviderAuthorSet.None"/> when not loaded).</summary>
+    public ProviderAuthorSet Authors { get; }
+
+    /// <summary>
+    /// Loads the tree; with <paramref name="providerAuthors"/> also the library's <see cref="ProviderAuthorSet"/>
+    /// (the automatic-matching paths that classify folders; other readers only need the tree).
+    /// </summary>
+    public static async Task<LibraryTreeSnapshot> LoadAsync(MangaPixerDbContext db, long libraryId, CancellationToken ct, bool providerAuthors = false)
     {
         var revision = await db.Libraries.AsNoTracking().Where(l => l.Id == libraryId).Select(l => l.CatalogRevision).FirstOrDefaultAsync(ct);
         var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
@@ -55,11 +95,63 @@ public sealed class LibraryTreeSnapshot
             .Where(n => n.LibraryId == libraryId && n.Availability != tombstoned)
             .Select(n => new Node(n.Id, n.ParentId, n.Kind == folder, n.DisplayName, n.SortKey))
             .ToListAsync(ct);
-        return new LibraryTreeSnapshot(libraryId, revision, rows);
+        var authors = providerAuthors ? await LoadProviderAuthorsAsync(db, libraryId, ct) : null;
+        return new LibraryTreeSnapshot(libraryId, revision, rows, authors);
+    }
+
+    /// <summary>The same tree with another author set (a link changed, the catalog did not).</summary>
+    public LibraryTreeSnapshot WithAuthors(ProviderAuthorSet authors) => new(this, authors);
+
+    private static IQueryable<NodeSeriesLinkEntity> AuthorLinks(MangaPixerDbContext db, long libraryId)
+    {
+        var confirmed = (int)SeriesLinkState.Confirmed;
+        var auto = (int)SeriesLinkState.Auto;
+        return db.NodeSeriesLinks.AsNoTracking()
+            .Where(l => l.LibraryId == libraryId && (l.State == confirmed || l.State == auto) && l.RecordId != null);
+    }
+
+    /// <summary>Three scalar reads (count, newest link change, newest record fetch) - no rows are loaded.</summary>
+    public static async Task<LinkStamp> LinkStampAsync(MangaPixerDbContext db, long libraryId, CancellationToken ct)
+    {
+        var links = AuthorLinks(db, libraryId);
+        var count = await links.CountAsync(ct);
+        if (count == 0)
+            return default;
+        var updated = await links.MaxAsync(l => (DateTimeOffset?)l.UpdatedAt, ct);
+        var fetched = await links.Select(l => (DateTimeOffset?)l.Record!.FetchedAt).MaxAsync(ct);
+        return new LinkStamp(count, updated, fetched);
+    }
+
+    /// <summary>
+    /// The author / artist names of the records linked in the library (parsed from the stored
+    /// <c>CreatorsJson</c>; nothing is requested from a provider), de-duplicated, and the linked node ids.
+    /// </summary>
+    public static async Task<ProviderAuthorSet> LoadProviderAuthorsAsync(MangaPixerDbContext db, long libraryId, CancellationToken ct)
+    {
+        var stamp = await LinkStampAsync(db, libraryId, ct);
+        if (stamp.Links == 0)
+            return ProviderAuthorSet.None;
+        var rows = await AuthorLinks(db, libraryId)
+            .Select(l => new { l.NodeId, l.RecordId, l.Record!.CreatorsJson })
+            .ToListAsync(ct);
+        var names = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var json in rows.DistinctBy(r => r.RecordId).Select(r => r.CreatorsJson))
+        {
+            foreach (var creator in MetadataJson.ReadList<MetadataJson.Creator>(json))
+            {
+                if (creator.Role is not ("author" or "artist") || string.IsNullOrWhiteSpace(creator.Name))
+                    continue;
+                if (seen.Add(TitleNormalizer.ScoringForm(creator.Name)))
+                    names.Add(creator.Name);
+            }
+        }
+        return new ProviderAuthorSet(names, rows.Select(r => r.NodeId).ToHashSet(), stamp);
     }
 
     /// <summary>For tests: a snapshot from in-memory rows.</summary>
-    public static LibraryTreeSnapshot FromNodes(long libraryId, IEnumerable<Node> nodes) => new(libraryId, 0, nodes.ToList());
+    public static LibraryTreeSnapshot FromNodes(long libraryId, IEnumerable<Node> nodes, ProviderAuthorSet? authors = null) =>
+        new(libraryId, 0, nodes.ToList(), authors);
 
     public Node? Find(long id) => _nodes.GetValueOrDefault(id);
 
@@ -116,19 +208,22 @@ public sealed class LibraryTreeSnapshot
     /// <summary>
     /// The detector's view of a folder: display names only, direct archives in
     /// catalog order (<see cref="FolderShape.ArchiveNames"/> indexes map onto
-    /// <see cref="ChildArchives"/>), direct subfolders with their archive counts.
+    /// <see cref="ChildArchives"/>), direct subfolders with their archive counts, and
+    /// the library's provider authors unless the folder carries a link itself.
     /// </summary>
     public FolderShape ShapeOf(long folderId)
     {
         var folder = Find(folderId) ?? throw new ArgumentException("Unknown folder.", nameof(folderId));
         var parent = folder.ParentId is { } p ? Find(p) : null;
+        var authors = Authors.Names.Count > 0 && !Authors.LinkedNodeIds.Contains(folderId) ? Authors.Names : null;
         return new FolderShape(
             folder.Name,
             Depth(folderId),
             ChildArchives(folderId).Select(a => a.Name).ToList(),
             ChildFolders(folderId).Select(c => new ChildFolderShape(c.Name, DescendantArchiveCount(c.Id))).ToList(),
             parent?.Name,
-            CategoryHint(folderId));
+            CategoryHint(folderId),
+            authors);
     }
 
     /// <summary>

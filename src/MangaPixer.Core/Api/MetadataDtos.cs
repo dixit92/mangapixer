@@ -213,6 +213,15 @@ public sealed record MetadataSettingsDto
 
     /// <summary>True when no threshold was changed from its default.</summary>
     public bool ThresholdsAreDefault { get; init; } = true;
+
+    /// <summary>
+    /// "Compare covers" under Automatic matching (1.28.0, on by default): on a title tie, the covers of the two tied
+    /// records are downloaded and compared with the folder's own cover.
+    /// </summary>
+    public bool CompareCoversEnabled { get; init; } = true;
+
+    /// <summary>True when <c>Metadata:AutoMatch:CompareCovers=false</c> switches cover comparison off regardless of the setting.</summary>
+    public bool CompareCoversDisabledByConfig { get; init; }
 }
 
 public sealed record MetadataComicInfoStatsDto
@@ -270,6 +279,9 @@ public sealed record UpdateMetadataSettingsRequest
 
     /// <summary>Back to <c>MatchThresholds.Default</c>.</summary>
     public bool ResetThresholds { get; init; }
+
+    /// <summary>"Compare covers" under Automatic matching (1.28.0); null leaves it unchanged. Needs no consent of its own.</summary>
+    public bool? CompareCoversEnabled { get; init; }
 }
 
 /// <summary>Partial update of one library's toggles; null fields are left unchanged.</summary>

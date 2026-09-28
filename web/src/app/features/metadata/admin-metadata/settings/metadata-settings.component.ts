@@ -32,8 +32,9 @@ export const CONSENT_TEXT_VERSION = 1;
 /**
  * Automatic-lookups consent text version (stage 2, owner decisions 2 + 3); must equal the
  * server's `currentAutoConsentVersion`. Bump it whenever the text below changes.
+ * v2 (1.28.0): the cover comparison downloads; an earlier consent is not carried over (owner).
  */
-export const AUTO_CONSENT_TEXT_VERSION = 1;
+export const AUTO_CONSENT_TEXT_VERSION = 2;
 
 /** Integer-only daily budget in 1..1,000,000 (the server validates the same range). */
 export function parseDailyBudget(raw: string | number | null | undefined): number | null {
@@ -204,7 +205,13 @@ export function validateThresholds(
                 "Series Title" from "Series Title [English Title]" - which <strong>nobody reviews before it is sent</strong>,
                 with a fixed list of types to leave out (doujinshi, novels, artbooks, drama CDs; doujinshi are searched below a
                 folder whose Content is "Doujinshi &amp; adult one-shots"), and MangaUpdates record numbers to refresh linked
-                series. MangaUpdates also sees your server's IP address.</p>
+                series. For a folder declared manga, manhwa or manhua, automatic searches leave the other two types out.
+                MangaUpdates also sees your server's IP address.</p>
+              <p><strong>Cover comparison:</strong> when two series tie on the title for a folder of volumes or a one-shot,
+                MangaPixer may also download the cover images of those two series from MangaUpdates' image server
+                (cdn.mangaupdates.com), by the address MangaUpdates gave, to compare them with the folder's own cover. These
+                downloads carry nothing from your library. The comparison runs on your server and the downloaded covers are
+                deleted right after.</p>
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or anything
                 that identifies this server. Folders marked "Don't match", and everything inside them, are never looked up.</p>
               <p><strong>Budget:</strong> automatic requests come out of the same daily budget as Identify. When it is spent,
@@ -228,6 +235,18 @@ export function validateThresholds(
                                 data-testid="md-auto-switch">
                 Automatic matching
               </mat-slide-toggle>
+            </div>
+            <div class="sub-toggle" data-testid="md-compare-covers-row">
+              <mat-checkbox [checked]="s.compareCoversEnabled !== false"
+                            [disabled]="saving() || !s.autoMatchEnabled || !!s.compareCoversDisabledByConfig"
+                            (change)="setCompareCovers($event.checked)" data-testid="md-compare-covers">
+                Compare covers
+              </mat-checkbox>
+              <p class="muted small">When two series tie on the title for a folder of volumes or a one-shot, download their
+                two covers and prefer the one that is the same picture as the folder's own cover.</p>
+              @if (s.compareCoversDisabledByConfig) {
+                <p class="note" data-testid="md-compare-covers-config">Switched off in the server configuration.</p>
+              }
             </div>
             @if (!s.fetchEnabled) {
               <p class="note" data-testid="md-auto-needs-fetch">Turn on "Fetch from the web" first.</p>
@@ -389,6 +408,8 @@ export function validateThresholds(
     .pill { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); color: #aaa; }
     .pill.on { background: rgba(76, 175, 80, 0.2); color: #81c784; }
     .coverage { font-size: 13px; margin: 8px 0 0; line-height: 1.9; }
+    .sub-toggle { margin: 4px 0 0 8px; }
+    .sub-toggle p { margin: 0 0 4px 40px; }
     .lib-chip { display: inline-block; padding: 0 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); font-size: 12px; line-height: 20px; }
     .lib-chip.active { background: rgba(179, 157, 255, 0.18); color: #d8ccff; }
     .libs { display: flex; flex-direction: column; gap: 2px; }
@@ -522,6 +543,12 @@ export class MetadataSettingsComponent implements OnInit {
     this.save(this.api.updateSettings(on
       ? { autoMatchEnabled: true, acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION }
       : { autoMatchEnabled: false }), on ? 'Automatic matching is on' : 'Automatic matching is off');
+  }
+
+  /** "Compare covers" (1.28.0): one settings PUT, no consent of its own (the automatic consent covers it). */
+  setCompareCovers(on: boolean): void {
+    if (!this.settings()) return;
+    this.save(this.api.updateSettings({ compareCoversEnabled: on }), on ? 'Covers will be compared' : 'Covers will not be compared');
   }
 
   saveBudget(): void {

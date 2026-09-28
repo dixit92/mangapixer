@@ -16,14 +16,17 @@ using System.Globalization;
 /// (at least half related to the parent's name, or <c>Part N - subtitle</c> children) or a collection
 /// container; exactly one makes a wrapper (no archives) or <see cref="WorkClass.Mixed"/>; only unit
 /// subfolders make <see cref="WorkClass.SeriesWithUnits"/>.</item>
-/// <item>A leaf named like the creator its archives carry (the dominant <c>[circle (artist)]</c> tag,
-/// or a caller-supplied provider author name) is an <see cref="WorkClass.ArtistCollection"/>.</item>
+/// <item>A leaf named like the creator its archives carry (the dominant <c>[circle (artist)]</c> tag)
+/// is an <see cref="WorkClass.ArtistCollection"/>.</item>
 /// <item>One archive is a <see cref="WorkClass.OneShot"/>.</item>
 /// <item>The E6 discriminator, on archive base titles with every bracket group removed (so a creator
 /// tag repeated in the names is not "coherence"): unit-named share &gt;= 0.8, or one base title
 /// &gt;= 80%, or &gt;= 60% of the titled archives matching the folder -> <see cref="WorkClass.Series"/>;
 /// distinct-base ratio &gt;= 0.6 with no base at 50% or more -> <see cref="WorkClass.CollectionLeaf"/>;
 /// otherwise <see cref="WorkClass.Ambiguous"/> (review only).</item>
+/// <item>A leaf of two or more archives that the discriminator did NOT call a series (collection or
+/// ambiguous) and whose name equals a caller-supplied provider author (a record linked in the library,
+/// <see cref="FolderShape.KnownAuthorNames"/>) is an <see cref="WorkClass.ArtistCollection"/> (1.28.0).</item>
 /// </list>
 /// Reasons never contain names (counts and shares only), so they are safe to log.
 /// </summary>
@@ -109,7 +112,16 @@ public sealed class WorkDetector : IWorkDetector
         if (archives.Count == 1)
             return Result(WorkClass.OneShot, MatchLevel.Folder, ["exactly one archive"], content: content);
 
-        return ClassifyLeaf(folder, archives, content);
+        var leaf = ClassifyLeaf(folder, archives, content);
+        // The provider-author half (1.28.0): only a leaf that is NOT one series by its own shape, so a series
+        // folder named like a linked record's author stays a series.
+        if (leaf.Class != WorkClass.Series && IsProviderAuthorFolder(folder))
+        {
+            return Result(WorkClass.ArtistCollection, MatchLevel.Archive,
+                ["folder name equals the author of a series linked in this library; " + string.Join("; ", leaf.Reasons)],
+                GroupArchives(archives), content);
+        }
+        return leaf;
     }
 
     private static WorkClassification ClassifyContainer(
@@ -215,10 +227,11 @@ public sealed class WorkDetector : IWorkDetector
     }
 
     /// <summary>
-    /// An artist folder: the folder name equals a caller-supplied provider author, or the creator tag
-    /// most archives carry (<c>[circle (artist)]</c> or a lone <c>[tag]</c>) in at least half of the
-    /// archives. An unbracketed <c>Name - Title</c> prefix is deliberately NOT a creator tag: it is
-    /// indistinguishable from the common <c>Title - Chapter 001</c> / <c>Title - Subtitle</c> naming.
+    /// An artist folder by its archive names: the creator tag most archives carry (<c>[circle (artist)]</c>
+    /// or a lone <c>[tag]</c>) equals the folder name in at least half of the archives. An unbracketed
+    /// <c>Name - Title</c> prefix is deliberately NOT a creator tag: it is indistinguishable from the common
+    /// <c>Title - Chapter 001</c> / <c>Title - Subtitle</c> naming (a provider author can tell, see
+    /// <see cref="IsProviderAuthorFolder"/>).
     /// </summary>
     private static bool IsArtistFolder(FolderShape folder, List<ArchiveNameAnatomy> anatomies, out string reason)
     {
@@ -226,13 +239,6 @@ public sealed class WorkDetector : IWorkDetector
         var folderName = TitleNormalizer.Normalize(folder.DisplayName).Primary;
         if (folderName.Length == 0 || AutoMatchText.IsCategoryWord(folderName))
             return false;
-
-        if (folder.KnownAuthorNames is { Count: > 0 } known
-            && known.Any(a => AutoMatchText.IsAuthorLike(a, requireTwoTokens: false) && AutoMatchText.NamesEqual(a, folderName)))
-        {
-            reason = "folder name equals a provider author name";
-            return true;
-        }
 
         var carrying = anatomies.Count(a => a.CreatorTags.Any(t => AutoMatchText.NamesEqual(t, folderName)));
 
@@ -242,6 +248,24 @@ public sealed class WorkDetector : IWorkDetector
             return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// The provider-author half of the artist rule (stage-2 decision 6, wired in 1.28.0): the folder's whole
+    /// clean name equals (<see cref="AutoMatchText.NamesEqual"/>: same tokens in any order, or equal without
+    /// spaces) an author the caller already holds locally (<see cref="FolderShape.KnownAuthorNames"/>, from
+    /// records linked in the library - nothing is sent). The caller only asks for a leaf with two or more
+    /// archives that its own shape does not call one series; the snapshot passes no names for a folder that
+    /// carries a link itself.
+    /// </summary>
+    private static bool IsProviderAuthorFolder(FolderShape folder)
+    {
+        if (folder.KnownAuthorNames is not { Count: > 0 } known)
+            return false;
+        var folderName = TitleNormalizer.Normalize(folder.DisplayName).Primary;
+        if (folderName.Length == 0 || AutoMatchText.IsCategoryWord(folderName) || !AutoMatchText.IsAuthorLike(folderName, requireTwoTokens: false))
+            return false;
+        return known.Any(a => AutoMatchText.IsAuthorLike(a, requireTwoTokens: false) && AutoMatchText.NamesEqual(a, folderName));
     }
 
     /// <summary>

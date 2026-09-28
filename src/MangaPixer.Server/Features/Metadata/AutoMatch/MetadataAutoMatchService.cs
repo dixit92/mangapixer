@@ -49,6 +49,10 @@ public sealed class MetadataAutoMatchService
     private readonly IWorkDetector? _detector;
     private readonly IMatchQueryPlanner? _planner;
     private readonly IMatchScorer? _scorer;
+    private readonly bool _providerAuthorFolders;
+    private readonly bool _declaredTypeFilter;
+    private readonly AutoMatchCoverComparer? _covers;
+    private readonly Declared.IDeclaredFactsReader? _declared;
 
     public MetadataAutoMatchService(
         MangaPixerDbContext db,
@@ -63,7 +67,10 @@ public sealed class MetadataAutoMatchService
         ILogger<MetadataAutoMatchService> logger,
         IEnumerable<IWorkDetector> detectors,
         IEnumerable<IMatchQueryPlanner> planners,
-        IEnumerable<IMatchScorer> scorers)
+        IEnumerable<IMatchScorer> scorers,
+        MetadataAutoMatchOptions? options = null,
+        AutoMatchCoverComparer? covers = null,
+        Declared.IDeclaredFactsReader? declared = null)
     {
         _db = db;
         _gateway = gateway;
@@ -78,6 +85,10 @@ public sealed class MetadataAutoMatchService
         _detector = detectors.LastOrDefault();
         _planner = planners.LastOrDefault();
         _scorer = scorers.LastOrDefault();
+        _providerAuthorFolders = (options ?? new MetadataAutoMatchOptions()).ProviderAuthorFolders;
+        _declaredTypeFilter = (options ?? new MetadataAutoMatchOptions()).DeclaredTypeFilter;
+        _covers = covers;
+        _declared = declared;
     }
 
     /// <summary>True when the matcher-core implementations are registered.</summary>
@@ -125,15 +136,30 @@ public sealed class MetadataAutoMatchService
 
     // --- Detection and enqueueing ---
 
+    /// <summary>
+    /// The library tree for classification, cached per catalog revision; the provider authors it carries
+    /// (the artist-folder rule, 1.28.0) are re-read when the library's links or linked records changed.
+    /// </summary>
     public async Task<LibraryTreeSnapshot> SnapshotAsync(long libraryId, CancellationToken ct)
     {
         var revision = await _db.Libraries.AsNoTracking().Where(l => l.Id == libraryId).Select(l => l.CatalogRevision).FirstOrDefaultAsync(ct);
         if (_state.CachedSnapshot(libraryId, revision) is { } cached)
-            return cached;
-        var snapshot = await LibraryTreeSnapshot.LoadAsync(_db, libraryId, ct);
+        {
+            if (!_providerAuthorFolders)
+                return cached.Authors.Names.Count == 0 ? cached : cached.WithAuthors(LibraryTreeSnapshot.ProviderAuthorSet.None);
+            if (cached.Authors.Stamp == await LibraryTreeSnapshot.LinkStampAsync(_db, libraryId, ct))
+                return cached;
+            var refreshed = cached.WithAuthors(await LibraryTreeSnapshot.LoadProviderAuthorsAsync(_db, libraryId, ct));
+            _state.Cache(refreshed);
+            return refreshed;
+        }
+        var snapshot = await LoadTreeAsync(libraryId, ct);
         _state.Cache(snapshot);
         return snapshot;
     }
+
+    private Task<LibraryTreeSnapshot> LoadTreeAsync(long libraryId, CancellationToken ct) =>
+        LibraryTreeSnapshot.LoadAsync(_db, libraryId, ct, providerAuthors: _providerAuthorFolders);
 
     private async Task<Dictionary<long, SeriesLinkState>> OwnLinksAsync(long libraryId, CancellationToken ct) =>
         await _db.NodeSeriesLinks.AsNoTracking()
@@ -166,7 +192,7 @@ public sealed class MetadataAutoMatchService
             if (c.ParentId is { } parent)
                 scope.Add(parent);
 
-        var tree = await LibraryTreeSnapshot.LoadAsync(_db, libraryId, ct);
+        var tree = await LoadTreeAsync(libraryId, ct);
         _state.Cache(tree);
         var works = AutoMatchWorkSelector.Select(tree, _detector, await OwnLinksAsync(libraryId, ct), scope);
         return await EnqueueAsync(libraryId, works, QueueReason.NewFolder, MetadataMatchRunTrigger.Scan, reviewFirst: false, requeueUnmatched: false, ct);
@@ -326,7 +352,7 @@ public sealed class MetadataAutoMatchService
         }
         await _db.SaveChangesAsync(ct);
         await _db.MetadataMatchRuns.Where(r => r.Id == runId)
-            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Queued, queued), ct);
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Queued, r => r.Queued + queued), ct);
     }
 
     /// <summary>"Re-run matching" on review rows: re-queues each node (one Rerun run per library). Returns per-node codes.</summary>
@@ -549,8 +575,10 @@ public sealed class MetadataAutoMatchService
         var work = await RecheckAsync(row, tree, ct);
         if (work is null)
         {
+            var handedOver = await HandOverToArchivesAsync(row, tree, ct);
             await FinishAsync(row.Id, row.RunId, QueueState.Skipped, null, 0, null, 0, ct);
-            _logger.LogDebug(LogEvents.Metadata.AutoMatchSkipped, "Automatic matching skipped node {NodeId}", row.NodeId);
+            _logger.LogDebug(LogEvents.Metadata.AutoMatchSkipped, "Automatic matching skipped node {NodeId} ({Works} archive works queued instead)",
+                row.NodeId, handedOver);
             return;
         }
 
@@ -560,8 +588,11 @@ public sealed class MetadataAutoMatchService
         try
         {
             var allowDoujinshi = await EffectiveContentAsync(work.Work.FolderId, ct) == MetadataFolderContent.DoujinshiAndAdultOneShots;
-            var lookupEngine = new AutoMatchLookup(_db, _gateway, _planner, _scorer);
-            lookup = await lookupEngine.LookupAsync(tree, work.Work, work.Classification, await ThresholdsAsync(ct), allowDoujinshi, call, ct);
+            var declared = _declared is null ? null
+                : (await _declared.EffectiveForLibraryAsync(row.LibraryId, ct)).GetValueOrDefault(work.Work.FolderId);
+            var lookupEngine = new AutoMatchLookup(_db, _gateway, _planner, _scorer, _covers, _declaredTypeFilter);
+            lookup = await lookupEngine.LookupAsync(tree, work.Work, work.Classification, await ThresholdsAsync(ct), allowDoujinshi, call, ct,
+                declared);
         }
         catch (MetadataGatewayException ex) when (IsRefusal(ex))
         {
@@ -581,8 +612,35 @@ public sealed class MetadataAutoMatchService
         if (work.Work.Level is MatchLevel.Folder or MatchLevel.ReviewOnly)
             await CoveredWorkRetirement.RetireBelowAsync(_db, tree, work.Work.AnchorNodeId, ct);
         _logger.LogInformation(LogEvents.Metadata.AutoMatchDecided,
-            "Automatic matching decided node {NodeId}: {Band} ({Requests} requests, {ElapsedMs} ms)",
-            row.NodeId, lookup.Outcome.Band, call.RequestsSent, watch.ElapsedMilliseconds);
+            "Automatic matching decided node {NodeId}: {Band} ({Requests} requests, {Covers} covers compared: {CoverCheck}, {ElapsedMs} ms)",
+            row.NodeId, lookup.Outcome.Band, call.RequestsSent, lookup.CoversCompared, lookup.CoverCheck, watch.ElapsedMilliseconds);
+    }
+
+    /// <summary>
+    /// A folder queued at folder or review level that is matched archive by archive NOW (1.28.0: an artist folder
+    /// whose author was linked in the library after it was queued, e.g. earlier in the same run) hands over to its
+    /// archive works in the same run instead of being dropped. Returns how many works were queued.
+    /// </summary>
+    private async Task<int> HandOverToArchivesAsync(MetadataMatchQueueEntity row, LibraryTreeSnapshot tree, CancellationToken ct)
+    {
+        if (row.RunId is not { } runId || _detector is null || tree.Find(row.NodeId) is not { IsFolder: true } node)
+            return 0;
+        var classification = _detector.Classify(tree.ShapeOf(node.Id));
+        if (classification.Level != MatchLevel.Archive)
+            return 0;
+        var links = await OwnLinksAsync(row.LibraryId, ct);
+        if (tree.Ancestors(node.Id).Prepend(node).Any(n => links.ContainsKey(n.Id)))
+            return 0; // The folder or an ancestor has a link row: it speaks for the archives.
+        var works = AutoMatchWorkSelector.ArchiveWorks(tree, node.Id, classification, links).ToList();
+        var anchors = works.Select(w => w.AnchorNodeId).ToList();
+        var known = (await _db.MetadataMatchQueue.AsNoTracking().Where(q => anchors.Contains(q.NodeId)).Select(q => q.NodeId).ToListAsync(ct)).ToHashSet();
+        var fresh = works.Where(w => !known.Contains(w.AnchorNodeId)).ToList();
+        if (fresh.Count == 0)
+            return 0;
+        await EnqueueIntoRunAsync(row.LibraryId, runId, fresh, row.Reason, row.ReviewFirst, requeue: false, ct);
+        await _db.MetadataMatchRuns.Where(r => r.Id == runId)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Candidates, r => r.Candidates + fresh.Count), ct);
+        return fresh.Count;
     }
 
     /// <summary>Local refusals (nothing was wrong with the provider): the row waits, no attempt is counted.</summary>

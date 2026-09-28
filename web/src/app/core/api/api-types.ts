@@ -1132,6 +1132,10 @@ export interface MetadataSettingsDto {
   defaultThresholds?: MetadataMatchThresholdsDto | null;
   thresholdBounds?: MetadataMatchThresholdBoundsDto | null;
   thresholdsAreDefault?: boolean;
+  /** 1.28.0: "Compare covers" under Automatic matching (on by default). */
+  compareCoversEnabled?: boolean;
+  /** True when Metadata:AutoMatch:CompareCovers=false switches it off regardless of the setting. */
+  compareCoversDisabledByConfig?: boolean;
 }
 
 export interface UpdateMetadataSettingsRequest {
@@ -1145,6 +1149,8 @@ export interface UpdateMetadataSettingsRequest {
   acceptedAutoConsentVersion?: number | null;
   thresholds?: MetadataMatchThresholdsDto | null;
   resetThresholds?: boolean;
+  /** 1.28.0: "Compare covers"; null leaves it unchanged (no consent of its own). */
+  compareCoversEnabled?: boolean | null;
 }
 
 export interface UpdateMetadataLibraryRequest {
@@ -1571,6 +1577,8 @@ export interface MetadataReattachResultDto {
   precedence: boolean;
   readerDefault: boolean;
   content: boolean;
+  /** 1.28.0: the declared facts moved too (only when the target declared nothing of its own). */
+  declared?: boolean;
 }
 
 export interface SetFolderMetadataContentRequest {

@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangapixer.Tests.Server.Features.Metadata.AutoMatch.Golden;
 
 using System.Globalization;
+using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 
 /// <summary>
@@ -9,6 +10,12 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// MangaUpdates id. <see cref="GroupTitle"/> selects an archive group (archive-level cases);
 /// <see cref="Band"/> null makes it a detector-only case (no provider data). <see cref="Vetoes"/>, when
 /// set, is the exact set of auto-vetoing reasons the top candidate must carry.
+/// <see cref="LocalCover"/> (1.28.0) is the series id whose stored local cover hash stands for the work's thumbnail: the
+/// case then runs the cover comparison, and <see cref="CoverImages"/> is the exact number of candidate images it must
+/// download, <see cref="CoverMatchOnTop"/> whether the top candidate carries the cover evidence. <see cref="Declared"/>
+/// (1.28.0) is what an admin declared for the folder (lane D's facts), applied as the lookup applies it;
+/// <see cref="DeclaredTypeFilter"/> (on by default, as in production) also sends its type as the search filter. The recorded
+/// answers are keyed by query, doujinshi and page, so the replay shows the request, not a narrower provider answer.
 /// </summary>
 public sealed record GoldenCase(
     string Id,
@@ -20,7 +27,12 @@ public sealed record GoldenCase(
     bool DoujinAllowed = false,
     string? GroupTitle = null,
     ContentSuggestion? Content = null,
-    MatchReason? Vetoes = null)
+    MatchReason? Vetoes = null,
+    string? LocalCover = null,
+    int? CoverImages = null,
+    bool? CoverMatchOnTop = null,
+    DeclaredFacts? Declared = null,
+    bool DeclaredTypeFilter = true)
 {
     public override string ToString() => Id;
 }
@@ -29,8 +41,15 @@ public sealed record GoldenCase(
 public static class GoldenCases
 {
     private static FolderShape F(string name, IEnumerable<string> archives, string? category = null, string? parent = null,
-        (string Name, int Count)[]? subs = null, int depth = 2) =>
-        new(name, depth, archives.ToList(), (subs ?? []).Select(s => new ChildFolderShape(s.Name, s.Count)).ToList(), parent, category);
+        (string Name, int Count)[]? subs = null, int depth = 2, string[]? authors = null) =>
+        new(name, depth, archives.ToList(), (subs ?? []).Select(s => new ChildFolderShape(s.Name, s.Count)).ToList(), parent, category, authors);
+
+    /// <summary>
+    /// The author names the server hands to the detector when records by them are linked in the library (1.28.0:
+    /// <c>LibraryTreeSnapshot.ProviderAuthorSet</c>, the provider-author half of the artist-folder rule). Spelled as
+    /// MangaUpdates lists them.
+    /// </summary>
+    private static readonly string[] s_linkedAuthors = ["FUJIMOTO Tatsuki", "URASAWA Naoki", "OTOMO Katsuhiro"];
 
     private static IEnumerable<string> Vols(string title, int n, string suffix = "") =>
         Enumerable.Range(1, n).Select(i => string.Create(CultureInfo.InvariantCulture, $"{title} v{i:00}{suffix}.cbz"));
@@ -75,6 +94,7 @@ public static class GoldenCases
     private const string IsekaiCheatSkill = "15495823031";
     private const string Kingdom = "4324727424";
     private const string BerserkOfGluttonyComic = "74072114866";
+    private const string Jigokuraku2005 = "10294535868";
 
     private static readonly string[] s_artistFolder =
     [
@@ -84,6 +104,17 @@ public static class GoldenCases
         "[Fujimoto Tatsuki] Fire Punch v02.cbz",
         "[Fujimoto Tatsuki] Fire Punch v03.cbz",
         "[Fujimoto Tatsuki] Berserk v01.cbz",
+    ];
+
+    // The same works without the creator tag: by shape alone neither one work nor a collection (review only).
+    private static readonly string[] s_untaggedArtistFolder =
+    [
+        "Look Back (2021) (Digital).cbz",
+        "Sayonara Eri (2022) (Digital).cbz",
+        "Fire Punch v01.cbz",
+        "Fire Punch v02.cbz",
+        "Fire Punch v03.cbz",
+        "Berserk v01.cbz",
     ];
 
     private static readonly string[] s_collectionLeaf =
@@ -187,6 +218,69 @@ public static class GoldenCases
             F("Berserk", ["Berserk v01.cbz"], subs: [("Berserk Gaiden", 2)]), WorkClass.Mixed, MatchBand.Auto, Berserk, GroupTitle: "Berserk"),
         new("A09b mixed folder: loose units of one work keep the folder review-only",
             F("Berserk", ["Berserk v01.cbz", "Berserk v02.cbz", "Berserk v03.cbz"], subs: [("Berserk Gaiden", 2)]), WorkClass.Mixed, MatchBand.NeedsReview, Berserk),
+
+        // --- 1.28.0: the provider-author half of the artist-folder rule -----------------------------
+        // An untagged folder named like the author of a record linked in the library: an artist collection, matched
+        // archive by archive with the author required to agree (without the linked author: review only, P00 below).
+        new("P01 provider-author artist folder, untagged names: one-shot", F("Fujimoto Tatsuki", s_untaggedArtistFolder, authors: s_linkedAuthors),
+            WorkClass.ArtistCollection, MatchBand.Auto, LookBack, GroupTitle: "Look Back"),
+        new("P02 provider-author artist folder, untagged names: numbered volumes grouped", F("Fujimoto Tatsuki", s_untaggedArtistFolder, authors: s_linkedAuthors),
+            WorkClass.ArtistCollection, MatchBand.Auto, FirePunch, GroupTitle: "Fire Punch"),
+        new("P03 provider-author artist folder: a mis-filed volume, the author conflict alone vetoes auto", F("Fujimoto Tatsuki", s_untaggedArtistFolder, authors: s_linkedAuthors),
+            WorkClass.ArtistCollection, MatchBand.NeedsReview, Berserk, GroupTitle: "Berserk", Vetoes: MatchReason.AuthorConflict),
+        // The other direction: a series whose title is also a linked author's name (a pen name) keeps its series shape.
+        new("P04 a series named like a linked author stays a series", F("Akira", Vols("Akira", 6), authors: ["Akira", .. s_linkedAuthors]),
+            WorkClass.Series, MatchBand.Auto, Akira),
+        new("P05 a one-archive folder named like a linked author stays a one-shot", F("Fujimoto Tatsuki", ["Look Back (2021) (Digital).cbz"], authors: s_linkedAuthors),
+            WorkClass.OneShot),
+        new("P00 the untagged artist folder without a linked author: review only (the 1.27.0 class)", F("Fujimoto Tatsuki", s_untaggedArtistFolder),
+            WorkClass.Ambiguous),
+
+        // --- 1.28.0: cover similarity as tie-break evidence ----------------------------------------
+        // Local covers are the provider cover of the right record, cropped 3% per side (a scan's framing), as the stored
+        // thumbnail. Positive only and on the adjusted score: at the default 10-point lead a tie stays in review - the
+        // cover puts the right record first; it never turns a weak title into an automatic link.
+        new("C01 cover: three same-titled records, the local volume 1 is the KAKU cover", F("Jigokuraku [Hell's Paradise]",
+            Vols("Hell's Paradise - Jigokuraku", 13, " (2019)")), WorkClass.Series, MatchBand.NeedsReview, JigokurakuKaku,
+            LocalCover: "61508275290", CoverImages: 2, CoverMatchOnTop: true),
+        // Three records titled "Jigokuraku" tie at 1.00; the folder has no disambiguator, so without the cover the 2005
+        // record ranks first (the adjusted scores tie too). The cover puts the KAKU record first.
+        new("C02 cover: an undisambiguated folder of the KAKU volumes - the cover puts that record first", F("Jigokuraku",
+            Vols("Jigokuraku", 2)), WorkClass.Series, MatchBand.NeedsReview, JigokurakuKaku,
+            LocalCover: "61508275290", CoverImages: 2, CoverMatchOnTop: true),
+        // The limit, measured: only the top two are compared (at most two images per work); a third tied record is not.
+        new("C05 cover: the right record is third in a three-way tie - no signal, the order stays", F("Jigokuraku",
+            Vols("Jigokuraku", 2)), WorkClass.Series, MatchBand.NeedsReview, Jigokuraku2005,
+            LocalCover: "76554797640", CoverImages: 2, CoverMatchOnTop: false),
+        new("C03 cover: series vs its anthology on a tied head, the series cover", F("Tensei Kizoku no Isekai Boukenroku",
+            Vols("Tensei Kizoku no Isekai Boukenroku", 5)), WorkClass.Series, MatchBand.NeedsReview, TenseiKizoku,
+            LocalCover: "46692009496", CoverImages: 2, CoverMatchOnTop: true),
+        new("C04 cover: a chapter folder is never compared (its first page is not a cover)", F("Re Zero kara Hajimeru Isekai Seikatsu",
+            Chaps("Re Zero kara Hajimeru Isekai Seikatsu", 50)), WorkClass.Series, MatchBand.NeedsReview,
+            LocalCover: "46692009496", CoverImages: 0, CoverMatchOnTop: false),
+
+        // --- 1.28.0: declared facts as positive-only evidence ---------------------------------------
+        // A declared type is the category hint, declared creators are creator hints; neither ever counts against a record.
+        // H01 / H02 score the declared type as evidence alone (the search filter switched off, Metadata:AutoMatch:DeclaredTypeFilter=false).
+        new("H01 declared manhwa (no category folder, filter off): the Korean record agrees", F("Solo Leveling", Units(200)),
+            WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), []),
+            DeclaredTypeFilter: false),
+        new("H02 a wrong declared type (manga for a manhwa, filter off) costs nothing as evidence: still auto", F("Solo Leveling", Units(200)),
+            WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manga), []),
+            DeclaredTypeFilter: false),
+        // With the filter on (the default), a WRONG declared type narrows the search past the right record: MangaUpdates
+        // returns only manhwa for a Japanese series declared manhwa - nothing close, no link. The declaration is the admin's.
+        new("H06 a wrong declared type with the filter on (manhwa for a manga) keeps the right record out of the search",
+            F("Chainsaw Man", Vols("Chainsaw Man", 20)), WorkClass.Series, MatchBand.Unmatched,
+            Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), [])),
+        // Three records titled "Jigokuraku" tie at 1.00 (C02 / C05); the declared author names one of them.
+        new("H03 declared creator: an undisambiguated one-word title, the declared author picks the record", F("Jigokuraku", Vols("Jigokuraku", 2)),
+            WorkClass.Series, MatchBand.Auto, JigokurakuKaku, Declared: new(null, [new DeclaredCreator("Kaku Yuuji", "author")])),
+        new("H05 declared manhwa as the search filter: the other origins are left out, still auto",
+            F("Solo Leveling", Units(200)), WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None,
+            Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), [])),
+        new("H04 a declared creator no candidate has changes nothing (the order stays)", F("Jigokuraku", Vols("Jigokuraku", 2)),
+            WorkClass.Series, MatchBand.NeedsReview, Jigokuraku2005, Declared: new(null, [new DeclaredCreator("Nobody Synthetic", null)])),
 
         // --- 1.27.0: the live automatic-matching run (2026-09-27), as PUBLIC lookalikes ------------
         new("L01 T: season-renumbered webtoon, chapter-token archives (latest chapter 235, status total 652)",

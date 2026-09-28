@@ -38,15 +38,19 @@ When the folder is linked to a MangaUpdates series that says otherwise, a **Conf
 
 A declaration never changes the linked record, and the record never changes the declaration. If the conflict means the folder is linked to the wrong series, use **Identify…** to link the right one; if your declaration is wrong, edit it.
 
+## Declared facts and automatic matching
+
+With **Automatic matching** on, declared facts are used as evidence, only ever in favour of a record: a declared manga, manhwa, manhua or webtoon type prefers records of that origin, and declared creators prefer records by them (a folder of several same-titled series links the one by the declared author). A declared manga, manhwa or manhua type also narrows the automatic searches of that folder: MangaUpdates is asked to leave the other two types out, so a folder declared manhwa is not searched for manga or manhua records. That is the one way a declaration can rule records out, so check the type before you declare it - a folder of Japanese manga declared manhwa finds nothing. See [Automatic matching](series-information.md#automatic-matching).
+
 ## Declared facts and Content
 
 The folder **Content** setting (**Doujinshi & adult one-shots**, see [Series information](series-information.md#folder-content)) stays a separate setting with its own menu; it is not a declared fact.
 
 ## Privacy
 
-Declared facts are stored in MangaPixer's own database and are not sent anywhere. Reading or changing them makes no request to MangaUpdates or any other site.
+Declared facts are stored in MangaPixer's own database. Reading or changing them makes no request to MangaUpdates or any other site. The only declared fact that ever leaves your server is a declared manga, manhwa or manhua type, and only as the list of types an automatic search leaves out (see [What is sent](series-information.md#what-is-sent)); creators, other types and the folders they are declared on are never sent.
 
 ## Good to know
 
-- Declared facts stay with a folder while it keeps its place. When a folder is renamed or moved, MangaPixer carries its link, precedence, reading direction and Content to the new folder, but not yet its declared facts: declare them again on the new folder.
+- When a folder is renamed or moved, its declared facts go with it to the new folder, like its link and settings (see [Renamed and moved folders](series-information.md#renamed-and-moved-folders)); a new folder that already has declared facts of its own keeps them, and the old ones wait under **Missing folders**.
 - Removing a library from MangaPixer removes its declared facts too.
