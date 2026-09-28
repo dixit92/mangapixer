@@ -333,7 +333,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
              (keydown.enter)="onWebtoonEnter($event)">
           @for (entry of pages(); track entry.entryKey) {
             <app-webtoon-page [pageNumber]="$index + 1">
-              <img class="webtoon-page" appWebtoonUpscale [src]="pageUrlFor(entry)" loading="lazy"
+              <img class="webtoon-page" [appWebtoonUpscale]="!isAnimated(entry)" [src]="pageUrlFor(entry)" loading="lazy"
                    [style.width.%]="webtoonWidthPct()"
                    [style.aspect-ratio]="aspectRatioFor(entry)"
                    [attr.data-index]="$index" alt="Page {{ $index + 1 }}" />
@@ -416,7 +416,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 [class.anim-reveal]="pageAnimActive() && prefs.pageAnimation() === 'reveal'"
                 [class.from-right]="navEnter() === 'from-right'"
                 [class.from-left]="navEnter() === 'from-left'"
-                [appUpscale]="upscaleActive()"
+                [appUpscale]="upscaleActive() && !isAnimated(entry)"
                 (load)="onPageLoaded()"
                 (error)="onPageError()"
                 draggable="false"
@@ -1307,6 +1307,14 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     paired: boolean; webtoonWidthPct: number; full: boolean;
   } = { viewportW: 0, viewportH: 0, dpr: 1, fit: 'screen', paired: false, webtoonWidthPct: 100, full: false };
   private readonly pageUrlCache = new Map<string, string>();
+
+  /**
+   * Animated pages (GIF / WebP / APNG with several frames, as the worker's probe recorded) are never
+   * upscaled (1.28.0): the upscalers draw into a canvas, which shows a single frame.
+   */
+  isAnimated(entry: ManifestPageEntry): boolean {
+    return entry.animationState === 'Animated';
+  }
 
   pageUrlFor(entry: ManifestPageEntry | undefined): string {
     if (!entry) return '';

@@ -1,4 +1,4 @@
-import { AfterViewInit, Directive, ElementRef, OnDestroy, OnInit, effect, inject, input } from '@angular/core';
+import { AfterViewInit, Directive, ElementRef, OnDestroy, OnInit, booleanAttribute, effect, inject, input } from '@angular/core';
 
 import type { UpscaleBackend } from './upscale-engine';
 import { WebtoonEnhanceCoordinator } from './webtoon-enhance-coordinator';
@@ -58,15 +58,25 @@ export class WebtoonUpscaleDirective implements OnInit, OnDestroy {
   private readonly host = inject<ElementRef<HTMLImageElement>>(ElementRef);
   private readonly coordinator = inject(WebtoonEnhanceCoordinator);
 
+  /**
+   * False keeps this page out of the GPU layer (1.28.0: animated pages - a canvas shows one frame, so an
+   * upscaled GIF / WebP / APNG would stop moving). The bare attribute means true.
+   */
+  readonly appWebtoonUpscale = input(true, { transform: booleanAttribute });
+
+  private registered = false;
+
   ngOnInit(): void {
+    if (!this.appWebtoonUpscale()) return;
     this.coordinator.register(this.host.nativeElement);
+    this.registered = true;
   }
 
   onLoad(): void {
-    this.coordinator.loaded(this.host.nativeElement);
+    if (this.registered) this.coordinator.loaded(this.host.nativeElement);
   }
 
   ngOnDestroy(): void {
-    this.coordinator.unregister(this.host.nativeElement);
+    if (this.registered) this.coordinator.unregister(this.host.nativeElement);
   }
 }
