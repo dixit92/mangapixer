@@ -29,6 +29,7 @@ import { FavoritesStateService } from '../../core/favorites/favorites-state.serv
   host: {
     '[class.overlay]': 'overlay()',
     '[class.compact]': 'compact()',
+    '[class.bottom-right]': "corner() === 'bottom-right'",
   },
   template: `
     <button
@@ -51,6 +52,7 @@ import { FavoritesStateService } from '../../core/favorites/favorites-state.serv
       position: absolute; top: 4px; left: 4px; z-index: 3;
       background: rgba(0, 0, 0, 0.45);
     }
+    :host(.overlay.bottom-right) .star-btn { top: auto; left: auto; bottom: 4px; right: 4px; }
     .star-btn.active mat-icon { color: #ffc107; }
     :host(.compact) .star-btn {
       width: 32px; height: 32px; line-height: 32px; padding: 0;
@@ -74,6 +76,9 @@ export class StarToggleComponent {
 
   /** Absolutely position the star in a cover corner (host becomes display:contents). */
   readonly overlay = input<boolean>(false);
+
+  /** Which cover corner with `overlay` (1.28.0: Home cards use bottom-right; their top corners hold badges). */
+  readonly corner = input<'top-left' | 'bottom-right'>('top-left');
 
   /** Locally-tracked state; seeded from the input and updated optimistically. */
   readonly isFav = signal(false);

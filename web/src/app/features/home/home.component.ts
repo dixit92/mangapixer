@@ -132,9 +132,7 @@ import {
                     <img appCover [src]="coverUrl(item.itemId)" alt="" loading="lazy">
                     <mat-icon class="cover-fallback">menu_book</mat-icon>
                     <app-info-toggle [nodeId]="item.itemId" [hasSeriesInfo]="!!item.hasSeriesInfo" [anchored]="true" [overlay]="true" />
-                    <span class="corner-star">
-                      <app-star-toggle [nodeId]="item.itemId" [favorite]="!!item.isFavorite" [compact]="true" />
-                    </span>
+                    <app-star-toggle [nodeId]="item.itemId" [favorite]="!!item.isFavorite" [overlay]="true" [compact]="true" corner="bottom-right" />
                   </div>
                   <div class="cont-title" [title]="item.displayName"
                        [appSeriesInfoHover]="item.hasSeriesInfo ? item.itemId : null" [hoverAnchor]="contEl">{{ item.displayName }}</div>
@@ -282,9 +280,7 @@ import {
                     [attr.aria-label]="stack.newCount + ' new chapters'">+{{ stack.newCount }}</span>
             }
             <app-info-toggle [nodeId]="stack.id" [hasSeriesInfo]="!!stack.hasSeriesInfo" [overlay]="true" />
-            <span class="corner-star">
-              <app-star-toggle [nodeId]="stack.id" [favorite]="!!stack.isFavorite" [compact]="true" />
-            </span>
+            <app-star-toggle [nodeId]="stack.id" [favorite]="!!stack.isFavorite" [overlay]="true" [compact]="true" corner="bottom-right" />
           </div>
         </div>
         <div class="cont-title" [title]="stack.displayName"
@@ -355,12 +351,6 @@ import {
     }
     .dismiss:hover, .dismiss:focus-visible { opacity: 1; background: rgba(0, 0, 0, 0.82); outline: none; }
     .dismiss mat-icon { font-size: 18px; width: 18px; height: 18px; }
-    /* Card star (1.28.0): bottom-right, so it never meets the read-state / +N badges
-       (top) or the dismiss button (top-right); the (i) takes bottom-left. */
-    .corner-star {
-      position: absolute; bottom: 4px; right: 4px; z-index: 3;
-      display: inline-flex; border-radius: 50%; background: rgba(0, 0, 0, 0.45);
-    }
     .cover {
       position: relative; width: 100%; aspect-ratio: 2 / 3; border-radius: 8px;
       overflow: hidden; background: rgba(255,255,255,0.06);

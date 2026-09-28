@@ -499,8 +499,10 @@ describe('HomeComponent', () => {
 
     expect(cards[0].querySelector('.cover [data-testid="info-toggle"]')).not.toBeNull();
     expect(cards[1].querySelector('[data-testid="info-toggle"]')).toBeNull();
-    const stars = Array.from(cards).map((c) => c.querySelector('.corner-star button')!.getAttribute('aria-pressed'));
+    const stars = Array.from(cards).map((c) => c.querySelector('.star-btn')!.getAttribute('aria-pressed'));
     expect(stars).toEqual(['true', 'false']);
+    // Bottom-right: the top corners hold the dismiss button and the stack badges.
+    expect(cards[0].querySelector('app-star-toggle')!.classList).toContain('bottom-right');
     // Cover + title of an item with information; none on the other.
     expect(hoverZones(fixture, '.cont-wrap')).toEqual(['i1', 'i1', '-', '-']);
   });
@@ -511,7 +513,7 @@ describe('HomeComponent', () => {
 
     expect(cards[0].querySelector('[data-testid="info-toggle"]')).toBeNull();
     expect(cards[1].querySelector('.cover [data-testid="info-toggle"]')).not.toBeNull();
-    const stars = Array.from(cards).map((c) => c.querySelector('.corner-star button')!.getAttribute('aria-pressed'));
+    const stars = Array.from(cards).map((c) => c.querySelector('.star-btn')!.getAttribute('aria-pressed'));
     expect(stars).toEqual(['true', 'false']);
     expect(hoverZones(fixture, '.stack-card')).toEqual(['-', '-', 'a1', 'a1']);
   });
@@ -520,7 +522,7 @@ describe('HomeComponent', () => {
     const fixture = createComponent({ recent: flaggedRecent });
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate');
-    const star = fixture.nativeElement.querySelectorAll('.stack-card')[1].querySelector('.corner-star button') as HTMLButtonElement;
+    const star = fixture.nativeElement.querySelectorAll('.stack-card')[1].querySelector('.star-btn') as HTMLButtonElement;
 
     star.click();
     const req = httpMock.expectOne('/api/v1/nodes/a1/favorite');
