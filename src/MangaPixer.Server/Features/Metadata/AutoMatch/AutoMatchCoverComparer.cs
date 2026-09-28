@@ -91,8 +91,9 @@ public sealed record CoverComparison(IReadOnlySet<string> Matches, int ImagesCom
 /// <list type="number">
 /// <item>the sub-toggle (<see cref="ICoverCompareSetting"/>);</item>
 /// <item>the work's local cover: the stored thumbnail of its cover archive (the folder cover rule: the first
-/// live archive below the folder by sort key; for an archive work, the anchor archive) - never generated here,
-/// no source archive is opened; hashed once per content version (<see cref="CoverHashCache"/>);</item>
+/// live archive below the folder by sort key; for an archive work, the anchor archive); when the thumbnail pass has
+/// not reached it yet, that same durable thumbnail is made now through <see cref="ThumbnailGenerationService"/>
+/// (the worker reads page 1, as analysis does); hashed once per content version (<see cref="CoverHashCache"/>);</item>
 /// <item>at most <see cref="CoverEvidence.MaxCandidates"/> candidate images, by the image URL the provider returned,
 /// through the gateway's image path (allowlisted host, automatic call: daily budget + automatic pacing), written
 /// to a scratch workspace, hashed by the worker and deleted.</item>
@@ -109,11 +110,14 @@ public sealed class AutoMatchCoverComparer
     private readonly ThumbnailStore _thumbnails;
     private readonly ScratchWorkspaceManager _scratch;
     private readonly CoverHashCache _cache;
+    private readonly ThumbnailGenerationService? _generator;
 
     public AutoMatchCoverComparer(
         MangaPixerDbContext db, MetadataGateway gateway, ICoverHasher hasher, ICoverCompareSetting setting,
-        ThumbnailStore thumbnails, ScratchWorkspaceManager scratch, CoverHashCache cache)
+        ThumbnailStore thumbnails, ScratchWorkspaceManager scratch, CoverHashCache cache,
+        ThumbnailGenerationService? generator = null)
     {
+        _generator = generator;
         _db = db;
         _gateway = gateway;
         _hasher = hasher;
@@ -195,8 +199,10 @@ public sealed class AutoMatchCoverComparer
         if (_cache.TryGet(archiveId, version, out var cached))
             return cached;
         var path = _thumbnails.GetThumbnailPath(archiveId, version);
-        if (!File.Exists(path))
-            return null; // Not generated yet: try again next time, nothing cached.
+        // A work matched right after its scan may be ahead of the thumbnail pass: make that same durable thumbnail
+        // now (the worker reads page 1, as analysis does), before any image is downloaded.
+        if (!File.Exists(path) && (_generator is null || !await _generator.GenerateForItemAsync(archiveId, ct) || !File.Exists(path)))
+            return null; // No thumbnail (yet): no comparison, nothing cached.
         var hash = await _hasher.HashFileAsync(path, ct);
         if (hash is not null)
             _cache.Set(archiveId, version, hash); // A failure (e.g. every worker busy) is not remembered: next tie, next try.
