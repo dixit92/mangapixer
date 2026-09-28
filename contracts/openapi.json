@@ -8120,6 +8120,7 @@
         "required": [
           "kind",
           "archiveCount",
+          "unitCount",
           "lowest",
           "have",
           "behindBy",
@@ -8132,6 +8133,14 @@
             "$ref": "#/components/schemas/MissingUnitKind"
           },
           "archiveCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "unitCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
