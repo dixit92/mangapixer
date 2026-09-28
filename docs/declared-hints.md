@@ -40,7 +40,7 @@ A declaration never changes the linked record, and the record never changes the 
 
 ## Declared facts and automatic matching
 
-With **Automatic matching** on, declared facts are used as evidence, only ever in favour of a record: a declared manga, manhwa, manhua or webtoon type prefers records of that origin, and declared creators prefer records by them (a folder of several same-titled series links the one by the declared author). A declaration never rules a record out. See [Automatic matching](series-information.md#automatic-matching).
+With **Automatic matching** on, declared facts are used as evidence, only ever in favour of a record: a declared manga, manhwa, manhua or webtoon type prefers records of that origin, and declared creators prefer records by them (a folder of several same-titled series links the one by the declared author). A declared manga, manhwa or manhua type also narrows the automatic searches of that folder: MangaUpdates is asked to leave the other two types out, so a folder declared manhwa is not searched for manga or manhua records. That is the one way a declaration can rule records out, so check the type before you declare it - a folder of Japanese manga declared manhwa finds nothing. See [Automatic matching](series-information.md#automatic-matching).
 
 ## Declared facts and Content
 
@@ -48,7 +48,7 @@ The folder **Content** setting (**Doujinshi & adult one-shots**, see [Series inf
 
 ## Privacy
 
-Declared facts are stored in MangaPixer's own database and are not sent anywhere. Reading or changing them makes no request to MangaUpdates or any other site.
+Declared facts are stored in MangaPixer's own database. Reading or changing them makes no request to MangaUpdates or any other site. The only declared fact that ever leaves your server is a declared manga, manhwa or manhua type, and only as the list of types an automatic search leaves out (see [What is sent](series-information.md#what-is-sent)); creators, other types and the folders they are declared on are never sent.
 
 ## Good to know
 
