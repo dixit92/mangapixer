@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-09-28
+
 ### Added
 
 - **Card controls on the home page.** Cards in **Continue reading** and **New chapters** now have the same controls as the library view: the favorites star and, when there is series information, the (i) and the summary on hover. A Continue reading card is a single archive, so its (i) shows the series it belongs to - for example the linked series folder it sits in. On a New chapters card the star and the (i) belong to the folder (or to the archive, for a loose archive). Both follow **Show series information**, like everywhere else. See [Summary on hover](docs/series-information.md#summary-on-hover).
