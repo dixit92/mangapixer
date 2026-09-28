@@ -95,34 +95,34 @@ public sealed class DeclaredEvidenceTests : IAsyncLifetime
             .SelectMany(b => b.GetProperty("filter_types").EnumerateArray().Select(t => t.GetString()!)).Distinct().Order(StringComparer.Ordinal).ToList();
 
     [Fact]
-    public async Task ADeclaredType_IsNotSentAsASearchFilter_UnlessTheOwnerGatedSwitchIsOn()
+    public async Task ByDefault_ADeclaredManhwa_LeavesTheOtherTwoOriginsOutOfAutomaticSearches()
     {
         var folder = await FolderAsync();
         await DeclareAsync(folder.Id, DeclaredFactKeys.Type, DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa));
 
         await MatchAsync(folder);
 
-        Assert.Equal(["Artbook", "Doujinshi", "Drama CD", "Novel"], SentFilterTypes()); // the fixed filter only
-    }
-
-    [Fact]
-    public async Task WithTheSwitchOn_ADeclaredManhwa_LeavesTheOtherTwoOriginsOutOfAutomaticSearches()
-    {
-        var folder = await FolderAsync();
-        await DeclareAsync(folder.Id, DeclaredFactKeys.Type, DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa));
-
-        await MatchAsync(folder, new MetadataAutoMatchOptions { DeclaredTypeFilter = true });
-
         Assert.Equal(["Artbook", "Doujinshi", "Drama CD", "Manga", "Manhua", "Novel"], SentFilterTypes());
     }
 
     [Fact]
-    public async Task WithTheSwitchOn_ADeclaredWebtoon_AddsNothing()
+    public async Task WithTheKillSwitch_ADeclaredType_IsNotSentAsASearchFilter()
+    {
+        var folder = await FolderAsync();
+        await DeclareAsync(folder.Id, DeclaredFactKeys.Type, DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa));
+
+        await MatchAsync(folder, new MetadataAutoMatchOptions { DeclaredTypeFilter = false });
+
+        Assert.Equal(["Artbook", "Doujinshi", "Drama CD", "Novel"], SentFilterTypes()); // the fixed filter only
+    }
+
+    [Fact]
+    public async Task ADeclaredWebtoon_AddsNothing()
     {
         var folder = await FolderAsync();
         await DeclareAsync(null, DeclaredFactKeys.Type, DeclaredFactKeys.TypeSlug(DeclaredType.Webtoon));
 
-        await MatchAsync(folder, new MetadataAutoMatchOptions { DeclaredTypeFilter = true });
+        await MatchAsync(folder);
 
         Assert.Equal(["Artbook", "Doujinshi", "Drama CD", "Novel"], SentFilterTypes());
     }

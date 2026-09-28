@@ -29,10 +29,11 @@ public sealed record MetadataAutoMatchOptions
     public bool CompareCovers { get; init; } = true;
 
     /// <summary>
-    /// Owner-gated (1.28.0), OFF by default: automatic searches of a folder whose DECLARED type is manga / manhwa / manhua
-    /// also leave the other two origins out (a type filter sent to the provider). <c>Metadata:AutoMatch:DeclaredTypeFilter</c>.
+    /// On by default (1.28.0, owner-approved privacy wording): automatic searches of a folder whose DECLARED type is manga /
+    /// manhwa / manhua also leave the other two origins out (a type filter sent to the provider). The kill switch is
+    /// <c>Metadata:AutoMatch:DeclaredTypeFilter=false</c>.
     /// </summary>
-    public bool DeclaredTypeFilter { get; init; }
+    public bool DeclaredTypeFilter { get; init; } = true;
 
     /// <summary>
     /// Reads <c>Metadata:AutoMatch:WorkerEnabled</c> / <c>StartupDelaySeconds</c> / <c>TickSeconds</c> /

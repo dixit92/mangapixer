@@ -165,6 +165,7 @@ describe('MetadataSettingsComponent', () => {
     expect(text).toContain('in every library whose Fetch switch is on');
     expect(text).toContain('What is sent automatically:');
     expect(text).toContain('nobody reviews before it is sent');
+    expect(text).toContain('For a folder declared manga, manhwa or manhua, automatic searches leave the other two types out.');
     expect(text).toContain('Cover comparison:');
     expect(text).toContain('download the cover images of those two series from MangaUpdates\' image server (cdn.mangaupdates.com)');
     expect(text).toContain('These downloads carry nothing from your library.');
