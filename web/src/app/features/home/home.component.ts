@@ -132,7 +132,7 @@ import {
                     <img appCover [src]="coverUrl(item.itemId)" alt="" loading="lazy">
                     <mat-icon class="cover-fallback">menu_book</mat-icon>
                     <app-info-toggle [nodeId]="item.itemId" [hasSeriesInfo]="!!item.hasSeriesInfo" [anchored]="true" [overlay]="true" />
-                    <app-star-toggle [nodeId]="item.itemId" [favorite]="!!item.isFavorite" [overlay]="true" [compact]="true" corner="bottom-right" />
+                    <app-star-toggle [nodeId]="item.itemId" [favorite]="!!item.isFavorite" [overlay]="true" [compact]="true" />
                   </div>
                   <div class="cont-title" [title]="item.displayName"
                        [appSeriesInfoHover]="item.hasSeriesInfo ? item.itemId : null" [hoverAnchor]="contEl">{{ item.displayName }}</div>
@@ -280,7 +280,7 @@ import {
                     [attr.aria-label]="stack.newCount + ' new chapters'">+{{ stack.newCount }}</span>
             }
             <app-info-toggle [nodeId]="stack.id" [hasSeriesInfo]="!!stack.hasSeriesInfo" [overlay]="true" />
-            <app-star-toggle [nodeId]="stack.id" [favorite]="!!stack.isFavorite" [overlay]="true" [compact]="true" corner="bottom-right" />
+            <app-star-toggle [nodeId]="stack.id" [favorite]="!!stack.isFavorite" [overlay]="true" [compact]="true" />
           </div>
         </div>
         <div class="cont-title" [title]="stack.displayName"

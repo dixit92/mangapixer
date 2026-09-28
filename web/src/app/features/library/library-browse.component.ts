@@ -412,7 +412,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       }
     </ng-template>
 
-    <div class="nodes" [class.card]="viewMode() === 'card'"
+    <div class="nodes" [class.card]="viewMode() === 'card'" [class.selecting]="selectMode()"
          [class.list]="viewMode() === 'list'"
          [style.--card-size]="cardSize() + 'px'"
          [style.--list-columns]="listColumns()">
@@ -449,8 +449,8 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                    CARD. List rows put it in the trailing row-markers group instead
                    (1.22.2): the 32px overlay hid most of the 46px list thumbnail. Its own
                    component styles keep this out of the near-budget inline CSS below. -->
-              <!-- Neither is shown in select mode (a tap selects there; the select check
-                   shares the star's corner). -->
+              <!-- Neither is shown in select mode (a tap selects there; the select check takes
+                   the top-left corner). The star sits bottom-right on every card surface (1.28.0). -->
               @if (viewMode() !== 'list' && !selectMode()) {
                 <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
                 <!-- Series info (1.24.0): cover bottom-left; shows itself only for the node's OWN info. -->
@@ -651,7 +651,10 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
       background: rgba(124, 77, 255, 0.9); color: #fff;
     }
     .badge.read { background: rgba(76, 175, 80, 0.95); }
-    .badge.dir { top: auto; bottom: 6px; right: 6px; background: rgba(0,0,0,0.65); }
+    /* The star owns bottom-right (1.28.0); the direction badge takes the top-left the star left, and moves
+       back to bottom-right in select mode, where the select check owns top-left and the star is hidden. */
+    .badge.dir { right: auto; left: 6px; background: rgba(0,0,0,0.65); }
+    .nodes.selecting .badge.dir { top: auto; left: auto; bottom: 6px; right: 6px; }
     .check {
       position: absolute; top: 6px; left: 6px; z-index: 3;
       color: #fff; line-height: 0;
