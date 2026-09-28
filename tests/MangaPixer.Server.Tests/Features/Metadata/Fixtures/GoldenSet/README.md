@@ -22,6 +22,9 @@ mapping and automatic retrieval loop; no test ever contacts the real network.
   searches again (`Jigokuraku`, `Tensei Kizoku no Isekai Boukenroku`, `Isekai de Cheat Skill wo Te ni Shita Ore wa,
   Genjitsu Sekai wo mo Musou Suru`) whose `record.image.url` (`original`, `thumb`) was merged into the existing files
   (other fields are the earlier recording), 19 cover thumbnails and 3 full covers for the cover comparison.
+- 2026-09-28 (1.28.0, part 3): 1 more request, recorded the same way: page 1 of `Solo Leveling` with the fixed filter
+  plus `Manga`, `Manhua` (a declared manhwa as the search filter) - `search.solo-leveling.manhwa.json`. The harness keys
+  searches by any `filter_types` beyond the fixed four.
 - `cover.<image name>.jpg`: a MangaUpdates cover THUMBNAIL (`GET https://cdn.mangaupdates.com/image/thumb/<image name>.<ext>`),
   re-encoded tiny (at most 80 px, JPEG) - the harness answers an image GET by the file name in the URL. `local.<series
   id>.webp`: a local cover thumbnail made from that series' full cover (3% cropped per side, at most 96 px, WebP) - the

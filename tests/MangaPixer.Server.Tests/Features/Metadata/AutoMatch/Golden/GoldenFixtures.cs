@@ -18,7 +18,13 @@ internal static class GoldenFixtures
 {
     private const string Prefix = "GoldenSet.";
 
-    private static readonly Lazy<(Dictionary<(string Query, bool Doujin, int Page), string> Searches, Dictionary<string, string> Series)> s_all = new(Load);
+    private static readonly Lazy<(Dictionary<(string Query, bool Doujin, int Page, string Extra), string> Searches, Dictionary<string, string> Series)> s_all = new(Load);
+
+    /// <summary>The fixed automatic filter; anything else in a recorded <c>filter_types</c> is part of the key (1.28.0: a declared type).</summary>
+    private static readonly HashSet<string> s_fixedTypes = new(StringComparer.Ordinal) { "Doujinshi", "Novel", "Artbook", "Drama CD" };
+
+    private static string ExtraTypes(JsonElement types) =>
+        string.Join(",", types.EnumerateArray().Select(t => t.GetString()!).Where(t => !s_fixedTypes.Contains(t)).Order(StringComparer.Ordinal));
 
     public static int SearchCount => s_all.Value.Searches.Count;
 
@@ -61,13 +67,14 @@ internal static class GoldenFixtures
             var root = body.RootElement;
             var query = root.GetProperty("search").GetString()!;
             var page = root.TryGetProperty("page", out var p) ? p.GetInt32() : 1;
-            var doujin = !root.TryGetProperty("filter_types", out var types)
-                || !types.EnumerateArray().Any(t => t.GetString() == "Doujinshi");
-            if (s_all.Value.Searches.TryGetValue((query, doujin, page), out var json))
+            var hasTypes = root.TryGetProperty("filter_types", out var types);
+            var doujin = !hasTypes || !types.EnumerateArray().Any(t => t.GetString() == "Doujinshi");
+            var extra = hasTypes ? ExtraTypes(types) : string.Empty;
+            if (s_all.Value.Searches.TryGetValue((query, doujin, page, extra), out var json))
                 return ScriptedHandler.Json(json);
             lock (missing)
                 missing.Add(string.Create(CultureInfo.InvariantCulture,
-                    $"{{\"kind\":\"search\",\"query\":{JsonSerializer.Serialize(query)},\"doujin\":{(doujin ? "true" : "false")},\"page\":{page}}}"));
+                    $"{{\"kind\":\"search\",\"query\":{JsonSerializer.Serialize(query)},\"doujin\":{(doujin ? "true" : "false")},\"page\":{page},\"extra\":{JsonSerializer.Serialize(extra)}}}"));
             return ScriptedHandler.Json("{\"total_hits\":0,\"results\":[]}");
         }
         if (request.Method == HttpMethod.Get && uri.Host == MetadataHttp.MangaUpdatesImageHost)
@@ -93,10 +100,10 @@ internal static class GoldenFixtures
         return ScriptedHandler.Json("{\"reason\":\"not found\"}", HttpStatusCode.NotFound);
     }
 
-    private static (Dictionary<(string, bool, int), string>, Dictionary<string, string>) Load()
+    private static (Dictionary<(string, bool, int, string), string>, Dictionary<string, string>) Load()
     {
         var asm = Assembly.GetExecutingAssembly();
-        var searches = new Dictionary<(string, bool, int), string>();
+        var searches = new Dictionary<(string, bool, int, string), string>();
         var series = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var name in asm.GetManifestResourceNames().Where(n => n.StartsWith(Prefix, StringComparison.Ordinal) && n.EndsWith(".json", StringComparison.Ordinal)))
         {
@@ -108,7 +115,7 @@ internal static class GoldenFixtures
                 var query = root.GetProperty("query").GetString()!;
                 var doujin = !root.GetProperty("filter_types").EnumerateArray().Any(t => t.GetString() == "Doujinshi");
                 var page = root.TryGetProperty("page", out var p) ? p.GetInt32() : 1;
-                searches[(query, doujin, page)] = root.GetProperty("response").GetRawText();
+                searches[(query, doujin, page, ExtraTypes(root.GetProperty("filter_types")))] = root.GetProperty("response").GetRawText();
             }
             else if (name.StartsWith(Prefix + "series.", StringComparison.Ordinal))
             {

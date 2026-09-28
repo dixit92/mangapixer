@@ -13,7 +13,8 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// <see cref="LocalCover"/> (1.28.0) names the embedded local cover thumbnail of the work (<c>local.*.webp</c>): the
 /// case then runs the cover comparison, and <see cref="CoverImages"/> is the exact number of candidate images it must
 /// download, <see cref="CoverMatchOnTop"/> whether the top candidate carries the cover evidence. <see cref="Declared"/>
-/// (1.28.0) is what an admin declared for the folder (lane D's facts), applied as the lookup applies it.
+/// (1.28.0) is what an admin declared for the folder (lane D's facts), applied as the lookup applies it;
+/// <see cref="DeclaredTypeFilter"/> also sends its type as the search filter (the owner-gated switch, off by default).
 /// </summary>
 public sealed record GoldenCase(
     string Id,
@@ -29,7 +30,8 @@ public sealed record GoldenCase(
     string? LocalCover = null,
     int? CoverImages = null,
     bool? CoverMatchOnTop = null,
-    DeclaredFacts? Declared = null)
+    DeclaredFacts? Declared = null,
+    bool DeclaredTypeFilter = false)
 {
     public override string ToString() => Id;
 }
@@ -265,6 +267,9 @@ public static class GoldenCases
         // Three records titled "Jigokuraku" tie at 1.00 (C02 / C05); the declared author names one of them.
         new("H03 declared creator: an undisambiguated one-word title, the declared author picks the record", F("Jigokuraku", Vols("Jigokuraku", 2)),
             WorkClass.Series, MatchBand.Auto, JigokurakuKaku, Declared: new(null, [new DeclaredCreator("Kaku Yuuji", "author")])),
+        new("H05 declared manhwa as the search filter (owner-gated switch on): the other origins are left out, still auto",
+            F("Solo Leveling", Units(200)), WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None,
+            Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), []), DeclaredTypeFilter: true),
         new("H04 a declared creator no candidate has changes nothing (the order stays)", F("Jigokuraku", Vols("Jigokuraku", 2)),
             WorkClass.Series, MatchBand.NeedsReview, Jigokuraku2005, Declared: new(null, [new DeclaredCreator("Nobody Synthetic", null)])),
 

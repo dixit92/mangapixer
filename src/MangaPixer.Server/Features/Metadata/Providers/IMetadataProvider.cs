@@ -58,10 +58,13 @@ public sealed record ProviderRef(string Provider, string ExternalId);
 /// A search the admin confirmed. <see cref="LibraryId"/> is the library the call is made for (gateway gate).
 /// <see cref="HideDoujinshiAndNovels"/> asks the provider to leave doujinshi, novels, artbooks and drama CDs out;
 /// <see cref="AllowDoujinshi"/> (stage 2: automatic searches below a folder whose Content is "Doujinshi &amp; adult
-/// one-shots") keeps doujinshi in that filter.
+/// one-shots") keeps doujinshi in that filter. <see cref="DeclaredType"/> (1.28.0, automatic searches only, off unless
+/// <c>Metadata:AutoMatch:DeclaredTypeFilter</c>): the type an admin declared for the folder; for manga / manhwa / manhua
+/// the provider also leaves the other two origins out.
 /// </summary>
 public sealed record ProviderSearchQuery(
-    string Text, long LibraryId, int Page = 1, int PerPage = 10, bool HideDoujinshiAndNovels = false, bool AllowDoujinshi = false);
+    string Text, long LibraryId, int Page = 1, int PerPage = 10, bool HideDoujinshiAndNovels = false, bool AllowDoujinshi = false,
+    Core.Metadata.DeclaredType? DeclaredType = null);
 
 public sealed record ProviderSearchPage(IReadOnlyList<ProviderSearchHit> Hits, int TotalHits);
 

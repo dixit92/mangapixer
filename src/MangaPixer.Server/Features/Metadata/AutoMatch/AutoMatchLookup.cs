@@ -47,10 +47,12 @@ public sealed class AutoMatchLookup
     private readonly IMatchQueryPlanner _planner;
     private readonly IMatchScorer _scorer;
     private readonly AutoMatchCoverComparer? _covers;
+    private readonly bool _declaredTypeFilter;
 
     public AutoMatchLookup(MangaPixerDbContext db, MetadataGateway gateway, IMatchQueryPlanner planner, IMatchScorer scorer,
-        AutoMatchCoverComparer? covers = null)
+        AutoMatchCoverComparer? covers = null, bool declaredTypeFilter = false)
     {
+        _declaredTypeFilter = declaredTypeFilter;
         _db = db;
         _gateway = gateway;
         _planner = planner;
@@ -96,7 +98,7 @@ public sealed class AutoMatchLookup
         }
 
         var outcome = await RetrieveAsync(query, tree.LibraryId, thresholds, allowDoujinshi, call, found, ct,
-            AutoMatchCoverComparer.CoverArchiveOf(tree, work));
+            AutoMatchCoverComparer.CoverArchiveOf(tree, work), _declaredTypeFilter ? declared?.TypeValue : null);
         return new WorkLookupResult(outcome, classification, found.Fetched, found.Images, found.CoversCompared, found.CoverCheck);
     }
 
@@ -107,11 +109,11 @@ public sealed class AutoMatchLookup
     /// </summary>
     public async Task<WorkLookupResult> SearchAndScoreAsync(
         MatchQuery query, WorkClassification classification, long libraryId, MatchThresholds thresholds, bool allowDoujinshi,
-        MetadataCallContext call, CancellationToken ct, long? coverArchiveId = null)
+        MetadataCallContext call, CancellationToken ct, long? coverArchiveId = null, DeclaredType? declaredTypeFilter = null)
     {
         ArgumentNullException.ThrowIfNull(query);
         var found = new Retrieval();
-        var outcome = await RetrieveAsync(query, libraryId, thresholds, allowDoujinshi, call, found, ct, coverArchiveId);
+        var outcome = await RetrieveAsync(query, libraryId, thresholds, allowDoujinshi, call, found, ct, coverArchiveId, declaredTypeFilter);
         return new WorkLookupResult(outcome, classification, found.Fetched, found.Images, found.CoversCompared, found.CoverCheck);
     }
 
@@ -127,7 +129,7 @@ public sealed class AutoMatchLookup
 
     private async Task<MatchOutcome> RetrieveAsync(
         MatchQuery query, long libraryId, MatchThresholds thresholds, bool allowDoujinshi, MetadataCallContext call,
-        Retrieval found, CancellationToken ct, long? coverArchiveId)
+        Retrieval found, CancellationToken ct, long? coverArchiveId, DeclaredType? typeFilter)
     {
         var candidates = found.Candidates;
         var fetched = found.Fetched;
@@ -145,7 +147,7 @@ public sealed class AutoMatchLookup
         foreach (var text in variants)
         {
             searches++;
-            var page = await _gateway.SearchAutomaticAsync(Provider, libraryId, text, allowDoujinshi, call, ct);
+            var page = await _gateway.SearchAutomaticAsync(Provider, libraryId, text, allowDoujinshi, call, ct, declaredType: typeFilter);
             await TakePageAsync(query, page, libraryId, thresholds, found, call, ct);
             if (page.Hits.Count >= MetadataGateway.SearchPageSize && page.TotalHits > page.Hits.Count)
                 withPageTwo.Add(text);
@@ -164,7 +166,7 @@ public sealed class AutoMatchLookup
                 || !NeedsPageTwo(_scorer.Score(query, candidates.Values.ToList(), thresholds), thresholds))
                 break;
             searches++;
-            var page = await _gateway.SearchAutomaticAsync(Provider, libraryId, text, allowDoujinshi, call, ct, page: 2);
+            var page = await _gateway.SearchAutomaticAsync(Provider, libraryId, text, allowDoujinshi, call, ct, page: 2, declaredType: typeFilter);
             await TakePageAsync(query, page, libraryId, thresholds, found, call, ct);
         }
 

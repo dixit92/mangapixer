@@ -58,12 +58,12 @@ public sealed class DeclaredEvidenceTests : IAsyncLifetime
         await _db.Db.SaveChangesAsync();
     }
 
-    private async Task<NodeSeriesLinkEntity> MatchAsync(CatalogNodeEntity folder)
+    private async Task<NodeSeriesLinkEntity> MatchAsync(CatalogNodeEntity folder, MetadataAutoMatchOptions? options = null)
     {
-        var service = _h.ServiceWithRealMatcher(new DeclaredFactsReader(_db.Db));
+        var service = _h.ServiceWithRealMatcher(new DeclaredFactsReader(_db.Db), options);
         await service.StartBulkAsync(_db.LibraryPublicId, new Core.Api.MetadataMatchLibraryRequest(), "admin");
         var row = await service.LeaseNextAsync("test");
-        await _h.ServiceWithRealMatcher(new DeclaredFactsReader(_db.Db)).ProcessAsync(row!);
+        await _h.ServiceWithRealMatcher(new DeclaredFactsReader(_db.Db), options).ProcessAsync(row!);
         _db.Db.ChangeTracker.Clear();
         return await _db.Db.NodeSeriesLinks.AsNoTracking().Include(l => l.Record).SingleAsync(l => l.NodeId == folder.Id);
     }
@@ -87,6 +87,43 @@ public sealed class DeclaredEvidenceTests : IAsyncLifetime
         Assert.Equal((int)SeriesLinkState.Auto, link.State);
         Assert.Equal("802", link.Record!.ExternalId);
         Assert.Equal(0, _h.Handler.Seen.Count(r => r.Body?.Contains("Beta", StringComparison.OrdinalIgnoreCase) == true)); // never sent
+    }
+
+    private IReadOnlyList<string> SentFilterTypes() =>
+        _h.Handler.Seen.Where(r => r.Method == HttpMethod.Post).Select(r => System.Text.Json.JsonDocument.Parse(r.Body!).RootElement)
+            .SelectMany(b => b.GetProperty("filter_types").EnumerateArray().Select(t => t.GetString()!)).Distinct().Order(StringComparer.Ordinal).ToList();
+
+    [Fact]
+    public async Task ADeclaredType_IsNotSentAsASearchFilter_UnlessTheOwnerGatedSwitchIsOn()
+    {
+        var folder = await FolderAsync();
+        await DeclareAsync(folder.Id, DeclaredFactKeys.Type, DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa));
+
+        await MatchAsync(folder);
+
+        Assert.Equal(["Artbook", "Doujinshi", "Drama CD", "Novel"], SentFilterTypes()); // the fixed filter only
+    }
+
+    [Fact]
+    public async Task WithTheSwitchOn_ADeclaredManhwa_LeavesTheOtherTwoOriginsOutOfAutomaticSearches()
+    {
+        var folder = await FolderAsync();
+        await DeclareAsync(folder.Id, DeclaredFactKeys.Type, DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa));
+
+        await MatchAsync(folder, new MetadataAutoMatchOptions { DeclaredTypeFilter = true });
+
+        Assert.Equal(["Artbook", "Doujinshi", "Drama CD", "Manga", "Manhua", "Novel"], SentFilterTypes());
+    }
+
+    [Fact]
+    public async Task WithTheSwitchOn_ADeclaredWebtoon_AddsNothing()
+    {
+        var folder = await FolderAsync();
+        await DeclareAsync(null, DeclaredFactKeys.Type, DeclaredFactKeys.TypeSlug(DeclaredType.Webtoon));
+
+        await MatchAsync(folder, new MetadataAutoMatchOptions { DeclaredTypeFilter = true });
+
+        Assert.Equal(["Artbook", "Doujinshi", "Drama CD", "Novel"], SentFilterTypes());
     }
 
     [Fact]

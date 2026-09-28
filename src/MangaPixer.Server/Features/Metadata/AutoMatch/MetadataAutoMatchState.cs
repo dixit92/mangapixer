@@ -29,8 +29,14 @@ public sealed record MetadataAutoMatchOptions
     public bool CompareCovers { get; init; } = true;
 
     /// <summary>
+    /// Owner-gated (1.28.0), OFF by default: automatic searches of a folder whose DECLARED type is manga / manhwa / manhua
+    /// also leave the other two origins out (a type filter sent to the provider). <c>Metadata:AutoMatch:DeclaredTypeFilter</c>.
+    /// </summary>
+    public bool DeclaredTypeFilter { get; init; }
+
+    /// <summary>
     /// Reads <c>Metadata:AutoMatch:WorkerEnabled</c> / <c>StartupDelaySeconds</c> / <c>TickSeconds</c> /
-    /// <c>ProviderAuthorFolders</c> / <c>CompareCovers</c>.
+    /// <c>ProviderAuthorFolders</c> / <c>CompareCovers</c> / <c>DeclaredTypeFilter</c>.
     /// </summary>
     public static MetadataAutoMatchOptions FromConfiguration(IConfiguration config)
     {
@@ -45,6 +51,7 @@ public sealed record MetadataAutoMatchOptions
                 System.Globalization.CultureInfo.InvariantCulture, out var tick) && tick >= 1 ? TimeSpan.FromSeconds(tick) : defaults.TickInterval,
             ProviderAuthorFolders = bool.TryParse(section["ProviderAuthorFolders"], out var authors) ? authors : defaults.ProviderAuthorFolders,
             CompareCovers = bool.TryParse(section["CompareCovers"], out var covers) ? covers : defaults.CompareCovers,
+            DeclaredTypeFilter = bool.TryParse(section["DeclaredTypeFilter"], out var typeFilter) ? typeFilter : defaults.DeclaredTypeFilter,
         };
     }
 }
