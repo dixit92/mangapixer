@@ -137,14 +137,15 @@ export function validateThresholds(
             @if (!consentCurrent() || showConsent()) {
             <div class="consent" data-testid="md-consent-text">
               <p>When on, MangaPixer can look up series information for the libraries you enable below, on the
-                <strong>allowed sites</strong> listed here - and nowhere else:</p>
+                <strong>allowed sites</strong> listed here - and nowhere else.</p>
+              <p><strong>What is sent:</strong></p>
               <ul>
-                <li><strong>MangaUpdates</strong> - description, authors, genres, publication status, English release
-                  totals and cover art. <strong>Sent:</strong> the search text you confirm in the Identify dialog (usually
-                  a folder or file name) and MangaUpdates record numbers.</li>
-                <li><strong>AniList</strong> - volume and chapter totals, to convert chapters to volumes in the Missing
-                  report. <strong>Sent:</strong> the MangaUpdates title of a series that is already linked, or its AniList
-                  record number - never a folder or file name - and only when you ask for it in the Missing report.</li>
+                <li><strong>MangaUpdates</strong> (description, authors, genres, publication status, English release totals,
+                  cover art): the search text you confirm in the Identify dialog (usually a folder or file name) and
+                  MangaUpdates record numbers.</li>
+                <li><strong>AniList</strong> (volume and chapter totals, to convert chapters to volumes in the Missing report):
+                  the MangaUpdates title of a series that is already linked, or its AniList record number - never a folder
+                  or file name - and only when you ask for it in the Missing report.</li>
               </ul>
               <p>You can remove a site from the list at any time; nothing is ever sent to a removed site. Each site also
                 sees your server's IP address, as with any web request.</p>
