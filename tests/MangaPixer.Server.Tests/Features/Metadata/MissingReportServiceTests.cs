@@ -79,8 +79,11 @@ public sealed class MissingReportServiceTests
         var review = await SeriesAsync(t, "Undecided", "Undecided v01");
         t.Db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
         {
-            NodeId = review.Id, LibraryId = review.LibraryId, State = (int)SeriesLinkState.NeedsReview,
-            CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            NodeId = review.Id,
+            LibraryId = review.LibraryId,
+            State = (int)SeriesLinkState.NeedsReview,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
         });
         var shelf = await t.AddFolderAsync(null, "Loose Shelf");
         await t.AddLinkAsync(await t.AddArchiveAsync(shelf, "Loose v01"), record); // archive link: not a series folder
