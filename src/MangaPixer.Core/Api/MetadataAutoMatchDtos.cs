@@ -495,6 +495,9 @@ public sealed record MetadataReattachResultDto
     public required bool Precedence { get; init; }
     public required bool ReaderDefault { get; init; }
     public required bool Content { get; init; }
+
+    /// <summary>The folder's declared facts moved too (1.28.0; only when the target declared nothing of its own).</summary>
+    public bool Declared { get; init; }
 }
 
 // --- Folder Content ---

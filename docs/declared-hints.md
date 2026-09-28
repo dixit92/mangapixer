@@ -48,5 +48,5 @@ Declared facts are stored in MangaPixer's own database and are not sent anywhere
 
 ## Good to know
 
-- Declared facts stay with a folder while it keeps its place. When a folder is renamed or moved, MangaPixer carries its link, precedence, reading direction and Content to the new folder, but not yet its declared facts: declare them again on the new folder.
+- When a folder is renamed or moved, its declared facts go with it to the new folder, like its link and settings (see [Renamed and moved folders](series-information.md#renamed-and-moved-folders)); a new folder that already has declared facts of its own keeps them, and the old ones wait under **Missing folders**.
 - Removing a library from MangaPixer removes its declared facts too.

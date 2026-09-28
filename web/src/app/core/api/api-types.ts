@@ -1577,6 +1577,8 @@ export interface MetadataReattachResultDto {
   precedence: boolean;
   readerDefault: boolean;
   content: boolean;
+  /** 1.28.0: the declared facts moved too (only when the target declared nothing of its own). */
+  declared?: boolean;
 }
 
 export interface SetFolderMetadataContentRequest {

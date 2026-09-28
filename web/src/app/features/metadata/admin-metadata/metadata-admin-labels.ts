@@ -46,7 +46,7 @@ export const REVIEW_TABS: readonly ReviewTabDef[] = [
   { tab: 'Confirmed', label: 'Confirmed', count: 'confirmed',
     hint: 'Links an admin made or confirmed. Automatic matching never changes these.' },
   { tab: 'MissingFolders', label: 'Missing folders', count: 'missingFolders',
-    hint: 'Links left on folders that were renamed or moved where MangaPixer could not follow them. Re-attach or delete.' },
+    hint: 'Links and declared facts left on folders that were renamed or moved where MangaPixer could not follow them. Re-attach or delete.' },
 ];
 
 export function reviewTabDef(tab: MetadataReviewTab): ReviewTabDef {

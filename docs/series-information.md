@@ -74,7 +74,7 @@ What the matcher did - links it made, close calls, works without a match and fol
 
 ### Renamed and moved folders
 
-When a folder is renamed or moved, MangaPixer recognizes its archives at the new place and moves the folder's link or **Don't match**, its source precedence, its default reading mode and its **Content** setting to the new folder, as long as at least 80% of its archives went to the same new folder. Otherwise (a folder split in two, for example) the settings wait under **Missing folders**, where you can **Re-attach** them to a folder of the same library or delete them. Archives keep their links and reading progress when they move anyway.
+When a folder is renamed or moved, MangaPixer recognizes its archives at the new place and moves the folder's link or **Don't match**, its source precedence, its default reading mode, its **Content** setting and its declared facts to the new folder, as long as at least 80% of its archives went to the same new folder. Otherwise (a folder split in two, for example) the settings wait under **Missing folders**, where you can **Re-attach** them to a folder of the same library or delete them. Archives keep their links and reading progress when they move anyway.
 
 ### Background refresh
 
@@ -160,7 +160,7 @@ The **Review** tab lists what the matcher did, with a count on each list and a l
 - **Auto-linked**: links made automatically, newest first. **Confirm** keeps one (automatic matching never changes a confirmed link), **Change…** opens Identify, **Unlink** and **Don't match**.
 - **Unmatched**: works the matcher found no good candidate for, with the date of the next automatic try.
 - **Don't match**, **Confirmed**: what is marked or linked by hand.
-- **Missing folders**: links or **Don't match** marks, source precedence, reading defaults and **Content** left on a folder that was renamed or moved where MangaPixer could not follow it. **Re-attach to…** opens a folder picker for the same library; **Delete** removes what was left.
+- **Missing folders**: links or **Don't match** marks, source precedence, reading defaults, **Content** and declared facts left on a folder that was renamed or moved where MangaPixer could not follow it. **Re-attach to…** opens a folder picker for the same library; **Delete** removes what was left.
 
 Archives matched on their own are marked **Archive**; several archives matched together as one work are marked **Archive group**. Candidate covers are not shown until you expand a row (the arrow on the right, or `e`), because each cover is a request to MangaUpdates.
 

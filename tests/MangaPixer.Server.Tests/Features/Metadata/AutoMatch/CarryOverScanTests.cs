@@ -158,6 +158,101 @@ public sealed class CarryOverScanTests : IDisposable
         }
     }
 
+    // --- 1.28.0: declared facts follow the folder too ---
+
+    private async Task DeclareAsync(long folderId, string value, string key = Core.Metadata.DeclaredFactKeys.Creator)
+    {
+        await using var db = NewContext();
+        db.DeclaredFacts.Add(new DeclaredFactEntity
+        {
+            LibraryId = _libraryId,
+            NodeId = folderId,
+            Key = key,
+            Value = value,
+            Position = 0,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync();
+    }
+
+    private async Task<List<string>> DeclaredOnAsync(long folderId)
+    {
+        await using var db = NewContext();
+        return await db.DeclaredFacts.AsNoTracking().Where(f => f.NodeId == folderId).OrderBy(f => f.Key).Select(f => f.Key + ":" + f.Value).ToListAsync();
+    }
+
+    private async Task<(CatalogNodeEntity Old, CatalogNodeEntity New, ScanResult Scan)> RenameAsync(bool declareOld = true)
+    {
+        await SetupAsync();
+        WriteArchive(Path.Combine("Declared Old", "a01.cbz"), 31);
+        WriteArchive(Path.Combine("Declared Old", "a02.cbz"), 32);
+        await ScanAsync();
+        await SignAllAsync();
+        var old = await FolderAsync("Declared Old");
+        if (declareOld)
+        {
+            await DeclareAsync(old.Id, "Given Family");
+            await DeclareAsync(old.Id, "manhwa", Core.Metadata.DeclaredFactKeys.Type);
+        }
+        Directory.Move(Path.Combine(_libRoot, "Declared Old"), Path.Combine(_libRoot, "Declared New"));
+        var scan = await ScanAsync();
+        return (old, await FolderAsync("Declared New"), scan);
+    }
+
+    [Fact]
+    public async Task RenamedFolder_WithOnlyDeclaredFacts_IsStranded_ThenCarriesThemAll()
+    {
+        var (old, renamed, scan) = await RenameAsync();
+
+        await using (var db = NewContext())
+        {
+            Assert.Equal([old.Id], await CarryOver(db).StrandedFolderIds(_libraryId).ToListAsync());
+            Assert.Equal(1, await CarryOver(db).CarryAsync(_libraryId, scan.Moves));
+        }
+
+        Assert.Equal(["creator:Given Family", "type:manhwa"], await DeclaredOnAsync(renamed.Id));
+        Assert.Empty(await DeclaredOnAsync(old.Id));
+        await using (var db = NewContext())
+            Assert.Equal(0, await CarryOver(db).StrandedFolderIds(_libraryId).CountAsync());
+    }
+
+    [Fact]
+    public async Task ATargetWithDeclaredFactsOfItsOwn_KeepsThem_TheOldOnesWaitUnderMissingFolders()
+    {
+        var (old, renamed, scan) = await RenameAsync();
+        await DeclareAsync(renamed.Id, "Other Person");
+
+        await using (var db = NewContext())
+            await CarryOver(db).CarryAsync(_libraryId, scan.Moves);
+
+        Assert.Equal(["creator:Other Person"], await DeclaredOnAsync(renamed.Id));
+        Assert.Equal(["creator:Given Family", "type:manhwa"], await DeclaredOnAsync(old.Id));
+        await using (var db = NewContext())
+        {
+            Assert.Equal([old.Id], await CarryOver(db).StrandedFolderIds(_libraryId).ToListAsync());
+            var (error, result) = await CarryOver(db).ReattachAsync(old.PublicId, renamed.PublicId, "admin");
+            Assert.Null(error);
+            Assert.False(result!.Declared); // the target's own declaration still wins on a manual re-attach
+            Assert.True(await CarryOver(db).DeleteMissingAsync(old.PublicId, "admin"));
+        }
+        Assert.Empty(await DeclaredOnAsync(old.Id));
+        Assert.Equal(["creator:Other Person"], await DeclaredOnAsync(renamed.Id));
+    }
+
+    [Fact]
+    public async Task Reattach_MovesDeclaredFacts_AndSaysSo()
+    {
+        var (old, renamed, _) = await RenameAsync();
+
+        await using var db = NewContext();
+        var (error, result) = await CarryOver(db).ReattachAsync(old.PublicId, renamed.PublicId, "admin");
+
+        Assert.Null(error);
+        Assert.True(result!.Declared);
+        Assert.Equal(["creator:Given Family", "type:manhwa"], await DeclaredOnAsync(renamed.Id));
+    }
+
     [Fact]
     public async Task SplitFolder_IsNotCarried_ShowsAsMissing_AndCanBeReattachedOrDeleted()
     {
