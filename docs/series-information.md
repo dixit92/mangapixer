@@ -145,6 +145,8 @@ The **Automatic matching** switch and its consent are described under [Admin set
 
 **Match now** on a library queues all of its series folders at once. Before you start, it shows a local estimate (nothing is sent to get it): how many folders it will try, about how many requests that takes and how many days at the current budget, and how many are already linked. **Also retry folders that found no match before** includes earlier misses. The first time a library is matched, **Review everything once** keeps every result in **Needs review** instead of linking it, so you can check the matcher on your library before anything goes live.
 
+**Compare covers** (under the **Automatic matching** switch, on by default) lets the matcher download the covers of two records that tie on the title, to compare them with the folder's own cover (see [Automatic matching](#automatic-matching)). Untick it to never download them; the rest of automatic matching is unchanged. It needs no consent of its own: the automatic-matching consent describes these downloads.
+
 **Advanced: matching thresholds** changes how sure the matcher must be:
 
 - **Auto-link title score** (85-99%, default 92%): the top candidate's title must match at least this well to link on its own;
