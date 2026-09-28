@@ -4,6 +4,8 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Features.Catalog;
+using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -29,12 +31,18 @@ public sealed class ReadingStateService
     private readonly MangaPixerDbContext _db;
     private readonly LibraryAuthorizationService _auth;
     private readonly ILogger<ReadingStateService>? _logger;
+    private readonly SeriesInfoFlagService _seriesInfoFlags;
 
-    public ReadingStateService(MangaPixerDbContext db, LibraryAuthorizationService auth, ILogger<ReadingStateService>? logger = null)
+    public ReadingStateService(
+        MangaPixerDbContext db,
+        LibraryAuthorizationService auth,
+        ILogger<ReadingStateService>? logger = null,
+        SeriesInfoFlagService? seriesInfoFlags = null)
     {
         _db = db;
         _auth = auth;
         _logger = logger;
+        _seriesInfoFlags = seriesInfoFlags ?? new SeriesInfoFlagService(db);
     }
 
     /// <summary>
@@ -631,7 +639,7 @@ public sealed class ReadingStateService
         // sort workaround (audit defect D26) has been removed.
         // Exclude items the user dismissed from the strip, and items they have
         // marked read (1.2.0): the strip stays focused on what's actually mid-read.
-        return await (
+        var entries = await (
             from p in _db.ReadingProgress
             join n in _db.CatalogNodes on p.ItemId equals n.Id
             where p.UserId == userId
@@ -653,6 +661,7 @@ public sealed class ReadingStateService
             })
             .Take(limit)
             .ToListAsync(ct);
+        return await ApplyCardFlagsAsync(userId, entries, ct);
     }
 
     /// <summary>
@@ -672,7 +681,7 @@ public sealed class ReadingStateService
         if (!visibleLibs.Contains(libraryId))
             return [];
 
-        return await (
+        var entries = await (
             from p in _db.ReadingProgress
             join n in _db.CatalogNodes on p.ItemId equals n.Id
             where p.UserId == userId
@@ -694,6 +703,27 @@ public sealed class ReadingStateService
             })
             .Take(limit)
             .ToListAsync(ct);
+        return await ApplyCardFlagsAsync(userId, entries, ct);
+    }
+
+    /// <summary>
+    /// Sets the Home card flags (1.28.0) on continue-reading entries: the favorites star
+    /// (one query) and <see cref="ContinueReadingEntry.HasSeriesInfo"/> by the series-info
+    /// anchor rule (<see cref="SeriesInfoFlagService.WithAnchoredSeriesInfoAsync"/>, a fixed
+    /// number of queries). Never a per-card walk.
+    /// </summary>
+    private async Task<IReadOnlyList<ContinueReadingEntry>> ApplyCardFlagsAsync(
+        long userId, List<ContinueReadingEntry> entries, CancellationToken ct)
+    {
+        if (entries.Count == 0)
+            return entries;
+
+        var ids = entries.Select(e => e.ItemId).ToList();
+        var starred = await FavoriteFlags.StarredAsync(_db, userId, ids, ct);
+        var withInfo = await _seriesInfoFlags.WithAnchoredSeriesInfoAsync(ids, ct);
+        return entries
+            .Select(e => e with { IsFavorite = starred.Contains(e.ItemId), HasSeriesInfo = withInfo.Contains(e.ItemId) })
+            .ToList();
     }
 
     /// <summary>
@@ -1099,6 +1129,20 @@ public sealed record ContinueReadingEntry
     public required int PageIndex { get; init; }
     public required long ContentVersion { get; init; }
     public required DateTimeOffset UpdatedAt { get; init; }
+
+    /// <summary>
+    /// True when the caller has starred this archive (<see cref="ItemId"/>) - the Home
+    /// card's favorites star (1.28.0).
+    /// </summary>
+    public bool IsFavorite { get; init; }
+
+    /// <summary>
+    /// True when the card shows the (i) and the hover summary (1.28.0), by the series-info
+    /// anchor rule: the nearest web link on the archive or an ancestor folder, or the
+    /// archive's own ComicInfo - the same answer <c>GET /nodes/{id}/series-info</c> gives.
+    /// False while "Show series information" is off for the library or globally.
+    /// </summary>
+    public bool HasSeriesInfo { get; init; }
 }
 
 /// <summary>

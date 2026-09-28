@@ -240,6 +240,8 @@ public sealed partial class Program
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.MetadataSettingsService>();
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.MetadataLinkService>();
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.SeriesInfoResolver>();
+            // Batched (i) / hover flag for browse, Search, Favorites and Home cards (1.28.0).
+            builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.SeriesInfoFlagService>();
             builder.Services.AddSingleton<com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MetadataProviderRegistry>();
             AddMetadataNetwork(builder.Services, dataRoot);
 

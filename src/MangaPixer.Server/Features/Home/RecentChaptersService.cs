@@ -5,6 +5,8 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Features.Catalog;
+using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -71,11 +73,13 @@ public sealed class RecentChaptersService
 
     private readonly MangaPixerDbContext _db;
     private readonly LibraryAuthorizationService _auth;
+    private readonly SeriesInfoFlagService _seriesInfoFlags;
 
-    public RecentChaptersService(MangaPixerDbContext db, LibraryAuthorizationService auth)
+    public RecentChaptersService(MangaPixerDbContext db, LibraryAuthorizationService auth, SeriesInfoFlagService? seriesInfoFlags = null)
     {
         _db = db;
         _auth = auth;
+        _seriesInfoFlags = seriesInfoFlags ?? new SeriesInfoFlagService(db);
     }
 
     /// <summary>
@@ -131,7 +135,33 @@ public sealed class RecentChaptersService
             });
         }
 
-        return new RecentChaptersDto { Libraries = groups };
+        return new RecentChaptersDto { Libraries = await ApplyCardFlagsAsync(userId, groups, ct) };
+    }
+
+    /// <summary>
+    /// Sets the Home card flags (1.28.0) on every stack of every group at once: the favorites
+    /// star on the stack's node (one query) and <see cref="RecentChapterStack.HasSeriesInfo"/>
+    /// (a folder stack by the browse rule, a loose archive by the series-info anchor rule -
+    /// <see cref="SeriesInfoFlagService.WithAnchoredSeriesInfoAsync"/>). A fixed number of
+    /// queries for the whole response, not per library or per card.
+    /// </summary>
+    private async Task<List<RecentChaptersLibraryGroup>> ApplyCardFlagsAsync(
+        long userId, List<RecentChaptersLibraryGroup> groups, CancellationToken ct)
+    {
+        var ids = groups.SelectMany(g => g.Stacks).Select(s => s.Id).ToList();
+        if (ids.Count == 0)
+            return groups;
+
+        var starred = await FavoriteFlags.StarredAsync(_db, userId, ids, ct);
+        var withInfo = await _seriesInfoFlags.WithAnchoredSeriesInfoAsync(ids, ct);
+        return groups
+            .Select(g => g with
+            {
+                Stacks = g.Stacks
+                    .Select(s => s with { IsFavorite = starred.Contains(s.Id), HasSeriesInfo = withInfo.Contains(s.Id) })
+                    .ToList(),
+            })
+            .ToList();
     }
 
     /// <summary>
