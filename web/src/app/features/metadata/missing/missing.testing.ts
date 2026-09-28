@@ -3,7 +3,7 @@ import { MissingReportPageDto, MissingSeriesDto, MissingUnitGapDto } from '../..
 /** Synthetic report rows for the missing-report specs. */
 export function gap(over: Partial<MissingUnitGapDto> = {}): MissingUnitGapDto {
   return {
-    kind: 'Volume', archiveCount: 7, lowest: 1, have: 7, available: 10, source: 'English', confidence: 'High',
+    kind: 'Volume', archiveCount: 7, unitCount: 7, lowest: 1, have: 7, available: 10, source: 'English', confidence: 'High',
     behindBy: 3, missing: [], missingCount: 0, ...over,
   };
 }

@@ -50,7 +50,7 @@ public sealed class MissingUnitsTests
     {
         var r = MissingUnits.Evaluate(One("Synthetic Vol. 01-05", "Synthetic v06"), new PublishedTotals(EnglishVolumes: 6));
         Assert.Equal(MissingVerdict.UpToDate, r.Verdict);
-        Assert.Equal(2, r.Volumes!.ArchiveCount);
+        Assert.Equal((2, 6), (r.Volumes!.ArchiveCount, r.Volumes.UnitCount));
         Assert.Empty(r.Volumes.Missing);
     }
 

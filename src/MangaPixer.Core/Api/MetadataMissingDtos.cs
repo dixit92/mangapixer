@@ -16,6 +16,9 @@ public sealed record MissingUnitGapDto
     /// <summary>Archives whose name states a number of this kind.</summary>
     public required int ArchiveCount { get; init; }
 
+    /// <summary>Distinct unit numbers on disk (a range archive counts each number it covers).</summary>
+    public required int UnitCount { get; init; }
+
     /// <summary>The lowest number on disk.</summary>
     public required int Lowest { get; init; }
 

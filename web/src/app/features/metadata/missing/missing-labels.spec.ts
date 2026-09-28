@@ -12,6 +12,9 @@ describe('missing report labels', () => {
     expect(haveSentence(gap({ kind: 'Chapter', lowest: 21, have: 40, available: 195, source: 'Origin' })))
       .toBe('You have chapters 21-40 of 195 (original run)');
     expect(haveSentence(gap({ lowest: 1, have: 1, available: null, source: null }))).toBe('You have volume 1; no total known');
+    // Holes: count what is there instead of a range that overstates it.
+    expect(haveSentence(gap({ lowest: 1, have: 16, unitCount: 2, available: 18, missing: [2, 3], missingCount: 14 }))).toBe('You have 2 volumes (up to 16) of 18 (English)');
+    expect(haveSentence(gap({ lowest: 7, have: 8, unitCount: 2, available: 14, missing: [1, 2], missingCount: 6 }))).toBe('You have 2 volumes (up to 8) of 14 (English)');
   });
 
   it('lists behind and holes, capped', () => {

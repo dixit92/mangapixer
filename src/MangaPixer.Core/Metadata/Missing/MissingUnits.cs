@@ -71,6 +71,7 @@ public sealed record PublishedTotals(
 public sealed record MissingUnitGap(
     MissingUnitKind Kind,
     int ArchiveCount,
+    int UnitCount,
     int Lowest,
     int Have,
     int? Available,
@@ -213,6 +214,7 @@ public static partial class MissingUnits
         return new MissingUnitGap(
             kind,
             archives,
+            numbers.Count,
             numbers.Min,
             have,
             pick?.Total,

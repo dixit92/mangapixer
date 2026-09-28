@@ -42,9 +42,14 @@ function unitWord(gap: MissingUnitGapDto, plural = true): string {
   return plural ? `${word}s` : word;
 }
 
-/** "You have volumes 1-7 of 10 (English)" / "You have chapters 21-40; no total known". */
+/**
+ * "You have volumes 1-7 of 10 (English)" / "You have chapters 21-40; no total known". With holes the range would
+ * overstate it: "You have 2 volumes (up to 16) of 18 (English)".
+ */
 export function haveSentence(gap: MissingUnitGapDto): string {
-  const range = gap.lowest === gap.have ? `${unitWord(gap, false)} ${gap.have}` : `${unitWord(gap)} ${gap.lowest}-${gap.have}`;
+  const range = gap.missingCount > 0
+    ? `${gap.unitCount} ${unitWord(gap, gap.unitCount !== 1)} (up to ${gap.have})`
+    : gap.lowest === gap.have ? `${unitWord(gap, false)} ${gap.have}` : `${unitWord(gap)} ${gap.lowest}-${gap.have}`;
   if (gap.available == null || !gap.source) return `You have ${range}; no total known`;
   return `You have ${range} of ${gap.available} (${MISSING_SOURCE_LABELS[gap.source]})`;
 }

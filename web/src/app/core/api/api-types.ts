@@ -1668,6 +1668,8 @@ export type MissingVerdict = 'Behind' | 'Holes' | 'UpToDate' | 'NoTotal' | 'Mixe
 export interface MissingUnitGapDto {
   kind: MissingUnitKind;
   archiveCount: number;
+  /** Distinct numbers on disk. */
+  unitCount: number;
   lowest: number;
   /** The highest number on disk. */
   have: number;

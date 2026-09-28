@@ -211,6 +211,7 @@ public sealed class MissingReportService
     {
         Kind = gap.Kind,
         ArchiveCount = gap.ArchiveCount,
+        UnitCount = gap.UnitCount,
         Lowest = gap.Lowest,
         Have = gap.Have,
         Available = gap.Available,
