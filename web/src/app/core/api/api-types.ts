@@ -203,6 +203,14 @@ export interface ContinueReadingEntry {
   pageIndex: number;
   contentVersion: number;
   updatedAt: string;
+  /** The caller has starred this archive - the Home card's star (1.28.0). Optional for older servers. */
+  isFavorite?: boolean;
+  /**
+   * The card shows the (i) and the hover summary (1.28.0), by the series-info anchor rule:
+   * the nearest web link on the archive or an ancestor folder, or its own ComicInfo.
+   * Optional for older servers.
+   */
+  hasSeriesInfo?: boolean;
 }
 
 /**
@@ -757,6 +765,13 @@ export interface RecentChapterStack {
    * rolls up over its whole subtree; a loose archive stack rolls up over just itself.
    */
   readState: 'read' | 'reading' | 'unread';
+  /** The caller has starred the stack's node (the folder, or the loose archive) (1.28.0). */
+  isFavorite?: boolean;
+  /**
+   * The card shows the (i) and the hover summary (1.28.0): a folder by the browse rule, a
+   * loose archive by the series-info anchor rule.
+   */
+  hasSeriesInfo?: boolean;
 }
 
 /**

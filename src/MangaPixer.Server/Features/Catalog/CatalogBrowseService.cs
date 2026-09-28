@@ -6,6 +6,7 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -26,11 +27,13 @@ public sealed class CatalogBrowseService
 {
     private readonly MangaPixerDbContext _db;
     private readonly LibraryAuthorizationService _auth;
+    private readonly SeriesInfoFlagService _seriesInfoFlags;
 
-    public CatalogBrowseService(MangaPixerDbContext db, LibraryAuthorizationService auth)
+    public CatalogBrowseService(MangaPixerDbContext db, LibraryAuthorizationService auth, SeriesInfoFlagService? seriesInfoFlags = null)
     {
         _db = db;
         _auth = auth;
+        _seriesInfoFlags = seriesInfoFlags ?? new SeriesInfoFlagService(db);
     }
 
     /// <summary>
@@ -847,7 +850,7 @@ public sealed class CatalogBrowseService
         if (hidden)
             return nodes;
 
-        var has = await NodesWithOwnSeriesInfoAsync(rows.Select(r => (r.InternalId, r.Kind)).ToList(), ct);
+        var has = await _seriesInfoFlags.NodesWithOwnSeriesInfoAsync(rows.Select(r => (r.InternalId, r.Kind)).ToList(), ct);
         if (has.Count == 0)
             return nodes;
 
@@ -859,8 +862,7 @@ public sealed class CatalogBrowseService
     /// <see cref="CatalogNodeDto.HasSeriesInfo"/> for nodes that may span libraries
     /// (search results and the Favorites page, 1.27.0 - the hover summary needs the
     /// same flag the browse (i) uses): the browse rule, with "Show series information"
-    /// checked per node's library and globally. Batched like browse: one settings check,
-    /// one id lookup, then the same fixed set of queries.
+    /// checked per node's library and globally. Batched in <see cref="SeriesInfoFlagService"/>.
     /// </summary>
     private async Task<List<CatalogNodeDto>> ApplyHasSeriesInfoByPublicIdAsync(
         List<CatalogNodeDto> nodes, CancellationToken ct)
@@ -868,82 +870,10 @@ public sealed class CatalogBrowseService
         if (nodes.Count == 0)
             return nodes;
 
-        var globallyHidden = await _db.AppSettings
-            .AnyAsync(s => s.Id == AppSettingsEntity.SingletonId && s.MetadataSeriesInfoHidden, ct);
-        if (globallyHidden)
+        var publicIdsWithInfo = await _seriesInfoFlags.WithOwnSeriesInfoAsync(nodes.Select(n => n.Id), ct);
+        if (publicIdsWithInfo.Count == 0)
             return nodes;
-
-        var publicIds = nodes.Select(n => n.Id).Distinct().ToList();
-        var rows = await _db.CatalogNodes
-            .Where(n => publicIds.Contains(n.PublicId) && !n.Library!.MetadataSeriesInfoHidden)
-            .Select(n => new { n.Id, n.PublicId, n.Kind })
-            .ToListAsync(ct);
-        if (rows.Count == 0)
-            return nodes;
-
-        var has = await NodesWithOwnSeriesInfoAsync(rows.Select(r => (r.Id, r.Kind)).ToList(), ct);
-        if (has.Count == 0)
-            return nodes;
-
-        var publicIdsWithInfo = rows.Where(r => has.Contains(r.Id)).Select(r => r.PublicId).ToHashSet(StringComparer.Ordinal);
         return nodes.Select(n => publicIdsWithInfo.Contains(n.Id) ? n with { HasSeriesInfo = true } : n).ToList();
-    }
-
-    /// <summary>
-    /// The internal ids among <paramref name="nodes"/> that have their OWN series
-    /// information (the rule on <see cref="ApplyHasSeriesInfoAsync"/>); the caller has
-    /// already applied "Show series information". At most four queries whatever the count.
-    /// </summary>
-    private async Task<HashSet<long>> NodesWithOwnSeriesInfoAsync(
-        IReadOnlyList<(long InternalId, int Kind)> nodes, CancellationToken ct)
-    {
-        var pageIds = nodes.Select(r => r.InternalId).ToList();
-        var has = (await _db.NodeSeriesLinks
-            .Where(l => pageIds.Contains(l.NodeId) && l.RecordId != null
-                && (l.State == (int)SeriesLinkState.Confirmed || l.State == (int)SeriesLinkState.Auto))
-            .Select(l => l.NodeId)
-            .ToListAsync(ct)).ToHashSet();
-
-        var archiveIds = nodes.Where(r => r.Kind == (int)CatalogNodeKind.Archive).Select(r => r.InternalId).ToList();
-        if (archiveIds.Count > 0)
-        {
-            has.UnionWith(await (
-                from e in _db.EmbeddedMetadata
-                join a in _db.ArchiveItems on e.NodeId equals a.NodeId
-                where archiveIds.Contains(e.NodeId) && e.State == 1 && e.ContentVersion == a.ContentVersion
-                select e.NodeId).ToListAsync(ct));
-        }
-
-        var folderIds = nodes.Where(r => r.Kind == (int)CatalogNodeKind.Folder).Select(r => r.InternalId).ToList();
-        if (folderIds.Count > 0)
-        {
-            var depth1 = await (
-                from n in _db.CatalogNodes
-                join a in _db.ArchiveItems on n.Id equals a.NodeId
-                join e in _db.EmbeddedMetadata on n.Id equals e.NodeId
-                where n.ParentId != null && folderIds.Contains(n.ParentId.Value)
-                    && n.Kind == (int)CatalogNodeKind.Archive && n.Availability != (int)CatalogNodeAvailability.Tombstoned
-                    && e.State == 1 && e.ContentVersion == a.ContentVersion
-                select n.ParentId!.Value).Distinct().ToListAsync(ct);
-            has.UnionWith(depth1);
-
-            var remaining = folderIds.Where(id => !has.Contains(id)).ToList();
-            if (remaining.Count > 0)
-            {
-                has.UnionWith(await (
-                    from child in _db.CatalogNodes
-                    join n in _db.CatalogNodes on child.Id equals n.ParentId
-                    join a in _db.ArchiveItems on n.Id equals a.NodeId
-                    join e in _db.EmbeddedMetadata on n.Id equals e.NodeId
-                    where child.ParentId != null && remaining.Contains(child.ParentId.Value)
-                        && child.Kind == (int)CatalogNodeKind.Folder && child.Availability != (int)CatalogNodeAvailability.Tombstoned
-                        && n.Kind == (int)CatalogNodeKind.Archive && n.Availability != (int)CatalogNodeAvailability.Tombstoned
-                        && e.State == 1 && e.ContentVersion == a.ContentVersion
-                    select child.ParentId!.Value).Distinct().ToListAsync(ct));
-            }
-        }
-
-        return has;
     }
 
     /// <summary>

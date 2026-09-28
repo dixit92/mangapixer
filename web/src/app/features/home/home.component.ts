@@ -1,4 +1,6 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { debounceTime } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -22,6 +24,10 @@ import {
 } from '../../core/api/api-types';
 import { readerModeGlyph } from '../../shared/reader-mode-glyph';
 import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
+import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
+import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
+import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
+import { MetadataStateService } from '../metadata/metadata-state.service';
 import {
   favoriteLink,
   favoriteQueryParams,
@@ -81,6 +87,9 @@ import {
     MatTooltipModule,
     CoverImageDirective,
     LibraryIconComponent,
+    StarToggleComponent,
+    InfoToggleComponent,
+    SeriesInfoHoverDirective,
   ],
   template: `
     <div class="home" [style.--card-size]="cardSize() + 'px'">
@@ -114,12 +123,19 @@ import {
           <div class="strip">
             @for (item of continueReading(); track item.itemId) {
               <div class="cont-wrap">
-                <a class="cont-card" [routerLink]="['/reader', item.itemId]">
-                  <div class="cover">
+                <!-- Card controls (1.28.0), as on browse / Search / Favorites: the (i)
+                     bottom-left and the star bottom-right of the cover; the cover and the
+                     title are hover zones for the summary. One archive: its (i) shows its
+                     series (the anchor rule), so the flag is re-fetched, not patched. -->
+                <a #contEl class="cont-card" [routerLink]="['/reader', item.itemId]">
+                  <div class="cover" [appSeriesInfoHover]="item.hasSeriesInfo ? item.itemId : null" [hoverAnchor]="contEl">
                     <img appCover [src]="coverUrl(item.itemId)" alt="" loading="lazy">
                     <mat-icon class="cover-fallback">menu_book</mat-icon>
+                    <app-info-toggle [nodeId]="item.itemId" [hasSeriesInfo]="!!item.hasSeriesInfo" [anchored]="true" [overlay]="true" />
+                    <app-star-toggle [nodeId]="item.itemId" [favorite]="!!item.isFavorite" [overlay]="true" [compact]="true" corner="bottom-right" />
                   </div>
-                  <div class="cont-title" [title]="item.displayName">{{ item.displayName }}</div>
+                  <div class="cont-title" [title]="item.displayName"
+                       [appSeriesInfoHover]="item.hasSeriesInfo ? item.itemId : null" [hoverAnchor]="contEl">{{ item.displayName }}</div>
                   <div class="cont-page">Page {{ item.pageIndex + 1 }}</div>
                 </a>
                 <button type="button" class="dismiss"
@@ -214,14 +230,14 @@ import {
                          working) whose plain click routes with a transient
                          recentlyUpdated sort so the freshest chapter leads, without
                          changing the user's persisted library sort. -->
-                    <a class="stack-card" [attr.href]="folderHref(group, stack)"
+                    <a #stackEl class="stack-card" [attr.href]="folderHref(group, stack)"
                        (click)="openFolder($event, group, stack)">
-                      <ng-container *ngTemplateOutlet="stackBody; context: { $implicit: stack }" />
+                      <ng-container *ngTemplateOutlet="stackBody; context: { $implicit: stack, anchor: stackEl }" />
                     </a>
                   } @else {
                     <!-- Loose top-level archive: its own stack; tap opens the reader. -->
-                    <a class="stack-card" [routerLink]="['/reader', stack.latestItemId]">
-                      <ng-container *ngTemplateOutlet="stackBody; context: { $implicit: stack }" />
+                    <a #stackEl class="stack-card" [routerLink]="['/reader', stack.latestItemId]">
+                      <ng-container *ngTemplateOutlet="stackBody; context: { $implicit: stack, anchor: stackEl }" />
                     </a>
                   }
                 }
@@ -241,9 +257,12 @@ import {
 
       <!-- One stacked card. The "stacked" paper edges behind the cover appear only
            when the unit holds more than one new chapter; the +N badge says how many. -->
-      <ng-template #stackBody let-stack>
+      <ng-template #stackBody let-stack let-anchor="anchor">
         <div class="stack" [class.stacked]="stack.newCount > 1">
-          <div class="cover">
+          <!-- Card controls (1.28.0): the (i) bottom-left, the star (the stack's own node:
+               the folder, or the loose archive) bottom-right; the corners above hold the
+               read-state and +N badges. Cover and title are hover zones. -->
+          <div class="cover" [appSeriesInfoHover]="stack.hasSeriesInfo ? stack.id : null" [hoverAnchor]="anchor">
             @if (stack.coverUrl) {
               <img appCover [src]="stack.coverUrl" alt="" loading="lazy">
             }
@@ -260,9 +279,12 @@ import {
               <span class="badge new" [matTooltip]="stack.newCount + ' new chapters'"
                     [attr.aria-label]="stack.newCount + ' new chapters'">+{{ stack.newCount }}</span>
             }
+            <app-info-toggle [nodeId]="stack.id" [hasSeriesInfo]="!!stack.hasSeriesInfo" [overlay]="true" />
+            <app-star-toggle [nodeId]="stack.id" [favorite]="!!stack.isFavorite" [overlay]="true" [compact]="true" corner="bottom-right" />
           </div>
         </div>
-        <div class="cont-title" [title]="stack.displayName">{{ stack.displayName }}</div>
+        <div class="cont-title" [title]="stack.displayName"
+             [appSeriesInfoHover]="stack.hasSeriesInfo ? stack.id : null" [hoverAnchor]="anchor">{{ stack.displayName }}</div>
         @if (stack.isFolder) {
           <div class="cont-page latest" [title]="stack.latestItemName">{{ stack.latestItemName }}</div>
         } @else {
@@ -487,15 +509,28 @@ export class HomeComponent implements OnInit {
   /** Last-loaded library-view preferences, echoed back on save so nothing else is lost. */
   private libraryPrefs: LibraryViewPreferencesDto | null = null;
 
+  constructor() {
+    // A link change (the (i) panel's admin actions, 1.28.0): a New-chapters stack uses the
+    // browse rule, so its flag is patched in place like Search; a Continue-reading card
+    // follows its series folder (the anchor rule), which the announcement cannot tell, so
+    // that row is re-fetched once the burst settles.
+    const changes$ = inject(MetadataStateService).changed$.pipe(takeUntilDestroyed());
+    changes$.subscribe(({ nodeId, hasSeriesInfo }) => {
+      this.recentGroups.update((groups) => groups.map((g) => g.stacks.some((s) => s.id === nodeId)
+        ? { ...g, stacks: g.stacks.map((s) => (s.id === nodeId ? { ...s, hasSeriesInfo } : s)) }
+        : g));
+    });
+    changes$.pipe(debounceTime(300)).subscribe(() => {
+      if (this.continueReading().length > 0) this.loadContinueReading();
+    });
+  }
+
   ngOnInit(): void {
     this.api.getLibraries().subscribe({
       next: (libs) => { this.libraries.set(libs); this.loading.set(false); },
       error: () => this.loading.set(false),
     });
-    this.api.getContinueReading(12).subscribe({
-      next: (items) => this.continueReading.set(items),
-      error: () => this.continueReading.set([]),
-    });
+    this.loadContinueReading();
     this.loadRecentChapters();
     this.api.getLibraryPreferences().subscribe({
       next: (p) => {
@@ -510,6 +545,13 @@ export class HomeComponent implements OnInit {
     this.api.getHomeLibraries().subscribe({
       next: (dto) => this.excludedLibraryIds.set(new Set(dto.excludedLibraryIds)),
       error: () => { /* leave the set empty: showing every library is the safe default */ },
+    });
+  }
+
+  private loadContinueReading(): void {
+    this.api.getContinueReading(12).subscribe({
+      next: (items) => this.continueReading.set(items),
+      error: () => this.continueReading.set([]),
     });
   }
 
