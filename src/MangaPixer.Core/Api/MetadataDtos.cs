@@ -213,6 +213,20 @@ public sealed record MetadataSettingsDto
 
     /// <summary>True when no threshold was changed from its default.</summary>
     public bool ThresholdsAreDefault { get; init; } = true;
+
+    // 1.28.0: the provider allowlist and consent renewal.
+
+    /// <summary>The approved sites, each with whether it is on the allowlist.</summary>
+    public IReadOnlyList<MetadataProviderDto> Providers { get; init; } = [];
+
+    /// <summary>
+    /// "Fetch from the web" was on under an older consent (an update changed what may be sent or to whom): it stays
+    /// off until an admin accepts the current consent.
+    /// </summary>
+    public bool ConsentRenewalNeeded { get; init; }
+
+    /// <summary>Automatic matching was on under an older automatic consent: it stays off until an admin accepts again.</summary>
+    public bool AutoConsentRenewalNeeded { get; init; }
 }
 
 public sealed record MetadataComicInfoStatsDto
@@ -270,6 +284,12 @@ public sealed record UpdateMetadataSettingsRequest
 
     /// <summary>Back to <c>MatchThresholds.Default</c>.</summary>
     public bool ResetThresholds { get; init; }
+
+    /// <summary>
+    /// 1.28.0: the full set of approved provider ids to keep OFF the allowlist (empty = every approved site in);
+    /// null leaves the allowlist unchanged. An unknown id is rejected (<c>invalid_provider</c>).
+    /// </summary>
+    public IReadOnlyList<string>? RemovedProviders { get; init; }
 }
 
 /// <summary>Partial update of one library's toggles; null fields are left unchanged.</summary>

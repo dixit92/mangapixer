@@ -140,8 +140,23 @@ public sealed class MetadataSettingsService
             ThresholdBounds = MetadataThresholds.Bounds,
             ThresholdsAreDefault = row is null
                 || (row.MetadataAutoTitleThreshold is null && row.MetadataMarginThreshold is null && row.MetadataReviewFloorThreshold is null),
+            Providers = MetadataProviderAllowlist.ToDtos(row?.MetadataProvidersJson),
+            ConsentRenewalNeeded = ConsentRenewalNeeded(row),
+            AutoConsentRenewalNeeded = AutoConsentRenewalNeeded(row),
         };
     }
+
+    /// <summary>
+    /// "Was on under an older consent" (1.28.0), derived from the stored flags: the switch is still stored on, but
+    /// the accepted version is older than the current one, so the gateway refuses every call until an admin accepts
+    /// the current text. Accepting (or turning the switch off) clears it; no column of its own.
+    /// </summary>
+    public static bool ConsentRenewalNeeded(AppSettingsEntity? row) =>
+        row is { MetadataEnabled: true, MetadataConsentVersion: { } v } && v < MetadataConsent.CurrentVersion;
+
+    /// <summary>The same for Automatic matching and its own consent version.</summary>
+    public static bool AutoConsentRenewalNeeded(AppSettingsEntity? row) =>
+        row is { MetadataAutoMatchEnabled: true, MetadataAutoConsentVersion: { } v } && v < MetadataAutoConsent.CurrentVersion;
 
     /// <summary>Applies a partial update; returns a validation error code, or null on success.</summary>
     public async Task<string?> UpdateAsync(UpdateMetadataSettingsRequest request, string? actor, CancellationToken ct = default)
@@ -150,6 +165,8 @@ public sealed class MetadataSettingsService
             return "invalid_daily_budget";
         if (request.Thresholds is { } t && !request.ResetThresholds && !MetadataThresholds.FromDto(t).IsValid)
             return "invalid_thresholds";
+        if (request.RemovedProviders is { } removedProviders && !removedProviders.All(MetadataProviderAllowlist.IsKnown))
+            return "invalid_provider";
 
         var row = await _db.AppSettings.FirstOrDefaultAsync(s => s.Id == AppSettingsEntity.SingletonId, ct);
 
@@ -243,6 +260,16 @@ public sealed class MetadataSettingsService
                 row.MetadataMarginThreshold = thresholds.Margin;
                 row.MetadataReviewFloorThreshold = thresholds.ReviewFloor;
                 audits.Add(AuditActions.MetadataThresholdsChange);
+            }
+        }
+
+        if (request.RemovedProviders is { } removed)
+        {
+            var json = MetadataProviderAllowlist.Write(removed);
+            if (!string.Equals(json, MetadataProviderAllowlist.Write(MetadataProviderAllowlist.Removed(row.MetadataProvidersJson)), StringComparison.Ordinal))
+            {
+                row.MetadataProvidersJson = json;
+                audits.Add(AuditActions.MetadataProvidersChange);
             }
         }
 

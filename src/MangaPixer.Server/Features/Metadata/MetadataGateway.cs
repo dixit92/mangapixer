@@ -66,7 +66,7 @@ public sealed class MetadataCallContext
 /// at call time and in this order:
 /// 1. config <c>Metadata:NetworkDisabled</c> (operator hard kill) -> 409;
 /// 2. the global "Fetch from the web" switch with the CURRENT consent version -> 409;
-/// 3. the library's own switch -> 409;
+/// 3. the library's own switch -> 409; (1.28.0) the provider allowlist -> 409;
 /// 4. persisted backoff -> 503;
 /// 5. the persisted daily budget -> 429;
 /// 6. the provider's token bucket (small FIFO queue; overflow) -> 429.
@@ -129,9 +129,18 @@ public sealed class MetadataGateway
 
     /// <summary>
     /// Gates 1-3 and, for <see cref="MetadataCallOrigin.Automatic"/>, the automatic
-    /// switch + consent. Null when allowed. No network, no side effect.
+    /// switch + consent, for MangaUpdates (the provider of Identify, auto-match and
+    /// refresh). Null when allowed. No network, no side effect.
     /// </summary>
-    public async Task<MetadataGatewayException?> CheckSwitchesAsync(long libraryId, MetadataCallOrigin origin, CancellationToken ct = default)
+    public Task<MetadataGatewayException?> CheckSwitchesAsync(long libraryId, MetadataCallOrigin origin, CancellationToken ct = default) =>
+        CheckSwitchesAsync(libraryId, origin, MetadataProviderAllowlist.MangaUpdates, ct);
+
+    /// <summary>
+    /// The switch gates for one provider (1.28.0): gates 1-3, the automatic switch for
+    /// automatic calls, and the provider allowlist - a site the admin removed gets no
+    /// request of any kind (409 <c>provider_not_allowed</c>).
+    /// </summary>
+    public async Task<MetadataGatewayException?> CheckSwitchesAsync(long libraryId, MetadataCallOrigin origin, string providerId, CancellationToken ct = default)
     {
         if (_settings.NetworkDisabledByConfig)
             return new MetadataGatewayException(StatusCodes.Status409Conflict, "metadata_network_disabled",
@@ -139,7 +148,7 @@ public sealed class MetadataGateway
 
         var global = await _db.AppSettings.AsNoTracking()
             .Where(s => s.Id == AppSettingsEntity.SingletonId)
-            .Select(s => new { s.MetadataEnabled, s.MetadataConsentVersion, s.MetadataAutoMatchEnabled, s.MetadataAutoConsentVersion })
+            .Select(s => new { s.MetadataEnabled, s.MetadataConsentVersion, s.MetadataAutoMatchEnabled, s.MetadataAutoConsentVersion, s.MetadataProvidersJson })
             .FirstOrDefaultAsync(ct);
         if (global is not { MetadataEnabled: true } || global.MetadataConsentVersion != MetadataConsent.CurrentVersion)
             return new MetadataGatewayException(StatusCodes.Status409Conflict, "metadata_disabled",
@@ -148,6 +157,9 @@ public sealed class MetadataGateway
             && (!global.MetadataAutoMatchEnabled || global.MetadataAutoConsentVersion != AutoMatch.MetadataAutoConsent.CurrentVersion))
             return new MetadataGatewayException(StatusCodes.Status409Conflict, "automatic_off",
                 "Automatic matching is off. An admin can turn it on in Metadata Manager.");
+        if (!MetadataProviderAllowlist.IsAllowed(global.MetadataProvidersJson, providerId))
+            return new MetadataGatewayException(StatusCodes.Status409Conflict, "provider_not_allowed",
+                "This site is not on the provider allowlist. An admin can add it back in Metadata Manager > Settings.");
 
         var libraryEnabled = await _db.Libraries.AsNoTracking()
             .Where(l => l.Id == libraryId)
@@ -201,7 +213,7 @@ public sealed class MetadataGateway
         page = Math.Clamp(page, 1, 100);
 
         var origin = call?.Origin ?? MetadataCallOrigin.Interactive;
-        await ThrowIfSwitchedOffAsync(libraryId, origin, ct);
+        await ThrowIfSwitchedOffAsync(libraryId, origin, provider.Id, ct);
         var key = SearchCacheKey(provider.Id, text, page, hideDoujinshiAndNovels, allowDoujinshi);
         if (_cache.TryGetValue<ProviderSearchPage>(key, out var cached) && cached is not null)
             return cached;
@@ -221,7 +233,7 @@ public sealed class MetadataGateway
         var provider = Provider(providerId);
         if (!MetadataIdentifiers.IsValidExternalId(externalId))
             throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "invalid_request", "The record id is not valid.");
-        await ThrowIfSwitchedOffAsync(libraryId, call?.Origin ?? MetadataCallOrigin.Interactive, ct);
+        await ThrowIfSwitchedOffAsync(libraryId, call?.Origin ?? MetadataCallOrigin.Interactive, provider.Id, ct);
         return await CallAsync(provider.Id, "get", libraryId, _state.ApiLimiter, c => provider.GetSeriesAsync(externalId, c), call, ct);
     }
 
@@ -238,7 +250,7 @@ public sealed class MetadataGateway
             || !HostAllowlistHandler.IsAllowed(uri, s_imageHosts))
             throw new MetadataGatewayException(StatusCodes.Status502BadGateway, "host_not_allowed", "The image address is not on the allowlist.");
 
-        await ThrowIfSwitchedOffAsync(libraryId, call?.Origin ?? MetadataCallOrigin.Interactive, ct);
+        await ThrowIfSwitchedOffAsync(libraryId, call?.Origin ?? MetadataCallOrigin.Interactive, provider.Id, ct);
         return await CallAsync(provider.Id, "image", libraryId, _state.ImageLimiter, async c =>
         {
             var client = _httpFactory.CreateClient(MetadataHttp.MangaUpdatesImageClient);
@@ -258,9 +270,9 @@ public sealed class MetadataGateway
         _providers.Find(providerId)
         ?? throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "unknown_provider", "No such metadata provider.");
 
-    private async Task ThrowIfSwitchedOffAsync(long libraryId, MetadataCallOrigin origin, CancellationToken ct)
+    private async Task ThrowIfSwitchedOffAsync(long libraryId, MetadataCallOrigin origin, string providerId, CancellationToken ct)
     {
-        if (await CheckSwitchesAsync(libraryId, origin, ct) is { } refusal)
+        if (await CheckSwitchesAsync(libraryId, origin, providerId, ct) is { } refusal)
         {
             _logger.LogInformation(LogEvents.Metadata.GatewayRefused, "Metadata call refused for library {LibraryId}: {Code}", libraryId, refusal.Code);
             throw refusal;
@@ -307,7 +319,7 @@ public sealed class MetadataGateway
         await _backoff.RecordSuccessAsync(ct);
 
         // In-flight calls finish, but their results are kept only if the switches are still on.
-        await ThrowIfSwitchedOffAsync(libraryId, origin, ct);
+        await ThrowIfSwitchedOffAsync(libraryId, origin, providerId, ct);
         return result;
     }
 
