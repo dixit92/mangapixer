@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { Subscription } from 'rxjs';
 
 import { NodeDeclaredFactsDto } from '../../../core/api/api-types';
@@ -16,19 +15,19 @@ import { conflictText, creatorsText, declaredTypeLabel, hasDeclared, sourceText 
 @Component({
   selector: 'app-declared-facts-line',
   standalone: true,
-  imports: [MatIconModule, MatTooltipModule],
+  imports: [MatIconModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (shown(); as d) {
       <div class="declared" data-testid="declared-line">
         <p class="facts">
-          <span class="muted">Declared:</span>
+          <span class="muted">Declared:</span>&ngsp;
           @if (d.effective.type) {
-            <span [matTooltip]="typeSource()" data-testid="declared-type">{{ typeLabel() }}</span>
+            <span [title]="typeSource()" data-testid="declared-type">{{ typeLabel() }}</span>
           }
-          @if (d.effective.type && creators()) { · }
+          @if (d.effective.type && creators()) {&ngsp;·&ngsp;}
           @if (creators()) {
-            <span [matTooltip]="creatorsSource()" data-testid="declared-creators">{{ creators() }}</span>
+            <span [title]="creatorsSource()" data-testid="declared-creators">{{ creators() }}</span>
           }
         </p>
         @if (conflict(); as text) {
@@ -44,7 +43,7 @@ import { conflictText, creatorsText, declaredTypeLabel, hasDeclared, sourceText 
     :host { display: block; }
     .declared { clear: both; }
     .facts { margin: 2px 0; font-size: 13px; color: #c8c8d4; }
-    .muted { color: #8a8a99; margin-right: 4px; }
+    .muted { color: #8a8a99; }
     .conflict { display: flex; align-items: flex-start; gap: 6px; margin: 4px 0; font-size: 13px; color: #ffcc80; }
     .conflict mat-icon { flex: none; margin-top: 1px; }
     .badge {
