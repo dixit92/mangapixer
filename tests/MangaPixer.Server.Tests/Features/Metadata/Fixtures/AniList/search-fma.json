@@ -1,0 +1,31 @@
+{
+  "data": {
+    "Page": {
+      "media": [
+        {
+          "id": 30025,
+          "title": { "romaji": "Hagane no Renkinjutsushi", "english": "Fullmetal Alchemist", "native": "鋼の錬金術師" },
+          "synonyms": ["FMA", "Full Metal Alchemist"],
+          "format": "MANGA",
+          "status": "FINISHED",
+          "volumes": 27,
+          "chapters": 116,
+          "startDate": { "year": 2001 },
+          "siteUrl": "https://anilist.co/manga/30025",
+          "averageScore": 90
+        },
+        {
+          "id": 90001,
+          "title": { "romaji": "Hagane no Renkinjutsushi: Gaiden", "english": null, "native": null },
+          "synonyms": [],
+          "format": "ONE_SHOT",
+          "status": "FINISHED",
+          "volumes": 1,
+          "chapters": 1,
+          "startDate": { "year": 2003 },
+          "siteUrl": "https://anilist.co/manga/90001"
+        }
+      ]
+    }
+  }
+}

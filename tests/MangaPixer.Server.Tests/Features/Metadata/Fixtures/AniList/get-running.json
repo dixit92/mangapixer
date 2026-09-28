@@ -1,0 +1,15 @@
+{
+  "data": {
+    "Media": {
+      "id": 30002,
+      "title": { "romaji": "Berserk", "english": "Berserk", "native": "ベルセルク" },
+      "synonyms": [],
+      "format": "MANGA",
+      "status": "RELEASING",
+      "volumes": null,
+      "chapters": null,
+      "startDate": { "year": 1989 },
+      "siteUrl": "https://anilist.co/manga/30002"
+    }
+  }
+}

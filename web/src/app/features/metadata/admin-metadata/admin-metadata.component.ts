@@ -12,13 +12,15 @@ import { MetadataFlagsComponent } from './flags/metadata-flags.component';
 import { ADMIN_METADATA_TABS, AdminMetadataTab, REVIEW_TABS } from './metadata-admin-labels';
 import { MetadataRunsComponent } from './runs/metadata-runs.component';
 import { MetadataSettingsComponent } from './settings/metadata-settings.component';
+import { MissingReportComponent } from '../missing/missing-report.component';
+import { ConsentRenewalBannerComponent } from '../consent-renewal-banner.component';
 
 export { ADMIN_METADATA_TABS, type AdminMetadataTab };
 
 /**
  * `/admin/metadata` (metadata stage 2, decision 4c; renamed to "Metadata Manager" by
  * the owner, 1.27.0): the dedicated admin page with tabs Settings / Review / Flags /
- * Runs. The summary tile that used to sit on the main admin page now lives at the TOP
+ * Runs / Missing (1.28.0: the missing volumes / chapters report). The summary tile that used to sit on the main admin page now lives at the TOP
  * of this page instead, above the tabs, replacing the plain one-line summary it used to
  * show here - its stats switch tabs in place (`onTileTab`) rather than navigating. The
  * tab (and the review list + library) live in the query string
@@ -30,7 +32,7 @@ export { ADMIN_METADATA_TABS, type AdminMetadataTab };
   standalone: true,
   imports: [
     RouterLink, MatIconModule, MatTabsModule, MetadataSettingsComponent, ReviewDashboardComponent, MetadataFlagsComponent,
-    MetadataRunsComponent, MetadataSummaryTileComponent,
+    MetadataRunsComponent, MetadataSummaryTileComponent, MissingReportComponent, ConsentRenewalBannerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -40,6 +42,7 @@ export { ADMIN_METADATA_TABS, type AdminMetadataTab };
         <h1>Metadata Manager</h1>
       </header>
       <app-metadata-summary-tile [inPage]="true" (tabSelect)="onTileTab($event)" />
+      <app-consent-renewal-banner [inPage]="true" (openSettings)="select(0)" />
       <mat-tab-group [selectedIndex]="index()" (selectedIndexChange)="select($event)" animationDuration="0ms"
                      mat-stretch-tabs="false" mat-align-tabs="start">
         <mat-tab label="Settings">
@@ -69,6 +72,11 @@ export { ADMIN_METADATA_TABS, type AdminMetadataTab };
         <mat-tab label="Runs">
           <ng-template matTabContent>
             <div class="tab"><app-metadata-runs /></div>
+          </ng-template>
+        </mat-tab>
+        <mat-tab label="Missing">
+          <ng-template matTabContent>
+            <div class="tab"><app-missing-report [libraries]="libraries()" [initialLibrary]="library()" /></div>
           </ng-template>
         </mat-tab>
       </mat-tab-group>
@@ -145,7 +153,7 @@ export class AdminMetadataComponent implements OnInit {
       queryParams: {
         tab: this.tab() === 'settings' ? null : this.tab(),
         list: review && this.list() !== 'NeedsReview' ? this.list() : null,
-        library: review || this.tab() === 'flags' ? this.library() : null,
+        library: review || this.tab() === 'flags' || this.tab() === 'missing' ? this.library() : null,
       },
     });
   }

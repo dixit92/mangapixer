@@ -246,11 +246,12 @@ public static class MangaUpdatesMapping
         int? englishVolumes = null, englishChapters = null;
         foreach (var p in s.Publishers ?? [])
         {
+            int? publisherVolumes = null, publisherChapters = null;
             if (string.Equals(p.Type?.Trim(), "English", StringComparison.OrdinalIgnoreCase))
             {
-                var (v, c) = MangaUpdatesStatusParser.ParsePublisherNotes(p.Notes);
-                englishVolumes = Max(englishVolumes, v);
-                englishChapters = Max(englishChapters, c);
+                (publisherVolumes, publisherChapters) = MangaUpdatesStatusParser.ParsePublisherNotes(p.Notes);
+                englishVolumes = Max(englishVolumes, publisherVolumes);
+                englishChapters = Max(englishChapters, publisherChapters);
             }
             if (publishers.Count >= 30) break;
             if (MetadataText.Line(p.PublisherName, 256) is not { } name) continue;
@@ -260,7 +261,8 @@ public static class MangaUpdatesMapping
                 "english" => "english",
                 _ => "other",
             };
-            publishers.Add(new MetadataJson.Publisher(name, kind));
+            // 1.28.0: the English totals are stored with the publisher (the missing volumes / chapters report).
+            publishers.Add(new MetadataJson.Publisher(name, kind, publisherVolumes, publisherChapters));
         }
 
         var genres = (s.Genres ?? [])

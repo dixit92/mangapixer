@@ -40,9 +40,13 @@ export function settings(overrides: Partial<MetadataSettingsDto> = {}): Metadata
   return {
     showSeriesInfo: true,
     fetchEnabled: false,
+    providers: [
+      { id: 'mangaupdates', name: 'MangaUpdates', hosts: ['api.mangaupdates.com', 'cdn.mangaupdates.com'], usedFor: 'Series details.', sends: 'Search text.', allowed: true },
+      { id: 'anilist', name: 'AniList', hosts: ['graphql.anilist.co'], usedFor: 'Chapters per volume.', sends: 'A linked title.', allowed: true },
+    ],
     networkDisabledByConfig: false,
     acceptedConsentVersion: null,
-    currentConsentVersion: 1,
+    currentConsentVersion: 2, // 1.28.0: the provider allowlist text
     consentAt: null,
     dailyBudget: 5000,
     defaultDailyBudget: 5000,

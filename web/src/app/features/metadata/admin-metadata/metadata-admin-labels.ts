@@ -20,8 +20,8 @@ import { formatLabel } from '../series-info-labels';
  * them (`MetadataSummaryTileComponent`) so its in-page stats can switch to one without a
  * circular import between the two components.
  */
-export type AdminMetadataTab = 'settings' | 'review' | 'flags' | 'runs';
-export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 'review', 'flags', 'runs'];
+export type AdminMetadataTab = 'settings' | 'review' | 'flags' | 'runs' | 'missing';
+export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 'review', 'flags', 'runs', 'missing'];
 
 export interface ReviewTabDef {
   tab: MetadataReviewTab;

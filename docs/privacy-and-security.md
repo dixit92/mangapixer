@@ -15,4 +15,8 @@ Out of the box, nothing: MangaPixer makes no internet requests until an admin tu
 
 Series data fetched from the web is provided by [MangaUpdates](https://www.mangaupdates.com) and credited to it wherever it is shown.
 
+### Allowed sites and AniList
+
+*New in 1.28.0.* MangaPixer contacts only the **allowed sites** listed in Metadata Manager > Settings: MangaUpdates and, for the [Missing report](missing-report.md#chapters-per-volume-from-anilist), [AniList](https://anilist.co). An admin can remove either one; a removed site gets no request of any kind. AniList is asked only when an admin presses **Get chapters per volume from AniList** or **Chapters per volume (AniList)** in the Missing report, only for libraries whose **Fetch** switch is on, never in the background: MangaPixer sends the MangaUpdates title of a series that is already linked (never a folder or file name), or its AniList record number once it is known, a fixed "manga, not novels" filter and the generic `User-Agent`, only to `graphql.anilist.co`. It stores the matching entry's volume and chapter totals on your server, counts every request in the same daily budget, sends at most one request per second, and waits when AniList asks it to slow down. When an update changes the allowed sites or what is sent, fetching stays off until an admin accepts the new consent text ([After an update: accept again](series-information.md#after-an-update-accept-again)). AniList data is credited to AniList where it is shown.
+
 To report a vulnerability, see [SECURITY.md](../SECURITY.md).

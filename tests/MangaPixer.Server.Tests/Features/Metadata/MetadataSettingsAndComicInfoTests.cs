@@ -64,7 +64,7 @@ public sealed class MetadataSettingsAndComicInfoTests
         Assert.NotNull(s.ConsentAt);
 
         var audit = await t.Db.AuditEvents.SingleAsync(a => a.Action == AuditActions.MetadataSettingsEnable);
-        Assert.Equal("consent_v1", audit.Result);
+        Assert.Equal($"consent_v{MetadataConsent.CurrentVersion}", audit.Result); // 2 since 1.28.0 (the provider allowlist)
 
         // Already on with the current consent: re-sending the state (to change the budget)
         // needs no consent again and records no second enable.

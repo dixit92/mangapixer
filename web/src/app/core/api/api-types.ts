@@ -1136,6 +1136,22 @@ export interface MetadataSettingsDto {
   compareCoversEnabled?: boolean;
   /** True when Metadata:AutoMatch:CompareCovers=false switches it off regardless of the setting. */
   compareCoversDisabledByConfig?: boolean;
+  /** 1.28.0: the approved sites (the provider allowlist), each with whether it is in. */
+  providers?: MetadataProviderDto[];
+  /** 1.28.0: "Fetch from the web" was on under an older consent - off until an admin accepts again. */
+  consentRenewalNeeded?: boolean;
+  /** 1.28.0: Automatic matching was on under an older automatic consent. */
+  autoConsentRenewalNeeded?: boolean;
+}
+
+/** One approved metadata site (1.28.0, the provider allowlist). */
+export interface MetadataProviderDto {
+  id: string;
+  name: string;
+  hosts: string[];
+  usedFor: string;
+  sends: string;
+  allowed: boolean;
 }
 
 export interface UpdateMetadataSettingsRequest {
@@ -1151,6 +1167,8 @@ export interface UpdateMetadataSettingsRequest {
   resetThresholds?: boolean;
   /** 1.28.0: "Compare covers"; null leaves it unchanged (no consent of its own). */
   compareCoversEnabled?: boolean | null;
+  /** 1.28.0: the full set of provider ids to keep off the allowlist ([] = all in); null/absent = unchanged. */
+  removedProviders?: string[] | null;
 }
 
 export interface UpdateMetadataLibraryRequest {
@@ -1663,4 +1681,104 @@ export interface NodeDeclaredFactsDto {
   nodeId: string;
   effective: EffectiveDeclaredFactsDto;
   conflict?: DeclaredFactsConflictDto | null;
+}
+
+// --- Missing volumes / chapters report (1.28.0, admin-only; stored data only) ---
+
+export type MissingUnitKind = 'Volume' | 'Chapter';
+export type MissingTotalSource = 'English' | 'Origin' | 'LatestChapter' | 'Converted';
+export type MissingConfidence = 'Low' | 'Medium' | 'High';
+/** Worst first: Behind, Holes, UpToDate, NoTotal, then no verdict (Mixed, NoUnits). */
+export type MissingVerdict = 'Behind' | 'Holes' | 'UpToDate' | 'NoTotal' | 'Mixed' | 'NoUnits';
+
+export interface MissingUnitGapDto {
+  kind: MissingUnitKind;
+  archiveCount: number;
+  /** Distinct numbers on disk. */
+  unitCount: number;
+  lowest: number;
+  /** The highest number on disk. */
+  have: number;
+  available?: number | null;
+  source?: MissingTotalSource | null;
+  confidence?: MissingConfidence | null;
+  behindBy: number;
+  /** Holes below `have` (the first 50); `missingCount` has them all. */
+  missing: number[];
+  missingCount: number;
+}
+
+export interface MissingSeriesDto {
+  nodeId: string;
+  displayName: string;
+  libraryId: string;
+  libraryName: string;
+  coverUrl?: string | null;
+  provider: string;
+  recordTitle: string;
+  linkState: SeriesLinkState;
+  verdict: MissingVerdict;
+  volumes?: MissingUnitGapDto | null;
+  chapters?: MissingUnitGapDto | null;
+  mixedFolders: number;
+  /** An English publisher is listed but no English total is stored (read on the next refresh). */
+  englishTotalUnknown: boolean;
+  /** 1.28.0: the stored chapters-per-volume source (an AniList entry), or null. */
+  conversion?: MissingConversionDto | null;
+  statusText?: string | null;
+  fetchedAt?: string;
+}
+
+export interface MissingReportSummaryDto {
+  series: number;
+  behind: number;
+  holes: number;
+  upToDate: number;
+  noTotal: number;
+  noVerdict: number;
+}
+
+/** GET /admin/metadata/missing?library=&onlyMissing=&cursor=&limit= */
+export interface MissingReportPageDto {
+  items: MissingSeriesDto[];
+  summary: MissingReportSummaryDto;
+  total: number;
+  nextCursor?: string | null;
+}
+
+/** A stored chapters-per-volume source (1.28.0). */
+export interface MissingConversionDto {
+  provider: string;
+  providerName: string;
+  externalId: string;
+  title: string;
+  siteUrl?: string | null;
+  volumes?: number | null;
+  chapters?: number | null;
+  /** Only for a finished entry with both totals. */
+  chaptersPerVolume?: number | null;
+  fetchedAt?: string;
+}
+
+export type MissingConversionOutcome = 'Found' | 'NoCounts' | 'NoMatch';
+
+/** POST /admin/metadata/missing/{nodeId}/conversion */
+export interface MissingConversionResultDto {
+  outcome: MissingConversionOutcome;
+  row: MissingSeriesDto;
+}
+
+/** POST /admin/metadata/missing/conversions */
+export interface MissingConversionBatchRequest {
+  library?: string | null;
+}
+
+export interface MissingConversionBatchResultDto {
+  looked: number;
+  found: number;
+  noCounts: number;
+  noMatch: number;
+  remaining: number;
+  stoppedCode?: string | null;
+  stoppedMessage?: string | null;
 }

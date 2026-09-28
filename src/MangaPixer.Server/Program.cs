@@ -626,6 +626,12 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.AutoMatch.MetadataPostScanHook>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataRefreshService>();
         services.AddScoped<Features.Metadata.Review.MetadataReviewService>();
+        // Missing volumes / chapters report (1.28.0): stored data only, no request.
+        services.AddScoped<Features.Metadata.Missing.MissingReportService>();
+        // AniList (1.28.0): ONLY the Missing report's chapters-per-volume lookup (admin action); not an
+        // IMetadataProvider, so Identify / auto-match / refresh never see it.
+        services.AddSingleton<Features.Metadata.Providers.AniList.IUnitConversionProvider, Features.Metadata.Providers.AniList.AniListProvider>();
+        services.AddScoped<Features.Metadata.Missing.MissingConversionService>();
         services.AddScoped<Features.Metadata.Flags.MetadataFlagService>();
         services.AddHostedService<Hosting.MetadataAutoMatchHostedService>();
 
@@ -638,6 +644,7 @@ public sealed partial class Program
 
         AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaUpdatesApiClient, Features.Metadata.MetadataHttp.MangaUpdatesApiHost, "application/json");
         AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaUpdatesImageClient, Features.Metadata.MetadataHttp.MangaUpdatesImageHost, "image/*");
+        AddMetadataClient(services, Features.Metadata.MetadataHttp.AniListClient, Features.Metadata.MetadataHttp.AniListHost, "application/json");
     }
 
     internal static IHttpClientBuilder AddMetadataClient(IServiceCollection services, string name, string host, string accept)

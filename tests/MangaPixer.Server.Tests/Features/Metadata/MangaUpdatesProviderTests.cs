@@ -112,7 +112,7 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         Assert.Contains(new MetadataJson.Creator("MIURA Kentaro", "author", "22635311083"), r.Creators);
         Assert.Contains(new MetadataJson.Creator("MIURA Kentaro", "artist", "22635311083"), r.Creators);
         Assert.Contains(new MetadataJson.Publisher("Hakusensha", "original"), r.Publishers);
-        Assert.Contains(new MetadataJson.Publisher("Dark Horse", "english"), r.Publishers);
+        Assert.Contains(new MetadataJson.Publisher("Dark Horse", "english", 42), r.Publishers); // 1.28.0: the English totals are kept
         Assert.Contains("Seinen", r.Genres);
         Assert.Equal(MangaUpdatesMapping.MaxStoredCategories, r.Categories.Count);
         Assert.True(r.Categories.Zip(r.Categories.Skip(1)).All(p => p.First.Votes >= p.Second.Votes));

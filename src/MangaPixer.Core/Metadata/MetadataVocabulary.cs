@@ -174,7 +174,9 @@ public static class MetadataConsent
 {
     /// <summary>
     /// The consent text version an admin must accept before the global "Fetch from
-    /// the web" switch can be turned on. A change of the network surface bumps it.
+    /// the web" switch can be turned on. A change of the network surface bumps it; an
+    /// instance that accepted an older version stops fetching until an admin accepts again.
+    /// 2 (1.28.0): the text describes the provider allowlist (MangaUpdates + AniList).
     /// </summary>
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 }
