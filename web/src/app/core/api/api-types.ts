@@ -1656,3 +1656,62 @@ export interface NodeDeclaredFactsDto {
   effective: EffectiveDeclaredFactsDto;
   conflict?: DeclaredFactsConflictDto | null;
 }
+
+// --- Missing volumes / chapters report (1.28.0, admin-only; stored data only) ---
+
+export type MissingUnitKind = 'Volume' | 'Chapter';
+export type MissingTotalSource = 'English' | 'Origin' | 'LatestChapter';
+export type MissingConfidence = 'Low' | 'Medium' | 'High';
+/** Worst first: Behind, Holes, UpToDate, NoTotal, then no verdict (Mixed, NoUnits). */
+export type MissingVerdict = 'Behind' | 'Holes' | 'UpToDate' | 'NoTotal' | 'Mixed' | 'NoUnits';
+
+export interface MissingUnitGapDto {
+  kind: MissingUnitKind;
+  archiveCount: number;
+  lowest: number;
+  /** The highest number on disk. */
+  have: number;
+  available?: number | null;
+  source?: MissingTotalSource | null;
+  confidence?: MissingConfidence | null;
+  behindBy: number;
+  /** Holes below `have` (the first 50); `missingCount` has them all. */
+  missing: number[];
+  missingCount: number;
+}
+
+export interface MissingSeriesDto {
+  nodeId: string;
+  displayName: string;
+  libraryId: string;
+  libraryName: string;
+  coverUrl?: string | null;
+  provider: string;
+  recordTitle: string;
+  linkState: SeriesLinkState;
+  verdict: MissingVerdict;
+  volumes?: MissingUnitGapDto | null;
+  chapters?: MissingUnitGapDto | null;
+  mixedFolders: number;
+  /** An English publisher is listed but no English total is stored (read on the next refresh). */
+  englishTotalUnknown: boolean;
+  statusText?: string | null;
+  fetchedAt?: string;
+}
+
+export interface MissingReportSummaryDto {
+  series: number;
+  behind: number;
+  holes: number;
+  upToDate: number;
+  noTotal: number;
+  noVerdict: number;
+}
+
+/** GET /admin/metadata/missing?library=&onlyMissing=&cursor=&limit= */
+export interface MissingReportPageDto {
+  items: MissingSeriesDto[];
+  summary: MissingReportSummaryDto;
+  total: number;
+  nextCursor?: string | null;
+}

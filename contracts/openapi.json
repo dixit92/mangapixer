@@ -2939,6 +2939,149 @@
             "description": "No Content"
           }
         }
+      },
+      "get": {
+        "tags": [
+          "MissingReport"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingSeriesDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingSeriesDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingSeriesDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/metadata/missing": {
+      "get": {
+        "tags": [
+          "MissingReport"
+        ],
+        "parameters": [
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "onlyMissing",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingReportPageDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingReportPageDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingReportPageDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/nodes/{nodeId}/series-info/flags": {
@@ -7825,6 +7968,297 @@
           }
         }
       },
+      "MissingConfidence": {
+        "type": "integer"
+      },
+      "MissingReportPageDto": {
+        "required": [
+          "items",
+          "summary",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingSeriesDto"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/MissingReportSummaryDto"
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "MissingReportSummaryDto": {
+        "required": [
+          "series",
+          "behind",
+          "holes",
+          "upToDate",
+          "noTotal",
+          "noVerdict"
+        ],
+        "type": "object",
+        "properties": {
+          "series": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "behind": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "holes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "upToDate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "noTotal": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "noVerdict": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "MissingSeriesDto": {
+        "required": [
+          "nodeId",
+          "displayName",
+          "libraryId",
+          "libraryName",
+          "provider",
+          "recordTitle",
+          "linkState",
+          "verdict",
+          "mixedFolders",
+          "englishTotalUnknown"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "libraryName": {
+            "type": "string"
+          },
+          "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "recordTitle": {
+            "type": "string"
+          },
+          "linkState": {
+            "$ref": "#/components/schemas/SeriesLinkState"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/MissingVerdict"
+          },
+          "volumes": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MissingUnitGapDto"
+              }
+            ]
+          },
+          "chapters": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MissingUnitGapDto"
+              }
+            ]
+          },
+          "mixedFolders": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "englishTotalUnknown": {
+            "type": "boolean"
+          },
+          "statusText": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MissingTotalSource": {
+        "type": "integer"
+      },
+      "MissingUnitGapDto": {
+        "required": [
+          "kind",
+          "archiveCount",
+          "lowest",
+          "have",
+          "behindBy",
+          "missing",
+          "missingCount"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/MissingUnitKind"
+          },
+          "archiveCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lowest": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "have": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "available": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "source": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MissingTotalSource"
+              }
+            ]
+          },
+          "confidence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MissingConfidence"
+              }
+            ]
+          },
+          "behindBy": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          "missingCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "MissingUnitKind": {
+        "type": "integer"
+      },
+      "MissingVerdict": {
+        "type": "integer"
+      },
       "NodeDeclaredFactsDto": {
         "required": [
           "nodeId",
@@ -7926,6 +8360,44 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -9002,6 +9474,9 @@
     },
     {
       "name": "MetadataReview"
+    },
+    {
+      "name": "MissingReport"
     },
     {
       "name": "MetadataFlags"
