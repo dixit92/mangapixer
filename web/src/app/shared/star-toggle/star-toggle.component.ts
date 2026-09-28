@@ -77,8 +77,11 @@ export class StarToggleComponent {
   /** Absolutely position the star in a cover corner (host becomes display:contents). */
   readonly overlay = input<boolean>(false);
 
-  /** Which cover corner with `overlay` (1.28.0: Home cards use bottom-right; their top corners hold badges). */
-  readonly corner = input<'top-left' | 'bottom-right'>('top-left');
+  /**
+   * Which cover corner with `overlay`. 1.28.0 (owner): bottom-right on every card surface (browse, Search,
+   * Favorites, Home) - Home's top corners hold its badges, and one position everywhere is easier to learn.
+   */
+  readonly corner = input<'top-left' | 'bottom-right'>('bottom-right');
 
   /** Locally-tracked state; seeded from the input and updated optimistically. */
   readonly isFav = signal(false);
