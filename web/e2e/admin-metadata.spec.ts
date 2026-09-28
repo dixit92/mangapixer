@@ -74,7 +74,7 @@ function watchForeignRequests(page: Page, baseURL: string): string[] {
   return foreign;
 }
 
-test('account menu opens Metadata Manager (/admin/metadata) with its own summary tile and four tabs; admin page has no tile', async ({ page, baseURL }) => {
+test('account menu opens Metadata Manager (/admin/metadata) with its own summary tile and five tabs; admin page has no tile', async ({ page, baseURL }) => {
   const foreign = watchForeignRequests(page, baseURL!);
   await login(page);
   await page.goto('/admin');
@@ -97,7 +97,9 @@ test('account menu opens Metadata Manager (/admin/metadata) with its own summary
   await shot(page, 'c-01-metadata-manager-tile');
 
   const tabs = page.locator('.mat-mdc-tab-header').getByRole('tab');
-  await expect(tabs).toHaveCount(4);
+  // Settings, Review, Flags, Runs + Missing (1.28.0, the missing volumes / chapters report).
+  await expect(tabs).toHaveCount(5);
+  await expect(tabs.filter({ hasText: 'Missing' })).toHaveCount(1);
   await expect(page.getByTestId('metadata-settings-card')).toBeVisible();
   await shot(page, 'c-02-settings-tab', true);
 
