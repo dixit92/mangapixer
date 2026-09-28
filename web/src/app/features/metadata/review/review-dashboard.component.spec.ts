@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { provideRouter } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 
 import { MetadataReviewItemDto, MetadataReviewPageDto, MetadataReviewTab } from '../../../core/api/api-types';
@@ -78,6 +79,7 @@ describe('ReviewDashboardComponent', () => {
       imports: [ReviewDashboardComponent],
       providers: [
         provideNoopAnimations(),
+        provideRouter([]),
         { provide: MetadataApiService, useValue: api },
         { provide: MatSnackBar, useValue: snack.bar },
         { provide: MatDialog, useValue: dialog },
@@ -206,6 +208,9 @@ describe('ReviewDashboardComponent', () => {
   });
 
   it('re-attaches a missing folder through the folder picker', async () => {
+    // The dashboard lazy-loads the dialog; load it first so the first transform of that module (slow on a busy
+    // machine) cannot outlast the waitFor below - it made this test flaky (1.28.0 RC).
+    await import('./reattach-dialog.component');
     const missing = reviewItem({ nodeId: 'm1', displayName: 'Old Name', missing: true, candidates: [] });
     const { c, api, dialog, names } = create({ tab: 'MissingFolders', pages: { MissingFolders: [missing] } });
     c.onRowAction({ action: 'reattach', item: missing });

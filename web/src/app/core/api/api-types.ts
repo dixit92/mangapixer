@@ -1419,6 +1419,8 @@ export interface MetadataReviewItemDto {
   /** Up to 3 ancestor display names below the library root, outermost first. */
   trail?: string[];
   missing?: boolean;
+  /** The containing folder, for the row's "open folder" link; null at the library's top level. */
+  parentNodeId?: string | null;
   /** Local cover: the archive's own, or a folder's first archive (as browse shows it). */
   coverUrl?: string | null;
   workClass?: WorkClass | null;
@@ -1472,7 +1474,7 @@ export interface MetadataReviewBulkResultDto {
 export interface MetadataAutoMatchStatusDto {
   enabled: boolean;
   active: boolean;
-  /** automatic_off, metadata_disabled, metadata_network_disabled, budget_exhausted, provider_backoff. */
+  /** automatic_off, metadata_disabled, metadata_network_disabled, provider_not_allowed, budget_exhausted, provider_backoff. */
   waitingCode?: string | null;
   waitingUntil?: string | null;
   pending: number;

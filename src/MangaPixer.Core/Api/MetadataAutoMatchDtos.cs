@@ -219,6 +219,12 @@ public sealed record MetadataReviewItemDto
     public bool Missing { get; init; }
 
     /// <summary>
+    /// The folder that contains the node, for the row's "open folder" link (an archive opens in context); null at the
+    /// library's top level.
+    /// </summary>
+    public string? ParentNodeId { get; init; }
+
+    /// <summary>
     /// The local cover (1.26.x): an archive's own, or a folder's first archive - the thumbnail browse
     /// shows, so it can be compared with the candidates' covers. Null when there is none.
     /// </summary>

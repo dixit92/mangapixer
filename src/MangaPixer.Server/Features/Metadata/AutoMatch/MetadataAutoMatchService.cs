@@ -103,12 +103,15 @@ public sealed class MetadataAutoMatchService
             return new AutomaticWait("metadata_network_disabled", null);
         var row = await _db.AppSettings.AsNoTracking()
             .Where(s => s.Id == AppSettingsEntity.SingletonId)
-            .Select(s => new { s.MetadataEnabled, s.MetadataConsentVersion, s.MetadataAutoMatchEnabled, s.MetadataAutoConsentVersion })
+            .Select(s => new { s.MetadataEnabled, s.MetadataConsentVersion, s.MetadataAutoMatchEnabled, s.MetadataAutoConsentVersion, s.MetadataProvidersJson })
             .FirstOrDefaultAsync(ct);
         if (row is not { MetadataEnabled: true } || row.MetadataConsentVersion != MetadataConsent.CurrentVersion)
             return new AutomaticWait("metadata_disabled", null);
         if (!row.MetadataAutoMatchEnabled || row.MetadataAutoConsentVersion != MetadataAutoConsent.CurrentVersion)
             return new AutomaticWait("automatic_off", null);
+        // Automatic matching and refresh ask MangaUpdates only: with it off the allowlist there is nothing to do.
+        if (!MetadataProviderAllowlist.IsAllowed(row.MetadataProvidersJson, MetadataProviderAllowlist.MangaUpdates))
+            return new AutomaticWait("provider_not_allowed", null);
         if (!MatcherAvailable)
             return new AutomaticWait("matcher_unavailable", null);
         if (await _backoff.ActiveUntilAsync(ct) is { } until)
@@ -643,10 +646,14 @@ public sealed class MetadataAutoMatchService
         return fresh.Count;
     }
 
-    /// <summary>Local refusals (nothing was wrong with the provider): the row waits, no attempt is counted.</summary>
+    /// <summary>
+    /// Local refusals (nothing was wrong with the provider): the row waits, no attempt is counted. A site removed from
+    /// the provider allowlist is one too - before 1.29.0 it counted as a failure, so removing MangaUpdates failed the
+    /// queued works (and marked refreshed records failed) instead of pausing them.
+    /// </summary>
     public static bool IsRefusal(MetadataGatewayException ex) => ex.Code is
         "metadata_network_disabled" or "metadata_disabled" or "library_metadata_disabled" or "automatic_off"
-        or "budget_exhausted" or "provider_backoff" or "provider_busy";
+        or "budget_exhausted" or "provider_backoff" or "provider_busy" or "provider_not_allowed";
 
     private sealed record CheckedWork(DetectedWork Work, WorkClassification Classification);
 

@@ -368,6 +368,39 @@ public sealed class MetadataAutoMatchHttpTests
     }
 
     [Fact]
+    public async Task Review_RowsCarryTheirContainingFolder_NullAtTheLibraryTopLevel()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(configureServices: Fakes);
+        await SeedAsync(factory);
+        using (var scope = factory.Services.CreateScope())
+        {
+            // A nested work in review: a subfolder of amPlain.
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            var lib = await db.Libraries.SingleAsync(l => l.PublicId == LibPub);
+            var plain = await db.CatalogNodes.SingleAsync(n => n.PublicId == "amPlain");
+            var nested = Node("amNested", lib.Id, plain.Id, CatalogNodeKind.Folder, "Nested Saga");
+            db.CatalogNodes.Add(nested);
+            await db.SaveChangesAsync();
+            var now = DateTimeOffset.UtcNow;
+            db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
+            {
+                NodeId = nested.Id,
+                LibraryId = lib.Id,
+                State = (int)SeriesLinkState.NeedsReview,
+                MatchMethod = 3,
+                CreatedAt = now,
+                UpdatedAt = now,
+            });
+            await db.SaveChangesAsync();
+        }
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var page = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=NeedsReview"));
+        Assert.Null(page.Items.Single(i => i.NodeId == "amReview").ParentNodeId);
+        Assert.Equal("amPlain", page.Items.Single(i => i.NodeId == "amNested").ParentNodeId);
+    }
+
+    [Fact]
     public async Task MissingFolders_ListedAndReattached_FolderContentRoundTrip()
     {
         using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true, configureServices: Fakes);

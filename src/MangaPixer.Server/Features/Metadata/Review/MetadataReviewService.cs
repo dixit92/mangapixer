@@ -234,6 +234,9 @@ public sealed class MetadataReviewService
         var memberIds = queue.Values.SelectMany(q => Members(q)).Distinct().ToList();
         var memberPublic = await _db.CatalogNodes.AsNoTracking().Where(n => memberIds.Contains(n.Id))
             .ToDictionaryAsync(n => n.Id, n => n.PublicId, ct);
+        var parentIds = nodes.Values.Where(n => n.ParentId != null).Select(n => n.ParentId!.Value).Distinct().ToList();
+        var parentPublic = await _db.CatalogNodes.AsNoTracking().Where(n => parentIds.Contains(n.Id))
+            .ToDictionaryAsync(n => n.Id, n => n.PublicId, ct);
 
         var items = new List<MetadataReviewItemDto>();
         foreach (var id in nodeIds)
@@ -257,6 +260,7 @@ public sealed class MetadataReviewService
                 LibraryName = library.DisplayName ?? string.Empty,
                 Trail = trails.GetValueOrDefault(id) ?? [],
                 Missing = node.Availability == (int)CatalogNodeAvailability.Tombstoned,
+                ParentNodeId = node.ParentId is { } parent ? parentPublic.GetValueOrDefault(parent) : null,
                 WorkClass = q?.WorkClass is { } wc ? (WorkClass)wc : null,
                 MatchLevel = q is null ? null : (MatchLevel)q.Level,
                 ItemCount = node.Kind == (int)CatalogNodeKind.Folder ? archiveCounts.GetValueOrDefault(id) : 1 + members.Count,

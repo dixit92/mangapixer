@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { provideRouter } from '@angular/router';
 
 import { MetadataReviewItemDto, MetadataReviewTab } from '../../../core/api/api-types';
 import { reviewItem } from '../admin-metadata/metadata-admin.testing';
 import { MetadataApiService } from '../metadata-api.service';
+import { QueuedImageDirective } from './queued-image.directive';
 import { ReviewRowActionEvent, ReviewRowComponent, rowActions } from './review-row.component';
 
 /**
@@ -16,7 +18,7 @@ describe('ReviewRowComponent', () => {
     opts: { expanded?: boolean; compact?: boolean; rank?: number } = {}) {
     TestBed.configureTestingModule({
       imports: [ReviewRowComponent],
-      providers: [provideNoopAnimations(),
+      providers: [provideNoopAnimations(), provideRouter([]),
         { provide: MetadataApiService, useValue: { candidateImageUrl: (t: string) => `/api/v1/admin/metadata/candidates/${t}/image` } }],
     });
     const fixture = TestBed.createComponent(ReviewRowComponent);
@@ -69,6 +71,43 @@ describe('ReviewRowComponent', () => {
     const posters = create(reviewItem(), 'NeedsReview', { expanded: true }).all('[data-testid="review-poster"]') as HTMLImageElement[];
     expect(posters.map((p) => p.getAttribute('src'))).toEqual([
       '/api/v1/admin/metadata/candidates/tok1/image', '/api/v1/admin/metadata/candidates/tok2/image']);
+  });
+
+  it('a refused candidate cover is retried, then offers "No cover" with a retry - never a broken image (1.29.0)', () => {
+    vi.useFakeTimers();
+    try {
+      const { fixture, el } = create();
+      const img = () => el.querySelector('[data-testid="review-series-cover"]') as HTMLImageElement;
+      const retryButton = () => el.querySelector('[data-testid="review-series-retry"]') as HTMLButtonElement | null;
+      for (const delay of QueuedImageDirective.Backoff) {
+        img().dispatchEvent(new Event('error'));
+        fixture.detectChanges();
+        expect(img().hasAttribute('src')).toBe(false); // nothing to draw a broken-image icon with
+        expect(retryButton()).toBeNull(); // still trying
+        vi.advanceTimersByTime(delay);
+        expect(img().getAttribute('src')).toMatch(/^\/api\/v1\/admin\/metadata\/candidates\/tok1\/image\?r=\d$/);
+      }
+      img().dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+      expect(retryButton()!.textContent).toContain('No cover');
+      retryButton()!.click();
+      fixture.detectChanges();
+      expect(img().getAttribute('src')).toBe('/api/v1/admin/metadata/candidates/tok1/image');
+      expect(retryButton()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('opens the folder in browse: a folder row its own folder, an archive row its containing folder (1.29.0, owner)', () => {
+    const href = (item: MetadataReviewItemDto) => {
+      TestBed.resetTestingModule();
+      return create(item).el.querySelector('[data-testid="review-open-folder"]')?.getAttribute('href');
+    };
+    expect(href(reviewItem({ nodeId: 'f1', nodeKind: 'Folder' }))).toBe('/libraries/lib1/browse/f1');
+    expect(href(reviewItem({ nodeId: 'a1', nodeKind: 'Archive', parentNodeId: 'f9' }))).toBe('/libraries/lib1/browse/f9');
+    expect(href(reviewItem({ nodeId: 'a2', nodeKind: 'Archive', parentNodeId: null }))).toBe('/libraries/lib1/browse');
+    expect(href(reviewItem({ nodeId: 'g1', nodeKind: 'Folder', missing: true }))).toBeUndefined(); // gone: nothing to open
   });
 
   it('marks archive rows and archive groups', () => {
