@@ -14,7 +14,7 @@ public sealed record HashedImage(ulong Hash, int Width, int Height, string? Erro
 /// The 64-bit perceptual hash of an image file (protocol v4 <c>image_hash</c>, 1.28.0): decoded with Magick.NET
 /// HERE, in the worker - the untrusted-input boundary; provider images are remote bytes and the server never
 /// decodes them. The first frame is flattened onto white, turned to grayscale, squeezed to 32x32 (aspect
-/// ignored, area-averaged) and handed to <see cref="PerceptualHash.Compute"/>. Size and dimension caps are
+/// ignored, area-averaged) and handed to <see cref="CoverHash.Compute"/>. Size and dimension caps are
 /// checked before the pixels are decoded. Never writes anything.
 /// </summary>
 public static class ImageHasher
@@ -45,14 +45,14 @@ public static class ImageHasher
             image.Alpha(AlphaOption.Remove);
             image.Grayscale(PixelIntensityMethod.Rec709Luma);
             image.FilterType = FilterType.Box;
-            image.Resize(new MagickGeometry(PerceptualHash.Side, PerceptualHash.Side) { IgnoreAspectRatio = true });
+            image.Resize(new MagickGeometry(CoverHash.Side, CoverHash.Side) { IgnoreAspectRatio = true });
             using var pixels = image.GetPixels();
             var gray = pixels.ToByteArray(PixelMapping.RGB)
                 ?? throw new InvalidDataException("no pixels");
-            var luma = new byte[PerceptualHash.Side * PerceptualHash.Side];
+            var luma = new byte[CoverHash.Side * CoverHash.Side];
             for (var i = 0; i < luma.Length; i++)
                 luma[i] = gray[i * 3];
-            return new HashedImage(PerceptualHash.Compute(luma), width, height, null);
+            return new HashedImage(CoverHash.Compute(luma), width, height, null);
         }
         catch (MagickException)
         {

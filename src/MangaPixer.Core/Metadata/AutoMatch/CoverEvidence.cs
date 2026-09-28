@@ -19,7 +19,7 @@ public enum CoverVerdict
 /// decoding and the 32x32 grayscale reduction happen in the media worker (the server never decodes remote
 /// bytes); this is shared so the rule is unit-tested and the same everywhere.
 /// </summary>
-public static class PerceptualHash
+public static class CoverHash
 {
     /// <summary>Side of the grayscale square the hash is computed on.</summary>
     public const int Side = 32;
@@ -155,7 +155,7 @@ public static class CoverEvidence
         if (candidateHashes.Count < 2)
             return new HashSet<string>(StringComparer.Ordinal);
         var same = candidateHashes
-            .Where(c => PerceptualHash.Compare(localHash, c.Value) == CoverVerdict.Same)
+            .Where(c => CoverHash.Compare(localHash, c.Value) == CoverVerdict.Same)
             .Select(c => c.Key)
             .ToHashSet(StringComparer.Ordinal);
         return same.Count == candidateHashes.Count ? new HashSet<string>(StringComparer.Ordinal) : same;

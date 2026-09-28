@@ -5,7 +5,7 @@ using com.lifepixer.mangapixer.Server.Media;
 using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-/// <summary>Hashes a server-owned image file (<see cref="PerceptualHash"/>); null when it cannot be hashed.</summary>
+/// <summary>Hashes a server-owned image file (<see cref="CoverHash"/>); null when it cannot be hashed.</summary>
 public interface ICoverHasher
 {
     Task<ulong?> HashFileAsync(string path, CancellationToken ct);

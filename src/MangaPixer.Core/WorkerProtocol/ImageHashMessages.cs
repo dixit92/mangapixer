@@ -4,7 +4,7 @@ namespace com.lifepixer.mangapixer.Core.WorkerProtocol;
 /// Server -> Worker (protocol v4, 1.28.0): hash one image file for the automatic matcher's cover comparison.
 /// The file is SERVER-OWNED - a stored cover thumbnail, or provider image bytes the server wrote to its scratch
 /// area - never a source-library path. The worker decodes it (the server never decodes remote bytes), reduces it
-/// to a 32x32 grayscale square and answers its 64-bit perceptual hash (<c>PerceptualHash</c>) in an
+/// to a 32x32 grayscale square and answers its 64-bit perceptual hash (<c>CoverHash</c>) in an
 /// <c>image_hash_result</c>, or an <c>image_hash_error</c>. Nothing is written.
 /// </summary>
 public sealed record ImageHashRequest
