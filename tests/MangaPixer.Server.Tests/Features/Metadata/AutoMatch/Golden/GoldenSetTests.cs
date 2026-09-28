@@ -321,7 +321,7 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
 
         var seen = net.Handler.Seen;
         var searches = seen.Count(r => r.Method == HttpMethod.Post);
-        var images = seen.Count(r => r.Method == HttpMethod.Get && r.RequestUri!.Host == MetadataHttp.MangaUpdatesImageHost);
+        var images = seen.Count(r => r.Method == HttpMethod.Get && r.Uri.Host == MetadataHttp.MangaUpdatesImageHost);
         var gets = seen.Count(r => r.Method == HttpMethod.Get) - images;
         var outcome = missing.Count > 0
             ? null
