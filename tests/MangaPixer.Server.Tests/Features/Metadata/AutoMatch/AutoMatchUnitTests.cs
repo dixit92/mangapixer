@@ -44,7 +44,10 @@ public sealed class AutoMatchUnitTests
         Assert.Equal("Beta Tale", shape.DisplayName);
         Assert.Equal(2, shape.Depth);
         Assert.Empty(shape.ArchiveNames);
-        Assert.Equal([new ChildFolderShape("Volumes", 2)], shape.Subfolders);
+        var volumes = Assert.Single(shape.Subfolders);
+        Assert.Equal(("Volumes", 2), (volumes.DisplayName, volumes.DescendantArchiveCount));
+        Assert.Equal(["Beta Tale v01", "Beta Tale v02"], volumes.ArchiveNames!); // a unit subfolder hands its names to the count rule (1.29.0)
+        Assert.All(tree.ShapeOf(1).Subfolders, s => Assert.Null(s.ArchiveNames)); // other subfolders do not
         Assert.Equal("Manga", shape.ParentDisplayName);
         Assert.Equal("manga", shape.CategoryHint);
 

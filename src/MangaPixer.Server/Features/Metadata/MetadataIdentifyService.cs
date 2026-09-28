@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Admin;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
@@ -245,7 +246,7 @@ public sealed class MetadataIdentifyService
             Strength = TitleSimilarity.Label(score),
             FetchedAt = record.FetchedAt,
             Local = local,
-            Warnings = Warnings(record, local, name.YearHint),
+            Warnings = Warnings(record, local, name.YearHint, await LocalUnitsAsync(node, ct), node.Kind == (int)CatalogNodeKind.Folder),
         };
     }
 
@@ -603,7 +604,92 @@ public sealed class MetadataIdentifyService
         return Math.Clamp(score, 0, 1);
     }
 
-    private static List<IdentifyWarningDto> Warnings(MetadataRecordEntity record, IdentifyLocalDto local, int? yearHint)
+    /// <summary>
+    /// The count rule's local side of a node (1.29.0, <see cref="CountEvidence.LocalOf"/>): an archive's own name, or a
+    /// folder's archives plus the archive names below its unit subfolders (Volumes, Chapters, Season 2 ...; bounded).
+    /// Other subfolders are separate works and are not read.
+    /// </summary>
+    private async Task<LocalUnitCounts> LocalUnitsAsync(CatalogNodeEntity node, CancellationToken ct)
+    {
+        if (node.Kind == (int)CatalogNodeKind.Archive)
+            return CountEvidence.LocalOf([node.DisplayName], null);
+        var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
+        var folder = (int)CatalogNodeKind.Folder;
+        var children = await _db.CatalogNodes.AsNoTracking()
+            .Where(n => n.ParentId == node.Id && n.Availability != tombstoned)
+            .OrderBy(n => n.SortKey)
+            .Select(n => new { n.Id, n.Kind, n.DisplayName })
+            .Take(MaxLocalItems)
+            .ToListAsync(ct);
+        var loose = children.Where(c => c.Kind != folder).Select(c => c.DisplayName).ToList();
+        var units = children.Where(c => c.Kind == folder && AutoMatchText.IsUnitFolderName(c.DisplayName)).ToList();
+        var names = units.ToDictionary(u => u.Id, _ => new List<string>());
+        var rootOf = units.ToDictionary(u => u.Id, u => u.Id);
+        var frontier = units.Select(u => u.Id).ToList();
+        var total = 0;
+        for (var depth = 0; depth < 3 && frontier.Count > 0 && total < MaxLocalItems; depth++)
+        {
+            var level = frontier;
+            var rows = await _db.CatalogNodes.AsNoTracking()
+                .Where(n => n.ParentId != null && level.Contains(n.ParentId.Value) && n.Availability != tombstoned)
+                .OrderBy(n => n.SortKey)
+                .Select(n => new { n.Id, ParentId = n.ParentId!.Value, n.Kind, n.DisplayName })
+                .Take(MaxLocalItems)
+                .ToListAsync(ct);
+            frontier = [];
+            foreach (var r in rows)
+            {
+                if (r.Kind == folder)
+                {
+                    rootOf[r.Id] = rootOf[r.ParentId];
+                    frontier.Add(r.Id);
+                }
+                else if (total++ < MaxLocalItems)
+                {
+                    names[rootOf[r.ParentId]].Add(r.DisplayName);
+                }
+            }
+        }
+        return CountEvidence.LocalOf(loose, units.Select(u => new ChildFolderShape(u.DisplayName, names[u.Id].Count, names[u.Id])));
+    }
+
+    /// <summary>The published totals of a stored record, as the matcher reads them from the provider's record.</summary>
+    internal static PublishedUnitCounts PublishedOf(MetadataRecordEntity record)
+    {
+        var english = MetadataJson.ReadList<MetadataJson.Publisher>(record.PublishersJson)
+            .Where(p => string.Equals(p.Kind, "english", StringComparison.Ordinal))
+            .ToList();
+        return new PublishedUnitCounts(
+            record.OriginVolumes,
+            english.Max(p => p.Volumes),
+            MangaUpdatesStatusParser.Parse(record.StatusText).Chapters,
+            english.Max(p => p.Chapters),
+            record.LatestChapter is { } latest ? (int)Math.Floor(latest) : null);
+    }
+
+    /// <summary>
+    /// The count warning (1.29.0): the matcher's count rule (<see cref="CountEvidence"/>) - volumes against the record's
+    /// volume total, chapters against its chapter total, each sentence naming its unit; nothing when the record states no
+    /// total for the unit the folder has, or the folder mixes volumes and chapters.
+    /// </summary>
+    internal static IEnumerable<string> CountWarnings(LocalUnitCounts units, PublishedUnitCounts published, bool isFolder)
+    {
+        var count = CountEvidence.Compare(units, published);
+        var where = isFolder ? "this folder" : "this archive";
+        if (count.Volumes == CountSignal.Conflict)
+            yield return FormattableString.Invariant(
+                $"The record lists {count.PublishedVolumes} volumes; {where} has {CountEvidence.Describe(units, volumes: true)}.");
+        if (count.Chapters == CountSignal.Conflict)
+        {
+            var total = Math.Max(published.StatusChapters ?? 0, published.EnglishChapters ?? 0);
+            yield return total >= count.PublishedChapters
+                ? FormattableString.Invariant($"The record lists {total} chapters; {where} has {CountEvidence.Describe(units, volumes: false)}.")
+                : FormattableString.Invariant(
+                    $"The record's latest chapter is {count.PublishedChapters}; {where} has {CountEvidence.Describe(units, volumes: false)}.");
+        }
+    }
+
+    private static List<IdentifyWarningDto> Warnings(MetadataRecordEntity record, IdentifyLocalDto local, int? yearHint, LocalUnitCounts units, bool isFolder)
     {
         var warnings = new List<IdentifyWarningDto>();
         var nameLower = local.DisplayName.ToLowerInvariant();
@@ -618,13 +704,8 @@ public sealed class MetadataIdentifyService
         }
         if (yearHint is { } hint && record.StartYear is { } year && Math.Abs(hint - year) > 1)
             warnings.Add(new IdentifyWarningDto { Code = "year_mismatch", Message = $"The name says {hint}; the record starts in {year}." });
-        var expected = Math.Max(record.OriginVolumes ?? 0, (int)Math.Ceiling(record.LatestChapter ?? 0));
-        if (expected > 0 && local.ItemCount > expected * 3 / 2 + 2)
-            warnings.Add(new IdentifyWarningDto
-            {
-                Code = "count_mismatch",
-                Message = $"The record lists {expected} volumes/chapters; this folder has {local.ItemCount} items.",
-            });
+        foreach (var message in CountWarnings(units, PublishedOf(record), isFolder))
+            warnings.Add(new IdentifyWarningDto { Code = "count_mismatch", Message = message });
         if (record.FetchState == 1)
             warnings.Add(new IdentifyWarningDto { Code = "record_gone", Message = "MangaUpdates no longer lists this record." });
         return warnings;

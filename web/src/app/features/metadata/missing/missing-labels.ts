@@ -26,6 +26,7 @@ export const MISSING_VERDICT_LABELS: Record<MissingVerdict, string> = {
   NoTotal: 'No total known',
   Mixed: 'Mixed folder',
   NoUnits: 'No numbers',
+  Restarts: 'Numbering restarts',
 };
 
 /** `[1, 2, 3, 7, 9, 10]` -> `1-3, 7, 9-10`. */
@@ -78,7 +79,10 @@ export function gapsOf(row: MissingSeriesDto): MissingUnitGapDto[] {
 /** Why a row has no verdict. */
 export function noVerdictReason(row: MissingSeriesDto): string | null {
   if (row.verdict === 'Mixed') return 'Volumes and chapters are mixed in one folder, so there is nothing to compare.';
-  if (row.verdict === 'NoUnits') return 'No archive name states a volume or chapter number.';
+  if (row.verdict === 'NoUnits') return 'No archive name states a volume or chapter number (a chapter 0 alone does not count).';
+  if (row.verdict === 'Restarts') {
+    return 'The numbering starts again (or repeats) in another subfolder, such as Season 1 and Season 2, so it cannot be compared with one total.';
+  }
   return null;
 }
 

@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 /// <summary>
 /// The missing volumes / chapters report (1.28.0), admin-only. For every FOLDER with its own confirmed or
 /// automatic link to a stored record, it compares the unit numbers the archive names state (the folder itself
-/// plus its Volumes / Chapters subfolders; <see cref="MissingUnits"/>) with the totals of the stored record: the
+/// plus its unit subfolders - Volumes, Chapters, Season / Part N - since 1.29.0; <see cref="MissingUnits"/>) with the totals of the stored record: the
 /// English publishers' totals first, then the status in the country of origin, then the latest chapter. Reads
 /// stored rows only - it never contacts a provider. Logs counts and timings, never names or titles.
 /// </summary>
@@ -71,7 +71,7 @@ public sealed class MissingReportService
             Holes = ordered.Count(x => x.Result.Verdict == MissingVerdict.Holes),
             UpToDate = ordered.Count(x => x.Result.Verdict == MissingVerdict.UpToDate),
             NoTotal = ordered.Count(x => x.Result.Verdict == MissingVerdict.NoTotal),
-            NoVerdict = ordered.Count(x => x.Result.Verdict is MissingVerdict.Mixed or MissingVerdict.NoUnits),
+            NoVerdict = ordered.Count(x => x.Result.Verdict is MissingVerdict.Mixed or MissingVerdict.NoUnits or MissingVerdict.Restarts),
         };
         var filtered = onlyMissing
             ? ordered.Where(x => x.Result.Verdict is MissingVerdict.Behind or MissingVerdict.Holes).ToList()
@@ -159,44 +159,60 @@ public sealed class MissingReportService
     private static MissingConversionDto? ConversionOf(LinkedRow row, IReadOnlyDictionary<string, MissingConversionDto> conversions) =>
         row.Provider == MetadataProviderAllowlist.MangaUpdates ? conversions.GetValueOrDefault(row.ExternalId) : null;
 
-    /// <summary>Evaluates every row with two batched queries (children, then unit-subfolder children).</summary>
+    /// <summary>Unit subfolders are followed this many levels below the linked folder (<c>Season 1/Volumes</c>).</summary>
+    public const int MaxUnitDepth = 3;
+
+    /// <summary>
+    /// Evaluates every row with batched queries, one level at a time. A series is the linked folder's own archives plus
+    /// every unit subfolder below it (1.29.0, the matcher's SeriesWithUnits shape: <c>Volumes</c>, <c>Chapters</c>,
+    /// <c>Season 2</c>, <c>Part 3</c>, <c>12</c> ...; up to <see cref="MaxUnitDepth"/> levels) that has no link of its own
+    /// (not linked, not Don't match, not in review) and is not side material (Extras, Specials, Colored ...). Other
+    /// subfolders are separate works. Each folder is evaluated as its own list, so numbering that restarts per folder is seen.
+    /// </summary>
     private async Task<Dictionary<long, MissingUnitsResult>> EvaluateAsync(
         IReadOnlyList<LinkedRow> rows, IReadOnlyDictionary<string, MissingConversionDto> conversions, CancellationToken ct)
     {
-        var ids = rows.Select(r => r.NodeId).ToList();
         var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
         var archive = (int)CatalogNodeKind.Archive;
-        var children = await _db.CatalogNodes.AsNoTracking()
-            .Where(n => n.ParentId != null && ids.Contains(n.ParentId.Value) && n.Availability != tombstoned)
-            .Select(n => new { n.Id, ParentId = n.ParentId!.Value, n.Kind, n.DisplayName })
-            .ToListAsync(ct);
+        // Folder id -> (series node id, display name); the series' own folder has no name hint.
+        var folderOf = rows.ToDictionary(r => r.NodeId, r => (Series: r.NodeId, Name: (string?)null));
+        var archivesIn = new Dictionary<long, List<string>>();
+        var frontier = rows.Select(r => r.NodeId).ToList();
+        for (var depth = 0; depth <= MaxUnitDepth && frontier.Count > 0; depth++)
+        {
+            var level = frontier;
+            var children = await _db.CatalogNodes.AsNoTracking()
+                .Where(n => n.ParentId != null && level.Contains(n.ParentId.Value) && n.Availability != tombstoned)
+                .OrderBy(n => n.SortKey)
+                .Select(n => new { n.Id, ParentId = n.ParentId!.Value, n.Kind, n.DisplayName })
+                .ToListAsync(ct);
+            foreach (var c in children.Where(c => c.Kind == archive))
+            {
+                if (!archivesIn.TryGetValue(c.ParentId, out var list))
+                    archivesIn[c.ParentId] = list = [];
+                list.Add(c.DisplayName);
+            }
+            if (depth == MaxUnitDepth)
+                break;
 
-        // Volumes / Chapters subfolders belong to the series unless they carry a link of their own.
-        var unitFolders = children
-            .Where(c => c.Kind != archive && (AutoMatchText.IsVolumeFolderName(c.DisplayName) || AutoMatchText.IsChapterFolderName(c.DisplayName)))
-            .Select(c => c.Id)
-            .ToList();
-        var ownLinked = (await _db.NodeSeriesLinks.AsNoTracking().Where(l => unitFolders.Contains(l.NodeId)).Select(l => l.NodeId).ToListAsync(ct))
-            .ToHashSet();
-        var unitFolderParent = children.Where(c => unitFolders.Contains(c.Id) && !ownLinked.Contains(c.Id)).ToDictionary(c => c.Id, c => c.ParentId);
-        var unitIds = unitFolderParent.Keys.ToList();
-        var grandchildren = await _db.CatalogNodes.AsNoTracking()
-            .Where(n => n.ParentId != null && unitIds.Contains(n.ParentId.Value) && n.Kind == archive && n.Availability != tombstoned)
-            .Select(n => new { ParentId = n.ParentId!.Value, n.DisplayName })
-            .ToListAsync(ct);
+            var units = children
+                .Where(c => c.Kind != archive && AutoMatchText.IsUnitFolderName(c.DisplayName) && !CountEvidence.IsSideFolderName(c.DisplayName))
+                .ToList();
+            var unitIds = units.Select(u => u.Id).ToList();
+            var ownLinked = (await _db.NodeSeriesLinks.AsNoTracking().Where(l => unitIds.Contains(l.NodeId)).Select(l => l.NodeId).ToListAsync(ct))
+                .ToHashSet();
+            frontier = [];
+            foreach (var u in units.Where(u => !ownLinked.Contains(u.Id)))
+            {
+                folderOf[u.Id] = (folderOf[u.ParentId].Series, u.DisplayName);
+                frontier.Add(u.Id);
+            }
+        }
 
-        var direct = children.Where(c => c.Kind == archive).ToLookup(c => c.ParentId, c => c.DisplayName);
-        var inUnit = grandchildren.ToLookup(c => c.ParentId, c => c.DisplayName);
-        var unitsOf = unitFolderParent.ToLookup(kv => kv.Value, kv => kv.Key);
-
+        var foldersOf = folderOf.ToLookup(kv => kv.Value.Series, kv => new MissingFolder(kv.Value.Name, archivesIn.GetValueOrDefault(kv.Key) ?? []));
         var result = new Dictionary<long, MissingUnitsResult>();
         foreach (var row in rows)
-        {
-            var folders = new List<IReadOnlyList<string>> { direct[row.NodeId].ToList() };
-            foreach (var unit in unitsOf[row.NodeId])
-                folders.Add(inUnit[unit].ToList());
-            result[row.NodeId] = MissingUnits.Evaluate(folders, TotalsOf(row) with { ChaptersPerVolume = ConversionOf(row, conversions)?.ChaptersPerVolume });
-        }
+            result[row.NodeId] = MissingUnits.Evaluate(foldersOf[row.NodeId], TotalsOf(row) with { ChaptersPerVolume = ConversionOf(row, conversions)?.ChaptersPerVolume });
         return result;
     }
 
