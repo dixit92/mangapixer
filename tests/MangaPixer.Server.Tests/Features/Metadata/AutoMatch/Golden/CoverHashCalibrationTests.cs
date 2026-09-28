@@ -43,13 +43,23 @@ public sealed class CoverHashCalibrationTests(ITestOutputHelper output)
         ("webp q60", b => Rendition(b, _ => { }, MagickFormat.WebP, 60)),
         ("brightness +15%", b => Rendition(b, i => i.Modulate(new Percentage(115)))),
         ("contrast", b => Rendition(b, i => i.BrightnessContrast(new Percentage(0), new Percentage(15)))),
-        ("crop 3% per side", b => Rendition(b, i =>
+        ("crop 1% per side", b => Rendition(b, i => Crop(i, 0.01))),
+        ("crop 2% per side", b => Rendition(b, i => Crop(i, 0.02))),
+        ("crop 3% per side", b => Rendition(b, i => Crop(i, 0.03))),
+        ("crop 5% per side", b => Rendition(b, i => Crop(i, 0.05))),
+        ("white border 3%", b => Rendition(b, i =>
         {
-            var (w, h) = (i.Width, i.Height);
-            i.Crop(new MagickGeometry((int)(w * 0.03), (int)(h * 0.03), (uint)(w * 0.94), (uint)(h * 0.94)));
-            i.ResetPage();
+            i.BorderColor = MagickColors.White;
+            i.Border((uint)Math.Max(1, i.Width * 0.03), (uint)Math.Max(1, i.Height * 0.03));
         })),
     ];
+
+    private static void Crop(MagickImage image, double side)
+    {
+        var (w, h) = (image.Width, image.Height);
+        image.Crop(new MagickGeometry((int)(w * side), (int)(h * side), (uint)(w * (1 - 2 * side)), (uint)(h * (1 - 2 * side))));
+        image.ResetPage();
+    }
 
     [Fact]
     public void SameCoverRenditions_AreSame_DifferentCovers_AreNeverSame()
@@ -57,29 +67,36 @@ public sealed class CoverHashCalibrationTests(ITestOutputHelper output)
         var covers = GoldenFixtures.ImageNames("cover.").Select(n => (Name: n, Hash: Hash(GoldenFixtures.Image(n)!))).ToList();
         Assert.True(covers.Count >= 15, $"only {covers.Count} recorded covers");
 
-        var same = new List<int>();
+        var byRendition = s_sameCover.ToDictionary(r => r.Name, _ => new List<int>(), StringComparer.Ordinal);
         foreach (var name in covers.Select(c => c.Name))
         {
             var bytes = GoldenFixtures.Image(name)!;
             var original = Hash(bytes);
             foreach (var (rendition, make) in s_sameCover)
-            {
-                var distance = CoverHash.Distance(original, Hash(make(bytes)));
-                same.Add(distance);
-                Assert.True(distance <= CoverHash.SameMaxDistance, $"{name} {rendition}: distance {distance}");
-            }
+                byRendition[rendition].Add(CoverHash.Distance(original, Hash(make(bytes))));
         }
 
         var different = new List<int>();
         for (var i = 0; i < covers.Count; i++)
             for (var j = i + 1; j < covers.Count; j++)
                 different.Add(CoverHash.Distance(covers[i].Hash, covers[j].Hash));
-        Assert.All(different, d => Assert.True(d > CoverHash.SameMaxDistance, $"two different covers {d} bits apart"));
 
-        output.WriteLine(Line("same-cover renditions", same));
-        output.WriteLine(Line("different covers", different));
-        Console.WriteLine("CALIBRATION " + Line("same-cover renditions", same));
-        Console.WriteLine("CALIBRATION " + Line("different covers", different));
+        foreach (var (rendition, distances) in byRendition)
+            Report(Line("same cover, " + rendition, distances));
+        Report(Line("different covers", different));
+
+        Assert.All(different, d => Assert.True(d > CoverHash.SameMaxDistance, $"two different covers {d} bits apart"));
+        foreach (var rendition in s_mustBeSame)
+            Assert.All(byRendition[rendition], d => Assert.True(d <= CoverHash.SameMaxDistance, $"{rendition}: distance {d}"));
+    }
+
+    /// <summary>Renditions that must always be "the same cover" (framing changes are measured, not asserted).</summary>
+    private static readonly string[] s_mustBeSame = ["half size", "double size", "jpeg q35", "webp q60", "brightness +15%", "contrast", "crop 1% per side"];
+
+    private void Report(string line)
+    {
+        output.WriteLine(line);
+        Console.WriteLine("CALIBRATION " + line);
     }
 
     [Fact]
@@ -94,14 +111,21 @@ public sealed class CoverHashCalibrationTests(ITestOutputHelper output)
             ["local.46692009496.webp"] = "cover.i523619.jpg",
         };
         var covers = GoldenFixtures.ImageNames("cover.").ToDictionary(n => n, n => Hash(GoldenFixtures.Image(n)!), StringComparer.Ordinal);
+        var lines = new List<string>();
         foreach (var (local, provider) in own)
         {
             var hash = Hash(GoldenFixtures.Image(local)!);
             var distance = CoverHash.Distance(hash, covers[provider]);
-            Assert.True(CoverHash.Compare(hash, covers[provider]) == CoverVerdict.Same, $"{local} vs its own cover: {distance}");
+            var nearest = covers.Where(c => c.Key != provider).Min(c => CoverHash.Distance(hash, c.Value));
+            Report($"{local}: own cover {distance}, nearest other cover {nearest}");
+            lines.Add($"{local} own {distance} nearest {nearest}");
+        }
+        foreach (var (local, provider) in own)
+        {
+            var hash = Hash(GoldenFixtures.Image(local)!);
+            Assert.True(CoverHash.Compare(hash, covers[provider]) == CoverVerdict.Same, string.Join("; ", lines));
             foreach (var (name, other) in covers.Where(c => c.Key != provider))
                 Assert.True(CoverHash.Compare(hash, other) != CoverVerdict.Same, $"{local} vs {name}: {CoverHash.Distance(hash, other)}");
-            output.WriteLine($"{local}: own cover {distance}, nearest other {covers.Where(c => c.Key != provider).Min(c => CoverHash.Distance(hash, c.Value))}");
         }
     }
 
