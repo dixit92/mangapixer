@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Review rows open their folder.** Each row in the Metadata Manager's review lists has a folder button that opens the folder in the library - an archive opens the folder that contains it.
+- API (admin): review rows (`GET /api/v1/admin/metadata/review`) return `parentNodeId`, the folder that contains the row's folder or archive.
+
+### Fixed
+
+- **Series covers in the review lists no longer show as broken images.** A list with many rows asked MangaUpdates for every selected series' cover at once and most were refused; covers now load a few at a time, only for rows on screen, are retried when MangaUpdates is busy, and a cover that still cannot be loaded shows "No cover" with a tap to try again.
+- Removing MangaUpdates from the allowed sites while Automatic matching is on now pauses automatic matching and the background refresh ("MangaUpdates is off the provider allowlist") instead of counting every waiting folder as failed.
+
 ## [1.28.0] - 2026-09-28
 
 ### Added
