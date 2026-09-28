@@ -55,7 +55,7 @@ export type DeclaredFactsDialogResult = DeclaredFactsScopeDto | undefined;
 
         <mat-form-field appearance="outline" class="type-field" subscriptSizing="dynamic">
           <mat-label>Type</mat-label>
-          <mat-select [value]="type() ?? ''" (selectionChange)="type.set($event.value || null)" data-testid="declared-type"
+          <mat-select [value]="type() ?? ''" (selectionChange)="type.set($event.value || null)" data-testid="declared-type-select"
                       aria-label="Declared type">
             <mat-option value="">{{ inheritedTypeText() || 'Not set' }}</mat-option>
             @for (o of typeOptions; track o.value) {
