@@ -251,6 +251,7 @@ public sealed class ReadingController : ControllerBase
     }
 
     [HttpGet("continue")]
+    [ProducesResponseType<IReadOnlyList<ContinueReadingEntry>>(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetContinueReading(
         [FromQuery] int limit = 20,
         CancellationToken ct = default)
@@ -269,6 +270,7 @@ public sealed class ReadingController : ControllerBase
     /// empty while Incognito is active.
     /// </summary>
     [HttpGet("continue/by-library/{libraryId}")]
+    [ProducesResponseType<IReadOnlyList<ContinueReadingEntry>>(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetContinueReadingByLibrary(
         string libraryId,
         [FromQuery] int limit = 20,

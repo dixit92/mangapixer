@@ -100,6 +100,20 @@ public sealed record RecentChapterStack
     /// missing rollup.
     /// </summary>
     public required string ReadState { get; init; }
+
+    /// <summary>
+    /// True when the caller has starred the stack's node (<see cref="Id"/>: the top-level
+    /// folder, or the loose archive) - the card's favorites star (1.28.0).
+    /// </summary>
+    public bool IsFavorite { get; init; }
+
+    /// <summary>
+    /// True when the card shows the (i) and the hover summary (1.28.0): a folder stack by
+    /// the browse rule (its own link or ComicInfo); a loose archive by the series-info anchor
+    /// rule (nearest link on self or an ancestor, or its own ComicInfo). False while "Show
+    /// series information" is off for the library or globally.
+    /// </summary>
+    public bool HasSeriesInfo { get; init; }
 }
 
 /// <summary>

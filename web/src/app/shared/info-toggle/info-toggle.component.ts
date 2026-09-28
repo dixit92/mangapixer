@@ -69,9 +69,16 @@ export class InfoToggleComponent {
 
     // A link change for this node anywhere (dialog, admin menu, selection bar).
     this.metadataState.changed$.pipe(takeUntilDestroyed()).subscribe((change) => {
-      if (change.nodeId === this.nodeId()) this.shown.set(change.hasSeriesInfo);
+      if (!this.anchored() && change.nodeId === this.nodeId()) this.shown.set(change.hasSeriesInfo);
     });
   }
+
+  /**
+   * The flag follows the series-info ANCHOR rule (Home cards, 1.28.0: an archive shows its
+   * series folder's information), so the own-rule announcements on `changed$` do not apply;
+   * the parent re-fetches the flag from the server instead.
+   */
+  readonly anchored = input(false);
 
   /** Absolutely position in the cover's bottom-left corner. */
   readonly overlay = input(false);

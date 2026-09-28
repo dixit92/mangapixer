@@ -213,6 +213,8 @@ public static class AuditActions
     public const string MetadataMissingDelete = "metadata.missing.delete";
     public const string MetadataContentSet = "metadata.content.set";
     public const string MetadataContentClear = "metadata.content.clear";
+    public const string DeclaredFactsSet = "metadata.declared.set";
+    public const string DeclaredFactsClear = "metadata.declared.clear";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>
