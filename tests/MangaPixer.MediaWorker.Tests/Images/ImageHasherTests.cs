@@ -4,6 +4,7 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.WorkerProtocol;
 using com.lifepixer.mangapixer.MediaWorker.Images;
 using ImageMagick;
+using ImageMagick.Drawing;
 using Xunit;
 
 /// <summary>
