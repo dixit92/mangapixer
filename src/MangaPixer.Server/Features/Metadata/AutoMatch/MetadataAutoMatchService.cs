@@ -137,7 +137,9 @@ public sealed class MetadataAutoMatchService
         var revision = await _db.Libraries.AsNoTracking().Where(l => l.Id == libraryId).Select(l => l.CatalogRevision).FirstOrDefaultAsync(ct);
         if (_state.CachedSnapshot(libraryId, revision) is { } cached)
         {
-            if (!_providerAuthorFolders || cached.Authors.Stamp == await LibraryTreeSnapshot.LinkStampAsync(_db, libraryId, ct))
+            if (!_providerAuthorFolders)
+                return cached.Authors.Names.Count == 0 ? cached : cached.WithAuthors(LibraryTreeSnapshot.ProviderAuthorSet.None);
+            if (cached.Authors.Stamp == await LibraryTreeSnapshot.LinkStampAsync(_db, libraryId, ct))
                 return cached;
             var refreshed = cached.WithAuthors(await LibraryTreeSnapshot.LoadProviderAuthorsAsync(_db, libraryId, ct));
             _state.Cache(refreshed);
