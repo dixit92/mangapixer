@@ -6,10 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Card controls on the home page.** Cards in **Continue reading** and **New chapters** now have the same controls as the library view: the favorites star and, when there is series information, the (i) and the summary on hover. A Continue reading card is a single archive, so its (i) shows the series it belongs to - for example the linked series folder it sits in. On a New chapters card the star and the (i) belong to the folder (or to the archive, for a loose archive). Both follow **Show series information**, like everywhere else. See [Summary on hover](docs/series-information.md#summary-on-hover).
+
 ### Changed
 
 - **Series page: "also known as" once.** The header of the full series page shows the first two alternative titles and **+N**; the whole list stays under **Details**.
 - **Series descriptions without dead links.** The lists of links at the end of many MangaUpdates descriptions (for example "Original Webtoon: Daum, Kakaopage" or "Official English Translations" with one line per language) are no longer shown as plain text that looks like links; a heading left with nothing under it goes too. Links inside a sentence keep their text. This applies to records fetched or refreshed after the update.
+
+- API: `GET /api/v1/reading/continue` and `GET /api/v1/home/recent-chapters` return `isFavorite` and `hasSeriesInfo` per card, and both now declare their response schema in the OpenAPI contract.
 
 ### Fixed
 
