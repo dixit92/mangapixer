@@ -133,6 +133,31 @@ public sealed class ProviderAuthorFolderTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AFolderQueuedForReview_ThatIsAnArtistFolderByTheTimeItIsProcessed_HandsOverToItsArchives()
+    {
+        await _h.EnableAutomaticAsync();
+        var authorFolder = await AuthorFolderAsync();
+        var detector = new WorkDetector();
+        var (error, run) = await _h.Service(detector).StartBulkAsync(_db.LibraryPublicId, new Core.Api.MetadataMatchLibraryRequest(), "admin");
+        Assert.Null(error);
+        Assert.Equal(1, run!.Candidates); // queued as one review-only folder
+
+        // Meanwhile (e.g. earlier in the same run) a record by that author is linked in the library.
+        var linked = await _db.AddFolderAsync(null, "Linked Saga");
+        await _db.AddLinkAsync(linked, await RecordAsync("501", """[{"name":"Given Family","role":"author"}]"""));
+
+        Assert.Equal(4, await _h.DrainAsync(detector: detector)); // the folder row, then its three archive works
+        var rows = await _db.Db.MetadataMatchQueue.AsNoTracking().ToListAsync();
+        Assert.Equal(QueueState.Skipped, rows.Single(r => r.NodeId == authorFolder.Id).State);
+        var archives = rows.Where(r => r.NodeId != authorFolder.Id).ToList();
+        Assert.Equal(3, archives.Count);
+        Assert.All(archives, r => Assert.Equal((QueueState.Done, (int)MatchLevel.Archive, (int)WorkClass.ArtistCollection), (r.State, r.Level, r.WorkClass)));
+        var runRow = await _db.Db.MetadataMatchRuns.AsNoTracking().SingleAsync();
+        Assert.Equal((4, 4, 4, 1), (runRow.Candidates, runRow.Queued, runRow.Processed, runRow.Skipped));
+        Assert.Equal((int)Core.Api.MetadataMatchRunStatus.Completed, runRow.Status);
+    }
+
+    [Fact]
     public async Task PostScan_UsesTheAuthorsToo_ASeriesNamedLikeAnAuthorStaysASeries()
     {
         var record = await RecordAsync("401", """[{"name":"Given Family","role":"author"},{"name":"Alpha Saga","role":"artist"}]""");

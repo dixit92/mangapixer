@@ -227,13 +227,13 @@ public sealed class AutoMatchHarness : IDisposable
     }
 
     /// <summary>Leases and processes rows until the queue is empty or the gate refuses (like one worker pass).</summary>
-    public async Task<int> DrainAsync(int max = 100)
+    public async Task<int> DrainAsync(int max = 100, IWorkDetector? detector = null)
     {
         var processed = 0;
         for (var i = 0; i < max; i++)
         {
             Db.Db.ChangeTracker.Clear();
-            var service = Service();
+            var service = detector is null ? Service() : Service(detector);
             if (await service.CheckGlobalGateAsync() is not null)
                 break;
             var row = await service.LeaseNextAsync("test");

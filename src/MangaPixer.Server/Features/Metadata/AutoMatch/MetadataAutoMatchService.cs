@@ -344,7 +344,7 @@ public sealed class MetadataAutoMatchService
         }
         await _db.SaveChangesAsync(ct);
         await _db.MetadataMatchRuns.Where(r => r.Id == runId)
-            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Queued, queued), ct);
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Queued, r => r.Queued + queued), ct);
     }
 
     /// <summary>"Re-run matching" on review rows: re-queues each node (one Rerun run per library). Returns per-node codes.</summary>
@@ -567,8 +567,10 @@ public sealed class MetadataAutoMatchService
         var work = await RecheckAsync(row, tree, ct);
         if (work is null)
         {
+            var handedOver = await HandOverToArchivesAsync(row, tree, ct);
             await FinishAsync(row.Id, row.RunId, QueueState.Skipped, null, 0, null, 0, ct);
-            _logger.LogDebug(LogEvents.Metadata.AutoMatchSkipped, "Automatic matching skipped node {NodeId}", row.NodeId);
+            _logger.LogDebug(LogEvents.Metadata.AutoMatchSkipped, "Automatic matching skipped node {NodeId} ({Works} archive works queued instead)",
+                row.NodeId, handedOver);
             return;
         }
 
@@ -601,6 +603,33 @@ public sealed class MetadataAutoMatchService
         _logger.LogInformation(LogEvents.Metadata.AutoMatchDecided,
             "Automatic matching decided node {NodeId}: {Band} ({Requests} requests, {ElapsedMs} ms)",
             row.NodeId, lookup.Outcome.Band, call.RequestsSent, watch.ElapsedMilliseconds);
+    }
+
+    /// <summary>
+    /// A folder queued at folder or review level that is matched archive by archive NOW (1.28.0: an artist folder
+    /// whose author was linked in the library after it was queued, e.g. earlier in the same run) hands over to its
+    /// archive works in the same run instead of being dropped. Returns how many works were queued.
+    /// </summary>
+    private async Task<int> HandOverToArchivesAsync(MetadataMatchQueueEntity row, LibraryTreeSnapshot tree, CancellationToken ct)
+    {
+        if (row.RunId is not { } runId || _detector is null || tree.Find(row.NodeId) is not { IsFolder: true } node)
+            return 0;
+        var classification = _detector.Classify(tree.ShapeOf(node.Id));
+        if (classification.Level != MatchLevel.Archive)
+            return 0;
+        var links = await OwnLinksAsync(row.LibraryId, ct);
+        if (tree.Ancestors(node.Id).Prepend(node).Any(n => links.ContainsKey(n.Id)))
+            return 0; // The folder or an ancestor has a link row: it speaks for the archives.
+        var works = AutoMatchWorkSelector.ArchiveWorks(tree, node.Id, classification, links).ToList();
+        var anchors = works.Select(w => w.AnchorNodeId).ToList();
+        var known = (await _db.MetadataMatchQueue.AsNoTracking().Where(q => anchors.Contains(q.NodeId)).Select(q => q.NodeId).ToListAsync(ct)).ToHashSet();
+        var fresh = works.Where(w => !known.Contains(w.AnchorNodeId)).ToList();
+        if (fresh.Count == 0)
+            return 0;
+        await EnqueueIntoRunAsync(row.LibraryId, runId, fresh, row.Reason, row.ReviewFirst, requeue: false, ct);
+        await _db.MetadataMatchRuns.Where(r => r.Id == runId)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Candidates, r => r.Candidates + fresh.Count), ct);
+        return fresh.Count;
     }
 
     /// <summary>Local refusals (nothing was wrong with the provider): the row waits, no attempt is counted.</summary>
