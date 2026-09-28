@@ -115,7 +115,105 @@ public sealed class MissingUnitsTests
         var r = MissingUnits.Evaluate(One("Synthetic v02.5", "Synthetic v03", "Synthetic v200"), new PublishedTotals(EnglishVolumes: 200));
         Assert.Equal(200, r.Volumes!.Have);
         Assert.Equal(MissingUnits.MaxListed, r.Volumes.Missing.Count);
-        Assert.Equal(197, r.Volumes.MissingCount); // 1 and 4..199
+        Assert.Equal(198, r.Volumes.MissingCount); // 1, 2 and 4..199: the extra 2.5 fills no number (1.29.0)
+    }
+
+    private static MissingFolder Folder(string? name, params string[] archives) => new(name, archives);
+
+    [Fact]
+    public void SeasonSubfolders_ThatContinueTheNumbering_AreOneRun()
+    {
+        // The live 1.28.0 finding's shape: a loose prologue next to Season 1 / Season 2 that continue the numbering.
+        var r = MissingUnits.Evaluate(
+        [
+            Folder(null, "000.cbz"),
+            Folder("Season 1", "Synthetic - Chapter 001", "Synthetic - Chapter 002", "Synthetic - Chapter 003"),
+            Folder("Season 2", "Synthetic - Chapter 004", "Synthetic - Chapter 006"),
+        ], new PublishedTotals(OriginChapters: 8));
+
+        Assert.Equal(MissingVerdict.Behind, r.Verdict);
+        Assert.Equal((0, 6, 8, 2), (r.Chapters!.Lowest, r.Chapters.Have, r.Chapters.Available, r.Chapters.BehindBy));
+        Assert.Equal([5], r.Chapters.Missing);
+    }
+
+    [Fact]
+    public void NumberingThatRestartsPerSubfolder_GivesNoVerdict()
+    {
+        var r = MissingUnits.Evaluate(
+        [
+            Folder(null, "000.cbz"),
+            Folder("Season 1", "Synthetic - Chapter 001", "Synthetic - Chapter 002", "Synthetic - Chapter 003"),
+            Folder("Season 2", "Synthetic - Chapter 001", "Synthetic - Chapter 002"),
+        ], new PublishedTotals(OriginChapters: 223));
+
+        Assert.Equal(MissingVerdict.Restarts, r.Verdict);
+        Assert.Null(r.Chapters); // never "chapter 3 of 223"
+
+        // A second season that has only just started (one chapter, numbered 1 again) restarts too.
+        Assert.Equal(MissingVerdict.Restarts, MissingUnits.Evaluate(
+            [Folder("Part 1", "Synthetic v01", "Synthetic v02"), Folder("Part 2", "Synthetic v01")], new PublishedTotals(OriginVolumes: 9)).Verdict);
+
+        // One number at a boundary shared by folders that start apart is a duplicate, not a restart.
+        Assert.Equal(MissingVerdict.UpToDate, MissingUnits.Evaluate(
+            [Folder("Season 1", "Synthetic - Chapter 001", "Synthetic - Chapter 002"), Folder("Season 2", "Synthetic - Chapter 002", "Synthetic - Chapter 003")],
+            new PublishedTotals(OriginChapters: 3)).Verdict);
+    }
+
+    [Fact]
+    public void RestartsInOneUnit_KeepTheOtherUnitsNumbers()
+    {
+        var r = MissingUnits.Evaluate(
+        [
+            Folder("Volumes", "Synthetic v01", "Synthetic v02"),
+            Folder("Season 1", "Synthetic - Chapter 001", "Synthetic - Chapter 002"),
+            Folder("Season 2", "Synthetic - Chapter 001"),
+        ], new PublishedTotals(EnglishVolumes: 4));
+
+        Assert.Equal(MissingVerdict.Restarts, r.Verdict);
+        Assert.Equal(2, r.Volumes!.BehindBy);
+        Assert.Null(r.Chapters);
+    }
+
+    [Fact]
+    public void ALoneChapterZero_IsNotProgress()
+    {
+        var r = MissingUnits.Evaluate(One("000.cbz"), new PublishedTotals(OriginChapters: 223));
+
+        Assert.Equal(MissingVerdict.NoUnits, r.Verdict);
+        Assert.Null(r.Chapters); // never "You have chapter 0 of 223 - 223 behind"
+    }
+
+    [Fact]
+    public void Extras_AreNeverMissing_AndNeverFillANumber()
+    {
+        var r = MissingUnits.Evaluate(One("Synthetic c001", "Synthetic c002", "Synthetic c003.5", "Synthetic c004"), new PublishedTotals(OriginChapters: 4));
+
+        Assert.Equal(MissingVerdict.Holes, r.Verdict);
+        Assert.Equal([3], r.Chapters!.Missing); // 3.5 does not fill 3; no 1.5 or 2.5 is ever missing
+        Assert.Equal((4, 3), (r.Chapters.ArchiveCount, r.Chapters.UnitCount));
+    }
+
+    [Fact]
+    public void VolumesFolder_ReadsBareNumbersAsVolumes()
+    {
+        var r = MissingUnits.Evaluate([Folder("Volumes", "01.cbz", "02.cbz", "04.cbz")], new PublishedTotals(EnglishVolumes: 5, OriginChapters: 40));
+
+        Assert.Null(r.Chapters);
+        Assert.Equal((4, 5, 1), (r.Volumes!.Have, r.Volumes.Available, r.Volumes.BehindBy));
+        Assert.Equal([3], r.Volumes.Missing);
+    }
+
+    [Fact]
+    public void Holes_ForAVirtualVolume()
+    {
+        // Volume 1 holds chapters 1-10 (a mapping); chapter 8 is missing; 4.5 is an extra and never missing.
+        var units = new[] { "c001", "c002", "c003", "c004", "c004.5", "c005", "c006", "c007", "c009-010" }
+            .Select(n => com.lifepixer.mangapixer.Core.Metadata.AutoMatch.AutoMatchText.UnitsOf("Synthetic " + n)).ToList();
+
+        Assert.Equal([8], MissingUnits.Holes(units, MissingUnitKind.Chapter, 1, 10));
+        Assert.Equal([8], MissingUnits.Holes(units, MissingUnitKind.Chapter, [1m, 2m, 4.5m, 8m, 9m, 10m, 11.5m]));
+        Assert.Equal(Enumerable.Range(1, 10), MissingUnits.NumbersOf(units, MissingUnitKind.Chapter).Where(n => n != 8).Append(8).Order());
+        Assert.Empty(MissingUnits.NumbersOf(units, MissingUnitKind.Volume));
     }
 
     [Fact]

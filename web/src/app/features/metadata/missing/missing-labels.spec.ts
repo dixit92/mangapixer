@@ -26,6 +26,8 @@ describe('missing report labels', () => {
 
   it('explains a missing verdict', () => {
     expect(noVerdictReason(missingRow({ verdict: 'Mixed' }))).toContain('mixed');
+    expect(noVerdictReason(missingRow({ verdict: 'Restarts' }))).toContain('starts again');
+    expect(noVerdictReason(missingRow({ verdict: 'NoUnits' }))).toContain('chapter 0 alone');
     expect(noVerdictReason(missingRow())).toBeNull();
   });
 });

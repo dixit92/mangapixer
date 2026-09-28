@@ -1691,7 +1691,7 @@ export type MissingUnitKind = 'Volume' | 'Chapter';
 export type MissingTotalSource = 'English' | 'Origin' | 'LatestChapter' | 'Converted';
 export type MissingConfidence = 'Low' | 'Medium' | 'High';
 /** Worst first: Behind, Holes, UpToDate, NoTotal, then no verdict (Mixed, NoUnits). */
-export type MissingVerdict = 'Behind' | 'Holes' | 'UpToDate' | 'NoTotal' | 'Mixed' | 'NoUnits';
+export type MissingVerdict = 'Behind' | 'Holes' | 'UpToDate' | 'NoTotal' | 'Mixed' | 'NoUnits' | 'Restarts';
 
 export interface MissingUnitGapDto {
   kind: MissingUnitKind;
