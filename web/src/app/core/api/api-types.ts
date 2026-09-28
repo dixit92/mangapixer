@@ -1580,3 +1580,64 @@ export interface MetadataContentRematchDto {
   needsConfirmation?: boolean;
   automaticOff?: boolean;
 }
+
+// --- Declared facts (1.28.0) ---
+
+/** Admin-declared type / format of the works below a folder or library. */
+export type DeclaredType = 'Manga' | 'Manhwa' | 'Manhua' | 'Webtoon' | 'Comic' | 'GraphicNovel' | 'Novel';
+
+/** Where an effective declared fact comes from: the node itself, an ancestor folder, or the library. */
+export type DeclaredFactSource = 'Own' | 'Inherited' | 'Library';
+
+export interface DeclaredCreatorDto {
+  name: string;
+  /** author, writer or artist; null = no role. */
+  role?: string | null;
+}
+
+/** PUT /admin/metadata/{folders|libraries}/{id}/declared: replaces the scope's type and creators. */
+export interface SetDeclaredFactsRequest {
+  type?: DeclaredType | null;
+  creators?: DeclaredCreatorDto[] | null;
+}
+
+export interface DeclaredFactValuesDto {
+  type?: DeclaredType | null;
+  creators?: DeclaredCreatorDto[];
+}
+
+export interface EffectiveDeclaredFactsDto {
+  type?: DeclaredType | null;
+  typeSource?: DeclaredFactSource | null;
+  /** Display name of the folder or library that declares the type. */
+  typeFrom?: string | null;
+  creators?: DeclaredCreatorDto[];
+  creatorsSource?: DeclaredFactSource | null;
+  creatorsFrom?: string | null;
+}
+
+/** GET/PUT/DELETE /admin/metadata/{folders|libraries}/{id}/declared */
+export interface DeclaredFactsScopeDto {
+  /** The folder, or null for the library scope. */
+  nodeId?: string | null;
+  libraryId: string;
+  displayName: string;
+  own: DeclaredFactValuesDto;
+  /** What applies from above (parent folders, then the library); empty for a library. */
+  inherited: EffectiveDeclaredFactsDto;
+}
+
+export interface DeclaredFactsConflictDto {
+  providerName: string;
+  type?: boolean;
+  recordType?: string | null;
+  creators?: boolean;
+  recordCreators?: string[];
+}
+
+/** GET /nodes/{id}/declared-facts (Info panel, series page). */
+export interface NodeDeclaredFactsDto {
+  nodeId: string;
+  effective: EffectiveDeclaredFactsDto;
+  conflict?: DeclaredFactsConflictDto | null;
+}
