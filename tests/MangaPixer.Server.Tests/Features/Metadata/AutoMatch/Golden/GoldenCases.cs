@@ -88,7 +88,7 @@ public static class GoldenCases
     private const string IsekaiCheatSkill = "15495823031";
     private const string Kingdom = "4324727424";
     private const string BerserkOfGluttonyComic = "74072114866";
-    private const string JigokurakuOohashi = "76554797640";
+    private const string Jigokuraku2005 = "10294535868";
 
     private static readonly string[] s_artistFolder =
     [
@@ -237,9 +237,15 @@ public static class GoldenCases
         new("C01 cover: three same-titled records, the local volume 1 is the KAKU cover", F("Jigokuraku [Hell's Paradise]",
             Vols("Hell's Paradise - Jigokuraku", 13, " (2019)")), WorkClass.Series, MatchBand.NeedsReview, JigokurakuKaku,
             LocalCover: "local.61508275290.webp", CoverImages: 2, CoverMatchOnTop: true),
-        new("C02 cover: the other same-titled record's volumes - the cover puts that record first", F("Jigokuraku",
-            Vols("Jigokuraku", 2)), WorkClass.Series, MatchBand.NeedsReview, JigokurakuOohashi,
-            LocalCover: "local.76554797640.webp", CoverImages: 2, CoverMatchOnTop: true),
+        // Three records titled "Jigokuraku" tie at 1.00; the folder has no disambiguator, so without the cover the 2005
+        // record ranks first (the adjusted scores tie too). The cover puts the KAKU record first.
+        new("C02 cover: an undisambiguated folder of the KAKU volumes - the cover puts that record first", F("Jigokuraku",
+            Vols("Jigokuraku", 2)), WorkClass.Series, MatchBand.NeedsReview, JigokurakuKaku,
+            LocalCover: "local.61508275290.webp", CoverImages: 2, CoverMatchOnTop: true),
+        // The limit, measured: only the top two are compared (at most two images per work); a third tied record is not.
+        new("C05 cover: the right record is third in a three-way tie - no signal, the order stays", F("Jigokuraku",
+            Vols("Jigokuraku", 2)), WorkClass.Series, MatchBand.NeedsReview, Jigokuraku2005,
+            LocalCover: "local.76554797640.webp", CoverImages: 2, CoverMatchOnTop: false),
         new("C03 cover: series vs its anthology on a tied head, the series cover", F("Tensei Kizoku no Isekai Boukenroku",
             Vols("Tensei Kizoku no Isekai Boukenroku", 5)), WorkClass.Series, MatchBand.NeedsReview, TenseiKizoku,
             LocalCover: "local.46692009496.webp", CoverImages: 2, CoverMatchOnTop: true),

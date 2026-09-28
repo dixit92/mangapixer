@@ -91,7 +91,7 @@ public sealed class CoverHashCalibrationTests(ITestOutputHelper output)
     }
 
     /// <summary>Renditions that must always be "the same cover" (framing changes are measured, not asserted).</summary>
-    private static readonly string[] s_mustBeSame = ["half size", "double size", "jpeg q35", "webp q60", "brightness +15%", "contrast", "crop 1% per side"];
+    private static readonly string[] s_mustBeSame = ["half size", "double size", "jpeg q35", "webp q60", "brightness +15%", "contrast", "crop 1% per side", "crop 2% per side"];
 
     private void Report(string line)
     {

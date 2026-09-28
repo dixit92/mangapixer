@@ -128,10 +128,10 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
     /// <summary>
     /// The aggregate bands at the default thresholds. A rule change that moves a band must update these on
     /// purpose, with the per-case reason in <see cref="GoldenCases"/>. 1.27.0: 55 / 11 / 2 (68 cases); 1.28.0 adds the
-    /// provider-author cases P01-P04 (+3 auto, +1 review) and the cover cases C01-C04 (+4 review: a cover breaks a tie in
+    /// provider-author cases P01-P04 (+3 auto, +1 review) and the cover cases C01-C05 (+5 review: a cover breaks a tie in
     /// the ranking, never into an automatic link at the default lead); no existing case moved.
     /// </summary>
-    public const int ExpectedAuto = 58, ExpectedReview = 16, ExpectedUnmatched = 2;
+    public const int ExpectedAuto = 58, ExpectedReview = 17, ExpectedUnmatched = 2;
 
     [Fact]
     public async Task Aggregate_BandsAndPrecision_AtTheDefaults()
