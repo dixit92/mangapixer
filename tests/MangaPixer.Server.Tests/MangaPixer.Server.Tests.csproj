@@ -23,7 +23,5 @@
     <EmbeddedResource Include="Features\Metadata\Fixtures\MangaUpdates\*.json" LogicalName="MangaUpdates.%(Filename)%(Extension)" />
     <!-- Metadata auto-match golden set (moved from Core.Tests in 1.27.0 so it runs the production mapping and retrieval; see the README there). -->
     <EmbeddedResource Include="Features\Metadata\Fixtures\GoldenSet\*.json" LogicalName="GoldenSet.%(Filename)%(Extension)" />
-    <!-- 1.28.0 cover comparison: tiny recorded provider covers (cover.*.jpg) and local cover thumbnails (local.*.webp). -->
-    <EmbeddedResource Include="Features\Metadata\Fixtures\GoldenSet\*.jpg;Features\Metadata\Fixtures\GoldenSet\*.webp" LogicalName="GoldenSet.%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

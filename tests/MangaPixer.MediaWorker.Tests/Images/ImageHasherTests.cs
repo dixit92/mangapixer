@@ -106,4 +106,59 @@ public sealed class ImageHasherTests : IDisposable
         Assert.Equal(ImageHashErrors.DecodeFailed, ImageHasher.HashFile(Write("text.png", "not an image at all"u8.ToArray()),
             ImageHashLimits.MaxBytes, ImageHashLimits.MaxDimension).Error);
     }
+
+    private const string Svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"120\" height=\"180\"><rect width=\"120\" height=\"180\" fill=\"#203040\"/></svg>";
+
+    // An ImageMagick drawing program that would read another file if it were ever interpreted.
+    private const string Mvg = "push graphic-context\nviewbox 0 0 120 180\nimage over 0,0 0,0 'text:/etc/hostname'\npop graphic-context\n";
+
+    [Theory]
+    [InlineData("svg")]
+    [InlineData("mvg")]
+    [InlineData("ps")]
+    public void Hash_NonRasterPayloads_AreRefused_BeforeImageMagickSeesThem(string kind)
+    {
+        var bytes = System.Text.Encoding.ASCII.GetBytes(kind switch
+        {
+            "svg" => Svg,
+            "mvg" => Mvg,
+            _ => "%!PS-Adobe-3.0\n0 0 moveto (x) show showpage\n",
+        });
+
+        Assert.Null(ImageHasher.SniffFormat(bytes));
+        Assert.Equal(ImageHashErrors.DecodeFailed, ImageHasher.Hash(bytes, ImageHashLimits.MaxDimension).Error);
+        Assert.Equal(ImageHashErrors.DecodeFailed, ImageHasher.HashFile(Write("payload." + kind, bytes), ImageHashLimits.MaxBytes, ImageHashLimits.MaxDimension).Error);
+    }
+
+    [Fact]
+    public void Hash_ASvgBodyBehindPngMagic_IsDecodedAsPngOnly_AndFails()
+    {
+        byte[] bytes = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, .. System.Text.Encoding.ASCII.GetBytes(Svg)];
+
+        Assert.Equal(MagickFormat.Png, ImageHasher.SniffFormat(bytes));
+        Assert.Equal(ImageHashErrors.DecodeFailed, ImageHasher.Hash(bytes, ImageHashLimits.MaxDimension).Error);
+    }
+
+    [Theory]
+    [InlineData(MagickFormat.Jpeg)]
+    [InlineData(MagickFormat.Png)]
+    [InlineData(MagickFormat.Gif)]
+    [InlineData(MagickFormat.WebP)]
+    public void Hash_TheFourRasterFormats_AreSniffedAndHashed(MagickFormat format)
+    {
+        using var cover = Cover();
+        var bytes = Encode(cover, format);
+
+        Assert.Equal(format, ImageHasher.SniffFormat(bytes));
+        Assert.Null(ImageHasher.Hash(bytes, ImageHashLimits.MaxDimension).Error);
+    }
+
+    [Fact]
+    public void Hash_AFormatOutsideTheFour_IsRefused()
+    {
+        using var cover = Cover();
+
+        Assert.Equal(ImageHashErrors.DecodeFailed, ImageHasher.Hash(Encode(cover, MagickFormat.Bmp), ImageHashLimits.MaxDimension).Error);
+        Assert.Equal(ImageHashErrors.DecodeFailed, ImageHasher.Hash(Encode(cover, MagickFormat.Tiff), ImageHashLimits.MaxDimension).Error);
+    }
 }

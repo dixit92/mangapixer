@@ -1,0 +1,29 @@
+{
+ "note": "64-bit cover hashes (CoverHash, the worker's ImageHasher, Lanczos 32x32) of the MangaUpdates cover thumbnails recorded for the golden set on 2026-09-28, keyed by the image file name in the thumbnail URL; 'local' are hashes of local cover thumbnails made from the series' full cover (3% cropped per side, 96 px WebP), keyed by series id. The images themselves are not kept (owner, 2026-09-28).",
+ "covers": {
+  "i159275": "f7255c73a1fc8482",
+  "i193537": "e60031b10b33fafb",
+  "i193538": "f1ae6f63849152c5",
+  "i221506": "cb52bf1b65231515",
+  "i292228": "f9ce4a94b2b49c91",
+  "i324917": "a6c26c338ddb61b4",
+  "i34298": "9170bdac45c7cbc1",
+  "i351120": "aed10ee111bcc79c",
+  "i401093": "ebc0b40dda3d817a",
+  "i470956": "8d1b146434d1fb67",
+  "i490749": "c2521da7349c69b7",
+  "i509824": "c9d33ece118438af",
+  "i514180": "d394bb9bb84cf084",
+  "i519419": "ff8132dae019c46e",
+  "i523282": "e34c5908dbc70af5",
+  "i523619": "ce9991b924e10fd9",
+  "i526327": "cfbefc80a9469056",
+  "i534843": "b19acc4b92699967",
+  "i536518": "f998b4c966c0e46b"
+ },
+ "local": {
+  "46692009496": "c699939b2c6507d9",
+  "61508275290": "e1ee1928db451a75",
+  "76554797640": "a6c06f728dd921bc"
+ }
+}

@@ -2,8 +2,6 @@ namespace com.lifepixer.mangapixer.Tests.Server.Features.Metadata.AutoMatch.Gold
 
 using System.Threading.RateLimiting;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
-using com.lifepixer.mangapixer.Core.WorkerProtocol;
-using com.lifepixer.mangapixer.MediaWorker.Images;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Media;
@@ -52,16 +50,14 @@ public sealed class GoldenEnvironment : IAsyncLifetime
 }
 
 /// <summary>
-/// The worker's own hash code, in process (<see cref="ImageHasher"/>, Magick.NET): the golden set measures the rule, the
-/// process tests cover the <c>image_hash</c> message itself.
+/// Answers the hash STORED for a placeholder cover (<see cref="GoldenFixtures.CoverHashes"/>; the worker code computed them from
+/// the recorded covers, which are not kept): the golden set measures the rule, the process tests cover the <c>image_hash</c>
+/// message itself on drawn images.
 /// </summary>
-public sealed class InProcessCoverHasher : ICoverHasher
+public sealed class RecordedCoverHasher : ICoverHasher
 {
-    public Task<ulong?> HashFileAsync(string path, CancellationToken ct)
-    {
-        var outcome = ImageHasher.HashFile(path, ImageHashLimits.MaxBytes, ImageHashLimits.MaxDimension);
-        return Task.FromResult<ulong?>(outcome.Error is null ? outcome.Hash : null);
-    }
+    public async Task<ulong?> HashFileAsync(string path, CancellationToken ct) =>
+        GoldenFixtures.HashOfPlaceholder(await File.ReadAllBytesAsync(path, ct));
 }
 
 /// <summary>"Compare covers" on (the default).</summary>
@@ -132,7 +128,7 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
     /// the ranking, never into an automatic link at the default lead) and the declared-facts cases H01-H05 (+4 auto, +1
     /// review: a declared author settles a three-way one-word tie); no existing case moved.
     /// </summary>
-    public const int ExpectedAuto = 62, ExpectedReview = 18, ExpectedUnmatched = 2;
+    public const int ExpectedAuto = 62, ExpectedReview = 18, ExpectedUnmatched = 3;
 
     [Fact]
     public async Task Aggregate_BandsAndPrecision_AtTheDefaults()
@@ -310,9 +306,11 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
             var archive = await db.AddArchiveAsync(null, c.Id + " cover");
             var path = env.Thumbnails.GetThumbnailPath(archive.Id, 1);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            await File.WriteAllBytesAsync(path, GoldenFixtures.Image(localCover) ?? throw new InvalidOperationException("no fixture " + localCover));
+            await File.WriteAllBytesAsync(path, GoldenFixtures.LocalHashes.ContainsKey(localCover)
+                ? GoldenFixtures.LocalPlaceholder(localCover)
+                : throw new InvalidOperationException("no stored local cover hash for " + localCover));
             coverArchive = archive.Id;
-            covers = new AutoMatchCoverComparer(db.Db, net.Gateway(), new InProcessCoverHasher(), new CoverCompareOn(),
+            covers = new AutoMatchCoverComparer(db.Db, net.Gateway(), new RecordedCoverHasher(), new CoverCompareOn(),
                 env.Thumbnails, env.Scratch, new CoverHashCache());
         }
         var lookup = new AutoMatchLookup(db.Db, net.Gateway(), s_planner, s_scorer, covers);

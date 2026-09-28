@@ -10,7 +10,7 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// MangaUpdates id. <see cref="GroupTitle"/> selects an archive group (archive-level cases);
 /// <see cref="Band"/> null makes it a detector-only case (no provider data). <see cref="Vetoes"/>, when
 /// set, is the exact set of auto-vetoing reasons the top candidate must carry.
-/// <see cref="LocalCover"/> (1.28.0) names the embedded local cover thumbnail of the work (<c>local.*.webp</c>): the
+/// <see cref="LocalCover"/> (1.28.0) is the series id whose stored local cover hash stands for the work's thumbnail: the
 /// case then runs the cover comparison, and <see cref="CoverImages"/> is the exact number of candidate images it must
 /// download, <see cref="CoverMatchOnTop"/> whether the top candidate carries the cover evidence. <see cref="Declared"/>
 /// (1.28.0) is what an admin declared for the folder (lane D's facts), applied as the lookup applies it;
@@ -242,29 +242,37 @@ public static class GoldenCases
         // cover puts the right record first; it never turns a weak title into an automatic link.
         new("C01 cover: three same-titled records, the local volume 1 is the KAKU cover", F("Jigokuraku [Hell's Paradise]",
             Vols("Hell's Paradise - Jigokuraku", 13, " (2019)")), WorkClass.Series, MatchBand.NeedsReview, JigokurakuKaku,
-            LocalCover: "local.61508275290.webp", CoverImages: 2, CoverMatchOnTop: true),
+            LocalCover: "61508275290", CoverImages: 2, CoverMatchOnTop: true),
         // Three records titled "Jigokuraku" tie at 1.00; the folder has no disambiguator, so without the cover the 2005
         // record ranks first (the adjusted scores tie too). The cover puts the KAKU record first.
         new("C02 cover: an undisambiguated folder of the KAKU volumes - the cover puts that record first", F("Jigokuraku",
             Vols("Jigokuraku", 2)), WorkClass.Series, MatchBand.NeedsReview, JigokurakuKaku,
-            LocalCover: "local.61508275290.webp", CoverImages: 2, CoverMatchOnTop: true),
+            LocalCover: "61508275290", CoverImages: 2, CoverMatchOnTop: true),
         // The limit, measured: only the top two are compared (at most two images per work); a third tied record is not.
         new("C05 cover: the right record is third in a three-way tie - no signal, the order stays", F("Jigokuraku",
             Vols("Jigokuraku", 2)), WorkClass.Series, MatchBand.NeedsReview, Jigokuraku2005,
-            LocalCover: "local.76554797640.webp", CoverImages: 2, CoverMatchOnTop: false),
+            LocalCover: "76554797640", CoverImages: 2, CoverMatchOnTop: false),
         new("C03 cover: series vs its anthology on a tied head, the series cover", F("Tensei Kizoku no Isekai Boukenroku",
             Vols("Tensei Kizoku no Isekai Boukenroku", 5)), WorkClass.Series, MatchBand.NeedsReview, TenseiKizoku,
-            LocalCover: "local.46692009496.webp", CoverImages: 2, CoverMatchOnTop: true),
+            LocalCover: "46692009496", CoverImages: 2, CoverMatchOnTop: true),
         new("C04 cover: a chapter folder is never compared (its first page is not a cover)", F("Re Zero kara Hajimeru Isekai Seikatsu",
             Chaps("Re Zero kara Hajimeru Isekai Seikatsu", 50)), WorkClass.Series, MatchBand.NeedsReview,
-            LocalCover: "local.46692009496.webp", CoverImages: 0, CoverMatchOnTop: false),
+            LocalCover: "46692009496", CoverImages: 0, CoverMatchOnTop: false),
 
         // --- 1.28.0: declared facts as positive-only evidence ---------------------------------------
         // A declared type is the category hint, declared creators are creator hints; neither ever counts against a record.
-        new("H01 declared manhwa (no category folder): the Korean record agrees", F("Solo Leveling", Units(200)),
-            WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), [])),
-        new("H02 a wrong declared type (manga for a manhwa) costs nothing: still auto", F("Solo Leveling", Units(200)),
-            WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manga), [])),
+        // H01 / H02 score the declared type as evidence alone (the search filter switched off, Metadata:AutoMatch:DeclaredTypeFilter=false).
+        new("H01 declared manhwa (no category folder, filter off): the Korean record agrees", F("Solo Leveling", Units(200)),
+            WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), []),
+            DeclaredTypeFilter: false),
+        new("H02 a wrong declared type (manga for a manhwa, filter off) costs nothing as evidence: still auto", F("Solo Leveling", Units(200)),
+            WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manga), []),
+            DeclaredTypeFilter: false),
+        // With the filter on (the default), a WRONG declared type narrows the search past the right record: MangaUpdates
+        // returns only manhwa for a Japanese series declared manhwa - nothing close, no link. The declaration is the admin's.
+        new("H06 a wrong declared type with the filter on (manhwa for a manga) keeps the right record out of the search",
+            F("Chainsaw Man", Vols("Chainsaw Man", 20)), WorkClass.Series, MatchBand.Unmatched,
+            Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), [])),
         // Three records titled "Jigokuraku" tie at 1.00 (C02 / C05); the declared author names one of them.
         new("H03 declared creator: an undisambiguated one-word title, the declared author picks the record", F("Jigokuraku", Vols("Jigokuraku", 2)),
             WorkClass.Series, MatchBand.Auto, JigokurakuKaku, Declared: new(null, [new DeclaredCreator("Kaku Yuuji", "author")])),

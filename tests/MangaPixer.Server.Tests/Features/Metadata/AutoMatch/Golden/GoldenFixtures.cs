@@ -30,28 +30,50 @@ internal static class GoldenFixtures
 
     public static int SeriesCount => s_all.Value.Series.Count;
 
+    private static readonly Lazy<(Dictionary<string, ulong> Covers, Dictionary<string, ulong> Local)> s_hashes = new(LoadHashes);
+
     /// <summary>
-    /// The embedded image fixtures (1.28.0): <c>cover.&lt;stem&gt;.jpg</c> answers a provider image GET whose URL ends in
-    /// <c>/&lt;stem&gt;.&lt;any extension&gt;</c> (tiny re-encodes of the recorded MangaUpdates thumbnails), and
-    /// <c>local.&lt;series id&gt;.webp</c> is a local cover thumbnail made from that series' cover (cropped 3% per side).
+    /// Stored cover hashes (1.28.0, <c>covers.json</c>): no cover art is kept in the repository (owner, 2026-09-28), only the
+    /// 64-bit hashes the worker code computed from the recorded MangaUpdates thumbnails (by the image file name in the URL)
+    /// and from local cover thumbnails made from a series' full cover (by series id).
     /// </summary>
-    public static byte[]? Image(string name)
+    public static IReadOnlyDictionary<string, ulong> CoverHashes => s_hashes.Value.Covers;
+
+    public static IReadOnlyDictionary<string, ulong> LocalHashes => s_hashes.Value.Local;
+
+    private const string CoverMarker = "golden-cover:";
+    private const string LocalMarker = "golden-local:";
+    private static readonly byte[] s_png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+    /// <summary>
+    /// A placeholder "image" standing for a recorded cover: PNG magic bytes (the gateway's image check) and a marker that
+    /// <see cref="RecordedCoverHasher"/> resolves to the stored hash. Nothing decodes it.
+    /// </summary>
+    public static byte[] CoverPlaceholder(string stem) => [.. s_png, .. System.Text.Encoding.ASCII.GetBytes(CoverMarker + stem)];
+
+    /// <summary>The placeholder stored as a work's local cover thumbnail (series id of the cover it was made from).</summary>
+    public static byte[] LocalPlaceholder(string seriesId) => [.. s_png, .. System.Text.Encoding.ASCII.GetBytes(LocalMarker + seriesId)];
+
+    /// <summary>The stored hash a placeholder stands for, or null.</summary>
+    public static ulong? HashOfPlaceholder(byte[] bytes)
     {
-        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(Prefix + name);
-        if (stream is null)
+        if (bytes.Length <= s_png.Length)
             return null;
-        using var buffer = new MemoryStream();
-        stream.CopyTo(buffer);
-        return buffer.ToArray();
+        var text = System.Text.Encoding.ASCII.GetString(bytes, s_png.Length, bytes.Length - s_png.Length);
+        return text.StartsWith(CoverMarker, StringComparison.Ordinal) && CoverHashes.TryGetValue(text[CoverMarker.Length..], out var cover) ? cover
+            : text.StartsWith(LocalMarker, StringComparison.Ordinal) && LocalHashes.TryGetValue(text[LocalMarker.Length..], out var local) ? local
+            : null;
     }
 
-    /// <summary>Names of the embedded images starting with <paramref name="kind"/> (<c>cover.</c> or <c>local.</c>).</summary>
-    public static IReadOnlyList<string> ImageNames(string kind) =>
-        Assembly.GetExecutingAssembly().GetManifestResourceNames()
-            .Where(n => n.StartsWith(Prefix + kind, StringComparison.Ordinal))
-            .Select(n => n[Prefix.Length..])
-            .Order(StringComparer.Ordinal)
-            .ToList();
+    private static (Dictionary<string, ulong>, Dictionary<string, ulong>) LoadHashes()
+    {
+        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(Prefix + "covers.json")
+            ?? throw new InvalidOperationException("covers.json is not embedded");
+        using var doc = JsonDocument.Parse(stream);
+        static Dictionary<string, ulong> Read(JsonElement e) => e.EnumerateObject()
+            .ToDictionary(p => p.Name, p => ulong.Parse(p.Value.GetString()!, NumberStyles.HexNumber, CultureInfo.InvariantCulture), StringComparer.Ordinal);
+        return (Read(doc.RootElement.GetProperty("covers")), Read(doc.RootElement.GetProperty("local")));
+    }
 
     /// <summary>
     /// Answers one provider request from the recordings. A request without a recording is added to
@@ -80,8 +102,8 @@ internal static class GoldenFixtures
         if (request.Method == HttpMethod.Get && uri.Host == MetadataHttp.MangaUpdatesImageHost)
         {
             var stem = Path.GetFileNameWithoutExtension(uri.AbsolutePath);
-            if (Image("cover." + stem + ".jpg") is { } bytes)
-                return ScriptedHandler.Bytes(bytes);
+            if (CoverHashes.ContainsKey(stem))
+                return ScriptedHandler.Bytes(CoverPlaceholder(stem));
             lock (missing)
                 missing.Add($"{{\"kind\":\"image\",\"url\":{JsonSerializer.Serialize(uri.ToString())}}}");
             return ScriptedHandler.Json("{\"reason\":\"not found\"}", HttpStatusCode.NotFound);

@@ -34,10 +34,10 @@ public sealed class ImageHashProcessTests(WorkerProcessFixture fixture) : IClass
     }
 
     [Fact]
-    public async Task ImageHash_ARecordedCover_IsHashedByTheWorker_ExactlyAsTheWorkerCodeHashesIt()
+    public async Task ImageHash_ADrawnCover_IsHashedByTheWorker_ExactlyAsTheWorkerCodeHashesIt()
     {
-        var bytes = GoldenFixtures.Image("cover.i523282.jpg")!;
-        var path = Fixture("cover.jpg", bytes);
+        var bytes = SyntheticCovers.Png(7);
+        var path = Fixture("cover.png", bytes);
         var pool = await StartPoolAsync();
         try
         {
@@ -66,6 +66,24 @@ public sealed class ImageHashProcessTests(WorkerProcessFixture fixture) : IClass
             Assert.Equal(ImageHashErrors.Missing, (await pool.HashImageAsync(Path.Combine(fixture.FixtureDir, "absent.jpg"))).ErrorType);
             Assert.Equal(ImageHashErrors.DecodeFailed, (await pool.HashImageAsync(text)).ErrorType);
             Assert.Null(await new WorkerCoverHasher(pool).HashFileAsync(text, CancellationToken.None));
+        }
+        finally
+        {
+            await pool.StopAsync();
+            await pool.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ImageHash_AnSvgOrMvgPayload_IsRefusedByTheWorker_WithoutDecoding()
+    {
+        var svg = Fixture("payload.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\"><rect width=\"10\" height=\"10\"/></svg>"u8.ToArray());
+        var mvg = Fixture("payload.mvg", "push graphic-context\nviewbox 0 0 10 10\nimage over 0,0 0,0 'text:/etc/hostname'\npop graphic-context\n"u8.ToArray());
+        var pool = await StartPoolAsync();
+        try
+        {
+            Assert.Equal(ImageHashErrors.DecodeFailed, (await pool.HashImageAsync(svg)).ErrorType);
+            Assert.Equal(ImageHashErrors.DecodeFailed, (await pool.HashImageAsync(mvg)).ErrorType);
         }
         finally
         {
