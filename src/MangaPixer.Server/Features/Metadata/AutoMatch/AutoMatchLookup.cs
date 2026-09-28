@@ -170,10 +170,10 @@ public sealed class AutoMatchLookup
         if (_covers is not null && coverArchiveId is { } coverArchive
             && CoverEvidence.TiedPair(outcome, query.Context, thresholds) is { Count: 2 } pair)
         {
+            // The search hit's small thumbnail first (enough for a 32x32 hash), else the record's image.
             var images = pair.Select(p => (p.Candidate.ExternalId,
-                fetched.TryGetValue(p.Candidate.ExternalId, out var record) && record.ImageRemoteUrl is { } stored
-                    ? stored
-                    : found.Images.GetValueOrDefault(p.Candidate.ExternalId))).ToList();
+                found.Images.GetValueOrDefault(p.Candidate.ExternalId)
+                    ?? (fetched.TryGetValue(p.Candidate.ExternalId, out var record) ? record.ImageRemoteUrl : null))).ToList();
             var comparison = await _covers.CompareAsync(coverArchive, libraryId, Provider, images, call, ct);
             found.CoversCompared = comparison.ImagesCompared;
             if (comparison.Matches.Count > 0)

@@ -2,8 +2,11 @@ namespace com.lifepixer.mangapixer.Tests.Server.Features.Metadata.AutoMatch.Gold
 
 using System.Threading.RateLimiting;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Core.WorkerProtocol;
+using com.lifepixer.mangapixer.MediaWorker.Images;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Server.Media;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -15,7 +18,14 @@ using Xunit.Abstractions;
 /// </summary>
 public sealed class GoldenEnvironment : IAsyncLifetime
 {
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "mp-golden-" + Guid.NewGuid().ToString("N")[..8]);
+
     public MetadataTestDb Db { get; private set; } = null!;
+
+    /// <summary>Local cover thumbnails of the cover cases (1.28.0), under a per-run temporary data root.</summary>
+    public ThumbnailStore Thumbnails { get; private set; } = null!;
+
+    public ScratchWorkspaceManager Scratch { get; private set; } = null!;
 
     public async Task InitializeAsync()
     {
@@ -28,9 +38,36 @@ public sealed class GoldenEnvironment : IAsyncLifetime
         row.MetadataAutoConsentAt = net.Time.GetUtcNow();
         row.MetadataDailyBudget = 1_000_000;
         await Db.Db.SaveChangesAsync();
+        Thumbnails = new ThumbnailStore(Path.Combine(_root, "thumbnails"));
+        Thumbnails.Initialize();
+        Scratch = new ScratchWorkspaceManager(Path.Combine(_root, "scratch"));
+        Scratch.Initialize();
     }
 
-    public async Task DisposeAsync() => await Db.DisposeAsync();
+    public async Task DisposeAsync()
+    {
+        await Db.DisposeAsync();
+        try { Directory.Delete(_root, recursive: true); } catch (IOException) { }
+    }
+}
+
+/// <summary>
+/// The worker's own hash code, in process (<see cref="ImageHasher"/>, Magick.NET): the golden set measures the rule, the
+/// process tests cover the <c>image_hash</c> message itself.
+/// </summary>
+public sealed class InProcessCoverHasher : ICoverHasher
+{
+    public Task<ulong?> HashFileAsync(string path, CancellationToken ct)
+    {
+        var outcome = ImageHasher.HashFile(path, ImageHashLimits.MaxBytes, ImageHashLimits.MaxDimension);
+        return Task.FromResult<ulong?>(outcome.Error is null ? outcome.Hash : null);
+    }
+}
+
+/// <summary>"Compare covers" on (the default).</summary>
+public sealed class CoverCompareOn : ICoverCompareSetting
+{
+    public Task<bool> IsEnabledAsync(CancellationToken ct) => Task.FromResult(true);
 }
 
 /// <summary>
@@ -57,7 +94,8 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
         return data;
     }
 
-    public sealed record Run(WorkClassification Classification, MatchOutcome? Outcome, IReadOnlyList<string> Missing, int Searches, int Gets);
+    public sealed record Run(WorkClassification Classification, MatchOutcome? Outcome, IReadOnlyList<string> Missing, int Searches, int Gets,
+        int Images = 0);
 
     [Theory]
     [MemberData(nameof(Cases))]
@@ -81,14 +119,19 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
             Assert.Equal(vetoes, top!.Reasons & MatchScorer.VetoReasons);
         if (c.ExpectedId is { } id)
             Assert.True(top?.Candidate.ExternalId == id, $"chosen {top?.Candidate.ExternalId}, expected {id}: {detail}");
+        if (c.CoverImages is { } images)
+            Assert.True(images == run.Images, $"{run.Images} cover images, expected {images}: {detail}");
+        if (c.CoverMatchOnTop is { } onTop)
+            Assert.Equal(onTop, (top!.Reasons & MatchReason.CoverMatch) != 0);
     }
 
     /// <summary>
     /// The aggregate bands at the default thresholds. A rule change that moves a band must update these on
     /// purpose, with the per-case reason in <see cref="GoldenCases"/>. 1.27.0: 55 / 11 / 2 (68 cases); 1.28.0 adds the
-    /// provider-author cases P01-P04 (+3 auto, +1 review; no existing case moved).
+    /// provider-author cases P01-P04 (+3 auto, +1 review) and the cover cases C01-C04 (+4 review: a cover breaks a tie in
+    /// the ranking, never into an automatic link at the default lead); no existing case moved.
     /// </summary>
-    public const int ExpectedAuto = 58, ExpectedReview = 12, ExpectedUnmatched = 2;
+    public const int ExpectedAuto = 58, ExpectedReview = 16, ExpectedUnmatched = 2;
 
     [Fact]
     public async Task Aggregate_BandsAndPrecision_AtTheDefaults()
@@ -191,7 +234,7 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
 
     private async Task<(string Report, int Auto, int AutoCorrect)> AggregateAsync(MatchThresholds thresholds)
     {
-        int matched = 0, auto = 0, autoCorrect = 0, review = 0, reviewTopCorrect = 0, reviewWithExpected = 0, unmatched = 0, searches = 0, gets = 0;
+        int matched = 0, auto = 0, autoCorrect = 0, review = 0, reviewTopCorrect = 0, reviewWithExpected = 0, unmatched = 0, searches = 0, gets = 0, images = 0;
         foreach (var c in GoldenCases.All.Where(c => c.Band is not null))
         {
             var run = await ExecuteAsync(c, thresholds);
@@ -199,6 +242,7 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
             matched++;
             searches += run.Searches;
             gets += run.Gets;
+            images += run.Images;
             var topId = o.Ranked.Count > 0 ? o.Ranked[0].Candidate.ExternalId : null;
             switch (o.Band)
             {
@@ -221,7 +265,7 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
         }
 
         var report = FormattableString.Invariant(
-            $"matched cases {matched}: auto {auto} ({100.0 * auto / matched:0.0}%), review {review}, unmatched {unmatched}; auto precision {autoCorrect}/{auto} ({(auto == 0 ? 0 : 100.0 * autoCorrect / auto):0.0}%); review top correct {reviewTopCorrect}/{reviewWithExpected}; requests {searches} searches + {gets} GETs ({(double)(searches + gets) / matched:0.00} per work); fixtures {GoldenFixtures.SearchCount} searches, {GoldenFixtures.SeriesCount} series");
+            $"matched cases {matched}: auto {auto} ({100.0 * auto / matched:0.0}%), review {review}, unmatched {unmatched}; auto precision {autoCorrect}/{auto} ({(auto == 0 ? 0 : 100.0 * autoCorrect / auto):0.0}%); review top correct {reviewTopCorrect}/{reviewWithExpected}; requests {searches} searches + {gets} GETs + {images} cover images ({(double)(searches + gets + images) / matched:0.00} per work); fixtures {GoldenFixtures.SearchCount} searches, {GoldenFixtures.SeriesCount} series");
         return (report, auto, autoCorrect);
     }
 
@@ -240,10 +284,11 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
     /// Runs one case. Retrieval always runs at the default thresholds (a fixed fixture set); the final bands
     /// re-score the retrieved candidates at <paramref name="thresholds"/>.
     /// </summary>
-    public Task<Run> ExecuteAsync(GoldenCase c, MatchThresholds thresholds) => ExecuteAsync(env.Db, c, thresholds);
+    public Task<Run> ExecuteAsync(GoldenCase c, MatchThresholds thresholds) => ExecuteAsync(env, c, thresholds);
 
-    public static async Task<Run> ExecuteAsync(MetadataTestDb db, GoldenCase c, MatchThresholds thresholds)
+    public static async Task<Run> ExecuteAsync(GoldenEnvironment env, GoldenCase c, MatchThresholds thresholds)
     {
+        var db = env.Db;
         var classification = s_detector.Classify(c.Folder);
         if (c.Band is null)
             return new Run(classification, null, [], 0, 0);
@@ -256,19 +301,34 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
         var missing = new List<string>();
         using var net = new GatewayHarness(db, s_unpaced);
         net.Handler.Respond = request => GoldenFixtures.Respond(request, missing);
-        var lookup = new AutoMatchLookup(db.Db, net.Gateway(), s_planner, s_scorer);
+        long? coverArchive = null;
+        AutoMatchCoverComparer? covers = null;
+        if (c.LocalCover is { } localCover)
+        {
+            // The work's cover archive with its stored thumbnail (the comparer never generates one).
+            var archive = await db.AddArchiveAsync(null, c.Id + " cover");
+            var path = env.Thumbnails.GetThumbnailPath(archive.Id, 1);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await File.WriteAllBytesAsync(path, GoldenFixtures.Image(localCover) ?? throw new InvalidOperationException("no fixture " + localCover));
+            coverArchive = archive.Id;
+            covers = new AutoMatchCoverComparer(db.Db, net.Gateway(), new InProcessCoverHasher(), new CoverCompareOn(),
+                env.Thumbnails, env.Scratch, new CoverHashCache());
+        }
+        var lookup = new AutoMatchLookup(db.Db, net.Gateway(), s_planner, s_scorer, covers);
         var result = await lookup.SearchAndScoreAsync(
-            query, classification, db.LibraryId, MatchThresholds.Default, c.DoujinAllowed, MetadataCallContext.Automatic(), CancellationToken.None);
+            query, classification, db.LibraryId, MatchThresholds.Default, c.DoujinAllowed, MetadataCallContext.Automatic(), CancellationToken.None,
+            coverArchive);
 
         var seen = net.Handler.Seen;
         var searches = seen.Count(r => r.Method == HttpMethod.Post);
-        var gets = seen.Count(r => r.Method == HttpMethod.Get);
+        var images = seen.Count(r => r.Method == HttpMethod.Get && r.RequestUri!.Host == MetadataHttp.MangaUpdatesImageHost);
+        var gets = seen.Count(r => r.Method == HttpMethod.Get) - images;
         var outcome = missing.Count > 0
             ? null
             : thresholds == MatchThresholds.Default
                 ? result.Outcome
                 : s_scorer.Score(query, result.Outcome.Ranked.Select(r => r.Candidate).ToList(), thresholds);
-        return new Run(classification, outcome, missing, searches, gets);
+        return new Run(classification, outcome, missing, searches, gets, images);
     }
 
     /// <summary>No automatic spacing and a bucket no case can empty: replayed answers never wait on real time.</summary>

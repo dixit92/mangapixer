@@ -9,6 +9,9 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// MangaUpdates id. <see cref="GroupTitle"/> selects an archive group (archive-level cases);
 /// <see cref="Band"/> null makes it a detector-only case (no provider data). <see cref="Vetoes"/>, when
 /// set, is the exact set of auto-vetoing reasons the top candidate must carry.
+/// <see cref="LocalCover"/> (1.28.0) names the embedded local cover thumbnail of the work (<c>local.*.webp</c>): the
+/// case then runs the cover comparison, and <see cref="CoverImages"/> is the exact number of candidate images it must
+/// download, <see cref="CoverMatchOnTop"/> whether the top candidate carries the cover evidence.
 /// </summary>
 public sealed record GoldenCase(
     string Id,
@@ -20,7 +23,10 @@ public sealed record GoldenCase(
     bool DoujinAllowed = false,
     string? GroupTitle = null,
     ContentSuggestion? Content = null,
-    MatchReason? Vetoes = null)
+    MatchReason? Vetoes = null,
+    string? LocalCover = null,
+    int? CoverImages = null,
+    bool? CoverMatchOnTop = null)
 {
     public override string ToString() => Id;
 }
@@ -82,6 +88,7 @@ public static class GoldenCases
     private const string IsekaiCheatSkill = "15495823031";
     private const string Kingdom = "4324727424";
     private const string BerserkOfGluttonyComic = "74072114866";
+    private const string JigokurakuOohashi = "76554797640";
 
     private static readonly string[] s_artistFolder =
     [
@@ -222,6 +229,23 @@ public static class GoldenCases
             WorkClass.OneShot),
         new("P00 the untagged artist folder without a linked author: review only (the 1.27.0 class)", F("Fujimoto Tatsuki", s_untaggedArtistFolder),
             WorkClass.Ambiguous),
+
+        // --- 1.28.0: cover similarity as tie-break evidence ----------------------------------------
+        // Local covers are the provider cover of the right record, cropped 3% per side (a scan's framing), as the stored
+        // thumbnail. Positive only and on the adjusted score: at the default 10-point lead a tie stays in review - the
+        // cover puts the right record first; it never turns a weak title into an automatic link.
+        new("C01 cover: three same-titled records, the local volume 1 is the KAKU cover", F("Jigokuraku [Hell's Paradise]",
+            Vols("Hell's Paradise - Jigokuraku", 13, " (2019)")), WorkClass.Series, MatchBand.NeedsReview, JigokurakuKaku,
+            LocalCover: "local.61508275290.webp", CoverImages: 2, CoverMatchOnTop: true),
+        new("C02 cover: the other same-titled record's volumes - the cover puts that record first", F("Jigokuraku",
+            Vols("Jigokuraku", 2)), WorkClass.Series, MatchBand.NeedsReview, JigokurakuOohashi,
+            LocalCover: "local.76554797640.webp", CoverImages: 2, CoverMatchOnTop: true),
+        new("C03 cover: series vs its anthology on a tied head, the series cover", F("Tensei Kizoku no Isekai Boukenroku",
+            Vols("Tensei Kizoku no Isekai Boukenroku", 5)), WorkClass.Series, MatchBand.NeedsReview, TenseiKizoku,
+            LocalCover: "local.46692009496.webp", CoverImages: 2, CoverMatchOnTop: true),
+        new("C04 cover: a chapter folder is never compared (its first page is not a cover)", F("Re Zero kara Hajimeru Isekai Seikatsu",
+            Chaps("Re Zero kara Hajimeru Isekai Seikatsu", 50)), WorkClass.Series, MatchBand.NeedsReview,
+            LocalCover: "local.46692009496.webp", CoverImages: 0, CoverMatchOnTop: false),
 
         // --- 1.27.0: the live automatic-matching run (2026-09-27), as PUBLIC lookalikes ------------
         new("L01 T: season-renumbered webtoon, chapter-token archives (latest chapter 235, status total 652)",
