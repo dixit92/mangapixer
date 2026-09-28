@@ -241,6 +241,9 @@ public sealed partial class Program
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.MetadataLinkService>();
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.SeriesInfoResolver>();
             builder.Services.AddSingleton<com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MetadataProviderRegistry>();
+            // Declared facts (1.28.0): admin-declared type / creators, local only; the reader feeds the matcher.
+            builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.Declared.DeclaredFactsService>();
+            builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.Declared.IDeclaredFactsReader, com.lifepixer.mangapixer.Server.Features.Metadata.Declared.DeclaredFactsReader>();
             AddMetadataNetwork(builder.Services, dataRoot);
 
             // Operations services

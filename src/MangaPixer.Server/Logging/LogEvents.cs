@@ -364,6 +364,7 @@ public static class LogEvents
         public const int PrecedenceChanged = 9021;
         public const int SettingsChanged = 9022;
         public const int Purged = 9023;
+        public const int DeclaredFactsChanged = 9024;
 
         // Network gateway / providers (B2, 9100-9199). Ids, operation, status and
         // elapsed ms only - never query text, titles, URLs or bodies.
