@@ -621,6 +621,8 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.AutoMatch.MetadataPostScanHook>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataRefreshService>();
         services.AddScoped<Features.Metadata.Review.MetadataReviewService>();
+        // Missing volumes / chapters report (1.28.0): stored data only, no request.
+        services.AddScoped<Features.Metadata.Missing.MissingReportService>();
         services.AddScoped<Features.Metadata.Flags.MetadataFlagService>();
         services.AddHostedService<Hosting.MetadataAutoMatchHostedService>();
 
