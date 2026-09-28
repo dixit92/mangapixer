@@ -17,6 +17,7 @@ import {
   workClassLabel,
 } from '../admin-metadata/metadata-admin-labels';
 import { MetadataApiService } from '../metadata-api.service';
+import { CoverCompareDirective } from './cover-compare/cover-compare.directive';
 
 /** A row action; `rank` for Accept (the chosen stored candidate). */
 export type ReviewRowAction =
@@ -88,7 +89,7 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
 @Component({
   selector: 'app-review-row',
   standalone: true,
-  imports: [DatePipe, MatButtonModule, MatCheckboxModule, MatIconModule, MatRadioModule, MatTooltipModule],
+  imports: [DatePipe, MatButtonModule, MatCheckboxModule, MatIconModule, MatRadioModule, MatTooltipModule, CoverCompareDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @let it = item();
@@ -97,7 +98,8 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
       <div class="head">
         <mat-checkbox class="sel" [checked]="selected()" (change)="toggleSelect.emit()" [attr.aria-label]="'Select ' + it.displayName"
                       (click)="$event.stopPropagation()" />
-        <button type="button" class="thumb" (click)="focusRow.emit()" [attr.aria-label]="'Focus ' + it.displayName" tabindex="-1">
+        <button type="button" class="thumb" (click)="focusRow.emit()" [attr.aria-label]="'Focus ' + it.displayName" tabindex="-1"
+                [appCoverCompare]="compareUrl()" [coverCompareLocal]="localCoverUrl()" [coverCompareLabel]="it.link ? 'Linked series' : 'Top candidate'">
           @if (thumbUrl(); as url) {
             <img [src]="url" alt="" loading="lazy" (error)="thumbFailed.set(true)">
           } @else {
@@ -288,6 +290,21 @@ export class ReviewRowComponent {
     if (it.link?.imageUrl) return it.link.imageUrl;
     if (it.coverUrl) return it.coverUrl;
     return it.nodeKind === 'Archive' && !it.missing ? `/api/v1/items/${encodeURIComponent(it.nodeId)}/cover` : null;
+  });
+
+  /** The node's own cover (never the record's poster) for the side-by-side preview (1.28.0, owner). */
+  readonly localCoverUrl = computed(() => {
+    const it = this.item();
+    if (it.coverUrl) return it.coverUrl;
+    return it.nodeKind === 'Archive' && !it.missing ? `/api/v1/items/${encodeURIComponent(it.nodeId)}/cover` : null;
+  });
+
+  /** The series record's cover to compare with: the link's stored poster, else the top candidate's image. */
+  readonly compareUrl = computed(() => {
+    const it = this.item();
+    if (it.link?.imageUrl) return it.link.imageUrl;
+    const top = (it.candidates ?? [])[0];
+    return top?.imageToken ? this.posterUrl(top.imageToken) : null;
   });
 
   readonly reason = reasonLabel;

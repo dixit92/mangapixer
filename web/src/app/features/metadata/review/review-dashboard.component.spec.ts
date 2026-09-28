@@ -51,6 +51,7 @@ describe('ReviewDashboardComponent', () => {
     const snack = fakeSnackBar();
     const pages = opts.pages ?? { NeedsReview: rows };
     const api = {
+      candidateImageUrl: (t: string) => `/api/v1/admin/metadata/candidates/${t}/image`,
       getReviewSummary: vi.fn(() => of(summary({ needsReview: 3 }))),
       getReview: vi.fn((tab: MetadataReviewTab): ReturnType<MetadataApiService['getReview']> => (opts.reviewError
         ? throwError(() => ({ status: opts.reviewError, message: 'x' }))
