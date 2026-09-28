@@ -3192,6 +3192,45 @@
         }
       }
     },
+    "/api/v1/nodes/{nodeId}/missing": {
+      "get": {
+        "tags": [
+          "NodeMissing"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingSeriesDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingSeriesDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingSeriesDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/nodes/{nodeId}/series-info/flags": {
       "post": {
         "tags": [
@@ -9789,6 +9828,9 @@
     },
     {
       "name": "MissingReport"
+    },
+    {
+      "name": "NodeMissing"
     },
     {
       "name": "MetadataFlags"
