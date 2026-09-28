@@ -19,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- **Compare covers in the review lists.** In the Metadata Manager, resting the mouse on a row's thumbnail (or tapping it) shows your own cover next to the series cover, large - so a wrong link stands out at a glance. See [Review](docs/series-information.md#review).
+- **Compare covers in the review lists.** Each row in the Metadata Manager's review lists now shows your own cover next to the series cover - the candidate you selected, or the linked record's poster - large enough to spot a wrong link at a glance, on any screen. Rest the mouse on the pair or tap it for a larger view. See [Review](docs/series-information.md#review).
 - **Accept the metadata consents again after this update.** The consent texts now cover the allowed sites and AniList (Fetch from the web) and the cover downloads and the declared-type search filter (Automatic matching). Until an admin reviews the allowed sites and accepts the new texts in **Metadata Manager** > **Settings**, fetching and automatic matching stay off; a banner on the administration pages says so, and the Automatic matching card shows **Waiting for consent**. Manual Identify needs only the Fetch consent. Stored data stays.
 - Records fetched or refreshed from now on keep the English publisher's volume and chapter counts (used by the Missing report).
 - **The favorites star sits in the bottom-right corner of every card** - in the library, Search, Favorites and on the home page - so it is in the same place everywhere. In the library, the reading-direction badge of a folder moved to the top-left corner.
