@@ -13,7 +13,7 @@ export class ProviderImageQueue {
   static readonly MaxInFlight = 3;
 
   private inFlight = 0;
-  private readonly waiting: Array<() => void> = [];
+  private readonly waiting: (() => void)[] = [];
 
   /**
    * Runs `start` now when a slot is free, otherwise when one frees up. Returns a cancel function for a
