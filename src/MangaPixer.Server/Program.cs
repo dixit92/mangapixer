@@ -243,6 +243,9 @@ public sealed partial class Program
             // Batched (i) / hover flag for browse, Search, Favorites and Home cards (1.28.0).
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.SeriesInfoFlagService>();
             builder.Services.AddSingleton<com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MetadataProviderRegistry>();
+            // Declared facts (1.28.0): admin-declared type / creators, local only; the reader feeds the matcher.
+            builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.Declared.DeclaredFactsService>();
+            builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.Declared.IDeclaredFactsReader, com.lifepixer.mangapixer.Server.Features.Metadata.Declared.DeclaredFactsReader>();
             AddMetadataNetwork(builder.Services, dataRoot);
 
             // Operations services

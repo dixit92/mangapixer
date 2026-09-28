@@ -922,6 +922,16 @@ public sealed class AppSettingsEntity
     /// <summary>Background id-only refresh GETs today (decision 14: at most 100 per UTC day, inside the one budget).</summary>
     public DateTimeOffset? MetadataRefreshDayUtc { get; set; }
     public int MetadataRefreshUsed { get; set; }
+
+    // 1.28.0 (created by the declared-hints migration for two other lanes; no
+    // behaviour here): the "Compare covers" sub-toggle under Automatic matching
+    // and the provider allowlist state.
+
+    /// <summary>"Compare covers" under Automatic matching. ON by default; the migration gives existing rows true.</summary>
+    public bool MetadataCoverCompareEnabled { get; set; } = true;
+
+    /// <summary>Provider allowlist state (JSON, max 4096), or null for the defaults (every approved provider in).</summary>
+    public string? MetadataProvidersJson { get; set; }
 }
 
 /// <summary>
@@ -1137,6 +1147,36 @@ public sealed class FolderMetadataContentEntity
     public long Id { get; set; }
     public long NodeId { get; set; }
     public int Content { get; set; }
+
+    public CatalogNodeEntity? Node { get; set; }
+}
+
+/// <summary>
+/// One declared fact (1.28.0): an admin's explicit statement about the works below a
+/// folder (<see cref="NodeId"/> set) or a whole library (<see cref="NodeId"/> null),
+/// inherited downwards, the nearest scope winning per key. Generic on purpose:
+/// <see cref="Key"/> is <c>type</c> (value = a type slug, one row per scope) or
+/// <c>creator</c> (value = a name, optional <see cref="Role"/>, one row per creator);
+/// later keys (genres, custom tags) reuse the table without a migration. See
+/// <c>Core.Metadata.DeclaredFactKeys</c>. Deleted with its node or library.
+/// </summary>
+public sealed class DeclaredFactEntity
+{
+    public long Id { get; set; }
+    public long LibraryId { get; set; }
+
+    /// <summary>The folder the fact is declared on, or null for the library scope.</summary>
+    public long? NodeId { get; set; }
+
+    public string Key { get; set; } = string.Empty;
+    public string Value { get; set; } = string.Empty;
+    public string? Role { get; set; }
+
+    /// <summary>Display order within a multi-valued key (creators keep the admin's order).</summary>
+    public int Position { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 
     public CatalogNodeEntity? Node { get; set; }
 }

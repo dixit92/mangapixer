@@ -1,0 +1,44 @@
+import { NodeDeclaredFactsDto } from '../../../core/api/api-types';
+import { conflictText, creatorsText, declaredErrorText, declaredSummary, hasDeclared, sourceText } from './declared-facts';
+
+/** Declared facts labels (1.28.0): sources, summaries, the conflict line (both sides), error words. */
+describe('declared facts labels', () => {
+  it('says where a value comes from', () => {
+    expect(sourceText('Own', 'Series')).toBe('set here');
+    expect(sourceText('Inherited', 'Shelf')).toBe('from Shelf');
+    expect(sourceText('Inherited', null)).toBe('from a parent folder');
+    expect(sourceText('Library', 'Comics')).toBe('from the Comics library');
+    expect(sourceText(null, null)).toBe('');
+  });
+
+  it('lists creators with their role and summarizes a scope', () => {
+    expect(creatorsText([{ name: 'A Writer', role: 'writer' }, { name: 'An Artist', role: 'artist' }, { name: 'Someone' }]))
+      .toBe('A Writer (Story), An Artist (Art), Someone');
+    expect(declaredSummary('GraphicNovel', [])).toBe('Graphic novel');
+    expect(declaredSummary('Manga', [{ name: 'One Name' }])).toBe('Manga · One Name');
+    expect(declaredSummary(null, [{ name: 'A' }, { name: 'B' }])).toBe('2 creators');
+    expect(declaredSummary(null, null)).toBe('');
+    expect(hasDeclared({ creators: [] })).toBe(false);
+    expect(hasDeclared({ type: 'Novel' })).toBe(true);
+  });
+
+  it('shows the record side of a conflict, and nothing without one', () => {
+    const base: NodeDeclaredFactsDto = { nodeId: 'n1', effective: { type: 'Manhwa', creators: [{ name: 'Someone Else' }] } };
+    expect(conflictText(base)).toBeNull();
+    expect(conflictText({ ...base, conflict: { providerName: 'MangaUpdates', type: true, recordType: 'Manga' } }))
+      .toBe('MangaUpdates says: Manga');
+    expect(conflictText({
+      ...base,
+      conflict: { providerName: 'MangaUpdates', type: true, recordType: 'Manga', creators: true, recordCreators: ['Web Author', 'Web Artist'] },
+    })).toBe('MangaUpdates says: Manga · Web Author, Web Artist');
+    expect(conflictText({ ...base, conflict: { providerName: 'MangaUpdates', type: false, creators: false } })).toBeNull();
+  });
+
+  it('explains save errors', () => {
+    expect(declaredErrorText({ error: 'creators_too_many' })).toBe('At most 20 creators.');
+    expect(declaredErrorText({ error: 'not_a_folder' })).toContain('folder or a library');
+    expect(declaredErrorText({ error: 'http_error', status: 404 })).toContain('no longer exists');
+    expect(declaredErrorText({ error: 'x', message: 'Server says no' })).toBe('Server says no');
+    expect(declaredErrorText(null)).toBe('Could not save.');
+  });
+});
