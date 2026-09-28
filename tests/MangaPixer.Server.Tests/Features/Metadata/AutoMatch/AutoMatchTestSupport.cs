@@ -205,6 +205,12 @@ public sealed class AutoMatchHarness : IDisposable
         Db.Db, Net.Gateway(), Net.Budget(), Net.Backoff(), Net.Settings(), Net.Identify(), State, new AuditService(Db.Db), Time,
         Net.LoggerFactory.CreateLogger<MetadataAutoMatchService>(), [detector], [new FakeQueryPlanner()], [new FakeMatchScorer()], options);
 
+    /// <summary>The service with the PRODUCTION matcher core (detector, planner, scorer) and a declared-facts reader.</summary>
+    public MetadataAutoMatchService ServiceWithRealMatcher(com.lifepixer.mangapixer.Server.Features.Metadata.Declared.IDeclaredFactsReader? declared = null) => new(
+        Db.Db, Net.Gateway(), Net.Budget(), Net.Backoff(), Net.Settings(), Net.Identify(), State, new AuditService(Db.Db), Time,
+        Net.LoggerFactory.CreateLogger<MetadataAutoMatchService>(), [new WorkDetector()], [new MatchQueryPlanner()], [new MatchScorer()],
+        declared: declared);
+
     public MetadataAutoMatchService ServiceWithoutMatcher() => new(
         Db.Db, Net.Gateway(), Net.Budget(), Net.Backoff(), Net.Settings(), Net.Identify(), State, new AuditService(Db.Db), Time,
         Net.LoggerFactory.CreateLogger<MetadataAutoMatchService>(), [], [], []);
