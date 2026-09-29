@@ -14,6 +14,8 @@ image tests use synthetic images only.
     companions (`aggregate.*.json`; Tower of God answers `"volumes": []`);
   - `GET /cover?manga[]={id}&locales[]=en&locales[]=ja&order[volume]=asc&limit=100` of Berserk and JoJo Part 3
     (`cover.*.json`).
+- Captured 2026-09-29 (1.29.0 RC follow-up) with 2 more requests: `GET /manga/{id}/aggregate?includeUnavailable=1&translatedLanguage[]=en`
+  of Berserk and Chainsaw Man (`aggregate-en.*.json`: which chapters are released in English).
 - Trimmed: descriptions are dropped; search records keep titles, alternative titles, links, original language,
   last volume / chapter, status, year, content rating, dates, tag names and the `cover_art` relation; aggregate
   chapters lose their upload ids (`id`, `others`); covers lose their descriptions.

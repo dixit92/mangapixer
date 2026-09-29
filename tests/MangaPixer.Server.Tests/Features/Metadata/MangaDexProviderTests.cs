@@ -69,8 +69,11 @@ public static class MdFixtures
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (segments is ["manga", var id, "aggregate"])
         {
-            return s_byId.TryGetValue(id, out var name)
-                ? ScriptedHandler.Json(Load("aggregate." + name))
+            // 1.29.0 RC: the list filtered by a language (recorded for English only; any other language: nothing released).
+            var language = query.Split('&').FirstOrDefault(p => p.StartsWith("translatedLanguage[]=", StringComparison.Ordinal))?.Split('=')[1];
+            var fixture = language is null ? "aggregate." : language == "en" ? "aggregate-en." : null;
+            return fixture is not null && s_byId.TryGetValue(id, out var name) && Exists(fixture + name)
+                ? ScriptedHandler.Json(Load(fixture + name))
                 : ScriptedHandler.Json("{\"result\":\"ok\",\"volumes\":[]}");
         }
         if (segments is ["manga", var mangaId] && s_byId.TryGetValue(mangaId, out var record))
@@ -91,6 +94,8 @@ public static class MdFixtures
         }
         return ScriptedHandler.Json("{\"result\":\"error\",\"errors\":[{\"status\":404}]}", System.Net.HttpStatusCode.NotFound);
     }
+
+    private static bool Exists(string name) => typeof(MdFixtures).Assembly.GetManifestResourceInfo($"MangaDex.{name}.json") is not null;
 
     public static IReadOnlyList<MangaDexManga> Search(string name)
     {

@@ -101,6 +101,14 @@ public sealed class VolumeMapTests
     }
 
     [Fact]
+    public void ChaptersOf_ListsEveryNumberedChapter_OfEveryBucket_Canonical_Ascending()
+    {
+        var chapters = VolumeListBuilder.ChaptersOf([V("none", "12", "11.5", "none"), V("2", "05", "4.2"), V("1", "1", "4.1", "5")]);
+        Assert.Equal(["1", "4.1", "4.2", "5", "11.5", "12"], chapters);
+        Assert.Empty(VolumeListBuilder.ChaptersOf([]));
+    }
+
+    [Fact]
     public void ChaptersPerVolume_AveragesWholeChapters_OfVolumesOneAndUp()
     {
         var result = VolumeListBuilder.Build([V("0", "0"), V("1", "1", "2", "2.5"), V("2", "3", "4", "5", "6")]);
