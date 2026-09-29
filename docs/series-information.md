@@ -127,15 +127,32 @@ Series data is provided by [MangaUpdates](https://www.mangaupdates.com) as-is an
 | Site | Hosts | Used for | Sent |
 |---|---|---|---|
 | MangaUpdates | `api.mangaupdates.com`, `cdn.mangaupdates.com` | Identify, automatic matching, refresh: series details, cover art, publication status, English release totals | See [What is sent](#what-is-sent) |
-| AniList | `graphql.anilist.co` | Chapters per volume for the [Missing report](missing-report.md#chapters-per-volume-from-anilist), only when an admin asks | The MangaUpdates title of a series that is already linked, or its AniList record number |
+| MangaDex | `api.mangadex.org`, `uploads.mangadex.org` | Volume covers, and which chapters make up each volume, for series already linked to MangaUpdates (see [Volume covers and volume lists](#volume-covers-and-volume-lists-mangadex)) | The MangaUpdates title of a linked series (never a folder or file name), MangaDex record numbers and your cover languages; downloads cover images |
+| AniList | `graphql.anilist.co` | Chapters per volume, for the [Missing report](missing-report.md#chapters-per-volume-from-anilist) and virtual volumes - when an admin asks, or automatically when MangaDex has no volume list | The AniList record number, or the MangaUpdates title of a series that is already linked (never a folder or file name) |
 
-Remove a site with the **×** on its card: from then on MangaPixer sends it nothing, whether an admin asks or automatic matching runs. Removed sites are listed under **Not allowed** with **Add back**. Removing or adding back a site takes effect at once and needs no new consent. Identify, automatic matching and refresh use MangaUpdates, so they stay off while it is removed.
+Remove a site with the **×** on its card: from then on MangaPixer sends it nothing, whether an admin asks or automatic matching runs. Removed sites are listed under **Not allowed** with **Add back**. Removing or adding back a site takes effect at once and needs no new consent. Identify, automatic matching and refresh use MangaUpdates, so they stay off while it is removed. Volume covers and volume lists use MangaDex: they stay off while it is removed, and covers already stored are kept.
+
+## Volume covers and volume lists (MangaDex)
+
+*New in 1.29.0.*
+
+For a series linked to MangaUpdates, MangaPixer can also find the same series on [MangaDex](https://mangadex.org) and read two things from it: **which chapters make up each volume** (so chapters can be grouped into volumes and a missing chapter shows where it belongs) and **the volume covers**. MangaDex is never used to identify or match a folder: it is found from the MangaUpdates link, by the linked record's own title (or one of its other titles), and a MangaDex title is accepted only when MangaDex itself links it to that same MangaUpdates series. Titles MangaDex does not list, or lists without such a link, are simply not found; they are looked at again on the series' refresh schedule.
+
+- **What is fetched.** The volume list (including chapters MangaDex does not host itself - only their numbers and volumes are read, never chapter pages), the list of volume covers in your **Preferred cover language** and in the series' original language, and the covers of volume 1 and of the volumes you have (a volume in a file name or its ComicInfo, or a volume your chapters belong to). Covers are downloaded in their 512-pixel version, turned into MangaPixer's own cover thumbnails on your server and stored there; readers' browsers never contact MangaDex.
+- **Languages.** When a volume has no cover in your preferred language yet (volume 1 has one most often), the cover in the original language is used, and MangaPixer checks again on the series' refresh schedule (every 30 days while it is ongoing, every 90 days once complete). Changing the preferred language reads every series' cover list again once.
+- **When.** With **Automatic matching** on, in the background, a little at a time so new folders are still matched promptly. Without it, only when an admin uses **Refresh** or **Change MangaDex match…**. Everything counts in the same daily budget and is paced at one request per second.
+- **When MangaDex has no volume list** for a series (webtoons, for example), MangaPixer asks AniList for the series' volume and chapter totals instead - by the AniList number MangaDex links, when there is one - the same lookup as the Missing report's [chapters per volume](missing-report.md#chapters-per-volume-from-anilist).
+- **A different numbering.** When MangaDex numbers a series' volumes differently from its own covers and from MangaUpdates (for example several parts numbered continuously), its volume list is not used for grouping.
+- **Change MangaDex match…** (**Admin** menu of a linked series) shows which MangaDex title is used. Paste a MangaDex title address (`https://mangadex.org/title/...`) to use another one, choose **Not on MangaDex** so it is never looked up there again, or **Check again**.
+- **Settings.** Metadata Manager > **Settings** > **Volume covers**: **Volume covers from the web** (on by default; it still needs both consents, MangaDex on the allowed sites and the library's **Fetch** switch), **Preferred cover language** (English by default), the progress, and **Delete stored volume covers**, which removes every stored cover (the volume lists stay; nothing is sent). `Metadata__AutoMatch__VolumeCovers=false` in the server configuration switches the feature off regardless of the setting.
+
+Cover images and volume data are provided by [MangaDex](https://mangadex.org) and its community, as-is.
 
 ### After an update: accept again
 
 When an update changes what MangaPixer may send, or to which sites, the consent you gave earlier no longer covers it. Fetching from the web (and Automatic matching, when its own consent text changed) then stays off after the update, and admins see a banner on the administration pages: "An update changed what MangaPixer may send to metadata sites...". Choose **Review settings**, read the new consent text and the allowed sites, remove any site you don't want, tick the box and turn **Fetch from the web** back on. The banner goes away once every switch that was on has been accepted again, or when you leave it off.
 
-MangaPixer 1.28.0 is such an update: it adds AniList to the allowed sites, so an instance that fetched from the web before has to accept again.
+MangaPixer 1.28.0 is such an update: it adds AniList to the allowed sites, so an instance that fetched from the web before has to accept again. So is 1.29.0: it adds MangaDex, and Automatic matching's consent text now also covers volume covers and volume lists.
 
 <a id="series-metadata-page-admins"></a>
 ## Metadata Manager page (admins)
