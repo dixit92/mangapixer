@@ -226,6 +226,9 @@ public sealed partial class Program
             // Card covers (1.29.0 cover layer): one layered resolver for every card, the automatic decisions, the picker.
             Features.Covers.CoverLayerServices.AddCoverLayer(builder.Services, dataRoot);
             builder.Services.AddScoped<FolderViewSettingsService>();
+            // Volumes view (1.29.0): the memoised entry list of a folder, and the stack / view endpoints' service.
+            builder.Services.AddScoped<VolumeEntryService>();
+            builder.Services.AddScoped<VolumeStackService>();
             builder.Services.AddScoped<ReadingStateService>();
             builder.Services.AddScoped<FavoritesService>();
             builder.Services.AddScoped<SpreadLayoutService>();

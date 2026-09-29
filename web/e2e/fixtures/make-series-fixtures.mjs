@@ -7,6 +7,11 @@
 //   Synthetic Series/Synthetic Saga v01..v03.cbz   ComicInfo "Synthetic Saga" #1-3 (one series)
 //   Synthetic Anthology/Issue A.cbz, Issue B.cbz   two different series (a "mixed" folder)
 //   Plain Folder/No Info 01.cbz                    no ComicInfo.xml
+//
+// And, next to it, <outDir>-volumes (1.29.0, the Volumes view e2e spec; offline, no ComicInfo):
+//   Stacked Saga/Stacked Saga v01 c001..c003.cbz   chapters that state volume 1
+//   Stacked Saga/Stacked Saga v02 c004..c005.cbz   chapters that state volume 2
+//   Stacked Saga/Stacked Saga v03.cbz              a real volume file (no chapters of its own volume)
 // Register <outDir> as a library, scan, and let analysis run; the spec does that itself
 // when E2E_SERIES_FIXTURE_ROOT names the path as the SERVER sees it.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -91,11 +96,11 @@ function comicInfo(fields) {
   return Buffer.from(`<?xml version="1.0" encoding="utf-8"?>\n<ComicInfo>\n${body}\n</ComicInfo>\n`, 'utf8');
 }
 
-function archive(dir, file, colour, info) {
-  mkdirSync(join(outDir, dir), { recursive: true });
+function archive(dir, file, colour, info, base = outDir) {
+  mkdirSync(join(base, dir), { recursive: true });
   const entries = [1, 2, 3].map((i) => ({ name: `page${String(i).padStart(3, '0')}.png`, data: png(60, 90, colour.map((c) => (c + i * 20) % 256)) }));
   if (info) entries.push({ name: 'ComicInfo.xml', data: comicInfo(info) });
-  writeFileSync(join(outDir, dir, file), zip(entries));
+  writeFileSync(join(base, dir, file), zip(entries));
 }
 
 for (const n of [1, 2, 3]) {
@@ -119,4 +124,13 @@ for (const n of [1, 2, 3]) {
 archive('Synthetic Anthology', 'Issue A.cbz', [40, 160, 90], { Series: 'Alpha Tale', Number: 1 });
 archive('Synthetic Anthology', 'Issue B.cbz', [200, 140, 40], { Series: 'Beta Tale', Number: 1 });
 archive('Plain Folder', 'No Info 01.cbz', [90, 90, 90], null);
-console.log(`Series fixtures written to ${outDir}`);
+
+// Volumes view fixtures: names alone state the volume, so the spec needs no series record and no network.
+const volumesDir = `${outDir}-volumes`;
+for (const [volume, chapters] of [[1, [1, 2, 3]], [2, [4, 5]]]) {
+  for (const c of chapters) {
+    archive('Stacked Saga', `Stacked Saga v0${volume} c00${c}.cbz`, [40 + volume * 60, 90 + c * 20, 160], null, volumesDir);
+  }
+}
+archive('Stacked Saga', 'Stacked Saga v03.cbz', [200, 80, 80], null, volumesDir);
+console.log(`Series fixtures written to ${outDir} (and ${volumesDir})`);

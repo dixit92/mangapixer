@@ -306,3 +306,47 @@ describe('ApiService backup settings (1.22.0)', () => {
     req.flush({ settings: {}, validateOnly: true, willCreate: true, locationChanged: true, warnings: [] });
   });
 });
+
+describe('ApiService Volumes view (1.29.0)', () => {
+  let api: ApiService;
+  let httpMock: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    api = TestBed.inject(ApiService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => httpMock.verify());
+
+  it('sends the explicit group only when one is chosen', () => {
+    api.browseLibrary('lib1', 'f1', null, 50, 'name', 'asc', 'all', false, null, false, 'flat').subscribe();
+    const flat = httpMock.expectOne((r) => r.url === '/api/v1/libraries/lib1/browse');
+    expect(flat.request.params.get('group')).toBe('flat');
+    flat.flush({ items: [], totalCount: 0, nextCursor: null, hasMore: false });
+
+    api.browseLibrary('lib1', 'f1').subscribe();
+    const none = httpMock.expectOne((r) => r.url === '/api/v1/libraries/lib1/browse');
+    expect(none.request.params.has('group')).toBe(false);
+    none.flush({ items: [], totalCount: 0, nextCursor: null, hasMore: false });
+  });
+
+  it('reads the folder view state and one stack (the key is URL-encoded)', () => {
+    api.getVolumeView('f1').subscribe((v) => expect(v.available).toBe(true));
+    httpMock.expectOne('/api/v1/nodes/f1/volume-view').flush({ nodeId: 'f1', available: true, active: true, consolidated: false, stackCount: 2 });
+
+    api.getVolumeStack('f1', '2.5').subscribe((s) => expect(s.key).toBe('2.5'));
+    httpMock.expectOne('/api/v1/nodes/f1/volumes/2.5').flush({ folderId: 'f1', key: '2.5', slots: [] });
+  });
+
+  it('reads and writes the admin folder view override', () => {
+    api.getFolderViewSettings('f1').subscribe((s) => expect(s.virtualVolumes).toBe('On'));
+    httpMock.expectOne('/api/v1/admin/folders/f1/view-settings').flush({ nodeId: 'f1', virtualVolumes: 'On' });
+
+    api.setFolderViewSettings('f1', { virtualVolumes: null }).subscribe();
+    const put = httpMock.expectOne('/api/v1/admin/folders/f1/view-settings');
+    expect(put.request.method).toBe('PUT');
+    expect(put.request.body).toEqual({ virtualVolumes: null });
+    put.flush({ nodeId: 'f1', virtualVolumes: null });
+  });
+});

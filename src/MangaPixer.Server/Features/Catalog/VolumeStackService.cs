@@ -1,0 +1,73 @@
+namespace com.lifepixer.mangapixer.Server.Features.Catalog;
+
+using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Features.Auth;
+
+/// <summary>
+/// The Volumes view's read surface besides browse (1.29.0): whether a folder has a Volumes view and whether it is on for the
+/// viewer, and one stack's slots (present chapter cards plus a placeholder where a whole chapter is missing). Stored data
+/// only; the viewer needs access to the folder's library.
+/// </summary>
+public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowseService browse, LibraryAuthorizationService auth)
+{
+    /// <summary>The Volumes-view state of a folder, or null when the viewer cannot see it.</summary>
+    public async Task<VolumeViewDto?> GetViewAsync(long userId, long folderId, CancellationToken ct)
+    {
+        var view = await entries.GetEntriesAsync(folderId, ct);
+        if (view is null || !await CanSeeAsync(userId, view.LibraryId, ct))
+            return null;
+        return new VolumeViewDto
+        {
+            NodeId = view.FolderPublicId,
+            Available = view.Available,
+            Active = view.Available && await entries.IsActiveAsync(userId, view, null, ct),
+            Consolidated = view.Consolidated,
+            StackCount = view.StackCount,
+        };
+    }
+
+    /// <summary>One stack of a folder, or null (unknown folder / key, no access, nothing groups here).</summary>
+    public async Task<VolumeStackDto?> GetStackAsync(long userId, long folderId, string key, CancellationToken ct)
+    {
+        var view = await entries.GetEntriesAsync(folderId, ct);
+        if (view is null || !view.Available || !await CanSeeAsync(userId, view.LibraryId, ct))
+            return null;
+        var stackEntry = view.Entries.FirstOrDefault(e => e.Kind == VolumeEntryKind.Stack && string.Equals(e.Stack!.Key, key, StringComparison.Ordinal));
+        if (stackEntry?.Stack is not { } stack)
+            return null;
+
+        var rows = stack.Members.Select(m => view.Rows[m.Row.Id]).ToList();
+        var cards = (await browse.EnrichAsync(rows, userId, view.LibraryId, ct)).ToDictionary(n => n.Id, StringComparer.Ordinal);
+        var slots = VolumeGrouping.Slots(stack)
+            .Select(s => new VolumeSlotDto
+            {
+                Kind = s.Kind,
+                Chapter = s.Chapter,
+                Item = s.Member is { } member ? cards[member.Row.Id] : null,
+            })
+            .ToList();
+
+        var keys = VolumeGrouping.StackKeys(view.Entries);
+        var index = keys.ToList().IndexOf(stack.Key);
+        return new VolumeStackDto
+        {
+            FolderId = view.FolderPublicId,
+            Key = stack.Key,
+            Label = stack.Label,
+            CoverUrl = cards[stack.Members[0].Row.Id].CoverUrl,
+            Confidence = stack.Confidence,
+            Source = stack.Source,
+            PresentCount = stack.PresentCount,
+            ChapterCount = stack.ChapterCount,
+            MissingCount = stack.MissingChapters.Count,
+            ExtraCount = stack.ExtraCount,
+            PreviousKey = index > 0 ? keys[index - 1] : null,
+            NextKey = index >= 0 && index < keys.Count - 1 ? keys[index + 1] : null,
+            Slots = slots,
+        };
+    }
+
+    private async Task<bool> CanSeeAsync(long userId, long libraryId, CancellationToken ct) =>
+        (await auth.GetVisibleLibraryIdsAsync(userId, incognito: false, ct)).Contains(libraryId);
+}

@@ -35,6 +35,12 @@ export const routes: Routes = [
           import('./features/library/library-browse.component').then((m) => m.LibraryBrowseComponent),
       },
       {
+        // Volumes view (1.29.0): one virtual volume stack of a folder.
+        path: 'libraries/:libraryId/browse/:nodeId/volume/:key',
+        loadComponent: () =>
+          import('./features/library/volume-stack-view.component').then((m) => m.VolumeStackViewComponent),
+      },
+      {
         path: 'favorites',
         loadComponent: () =>
           import('./features/favorites/favorites.component').then((m) => m.FavoritesComponent),

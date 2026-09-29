@@ -1895,6 +1895,15 @@ export interface VolumeStackDto {
   slots: VolumeSlotDto[];
 }
 
+/** GET /nodes/{nodeId}/volume-view (lane S): whether a folder has a Volumes view and whether it is on for the viewer. */
+export interface VolumeViewDto {
+  nodeId: string;
+  available: boolean;
+  active: boolean;
+  consolidated: boolean;
+  stackCount: number;
+}
+
 export type CoverMode = 'Automatic' | 'FilePinned' | 'Archive' | 'VolumeCover' | 'Crop';
 export type CoverOptionKind = 'File' | 'CropLeft' | 'CropRight' | 'Archive';
 export type VolumeCoverKind = 'Volume' | 'Main';

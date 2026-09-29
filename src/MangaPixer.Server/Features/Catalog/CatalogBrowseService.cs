@@ -24,20 +24,22 @@ using Microsoft.EntityFrameworkCore;
 /// - Neighbors are previous/next readable archives in the same parent folder.
 /// - No source paths in any DTO.
 /// </summary>
-public sealed class CatalogBrowseService
+public sealed partial class CatalogBrowseService
 {
     private readonly MangaPixerDbContext _db;
     private readonly LibraryAuthorizationService _auth;
     private readonly SeriesInfoFlagService _seriesInfoFlags;
     private readonly ICoverResolver _covers;
+    private readonly VolumeEntryService _volumes;
 
     public CatalogBrowseService(MangaPixerDbContext db, LibraryAuthorizationService auth, SeriesInfoFlagService? seriesInfoFlags = null,
-        ICoverResolver? covers = null)
+        ICoverResolver? covers = null, VolumeEntryService? volumes = null)
     {
         _db = db;
         _auth = auth;
         _seriesInfoFlags = seriesInfoFlags ?? new SeriesInfoFlagService(db);
         _covers = covers ?? new FileCoverResolver(db);
+        _volumes = volumes ?? new VolumeEntryService(db);
     }
 
     /// <summary>
@@ -66,6 +68,7 @@ public sealed class CatalogBrowseService
         bool hideEmpty = false,
         string? before = null,
         bool favoritesOnly = false,
+        string? group = null,
         CancellationToken ct = default)
     {
         // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
@@ -99,6 +102,17 @@ public sealed class CatalogBrowseService
                 NextCursor = null,
                 HasMore = false,
             };
+        }
+
+        // Volumes view (1.29.0): a folder whose files or stored volume map group into virtual volumes lists volume-ordered
+        // entries (stacks, merged unit subfolders) instead. Name sort, no read-state / favourites filter, and only while the
+        // viewer's switch chain says Volumes; everything else below is the unchanged folder list.
+        if (parentId is { } volumeParent && sort == "name" && readState == BrowseReadStateFilter.All && !favoritesOnly
+            && !string.Equals(group, "flat", StringComparison.OrdinalIgnoreCase))
+        {
+            var view = await _volumes.GetEntriesAsync(volumeParent, ct);
+            if (view is { Available: true } && view.LibraryId == libraryId && await _volumes.IsActiveAsync(userId, view, group, ct))
+                return await BrowseVolumesAsync(view, userId, cursor, before, pageSize, effectiveDirection, hideEmpty, ct);
         }
 
         // Base query — common filter, no cursor (authorization + library + parent + availability).
@@ -204,7 +218,7 @@ public sealed class CatalogBrowseService
         // the recency sorts paginate differently). Symmetric to the forward keyset: filter
         // strictly past `before` in the display direction, order the OPPOSITE way, take a
         // page (+1 to detect a further previous page), then reverse back to display order.
-        var backward = !string.IsNullOrEmpty(before) && sort == "name";
+        var backward = !string.IsNullOrEmpty(before) && sort == "name" && !VolumePaging.IsVolumeCursor(before);
         List<BrowseRow> rows;
         bool hasMore;
         var hasPrevious = false;
@@ -238,7 +252,8 @@ public sealed class CatalogBrowseService
             // up. A window loaded from the true start (null / non-name cursor) never can.
             if (sort == "name" && rows.Count > 0 && !string.IsNullOrEmpty(cursor)
                 && !cursor.StartsWith("a:", StringComparison.Ordinal)
-                && !cursor.StartsWith("r:", StringComparison.Ordinal))
+                && !cursor.StartsWith("r:", StringComparison.Ordinal)
+                && !VolumePaging.IsVolumeCursor(cursor))
             {
                 var firstKey = rows[0].SortKey;
                 hasPrevious = effectiveDirection == SortDirection.Ascending
@@ -248,6 +263,45 @@ public sealed class CatalogBrowseService
             }
         }
 
+        // Enrich the page's rows into card DTOs (covers, reader defaults, read state, rollups, favourites, (i)).
+        var nodes = await EnrichAsync(rows, userId, libraryId, ct);
+
+        // Compute next cursor from the last row on the current page. recentlyRead
+        // paginates by offset (in-memory pure-recency order); the others use a keyset.
+        // A backward page's last row is the item just above the client's existing window,
+        // so forward continuation from it is that window - a plain keyset cursor.
+        string? nextCursor = null;
+        if (hasMore && rows.Count > 0)
+        {
+            nextCursor = sort == "recentlyRead"
+                ? $"r:{RecentlyReadOffset(cursor) + rows.Count}"
+                : EncodeCursor(sort, rows[^1]);
+        }
+
+        // Pinned "Continue" row (1.7.0): the folder's next-to-read descendant archive,
+        // resolved set-based over the same recursive descendant walk the cover/recency
+        // aggregates use. Surfaced above the sorted list; the list order is unchanged.
+        var nextUnread = await ResolveNextUnreadAsync(libraryId, parentId, userId, ct);
+
+        return new PageResponse<CatalogNodeDto>
+        {
+            Items = nodes,
+            TotalCount = totalCount,
+            NextCursor = nextCursor,
+            HasMore = hasMore,
+            PrevCursor = prevCursor,
+            HasPrevious = hasPrevious,
+            NextUnread = nextUnread,
+        };
+    }
+
+    /// <summary>
+    /// Turns browse rows into card DTOs (1.29.0: extracted so the Volumes view enriches its plain entries and the stack view its
+    /// members exactly like the folder list): covers from the resolver, folder reader defaults, per-user read state and folder
+    /// rollups, favourites and the (i) flag. Set-based - a fixed handful of queries per call.
+    /// </summary>
+    public async Task<List<CatalogNodeDto>> EnrichAsync(List<BrowseRow> rows, long userId, long libraryId, CancellationToken ct)
+    {
         // Convert to DTOs for enrichment.
         var nodes = rows.Select(ToDto).ToList();
 
@@ -345,33 +399,7 @@ public sealed class CatalogBrowseService
         // A fixed handful of batched queries per page, independent of page size.
         nodes = await ApplyHasSeriesInfoAsync(nodes, rows, libraryId, ct);
 
-        // Compute next cursor from the last row on the current page. recentlyRead
-        // paginates by offset (in-memory pure-recency order); the others use a keyset.
-        // A backward page's last row is the item just above the client's existing window,
-        // so forward continuation from it is that window - a plain keyset cursor.
-        string? nextCursor = null;
-        if (hasMore && rows.Count > 0)
-        {
-            nextCursor = sort == "recentlyRead"
-                ? $"r:{RecentlyReadOffset(cursor) + rows.Count}"
-                : EncodeCursor(sort, rows[^1]);
-        }
-
-        // Pinned "Continue" row (1.7.0): the folder's next-to-read descendant archive,
-        // resolved set-based over the same recursive descendant walk the cover/recency
-        // aggregates use. Surfaced above the sorted list; the list order is unchanged.
-        var nextUnread = await ResolveNextUnreadAsync(libraryId, parentId, userId, ct);
-
-        return new PageResponse<CatalogNodeDto>
-        {
-            Items = nodes,
-            TotalCount = totalCount,
-            NextCursor = nextCursor,
-            HasMore = hasMore,
-            PrevCursor = prevCursor,
-            HasPrevious = hasPrevious,
-            NextUnread = nextUnread,
-        };
+        return nodes;
     }
 
     // --- Sort-specific query helpers ---
@@ -393,7 +421,8 @@ public sealed class CatalogBrowseService
         // Cursors from other sorts ("a:..." or "r:...") are ignored (sort changed).
         if (!string.IsNullOrEmpty(cursor)
             && !cursor.StartsWith("a:", StringComparison.Ordinal)
-            && !cursor.StartsWith("r:", StringComparison.Ordinal))
+            && !cursor.StartsWith("r:", StringComparison.Ordinal)
+            && !VolumePaging.IsVolumeCursor(cursor))
         {
             if (direction == SortDirection.Ascending)
                 query = query.Where(n => string.Compare(n.SortKey, cursor) > 0);
@@ -873,7 +902,7 @@ public sealed class CatalogBrowseService
     /// Intermediate projection type carrying both DTO fields and cursor-relevant
     /// fields so the cursor can be computed without a re-fetch.
     /// </summary>
-    private sealed record BrowseRow
+    public sealed record BrowseRow
     {
         public required string Id { get; init; }
         public required string ParentId { get; init; }
