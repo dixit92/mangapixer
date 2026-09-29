@@ -43,7 +43,13 @@ public sealed record VolumeMapInput(
     double? ChaptersPerVolume,
     int? KnownVolumeCount,
     bool Ongoing,
-    VolumeListSource Source)
+    VolumeListSource Source,
+    // 1.29.0 owner rule: "missing" = released in the user's PREFERRED language. The chapters the provider lists as released in
+    // that language (null = unknown: nothing is marked missing on the provider's word alone) and how many volumes are released in
+    // it (today only English has a source - MangaUpdates' English publisher totals; null = unknown: no missing-volume cards).
+    IReadOnlySet<decimal>? ReleasedChapters = null,
+    int? ReleasedVolumeCount = null,
+    string? ReleasedLanguage = null)
 {
     public static VolumeMapInput Empty { get; } = new([], null, null, false, VolumeListSource.FileNames);
 

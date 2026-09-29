@@ -762,6 +762,7 @@ public sealed class MangaPixerDbContext : DbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.Id).ValueGeneratedOnAdd();
             e.Property(x => x.ContentHash).IsRequired().HasMaxLength(64);
+            e.Property(x => x.ReleasedLanguage).HasMaxLength(16);
             e.HasIndex(x => new { x.RecordId, x.Source }).IsUnique();
             e.HasOne(x => x.Record)
                 .WithMany()

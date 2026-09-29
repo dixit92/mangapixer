@@ -1454,6 +1454,18 @@ public sealed class SeriesVolumeMapEntity
     /// <summary>Highest volume number the provider knows (MangaDex <c>/cover</c> or <c>lastVolume</c>): caps estimated volumes.</summary>
     public int? KnownVolumeCount { get; set; }
 
+    /// <summary>
+    /// The language <see cref="ReleasedChaptersJson"/> was read for (the admin's preferred language when the list was fetched, e.g.
+    /// <c>en</c>; max 16), or null when not read (1.29.0: "missing" means released in the preferred language).
+    /// </summary>
+    public string? ReleasedLanguage { get; set; }
+
+    /// <summary>
+    /// The chapters the provider lists as released in <see cref="ReleasedLanguage"/> (canonical unit numbers, ascending:
+    /// <c>["1","2","4.1","4.2"]</c>, the MangaDex volume list filtered by that language), or null when not read.
+    /// </summary>
+    public string? ReleasedChaptersJson { get; set; }
+
     /// <summary>SHA-256 (hex) of the normalised payload: an unchanged refresh rewrites nothing.</summary>
     public string ContentHash { get; set; } = string.Empty;
 
