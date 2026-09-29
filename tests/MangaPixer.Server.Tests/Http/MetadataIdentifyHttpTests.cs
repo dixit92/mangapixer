@@ -232,7 +232,8 @@ public sealed class MetadataIdentifyHttpTests
         Assert.True(image.Headers.CacheControl.Private);
         Assert.Equal("nosniff", image.Headers.GetValues("X-Content-Type-Options").Single());
 
-        // Refresh: one GET.
+        // Refresh: one GET (1.29.0: plus the series' MangaDex companion - a search by the linked record's title; the
+        // scripted MangaDex answers "not found", so no list or image follows).
         var refresh = await admin.PostAsync("/api/v1/admin/metadata/nodes/mdnArc/refresh", null);
         refresh.EnsureSuccessStatusCode();
         Assert.Equal("Ok", (await refresh.Content.ReadFromJsonAsync<MetadataRefreshResultDto>(TestJson.Web))!.State);
@@ -242,8 +243,10 @@ public sealed class MetadataIdentifyHttpTests
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync(info.Web.ImageUrl)).StatusCode);
         Assert.Empty(Directory.GetFiles(Path.Combine(factory.DataRoot, "metadata-images")));
 
-        // Nothing but the two approved hosts was ever contacted.
-        Assert.All(factory.Handler.Seen, s => Assert.Contains(s.Uri.Host, new[] { "api.mangaupdates.com", "cdn.mangaupdates.com" }));
+        // Nothing but approved hosts was ever contacted; MangaDex only by the linked record's title (never a folder name).
+        Assert.All(factory.Handler.Seen, s => Assert.Contains(s.Uri.Host, new[] { "api.mangaupdates.com", "cdn.mangaupdates.com", "api.mangadex.org" }));
+        var mangaDex = Assert.Single(factory.Handler.Seen, s => s.Uri.Host == "api.mangadex.org");
+        Assert.StartsWith("?title=Berserk&", Uri.UnescapeDataString(mangaDex.Uri.Query), StringComparison.Ordinal);
         Assert.All(factory.Handler.Seen, s => Assert.Equal("MangaPixer-Metadata", s.Headers["User-Agent"]));
     }
 
