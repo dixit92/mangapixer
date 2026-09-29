@@ -6,8 +6,9 @@ using com.lifepixer.mangapixer.Core.Metadata.Missing;
 /// Places a chapter number in a volume from a stored map (P2.3 rules 2-4): Exact (the provider's list), Bounded (between
 /// two known volumes with exactly one volume missing between them, or inside a known volume's own span) and Estimated (several
 /// missing volumes split evenly; after the last known volume in steps of the average chapters per volume, never past the
-/// highest volume the provider knows). Anything else stays loose (null). Extras (a fractional chapter) follow their integer
-/// chapter unless the list places them. Pure.
+/// highest volume the provider knows). A chapter between two ADJACENT known volumes (no volume missing between them) goes to the
+/// previous one (owner, 1.29.0 RC: at the end of its stack). Anything else stays loose (null). Extras (a fractional chapter)
+/// follow their integer chapter unless the list places them. Pure.
 /// </summary>
 internal sealed class VolumeResolver
 {
@@ -23,7 +24,7 @@ internal sealed class VolumeResolver
     private readonly List<RangeVolume> _ranges = [];
     private readonly Dictionary<decimal, RangeVolume> _rangeByVolume = [];
     private readonly Dictionary<decimal, ExactVolume> _exactByVolume = [];
-    private readonly decimal _lastVolume;
+    private readonly List<ExactVolume> _wholeExact;
 
     public VolumeResolver(VolumeMapInput map)
     {
@@ -40,7 +41,7 @@ internal sealed class VolumeResolver
             foreach (var c in e.Chapters)
                 _chapterToVolume.TryAdd(c, e.Volume);
         }
-        _lastVolume = Math.Max(_exact.Count > 0 ? _exact[^1].Volume : 0, map.KnownVolumeCount ?? 0);
+        _wholeExact = _exact.Where(e => decimal.Truncate(e.Volume) == e.Volume).ToList();
         BuildRanges(map);
     }
 
@@ -121,24 +122,40 @@ internal sealed class VolumeResolver
             if (n >= r.Lo && n <= r.Hi)
                 return (r.Volume, r.Placement);
         }
+        // Between two adjacent known volumes (a whole chapter the list does not place): the end of the previous one.
+        for (var i = 0; i + 1 < _wholeExact.Count; i++)
+        {
+            var (a, b) = (_wholeExact[i], _wholeExact[i + 1]);
+            if (b.Volume == a.Volume + 1 && chapter > a.Max && chapter < b.Min)
+                return (a.Volume, VolumePlacement.Adjacent);
+        }
         return null;
     }
 
-    /// <summary>The whole chapters a volume should hold, or null when the map does not say (a volume named only by file names).</summary>
-    public IReadOnlyList<int>? ExpectedChapters(decimal volume)
+    /// <summary>
+    /// The chapter units a volume should hold, or null when the map does not say (a volume named only by file names). From the
+    /// exact list: every whole number, and a fraction only when its whole number is NOT listed - then the fractions are the
+    /// PARTS of a split chapter (4.1 + 4.2 = chapter 4, owner rule 1.29.0); a fraction next to its listed whole (10 and 10.5)
+    /// is an extra and never required. An estimated / bounded range: its whole numbers.
+    /// </summary>
+    public IReadOnlyList<decimal>? RequiredUnits(decimal volume)
     {
         if (_exactByVolume.TryGetValue(volume, out var e))
         {
-            return e.Chapters.Where(c => decimal.Truncate(c) == c && c >= 0 && c <= MissingUnits.MaxNumber)
-                .Select(c => (int)c).Distinct().Order().ToList();
+            var listed = e.Chapters.Where(c => c >= 0 && c <= MissingUnits.MaxNumber).ToHashSet();
+            return listed.Where(c => decimal.Truncate(c) == c || !listed.Contains(decimal.Truncate(c))).Order().ToList();
         }
-        return _rangeByVolume.TryGetValue(volume, out var r) ? Enumerable.Range(r.Lo, r.Hi - r.Lo + 1).ToList() : null;
+        return _rangeByVolume.TryGetValue(volume, out var r)
+            ? Enumerable.Range(r.Lo, r.Hi - r.Lo + 1).Select(n => (decimal)n).ToList()
+            : null;
     }
+
+    /// <summary>The highest chapter a volume holds (its list or its range), or null when the map does not say.</summary>
+    public decimal? LastChapterOf(decimal volume) =>
+        _exactByVolume.TryGetValue(volume, out var e) ? e.Max : _rangeByVolume.TryGetValue(volume, out var r) ? r.Hi : null;
 
     /// <summary>True for a volume whose chapters are an estimate (not in the exact list).</summary>
     public bool IsEstimated(decimal volume) =>
         !_exactByVolume.ContainsKey(volume) && _rangeByVolume.TryGetValue(volume, out var r) && r.Placement == VolumePlacement.Estimated;
 
-    /// <summary>True for the highest volume the provider knows (its trailing chapters may not exist yet).</summary>
-    public bool IsLastVolume(decimal volume) => _lastVolume > 0 && volume == _lastVolume;
 }

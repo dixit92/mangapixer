@@ -71,12 +71,25 @@ public enum VolumePlacement
 
     /// <summary>Split evenly or by the average chapters per volume: an estimate.</summary>
     Estimated = 3,
+
+    /// <summary>
+    /// Between two adjacent known volumes (the list places it in neither): the end of the previous volume (owner, 1.29.0 RC).
+    /// </summary>
+    Adjacent = 4,
 }
 
-/// <summary>A member of a volume stack: a real volume archive or one chapter (or extra).</summary>
-public sealed record StackMember(GroupingRow Row, bool IsVolumeArchive, decimal? Chapter, bool IsExtra, VolumePlacement Placement);
+/// <summary>
+/// A member of a volume stack: a real volume archive, one chapter (or a part of a split chapter, or an extra), or a fractional
+/// volume file (<see cref="IsBonusVolume"/>: "Volume 2.5" goes at the end of volume 2's stack).
+/// </summary>
+public sealed record StackMember(
+    GroupingRow Row, bool IsVolumeArchive, decimal? Chapter, bool IsExtra, VolumePlacement Placement, bool IsBonusVolume = false);
 
-/// <summary>A virtual volume: its members present and the whole chapters it should hold but does not.</summary>
+/// <summary>
+/// A virtual volume: its members present and the chapter units it should hold but does not (<see cref="MissingChapters"/>:
+/// whole chapters and parts of split chapters, "5.2"). <see cref="ChapterCount"/> counts the volume's chapters (a split chapter
+/// once), <see cref="ChaptersPresent"/> the complete ones (every listed part here); both null when no list says.
+/// </summary>
 public sealed record VolumeStack(
     string Key,
     decimal Volume,
@@ -84,13 +97,14 @@ public sealed record VolumeStack(
     VolumeStackConfidence Confidence,
     VolumeListSource Source,
     IReadOnlyList<StackMember> Members,
-    IReadOnlyList<int> MissingChapters,
+    IReadOnlyList<decimal> MissingChapters,
     int PresentCount,
     int? ChapterCount,
     int ExtraCount,
     bool HasVolumeArchive,
     string? FirstChapter,
-    string? LastChapter);
+    string? LastChapter,
+    int? ChaptersPresent = null);
 
 public enum VolumeEntryKind
 {
@@ -102,6 +116,12 @@ public enum VolumeEntryKind
 
     /// <summary>A virtual volume stack.</summary>
     Stack = 2,
+
+    /// <summary>
+    /// A whole volume with neither a volume file nor any chapter on disk (1.29.0 RC): a gap below the highest volume present,
+    /// or a volume released in the preferred language after it. A placeholder, never opened.
+    /// </summary>
+    MissingVolume = 3,
 }
 
 /// <summary>
@@ -128,12 +148,22 @@ public sealed record VolumeEntry
 
     /// <summary>Kind Stack.</summary>
     public VolumeStack? Stack { get; init; }
+
+    /// <summary>Kind MissingVolume: the missing volume's number.</summary>
+    public decimal? Volume { get; init; }
 }
 
-public sealed record VolumeGroupingResult(IReadOnlyList<VolumeEntry> Entries, int StackCount)
+/// <summary>
+/// The entries plus what is missing: the missing volumes (placeholders) and the number of missing chapter units - the stacks'
+/// placeholders plus the gaps between loose chapters below the highest one present.
+/// </summary>
+public sealed record VolumeGroupingResult(IReadOnlyList<VolumeEntry> Entries, int StackCount, int MissingVolumeCount = 0, int MissingChapterCount = 0)
 {
-    /// <summary>True when at least one stack formed (the Volumes view differs from the flat list).</summary>
-    public bool Grouped => StackCount > 0;
+    /// <summary>True when at least one stack or missing-volume placeholder formed (the Volumes view differs from the flat list).</summary>
+    public bool Grouped => StackCount > 0 || MissingVolumeCount > 0;
+
+    /// <summary>At least one volume entry (a volume file, a stack or a placeholder).</summary>
+    public bool HasVolumes => Entries.Any(e => e.Rank == 0);
 }
 
 /// <summary>The pure grouping function of the Volumes view.</summary>
@@ -191,16 +221,27 @@ public static class VolumeGrouping
     private static decimal? ParseNumber(string? text) =>
         decimal.TryParse(text?.Trim(), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var n) ? n : null;
 
+    /// <summary>At most this many missing-volume placeholders are listed (a corrupt total cannot run away).</summary>
+    public const int MaxMissingVolumes = 500;
+
     /// <summary>
     /// Groups the rows of one folder into volume-ordered entries. <paramref name="rows"/> are the browsed folder's children
     /// (plus the archives of its merged unit subfolders); <paramref name="map"/> is the linked series' stored volume map, or
     /// null when nothing is linked (file names and ComicInfo alone still group). Entries are returned ascending by position
     /// (Rank, VolumeKey, SortKey, Id); Name descending reverses the list, never the members of a stack.
+    /// <para>
+    /// "Missing" means released in the preferred language (owner, 1.29.0 RC): a chapter the list names BELOW the highest chapter
+    /// present exists (a later one does) and is missing; one beyond it is missing only when <see cref="VolumeMapInput.ReleasedChapters"/>
+    /// lists it. With <paramref name="markMissingVolumes"/> (a folder with its own link) a whole volume with neither a file nor a
+    /// chapter here is a placeholder entry: the gaps below the highest volume present and the volumes after it up to
+    /// <see cref="VolumeMapInput.ReleasedVolumeCount"/>.
+    /// </para>
     /// </summary>
-    public static VolumeGroupingResult Group(IReadOnlyList<GroupingRow> rows, VolumeMapInput? map)
+    public static VolumeGroupingResult Group(IReadOnlyList<GroupingRow> rows, VolumeMapInput? map, bool markMissingVolumes = false)
     {
         ArgumentNullException.ThrowIfNull(rows);
-        var resolver = new VolumeResolver(map ?? VolumeMapInput.Empty);
+        map ??= VolumeMapInput.Empty;
+        var resolver = new VolumeResolver(map);
         var entries = new List<VolumeEntry>();
 
         var chapters = new List<(GroupingRow Row, UnitNumbers Units)>();
@@ -241,7 +282,8 @@ public static class VolumeGrouping
             for (var v = decimal.Truncate(u.Volume!.Value) + 1; v <= u.VolumeEnd!.Value && v - u.Volume.Value < 200; v++)
                 alias.TryAdd(v, u.Volume.Value);
         }
-        decimal Canon(decimal v) => alias.GetValueOrDefault(v, v);
+        // A fractional volume (a "2.5" file or list key) belongs to the previous volume (owner, 1.29.0 RC).
+        decimal Canon(decimal v) => alias.GetValueOrDefault(decimal.Truncate(v), decimal.Truncate(v));
 
         var byVolume = new SortedDictionary<decimal, (List<StackMember> Volumes, List<StackMember> Chapters)>();
         (List<StackMember> Volumes, List<StackMember> Chapters) Bucket(decimal v)
@@ -252,8 +294,14 @@ public static class VolumeGrouping
             return b;
         }
 
+        var bonus = new List<(GroupingRow Row, decimal Volume)>();
         foreach (var (row, u) in volumes)
-            Bucket(u.Volume!.Value).Volumes.Add(new StackMember(row, true, null, false, VolumePlacement.Local));
+        {
+            if (decimal.Truncate(u.Volume!.Value) != u.Volume.Value)
+                bonus.Add((row, u.Volume.Value));
+            else
+                Bucket(u.Volume.Value).Volumes.Add(new StackMember(row, true, null, false, VolumePlacement.Local));
+        }
 
         foreach (var (row, u) in chapters)
         {
@@ -271,10 +319,49 @@ public static class VolumeGrouping
             entries.Add(LooseArchive(row));
         }
 
+        // A fractional volume file joins the end of the previous volume's stack; alone (that volume has nothing here) it stays
+        // its own card in its place.
+        var bonusByVolume = new Dictionary<decimal, List<StackMember>>();
+        foreach (var (row, v) in bonus)
+        {
+            var target = Canon(v);
+            if (byVolume.ContainsKey(target))
+            {
+                if (!bonusByVolume.TryGetValue(target, out var list))
+                    bonusByVolume[target] = list = [];
+                list.Add(new StackMember(row, false, null, true, VolumePlacement.Local, IsBonusVolume: true));
+            }
+            else
+            {
+                entries.Add(new VolumeEntry { Kind = VolumeEntryKind.Archive, Rank = 0, VolumeKey = SortableKey(v), SortKey = row.SortKey, Id = row.Id, Row = row });
+            }
+        }
+
+        // The highest chapter present: a chapter archive's number (a range's end), or the last chapter of a volume whose file is here.
+        decimal? high = null;
+        void Raise(decimal? value)
+        {
+            if (value is { } x && (high is null || x > high))
+                high = x;
+        }
+        foreach (var (_, u) in chapters)
+            Raise(u.ChapterEnd ?? u.Chapter);
+        var fileVolumes = new HashSet<decimal>();
+        foreach (var (row, u) in volumes.Where(v => decimal.Truncate(v.Units.Volume!.Value) == v.Units.Volume.Value))
+        {
+            for (var v = u.Volume!.Value; v <= (u.VolumeEnd ?? u.Volume.Value) && v - u.Volume.Value < 200; v++)
+            {
+                fileVolumes.Add(v);
+                Raise(resolver.LastChapterOf(v));
+            }
+        }
+
         var stackCount = 0;
+        var missingChapters = new HashSet<decimal>();
         foreach (var (volume, bucket) in byVolume)
         {
-            if (bucket.Chapters.Count == 0)
+            var extras = bonusByVolume.GetValueOrDefault(volume) ?? [];
+            if (bucket.Chapters.Count == 0 && extras.Count == 0)
             {
                 // A volume archive with no chapters of its volume is a plain card (two editions: two cards).
                 foreach (var m in bucket.Volumes)
@@ -291,7 +378,8 @@ public static class VolumeGrouping
                 }
                 continue;
             }
-            var stack = BuildStack(volume, bucket.Volumes, bucket.Chapters, resolver, map ?? VolumeMapInput.Empty);
+            var stack = BuildStack(volume, bucket.Volumes, bucket.Chapters, extras, resolver, map, high);
+            missingChapters.UnionWith(stack.MissingChapters);
             var first = stack.Members.OrderBy(m => m.Row.SortKey, StringComparer.Ordinal).First().Row.SortKey;
             entries.Add(new VolumeEntry
             {
@@ -305,8 +393,61 @@ public static class VolumeGrouping
             stackCount++;
         }
 
+        // Gaps between loose chapters (no volume would take them) below the highest one present exist: count them as missing.
+        var chapterUnits = chapters.Select(c => c.Units).ToList();
+        var have = MissingUnits.NumbersOf(chapterUnits, MissingUnitKind.Chapter);
+        foreach (var v in fileVolumes)
+        {
+            foreach (var unit in resolver.RequiredUnits(v) ?? [])
+            {
+                if (decimal.Truncate(unit) == unit && unit <= MissingUnits.MaxNumber)
+                    have.Add((int)unit);
+            }
+        }
+        if (high is { } top && have.Count > 0)
+        {
+            // With a list every chapter it cannot place is counted from 1; with names alone, from the lowest chapter here (the
+            // chapters before it may sit in volume files whose chapters no list names).
+            var from = resolver.HasData ? 1
+                : Math.Max(1, chapterUnits.Where(u => !u.IsExtra).Select(u => (int?)decimal.Ceiling(u.Chapter!.Value)).Min() ?? 1);
+            for (var n = from; n < top && n <= MissingUnits.MaxNumber; n++)
+            {
+                if (!have.Contains(n) && !missingChapters.Contains(n) && (!resolver.HasData || resolver.Resolve(n) is null))
+                    missingChapters.Add(n);
+            }
+        }
+
+        var missingVolumes = 0;
+        if (markMissingVolumes)
+        {
+            var present = byVolume.Keys.Where(v => v >= 1).ToHashSet();
+            present.UnionWith(alias.Keys);
+            present.UnionWith(fileVolumes);
+            if (present.Count > 0)
+            {
+                var highest = (int)present.Max();
+                var limit = Math.Min(Math.Max(highest, map.ReleasedVolumeCount ?? 0), highest + MaxMissingVolumes);
+                for (var v = 1; v <= limit && missingVolumes < MaxMissingVolumes; v++)
+                {
+                    if (present.Contains(v))
+                        continue;
+                    var key = Canonical(v);
+                    entries.Add(new VolumeEntry
+                    {
+                        Kind = VolumeEntryKind.MissingVolume,
+                        Rank = 0,
+                        VolumeKey = SortableKey(v),
+                        SortKey = string.Empty,
+                        Id = "vm:" + key,
+                        Volume = v,
+                    });
+                    missingVolumes++;
+                }
+            }
+        }
+
         entries.Sort(Compare);
-        return new VolumeGroupingResult(entries, stackCount);
+        return new VolumeGroupingResult(entries, stackCount, missingVolumes, missingChapters.Count);
     }
 
     private static VolumeEntry LooseArchive(GroupingRow row) =>
@@ -324,33 +465,49 @@ public static class VolumeGrouping
     }
 
     private static VolumeStack BuildStack(
-        decimal volume, List<StackMember> volumeArchives, List<StackMember> chapterMembers, VolumeResolver resolver, VolumeMapInput map)
+        decimal volume, List<StackMember> volumeArchives, List<StackMember> chapterMembers, List<StackMember> bonusMembers,
+        VolumeResolver resolver, VolumeMapInput map, decimal? high)
     {
+        var hasVolumeArchive = volumeArchives.Count > 0;
+        var required = resolver.RequiredUnits(volume);
+        var requiredSet = required?.ToHashSet() ?? [];
+        // A listed part of a split chapter (4.1 when 4 is not listed) is a chapter, not an extra; without a list a fraction stays an extra.
+        chapterMembers = chapterMembers
+            .Select(m => m.Chapter is { } c && decimal.Truncate(c) != c ? m with { IsExtra = !requiredSet.Contains(c) } : m)
+            .ToList();
         var members = volumeArchives.OrderBy(m => m.Row.SortKey, StringComparer.Ordinal)
             .Concat(chapterMembers.OrderBy(m => m.Chapter).ThenBy(m => m.Row.SortKey, StringComparer.Ordinal))
+            .Concat(bonusMembers.OrderBy(m => m.Row.SortKey, StringComparer.Ordinal))
             .ToList();
-        var hasVolumeArchive = volumeArchives.Count > 0;
-        var expected = resolver.ExpectedChapters(volume);
         var estimated = resolver.IsEstimated(volume) || members.Any(m => m.Placement == VolumePlacement.Estimated);
         var confidence = estimated ? VolumeStackConfidence.Estimated : VolumeStackConfidence.Exact;
 
-        // A volume archive covers all its chapters: no placeholders, no incomplete mark (7.4).
-        IReadOnlyList<int> missing = [];
-        if (!hasVolumeArchive && expected is { Count: > 0 })
-        {
-            var units = chapterMembers.Select(m => UnitsOf(m.Row)).ToList();
-            var holes = MissingUnits.Holes(units, MissingUnitKind.Chapter, expected.Select(e => (decimal)e));
-            // The last volume of an ongoing (or estimated) series: chapters after the last one present may not exist yet.
-            var present = MissingUnits.NumbersOf(units, MissingUnitKind.Chapter);
-            if (resolver.IsLastVolume(volume) && (map.Ongoing || estimated) && present.Count > 0)
-                holes = holes.Where(h => h < present.Max).ToList();
-            missing = holes;
-        }
+        // Present units: whole chapters (a range covers its range), a part by itself or by its whole chapter's file.
+        var units = chapterMembers.Select(m => UnitsOf(m.Row)).ToList();
+        var wholes = MissingUnits.NumbersOf(units, MissingUnitKind.Chapter);
+        var parts = chapterMembers.Where(m => m.Chapter is { } c && decimal.Truncate(c) != c).Select(m => m.Chapter!.Value).ToHashSet();
+        bool Present(decimal u) =>
+            decimal.Truncate(u) == u ? u <= MissingUnits.MaxNumber && wholes.Contains((int)u)
+                : parts.Contains(u) || wholes.Contains((int)decimal.Truncate(u));
 
-        var extras = chapterMembers.Count(m => m.IsExtra);
+        // A volume archive covers all its chapters: no placeholders, no incomplete mark (7.4). Otherwise a listed unit is missing
+        // when a later chapter is here (it exists), or when the list of chapters released in the preferred language names it.
+        IReadOnlyList<decimal> missing = [];
+        if (!hasVolumeArchive && required is { Count: > 0 })
+        {
+            missing = required
+                .Where(u => !Present(u) && ((high is { } h && u < h) || map.ReleasedChapters?.Contains(u) == true))
+                .ToList();
+        }
+        var chaptersOf = required?.GroupBy(decimal.Truncate).ToList();
+        int? chapterCount = chaptersOf?.Count;
+        int? chaptersPresent = chaptersOf is null ? null
+            : hasVolumeArchive ? chapterCount : chaptersOf.Count(g => g.All(Present));
+
+        var extras = chapterMembers.Count(m => m.IsExtra) + bonusMembers.Count;
         var chapterNumbers = chapterMembers.Where(m => m.Chapter is not null).Select(m => m.Chapter!.Value).Order().ToList();
-        var usesMap = expected is not null || chapterMembers.Any(m => m.Placement != VolumePlacement.Local);
-        var usesLocal = hasVolumeArchive || chapterMembers.Any(m => m.Placement == VolumePlacement.Local);
+        var usesMap = required is not null || chapterMembers.Any(m => m.Placement != VolumePlacement.Local);
+        var usesLocal = hasVolumeArchive || bonusMembers.Count > 0 || chapterMembers.Any(m => m.Placement == VolumePlacement.Local);
         var source = usesMap && usesLocal ? VolumeListSource.Mixed : usesMap ? map.Source : VolumeListSource.FileNames;
         return new VolumeStack(
             Key: Canonical(volume),
@@ -361,19 +518,20 @@ public static class VolumeGrouping
             Members: members,
             MissingChapters: missing,
             PresentCount: members.Count,
-            ChapterCount: expected?.Count,
+            ChapterCount: chapterCount,
             ExtraCount: extras,
             HasVolumeArchive: hasVolumeArchive,
             FirstChapter: chapterNumbers.Count > 0 ? Canonical(chapterNumbers[0]) : null,
-            LastChapter: chapterNumbers.Count > 0 ? Canonical(chapterNumbers[^1]) : null);
+            LastChapter: chapterNumbers.Count > 0 ? Canonical(chapterNumbers[^1]) : null,
+            ChaptersPresent: chaptersPresent);
     }
 
     /// <summary>One slot of the stack view: a present member or a missing chapter's placeholder.</summary>
     public sealed record Slot(VolumeSlotKind Kind, string? Chapter, StackMember? Member);
 
     /// <summary>
-    /// The ordered slots of a stack view: a real volume archive first, then the chapters ascending (an extra between its
-    /// neighbours: 45, 45.5, 46) with a placeholder where each missing whole chapter belongs.
+    /// The ordered slots of a stack view: a real volume archive first, then the chapters ascending (a part or an extra between
+    /// its neighbours: 45, 45.5, 46) with a placeholder where each missing chapter (or part) belongs, then a fractional volume file.
     /// </summary>
     public static IReadOnlyList<Slot> Slots(VolumeStack stack)
     {
@@ -381,10 +539,12 @@ public static class VolumeGrouping
         var slots = new List<Slot>();
         foreach (var m in stack.Members.Where(m => m.IsVolumeArchive))
             slots.Add(new Slot(VolumeSlotKind.Item, null, m));
-        var items = stack.Members.Where(m => !m.IsVolumeArchive).Select(m => (Value: m.Chapter ?? 0m, Slot: new Slot(VolumeSlotKind.Item, m.Chapter is { } c ? Canonical(c) : null, m)));
-        var gaps = stack.MissingChapters.Select(n => (Value: (decimal)n, Slot: new Slot(VolumeSlotKind.Missing, n.ToString(CultureInfo.InvariantCulture), null)));
-        // A missing whole chapter sorts before a present number of the same value (there is none: it is missing).
+        var items = stack.Members.Where(m => !m.IsVolumeArchive && !m.IsBonusVolume)
+            .Select(m => (Value: m.Chapter ?? 0m, Slot: new Slot(VolumeSlotKind.Item, m.Chapter is { } c ? Canonical(c) : null, m)));
+        var gaps = stack.MissingChapters.Select(n => (Value: n, Slot: new Slot(VolumeSlotKind.Missing, Canonical(n), null)));
         slots.AddRange(items.Concat(gaps).OrderBy(x => x.Value).Select(x => x.Slot));
+        foreach (var m in stack.Members.Where(m => m.IsBonusVolume))
+            slots.Add(new Slot(VolumeSlotKind.Item, null, m));
         return slots;
     }
 
