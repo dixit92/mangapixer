@@ -36,6 +36,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Missing report: extras.** A `.5` chapter or volume never fills a number and is never counted as missing.
 - **Identify: the count warning compares like with like.** Volumes are compared with the record's volume total and chapters with its chapter total, and the warning says which ("The record lists 7 volumes; this folder has volumes 1-43."). A folder of chapters gets no warning when the series is counted only in volumes.
 - **Automatic matching: counts.** Volume and chapter subfolders count by the numbers in their file names, not by how many files they hold, and the latest tracked chapter no longer counts against a series that is counted in volumes (a chapter folder of a spin-off was held back for review this way).
+- **Series found under an author-tagged title.** MangaUpdates adds the author to titles several works share ("Fly Me to the Moon (HATA Kenjiro)"); such a title now counts without the tag - in full when the tag names the record's own author - so a folder named by a series' English title finds the right record, in automatic matching and in the Identify dialog. A title that matches only this way never links on its own: several works share the name, so the folder goes to Needs review with the right record among the candidates.
+- **Automatic matching: volume numbers in chapter names.** Chapter archives named like `Title v09 c060` now also tell automatic matching how many volumes the run has reached, compared with the record's volume total.
 
 ## [1.28.0] - 2026-09-28
 
