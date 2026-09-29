@@ -133,6 +133,7 @@ function samePick(a: CoverPick | null, b: CoverPick): boolean {
     </mat-dialog-actions>
   `,
   styles: [`
+    :host { display: flex; flex-direction: column; height: 100%; max-height: inherit; }
     .head { display: flex; align-items: center; gap: 8px; padding-right: 8px; }
     .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .body { display: block; }
@@ -160,6 +161,8 @@ function samePick(a: CoverPick | null, b: CoverPick): boolean {
     .volume { margin-bottom: 10px; }
     .vol-label { display: block; margin-bottom: 4px; font-size: 12px; color: #c8c8d4; }
     @media (max-width: 599.98px) {
+      /* Full-screen on phone: the options fill the screen, the actions stay at the bottom. */
+      .body { flex: 1 1 auto; max-height: none; }
       .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
   `],
