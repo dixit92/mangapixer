@@ -25,7 +25,7 @@ from tool output (not written by hand):
 | NuGet, build/test only | all minus shipped; refreshed for 1.23.0 | 22 |
 | npm, runtime | `npm --prefix web ls --omit=dev --all` (`--prod` is a deprecated alias); refreshed for 1.22.1 | 20 |
 | npm, all | `npm --prefix web ls --all` | 880 unique name@version at 1.12.0 (the build/test list below was updated for 1.23.0 from `web/package-lock.json`) |
-| npm, build/test only | all minus runtime; updated for 1.23.0 (Windows x64 platform binaries) | 835 |
+| npm, build/test only | all minus runtime; updated for 1.23.0 (Windows x64 platform binaries) | 766 |
 
 License values come from each package's own metadata: the `<license>` element
 of the `.nuspec` in the NuGet cache, and the `license` field of
@@ -40,8 +40,8 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 
 ### 1a. Application runtime (51)
 
-- `Magick.NET-Q8-AnyCPU` - 14.17.1 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
-- `Magick.NET.Core` - 14.17.1 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
+- `Magick.NET-Q8-AnyCPU` - 14.17.2 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
+- `Magick.NET.Core` - 14.17.2 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
 - `Microsoft.AspNetCore.Identity.EntityFrameworkCore` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.AspNetCore.OpenApi` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.Data.Sqlite.Core` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
@@ -123,36 +123,36 @@ which is under the ImageMagick License, an Apache-2.0-derived license
 (https://imagemagick.org/license/; Copyright 1999 ImageMagick Studio LLC).
 The native `Magick.Native-Q8` library contains the components below. Full license
 texts and copyright notices for all of them are in `Notice.txt` at the root of
-the `Magick.NET-Q8-AnyCPU` 14.17.1 NuGet package. Versions and licenses below are
+the `Magick.NET-Q8-AnyCPU` 14.17.2 NuGet package. Versions and licenses below are
 taken from that file. The notice gives upstream URLs only for ImageMagick and
 FreeType; for the rest, the package's `Notice.txt` is the reference.
 
-- `ImageMagick` - 7.1.2-31 - ImageMagick (Apache-2.0-derived) - https://imagemagick.org
-- `aom` - 3.15.0 - BSD-2-Clause - see Notice.txt
+- `ImageMagick` - 7.1.2-32 - ImageMagick (Apache-2.0-derived) - https://imagemagick.org
+- `aom` - 3.15.1 - BSD-2-Clause - see Notice.txt
 - `brotli` - 1.2.0 - MIT - see Notice.txt
 - `libbzip2` - 1.0.8 - bzip2-1.0.6 - see Notice.txt
-- `cairo` - 1.18.4 - MPL-1.1 (text reproduced in the notice; upstream cairo is LGPL-2.1 OR MPL-1.1) - see Notice.txt
+- `cairo` - 1.18.6 - MPL-1.1 (text reproduced in the notice; upstream cairo is LGPL-2.1 OR MPL-1.1) - see Notice.txt
 - `libcroco` - 0.6.13 - LGPL-2.0 (GNU Library GPL v2 text) - see Notice.txt
-- `libde265` - 1.1.1 - LGPL-3.0 (library; sample applications MIT) - see Notice.txt
-- `openexr` - 3.4.15 - BSD-3-Clause - see Notice.txt
+- `libde265` - 1.1.3 - LGPL-3.0 (library; sample applications MIT) - see Notice.txt
+- `openexr` - 3.5.1 - BSD-3-Clause - see Notice.txt
 - `libffi` - 3.8.0 - MIT - see Notice.txt
 - `fontconfig` - 2.18.3 - MIT-style (fontconfig license) incl. Unicode data terms - see Notice.txt
 - `freetype` - 2.14.3 - FTL - https://freetype.org
-- `fribidi` - 1.0.16 - LGPL-2.1-or-later - see Notice.txt
+- `fribidi` - 1.0.17 - LGPL-2.1-or-later - see Notice.txt
 - `gdk-pixbuf` - 2.44.8 - LGPL-2.1-or-later - see Notice.txt
 - `glib` - 2.64.3 - LGPL-2.1-or-later - see Notice.txt
-- `harfbuzz` - 14.4.0 - MIT-style ("Old MIT") - see Notice.txt
-- `libheif` - 1.23.2 - LGPL-3.0 (library; samples and wrappers MIT) - see Notice.txt
+- `harfbuzz` - 14.5.0 - MIT-style ("Old MIT") - see Notice.txt
+- `libheif` - 1.23.5 - LGPL-3.0 (library; samples and wrappers MIT) - see Notice.txt
 - `libhwy` - 1.4.0 - Apache-2.0 OR BSD-3-Clause - see Notice.txt
 - `imath` - 3.2.3 - BSD-3-Clause - see Notice.txt
 - `libjpeg-turbo` - 3.2.0 - IJG AND BSD-3-Clause (its Zlib-licensed parts are subsumed, per the notice) - see Notice.txt
 - `libjxl` - 0.12.0 - BSD-3-Clause - see Notice.txt
 - `lcms` - 2.19.1 - MIT - see Notice.txt
 - `liblqr` - 0.4.2 - LGPL-3.0 - see Notice.txt
-- `liblzma` - 5.8.3 - LGPL-2.1-or-later (as reproduced in the notice) - see Notice.txt
+- `liblzma` - 5.8.4 - LGPL-2.1-or-later (as reproduced in the notice) - see Notice.txt
 - `openh264` - 2.6.0 - BSD-2-Clause - see Notice.txt
 - `openjpeg` - 2.5.4 - BSD-2-Clause - see Notice.txt
-- `openjph` - 0.31.0 - BSD-2-Clause - see Notice.txt
+- `openjph` - 0.32.0 - BSD-2-Clause - see Notice.txt
 - `pango` - 1.45.3 - LGPL-2.0 (GNU Library GPL v2 text) - see Notice.txt
 - `pixman` - 0.46.4 - MIT - see Notice.txt
 - `libpng` - 1.6.58 - libpng-2.0 - see Notice.txt
@@ -161,9 +161,10 @@ FreeType; for the rest, the package's `Notice.txt` is the reference.
 - `librsvg` - 2.40.20 - LGPL-2.0 (GNU Library GPL v2 text) - see Notice.txt
 - `libtiff` - 4.7.2 - libtiff - see Notice.txt
 - `libwebp` - 1.6.0 - BSD-3-Clause - see Notice.txt
-- `libxml2` - 2.15.3 - MIT - see Notice.txt
+- `libxml2` - 2.15.4 - MIT - see Notice.txt
 - `libzip` - 1.11.4 - BSD-3-Clause - see Notice.txt
 - `zlib` - 1.3.2 - Zlib - see Notice.txt
+- `zstd` - 1.5.7 - BSD-3-Clause - see Notice.txt
 
 ### 1d. Copyright notices for shipped .NET packages
 
@@ -246,25 +247,25 @@ and Enhance where WebGPU is missing) is another such chunk; it carries shader co
 ported or copied from two upstream projects, attributed under "Ported shader code"
 below.
 
-- `@angular/animations` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/cdk` - 22.1.7 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/common` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/compiler` - 22.1.7 - MIT - https://github.com/angular/angular
-- `@angular/core` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/forms` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/material` - 22.1.7 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/platform-browser` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/router` - 22.1.7 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/animations` - 22.2.0 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/cdk` - 22.2.0 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/common` - 22.2.0 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/compiler` - 22.2.0 - MIT - https://github.com/angular/angular
+- `@angular/core` - 22.2.0 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/forms` - 22.2.0 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/material` - 22.2.0 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/platform-browser` - 22.2.0 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/router` - 22.2.0 - MIT - https://github.com/angular/angular *(bundled)*
 - `@fontsource/roboto` - 5.3.0 - OFL-1.1 - https://github.com/fontsource/font-files *(bundled)*
 - `@standard-schema/spec` - 1.1.0 - MIT - https://github.com/standard-schema/standard-schema
 - `@webgpu/types` - 0.1.72 - BSD-3-Clause - https://github.com/gpuweb/types
 - `anime4k-webgpu` - 1.0.0 - MIT - https://github.com/Anime4KWebBoost/Anime4K-WebGPU *(bundled)*
-- `entities` - 8.0.0 - BSD-2-Clause - https://github.com/fb55/entities
+- `entities` - 8.1.0 - BSD-2-Clause - https://github.com/fb55/entities
 - `material-icons` - 1.13.14 - Apache-2.0 - https://github.com/marella/material-icons *(bundled)*
 - `parse5` - 8.0.1 - MIT - https://github.com/inikulin/parse5
 - `rxjs` - 7.8.2 - Apache-2.0 - https://github.com/reactivex/rxjs *(bundled)*
 - `tslib` - 2.8.1 - 0BSD - https://github.com/microsoft/tslib *(bundled)*
-- `zod` - 4.4.3 - MIT - https://github.com/colinhacks/zod
+- `zod` - 4.6.5 - MIT - https://github.com/colinhacks/zod
 - `zone.js` - 0.16.3 - MIT - https://github.com/angular/angular *(bundled)*
 
 Copyright notices for these packages (from their LICENSE files):
@@ -367,7 +368,7 @@ THE SOFTWARE.
   https://github.com/marella/material-icons. The icon fonts ship as
   `.woff`/`.woff2` in the SPA.
 
-## 4. Web build and test packages - npm (835)
+## 4. Web build and test packages - npm (766)
 
 These are dev dependencies and their transitive trees: the Angular CLI and build
 toolchain, TypeScript, ESLint, Vitest, jsdom and Playwright. None is in the shipped
@@ -376,11 +377,11 @@ binaries such as `lightningcss-*`, `@esbuild/*` and `@rollup/*` differ on other
 operating systems, including the Linux image build stage.
 
 - `@ampproject/remapping` - 2.3.0 - Apache-2.0 - https://github.com/ampproject/remapping
-- `@angular-devkit/architect` - 0.2201.8 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/build-angular` - 22.1.8 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/build-webpack` - 0.2201.8 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/core` - 22.1.8 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/schematics` - 22.1.8 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/architect` - 0.2202.0 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/build-angular` - 22.2.0 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/build-webpack` - 0.2202.0 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/core` - 22.2.0 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/schematics` - 22.2.0 - MIT - https://github.com/angular/angular-cli
 - `@angular-eslint/builder` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/bundled-angular-compiler` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/eslint-plugin` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
@@ -388,32 +389,34 @@ operating systems, including the Linux image build stage.
 - `@angular-eslint/schematics` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/template-parser` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/utils` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular/build` - 22.1.8 - MIT - https://github.com/angular/angular-cli
-- `@angular/cli` - 22.1.8 - MIT - https://github.com/angular/angular-cli
-- `@angular/compiler-cli` - 22.1.7 - MIT - https://github.com/angular/angular
+- `@angular/build` - 22.2.0 - MIT - https://github.com/angular/angular-cli
+- `@angular/cli` - 22.2.0 - MIT - https://github.com/angular/angular-cli
+- `@angular/compiler-cli` - 22.2.0 - MIT - https://github.com/angular/angular
 - `@asamuzakjp/css-color` - 7.0.1 - MIT - https://github.com/asamuzaK/cssColor
 - `@asamuzakjp/dom-selector` - 9.2.1 - MIT - https://github.com/asamuzaK/domSelector
 - `@babel/code-frame` - 7.29.7 - MIT - https://github.com/babel/babel
-- `@babel/code-frame` - 8.0.0 - MIT - https://github.com/babel/babel
+- `@babel/code-frame` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@babel/compat-data` - 7.29.7 - MIT - https://github.com/babel/babel
-- `@babel/compat-data` - 8.0.0 - MIT - https://github.com/babel/babel
+- `@babel/compat-data` - 8.0.5 - MIT - https://github.com/babel/babel
 - `@babel/core` - 7.29.7 - MIT - https://github.com/babel/babel
 - `@babel/core` - 8.0.1 - MIT - https://github.com/babel/babel
+- `@babel/core` - 8.0.5 - MIT - https://github.com/babel/babel
 - `@babel/generator` - 7.29.8 - MIT - https://github.com/babel/babel
-- `@babel/generator` - 8.0.0 - MIT - https://github.com/babel/babel
+- `@babel/generator` - 8.0.5 - MIT - https://github.com/babel/babel
+- `@babel/generator` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@babel/helper-annotate-as-pure` - 8.0.0 - MIT - https://github.com/babel/babel
 - `@babel/helper-compilation-targets` - 7.29.7 - MIT - https://github.com/babel/babel
-- `@babel/helper-compilation-targets` - 8.0.0 - MIT - https://github.com/babel/babel
-- `@babel/helper-create-class-features-plugin` - 8.0.1 - MIT - https://github.com/babel/babel
-- `@babel/helper-create-regexp-features-plugin` - 8.0.1 - MIT - https://github.com/babel/babel
+- `@babel/helper-compilation-targets` - 8.0.6 - MIT - https://github.com/babel/babel
+- `@babel/helper-create-class-features-plugin` - 8.0.6 - MIT - https://github.com/babel/babel
+- `@babel/helper-create-regexp-features-plugin` - 8.0.5 - MIT - https://github.com/babel/babel
 - `@babel/helper-define-polyfill-provider` - 1.0.0 - MIT - https://github.com/babel/babel-polyfills
 - `@babel/helper-globals` - 7.29.7 - MIT - https://github.com/babel/babel
-- `@babel/helper-globals` - 8.0.0 - MIT - https://github.com/babel/babel
-- `@babel/helper-member-expression-to-functions` - 8.0.0 - MIT - https://github.com/babel/babel
+- `@babel/helper-globals` - 8.0.6 - MIT - https://github.com/babel/babel
+- `@babel/helper-member-expression-to-functions` - 8.0.5 - MIT - https://github.com/babel/babel
 - `@babel/helper-module-imports` - 7.29.7 - MIT - https://github.com/babel/babel
 - `@babel/helper-module-imports` - 8.0.0 - MIT - https://github.com/babel/babel
 - `@babel/helper-module-transforms` - 7.29.7 - MIT - https://github.com/babel/babel
-- `@babel/helper-module-transforms` - 8.0.1 - MIT - https://github.com/babel/babel
+- `@babel/helper-module-transforms` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@babel/helper-optimise-call-expression` - 8.0.0 - MIT - https://github.com/babel/babel
 - `@babel/helper-plugin-utils` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/helper-remap-async-to-generator` - 8.0.1 - MIT - https://github.com/babel/babel
@@ -421,37 +424,37 @@ operating systems, including the Linux image build stage.
 - `@babel/helper-skip-transparent-expression-wrappers` - 8.0.0 - MIT - https://github.com/babel/babel
 - `@babel/helper-split-export-declaration` - 7.24.7 - MIT - https://github.com/babel/babel
 - `@babel/helper-string-parser` - 7.29.7 - MIT - https://github.com/babel/babel
-- `@babel/helper-string-parser` - 8.0.0 - MIT - https://github.com/babel/babel
+- `@babel/helper-string-parser` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@babel/helper-validator-identifier` - 7.29.7 - MIT - https://github.com/babel/babel
-- `@babel/helper-validator-identifier` - 8.0.4 - MIT - https://github.com/babel/babel
+- `@babel/helper-validator-identifier` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@babel/helper-validator-option` - 7.29.7 - MIT - https://github.com/babel/babel
 - `@babel/helper-validator-option` - 8.0.0 - MIT - https://github.com/babel/babel
 - `@babel/helper-wrap-function` - 8.0.0 - MIT - https://github.com/babel/babel
 - `@babel/helpers` - 7.29.7 - MIT - https://github.com/babel/babel
-- `@babel/helpers` - 8.0.0 - MIT - https://github.com/babel/babel
+- `@babel/helpers` - 8.0.5 - MIT - https://github.com/babel/babel
 - `@babel/parser` - 7.29.8 - MIT - https://github.com/babel/babel
-- `@babel/parser` - 8.0.4 - MIT - https://github.com/babel/babel
+- `@babel/parser` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@babel/plugin-bugfix-firefox-class-in-computed-class-key` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-bugfix-safari-class-field-initializer-scope` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression` - 8.0.1 - MIT - https://github.com/babel/babel
-- `@babel/plugin-bugfix-safari-rest-destructuring-rhs-array` - 8.0.1 - MIT - https://github.com/babel/babel
+- `@babel/plugin-bugfix-safari-rest-destructuring-rhs-array` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-bugfix-v8-static-class-fields-redefine-readonly` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-arrow-functions` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-async-generator-functions` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-async-to-generator` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-block-scoped-functions` - 8.0.1 - MIT - https://github.com/babel/babel
-- `@babel/plugin-transform-block-scoping` - 8.0.1 - MIT - https://github.com/babel/babel
+- `@babel/plugin-transform-block-scoping` - 8.0.5 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-class-properties` - 8.0.1 - MIT - https://github.com/babel/babel
-- `@babel/plugin-transform-class-static-block` - 8.0.1 - MIT - https://github.com/babel/babel
-- `@babel/plugin-transform-classes` - 8.0.1 - MIT - https://github.com/babel/babel
+- `@babel/plugin-transform-class-static-block` - 8.0.5 - MIT - https://github.com/babel/babel
+- `@babel/plugin-transform-classes` - 8.0.5 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-computed-properties` - 8.0.1 - MIT - https://github.com/babel/babel
-- `@babel/plugin-transform-destructuring` - 8.0.1 - MIT - https://github.com/babel/babel
+- `@babel/plugin-transform-destructuring` - 8.0.5 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-dotall-regex` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-duplicate-keys` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-duplicate-named-capturing-groups-regex` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-dynamic-import` - 8.0.1 - MIT - https://github.com/babel/babel
-- `@babel/plugin-transform-explicit-resource-management` - 8.0.1 - MIT - https://github.com/babel/babel
+- `@babel/plugin-transform-explicit-resource-management` - 8.0.5 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-exponentiation-operator` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-export-namespace-from` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-for-of` - 8.0.1 - MIT - https://github.com/babel/babel
@@ -471,17 +474,17 @@ operating systems, including the Linux image build stage.
 - `@babel/plugin-transform-object-rest-spread` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-object-super` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-optional-catch-binding` - 8.0.1 - MIT - https://github.com/babel/babel
-- `@babel/plugin-transform-optional-chaining` - 8.0.1 - MIT - https://github.com/babel/babel
-- `@babel/plugin-transform-parameters` - 8.0.1 - MIT - https://github.com/babel/babel
+- `@babel/plugin-transform-optional-chaining` - 8.0.5 - MIT - https://github.com/babel/babel
+- `@babel/plugin-transform-parameters` - 8.0.5 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-private-methods` - 8.0.1 - MIT - https://github.com/babel/babel
-- `@babel/plugin-transform-private-property-in-object` - 8.0.1 - MIT - https://github.com/babel/babel
+- `@babel/plugin-transform-private-property-in-object` - 8.0.5 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-property-literals` - 8.0.1 - MIT - https://github.com/babel/babel
-- `@babel/plugin-transform-regenerator` - 8.0.2 - MIT - https://github.com/babel/babel
+- `@babel/plugin-transform-regenerator` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-regexp-modifiers` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-reserved-words` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-runtime` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-shorthand-properties` - 8.0.1 - MIT - https://github.com/babel/babel
-- `@babel/plugin-transform-spread` - 8.0.1 - MIT - https://github.com/babel/babel
+- `@babel/plugin-transform-spread` - 8.0.5 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-sticky-regex` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-template-literals` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-typeof-symbol` - 8.0.1 - MIT - https://github.com/babel/babel
@@ -489,16 +492,17 @@ operating systems, including the Linux image build stage.
 - `@babel/plugin-transform-unicode-property-regex` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-unicode-regex` - 8.0.1 - MIT - https://github.com/babel/babel
 - `@babel/plugin-transform-unicode-sets-regex` - 8.0.1 - MIT - https://github.com/babel/babel
-- `@babel/preset-env` - 8.0.2 - MIT - https://github.com/babel/babel
+- `@babel/preset-env` - 8.0.5 - MIT - https://github.com/babel/babel
 - `@babel/preset-modules` - 0.2.0 - MIT - https://github.com/babel/preset-modules
-- `@babel/runtime` - 8.0.0 - MIT - https://github.com/babel/babel
+- `@babel/runtime` - 8.0.5 - MIT - https://github.com/babel/babel
 - `@babel/template` - 7.29.7 - MIT - https://github.com/babel/babel
 - `@babel/template` - 8.0.0 - MIT - https://github.com/babel/babel
 - `@babel/traverse` - 7.29.8 - MIT - https://github.com/babel/babel
-- `@babel/traverse` - 8.0.4 - MIT - https://github.com/babel/babel
+- `@babel/traverse` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@babel/types` - 7.29.8 - MIT - https://github.com/babel/babel
-- `@babel/types` - 8.0.4 - MIT - https://github.com/babel/babel
+- `@babel/types` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@bramus/specificity` - 2.4.2 - MIT - https://github.com/bramus/specificity
+- `@bufbuild/protobuf` - 2.15.0 - Apache-2.0 AND BSD-3-Clause - https://github.com/bufbuild/protobuf-es
 - `@csstools/color-helpers` - 6.1.1 - MIT-0 - https://github.com/csstools/postcss-plugins
 - `@csstools/css-calc` - 3.4.0 - MIT - https://github.com/csstools/postcss-plugins
 - `@csstools/css-color-parser` - 4.2.3 - MIT - https://github.com/csstools/postcss-plugins
@@ -516,34 +520,32 @@ operating systems, including the Linux image build stage.
 - `@eslint/js` - 9.39.5 - MIT - https://github.com/eslint/eslint
 - `@eslint/object-schema` - 2.1.7 - Apache-2.0 - https://github.com/eslint/rewrite
 - `@eslint/plugin-kit` - 0.4.1 - Apache-2.0 - https://github.com/eslint/rewrite
-- `@exodus/bytes` - 1.15.1 - MIT - https://github.com/ExodusOSS/bytes
-- `@exodus/bytes` - 1.15.2 - MIT - https://github.com/ExodusOSS/bytes
+- `@exodus/bytes` - 1.16.0 - MIT - https://github.com/ExodusOSS/bytes
 - `@harperfast/extended-iterable` - 1.0.3 - Apache-2.0 - https://github.com/harperdb/extended-iterable
-- `@hono/node-server` - 2.1.1 - MIT - https://github.com/honojs/node-server
 - `@humanfs/core` - 0.19.2 - Apache-2.0 - https://github.com/humanwhocodes/humanfs
 - `@humanfs/node` - 0.16.8 - Apache-2.0 - https://github.com/humanwhocodes/humanfs
 - `@humanfs/types` - 0.15.0 - Apache-2.0 - https://github.com/humanwhocodes/humanfs
 - `@humanwhocodes/module-importer` - 1.0.1 - Apache-2.0 - https://github.com/humanwhocodes/module-importer
 - `@humanwhocodes/retry` - 0.4.3 - Apache-2.0 - https://github.com/humanwhocodes/retry
 - `@inquirer/ansi` - 2.0.8 - MIT - https://github.com/SBoudrias/Inquirer.js
-- `@inquirer/checkbox` - 5.2.4 - MIT - https://github.com/SBoudrias/Inquirer.js
-- `@inquirer/confirm` - 6.1.1 - MIT - https://github.com/SBoudrias/Inquirer.js
-- `@inquirer/core` - 11.2.1 - MIT - https://github.com/SBoudrias/Inquirer.js
-- `@inquirer/core` - 12.0.2 - MIT - https://github.com/SBoudrias/Inquirer.js
-- `@inquirer/editor` - 5.3.2 - MIT - https://github.com/SBoudrias/Inquirer.js
-- `@inquirer/expand` - 5.1.4 - MIT - https://github.com/SBoudrias/Inquirer.js
+- `@inquirer/checkbox` - 5.2.5 - MIT - https://github.com/SBoudrias/Inquirer.js
+- `@inquirer/confirm` - 6.3.2 - MIT - https://github.com/SBoudrias/Inquirer.js
+- `@inquirer/core` - 12.0.3 - MIT - https://github.com/SBoudrias/Inquirer.js
+- `@inquirer/editor` - 5.3.3 - MIT - https://github.com/SBoudrias/Inquirer.js
+- `@inquirer/expand` - 5.1.5 - MIT - https://github.com/SBoudrias/Inquirer.js
 - `@inquirer/external-editor` - 3.0.5 - MIT - https://github.com/SBoudrias/Inquirer.js
 - `@inquirer/figures` - 2.0.9 - MIT - https://github.com/SBoudrias/Inquirer.js
-- `@inquirer/input` - 5.1.5 - MIT - https://github.com/SBoudrias/Inquirer.js
-- `@inquirer/number` - 4.2.2 - MIT - https://github.com/SBoudrias/Inquirer.js
-- `@inquirer/password` - 5.2.1 - MIT - https://github.com/SBoudrias/Inquirer.js
-- `@inquirer/prompts` - 8.5.2 - MIT - https://github.com/SBoudrias/Inquirer.js
-- `@inquirer/rawlist` - 5.3.4 - MIT - https://github.com/SBoudrias/Inquirer.js
-- `@inquirer/search` - 4.3.2 - MIT - https://github.com/SBoudrias/Inquirer.js
-- `@inquirer/select` - 5.2.4 - MIT - https://github.com/SBoudrias/Inquirer.js
+- `@inquirer/input` - 5.1.6 - MIT - https://github.com/SBoudrias/Inquirer.js
+- `@inquirer/number` - 4.2.3 - MIT - https://github.com/SBoudrias/Inquirer.js
+- `@inquirer/password` - 5.2.2 - MIT - https://github.com/SBoudrias/Inquirer.js
+- `@inquirer/prompts` - 8.7.2 - MIT - https://github.com/SBoudrias/Inquirer.js
+- `@inquirer/rawlist` - 5.3.5 - MIT - https://github.com/SBoudrias/Inquirer.js
+- `@inquirer/search` - 4.3.3 - MIT - https://github.com/SBoudrias/Inquirer.js
+- `@inquirer/select` - 5.2.5 - MIT - https://github.com/SBoudrias/Inquirer.js
 - `@inquirer/type` - 4.1.1 - MIT - https://github.com/SBoudrias/Inquirer.js
 - `@istanbuljs/schema` - 0.1.6 - MIT - https://github.com/istanbuljs/schema
 - `@jridgewell/gen-mapping` - 0.3.13 - MIT - https://github.com/jridgewell/sourcemaps
+- `@jridgewell/gen-mapping` - 0.4.0-beta.0 - MIT - https://github.com/jridgewell/sourcemaps
 - `@jridgewell/remapping` - 2.3.5 - MIT - https://github.com/jridgewell/sourcemaps
 - `@jridgewell/resolve-uri` - 3.1.2 - MIT - https://github.com/jridgewell/resolve-uri
 - `@jridgewell/source-map` - 0.3.11 - MIT - https://github.com/jridgewell/sourcemaps
@@ -555,14 +557,14 @@ operating systems, including the Linux image build stage.
 - `@jsonjoy.com/buffers` - 17.67.0 - Apache-2.0 - https://github.com/jsonjoy-com/buffers
 - `@jsonjoy.com/codegen` - 1.0.0 - Apache-2.0 - https://github.com/jsonjoy-com/codegen
 - `@jsonjoy.com/codegen` - 17.67.0 - Apache-2.0 - https://github.com/jsonjoy-com/codegen
-- `@jsonjoy.com/fs-core` - 4.71.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-fsa` - 4.71.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-node` - 4.71.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-node-builtins` - 4.71.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-node-to-fsa` - 4.71.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-node-utils` - 4.71.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-print` - 4.71.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-snapshot` - 4.71.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-core` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-fsa` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-node` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-node-builtins` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-node-to-fsa` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-node-utils` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-print` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-snapshot` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
 - `@jsonjoy.com/json-pack` - 1.21.0 - Apache-2.0 - https://github.com/jsonjoy-com/json-pack
 - `@jsonjoy.com/json-pack` - 17.67.0 - Apache-2.0 - https://github.com/jsonjoy-com/json-pack
 - `@jsonjoy.com/json-pointer` - 1.0.2 - Apache-2.0 - https://github.com/jsonjoy-com/json-pointer
@@ -570,37 +572,38 @@ operating systems, including the Linux image build stage.
 - `@jsonjoy.com/util` - 1.9.0 - Apache-2.0 - https://github.com/jsonjoy-com/util
 - `@jsonjoy.com/util` - 17.67.0 - Apache-2.0 - https://github.com/jsonjoy-com/util
 - `@leichtgewicht/ip-codec` - 2.0.5 - MIT - https://github.com/martinheidegger/ip-codec
-- `@listr2/prompt-adapter-inquirer` - 4.2.5 - MIT - https://github.com/listr2/listr2
+- `@listr2/prompt-adapter-inquirer` - 4.2.7 - MIT - https://github.com/listr2/listr2
 - `@lmdb/lmdb-win32-x64` - 3.5.6 - MIT - https://github.com/kriszyp/lmdb-js
-- `@modelcontextprotocol/sdk` - 1.30.0 - MIT - https://github.com/modelcontextprotocol/typescript-sdk
+- `@modelcontextprotocol/core` - 2.0.0 - MIT - https://github.com/modelcontextprotocol/typescript-sdk
+- `@modelcontextprotocol/server` - 2.0.0 - MIT - https://github.com/modelcontextprotocol/typescript-sdk
 - `@msgpackr-extract/msgpackr-extract-win32-x64` - 3.0.4 - MIT - https://github.com/kriszyp/msgpackr-extract
 - `@napi-rs/nice` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
 - `@napi-rs/nice-win32-x64-msvc` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
-- `@ngtools/webpack` - 22.1.8 - MIT - https://github.com/angular/angular-cli
-- `@noble/hashes` - 1.4.0 - MIT - https://github.com/paulmillr/noble-hashes
-- `@oxc-parser/binding-win32-x64-msvc` - 0.142.0 - MIT - https://github.com/oxc-project/oxc
+- `@ngtools/webpack` - 22.2.0 - MIT - https://github.com/angular/angular-cli
+- `@noble/hashes` - 1.8.0 - MIT - https://github.com/paulmillr/noble-hashes
+- `@oxc-parser/binding-win32-x64-msvc` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
 - `@oxc-project/types` - 0.139.0 - MIT - https://github.com/oxc-project/oxc
-- `@oxc-project/types` - 0.140.0 - MIT - https://github.com/oxc-project/oxc
-- `@oxc-project/types` - 0.142.0 - MIT - https://github.com/oxc-project/oxc
+- `@oxc-project/types` - 0.149.0 - MIT - https://github.com/oxc-project/oxc
+- `@oxc-project/types` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
 - `@parcel/watcher` - 2.6.0 - MIT - https://github.com/parcel-bundler/watcher
 - `@parcel/watcher-win32-x64` - 2.6.0 - MIT - https://github.com/parcel-bundler/watcher
-- `@peculiar/asn1-cms` - 2.9.4 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-csr` - 2.9.4 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-ecc` - 2.9.4 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-pfx` - 2.9.4 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-pkcs8` - 2.9.4 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-pkcs9` - 2.9.4 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-rsa` - 2.9.4 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-schema` - 2.9.4 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-x509` - 2.9.4 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-x509-attr` - 2.9.4 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-cms` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-csr` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-ecc` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-pfx` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-pkcs8` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-pkcs9` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-rsa` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-schema` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-x509` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-x509-attr` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
 - `@peculiar/utils` - 2.0.3 - MIT - https://github.com/PeculiarVentures/pvtsutils
 - `@peculiar/x509` - 1.14.3 - MIT - https://github.com/PeculiarVentures/x509
 - `@playwright/test` - 1.63.0 - Apache-2.0 - https://github.com/microsoft/playwright
 - `@rolldown/binding-win32-x64-msvc` - 1.1.5 - MIT - https://github.com/rolldown/rolldown
-- `@rolldown/binding-win32-x64-msvc` - 1.2.0 - MIT - https://github.com/rolldown/rolldown
+- `@rolldown/binding-win32-x64-msvc` - 1.2.8 - MIT - https://github.com/rolldown/rolldown
 - `@rolldown/pluginutils` - 1.0.1 - MIT - https://github.com/rolldown/plugins
-- `@schematics/angular` - 22.1.8 - MIT - https://github.com/angular/angular-cli
+- `@schematics/angular` - 22.2.0 - MIT - https://github.com/angular/angular-cli
 - `@types/body-parser` - 1.19.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/bonjour` - 3.5.13 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/chai` - 5.2.3 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -609,24 +612,19 @@ operating systems, including the Linux image build stage.
 - `@types/deep-eql` - 4.0.2 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/esrecurse` - 4.3.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/estree` - 1.0.9 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/express` - 4.17.25 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/express-serve-static-core` - 4.19.9 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
+- `@types/express` - 5.0.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
+- `@types/express-serve-static-core` - 5.1.3 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/gensync` - 1.0.5 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/http-errors` - 2.0.5 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/http-proxy` - 1.17.17 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/jsesc` - 2.5.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/json-schema` - 7.0.15 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/less` - 3.0.8 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/mime` - 1.3.5 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/node` - 24.13.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/qs` - 6.15.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/range-parser` - 1.2.7 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/retry` - 0.12.2 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/send` - 0.17.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/send` - 1.2.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/serve-index` - 1.9.4 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/serve-static` - 1.15.10 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/sockjs` - 0.3.36 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
+- `@types/serve-static` - 2.2.0 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/ws` - 8.18.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@typescript-eslint/eslint-plugin` - 8.69.0 - MIT - https://github.com/typescript-eslint/typescript-eslint
 - `@typescript-eslint/parser` - 8.69.0 - MIT - https://github.com/typescript-eslint/typescript-eslint
@@ -671,7 +669,6 @@ operating systems, including the Linux image build stage.
 - `agent-base` - 9.0.0 - MIT - https://github.com/TooTallNate/proxy-agents
 - `ajv` - 6.15.0 - MIT - https://github.com/ajv-validator/ajv
 - `ajv` - 8.20.0 - MIT - https://github.com/ajv-validator/ajv
-- `ajv-formats` - 2.1.1 - MIT - https://github.com/ajv-validator/ajv-formats
 - `ajv-formats` - 3.0.1 - MIT - https://github.com/ajv-validator/ajv-formats
 - `ajv-keywords` - 5.1.0 - MIT - https://github.com/epoberezkin/ajv-keywords
 - `angular-eslint` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
@@ -681,13 +678,11 @@ operating systems, including the Linux image build stage.
 - `ansi-regex` - 6.3.0 - MIT - https://github.com/chalk/ansi-regex
 - `ansi-styles` - 4.3.0 - MIT - https://github.com/chalk/ansi-styles
 - `ansi-styles` - 6.2.3 - MIT - https://github.com/chalk/ansi-styles
-- `anymatch` - 3.1.3 - ISC - https://github.com/micromatch/anymatch
 - `argparse` - 2.0.1 - Python-2.0 - https://github.com/nodeca/argparse
 - `aria-query` - 5.3.2 - Apache-2.0 - https://github.com/A11yance/aria-query
-- `array-flatten` - 1.1.1 - MIT - https://github.com/blakeembrey/array-flatten
 - `asn1js` - 3.0.10 - BSD-3-Clause - https://github.com/PeculiarVentures/ASN1.js
 - `assertion-error` - 2.0.1 - MIT - https://github.com/chaijs/assertion-error
-- `autoprefixer` - 10.5.4 - MIT - https://github.com/postcss/autoprefixer
+- `autoprefixer` - 10.6.0 - MIT - https://github.com/postcss/autoprefixer
 - `axobject-query` - 4.1.0 - Apache-2.0 - https://github.com/A11yance/axobject-query
 - `babel-loader` - 10.1.1 - MIT - https://github.com/babel/babel-loader
 - `babel-plugin-polyfill-corejs3` - 1.0.0 - MIT - https://github.com/babel/babel-polyfills
@@ -695,14 +690,12 @@ operating systems, including the Linux image build stage.
 - `balanced-match` - 4.0.4 - MIT - https://github.com/juliangruber/balanced-match
 - `baseline-browser-mapping` - 2.11.21 - Apache-2.0 - https://github.com/web-platform-dx/baseline-browser-mapping
 - `batch` - 0.6.1 - MIT - https://github.com/visionmedia/batch
-- `beasties` - 0.4.3 - Apache-2.0 - https://github.com/danielroe/beasties
+- `beasties` - 0.5.4 - Apache-2.0 - https://github.com/danielroe/beasties
 - `bidi-js` - 1.1.0 - MIT - https://github.com/lojjic/bidi-js
 - `big.js` - 5.2.2 - MIT - https://github.com/MikeMcl/big.js
-- `binary-extensions` - 2.3.0 - MIT - https://github.com/sindresorhus/binary-extensions
-- `body-parser` - 1.20.8 - MIT - https://github.com/expressjs/body-parser
 - `body-parser` - 2.3.0 - MIT - https://github.com/expressjs/body-parser
 - `bonjour-service` - 1.4.4 - MIT - https://github.com/onlxltd/bonjour-service
-- `boolbase` - 1.0.0 - ISC - https://github.com/fb55/boolbase
+- `boolbase` - 2.0.0 - ISC - https://github.com/fb55/boolbase
 - `brace-expansion` - 1.1.18 - MIT - https://github.com/juliangruber/brace-expansion
 - `brace-expansion` - 5.0.9 - MIT - https://github.com/juliangruber/brace-expansion
 - `braces` - 3.0.3 - MIT - https://github.com/micromatch/braces
@@ -719,7 +712,6 @@ operating systems, including the Linux image build stage.
 - `chalk` - 4.1.2 - MIT - https://github.com/chalk/chalk
 - `chalk` - 5.6.2 - MIT - https://github.com/chalk/chalk
 - `chardet` - 2.2.0 - MIT - https://github.com/runk/node-chardet
-- `chokidar` - 3.6.0 - MIT - https://github.com/paulmillr/chokidar
 - `chokidar` - 5.0.0 - MIT - https://github.com/paulmillr/chokidar
 - `chrome-trace-event` - 1.0.4 - MIT - https://github.com/samccone/chrome-trace-event
 - `cli-cursor` - 5.0.0 - MIT - https://github.com/sindresorhus/cli-cursor
@@ -730,32 +722,28 @@ operating systems, including the Linux image build stage.
 - `clone-deep` - 4.0.1 - MIT - https://github.com/jonschlinkert/clone-deep
 - `color-convert` - 2.0.1 - MIT - https://github.com/Qix-/color-convert
 - `color-name` - 1.1.4 - MIT - https://github.com/colorjs/color-name
-- `colorette` - 2.0.20 - MIT - https://github.com/jorgebucaran/colorette
+- `colorjs.io` - 0.7.1 - MIT - https://github.com/color-js/color.js
 - `commander` - 2.20.3 - MIT - https://github.com/tj/commander.js
 - `compressible` - 2.0.18 - MIT - https://github.com/jshttp/compressible
 - `compression` - 1.8.2 - MIT - https://github.com/expressjs/compression
 - `concat-map` - 0.0.1 - MIT - https://github.com/substack/node-concat-map
 - `connect-history-api-fallback` - 2.0.0 - MIT - https://github.com/bripkens/connect-history-api-fallback
-- `content-disposition` - 0.5.4 - MIT - https://github.com/jshttp/content-disposition
 - `content-disposition` - 1.1.0 - MIT - https://github.com/jshttp/content-disposition
 - `content-type` - 1.0.5 - MIT - https://github.com/jshttp/content-type
 - `content-type` - 2.1.0 - MIT - https://github.com/jshttp/content-type
 - `convert-source-map` - 1.9.0 - MIT - https://github.com/thlorenz/convert-source-map
 - `convert-source-map` - 2.0.0 - MIT - https://github.com/thlorenz/convert-source-map
 - `cookie` - 0.7.2 - MIT - https://github.com/jshttp/cookie
-- `cookie-signature` - 1.0.7 - MIT - https://github.com/visionmedia/node-cookie-signature
 - `cookie-signature` - 1.2.2 - MIT - https://github.com/visionmedia/node-cookie-signature
 - `copy-anything` - 3.0.5 - MIT - https://github.com/mesqueeb/copy-anything
 - `copy-webpack-plugin` - 14.0.0 - MIT - https://github.com/webpack/copy-webpack-plugin
 - `core-js-compat` - 3.50.0 - MIT - https://github.com/zloirock/core-js
-- `core-util-is` - 1.0.3 - MIT - https://github.com/isaacs/core-util-is
-- `cors` - 2.8.6 - MIT - https://github.com/expressjs/cors
 - `cosmiconfig` - 9.0.2 - MIT - https://github.com/cosmiconfig/cosmiconfig
 - `cross-spawn` - 7.0.6 - MIT - https://github.com/moxystudio/node-cross-spawn
-- `css-loader` - 7.1.4 - MIT - https://github.com/webpack/css-loader
-- `css-select` - 6.0.0 - BSD-2-Clause - https://github.com/fb55/css-select
+- `css-loader` - 7.1.5 - MIT - https://github.com/webpack/css-loader
+- `css-select` - 7.0.0 - BSD-2-Clause - https://github.com/fb55/css-select
 - `css-tree` - 3.2.1 - MIT - https://github.com/csstree/csstree
-- `css-what` - 7.0.0 - BSD-2-Clause - https://github.com/fb55/css-what
+- `css-what` - 8.0.0 - BSD-2-Clause - https://github.com/fb55/css-what
 - `cssesc` - 3.0.0 - MIT - https://github.com/mathiasbynens/cssesc
 - `data-urls` - 7.0.0 - MIT - https://github.com/jsdom/data-urls
 - `debug` - 2.6.9 - MIT - https://github.com/visionmedia/debug
@@ -770,12 +758,11 @@ operating systems, including the Linux image build stage.
 - `depd` - 2.0.0 - MIT - https://github.com/dougwilson/nodejs-depd
 - `destroy` - 1.2.0 - MIT - https://github.com/stream-utils/destroy
 - `detect-libc` - 2.1.2 - Apache-2.0 - https://github.com/lovell/detect-libc
-- `detect-node` - 2.1.0 - MIT - https://github.com/iliakan/detect-node
 - `dns-packet` - 5.6.1 - MIT - https://github.com/mafintosh/dns-packet
-- `dom-serializer` - 2.0.0 - MIT - https://github.com/cheeriojs/dom-serializer
-- `domelementtype` - 2.3.0 - BSD-2-Clause - https://github.com/fb55/domelementtype
-- `domhandler` - 5.0.3 - BSD-2-Clause - https://github.com/fb55/domhandler
-- `domutils` - 3.2.2 - BSD-2-Clause - https://github.com/fb55/domutils
+- `dom-serializer` - 3.1.1 - MIT - https://github.com/cheeriojs/dom-serializer
+- `domelementtype` - 3.0.0 - BSD-2-Clause - https://github.com/fb55/domelementtype
+- `domhandler` - 6.0.1 - BSD-2-Clause - https://github.com/fb55/domhandler
+- `domutils` - 4.0.2 - BSD-2-Clause - https://github.com/fb55/domutils
 - `dunder-proto` - 1.0.1 - MIT - https://github.com/es-shims/dunder-proto
 - `ee-first` - 1.1.1 - MIT - https://github.com/jonathanong/ee-first
 - `electron-to-chromium` - 1.5.422 - ISC - https://github.com/Kilian/electron-to-chromium
@@ -783,9 +770,7 @@ operating systems, including the Linux image build stage.
 - `emojis-list` - 3.0.0 - MIT - https://github.com/kikobeats/emojis-list
 - `empathic` - 2.0.1 - MIT - https://github.com/lukeed/empathic
 - `encodeurl` - 2.0.0 - MIT - https://github.com/pillarjs/encodeurl
-- `enhanced-resolve` - 5.24.5 - MIT - https://github.com/webpack/enhanced-resolve
-- `entities` - 4.5.0 - BSD-2-Clause - https://github.com/fb55/entities
-- `entities` - 7.0.1 - BSD-2-Clause - https://github.com/fb55/entities
+- `enhanced-resolve` - 5.25.1 - MIT - https://github.com/webpack/enhanced-resolve
 - `env-paths` - 2.2.1 - MIT - https://github.com/sindresorhus/env-paths
 - `environment` - 1.1.0 - MIT - https://github.com/sindresorhus/environment
 - `errno` - 0.1.8 - MIT - https://github.com/rvagg/node-errno
@@ -800,7 +785,6 @@ operating systems, including the Linux image build stage.
 - `escape-html` - 1.0.3 - MIT - https://github.com/component/escape-html
 - `escape-string-regexp` - 4.0.0 - MIT - https://github.com/sindresorhus/escape-string-regexp
 - `eslint` - 9.39.5 - MIT - https://github.com/eslint/eslint
-- `eslint-scope` - 5.1.1 - BSD-2-Clause - https://github.com/eslint/eslint-scope
 - `eslint-scope` - 8.4.0 - BSD-2-Clause - https://github.com/eslint/js
 - `eslint-scope` - 9.1.2 - BSD-2-Clause - https://github.com/eslint/js
 - `eslint-visitor-keys` - 3.4.3 - Apache-2.0 - https://github.com/eslint/eslint-visitor-keys
@@ -809,19 +793,13 @@ operating systems, including the Linux image build stage.
 - `espree` - 10.4.0 - BSD-2-Clause - https://github.com/eslint/js
 - `esquery` - 1.7.0 - BSD-3-Clause - https://github.com/estools/esquery
 - `esrecurse` - 4.3.0 - BSD-2-Clause - https://github.com/estools/esrecurse
-- `estraverse` - 4.3.0 - BSD-2-Clause - https://github.com/estools/estraverse
 - `estraverse` - 5.3.0 - BSD-2-Clause - https://github.com/estools/estraverse
 - `estree-walker` - 3.0.3 - MIT - https://github.com/Rich-Harris/estree-walker
 - `esutils` - 2.0.3 - BSD-2-Clause - https://github.com/estools/esutils
 - `etag` - 1.8.1 - MIT - https://github.com/jshttp/etag
-- `eventemitter3` - 4.0.7 - MIT - https://github.com/primus/eventemitter3
 - `events` - 3.3.0 - MIT - https://github.com/Gozala/events
-- `eventsource` - 3.0.7 - MIT - https://github.com/EventSource/eventsource
-- `eventsource-parser` - 3.1.1 - MIT - https://github.com/rexxars/eventsource-parser
 - `expect-type` - 1.4.0 - Apache-2.0 - https://github.com/mmkal/expect-type
-- `express` - 4.22.2 - MIT - https://github.com/expressjs/express
 - `express` - 5.2.1 - MIT - https://github.com/expressjs/express
-- `express-rate-limit` - 8.7.0 - MIT - https://github.com/express-rate-limit/express-rate-limit
 - `fast-deep-equal` - 3.1.3 - MIT - https://github.com/epoberezkin/fast-deep-equal
 - `fast-json-stable-stringify` - 2.1.0 - MIT - https://github.com/epoberezkin/fast-json-stable-stringify
 - `fast-levenshtein` - 2.0.6 - MIT - https://github.com/hiddentao/fast-levenshtein
@@ -829,20 +807,17 @@ operating systems, including the Linux image build stage.
 - `fast-string-width` - 3.0.2 - MIT - https://github.com/fabiospampinato/fast-string-width
 - `fast-uri` - 3.1.7 - BSD-3-Clause - https://github.com/fastify/fast-uri
 - `fast-wrap-ansi` - 0.2.2 - MIT - https://github.com/43081j/fast-wrap-ansi
-- `faye-websocket` - 0.11.4 - Apache-2.0 - https://github.com/faye/faye-websocket-node
 - `fdir` - 6.5.0 - MIT - https://github.com/thecodrr/fdir
 - `file-entry-cache` - 8.0.0 - MIT - https://github.com/jaredwray/file-entry-cache
 - `fill-range` - 7.1.1 - MIT - https://github.com/jonschlinkert/fill-range
-- `finalhandler` - 1.3.2 - MIT - https://github.com/pillarjs/finalhandler
 - `finalhandler` - 2.1.1 - MIT - https://github.com/pillarjs/finalhandler
 - `find-up` - 5.0.0 - MIT - https://github.com/sindresorhus/find-up
 - `flat` - 5.0.2 - BSD-3-Clause - https://github.com/hughsk/flat
 - `flat-cache` - 4.0.1 - MIT - https://github.com/jaredwray/flat-cache
 - `flatted` - 3.4.4 - ISC - https://github.com/WebReflection/flatted
-- `follow-redirects` - 1.16.0 - MIT - https://github.com/follow-redirects/follow-redirects
+- `flru` - 1.0.2 - MIT - https://github.com/lukeed/flru
 - `forwarded` - 0.2.0 - MIT - https://github.com/jshttp/forwarded
 - `fraction.js` - 5.3.4 - MIT - https://github.com/rawify/Fraction.js
-- `fresh` - 0.5.2 - MIT - https://github.com/jshttp/fresh
 - `fresh` - 2.0.0 - MIT - https://github.com/jshttp/fresh
 - `function-bind` - 1.1.2 - MIT - https://github.com/Raynos/function-bind
 - `gensync` - 1.0.0-beta.2 - MIT - https://github.com/loganfsmyth/gensync
@@ -850,27 +825,19 @@ operating systems, including the Linux image build stage.
 - `get-east-asian-width` - 1.6.0 - MIT - https://github.com/sindresorhus/get-east-asian-width
 - `get-intrinsic` - 1.3.0 - MIT - https://github.com/ljharb/get-intrinsic
 - `get-proto` - 1.0.1 - MIT - https://github.com/ljharb/get-proto
-- `glob-parent` - 5.1.2 - ISC - https://github.com/gulpjs/glob-parent
 - `glob-parent` - 6.0.2 - ISC - https://github.com/gulpjs/glob-parent
-- `glob-to-regex.js` - 1.2.0 - Apache-2.0 - https://github.com/streamich/glob-to-regex
+- `glob-to-regex.js` - 1.3.1 - Apache-2.0 - https://github.com/streamich/glob-to-regex
 - `globals` - 14.0.0 - MIT - https://github.com/sindresorhus/globals
 - `gopd` - 1.2.0 - MIT - https://github.com/ljharb/gopd
 - `graceful-fs` - 4.2.11 - ISC - https://github.com/isaacs/node-graceful-fs
-- `handle-thing` - 2.0.1 - MIT - https://github.com/indutny/handle-thing
 - `has-flag` - 4.0.0 - MIT - https://github.com/sindresorhus/has-flag
 - `has-symbols` - 1.1.0 - MIT - https://github.com/inspect-js/has-symbols
 - `hasown` - 2.0.4 - MIT - https://github.com/inspect-js/hasOwn
-- `hono` - 4.13.7 - MIT - https://github.com/honojs/hono
 - `hosted-git-info` - 10.1.1 - ISC - https://github.com/npm/hosted-git-info
-- `hpack.js` - 2.1.6 - MIT - https://github.com/indutny/hpack.js
-- `html-encoding-sniffer` - 6.0.0 - MIT - https://github.com/jsdom/html-encoding-sniffer
-- `htmlparser2` - 10.1.0 - MIT - https://github.com/fb55/htmlparser2
-- `http-deceiver` - 1.2.7 - MIT - https://github.com/indutny/http-deceiver
+- `html-encoding-sniffer` - 7.0.0 - MIT - https://github.com/jsdom/html-encoding-sniffer
+- `htmlparser2` - 12.0.0 - MIT - https://github.com/fb55/htmlparser2
 - `http-errors` - 1.8.1 - MIT - https://github.com/jshttp/http-errors
 - `http-errors` - 2.0.1 - MIT - https://github.com/jshttp/http-errors
-- `http-parser-js` - 0.5.10 - MIT - https://github.com/creationix/http-parser-js
-- `http-proxy` - 1.18.1 - MIT - https://github.com/http-party/node-http-proxy
-- `http-proxy-middleware` - 2.0.10 - MIT - https://github.com/chimurai/http-proxy-middleware
 - `http-proxy-middleware` - 4.2.0 - MIT - https://github.com/chimurai/http-proxy-middleware
 - `https-proxy-agent` - 9.1.0 - MIT - https://github.com/TooTallNate/proxy-agents
 - `httpxy` - 0.5.5 - MIT - https://github.com/unjs/httpxy
@@ -886,11 +853,9 @@ operating systems, including the Linux image build stage.
 - `import-meta-resolve` - 4.2.0 - MIT - https://github.com/wooorm/import-meta-resolve
 - `imurmurhash` - 0.1.4 - MIT - https://github.com/jensyt/imurmurhash-js
 - `inherits` - 2.0.4 - ISC - https://github.com/isaacs/inherits
-- `ip-address` - 10.7.0 - MIT - https://github.com/beaugunderson/ip-address
 - `ipaddr.js` - 1.9.1 - MIT - https://github.com/whitequark/ipaddr.js
 - `ipaddr.js` - 2.5.0 - MIT - https://github.com/whitequark/ipaddr.js
 - `is-arrayish` - 0.2.1 - MIT - https://github.com/qix-/node-is-arrayish
-- `is-binary-path` - 2.1.0 - MIT - https://github.com/sindresorhus/is-binary-path
 - `is-docker` - 3.0.0 - MIT - https://github.com/sindresorhus/is-docker
 - `is-extglob` - 2.1.1 - MIT - https://github.com/jonschlinkert/is-extglob
 - `is-fullwidth-code-point` - 5.1.0 - MIT - https://github.com/sindresorhus/is-fullwidth-code-point
@@ -900,7 +865,6 @@ operating systems, including the Linux image build stage.
 - `is-interactive` - 2.0.0 - MIT - https://github.com/sindresorhus/is-interactive
 - `is-network-error` - 1.3.2 - MIT - https://github.com/sindresorhus/is-network-error
 - `is-number` - 7.0.0 - MIT - https://github.com/jonschlinkert/is-number
-- `is-plain-obj` - 3.0.0 - MIT - https://github.com/sindresorhus/is-plain-obj
 - `is-plain-obj` - 4.1.0 - MIT - https://github.com/sindresorhus/is-plain-obj
 - `is-plain-object` - 2.0.4 - MIT - https://github.com/jonschlinkert/is-plain-object
 - `is-potential-custom-element-name` - 1.0.1 - MIT - https://github.com/mathiasbynens/is-potential-custom-element-name
@@ -908,24 +872,21 @@ operating systems, including the Linux image build stage.
 - `is-unicode-supported` - 2.1.0 - MIT - https://github.com/sindresorhus/is-unicode-supported
 - `is-what` - 4.1.16 - MIT - https://github.com/mesqueeb/is-what
 - `is-wsl` - 3.1.1 - MIT - https://github.com/sindresorhus/is-wsl
-- `isarray` - 1.0.0 - MIT - https://github.com/juliangruber/isarray
 - `isexe` - 2.0.0 - ISC - https://github.com/isaacs/isexe
 - `isobject` - 3.0.1 - MIT - https://github.com/jonschlinkert/isobject
 - `istanbul-lib-coverage` - 3.2.2 - BSD-3-Clause - https://github.com/istanbuljs/istanbuljs
 - `istanbul-lib-instrument` - 6.0.3 - BSD-3-Clause - https://github.com/istanbuljs/istanbuljs
 - `jest-worker` - 27.5.1 - MIT - https://github.com/facebook/jest
 - `jiti` - 2.7.0 - MIT - https://github.com/unjs/jiti
-- `jose` - 6.2.12 - MIT - https://github.com/panva/jose
 - `js-tokens` - 10.0.0 - MIT - https://github.com/lydell/js-tokens
 - `js-tokens` - 4.0.0 - MIT - https://github.com/lydell/js-tokens
 - `js-yaml` - 4.3.2 - MIT - https://github.com/nodeca/js-yaml
-- `jsdom` - 30.1.0 - MIT - https://github.com/jsdom/jsdom
+- `jsdom` - 30.1.1 - MIT - https://github.com/jsdom/jsdom
 - `jsesc` - 3.1.0 - MIT - https://github.com/mathiasbynens/jsesc
 - `json-buffer` - 3.0.1 - MIT - https://github.com/dominictarr/json-buffer
 - `json-parse-even-better-errors` - 2.3.1 - MIT - https://github.com/npm/json-parse-even-better-errors
 - `json-schema-traverse` - 0.4.1 - MIT - https://github.com/epoberezkin/json-schema-traverse
 - `json-schema-traverse` - 1.0.0 - MIT - https://github.com/epoberezkin/json-schema-traverse
-- `json-schema-typed` - 8.0.2 - BSD-2-Clause - https://github.com/RemyRylan/json-schema-typed
 - `json-stable-stringify-without-jsonify` - 1.0.1 - MIT - https://github.com/samn/json-stable-stringify
 - `json5` - 2.2.3 - MIT - https://github.com/json5/json5
 - `jsonc-parser` - 3.3.1 - MIT - https://github.com/microsoft/node-jsonc-parser
@@ -933,14 +894,14 @@ operating systems, including the Linux image build stage.
 - `keyv` - 4.5.4 - MIT - https://github.com/jaredwray/keyv
 - `kind-of` - 6.0.3 - MIT - https://github.com/jonschlinkert/kind-of
 - `launch-editor` - 2.14.1 - MIT - https://github.com/vitejs/launch-editor
-- `less` - 4.9.0 - Apache-2.0 - https://github.com/less/less.js
+- `less` - 4.9.1 - Apache-2.0 - https://github.com/less/less.js
 - `less-loader` - 13.0.0 - MIT - https://github.com/webpack/less-loader
 - `levn` - 0.4.1 - MIT - https://github.com/gkz/levn
 - `license-webpack-plugin` - 4.0.2 - ISC - https://github.com/xz64/license-webpack-plugin
 - `lightningcss` - 1.33.0 - MPL-2.0 - https://github.com/parcel-bundler/lightningcss
 - `lightningcss-win32-x64-msvc` - 1.33.0 - MPL-2.0 - https://github.com/parcel-bundler/lightningcss
 - `lines-and-columns` - 1.2.4 - MIT - https://github.com/eventualbuddha/lines-and-columns
-- `listr2` - 11.0.0 - MIT - https://github.com/listr2/listr2
+- `listr2` - 11.1.0 - MIT - https://github.com/listr2/listr2
 - `lmdb` - 3.5.6 - MIT - https://github.com/kriszyp/lmdb-js
 - `loader-utils` - 2.0.4 - MIT - https://github.com/webpack/loader-utils
 - `loader-utils` - 3.3.1 - MIT - https://github.com/webpack/loader-utils
@@ -952,17 +913,14 @@ operating systems, including the Linux image build stage.
 - `lru-cache` - 11.5.3 - BlueOak-1.0.0 - https://github.com/isaacs/node-lru-cache
 - `lru-cache` - 5.1.1 - ISC - https://github.com/isaacs/node-lru-cache
 - `magic-string` - 0.30.21 - MIT - https://github.com/Rich-Harris/magic-string
-- `magic-string` - 1.0.0 - MIT - https://github.com/Rich-Harris/magic-string
+- `magic-string` - 1.4.1 - MIT - https://github.com/Rich-Harris/magic-string
 - `make-dir` - 5.1.0 - MIT - https://github.com/sindresorhus/make-dir
 - `math-intrinsics` - 1.1.0 - MIT - https://github.com/es-shims/math-intrinsics
 - `mdn-data` - 2.27.1 - CC0-1.0 - https://github.com/mdn/data
-- `media-typer` - 0.3.0 - MIT - https://github.com/jshttp/media-typer
 - `media-typer` - 1.1.1 - MIT - https://github.com/jshttp/media-typer
-- `memfs` - 4.71.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `merge-descriptors` - 1.0.3 - MIT - https://github.com/sindresorhus/merge-descriptors
+- `memfs` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
 - `merge-descriptors` - 2.0.0 - MIT - https://github.com/sindresorhus/merge-descriptors
 - `merge-stream` - 2.0.0 - MIT - https://github.com/grncdr/merge-stream
-- `methods` - 1.1.2 - MIT - https://github.com/jshttp/methods
 - `micromatch` - 4.0.8 - MIT - https://github.com/micromatch/micromatch
 - `mime` - 1.6.0 - MIT - https://github.com/broofa/node-mime
 - `mime-db` - 1.52.0 - MIT - https://github.com/jshttp/mime-db
@@ -971,7 +929,6 @@ operating systems, including the Linux image build stage.
 - `mime-types` - 3.0.2 - MIT - https://github.com/jshttp/mime-types
 - `mimic-function` - 5.0.1 - MIT - https://github.com/sindresorhus/mimic-function
 - `mini-css-extract-plugin` - 2.10.2 - MIT - https://github.com/webpack/mini-css-extract-plugin
-- `minimalistic-assert` - 1.0.1 - ISC - https://github.com/calvinmetcalf/minimalistic-assert
 - `minimatch` - 10.2.6 - BlueOak-1.0.0 - https://github.com/isaacs/minimatch
 - `minimatch` - 3.1.5 - ISC - https://github.com/isaacs/minimatch
 - `minimizer-webpack-plugin` - 5.9.0 - MIT - https://github.com/webpack/minimizer-webpack-plugin
@@ -989,31 +946,27 @@ operating systems, including the Linux image build stage.
 - `negotiator` - 0.6.3 - MIT - https://github.com/jshttp/negotiator
 - `negotiator` - 0.6.4 - MIT - https://github.com/jshttp/negotiator
 - `negotiator` - 1.1.0 - MIT - https://github.com/jshttp/negotiator
-- `neo-async` - 2.6.2 - MIT - https://github.com/suguru03/neo-async
 - `node-addon-api` - 6.1.0 - MIT - https://github.com/nodejs/node-addon-api
 - `node-addon-api` - 7.1.1 - MIT - https://github.com/nodejs/node-addon-api
 - `node-gyp-build-optional-packages` - 5.2.2 - MIT - https://github.com/prebuild/node-gyp-build
 - `node-releases` - 2.0.54 - MIT - https://github.com/chicoxyzzy/node-releases
 - `normalize-path` - 3.0.0 - MIT - https://github.com/jonschlinkert/normalize-path
 - `npm-package-arg` - 14.0.0 - ISC - https://github.com/npm/npm-package-arg
-- `nth-check` - 2.1.1 - BSD-2-Clause - https://github.com/fb55/nth-check
-- `object-assign` - 4.1.1 - MIT - https://github.com/sindresorhus/object-assign
+- `nth-check` - 3.0.1 - BSD-2-Clause - https://github.com/fb55/nth-check
 - `object-inspect` - 1.13.4 - MIT - https://github.com/inspect-js/object-inspect
-- `obuf` - 1.1.2 - MIT - https://github.com/indutny/offset-buffer
 - `obug` - 2.1.4 - MIT - https://github.com/sxzz/obug
 - `on-finished` - 2.4.1 - MIT - https://github.com/jshttp/on-finished
 - `on-headers` - 1.1.0 - MIT - https://github.com/jshttp/on-headers
 - `once` - 1.4.0 - ISC - https://github.com/isaacs/once
 - `onetime` - 7.0.0 - MIT - https://github.com/sindresorhus/onetime
-- `open` - 10.2.0 - MIT - https://github.com/sindresorhus/open
-- `open` - 11.0.0 - MIT - https://github.com/sindresorhus/open
+- `open` - 11.0.4 - MIT - https://github.com/sindresorhus/open
 - `optionator` - 0.9.4 - MIT - https://github.com/gkz/optionator
 - `ora` - 9.4.1 - MIT - https://github.com/sindresorhus/ora
-- `ordered-binary` - 1.6.1 - MIT - https://github.com/kriszyp/ordered-binary
-- `oxc-parser` - 0.142.0 - MIT - https://github.com/oxc-project/oxc
+- `ordered-binary` - 1.6.2 - MIT - https://github.com/kriszyp/ordered-binary
+- `oxc-parser` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
 - `p-limit` - 3.1.0 - MIT - https://github.com/sindresorhus/p-limit
 - `p-locate` - 5.0.0 - MIT - https://github.com/sindresorhus/p-locate
-- `p-retry` - 6.2.1 - MIT - https://github.com/sindresorhus/p-retry
+- `p-retry` - 8.0.1 - MIT - https://github.com/sindresorhus/p-retry
 - `parent-module` - 1.0.1 - MIT - https://github.com/sindresorhus/parent-module
 - `parse-json` - 5.2.0 - MIT - https://github.com/sindresorhus/parse-json
 - `parse-node-version` - 1.0.1 - MIT - https://github.com/gulpjs/parse-node-version
@@ -1022,18 +975,16 @@ operating systems, including the Linux image build stage.
 - `parseurl` - 1.3.3 - MIT - https://github.com/pillarjs/parseurl
 - `path-exists` - 4.0.0 - MIT - https://github.com/sindresorhus/path-exists
 - `path-key` - 3.1.1 - MIT - https://github.com/sindresorhus/path-key
-- `path-to-regexp` - 0.1.13 - MIT - https://github.com/pillarjs/path-to-regexp
 - `path-to-regexp` - 8.4.2 - MIT - https://github.com/pillarjs/path-to-regexp
 - `pathe` - 2.0.3 - MIT - https://github.com/unjs/pathe
 - `picocolors` - 1.1.1 - ISC - https://github.com/alexeyraspopov/picocolors
 - `picomatch` - 2.3.2 - MIT - https://github.com/micromatch/picomatch
-- `picomatch` - 4.0.5 - MIT - https://github.com/micromatch/picomatch
-- `piscina` - 5.2.0 - MIT - https://github.com/piscinajs/piscina
-- `pkce-challenge` - 5.0.1 - MIT - https://github.com/crouchcd/pkce-challenge
-- `pkijs` - 3.4.0 - BSD-3-Clause - https://github.com/PeculiarVentures/PKI.js
+- `picomatch` - 4.0.7 - MIT - https://github.com/micromatch/picomatch
+- `piscina` - 5.3.2 - MIT - https://github.com/piscinajs/piscina
+- `pkijs` - 3.4.1 - BSD-3-Clause - https://github.com/PeculiarVentures/PKI.js
 - `playwright` - 1.63.0 - Apache-2.0 - https://github.com/microsoft/playwright
 - `playwright-core` - 1.63.0 - Apache-2.0 - https://github.com/microsoft/playwright
-- `postcss` - 8.5.25 - MIT - https://github.com/postcss/postcss
+- `postcss` - 8.5.28 - MIT - https://github.com/postcss/postcss
 - `postcss-loader` - 8.2.1 - MIT - https://github.com/webpack/postcss-loader
 - `postcss-media-query-parser` - 0.2.3 - MIT - https://github.com/dryoma/postcss-media-query-parser
 - `postcss-modules-extract-imports` - 3.1.0 - ISC - https://github.com/css-modules/postcss-modules-extract-imports
@@ -1044,25 +995,19 @@ operating systems, including the Linux image build stage.
 - `postcss-selector-parser` - 7.1.6 - MIT - https://github.com/postcss/postcss-selector-parser
 - `postcss-value-parser` - 4.2.0 - MIT - https://github.com/TrySound/postcss-value-parser
 - `powershell-utils` - 0.1.0 - MIT - https://github.com/sindresorhus/powershell-utils
+- `powershell-utils` - 0.2.1 - MIT - https://github.com/sindresorhus/powershell-utils
 - `prelude-ls` - 1.2.1 - MIT - https://github.com/gkz/prelude-ls
 - `probe-image-size` - 7.4.0 - MIT - https://github.com/nodeca/probe-image-size
 - `proc-log` - 7.0.0 - ISC - https://github.com/npm/proc-log
-- `process-nextick-args` - 2.0.1 - MIT - https://github.com/calvinmetcalf/process-nextick-args
 - `proxy-addr` - 2.0.7 - MIT - https://github.com/jshttp/proxy-addr
 - `proxy-agent-negotiate` - 1.1.0 - MIT - https://github.com/TooTallNate/proxy-agents
 - `prr` - 1.0.1 - MIT - https://github.com/rvagg/prr
 - `punycode` - 2.3.1 - MIT - https://github.com/mathiasbynens/punycode.js
 - `pvtsutils` - 1.3.6 - MIT - https://github.com/PeculiarVentures/pvtsutils
 - `pvutils` - 1.2.0 - MIT - https://github.com/PeculiarVentures/pvutils
-- `qs` - 6.15.3 - BSD-3-Clause - https://github.com/ljharb/qs
 - `qs` - 6.16.0 - BSD-3-Clause - https://github.com/ljharb/qs
-- `range-parser` - 1.2.1 - MIT - https://github.com/jshttp/range-parser
 - `range-parser` - 1.3.0 - MIT - https://github.com/jshttp/range-parser
-- `raw-body` - 2.5.3 - MIT - https://github.com/stream-utils/raw-body
 - `raw-body` - 3.0.2 - MIT - https://github.com/stream-utils/raw-body
-- `readable-stream` - 2.3.8 - MIT - https://github.com/nodejs/readable-stream
-- `readable-stream` - 3.6.2 - MIT - https://github.com/nodejs/readable-stream
-- `readdirp` - 3.6.0 - MIT - https://github.com/paulmillr/readdirp
 - `readdirp` - 5.1.1 - MIT - https://github.com/paulmillr/readdirp
 - `reflect-metadata` - 0.2.2 - Apache-2.0 - https://github.com/rbuckton/reflect-metadata
 - `regenerate` - 1.4.2 - MIT - https://github.com/mathiasbynens/regenerate
@@ -1070,34 +1015,30 @@ operating systems, including the Linux image build stage.
 - `regex-parser` - 2.3.1 - MIT - https://github.com/IonicaBizau/regex-parser.js
 - `regexpu-core` - 6.4.0 - MIT - https://github.com/mathiasbynens/regexpu-core
 - `regjsgen` - 0.8.0 - MIT - https://github.com/bnjmnt4n/regjsgen
-- `regjsparser` - 0.13.2 - BSD-2-Clause - https://github.com/jviereck/regjsparser
+- `regjsparser` - 0.13.3 - BSD-2-Clause - https://github.com/jviereck/regjsparser
 - `require-from-string` - 2.0.2 - MIT - https://github.com/floatdrop/require-from-string
-- `requires-port` - 1.0.0 - MIT - https://github.com/unshiftio/requires-port
 - `resolve-from` - 4.0.0 - MIT - https://github.com/sindresorhus/resolve-from
 - `resolve-url-loader` - 5.0.0 - MIT - https://github.com/bholloway/resolve-url-loader
 - `restore-cursor` - 5.1.0 - MIT - https://github.com/sindresorhus/restore-cursor
-- `retry` - 0.13.1 - MIT - https://github.com/tim-kos/node-retry
 - `rolldown` - 1.1.5 - MIT - https://github.com/rolldown/rolldown
-- `rolldown` - 1.2.0 - MIT - https://github.com/rolldown/rolldown
+- `rolldown` - 1.2.8 - MIT - https://github.com/rolldown/rolldown
 - `router` - 2.2.0 - MIT - https://github.com/pillarjs/router
 - `run-applescript` - 7.1.0 - MIT - https://github.com/sindresorhus/run-applescript
-- `safe-buffer` - 5.1.2 - MIT - https://github.com/feross/safe-buffer
 - `safe-buffer` - 5.2.1 - MIT - https://github.com/feross/safe-buffer
 - `safer-buffer` - 2.1.2 - MIT - https://github.com/ChALkeR/safer-buffer
-- `sass` - 1.101.0 - MIT - https://github.com/sass/dart-sass
-- `sass-loader` - 17.0.0 - MIT - https://github.com/webpack/sass-loader
+- `sass` - 1.104.1 - MIT - https://github.com/sass/dart-sass
+- `sass-embedded` - 1.104.1 - MIT - https://github.com/sass/embedded-host-node
+- `sass-embedded-win32-x64` - 1.104.1 - MIT - https://github.com/sass/embedded-host-node
+- `sass-loader` - 17.0.1 - MIT - https://github.com/webpack/sass-loader
 - `sax` - 1.6.1 - BlueOak-1.0.0 - https://github.com/isaacs/sax-js
 - `saxes` - 6.0.0 - ISC - https://github.com/lddubeau/saxes
-- `schema-utils` - 4.3.3 - MIT - https://github.com/webpack/schema-utils
-- `select-hose` - 2.0.0 - MIT - https://github.com/indutny/select-hose
+- `schema-utils` - 4.5.0 - MIT - https://github.com/webpack/schema-utils
 - `selfsigned` - 5.5.0 - MIT - https://github.com/jfromaniello/selfsigned
 - `semver` - 6.3.1 - ISC - https://github.com/npm/node-semver
 - `semver` - 7.8.5 - ISC - https://github.com/npm/node-semver
-- `send` - 0.19.2 - MIT - https://github.com/pillarjs/send
 - `send` - 1.2.1 - MIT - https://github.com/pillarjs/send
 - `serialize-javascript` - 7.1.1 - BSD-3-Clause - https://github.com/yahoo/serialize-javascript
 - `serve-index` - 1.9.2 - MIT - https://github.com/expressjs/serve-index
-- `serve-static` - 1.16.3 - MIT - https://github.com/expressjs/serve-static
 - `serve-static` - 2.2.1 - MIT - https://github.com/expressjs/serve-static
 - `setprototypeof` - 1.2.0 - ISC - https://github.com/wesleytodd/setprototypeof
 - `shallow-clone` - 3.0.1 - MIT - https://github.com/jonschlinkert/shallow-clone
@@ -1111,30 +1052,26 @@ operating systems, including the Linux image build stage.
 - `siginfo` - 2.0.0 - ISC - https://github.com/emilbayes/siginfo
 - `signal-exit` - 4.1.0 - ISC - https://github.com/tapjs/signal-exit
 - `slice-ansi` - 9.0.0 - MIT - https://github.com/chalk/slice-ansi
-- `sockjs` - 0.3.24 - MIT - https://github.com/sockjs/sockjs-node
 - `source-map` - 0.6.1 - BSD-3-Clause - https://github.com/mozilla/source-map
-- `source-map` - 0.7.6 - BSD-3-Clause - https://github.com/mozilla/source-map
+- `source-map` - 0.8.0 - BSD-3-Clause - https://github.com/mozilla/source-map
 - `source-map-js` - 1.2.1 - BSD-3-Clause - https://github.com/7rulnik/source-map-js
 - `source-map-loader` - 5.0.0 - MIT - https://github.com/webpack-contrib/source-map-loader
 - `source-map-support` - 0.5.21 - MIT - https://github.com/evanw/node-source-map-support
-- `spdy` - 4.0.2 - MIT - https://github.com/indutny/node-spdy
-- `spdy-transport` - 3.0.0 - MIT - https://github.com/spdy-http2/spdy-transport
 - `stackback` - 0.0.2 - MIT - https://github.com/shtylman/node-stackback
 - `statuses` - 1.5.0 - MIT - https://github.com/jshttp/statuses
 - `statuses` - 2.0.2 - MIT - https://github.com/jshttp/statuses
 - `std-env` - 4.2.0 - MIT - https://github.com/unjs/std-env
 - `stdin-discarder` - 0.3.2 - MIT - https://github.com/sindresorhus/stdin-discarder
 - `stream-parser` - 0.3.1 - MIT - https://github.com/TooTallNate/node-stream-parser
-- `string_decoder` - 1.1.1 - MIT - https://github.com/nodejs/string_decoder
-- `string_decoder` - 1.3.0 - MIT - https://github.com/nodejs/string_decoder
 - `string-width` - 7.2.0 - MIT - https://github.com/sindresorhus/string-width
 - `string-width` - 8.2.2 - MIT - https://github.com/sindresorhus/string-width
 - `strip-ansi` - 7.2.0 - MIT - https://github.com/chalk/strip-ansi
 - `strip-json-comments` - 3.1.1 - MIT - https://github.com/sindresorhus/strip-json-comments
 - `supports-color` - 7.2.0 - MIT - https://github.com/chalk/supports-color
 - `supports-color` - 8.1.1 - MIT - https://github.com/chalk/supports-color
+- `sync-child-process` - 1.0.2 - MIT - https://github.com/sass/sync-child-process
+- `sync-message-port` - 1.2.0 - MIT - https://github.com/sass/sync-message-port
 - `tapable` - 2.3.3 - MIT - https://github.com/webpack/tapable
-- `terser` - 5.49.0 - BSD-2-Clause - https://github.com/terser/terser
 - `terser` - 5.51.2 - BSD-2-Clause - https://github.com/terser/terser
 - `thingies` - 2.6.1 - MIT - https://github.com/streamich/thingies
 - `thunky` - 1.1.0 - MIT - https://github.com/mafintosh/thunky
@@ -1153,7 +1090,6 @@ operating systems, including the Linux image build stage.
 - `tslib` - 1.14.1 - 0BSD - https://github.com/microsoft/tslib
 - `tsyringe` - 4.10.0 - MIT - https://github.com/microsoft/tsyringe
 - `type-check` - 0.4.0 - MIT - https://github.com/gkz/type-check
-- `type-is` - 1.6.18 - MIT - https://github.com/jshttp/type-is
 - `type-is` - 2.1.0 - MIT - https://github.com/jshttp/type-is
 - `typed-assert` - 1.0.9 - MIT - https://github.com/elierotenberg/typed-assert
 - `typescript` - 6.0.3 - Apache-2.0 - https://github.com/microsoft/TypeScript
@@ -1168,26 +1104,23 @@ operating systems, including the Linux image build stage.
 - `update-browserslist-db` - 1.3.2 - MIT - https://github.com/browserslist/update-db
 - `uri-js` - 4.4.1 - BSD-2-Clause - https://github.com/garycourt/uri-js
 - `util-deprecate` - 1.0.2 - MIT - https://github.com/TooTallNate/util-deprecate
-- `utils-merge` - 1.0.1 - MIT - https://github.com/jaredhanson/utils-merge
-- `uuid` - 8.3.2 - MIT - https://github.com/uuidjs/uuid
 - `validate-npm-package-name` - 8.0.0 - ISC - https://github.com/npm/validate-npm-package-name
+- `varint` - 6.0.0 - MIT - https://github.com/chrisdickinson/varint
 - `vary` - 1.1.2 - MIT - https://github.com/jshttp/vary
+- `verkit` - 0.3.2 - MIT - https://github.com/sxzz/verkit
 - `vite` - 8.1.5 - MIT - https://github.com/vitejs/vite
+- `vite` - 8.3.0 - MIT - https://github.com/vitejs/vite
 - `vitest` - 4.1.11 - MIT - https://github.com/vitest-dev/vitest
-- `w3c-xmlserializer` - 5.0.0 - MIT - https://github.com/jsdom/w3c-xmlserializer
+- `w3c-xmlserializer` - 6.0.0 - MIT - https://github.com/jsdom/w3c-xmlserializer
 - `watchpack` - 2.5.2 - MIT - https://github.com/webpack/watchpack
-- `wbuf` - 1.7.3 - MIT - https://github.com/indutny/wbuf
 - `weak-lru-cache` - 1.2.2 - MIT - https://github.com/kriszyp/weak-lru-cache
 - `webidl-conversions` - 8.0.1 - BSD-2-Clause - https://github.com/jsdom/webidl-conversions
-- `webpack` - 5.109.2 - MIT - https://github.com/webpack/webpack
-- `webpack-dev-middleware` - 7.4.6 - MIT - https://github.com/webpack/webpack-dev-middleware
-- `webpack-dev-middleware` - 8.0.3 - MIT - https://github.com/webpack/webpack-dev-middleware
-- `webpack-dev-server` - 5.2.6 - MIT - https://github.com/webpack/webpack-dev-server
+- `webpack` - 5.111.0 - MIT - https://github.com/webpack/webpack
+- `webpack-dev-middleware` - 8.3.0 - MIT - https://github.com/webpack/webpack-dev-middleware
+- `webpack-dev-server` - 6.0.0 - MIT - https://github.com/webpack/webpack-dev-server
 - `webpack-merge` - 6.0.1 - MIT - https://github.com/survivejs/webpack-merge
 - `webpack-sources` - 3.5.1 - MIT - https://github.com/webpack/webpack-sources
 - `webpack-subresource-integrity` - 5.1.0 - MIT - https://github.com/waysact/webpack-subresource-integrity
-- `websocket-driver` - 0.7.5 - Apache-2.0 - https://github.com/faye/websocket-driver-node
-- `websocket-extensions` - 0.1.4 - Apache-2.0 - https://github.com/faye/websocket-extensions-node
 - `whatwg-mimetype` - 5.0.0 - MIT - https://github.com/jsdom/whatwg-mimetype
 - `whatwg-url` - 16.0.1 - MIT - https://github.com/jsdom/whatwg-url
 - `whatwg-url` - 17.1.2 - MIT - https://github.com/jsdom/whatwg-url
@@ -1199,17 +1132,16 @@ operating systems, including the Linux image build stage.
 - `wrap-ansi` - 9.0.2 - MIT - https://github.com/chalk/wrap-ansi
 - `wrappy` - 1.0.2 - ISC - https://github.com/npm/wrappy
 - `ws` - 8.21.3 - MIT - https://github.com/websockets/ws
-- `wsl-utils` - 0.1.0 - MIT - https://github.com/sindresorhus/wsl-utils
-- `wsl-utils` - 0.3.1 - MIT - https://github.com/sindresorhus/wsl-utils
+- `wsl-utils` - 1.0.0 - MIT - https://github.com/sindresorhus/wsl-utils
 - `xml-name-validator` - 5.0.0 - Apache-2.0 - https://github.com/jsdom/xml-name-validator
 - `xmlchars` - 2.2.0 - MIT - https://github.com/lddubeau/xmlchars
+- `xxhash-wasm` - 1.1.0 - MIT - https://github.com/jungomi/xxhash-wasm
 - `y18n` - 5.0.8 - ISC - https://github.com/yargs/y18n
 - `yallist` - 3.1.1 - ISC - https://github.com/isaacs/yallist
 - `yargs` - 18.1.0 - MIT - https://github.com/yargs/yargs
 - `yargs-parser` - 22.0.0 - ISC - https://github.com/yargs/yargs-parser
 - `yocto-queue` - 0.1.0 - MIT - https://github.com/sindresorhus/yocto-queue
 - `yoctocolors` - 2.2.0 - MIT - https://github.com/sindresorhus/yoctocolors
-- `zod-to-json-schema` - 3.25.2 - ISC - https://github.com/StefanTerdell/zod-to-json-schema
 
 ## 5. Container images and OS packages
 
