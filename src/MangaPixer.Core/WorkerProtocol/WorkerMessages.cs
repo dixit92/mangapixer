@@ -33,7 +33,13 @@ public static class WorkerProtocolVersion
     // `image_hash_result` / `image_hash_error` messages (ImageHashMessages.cs). Bumped
     // for the same reason as v3: a v3 worker would answer `unknown_message_type` and
     // the comparison would silently never run.
-    public const int Current = 4;
+    //
+    // v5 (1.29.0): cover layer - the new `cover_render` / `cover_render_result` /
+    // `cover_render_error` messages (CoverRenderMessages.cs): a cover thumbnail from an
+    // archive page or a server-owned image, optionally cropped to one half, hashed in
+    // the same decode. Bumped for the v3 / v4 reason: a v4 worker would answer
+    // `unknown_message_type` and the layer would silently never crop or store a cover.
+    public const int Current = 5;
 }
 
 /// <summary>

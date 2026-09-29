@@ -50,7 +50,7 @@ public static class ImageHasher
     }
 
     /// <summary>The formats <see cref="Hash"/> decodes (what the probe may report for them).</summary>
-    private static bool IsAllowed(MagickFormat format) => format is MagickFormat.Jpeg or MagickFormat.Jpg or MagickFormat.Png
+    public static bool IsAllowed(MagickFormat format) => format is MagickFormat.Jpeg or MagickFormat.Jpg or MagickFormat.Png
         or MagickFormat.Png8 or MagickFormat.Png24 or MagickFormat.Png32 or MagickFormat.Png48 or MagickFormat.Png64
         or MagickFormat.Gif or MagickFormat.Gif87 or MagickFormat.WebP;
 

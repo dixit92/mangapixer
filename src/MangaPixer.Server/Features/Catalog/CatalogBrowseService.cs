@@ -6,6 +6,7 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -28,12 +29,15 @@ public sealed class CatalogBrowseService
     private readonly MangaPixerDbContext _db;
     private readonly LibraryAuthorizationService _auth;
     private readonly SeriesInfoFlagService _seriesInfoFlags;
+    private readonly ICoverResolver _covers;
 
-    public CatalogBrowseService(MangaPixerDbContext db, LibraryAuthorizationService auth, SeriesInfoFlagService? seriesInfoFlags = null)
+    public CatalogBrowseService(MangaPixerDbContext db, LibraryAuthorizationService auth, SeriesInfoFlagService? seriesInfoFlags = null,
+        ICoverResolver? covers = null)
     {
         _db = db;
         _auth = auth;
         _seriesInfoFlags = seriesInfoFlags ?? new SeriesInfoFlagService(db);
+        _covers = covers ?? new FileCoverResolver(db);
     }
 
     /// <summary>
@@ -247,32 +251,12 @@ public sealed class CatalogBrowseService
         // Convert to DTOs for enrichment.
         var nodes = rows.Select(ToDto).ToList();
 
-        // For folders, resolve CoverUrl from the first descendant archive by SortKey
-        // (D17). Recurses into subfolders so a folder containing only subfolders
-        // still gets a cover (1.3.1 fix). Set-based via a recursive CTE modeled on
-        // ReadingStateService.GetDescendantArchiveIdsAsync — avoids N+1 across the
-        // folder page. SortKey ordering is ordinal (SQLite BINARY collation), matching
-        // the EF LINQ OrderBy(n => n.SortKey) used elsewhere.
+        // Card covers (folders AND archives) come from the cover resolver (1.29.0 seam). The file default is the
+        // archive's own cover, and for a folder its first descendant archive by SortKey (D17), recursing into
+        // subfolders so a folder containing only subfolders still gets a cover (1.3.1 fix) - one recursive CTE
+        // for the page (FolderCovers), no N+1.
         var folderIds = nodes.Where(n => n.Kind == CatalogNodeKind.Folder).Select(n => n.Id).ToList();
-        if (folderIds.Count > 0)
-        {
-            var folderRows = rows.Where(r => r.Kind == (int)CatalogNodeKind.Folder).ToList();
-            var folderInternalIds = folderRows.Select(r => r.InternalId).ToList();
-            var coversByInternalId = await ResolveFolderCoversAsync(folderInternalIds, ct);
-            var coversByPublicId = folderRows
-                .Where(r => coversByInternalId.ContainsKey(r.InternalId))
-                .ToDictionary(r => r.Id, r => coversByInternalId[r.InternalId]);
-
-            // Rebuild folder nodes with CoverUrl (init-only property)
-            nodes = nodes.Select(n =>
-            {
-                if (n.Kind != CatalogNodeKind.Folder)
-                    return n;
-                if (coversByPublicId.TryGetValue(n.Id, out var coverPublicId))
-                    return n with { CoverUrl = $"/api/v1/items/{coverPublicId}/cover" };
-                return n;
-            }).ToList();
-        }
+        nodes = await ApplyCoversAsync(nodes, rows.Select(r => new CoverTarget(r.InternalId, r.Id, r.Kind == (int)CatalogNodeKind.Folder)), ct);
 
         // Populate ReaderDefault for folders that carry a global override (1.2.0).
         if (folderIds.Count > 0)
@@ -433,7 +417,6 @@ public sealed class CatalogBrowseService
                 DisplayName = n.DisplayName,
                 Availability = n.Availability,
                 PageCount = n.ArchiveItem != null ? n.ArchiveItem.PageCount : null,
-                CoverUrl = n.Kind == 1 ? "/api/v1/items/" + n.PublicId + "/cover" : null,
                 InternalId = n.Id,
                 CreatedAt = n.CreatedAt,
                 SortKey = n.SortKey,
@@ -470,7 +453,6 @@ public sealed class CatalogBrowseService
                 DisplayName = n.DisplayName,
                 Availability = n.Availability,
                 PageCount = n.ArchiveItem != null ? n.ArchiveItem.PageCount : null,
-                CoverUrl = n.Kind == 1 ? "/api/v1/items/" + n.PublicId + "/cover" : null,
                 InternalId = n.Id,
                 CreatedAt = n.CreatedAt,
                 SortKey = n.SortKey,
@@ -564,7 +546,6 @@ public sealed class CatalogBrowseService
                 DisplayName = n.DisplayName,
                 Availability = n.Availability,
                 PageCount = n.ArchiveItem != null ? n.ArchiveItem.PageCount : null,
-                CoverUrl = n.Kind == 1 ? "/api/v1/items/" + n.PublicId + "/cover" : null,
                 InternalId = n.Id,
                 CreatedAt = n.CreatedAt,
                 SortKey = n.SortKey,
@@ -653,7 +634,6 @@ public sealed class CatalogBrowseService
                 DisplayName = n.DisplayName,
                 Availability = n.Availability,
                 PageCount = n.ArchiveItem != null ? n.ArchiveItem.PageCount : null,
-                CoverUrl = n.Kind == 1 ? "/api/v1/items/" + n.PublicId + "/cover" : null,
                 InternalId = n.Id,
                 CreatedAt = n.CreatedAt,
                 LatestDescendantAddedAt = n.LatestDescendantAddedAt,
@@ -701,7 +681,6 @@ public sealed class CatalogBrowseService
                 DisplayName = n.DisplayName,
                 Availability = n.Availability,
                 PageCount = n.ArchiveItem != null ? n.ArchiveItem.PageCount : null,
-                CoverUrl = n.Kind == 1 ? "/api/v1/items/" + n.PublicId + "/cover" : null,
                 InternalId = n.Id,
                 CreatedAt = n.CreatedAt,
                 SortKey = n.SortKey,
@@ -888,7 +867,6 @@ public sealed class CatalogBrowseService
         DisplayName = row.DisplayName,
         Availability = (CatalogNodeAvailability)row.Availability,
         PageCount = row.PageCount,
-        CoverUrl = row.CoverUrl,
     };
 
     /// <summary>
@@ -904,7 +882,6 @@ public sealed class CatalogBrowseService
         public required string DisplayName { get; init; }
         public required int Availability { get; init; }
         public int? PageCount { get; init; }
-        public string? CoverUrl { get; init; }
         public long InternalId { get; init; }
         public DateTimeOffset CreatedAt { get; init; }
 
@@ -1135,24 +1112,10 @@ public sealed class CatalogBrowseService
             results = results.Take(pageSize).ToList();
 
         // Resolve folder covers for search results (parity with BrowseAsync) - a folder
-        // in search otherwise renders with no thumbnail. Same recursive-CTE cover
-        // resolution (first descendant archive by SortKey) as browse; folders with no
-        // readable descendant stay coverless.
+        // in search otherwise renders with no thumbnail. Same resolver as browse; folders
+        // with no readable descendant stay coverless.
         if (folderInternalToPublic.Count > 0)
-        {
-            var coversByInternalId = await ResolveFolderCoversAsync(folderInternalToPublic.Keys.ToList(), ct);
-            var coversByPublicId = folderInternalToPublic
-                .Where(kv => coversByInternalId.ContainsKey(kv.Key))
-                .ToDictionary(kv => kv.Value, kv => coversByInternalId[kv.Key]);
-            results = results.Select(n =>
-            {
-                if (n.Kind != CatalogNodeKind.Folder)
-                    return n;
-                if (coversByPublicId.TryGetValue(n.Id, out var coverPublicId))
-                    return n with { CoverUrl = $"/api/v1/items/{coverPublicId}/cover" };
-                return n;
-            }).ToList();
-        }
+            results = await ApplyCoversAsync(results, folderInternalToPublic.Select(kv => new CoverTarget(kv.Key, kv.Value, true)), ct);
 
         // Compute total count with a separate query (audit defect D6/D28)
         var countSql = $"""
@@ -1275,15 +1238,7 @@ public sealed class CatalogBrowseService
             return [];
 
         if (folderInternalToPublic.Count > 0)
-        {
-            var covers = await ResolveFolderCoversAsync(folderInternalToPublic.Keys.ToList(), ct);
-            var coversByPublicId = folderInternalToPublic
-                .Where(kv => covers.ContainsKey(kv.Key))
-                .ToDictionary(kv => kv.Value, kv => covers[kv.Key]);
-            nodes = nodes.Select(n => n.Kind == CatalogNodeKind.Folder && coversByPublicId.TryGetValue(n.Id, out var cover)
-                ? n with { CoverUrl = $"/api/v1/items/{cover}/cover" }
-                : n).ToList();
-        }
+            nodes = await ApplyCoversAsync(nodes, folderInternalToPublic.Select(kv => new CoverTarget(kv.Key, kv.Value, true)), ct);
 
         nodes = await ApplyFavoritesAsync(nodes, userId, ct);
         // Every anchor has its OWN confirmed / auto web link and shown series information
@@ -1418,26 +1373,10 @@ public sealed class CatalogBrowseService
             FavoriteStackCount = x.Entry.StackCount,
         }).ToList();
 
-        // Folder covers (single starred folders AND stacks) - same first-descendant-archive
-        // resolution as browse/search, one recursive CTE for the page.
+        // Folder covers (single starred folders AND stacks) - the same resolver as browse/search.
         var folderRows = rowsById.Values.Where(r => r.Kind == (int)CatalogNodeKind.Folder).ToList();
         if (folderRows.Count > 0)
-        {
-            var coversByInternalId = await ResolveFolderCoversAsync(
-                folderRows.Select(r => r.InternalId).ToList(), ct);
-            var coversByPublicId = folderRows
-                .Where(r => coversByInternalId.ContainsKey(r.InternalId))
-                .ToDictionary(r => r.Id, r => coversByInternalId[r.InternalId]);
-            if (coversByPublicId.Count > 0)
-            {
-                nodes = nodes.Select(n =>
-                {
-                    if (n.Kind == CatalogNodeKind.Folder && coversByPublicId.TryGetValue(n.Id, out var coverPublicId))
-                        return n with { CoverUrl = $"/api/v1/items/{coverPublicId}/cover" };
-                    return n;
-                }).ToList();
-            }
-        }
+            nodes = await ApplyCoversAsync(nodes, folderRows.Select(r => new CoverTarget(r.InternalId, r.Id, true)), ct);
 
         // Per-user read state for archive favorites (sticky read-mark + progress),
         // mirroring the browse enrichment so the favorites view renders identical badges.
@@ -1581,15 +1520,23 @@ public sealed class CatalogBrowseService
     }
 
     /// <summary>
-    /// Resolves a cover (first non-tombstoned descendant archive by SortKey) for
-    /// each folder in <paramref name="folderInternalIds"/> via a single recursive
-    /// CTE, avoiding an N+1 query across the folder page. Returns a dictionary
-    /// mapping folder internal ID → cover archive public ID. Folders with no
-    /// non-tombstoned descendant archive are omitted.
+    /// Sets each node's <c>CoverUrl</c> from the cover resolver (1.29.0 seam) for the given targets (matched to the DTOs
+    /// by public id); nodes the resolver has no cover for keep theirs. One resolver call for the page.
     /// </summary>
-    private Task<Dictionary<long, string>> ResolveFolderCoversAsync(
-        List<long> folderInternalIds,
-        CancellationToken ct) => FolderCovers.ResolveAsync(_db, folderInternalIds, ct);
+    private async Task<List<CatalogNodeDto>> ApplyCoversAsync(List<CatalogNodeDto> nodes, IEnumerable<CoverTarget> targets, CancellationToken ct)
+    {
+        var list = targets.ToList();
+        if (list.Count == 0)
+            return nodes;
+        var urls = await _covers.ResolveUrlsAsync(list, ct);
+        var byPublicId = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var t in list)
+            if (urls.TryGetValue(t.NodeId, out var url))
+                byPublicId[t.PublicId] = url;
+        return byPublicId.Count == 0
+            ? nodes
+            : nodes.Select(n => byPublicId.TryGetValue(n.Id, out var url) ? n with { CoverUrl = url } : n).ToList();
+    }
 
     /// <summary>
     /// Resolves the derived read rollup (1.6.0) for each folder in
@@ -1710,7 +1657,8 @@ public sealed class CatalogBrowseService
                     JOIN catalog_nodes cn ON cn.ParentId = d.NodeId
                     WHERE cn.Availability != 5
                 )
-                SELECT cn.PublicId,
+                SELECT cn.Id,
+                       cn.PublicId,
                        parent.PublicId AS ParentPublicId,
                        lib.PublicId AS LibraryPublicId,
                        cn.DisplayName,
@@ -1763,7 +1711,8 @@ public sealed class CatalogBrowseService
             var stateOrdinal = reader.GetOrdinal("State");
             var ordinalOrdinal = reader.GetOrdinal("Ordinal");
 
-            return new CatalogNodeDto
+            var nodeId = reader.GetInt64(reader.GetOrdinal("Id"));
+            var dto = new CatalogNodeDto
             {
                 Id = publicId,
                 ParentId = reader.IsDBNull(parentOrdinal) ? "" : reader.GetString(parentOrdinal),
@@ -1772,11 +1721,12 @@ public sealed class CatalogBrowseService
                 DisplayName = displayName,
                 Availability = (CatalogNodeAvailability)availability,
                 PageCount = reader.IsDBNull(pageCountOrdinal) ? null : reader.GetInt32(pageCountOrdinal),
-                CoverUrl = $"/api/v1/items/{publicId}/cover",
                 IsRead = reader.GetBoolean(reader.GetOrdinal("IsRead")),
                 ReadingState = reader.IsDBNull(stateOrdinal) ? null : (ReadingState)reader.GetInt32(stateOrdinal),
                 LastReadPage = reader.IsDBNull(ordinalOrdinal) ? null : reader.GetInt32(ordinalOrdinal),
             };
+            await reader.DisposeAsync();
+            return (await ApplyCoversAsync([dto], [new CoverTarget(nodeId, publicId, false)], ct))[0];
         }
         finally
         {

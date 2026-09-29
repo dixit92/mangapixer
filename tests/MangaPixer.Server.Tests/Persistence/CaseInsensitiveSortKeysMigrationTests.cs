@@ -59,13 +59,6 @@ public sealed class CaseInsensitiveSortKeysMigrationTests : IDisposable
         await db.GetService<IMigrator>().MigrateAsync(PreviousMigration);
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
-        var library = new LibraryEntity
-        {
-            PublicId = OpaqueId.Encode(1),
-            DisplayName = "Case Library",
-            RootPath = "/private/case",
-            CreatedAt = DateTimeOffset.UtcNow,
-        };
         var user = new UserEntity
         {
             PublicId = OpaqueId.Encode(2),
@@ -77,9 +70,16 @@ public sealed class CaseInsensitiveSortKeysMigrationTests : IDisposable
             SecurityStamp = Guid.NewGuid().ToString("N"),
             CreatedAt = DateTimeOffset.UtcNow,
         };
-        db.Libraries.Add(library);
         db.Users.Add(user);
         await db.SaveChangesAsync();
+
+        // The library row is written with SQL naming only the columns the PREVIOUS schema has: the current entity
+        // carries later columns (1.29.0 added two), which an EF insert would name and the old table does not have.
+        await db.Database.ExecuteSqlRawAsync(
+            "INSERT INTO libraries (PublicId, DisplayName, RootPath, CaseComparisonPolicy, State, CatalogRevision, CreatedAt, MetadataEnabled, MetadataSeriesInfoHidden) "
+            + "VALUES ({0}, 'Case Library', '/private/case', 'ordinal', 'active', 0, 0, 0, 0)", OpaqueId.Encode(1));
+        var libraryId = await db.Database.SqlQueryRaw<long>("SELECT Id AS Value FROM libraries WHERE PublicId = {0}", OpaqueId.Encode(1)).SingleAsync();
+        var library = (Id: libraryId, PublicId: OpaqueId.Encode(1));
 
         var series = NewNode(library.Id, null, CatalogNodeKind.Folder, "Series", 10);
         db.CatalogNodes.Add(series);

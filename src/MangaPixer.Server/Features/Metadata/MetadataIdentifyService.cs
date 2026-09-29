@@ -6,6 +6,7 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Admin;
+using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
@@ -49,6 +50,7 @@ public sealed class MetadataIdentifyService
     private readonly IMemoryCache _cache;
     private readonly TimeProvider _time;
     private readonly ILogger<MetadataIdentifyService> _logger;
+    private readonly ICoverResolver _covers;
 
     public MetadataIdentifyService(
         MangaPixerDbContext db,
@@ -62,7 +64,8 @@ public sealed class MetadataIdentifyService
         AuditService audit,
         IMemoryCache cache,
         TimeProvider time,
-        ILogger<MetadataIdentifyService> logger)
+        ILogger<MetadataIdentifyService> logger,
+        ICoverResolver? covers = null)
     {
         _db = db;
         _gateway = gateway;
@@ -76,6 +79,7 @@ public sealed class MetadataIdentifyService
         _cache = cache;
         _time = time;
         _logger = logger;
+        _covers = covers ?? new FileCoverResolver(db);
     }
 
     private sealed record CandidateImage(string Provider, long LibraryId, string Url);
@@ -551,10 +555,8 @@ public sealed class MetadataIdentifyService
             ComicInfoSeries = comicInfoSeries,
             TallStrips = tall,
             YearHint = TitleNormalizer.Normalize(node.DisplayName).YearHint,
-            CoverUrl = node.Kind == (int)CatalogNodeKind.Folder
-                ? (await Catalog.FolderCovers.ResolveAsync(_db, [node.Id], ct)).TryGetValue(node.Id, out var coverId)
-                    ? Catalog.FolderCovers.ArchiveCoverUrl(coverId) : null
-                : Catalog.FolderCovers.ArchiveCoverUrl(node.PublicId),
+            CoverUrl = (await _covers.ResolveUrlsAsync([new CoverTarget(node.Id, node.PublicId, node.Kind == (int)CatalogNodeKind.Folder)], ct))
+                .GetValueOrDefault(node.Id),
         };
     }
 

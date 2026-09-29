@@ -223,6 +223,9 @@ public sealed partial class Program
 
             // Catalog and reading services
             builder.Services.AddScoped<CatalogBrowseService>();
+            // Card covers (1.29.0 seam): one resolver for every card; pass-through file covers until the cover layer lands.
+            builder.Services.AddScoped<Features.Covers.ICoverResolver, Features.Covers.FileCoverResolver>();
+            builder.Services.AddScoped<FolderViewSettingsService>();
             builder.Services.AddScoped<ReadingStateService>();
             builder.Services.AddScoped<FavoritesService>();
             builder.Services.AddScoped<SpreadLayoutService>();
@@ -618,6 +621,8 @@ public sealed partial class Program
         // Cover comparison (1.28.0): local hashes cached per process, images hashed by the media worker.
         services.AddSingleton<Features.Metadata.AutoMatch.CoverHashCache>();
         services.AddSingleton<Features.Metadata.AutoMatch.ICoverHasher, Features.Metadata.AutoMatch.WorkerCoverHasher>();
+        // Cover layer (1.29.0): cover thumbnails rendered (crop / re-encode / hash) by the media worker, protocol v5.
+        services.AddSingleton<Media.ICoverRenderer, Media.WorkerCoverRenderer>();
         services.AddScoped<Features.Metadata.AutoMatch.ICoverCompareSetting, Features.Metadata.AutoMatch.StoredCoverCompareSetting>();
         services.AddScoped<Features.Metadata.AutoMatch.AutoMatchCoverComparer>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataAutoMatchService>();

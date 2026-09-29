@@ -68,6 +68,11 @@ public sealed class MetadataAdminController : ControllerBase
                 Error = error,
                 Message = "Automatic matching needs \"Fetch series information from the web\" to be on.",
             }),
+            "invalid_cover_language" => BadRequest(new ApiError
+            {
+                Error = error,
+                Message = "The preferred cover language must be a locale code such as en, ja, pt-br or es-la.",
+            }),
             "invalid_thresholds" => BadRequest(new ApiError
             {
                 Error = error,

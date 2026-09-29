@@ -27,6 +27,7 @@ import { LibraryIconComponent } from '../../shared/library-icon/library-icon.com
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
+import { StackCardComponent } from '../../shared/stack-card/stack-card.component';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import {
   favoriteLink,
@@ -90,6 +91,7 @@ import {
     StarToggleComponent,
     InfoToggleComponent,
     SeriesInfoHoverDirective,
+    StackCardComponent,
   ],
   template: `
     <div class="home" [style.--card-size]="cardSize() + 'px'">
@@ -162,13 +164,11 @@ import {
                      with a transient "Favorites only" filter (?favorites=1). -->
                 <a class="stack-card" [routerLink]="favLink(node)" [queryParams]="favParams(node)"
                    [attr.aria-label]="node.displayName + ', ' + favStackLabel(node)">
-                  <div class="stack stacked">
-                    <div class="cover">
-                      @if (favCover(node); as src) { <img appCover [src]="src" alt="" loading="lazy"> }
-                      <mat-icon class="cover-fallback">folder</mat-icon>
-                      <span class="badge" [matTooltip]="favStackLabel(node)">{{ node.favoriteStackCount }}</span>
-                    </div>
-                  </div>
+                  <app-stack-card>
+                    @if (favCover(node); as src) { <img appCover [src]="src" alt="" loading="lazy"> }
+                    <mat-icon class="cover-fallback">folder</mat-icon>
+                    <span class="badge" [matTooltip]="favStackLabel(node)">{{ node.favoriteStackCount }}</span>
+                  </app-stack-card>
                   <div class="cont-title" [title]="node.displayName">{{ node.displayName }}</div>
                   <div class="cont-page">{{ favStackLabel(node) }}</div>
                 </a>
@@ -258,31 +258,29 @@ import {
       <!-- One stacked card. The "stacked" paper edges behind the cover appear only
            when the unit holds more than one new chapter; the +N badge says how many. -->
       <ng-template #stackBody let-stack let-anchor="anchor">
-        <div class="stack" [class.stacked]="stack.newCount > 1">
-          <!-- Card controls (1.28.0): the (i) bottom-left, the star (the stack's own node:
-               the folder, or the loose archive) bottom-right; the corners above hold the
-               read-state and +N badges. Cover and title are hover zones. -->
-          <div class="cover" [appSeriesInfoHover]="stack.hasSeriesInfo ? stack.id : null" [hoverAnchor]="anchor">
-            @if (stack.coverUrl) {
-              <img appCover [src]="stack.coverUrl" alt="" loading="lazy">
-            }
-            <mat-icon class="cover-fallback">{{ stack.isFolder ? 'folder' : 'menu_book' }}</mat-icon>
-            <!-- Read-state marker (1.20.0): same visual vocabulary as the library browse
-                 view's per-card marker (green "Read", purple "Reading"); Unread renders
-                 nothing, the quiet default. Placed top-left so it never collides with the
-                 top-right "+N new" badge. -->
-            @if (readStateView(stack.readState); as rv) {
-              <span class="badge read-state" [class.read]="rv.kind === 'read'" [class.reading]="rv.kind === 'reading'"
-                    [matTooltip]="rv.tooltip" [attr.aria-label]="rv.tooltip" role="img">{{ rv.text }}</span>
-            }
-            @if (stack.newCount > 1) {
-              <span class="badge new" [matTooltip]="stack.newCount + ' new chapters'"
-                    [attr.aria-label]="stack.newCount + ' new chapters'">+{{ stack.newCount }}</span>
-            }
-            <app-info-toggle [nodeId]="stack.id" [hasSeriesInfo]="!!stack.hasSeriesInfo" [overlay]="true" />
-            <app-star-toggle [nodeId]="stack.id" [favorite]="!!stack.isFavorite" [overlay]="true" [compact]="true" />
-          </div>
-        </div>
+        <!-- Card controls (1.28.0): the (i) bottom-left, the star (the stack's own node:
+             the folder, or the loose archive) bottom-right; the corners above hold the
+             read-state and +N badges. Cover and title are hover zones. -->
+        <app-stack-card [stacked]="stack.newCount > 1" [appSeriesInfoHover]="stack.hasSeriesInfo ? stack.id : null" [hoverAnchor]="anchor">
+          @if (stack.coverUrl) {
+            <img appCover [src]="stack.coverUrl" alt="" loading="lazy">
+          }
+          <mat-icon class="cover-fallback">{{ stack.isFolder ? 'folder' : 'menu_book' }}</mat-icon>
+          <!-- Read-state marker (1.20.0): same visual vocabulary as the library browse
+               view's per-card marker (green "Read", purple "Reading"); Unread renders
+               nothing, the quiet default. Placed top-left so it never collides with the
+               top-right "+N new" badge. -->
+          @if (readStateView(stack.readState); as rv) {
+            <span class="badge read-state" [class.read]="rv.kind === 'read'" [class.reading]="rv.kind === 'reading'"
+                  [matTooltip]="rv.tooltip" [attr.aria-label]="rv.tooltip" role="img">{{ rv.text }}</span>
+          }
+          @if (stack.newCount > 1) {
+            <span class="badge new" [matTooltip]="stack.newCount + ' new chapters'"
+                  [attr.aria-label]="stack.newCount + ' new chapters'">+{{ stack.newCount }}</span>
+          }
+          <app-info-toggle [nodeId]="stack.id" [hasSeriesInfo]="!!stack.hasSeriesInfo" [overlay]="true" />
+          <app-star-toggle [nodeId]="stack.id" [favorite]="!!stack.isFavorite" [overlay]="true" [compact]="true" />
+        </app-stack-card>
         <div class="cont-title" [title]="stack.displayName"
              [appSeriesInfoHover]="stack.hasSeriesInfo ? stack.id : null" [hoverAnchor]="anchor">{{ stack.displayName }}</div>
         @if (stack.isFolder) {
@@ -416,17 +414,8 @@ import {
       cursor: pointer; text-decoration: none; display: inline-block;
     }
     .recent-lib h4:hover { color: #fff; }
-    /* Stacked-paper affordance: two offset sheets behind the cover when the unit
-       holds more than one new chapter. The cover sits above them. */
-    .stack { position: relative; }
-    .stack .cover { position: relative; z-index: 1; }
-    .stack.stacked::before, .stack.stacked::after {
-      content: ''; position: absolute; inset: 0; border-radius: 8px; z-index: 0;
-      background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.08);
-    }
-    .stack.stacked::before { transform: translate(4px, -4px); }
-    .stack.stacked::after { transform: translate(8px, -8px); opacity: 0.55; }
-    .stack-card:hover .cover, .stack-card:focus-visible .cover { outline: 2px solid rgba(124,77,255,0.6); outline-offset: 1px; }
+    /* Stacked-paper affordance: the shared app-stack-card (1.29.0) draws two offset
+       sheets behind the cover when the unit holds more than one new chapter. */
     .badge {
       position: absolute; top: 6px; right: 6px; z-index: 2;
       font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
