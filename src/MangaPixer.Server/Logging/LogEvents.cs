@@ -393,5 +393,14 @@ public static class LogEvents
         public const int FlagCreated = 9230;
         public const int FlagResolved = 9231;
         public const int ReviewAction = 9240;
+
+        // Cover layer (1.29.0, 9380-9389). Node ids, counts, sources and codes only - never paths or names.
+        public const int CoverDecided = 9380;
+        public const int CoverDecisionFailed = 9381;
+        public const int CoverCropRendered = 9382;
+        public const int CoverCropFailed = 9383;
+        public const int CoverSweep = 9384;
+        public const int CoverChoiceChanged = 9385;
+        public const int VolumeCoversDeleted = 9386;
     }
 }

@@ -223,8 +223,8 @@ public sealed partial class Program
 
             // Catalog and reading services
             builder.Services.AddScoped<CatalogBrowseService>();
-            // Card covers (1.29.0 seam): one resolver for every card; pass-through file covers until the cover layer lands.
-            builder.Services.AddScoped<Features.Covers.ICoverResolver, Features.Covers.FileCoverResolver>();
+            // Card covers (1.29.0 cover layer): one layered resolver for every card, the automatic decisions, the picker.
+            Features.Covers.CoverLayerServices.AddCoverLayer(builder.Services, dataRoot);
             builder.Services.AddScoped<FolderViewSettingsService>();
             builder.Services.AddScoped<ReadingStateService>();
             builder.Services.AddScoped<FavoritesService>();

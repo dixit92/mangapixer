@@ -222,6 +222,10 @@ public static class AuditActions
 
     // 1.29.0: per-folder view overrides (the Volumes view); ids only.
     public const string FolderViewSettingsChange = "folder.view.change";
+
+    // 1.29.0 cover layer: an admin's cover choice (node id only) and "Delete stored volume covers" (counts only).
+    public const string CoverChoiceChange = "cover.choice.change";
+    public const string VolumeCoversDelete = "metadata.volumecovers.delete";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>
