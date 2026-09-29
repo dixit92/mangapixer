@@ -545,6 +545,13 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "v",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -4236,6 +4243,318 @@
         }
       }
     },
+    "/api/v1/nodes/{nodeId}/cover": {
+      "get": {
+        "tags": [
+          "NodeCover"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/cover-crops/{side}": {
+      "get": {
+        "tags": [
+          "NodeCover"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "side",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/cover-options": {
+      "get": {
+        "tags": [
+          "NodeCover"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverOptionsDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverOptionsDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverOptionsDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/cover-choice": {
+      "put": {
+        "tags": [
+          "NodeCover"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoverChoiceRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoverChoiceRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/CoverChoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverStateDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverStateDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverStateDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "NodeCover"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverStateDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverStateDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverStateDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/volume-covers/{coverId}/image": {
+      "get": {
+        "tags": [
+          "VolumeCoverImage"
+        ],
+        "parameters": [
+          {
+            "name": "coverId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/metadata/volume-covers": {
+      "delete": {
+        "tags": [
+          "VolumeCoverImage"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteVolumeCoversResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteVolumeCoversResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteVolumeCoversResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/libraries": {
       "get": {
         "tags": [
@@ -5752,6 +6071,9 @@
           }
         }
       },
+      "CardCoverSource": {
+        "type": "integer"
+      },
       "CatalogNodeKind": {
         "type": "integer"
       },
@@ -5819,6 +6141,158 @@
           },
           "hasSeriesInfo": {
             "type": "boolean"
+          },
+          "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CoverChoiceRequest": {
+        "required": [
+          "mode"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/CoverMode"
+          },
+          "archiveId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "volumeCoverId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cropSide": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CoverCropSide"
+              }
+            ]
+          }
+        }
+      },
+      "CoverCropSide": {
+        "type": "integer"
+      },
+      "CoverMode": {
+        "type": "integer"
+      },
+      "CoverOptionDto": {
+        "required": [
+          "kind",
+          "imageUrl",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/CoverOptionKind"
+          },
+          "archiveId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "CoverOptionKind": {
+        "type": "integer"
+      },
+      "CoverOptionsDto": {
+        "required": [
+          "nodeId",
+          "current",
+          "local",
+          "web",
+          "webAvailable"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "current": {
+            "$ref": "#/components/schemas/CoverStateDto"
+          },
+          "local": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoverOptionDto"
+            }
+          },
+          "web": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebCoverGroupDto"
+            }
+          },
+          "webAvailable": {
+            "type": "boolean"
+          },
+          "webUnavailableReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CoverStateDto": {
+        "required": [
+          "mode"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/CoverMode"
+          },
+          "autoSource": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CardCoverSource"
+              }
+            ]
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "imageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recheckAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -5960,6 +6434,40 @@
       },
       "DeclaredType": {
         "type": "integer"
+      },
+      "DeleteVolumeCoversResult": {
+        "required": [
+          "coversDeleted",
+          "decisionsReset",
+          "choicesReset"
+        ],
+        "type": "object",
+        "properties": {
+          "coversDeleted": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "decisionsReset": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "choicesReset": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
       },
       "EffectiveDeclaredFactsDto": {
         "type": "object",
@@ -10025,6 +10533,78 @@
       "ViewSwitch": {
         "type": "integer"
       },
+      "VolumeCoverKind": {
+        "type": "integer"
+      },
+      "WebCoverDto": {
+        "required": [
+          "id",
+          "kind",
+          "locale",
+          "stored"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/VolumeCoverKind"
+          },
+          "volume": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "variant": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "locale": {
+            "type": "string"
+          },
+          "stored": {
+            "type": "boolean"
+          },
+          "imageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "WebCoverGroupDto": {
+        "required": [
+          "covers"
+        ],
+        "type": "object",
+        "properties": {
+          "volume": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "covers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebCoverDto"
+            }
+          }
+        }
+      },
       "WorkClass": {
         "type": "integer"
       },
@@ -10114,6 +10694,12 @@
     },
     {
       "name": "RecentChapters"
+    },
+    {
+      "name": "NodeCover"
+    },
+    {
+      "name": "VolumeCoverImage"
     },
     {
       "name": "Catalog"

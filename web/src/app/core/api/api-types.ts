@@ -216,6 +216,11 @@ export interface ContinueReadingEntry {
    * Optional for older servers.
    */
   hasSeriesInfo?: boolean;
+  /**
+   * The card's cover URL from the cover layer (1.29.0): versioned, layered (an admin choice or an automatic crop / web
+   * cover when one applies), else the file cover. Optional for older servers (the client then builds the file cover URL).
+   */
+  coverUrl?: string | null;
 }
 
 /**
@@ -1943,6 +1948,13 @@ export interface CoverChoiceRequest {
   archiveId?: string | null;
   volumeCoverId?: string | null;
   cropSide?: CoverCropSide | null;
+}
+
+/** DELETE /admin/metadata/volume-covers (admin, lane C): "Delete stored volume covers". */
+export interface DeleteVolumeCoversResult {
+  coversDeleted: number;
+  decisionsReset: number;
+  choicesReset: number;
 }
 
 /** A companion record of the node's linked series (lane P). */
