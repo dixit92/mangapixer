@@ -47,7 +47,8 @@ public sealed record VolumeCoverPassResult(int Requests, int SeriesChecked, int 
 /// <list type="number">
 /// <item>per due series: the MangaDex companion (cross-link), its cover list + volume list, and - when MangaDex gives no
 /// volume list - the AniList totals;</item>
-/// <item>breadth first across series: every series' volume 1 cover (preferred language, else the original language);</item>
+/// <item>breadth first across series: every series' volume 1 cover (preferred language, else the original language; the
+/// record's MAIN cover when MangaDex lists no volume 1 cover at all - webtoons);</item>
 /// <item>then per series the covers of the volumes it holds (a volume in an archive's name or ComicInfo, or a chapter the
 /// exact list places). Short-circuit: when the local volume 1 cover already IS the web volume 1 cover, the release has
 /// real covers on page 1 - a held volume archive is then only fetched when its page 1 is spread-shaped or shaped
@@ -239,8 +240,19 @@ public sealed class VolumeCoverPass
         if (await MangaDexRecordAsync(s.RecordId, ct) is not { } md)
             return false;
         var cover = await PickCoverAsync(md.Id, md.OriginalLanguage, volume, preferred, ct);
+        if (cover is null && volume == 1 && await MainCoverStandsInAsync(md.Id, ct))
+        {
+            // MangaDex lists no volume 1 cover at all (webtoons, series without volume covers): its main cover stands in
+            // (owner-approved wording, 1.29.0 RC) - one image per such series.
+            cover = await _db.VolumeCovers.FirstOrDefaultAsync(c => c.ProviderRecordId == md.Id && c.Kind == (int)VolumeCoverKind.Main
+                && c.State == (int)VolumeCoverState.Listed, ct);
+        }
         return cover is not null && await _fetcher.DownloadAsync(cover, s.LibraryId, call, ct);
     }
+
+    /// <summary>True when the MangaDex record's cover list (in the listed languages) has no volume 1 cover at all.</summary>
+    private Task<bool> MainCoverStandsInAsync(long mangaDexRecordId, CancellationToken ct) =>
+        _db.VolumeCovers.AllAsync(c => c.ProviderRecordId != mangaDexRecordId || c.Kind != (int)VolumeCoverKind.Volume || c.Volume != 1, ct);
 
     private sealed record MangaDexRef(long Id, string? OriginalLanguage);
 

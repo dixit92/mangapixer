@@ -23,6 +23,9 @@ using Microsoft.EntityFrameworkCore;
 /// <c>/cover</c> volume, else MangaDex <c>lastVolume</c>, else the series' volume total. Foreign numbering guard: when the
 /// list's highest volume exceeds BOTH the series' volume total and the <c>/cover</c> maximum by more than 1 (JoJo parts
 /// numbered continuously), the map is stored Empty - nothing groups from it;</item>
+/// <item>the same volume list filtered by the preferred language (<c>translatedLanguage[]</c>, one more request) -> the chapters
+/// released in it (<c>ReleasedLanguage</c> / <c>ReleasedChaptersJson</c>; owner, 1.29.0 RC: "missing" = released in the preferred
+/// language; lane S reads them);</item>
 /// <item>when MangaDex gives no volume list, the AniList totals (<see cref="MissingConversionService.LookupSeriesAsync"/>:
 /// by the AniList id when known - MangaDex's own <c>links.al</c> - else by the linked MangaUpdates title) -> a
 /// ratio-only map (Source AniListRatio).</item>
@@ -83,7 +86,18 @@ public sealed class VolumeMapService
 
         var raw = await _gateway.CompanionCallAsync(MetadataProviderAllowlist.MangaDex, "aggregate", libraryId,
             c => _mangaDex.AggregateAsync(mangaDexRecord.ExternalId, c), call, ct);
-        var built = VolumeListBuilder.Build(raw.Select(v => new VolumeListBuilder.RawVolume(v.Volume, v.Chapters.Select(c => (c.Chapter, c.Count)).ToList())).ToList());
+        var built = VolumeListBuilder.Build(Raw(raw));
+
+        // 1.29.0 RC (owner: "missing" = released in the preferred language): the same list filtered by that language - one
+        // more request - tells which chapters are released in it.
+        string? releasedLanguage = null, releasedJson = null;
+        if (MangaDexProvider.IsValidLocale(preferredLanguage))
+        {
+            var released = await _gateway.CompanionCallAsync(MetadataProviderAllowlist.MangaDex, "aggregate-released", libraryId,
+                c => _mangaDex.AggregateAsync(mangaDexRecord.ExternalId, c, preferredLanguage), call, ct);
+            releasedLanguage = preferredLanguage;
+            releasedJson = VolumeMapJson.WriteChapters(VolumeListBuilder.ChaptersOf(Raw(released)));
+        }
 
         var coverMax = await _db.VolumeCovers.AsNoTracking()
             .Where(c => c.ProviderRecordId == mangaDexRecord.Id && c.Kind == (int)VolumeCoverKind.Volume && c.Volume != null)
@@ -94,8 +108,11 @@ public sealed class VolumeMapService
         return await StoreAsync(series, VolumeMapSource.MangaDexAggregate, state,
             state == VolumeMapState.Ok ? VolumeMapJson.Write(built.Volumes) : null,
             built.Unassigned.Count > 0 ? VolumeMapJson.WriteChapters(built.Unassigned) : null,
-            state == VolumeMapState.Ok ? built.ChaptersPerVolume : null, known, ct);
+            state == VolumeMapState.Ok ? built.ChaptersPerVolume : null, known, ct, releasedLanguage, releasedJson);
     }
+
+    private static IReadOnlyList<VolumeListBuilder.RawVolume> Raw(IReadOnlyList<MangaDexAggregateVolume> volumes) =>
+        volumes.Select(v => new VolumeListBuilder.RawVolume(v.Volume, v.Chapters.Select(c => (c.Chapter, c.Count)).ToList())).ToList();
 
     /// <summary>
     /// The foreign-numbering guard (P2.3): the list's highest volume exceeds both the series' volume total and the
@@ -245,13 +262,19 @@ public sealed class VolumeMapService
 
     private async Task<SeriesVolumeMapEntity> StoreAsync(
         MetadataRecordEntity series, VolumeMapSource source, VolumeMapState state, string? volumesJson, string? unassignedJson,
-        double? chaptersPerVolume, int? knownVolumeCount, CancellationToken ct)
+        double? chaptersPerVolume, int? knownVolumeCount, CancellationToken ct, string? releasedLanguage = null, string? releasedChaptersJson = null)
     {
         var now = _time.GetUtcNow();
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n',
-            (int)state, volumesJson ?? string.Empty, unassignedJson ?? string.Empty,
+        var parts = new List<string>
+        {
+            ((int)state).ToString(CultureInfo.InvariantCulture), volumesJson ?? string.Empty, unassignedJson ?? string.Empty,
             chaptersPerVolume?.ToString("R", CultureInfo.InvariantCulture) ?? string.Empty,
-            knownVolumeCount?.ToString(CultureInfo.InvariantCulture) ?? string.Empty)))).ToLowerInvariant();
+            knownVolumeCount?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+        };
+        // The released-in-the-preferred-language list is part of the content (a newly released chapter bumps the version).
+        if (releasedLanguage is not null)
+            parts.AddRange([releasedLanguage, releasedChaptersJson ?? string.Empty]);
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', parts)))).ToLowerInvariant();
         var map = await FindAsync(series.Id, source, ct);
         if (map is null)
         {
@@ -265,6 +288,8 @@ public sealed class VolumeMapService
             map.UnassignedJson = unassignedJson;
             map.ChaptersPerVolume = chaptersPerVolume;
             map.KnownVolumeCount = knownVolumeCount;
+            map.ReleasedLanguage = releasedLanguage;
+            map.ReleasedChaptersJson = releasedChaptersJson;
             map.ContentHash = hash;
             map.Version++;
             _logger.LogInformation(LogEvents.Metadata.VolumeListStored, "Volume list of record {RecordId} stored ({Source}, {State}, {Volumes} volumes, version {Version})",

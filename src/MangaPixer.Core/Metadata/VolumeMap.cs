@@ -108,6 +108,19 @@ public static class VolumeListBuilder
         }
     }
 
+    /// <summary>
+    /// Every numbered chapter of a raw list, whatever volume bucket it sits in (the <c>none</c> bucket included): canonical,
+    /// distinct, ascending. Used for the list filtered by a language - "which chapters are released in it" (1.29.0 RC).
+    /// </summary>
+    public static IReadOnlyList<string> ChaptersOf(IReadOnlyList<RawVolume> raw) =>
+        raw.SelectMany(v => v.Chapters)
+            .Select(c => VolumeMapJson.Parse(c.Chapter))
+            .OfType<decimal>()
+            .Distinct()
+            .Order()
+            .Select(VolumeMapJson.Canonical)
+            .ToList();
+
     public static Result Build(IReadOnlyList<RawVolume> raw)
     {
         // chapter -> (volume -> uploads)

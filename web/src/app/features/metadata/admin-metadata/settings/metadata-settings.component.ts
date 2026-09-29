@@ -315,7 +315,7 @@ export function validateThresholds(
               <p class="note" data-testid="md-volume-covers-config">Switched off in the server configuration (Metadata:AutoMatch:VolumeCovers).</p>
             }
             <mat-form-field appearance="outline" subscriptSizing="dynamic" class="lang">
-              <mat-label>Preferred cover language</mat-label>
+              <mat-label>Preferred language (covers and releases)</mat-label>
               <mat-select [value]="s.preferredCoverLanguage ?? 'en'" (selectionChange)="setCoverLanguage($event.value)"
                           [disabled]="saving()" data-testid="md-cover-language">
                 @for (o of coverLanguages(); track o.code) {
@@ -323,8 +323,9 @@ export function validateThresholds(
                 }
               </mat-select>
             </mat-form-field>
-            <p class="note">When a volume has no cover in this language yet, the cover in the series' original language is used,
-              and MangaPixer checks again on the refresh schedule.</p>
+            <p class="note" data-testid="md-language-note">Decides which volume covers are preferred and which chapters and volumes
+              count as released - and so as missing - for you. When a volume has no cover in this language yet, the cover in the
+              series' original language is used, and MangaPixer checks again on the refresh schedule.</p>
             <p class="status" data-testid="md-volume-covers-status">
               @if (coverStatus(); as cs) {
                 {{ cs.coversStored }} cover{{ cs.coversStored === 1 ? '' : 's' }} stored · {{ cs.coversListed }} known, not
@@ -681,10 +682,13 @@ export class MetadataSettingsComponent implements OnInit {
     this.save(this.api.updateSettings({ volumeCoversEnabled: on }), on ? 'Volume covers are on' : 'Volume covers are off');
   }
 
-  /** The preferred cover language: every cover list is read again once (budgeted) to find covers in it. */
+  /**
+   * The preferred language (covers and releases): every MangaDex cover list and released-chapter list is read again once
+   * (budgeted) for it.
+   */
   setCoverLanguage(code: string): void {
     if (!this.settings() || code === this.settings()!.preferredCoverLanguage) return;
-    this.save(this.api.updateSettings({ preferredCoverLanguage: code }), 'Preferred cover language saved');
+    this.save(this.api.updateSettings({ preferredCoverLanguage: code }), 'Preferred language saved');
   }
 
   loadCoverStatus(): void {

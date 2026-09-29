@@ -21,8 +21,11 @@ public interface IMangaDexProvider
     /// <summary>The record with this id, or null when MangaDex says it does not exist.</summary>
     Task<MangaDexManga?> GetAsync(string mangaId, CancellationToken ct);
 
-    /// <summary>The volume -> chapter list, including chapters MangaDex does not host (<c>includeUnavailable=1</c>).</summary>
-    Task<IReadOnlyList<MangaDexAggregateVolume>> AggregateAsync(string mangaId, CancellationToken ct);
+    /// <summary>
+    /// The volume -> chapter list, including chapters MangaDex does not host (<c>includeUnavailable=1</c>); with
+    /// <paramref name="translatedLanguage"/> only the chapters released in that language (<c>translatedLanguage[]</c>).
+    /// </summary>
+    Task<IReadOnlyList<MangaDexAggregateVolume>> AggregateAsync(string mangaId, CancellationToken ct, string? translatedLanguage = null);
 
     /// <summary>One page (up to 100) of the record's covers, filtered to <paramref name="locales"/> when given.</summary>
     Task<MangaDexCoverPage> CoversAsync(string mangaId, IReadOnlyList<string>? locales, int offset, CancellationToken ct);
@@ -76,7 +79,8 @@ public sealed record MangaDexCoverPage(IReadOnlyList<MangaDexCover> Covers, int 
 /// <c>GET /manga?title=&amp;limit=10&amp;order[relevance]=desc&amp;contentRating[]=</c>(the fixed list of all four
 /// ratings - acceptance is by exact id, so a rating filter could only hide the right record of an adult work)
 /// <c>&amp;includes[]=cover_art</c>; <c>GET /manga/{id}?includes[]=cover_art</c>;
-/// <c>GET /manga/{id}/aggregate?includeUnavailable=1</c>; <c>GET /cover?manga[]={id}&amp;locales[]=..&amp;order[volume]=asc&amp;limit=100&amp;offset=</c>.
+/// <c>GET /manga/{id}/aggregate?includeUnavailable=1</c> (1.29.0 RC: also with <c>&amp;translatedLanguage[]=</c>the preferred language, to
+/// learn which chapters are released in it); <c>GET /cover?manga[]={id}&amp;locales[]=..&amp;order[volume]=asc&amp;limit=100&amp;offset=</c>.
 /// Headers come from the named client (generic User-Agent, no cookies, no token, no <c>Via</c>). The JSON is read
 /// defensively: MangaDex sends an empty LIST <c>[]</c> where an object is empty (<c>links</c>, <c>volumes</c>, <c>chapters</c>).
 /// </summary>
@@ -185,11 +189,12 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             : null;
     }
 
-    public async Task<IReadOnlyList<MangaDexAggregateVolume>> AggregateAsync(string mangaId, CancellationToken ct)
+    public async Task<IReadOnlyList<MangaDexAggregateVolume>> AggregateAsync(string mangaId, CancellationToken ct, string? translatedLanguage = null)
     {
-        if (!IsValidId(mangaId))
+        if (!IsValidId(mangaId) || (translatedLanguage is not null && !IsValidLocale(translatedLanguage)))
             return [];
-        using var doc = await GetJsonAsync($"{ApiBase}/manga/{mangaId}/aggregate?includeUnavailable=1", ct);
+        var language = translatedLanguage is null ? string.Empty : "&translatedLanguage%5B%5D=" + translatedLanguage;
+        using var doc = await GetJsonAsync($"{ApiBase}/manga/{mangaId}/aggregate?includeUnavailable=1{language}", ct);
         return doc is null ? [] : ReadAggregate(doc.RootElement);
     }
 
