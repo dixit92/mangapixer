@@ -526,7 +526,7 @@ export function validateThresholds(
     .confirm { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
     .error { color: #f44336; }
     .ok { color: #4caf50; }
-    .lang { width: 260px; margin-top: 8px; }
+    .lang { width: 100%; max-width: 360px; margin-top: 8px; }
     .credit { font-size: 12px; color: #9a9aa8; margin: 12px 0 0; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
     @media (max-width: 599.98px) {
       .card { padding: 12px; }
