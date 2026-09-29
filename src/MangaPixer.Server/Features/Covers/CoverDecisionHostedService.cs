@@ -62,6 +62,7 @@ public sealed class CoverDecisionQueue
 /// with the inputs-key short cut; (3) the spread backfill - ready archives whose page 1 is spread-shaped and that have no
 /// decision yet; (4) the clean-up of web decisions whose node lost its link. Yields to the reader whenever the media
 /// worker pool is saturated or analysis is pending. No network: web covers are only READ from the data root.
+/// <c>Covers:SweepEnabled=false</c> keeps only the queue (tests drive decisions directly).
 /// </summary>
 public sealed class CoverDecisionHostedService : BackgroundService
 {
@@ -74,6 +75,7 @@ public sealed class CoverDecisionHostedService : BackgroundService
     private readonly ILogger<CoverDecisionHostedService> _logger;
     private readonly TimeSpan _interval;
     private readonly TimeSpan _startDelay;
+    private readonly bool _sweepEnabled;
     private readonly HashSet<(long NodeId, long Version)> _spreadAttempted = [];
     private DateTimeOffset _watermark = DateTimeOffset.MinValue;
     private string? _settingsStamp;
@@ -85,6 +87,7 @@ public sealed class CoverDecisionHostedService : BackgroundService
         _queue = queue;
         _pool = pool;
         _logger = logger;
+        _sweepEnabled = !(bool.TryParse(configuration["Covers:SweepEnabled"], out var enabled) && !enabled);
         _interval = TimeSpan.FromSeconds(ReadSeconds(configuration, "Covers:SweepIntervalSeconds", 600));
         _startDelay = TimeSpan.FromSeconds(ReadSeconds(configuration, "Covers:SweepStartDelaySeconds", 60));
     }
@@ -97,14 +100,14 @@ public sealed class CoverDecisionHostedService : BackgroundService
         var nextSweep = DateTimeOffset.UtcNow + _startDelay;
         while (!stoppingToken.IsCancellationRequested)
         {
-            var wait = nextSweep - DateTimeOffset.UtcNow;
-            await _queue.WaitAsync(wait > TimeSpan.Zero ? wait : TimeSpan.Zero, stoppingToken);
+            var wait = _sweepEnabled ? nextSweep - DateTimeOffset.UtcNow : Timeout.InfiniteTimeSpan;
+            await _queue.WaitAsync(wait == Timeout.InfiniteTimeSpan || wait > TimeSpan.Zero ? wait : TimeSpan.Zero, stoppingToken);
             if (stoppingToken.IsCancellationRequested)
                 break;
             try
             {
                 await DrainQueueAsync(stoppingToken);
-                if (_queue.TakeSweepRequest() || DateTimeOffset.UtcNow >= nextSweep)
+                if ((_queue.TakeSweepRequest() || DateTimeOffset.UtcNow >= nextSweep) && _sweepEnabled)
                 {
                     await SweepAsync(stoppingToken);
                     nextSweep = DateTimeOffset.UtcNow + _interval;

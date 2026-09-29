@@ -355,7 +355,7 @@ public sealed class MetadataAutoMatchHttpTests
         Assert.Equal(1, bulk.Succeeded);
         Assert.Equal("not_found", bulk.Results.Single(r => r.NodeId == "nope").Code);
         var allConfirmed = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=Confirmed&limit=10"));
-        Assert.Equal("/api/v1/items/amArc/cover", allConfirmed.Items.Single(i => i.NodeId == "amLinked").CoverUrl); // its first archive, as browse
+        Assert.Equal("/api/v1/items/amArc/cover?v=1", allConfirmed.Items.Single(i => i.NodeId == "amLinked").CoverUrl); // its first archive, as browse
         var confirmed = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=Confirmed&limit=1"));
         Assert.Equal(3, confirmed.Total);
         Assert.True(confirmed.HasMore);

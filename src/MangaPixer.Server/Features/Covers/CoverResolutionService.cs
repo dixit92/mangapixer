@@ -59,8 +59,8 @@ public sealed record CoverResolution
     public required string Token { get; init; }
 
     public string Url => Layered
-        ? $"/api/v1/nodes/{Uri.EscapeDataString(UrlNodePublicId)}/cover?v={Token}"
-        : $"/api/v1/items/{Uri.EscapeDataString(ArchivePublicId)}/cover?v={Token}";
+        ? $"/api/v1/nodes/{UrlNodePublicId}/cover?v={Token}"
+        : $"/api/v1/items/{ArchivePublicId}/cover?v={Token}";
 }
 
 /// <summary>

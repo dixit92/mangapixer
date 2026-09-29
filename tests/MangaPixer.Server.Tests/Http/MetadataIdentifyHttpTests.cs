@@ -398,6 +398,7 @@ public sealed class MetadataNetworkWebApplicationFactory : WebApplicationFactory
                 ["Metadata:NetworkDisabled"] = networkDisabled ? "true" : "false",
                 // Stage 2: tests drive automatic-matching passes directly.
                 ["Metadata:AutoMatch:WorkerEnabled"] = "false",
+                ["Covers:SweepEnabled"] = "false",
             });
         using (TestHostStorageOverride.Push(storage))
         {

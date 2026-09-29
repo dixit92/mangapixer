@@ -61,15 +61,51 @@ public sealed class ThumbnailHttpTests : IDisposable
         await PersistAnalysisResultAsync(itemId, pageCount: 3);
         await SeedDurableThumbnailAsync(itemId);
 
-        var response = await client.GetAsync($"/api/v1/items/{itemId}/cover");
+        var version = await ContentVersionOfAsync(itemId);
+        var response = await client.GetAsync($"/api/v1/items/{itemId}/cover?v={version}");
         response.EnsureSuccessStatusCode();
 
         Assert.Equal("image/webp", response.Content.Headers.ContentType?.MediaType);
         var bytes = await response.Content.ReadAsByteArrayAsync();
         Assert.NotEmpty(bytes);
 
-        // Long-lived immutable cache headers keyed by content version
+        // Long-lived immutable cache headers for the CURRENT content version's URL - private (1.29.0, owner Q14).
         Assert.Contains("immutable", response.Headers.CacheControl?.ToString() ?? "");
+        Assert.True(response.Headers.CacheControl!.Private);
+        Assert.False(response.Headers.CacheControl.Public);
+    }
+
+    [Fact]
+    public async Task GetCover_StaleOrMissingVersion_ServesTheCurrentImage_WithoutLongCaching_AndRevalidates()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        await PersistAnalysisResultAsync(itemId, pageCount: 2);
+        await SeedDurableThumbnailAsync(itemId);
+        var version = await ContentVersionOfAsync(itemId);
+
+        foreach (var url in new[] { $"/api/v1/items/{itemId}/cover", $"/api/v1/items/{itemId}/cover?v={version + 7}" })
+        {
+            var response = await client.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+            Assert.Equal("image/webp", response.Content.Headers.ContentType?.MediaType);
+            Assert.True(response.Headers.CacheControl!.NoCache);
+            Assert.True(response.Headers.CacheControl.Private);
+            Assert.DoesNotContain("immutable", response.Headers.CacheControl.ToString());
+            Assert.NotNull(response.Headers.ETag);
+
+            using var revalidate = new HttpRequestMessage(HttpMethod.Get, url);
+            revalidate.Headers.IfNoneMatch.Add(response.Headers.ETag!);
+            var again = await client.SendAsync(revalidate);
+            Assert.Equal(HttpStatusCode.NotModified, again.StatusCode);
+        }
+    }
+
+    private async Task<long> ContentVersionOfAsync(string itemPublicId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+        var node = await db.CatalogNodes.FirstAsync(n => n.PublicId == itemPublicId);
+        return (await db.ArchiveItems.FirstAsync(a => a.NodeId == node.Id)).ContentVersion;
     }
 
     [Fact]

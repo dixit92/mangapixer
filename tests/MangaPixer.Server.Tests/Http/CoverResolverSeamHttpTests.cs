@@ -12,8 +12,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 /// <summary>
-/// The 1.29.0 cover seam through the public surface: <see cref="ICoverResolver"/> is registered as the pass-through
-/// <see cref="FileCoverResolver"/>, and the card covers of browse (folders and archives) and Home "New chapters" come from
+/// The 1.29.0 cover seam through the public surface: <see cref="ICoverResolver"/> is registered as the layered
+/// <see cref="LayeredCoverResolver"/>, and the card covers of browse (folders and archives) and Home "New chapters" come from
 /// WHATEVER resolver the container holds - so the cover layer replaces one registration, not the call sites.
 /// </summary>
 [Collection("HttpSerial")]
@@ -68,11 +68,11 @@ public sealed class CoverResolverSeamHttpTests
     };
 
     [Fact]
-    public void TheContainer_HoldsThePassThroughResolver()
+    public void TheContainer_HoldsTheLayeredResolver()
     {
         using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true);
         using var scope = factory.Services.CreateScope();
-        Assert.IsType<FileCoverResolver>(scope.ServiceProvider.GetRequiredService<ICoverResolver>());
+        Assert.IsType<LayeredCoverResolver>(scope.ServiceProvider.GetRequiredService<ICoverResolver>());
     }
 
     [Fact]

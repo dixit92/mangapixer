@@ -85,6 +85,16 @@ public sealed class CoverDecisionService
         public IReadOnlyList<string> OriginLocales { get; init; } = [];
         public IReadOnlyList<StoredCover> Covers { get; init; } = [];
 
+        /// <summary>The same series data seen from another node (its own nearest link: depth, link node).</summary>
+        public SeriesContext For(NearestLink link) => new()
+        {
+            Link = link,
+            Record = Record,
+            CompanionId = CompanionId,
+            OriginLocales = OriginLocales,
+            Covers = Covers,
+        };
+
         /// <summary>Changes whenever a stored cover of the companion is added, replaced or removed.</summary>
         public string CoversStamp => string.Create(CultureInfo.InvariantCulture,
             $"{Covers.Count}:{Covers.Sum(c => (long)c.StoredVersion)}:{(Covers.Count == 0 ? 0 : Covers.Max(c => c.Id))}");
@@ -158,7 +168,8 @@ public sealed class CoverDecisionService
             var key = string.Create(CultureInfo.InvariantCulture, $"{l.LinkNodeId}:{(int)l.State}:{l.RecordId}");
             if (!seriesByRecord.TryGetValue(key, out var s))
                 seriesByRecord[key] = s = await SeriesAsync(l, settings, ct);
-            return s;
+            // Cached per series; the link (its depth) is each node's own.
+            return s.For(l);
         }
 
         var changed = 0;
@@ -209,7 +220,7 @@ public sealed class CoverDecisionService
             var w1 = WebVolume(series, settings, 1);
             var main = WebMain(series, settings);
             var poster = Poster(series);
-            var key = Key("oneshot", row.ContentVersion, Describe(w1), Describe(main), Describe(poster));
+            var key = Key("oneshot", row.ContentVersion, Describe(series, w1), Describe(series, main), Describe(series, poster));
             return await ApplyAsync(row.Id, key, ct, async () =>
             {
                 var chain = new[] { w1, main, poster };
@@ -229,7 +240,7 @@ public sealed class CoverDecisionService
         if (!row.Spread && web is null)
             return await ClearAsync(row.Id, ct);
         var dir = row.Spread ? await _direction.ResolveAsync(row.Id, (MetadataOrigin?)series.Record?.Origin, ct) : CoverDirection.LeftToRight;
-        var volumeKey = Key("volume", row.ContentVersion, row.Spread, dir, volume, Describe(web));
+        var volumeKey = Key("volume", row.ContentVersion, row.Spread, dir, volume, Describe(series, web));
         return await ApplyAsync(row.Id, volumeKey, ct, async () =>
         {
             var front = CoverRules.FrontSide(dir);
@@ -300,7 +311,7 @@ public sealed class CoverDecisionService
             var poster = Poster(series);
             if (await IsWebtoonAsync(series.Record, archiveIds, ct))
             {
-                var webtoonKey = Key("webtoon", series.CoversStamp, Describe(main), Describe(poster));
+                var webtoonKey = Key("webtoon", series.CoversStamp, Describe(series, main), Describe(series, poster));
                 return await ApplyAsync(folder.Id, webtoonKey, ct,
                     () => Task.FromResult<(CoverDecision?, ulong?)>((CoverRules.DecideWebtoon(main, poster), null)), series);
             }
@@ -310,7 +321,7 @@ public sealed class CoverDecisionService
             var chapterFolder = !rows.Any(r => r.VolumeNumber is not null);
             var w1 = WebVolume(series, settings, 1);
             var volume1Auto = volume1 is null ? null : await _db.NodeAutoCovers.AsNoTracking().FirstOrDefaultAsync(a => a.NodeId == volume1.Id, ct);
-            var seriesKey = Key("series", series.CoversStamp, Describe(w1), Describe(main), Describe(poster), chapterFolder,
+            var seriesKey = Key("series", series.CoversStamp, Describe(series, w1), Describe(series, main), Describe(series, poster), chapterFolder,
                 volume1?.Id, volume1?.ContentVersion, volume1Auto?.Source, volume1Auto?.CropSide, volume1Auto?.LocalHash);
             return await ApplyAsync(folder.Id, seriesKey, ct, async () =>
             {
@@ -341,7 +352,7 @@ public sealed class CoverDecisionService
         var web = firstVolume is { } fv ? WebVolume(series, settings, fv) : null;
         if (web is null)
             return await ClearAsync(folder.Id, ct);
-        var subKey = Key("sub", first.Id, firstVolume, Describe(web));
+        var subKey = Key("sub", first.Id, firstVolume, Describe(series, web));
         return await ApplyAsync(folder.Id, subKey, ct,
             () => Task.FromResult<(CoverDecision?, ulong?)>((CoverRules.DecideSubfolder(web), null)), series);
     }
@@ -445,8 +456,16 @@ public sealed class CoverDecisionService
         return File.Exists(path) ? await _hasher.HashFileAsync(path, ct) : null;
     }
 
-    private static string Describe(WebCoverCandidate? c) => c is null ? "-"
-        : string.Create(CultureInfo.InvariantCulture, $"{(int)c.Source}:{c.VolumeCoverId}:{c.Hash}:{(c.OriginFallback ? 1 : 0)}");
+    /// <summary>A candidate as key text: its kind, row, stored version and hash - or the poster's image version.</summary>
+    private static string Describe(SeriesContext series, WebCoverCandidate? c)
+    {
+        if (c is null)
+            return "-";
+        var version = c.Source == AutoCoverSource.Poster
+            ? series.Record?.ImageVersion ?? 0
+            : series.Covers.FirstOrDefault(v => v.Id == c.VolumeCoverId)?.StoredVersion ?? 0;
+        return string.Create(CultureInfo.InvariantCulture, $"{(int)c.Source}:{c.VolumeCoverId}:{version}:{c.Hash}:{(c.OriginFallback ? 1 : 0)}");
+    }
 
     // ----- persistence ---------------------------------------------------------------------------------------------
 
@@ -491,6 +510,8 @@ public sealed class CoverDecisionService
 
     private async Task<CoverDecisionOutcome> ClearAsync(long nodeId, CancellationToken ct)
     {
+        foreach (var tracked in _db.ChangeTracker.Entries<NodeAutoCoverEntity>().Where(e => e.Entity.NodeId == nodeId).ToList())
+            tracked.State = EntityState.Detached;
         var removed = await _db.NodeAutoCovers.Where(a => a.NodeId == nodeId).ExecuteDeleteAsync(ct);
         return removed > 0 ? CoverDecisionOutcome.Cleared : CoverDecisionOutcome.Unchanged;
     }
@@ -547,7 +568,12 @@ public sealed class CoverDecisionService
             .Where(n => ids.Contains(n.Id) && n.Kind == (int)CatalogNodeKind.Archive && n.Availability != (int)CatalogNodeAvailability.Tombstoned)
             .Select(n => new
             {
-                n.Id, n.PublicId, n.LibraryId, n.ParentId, n.DisplayName, n.SortKey,
+                n.Id,
+                n.PublicId,
+                n.LibraryId,
+                n.ParentId,
+                n.DisplayName,
+                n.SortKey,
                 Version = n.ArchiveItem != null ? n.ArchiveItem.ContentVersion : 0,
                 Ready = n.ArchiveItem != null && n.ArchiveItem.AnalysisState == 0,
             })
