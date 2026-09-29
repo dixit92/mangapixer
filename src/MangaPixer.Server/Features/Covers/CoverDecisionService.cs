@@ -506,8 +506,8 @@ public sealed class CoverDecisionService
         await _db.SaveChangesAsync(ct);
         // A crop exists right after its decision (so the first card view does not wait for the worker); an existing
         // file of this content version is kept. A failed render is retried when the cover is first served.
-        if (decision is { Source: AutoCoverSource.Crop, CropSide: { } cropSide })
-            await _crops.EnsureAsync(nodeId, cropSide, rerender: false, ct);
+        if (decision is { Source: AutoCoverSource.Crop, CropSide: { } decidedSide })
+            await _crops.EnsureAsync(nodeId, decidedSide, rerender: false, ct);
         _logger?.LogDebug(LogEvents.Metadata.CoverDecided, "Cover decided (node {NodeId}): {Source} / {Reason}", nodeId, decision.Source, decision.Reason);
         return CoverDecisionOutcome.Decided;
     }
