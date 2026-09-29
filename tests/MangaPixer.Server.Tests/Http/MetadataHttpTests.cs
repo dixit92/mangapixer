@@ -220,7 +220,7 @@ public sealed class MetadataHttpTests : IClassFixture<MangaPixerWebApplicationFa
         Assert.True(settings!.ShowSeriesInfo);
         Assert.False(settings.FetchEnabled);
         Assert.Equal(5000, settings.DailyBudget);
-        Assert.Equal(2, settings.CurrentConsentVersion); // 1.28.0: the provider allowlist text
+        Assert.Equal(3, settings.CurrentConsentVersion); // 1.29.0: MangaDex joins the allowed sites (2 in 1.28.0: the allowlist text)
         Assert.Contains(settings.Libraries, l => l.LibraryId == LibPubId && !l.FetchEnabled && l.ShowSeriesInfo);
 
         var noConsent = await admin.PutAsJsonAsync("/api/v1/admin/metadata/settings", new UpdateMetadataSettingsRequest { FetchEnabled = true });
