@@ -53,8 +53,11 @@ public sealed class CoverLayerTestKit : IAsyncDisposable
     public FakeHasher Hasher { get; } = new();
     public FakeRenderer Renderer { get; } = new();
 
-    public CoverDecisionService Decisions() => new(Db.Db, new CoverCropService(Db.Db, Renderer, Files), new CoverDirectionResolver(Db.Db),
-        Hasher, Thumbnails, Posters, Files);
+    public CoverDecisionService Decisions() => Decisions(Renderer, Hasher);
+
+    /// <summary>The decisions over other worker seams (the process tests pass the real worker).</summary>
+    public CoverDecisionService Decisions(ICoverRenderer renderer, ICoverHasher hasher) =>
+        new(Db.Db, new CoverCropService(Db.Db, renderer, Files), new CoverDirectionResolver(Db.Db), hasher, Thumbnails, Posters, Files);
 
     public CoverResolutionService Resolutions() => new(Db.Db);
 

@@ -177,6 +177,12 @@ public sealed class CoverPickerService
     {
         var choice = await _db.NodeCoverChoices.AsNoTracking().FirstOrDefaultAsync(c => c.NodeId == node.Id, ct);
         var auto = await _db.NodeAutoCovers.AsNoTracking().FirstOrDefaultAsync(a => a.NodeId == node.Id, ct);
+        if ((auto is null || auto.Source == (int)AutoCoverSource.File) && node.Kind == (int)CatalogNodeKind.Folder
+            && (await FolderCovers.ResolveArchivesAsync(_db, [node.Id], ct)).TryGetValue(node.Id, out var coverArchive))
+        {
+            // A folder without its own automatic cover shows its cover archive's: report that one.
+            auto = await _db.NodeAutoCovers.AsNoTracking().FirstOrDefaultAsync(a => a.NodeId == coverArchive.Id, ct) ?? auto;
+        }
         var resolved = await _resolutions.ResolveOneAsync(node, ct);
         return new CoverStateDto
         {
