@@ -29,7 +29,7 @@ public sealed class CoverRendererTests : IDisposable
         var r = new Random(seed);
         MagickColor Color() => MagickColor.FromRgb((byte)r.Next(256), (byte)r.Next(256), (byte)r.Next(256));
         var image = new MagickImage(Color(), width, height);
-        var draw = new Drawables();
+        IDrawables<byte> draw = new Drawables();
         for (var i = 0; i < 6; i++)
         {
             var (x, y) = (r.Next(0, (int)width), r.Next(0, (int)height));

@@ -1,11 +1,13 @@
 namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
+using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
-/// A folder's cover is the cover of its first non-tombstoned descendant archive by SortKey - the
-/// same rule browse uses, shared with the metadata review list and the identify dialog (1.26.x).
+/// A folder's FILE cover is the cover of its first non-tombstoned descendant archive by SortKey (ordinal, then id) - the one
+/// rule, in two forms: <see cref="ResolveAsync"/> over the database (behind <c>ICoverResolver</c> for every card) and
+/// <see cref="FirstArchiveBelow"/> over the matcher's in-memory tree snapshot (the cover comparison compares file covers).
 /// </summary>
 internal static class FolderCovers
 {
@@ -56,6 +58,29 @@ internal static class FolderCovers
             if (!wasOpen) await connection.CloseAsync();
         }
         return result;
+    }
+
+    /// <summary>
+    /// The same rule over a <see cref="LibraryTreeSnapshot"/> (live nodes only): the archive with the ordinal-smallest SortKey
+    /// anywhere below <paramref name="folderId"/>, ties by id; null when the subtree holds no archive.
+    /// </summary>
+    public static long? FirstArchiveBelow(LibraryTreeSnapshot tree, long folderId)
+    {
+        ArgumentNullException.ThrowIfNull(tree);
+        LibraryTreeSnapshot.Node? best = null;
+        var stack = new Stack<long>([folderId]);
+        while (stack.Count > 0)
+        {
+            foreach (var child in tree.ChildrenOf(stack.Pop()))
+            {
+                if (child.IsFolder)
+                    stack.Push(child.Id);
+                else if (best is null || string.CompareOrdinal(child.SortKey, best.SortKey) < 0
+                    || (string.Equals(child.SortKey, best.SortKey, StringComparison.Ordinal) && child.Id < best.Id))
+                    best = child;
+            }
+        }
+        return best?.Id;
     }
 
     /// <summary>The cover URL of an archive (by public id).</summary>

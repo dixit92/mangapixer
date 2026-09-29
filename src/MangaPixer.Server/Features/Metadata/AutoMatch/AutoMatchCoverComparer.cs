@@ -154,24 +154,7 @@ public sealed class AutoMatchCoverComparer
 
     /// <summary>The cover archive of a work: the first live archive below the folder by sort key, or the anchor archive.</summary>
     public static long? CoverArchiveOf(LibraryTreeSnapshot tree, DetectedWork work)
-    {
-        if (work.Level == MatchLevel.Archive)
-            return work.AnchorNodeId;
-        LibraryTreeSnapshot.Node? best = null;
-        var stack = new Stack<long>([work.FolderId]);
-        while (stack.Count > 0)
-        {
-            foreach (var child in tree.ChildrenOf(stack.Pop()))
-            {
-                if (child.IsFolder)
-                    stack.Push(child.Id);
-                else if (best is null || string.CompareOrdinal(child.SortKey, best.SortKey) < 0
-                    || (string.Equals(child.SortKey, best.SortKey, StringComparison.Ordinal) && child.Id < best.Id))
-                    best = child;
-            }
-        }
-        return best?.Id;
-    }
+        => work.Level == MatchLevel.Archive ? work.AnchorNodeId : Catalog.FolderCovers.FirstArchiveBelow(tree, work.FolderId);
 
     /// <summary>
     /// Compares the local cover of <paramref name="coverArchiveId"/> with the covers of the tied candidates

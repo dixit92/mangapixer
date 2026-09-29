@@ -7,6 +7,7 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Metadata.Missing;
+using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -24,11 +25,13 @@ public sealed class MissingReportService
 
     private readonly MangaPixerDbContext _db;
     private readonly ILogger<MissingReportService> _logger;
+    private readonly ICoverResolver _covers;
 
-    public MissingReportService(MangaPixerDbContext db, ILogger<MissingReportService> logger)
+    public MissingReportService(MangaPixerDbContext db, ILogger<MissingReportService> logger, ICoverResolver? covers = null)
     {
         _db = db;
         _logger = logger;
+        _covers = covers ?? new FileCoverResolver(db);
     }
 
     private sealed record LinkedRow(
@@ -237,7 +240,7 @@ public sealed class MissingReportService
         var libraryIds = page.Select(p => p.Row.LibraryId).Distinct().ToList();
         var libraries = await _db.Libraries.AsNoTracking().Where(l => libraryIds.Contains(l.Id))
             .ToDictionaryAsync(l => l.Id, l => (l.PublicId, l.DisplayName), ct);
-        var covers = await Catalog.FolderCovers.ResolveAsync(_db, page.Select(p => p.Row.NodeId).ToList(), ct);
+        var covers = await _covers.ResolveUrlsAsync(page.Select(p => new CoverTarget(p.Row.NodeId, p.Row.PublicId, true)).ToList(), ct);
         return page.Select(p =>
         {
             var library = libraries.GetValueOrDefault(p.Row.LibraryId);
@@ -249,7 +252,7 @@ public sealed class MissingReportService
                 DisplayName = p.Row.DisplayName,
                 LibraryId = library.PublicId ?? string.Empty,
                 LibraryName = library.DisplayName ?? string.Empty,
-                CoverUrl = covers.TryGetValue(p.Row.NodeId, out var cover) ? Catalog.FolderCovers.ArchiveCoverUrl(cover) : null,
+                CoverUrl = covers.GetValueOrDefault(p.Row.NodeId),
                 Provider = p.Row.Provider,
                 RecordTitle = p.Row.Title,
                 LinkState = (SeriesLinkState)p.Row.State,

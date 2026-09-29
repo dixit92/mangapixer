@@ -7,6 +7,7 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Admin;
+using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Flags;
 using com.lifepixer.mangapixer.Server.Logging;
@@ -38,6 +39,7 @@ public sealed class MetadataReviewService
     private readonly MetadataCarryOverService _carryOver;
     private readonly AuditService _audit;
     private readonly ILogger<MetadataReviewService> _logger;
+    private readonly ICoverResolver _covers;
 
     public MetadataReviewService(
         MangaPixerDbContext db,
@@ -46,7 +48,8 @@ public sealed class MetadataReviewService
         MetadataAutoMatchService autoMatch,
         MetadataCarryOverService carryOver,
         AuditService audit,
-        ILogger<MetadataReviewService> logger)
+        ILogger<MetadataReviewService> logger,
+        ICoverResolver? covers = null)
     {
         _db = db;
         _links = links;
@@ -55,6 +58,7 @@ public sealed class MetadataReviewService
         _carryOver = carryOver;
         _audit = audit;
         _logger = logger;
+        _covers = covers ?? new FileCoverResolver(db);
     }
 
     // --- Summary ---
@@ -228,8 +232,10 @@ public sealed class MetadataReviewService
             : [];
         var trails = await TrailsAsync(nodes.Values.ToList(), ct);
         var archiveCounts = await ArchiveCountsAsync(nodes.Values.Where(n => n.Kind == (int)CatalogNodeKind.Folder).Select(n => n.Id).ToList(), ct);
-        var folderCovers = await Catalog.FolderCovers.ResolveAsync(_db,
-            nodes.Values.Where(n => n.Kind == (int)CatalogNodeKind.Folder).Select(n => n.Id).ToList(), ct);
+        // Folders, and archives that still exist (a tombstoned archive shows no cover).
+        var covers = await _covers.ResolveUrlsAsync(nodes.Values
+            .Where(n => n.Kind == (int)CatalogNodeKind.Folder || n.Availability != (int)CatalogNodeAvailability.Tombstoned)
+            .Select(n => new CoverTarget(n.Id, n.PublicId, n.Kind == (int)CatalogNodeKind.Folder)).ToList(), ct);
 
         var memberIds = queue.Values.SelectMany(q => Members(q)).Distinct().ToList();
         var memberPublic = await _db.CatalogNodes.AsNoTracking().Where(n => memberIds.Contains(n.Id))
@@ -247,9 +253,7 @@ public sealed class MetadataReviewService
             queue.TryGetValue(id, out var q);
             var members = q is null ? [] : Members(q);
             var library = libraries.GetValueOrDefault(node.LibraryId);
-            var coverUrl = node.Kind == (int)CatalogNodeKind.Folder
-                ? folderCovers.TryGetValue(node.Id, out var coverId) ? Catalog.FolderCovers.ArchiveCoverUrl(coverId) : null
-                : node.Availability != (int)CatalogNodeAvailability.Tombstoned ? Catalog.FolderCovers.ArchiveCoverUrl(node.PublicId) : null;
+            var coverUrl = covers.GetValueOrDefault(node.Id);
             items.Add(new MetadataReviewItemDto
             {
                 NodeId = node.PublicId,
