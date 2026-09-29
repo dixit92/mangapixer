@@ -10,6 +10,7 @@ import { MangaDexMatchDialogService } from './companion/mangadex-match-dialog.se
 import { MetadataApiService } from './metadata-api.service';
 import { MetadataStateService } from './metadata-state.service';
 import { SeriesAdminActionsComponent } from './series-admin-actions.component';
+import { CoverPickerDialogService } from '../../shared/cover-picker/cover-picker-dialog.service';
 import { seriesInfo } from './series-info.testing';
 
 @Component({
@@ -51,6 +52,7 @@ describe('SeriesAdminActionsComponent', () => {
     };
     const state = { announce: vi.fn(), refresh: vi.fn() };
     const mangaDex = { open: vi.fn(() => Promise.resolve(true)) };
+    const coverPicker = { open: vi.fn(() => Promise.resolve({ mode: 'FilePinned', imageUrl: '/api/v1/items/a1/cover?v=1' })) };
     TestBed.configureTestingModule({
       imports: [HostComponent],
       providers: [
@@ -59,6 +61,7 @@ describe('SeriesAdminActionsComponent', () => {
         { provide: IdentifyDialogService, useValue: dialog },
         { provide: MetadataStateService, useValue: state },
         { provide: MangaDexMatchDialogService, useValue: mangaDex },
+        { provide: CoverPickerDialogService, useValue: coverPicker },
       ],
     });
     const fixture = TestBed.createComponent(HostComponent);
@@ -66,7 +69,7 @@ describe('SeriesAdminActionsComponent', () => {
     fixture.detectChanges();
     (fixture.nativeElement.querySelector('[data-testid="series-admin-menu"]') as HTMLButtonElement).click();
     fixture.detectChanges();
-    return { fixture, api, dialog, state, mangaDex };
+    return { fixture, api, dialog, state, mangaDex, coverPicker };
   }
 
   const item = (sel: string) => document.querySelector(sel) as HTMLButtonElement | null;
@@ -85,6 +88,15 @@ describe('SeriesAdminActionsComponent', () => {
     expect(identify.disabled).toBe(false);
     identify.click();
     expect(dialog.open).toHaveBeenCalledWith('f1');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(fixture.componentInstance.changes).toBe(1);
+  });
+
+  it('opens the cover picker for the node (1.29.0) and reports a change', async () => {
+    const { fixture, coverPicker } = create(seriesInfo({ nodeId: 'f1', anchorNodeId: 'f1', anchorDisplayName: 'Series Folder' }));
+    item('[data-testid="choose-cover"]')!.click();
+    expect(coverPicker.open).toHaveBeenCalledWith('f1', 'Series Folder');
     await Promise.resolve();
     await Promise.resolve();
     expect(fixture.componentInstance.changes).toBe(1);

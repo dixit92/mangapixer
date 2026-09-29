@@ -146,11 +146,15 @@ public sealed class PageController : ControllerBase
         return await GetPageInternal(itemId, entryKey, "thumbnail", ct);
     }
 
+    /// <summary>
+    /// The archive's FILE cover (its durable page 1 thumbnail). <paramref name="v"/> is the content version the card URL
+    /// was built with (1.29.0): the current one caches for a year (<c>private</c>), any other or none revalidates.
+    /// </summary>
     [HttpGet("{itemId}/cover")]
-    public async Task<IActionResult> GetCover(string itemId, CancellationToken ct)
+    public async Task<IActionResult> GetCover(string itemId, CancellationToken ct, [FromQuery(Name = "v")] string? v = null)
     {
         // Cover = first page by ordinal (entry key resolved from PageEntries)
-        return await GetCoverInternal(itemId, ct);
+        return await GetCoverInternal(itemId, v, ct);
     }
 
     private async Task<IActionResult> GetPageInternal(
@@ -292,7 +296,7 @@ public sealed class PageController : ControllerBase
         };
     }
 
-    private async Task<IActionResult> GetCoverInternal(string itemId, CancellationToken ct)
+    private async Task<IActionResult> GetCoverInternal(string itemId, string? v, CancellationToken ct)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -319,16 +323,21 @@ public sealed class PageController : ControllerBase
         // Thumbnails are pre-generated at analysis time and persisted under
         // DataRoot/thumbnails — never the evictable page cache.
         _thumbnailStore.Initialize();
-        var thumbnailStream = _thumbnailStore.OpenRead(node.Id, archiveItem.ContentVersion);
-        if (thumbnailStream is not null)
+        if (_thumbnailStore.HasThumbnail(node.Id, archiveItem.ContentVersion))
         {
-            // Long-lived immutable cache headers keyed by content version: a
-            // changed source yields a new content version (and a new thumbnail
-            // file), so the old URL's bytes are safe to cache indefinitely.
-            Response.Headers.CacheControl = "public, max-age=31536000, immutable";
-            Response.Headers.ETag = $"\"thumb-{node.Id}-{archiveItem.ContentVersion}\"";
-            _logger.LogDebug(LogEvents.Worker.ThumbnailServedFromStore, "Cover served from durable thumbnail store (item {ItemId})", node.Id);
-            return File(thumbnailStream, "image/webp");
+            // 1.29.0 (owner Q14): private, and long-lived only for the URL of the CURRENT content version - a changed
+            // source yields a new version (and a new card URL); an old or missing version revalidates by ETag.
+            var current = string.Equals(v, archiveItem.ContentVersion.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+            if (Features.Covers.CoverCaching.Apply(Response, Request, $"thumb-{node.Id}-{archiveItem.ContentVersion}", current))
+                return StatusCode(StatusCodes.Status304NotModified);
+            var thumbnailStream = _thumbnailStore.OpenRead(node.Id, archiveItem.ContentVersion);
+            if (thumbnailStream is not null)
+            {
+                _logger.LogDebug(LogEvents.Worker.ThumbnailServedFromStore, "Cover served from durable thumbnail store (item {ItemId})", node.Id);
+                return File(thumbnailStream, "image/webp");
+            }
+            Response.Headers.Remove("Cache-Control");
+            Response.Headers.Remove("ETag");
         }
 
         // Thumbnail not generated yet (e.g., backfill not complete). Return a

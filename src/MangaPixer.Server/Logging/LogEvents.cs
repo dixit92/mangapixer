@@ -403,5 +403,13 @@ public static class LogEvents
         public const int VolumeCoverPass = 9304;
         public const int VolumeCoverWaiting = 9305;
         public const int VolumeCoversDeleted = 9306;
+
+        // Cover layer (1.29.0, 9380-9389). Node ids, counts, sources and codes only - never paths or names.
+        public const int CoverDecided = 9380;
+        public const int CoverDecisionFailed = 9381;
+        public const int CoverCropRendered = 9382;
+        public const int CoverCropFailed = 9383;
+        public const int CoverSweep = 9384;
+        public const int CoverChoiceChanged = 9385;
     }
 }

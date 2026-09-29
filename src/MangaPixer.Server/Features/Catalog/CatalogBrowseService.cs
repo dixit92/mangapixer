@@ -1520,7 +1520,7 @@ public sealed class CatalogBrowseService
     }
 
     /// <summary>
-    /// Sets each node's <c>CoverUrl</c> from the cover resolver (1.29.0 seam) for the given targets (matched to the DTOs
+    /// Sets each node's <c>CoverUrl</c> and <c>CoverSource</c> from the cover resolver (1.29.0 seam) for the given targets (matched to the DTOs
     /// by public id); nodes the resolver has no cover for keep theirs. One resolver call for the page.
     /// </summary>
     private async Task<List<CatalogNodeDto>> ApplyCoversAsync(List<CatalogNodeDto> nodes, IEnumerable<CoverTarget> targets, CancellationToken ct)
@@ -1528,14 +1528,14 @@ public sealed class CatalogBrowseService
         var list = targets.ToList();
         if (list.Count == 0)
             return nodes;
-        var urls = await _covers.ResolveUrlsAsync(list, ct);
-        var byPublicId = new Dictionary<string, string>(StringComparer.Ordinal);
+        var covers = await _covers.ResolveAsync(list, ct);
+        var byPublicId = new Dictionary<string, ResolvedCover>(StringComparer.Ordinal);
         foreach (var t in list)
-            if (urls.TryGetValue(t.NodeId, out var url))
-                byPublicId[t.PublicId] = url;
+            if (covers.TryGetValue(t.NodeId, out var cover))
+                byPublicId[t.PublicId] = cover;
         return byPublicId.Count == 0
             ? nodes
-            : nodes.Select(n => byPublicId.TryGetValue(n.Id, out var url) ? n with { CoverUrl = url } : n).ToList();
+            : nodes.Select(n => byPublicId.TryGetValue(n.Id, out var c) ? n with { CoverUrl = c.Url, CoverSource = c.Source } : n).ToList();
     }
 
     /// <summary>

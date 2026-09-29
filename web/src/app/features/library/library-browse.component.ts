@@ -23,6 +23,8 @@ import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.compon
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { SeriesInfoButtonComponent } from '../metadata/series-info-button.component';
 import { SeriesSelectionActionsComponent } from '../metadata/series-selection-actions.component';
+import { CoverSelectionActionComponent } from '../../shared/cover-picker/cover-selection-action.component';
+import { CoverStateService } from '../../shared/cover-picker/cover-state.service';
 import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
 
 /**
@@ -80,6 +82,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     SeriesInfoHoverDirective,
     SeriesInfoButtonComponent,
     SeriesSelectionActionsComponent,
+    CoverSelectionActionComponent,
   ],
   template: `
     <!-- Sticky top bar: breadcrumbs + Select normally; the merged action set while
@@ -326,6 +329,8 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               }
             </mat-menu>
             <app-series-selection-actions [nodes]="nodes()" [selected]="selected()" [disabled]="busy()" />
+            <!-- 1.29.0 cover layer: "Cover..." for exactly one selected item. -->
+            <app-cover-selection-action [nodes]="nodes()" [selected]="selected()" [disabled]="busy()" />
           }
         </div>
         <button mat-stroked-button class="done" (click)="toggleSelectMode()">
@@ -1019,6 +1024,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       .subscribe((c) => this.patchNode(c.nodeId, { isFavorite: c.favorite }));
     inject(MetadataStateService).changed$.pipe(takeUntilDestroyed())
       .subscribe((c) => this.patchNode(c.nodeId, { hasSeriesInfo: c.hasSeriesInfo }));
+    // 1.29.0: an admin's cover choice patches the card's (versioned) cover URL in place.
+    inject(CoverStateService).changed$.pipe(takeUntilDestroyed())
+      .subscribe((c) => this.patchNode(c.nodeId, { coverUrl: c.coverUrl, coverSource: c.coverSource }));
   }
 
   private patchNode(nodeId: string, patch: Partial<CatalogNodeDto>): void {

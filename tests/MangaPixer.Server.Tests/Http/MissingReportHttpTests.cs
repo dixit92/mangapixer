@@ -116,7 +116,7 @@ public sealed class MissingReportHttpTests : IClassFixture<MangaPixerWebApplicat
         Assert.Equal(MissingVerdict.Behind, behind.Verdict);
         Assert.Equal((3, 10, 7, MissingTotalSource.English), (behind.Volumes!.Have, behind.Volumes.Available, behind.Volumes.BehindBy, behind.Volumes.Source));
         Assert.Equal("Missing Http", behind.LibraryName);
-        Assert.Equal("/api/v1/items/mrBehinda0/cover", behind.CoverUrl);
+        Assert.Equal("/api/v1/items/mrBehinda0/cover?v=1", behind.CoverUrl);
 
         var missing = await OkAsync<MissingReportPageDto>(await admin.GetAsync($"/api/v1/admin/metadata/missing?library={LibPubId}&onlyMissing=true"));
         Assert.Equal("mrBehind", Assert.Single(missing.Items).NodeId);

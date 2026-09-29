@@ -226,7 +226,8 @@ public sealed class VolumeCoverAdminService
     {
         var rows = await _db.VolumeCovers.CountAsync(ct);
         await _db.NodeAutoCovers
-            .Where(a => a.Source == (int)AutoCoverSource.WebVolume || a.Source == (int)AutoCoverSource.WebMain)
+            .Where(a => a.VolumeCoverId != null
+                || a.Source == (int)AutoCoverSource.WebVolume || a.Source == (int)AutoCoverSource.WebMain)
             .ExecuteDeleteAsync(ct);
         await _db.NodeCoverChoices.Where(c => c.Mode == (int)CoverChoiceMode.VolumeCover).ExecuteDeleteAsync(ct);
         await _db.VolumeCovers.ExecuteDeleteAsync(ct);

@@ -34,6 +34,7 @@ public sealed class ThumbnailGenerationService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ThumbnailBackfillOptions _backfillOptions;
     private readonly ILogger<ThumbnailGenerationService>? _logger;
+    private readonly Features.Covers.CoverDecisionQueue? _coverDecisions;
 
     public ThumbnailGenerationService(
         MediaWorkerPool workerPool,
@@ -41,8 +42,10 @@ public sealed class ThumbnailGenerationService
         CacheService cache,
         IServiceScopeFactory scopeFactory,
         ThumbnailBackfillOptions? backfillOptions = null,
-        ILogger<ThumbnailGenerationService>? logger = null)
+        ILogger<ThumbnailGenerationService>? logger = null,
+        Features.Covers.CoverDecisionQueue? coverDecisions = null)
     {
+        _coverDecisions = coverDecisions;
         _workerPool = workerPool;
         _thumbnailStore = thumbnailStore;
         _cache = cache;
@@ -140,6 +143,9 @@ public sealed class ThumbnailGenerationService
             // Persist into the durable store.
             await _thumbnailStore.PublishAsync(nodeId, archiveItem.ContentVersion, outcome.OutputPath!, ct);
             await MarkThumbnailStateAsync(nodeId, 1, archiveItem.ContentVersion, ct);
+            // 1.29.0 cover layer: a new file cover (new archive or new content version) is decided right after - the local
+            // spread crop exists even in libraries that never go online.
+            _coverDecisions?.Enqueue(nodeId);
             _logger?.LogDebug(LogEvents.Worker.ThumbnailGenerated, "Thumbnail generated (item {ItemId}, content version {ContentVersion})", nodeId, archiveItem.ContentVersion);
             return true;
         }

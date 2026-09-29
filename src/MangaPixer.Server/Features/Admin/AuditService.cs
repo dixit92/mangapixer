@@ -226,6 +226,8 @@ public static class AuditActions
     // 1.29.0: the MangaDex companion chosen / refused / re-checked by an admin, and "Delete stored volume covers" (ids, counts).
     public const string MetadataCompanionChange = "metadata.companion.change";
     public const string MetadataVolumeCoversDelete = "metadata.volume_covers.delete";
+    // 1.29.0 cover layer: an admin's cover choice (node id only).
+    public const string CoverChoiceChange = "cover.choice.change";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>

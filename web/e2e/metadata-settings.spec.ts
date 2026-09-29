@@ -19,7 +19,7 @@ const SHOTS = process.env['E2E_SCREENSHOT_DIR'];
 
 test.describe.configure({ mode: 'serial' });
 
-interface Node { id: string; displayName: string; kind: string }
+interface Node { id: string; displayName: string; kind: string; hasSeriesInfo?: boolean }
 
 async function login(page: Page): Promise<void> {
   await page.goto('/login');
@@ -112,7 +112,9 @@ test('Identify is disabled with the reason, and the dialog shows the unavailable
   let target: { libraryId: string; folder: Node } | null = null;
   for (const lib of libs) {
     const root = await (await page.request.get(`/api/v1/libraries/${lib.id}/browse?pageSize=50`)).json();
-    const folder = (root.items as Node[]).find((n) => n.kind === 'Folder');
+    // A folder that shows the series (i): the menu and the dialog under test live there. (Any fixture library another spec
+    // registered earlier also holds folders without series information.)
+    const folder = (root.items as Node[]).find((n) => n.kind === 'Folder' && n.hasSeriesInfo);
     if (folder) { target = { libraryId: lib.id, folder }; break; }
   }
   test.skip(!target, 'No library with a folder to identify');

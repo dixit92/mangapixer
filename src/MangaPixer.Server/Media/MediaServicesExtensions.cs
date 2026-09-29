@@ -102,7 +102,8 @@ public static class MediaServicesExtensions
             var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
             var backfillOptions = sp.GetRequiredService<ThumbnailBackfillOptions>();
             return new ThumbnailGenerationService(pool, store, cache, scopeFactory, backfillOptions,
-                sp.GetService<ILogger<ThumbnailGenerationService>>());
+                sp.GetService<ILogger<ThumbnailGenerationService>>(),
+                sp.GetService<Features.Covers.CoverDecisionQueue>());
         });
 
         services.AddSingleton<MediaWorkerPool>(sp =>
