@@ -203,7 +203,15 @@ public static class VolumeGrouping
         {
             if (row.Kind == GroupingRowKind.Folder)
             {
-                entries.Add(new VolumeEntry { Kind = VolumeEntryKind.Folder, Rank = 1, VolumeKey = string.Empty, SortKey = row.SortKey, Id = row.Id, Row = row });
+                entries.Add(new VolumeEntry
+                {
+                    Kind = VolumeEntryKind.Folder,
+                    Rank = 1,
+                    VolumeKey = string.Empty,
+                    SortKey = row.SortKey,
+                    Id = row.Id,
+                    Row = row,
+                });
                 continue;
             }
             var units = UnitsOf(row);
@@ -267,7 +275,12 @@ public static class VolumeGrouping
                 {
                     entries.Add(new VolumeEntry
                     {
-                        Kind = VolumeEntryKind.Archive, Rank = 0, VolumeKey = SortableKey(volume), SortKey = m.Row.SortKey, Id = m.Row.Id, Row = m.Row,
+                        Kind = VolumeEntryKind.Archive,
+                        Rank = 0,
+                        VolumeKey = SortableKey(volume),
+                        SortKey = m.Row.SortKey,
+                        Id = m.Row.Id,
+                        Row = m.Row,
                     });
                 }
                 continue;
@@ -276,7 +289,12 @@ public static class VolumeGrouping
             var first = stack.Members.OrderBy(m => m.Row.SortKey, StringComparer.Ordinal).First().Row.SortKey;
             entries.Add(new VolumeEntry
             {
-                Kind = VolumeEntryKind.Stack, Rank = 0, VolumeKey = SortableKey(volume), SortKey = first, Id = "vs:" + stack.Key, Stack = stack,
+                Kind = VolumeEntryKind.Stack,
+                Rank = 0,
+                VolumeKey = SortableKey(volume),
+                SortKey = first,
+                Id = "vs:" + stack.Key,
+                Stack = stack,
             });
             stackCount++;
         }
