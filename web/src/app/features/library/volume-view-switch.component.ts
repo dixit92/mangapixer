@@ -14,11 +14,11 @@ import { MatIconModule } from '@angular/material/icon';
   template: `
     <div class="switch" role="group" aria-label="Series view" data-testid="volume-view-switch">
       <button type="button" [class.on]="active()" [attr.aria-pressed]="active()" (click)="pick(true)" data-testid="view-volumes"
-              title="Group chapters into volumes">
+              [disabled]="disabled()" [title]="disabled() ? disabledHint() : 'Group chapters into volumes'">
         <mat-icon>collections_bookmark</mat-icon><span class="lbl">Volumes</span>
       </button>
       <button type="button" [class.on]="!active()" [attr.aria-pressed]="!active()" (click)="pick(false)" data-testid="view-folders"
-              title="Show the real folders">
+              [disabled]="disabled()" [title]="disabled() ? disabledHint() : 'Show the real folders'">
         <mat-icon>folder</mat-icon><span class="lbl">Folders</span>
       </button>
     </div>
@@ -32,6 +32,7 @@ import { MatIconModule } from '@angular/material/icon';
     }
     button + button { border-left: 1px solid rgba(255, 255, 255, 0.18); }
     button.on { background: rgba(124, 77, 255, 0.22); color: #d4c7ff; }
+    button:disabled { cursor: default; opacity: 0.55; }
     button:focus-visible { outline: 2px solid #b39dff; outline-offset: -2px; }
     mat-icon { font-size: 18px; width: 18px; height: 18px; }
     @media (max-width: 599.98px) { .lbl { display: none; } button { padding: 6px 8px; } }
@@ -40,6 +41,10 @@ import { MatIconModule } from '@angular/material/icon';
 export class VolumeViewSwitchComponent {
   /** True while the Volumes view is shown. */
   readonly active = input.required<boolean>();
+
+  /** The Volumes view needs the Name sort and no read-state / favourites filter: the switch is inert otherwise. */
+  readonly disabled = input(false);
+  readonly disabledHint = input('');
 
   /** The chosen view: true = Volumes, false = Folders. */
   readonly changed = output<boolean>();

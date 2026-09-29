@@ -178,7 +178,7 @@ export class VolumeStackViewComponent implements OnInit {
     } else if (whole > 0) {
       parts.push(`${hasVolumeFile ? '+ ' : ''}${whole} chapter${whole === 1 ? '' : 's'}`);
     }
-    let text = parts.join(' ').replace('Volume file + ', 'Volume file + ');
+    let text = parts.join(' ');
     if (s.extraCount > 0) text += ` - ${s.extraCount} extra${s.extraCount === 1 ? '' : 's'}`;
     return text;
   });

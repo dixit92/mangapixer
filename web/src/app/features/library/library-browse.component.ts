@@ -23,7 +23,11 @@ import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.compon
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { SeriesInfoButtonComponent } from '../metadata/series-info-button.component';
 import { SeriesSelectionActionsComponent } from '../metadata/series-selection-actions.component';
-import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
+import { StackCardComponent } from '../../shared/stack-card/stack-card.component';
+import { VolumeIncompleteBadgeComponent } from '../../shared/volume-stack/volume-incomplete-badge.component';
+import { VolumeViewSwitchComponent } from './volume-view-switch.component';
+import { FolderViewActionComponent } from './folder-view-action.component';
+import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
 
 /**
  * Library browse component. Shows the actual folder/archive tree with keyset
@@ -80,6 +84,10 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
     SeriesInfoHoverDirective,
     SeriesInfoButtonComponent,
     SeriesSelectionActionsComponent,
+    StackCardComponent,
+    VolumeIncompleteBadgeComponent,
+    VolumeViewSwitchComponent,
+    FolderViewActionComponent,
   ],
   template: `
     <!-- Sticky top bar: breadcrumbs + Select normally; the merged action set while
@@ -145,6 +153,13 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
         <!-- Series info for the folder being viewed (1.24.0): its own component. -->
         @if (parentId(); as folderId) {
           <app-series-info-button [nodeId]="folderId" />
+        }
+        <!-- Volumes | Folders (1.29.0): only where the folder has a Volumes view; the choice is the per-user
+             series view preference. Inert while another sort or a filter makes the list flat. -->
+        @if (volumeView()?.available) {
+          <app-volume-view-switch [active]="volumesActive()" [disabled]="volumesSuspended()"
+                                  [disabledHint]="'The Volumes view needs the Name sort and no read-state or favorites filter'"
+                                  (changed)="setSeriesView($event)" />
         }
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
                 matTooltip="Change how the library is displayed" aria-label="View options">
@@ -326,6 +341,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
               }
             </mat-menu>
             <app-series-selection-actions [nodes]="nodes()" [selected]="selected()" [disabled]="busy()" />
+            <app-folder-view-action [nodes]="nodes()" [selected]="selected()" [disabled]="busy()" (saved)="onFolderViewSaved()" />
           }
         </div>
         <button mat-stroked-button class="done" (click)="toggleSelectMode()">
@@ -405,7 +421,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
         </span>
       }
 
-      @if (selectMode()) {
+      @if (selectMode() && node.kind !== 'VolumeStack') {
         <span class="check" [class.on]="isSelected(node)">
           <mat-icon>{{ isSelected(node) ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
         </span>
@@ -423,7 +439,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                body still opens the item (selectMode still gates that). Selecting the
                first item this way turns select mode on so the bulk-action bar
                appears; card view keeps its existing selectMode-only overlay. -->
-          @if (viewMode() === 'list') {
+          @if (viewMode() === 'list' && node.kind !== 'VolumeStack') {
             <button type="button" class="row-select" role="checkbox"
                     [attr.aria-checked]="isSelected(node)"
                     [attr.aria-label]="(isSelected(node) ? 'Deselect ' : 'Select ') + node.displayName"
@@ -439,11 +455,25 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
              (pointerleave)="onCardPointerCancel()">
             <!-- Series information on hover (1.27.0): the cover, the title and the (i) are
                  hover zones of the item that shows the (i); the popover sits beside the card. -->
+            @if (node.kind === 'VolumeStack' && viewMode() !== 'list' && node.volumeStack; as stack) {
+              <!-- Virtual volume stack (1.29.0): the shared stacked-paper card; the incomplete mark sits top-left. -->
+              <app-stack-card [stacked]="true">
+                @if (node.coverUrl) {
+                  <img appCover [src]="node.coverUrl" alt="" loading="lazy">
+                }
+                <mat-icon class="cover-fallback">collections_bookmark</mat-icon>
+                <app-volume-incomplete-badge [summary]="stack" />
+                <ng-container *ngTemplateOutlet="markers; context: { $implicit: node }" />
+              </app-stack-card>
+            } @else {
             <div class="cover" [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">
               @if (node.coverUrl) {
                 <img appCover [src]="node.coverUrl" alt="" loading="lazy">
               }
-              <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
+              <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : node.kind === 'VolumeStack' ? 'collections_bookmark' : 'menu_book' }}</mat-icon>
+              @if (node.volumeStack; as stack) {
+                <app-volume-incomplete-badge [summary]="stack" />
+              }
 
               <!-- Favorite star (1.21.0): an overlay toggle in the cover corner of a
                    CARD. List rows put it in the trailing row-markers group instead
@@ -451,7 +481,7 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                    component styles keep this out of the near-budget inline CSS below. -->
               <!-- Neither is shown in select mode (a tap selects there; the select check takes
                    the top-left corner). The star sits bottom-right on every card surface (1.28.0). -->
-              @if (viewMode() !== 'list' && !selectMode()) {
+              @if (viewMode() !== 'list' && !selectMode() && node.kind !== 'VolumeStack') {
                 <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
                 <!-- Series info (1.24.0): cover bottom-left; shows itself only for the node's OWN info. -->
                 <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
@@ -473,11 +503,13 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                 </div>
               }
             </div>
+            }
             <div class="node-text">
               <div class="node-title" [title]="node.displayName"
                    [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">{{ node.displayName }}</div>
               <div class="node-sub">
-                @if (node.pageCount !== null) { {{ node.pageCount }} pages }
+                @if (node.kind === 'VolumeStack') { {{ stackSubtitle(node) }} }
+                @else if (node.pageCount !== null) { {{ node.pageCount }} pages }
                 @else if (node.kind === 'Folder' && node.childArchiveCount !== null) { {{ node.childArchiveCount }} items }
                 @if (node.availability !== 'Available') { · {{ node.availability }} }
               </div>
@@ -487,8 +519,10 @@ import { CatalogNodeDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridD
                  The favorite star leads the group (1.22.2) at its full touch size. -->
             @if (viewMode() === 'list') {
               <div class="row-markers">
-                <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" />
-                @if (!selectMode()) {
+                @if (node.kind !== 'VolumeStack') {
+                  <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" />
+                }
+                @if (!selectMode() && node.kind !== 'VolumeStack') {
                   <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [compact]="true"
                                    [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl" />
                 }
@@ -871,6 +905,22 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       ? (this.hideEmptyFolders() || this.favoritesOnly() ? 'Filtered' : 'Filter')
       : this.readStateOptions.find((o) => o.value === this.readStateFilter())?.label ?? 'Filter');
 
+  /**
+   * Volumes view (1.29.0): whether this folder has one (`available`) and whether it is on for the viewer (`active`), read
+   * from `GET /nodes/{id}/volume-view`. Null until known and at the library root (only folders group).
+   */
+  readonly volumeView = signal<VolumeViewDto | null>(null);
+  /**
+   * The viewer's own Volumes | Folders choice (the per-user `seriesViewMode` preference); null = follow the folder,
+   * library and global default the server resolves. Sent with every browse as `group`, so a change applies at once.
+   */
+  readonly seriesView = signal<SeriesViewMode | null>(null);
+  readonly volumesActive = computed(() =>
+    this.seriesView() !== null ? this.seriesView() === 'Volumes' : (this.volumeView()?.active ?? true));
+  /** The list is flat whatever the switch says: only the Name sort without a read-state or favorites filter groups. */
+  readonly volumesSuspended = computed(() =>
+    this.sort() !== 'name' || this.readStateFilter() !== 'all' || this.favoritesOnly());
+
   /** Measured height of the sticky top bar: the jump rail's sticky offset. */
   readonly barHeight = signal(0);
   private readonly browseBar = viewChild<ElementRef<HTMLElement>>('browseBar');
@@ -1112,6 +1162,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     this.cardSize.set(this.resolveCardSize(p));
     this.pageSize.set(this.resolvePageSize(p));
     this.listColumns.set(this.resolveListColumns(p));
+    this.seriesView.set(p.seriesViewMode === 'Volumes' || p.seriesViewMode === 'Folders' ? p.seriesViewMode : null);
   }
 
   /** Stored listColumns when it is a sane integer in range, else the default (2). */
@@ -1179,9 +1230,11 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       if (parentId) {
         this.loadBreadcrumbs(parentId);
         this.loadCurrentFolder(parentId);
+        this.loadVolumeView(parentId);
       } else {
         this.breadcrumbs.set([]);
         this.currentFolderName.set('');
+        this.volumeView.set(null);
       }
     });
   }
@@ -1483,6 +1536,10 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   getNodeLink(node: CatalogNodeDto): string[] {
+    if (node.kind === 'VolumeStack' && node.volumeStack) {
+      // A stack is not a stored node: it opens its own view inside the (real) folder it is listed under.
+      return ['/libraries', this.libraryId(), 'browse', node.parentId, 'volume', node.volumeStack.key];
+    }
     if (node.kind === 'Folder') {
       return ['/libraries', this.libraryId(), 'browse', node.id];
     }
@@ -1497,6 +1554,51 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       case 'VerticalWebtoon': return 'Vertical';
       default: return 'Spread';
     }
+  }
+
+  // --- Volumes view (1.29.0) ---
+
+  /** The card subtitle of a stack: "10 chapters", "Volume + 4 chapters", "8 of 10 chapters". */
+  stackSubtitle(node: CatalogNodeDto): string {
+    const s = node.volumeStack;
+    if (!s) return '';
+    const chapters = s.presentCount - (s.hasVolumeArchive ? 1 : 0);
+    if (s.hasVolumeArchive) return chapters > 0 ? `Volume + ${chapters} chapter${chapters === 1 ? '' : 's'}` : 'Volume';
+    const whole = chapters - s.extraCount;
+    if (s.chapterCount != null && s.missingCount > 0) return `${whole} of ${s.chapterCount} chapters`;
+    return `${chapters} chapter${chapters === 1 ? '' : 's'}`;
+  }
+
+  /** Reads the folder's Volumes view state (drives the switch); a failure hides the switch. */
+  private loadVolumeView(nodeId: string): void {
+    this.volumeView.set(null);
+    this.api.getVolumeView(nodeId).subscribe({
+      next: (v) => { if (this.parentId() === nodeId) this.volumeView.set(v); },
+      error: () => this.volumeView.set(null),
+    });
+  }
+
+  /** The `group` browse parameter of the viewer's explicit choice; null lets the server follow the defaults. */
+  private groupParam(): 'volumes' | 'flat' | null {
+    const view = this.seriesView();
+    return view === 'Volumes' ? 'volumes' : view === 'Folders' ? 'flat' : null;
+  }
+
+  /** The Volumes | Folders switch: remember the choice for this user and reload the list from the top. */
+  setSeriesView(volumes: boolean): void {
+    this.seriesView.set(volumes ? 'Volumes' : 'Folders');
+    this.persistView();
+    this.resetList();
+    this.loadNodes();
+    this.scrollToTop('auto');
+  }
+
+  /** An admin changed this folder's Volumes view default (the selection bar "View..." dialog). */
+  onFolderViewSaved(): void {
+    const id = this.parentId();
+    if (id) this.loadVolumeView(id);
+    this.resetList();
+    this.loadNodes();
   }
 
   // --- View mode (1.2.0, per-user persisted) ---
@@ -1612,6 +1714,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       libraryPageSize: this.pageSize(),
       homeRecentWindowDays: this.storedHomeRecentWindowDays,
       listColumns: this.listColumns(),
+      seriesViewMode: this.seriesView(),
     }).subscribe({ error: () => { /* non-fatal: the choice still applies this session */ } });
   }
 
@@ -1650,6 +1753,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     if (!this.selectMode()) return;
     event.preventDefault();
     event.stopPropagation();
+    // A volume stack is not a stored node: it cannot be selected (open it to select its chapters).
+    if (node.kind === 'VolumeStack') return;
 
     const index = this.nodes().findIndex((n) => n.id === node.id);
     if (index === -1) return;
@@ -1671,6 +1776,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   onRowSelectClick(event: Event, node: CatalogNodeDto): void {
     event.preventDefault();
     event.stopPropagation();
+    if (node.kind === 'VolumeStack') return;
     const index = this.nodes().findIndex((n) => n.id === node.id);
     if (index === -1) return;
     if (!this.selectMode()) this.selectMode.set(true);
@@ -1692,7 +1798,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private selectRange(fromIndex: number, toIndex: number): void {
     const lo = Math.min(fromIndex, toIndex);
     const hi = Math.max(fromIndex, toIndex);
-    const rangeIds = this.nodes().slice(lo, hi + 1).map((n) => n.id);
+    const rangeIds = this.nodes().slice(lo, hi + 1).filter((n) => n.kind !== 'VolumeStack').map((n) => n.id);
     this.selected.update((set) => new Set([...set, ...rangeIds]));
     this.anchorIndex.set(toIndex);
   }
@@ -1735,6 +1841,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * touch release right after this.
    */
   private onLongPress(node: CatalogNodeDto): void {
+    if (node.kind === 'VolumeStack') return;
     this.longPressTriggered = true;
     const index = this.nodes().findIndex((n) => n.id === node.id);
     if (index === -1) return;
@@ -1784,20 +1891,20 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
 
   /** Select every currently-listed node (respects the active sort/filter, not just the loaded page). */
   selectAll(): void {
-    this.selected.set(new Set(this.nodes().map((n) => n.id)));
+    this.selected.set(new Set(this.nodes().filter((n) => n.kind !== 'VolumeStack').map((n) => n.id)));
     const count = this.nodes().length;
     this.anchorIndex.set(count > 0 ? count - 1 : null);
   }
 
   /** Select every currently-listed node that is not yet marked read. */
   selectAllUnread(): void {
-    this.selected.set(new Set(this.nodes().filter((n) => !n.isRead).map((n) => n.id)));
+    this.selected.set(new Set(this.nodes().filter((n) => n.kind !== 'VolumeStack' && !n.isRead).map((n) => n.id)));
     this.anchorIndex.set(null);
   }
 
   /** Select every currently-listed node that is marked read. */
   selectAllRead(): void {
-    this.selected.set(new Set(this.nodes().filter((n) => n.isRead).map((n) => n.id)));
+    this.selected.set(new Set(this.nodes().filter((n) => n.kind !== 'VolumeStack' && n.isRead).map((n) => n.id)));
     this.anchorIndex.set(null);
   }
 
@@ -1914,7 +2021,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const initial = this.cursor === null;
     const gen = ++this.loadGen;
     this.loadingMore.set(true);
-    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), null, this.favoritesOnly()).subscribe({
+    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), null, this.favoritesOnly(), this.groupParam()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         if (gen !== this.loadGen) return;
         this.nodes.update((current) => isAppend ? [...current, ...response.items] : [...response.items]);
@@ -1951,7 +2058,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const container = this.scrollParent();
     const prevHeight = this.scrollHeightOf(container);
     this.loadingPrevious.set(true);
-    this.api.browseLibrary(libId, this.parentId(), null, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), before, this.favoritesOnly()).subscribe({
+    this.api.browseLibrary(libId, this.parentId(), null, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), before, this.favoritesOnly(), this.groupParam()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         if (gen !== this.loadGen) { this.loadingPrevious.set(false); return; }
         if (response.items.length > 0) {
