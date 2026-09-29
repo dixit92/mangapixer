@@ -372,7 +372,13 @@
          iPhone/iPad add-to-home-screen hint; analytics totals caption; a real OpenAPI drift check.
          Worker protocol unchanged (2). Bugfixes ship as 1.23.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <MangaPixerVersionMinor>28</MangaPixerVersionMinor>
+    <!-- 1.29.0 - MINOR over 1.28.0 ("Virtual Volumes and MangaDex" cycle, 2026-09-29). Volumes view: chapters grouped into
+         virtual volume stacks from file names, ComicInfo or a stored volume list, with the series status line, missing-volume
+         cards and "missing" counted against what is released in the preferred language; volume covers and volume lists from
+         MangaDex (a companion of the MangaUpdates link; AniList totals as the automatic fallback), Choose cover, spread crop,
+         versioned private cover URLs. Migrations AddVolumeCoversAndVirtualVolumes + AddVolumeMapReleases; both metadata consents
+         v3. Worker protocol 5 (cover_render). Bugfixes ship as 1.29.x. -->
+    <MangaPixerVersionMinor>29</MangaPixerVersionMinor>
     <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 

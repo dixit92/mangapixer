@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-09-29
+
 ### Added
 
 - **Volumes view.** A series' chapters group into **volume stacks** ("Volume 3 - 10 chapters"), ordered by volume instead of by file name, using the volume in the file names (`Title v03 c012`), ComicInfo, or a series' stored volume list; boundaries that had to be estimated show as "~ Volume 12". A stack with missing chapters wears an amber mark ("8/9") and, inside, a dashed placeholder where each missing chapter belongs; extras such as chapter 45.5 are never missing. A series' `Volumes` and `Chapters` subfolders merge into one list; `Season N` / `Part N` stay folders. A **Volumes | Folders** switch in the series header shows the real folders (remembered per person); admins can set it per folder (**View...**), per library and globally. Works without any network access.
