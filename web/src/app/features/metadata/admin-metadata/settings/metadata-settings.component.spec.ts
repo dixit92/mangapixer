@@ -93,6 +93,8 @@ describe('MetadataSettingsComponent', () => {
   it('volume covers: the switch and the preferred language are ONE settings PUT each; the MangaDex credit shows', () => {
     const { c, q } = create(settings({ volumeCoversEnabled: true, preferredCoverLanguage: 'en' }));
     expect(q('[data-testid="md-mangadex-credit"]')!.textContent).toContain('MangaDex (mangadex.org)');
+    expect(q('[data-testid="md-volume-covers"]')!.textContent).toContain('Preferred language (covers and releases)');
+    expect(q('[data-testid="md-language-note"]')!.textContent).toContain('count as released');
     c.setVolumeCovers(false);
     const off = http.expectOne({ method: 'PUT', url: SETTINGS });
     expect(off.request.body).toEqual({ volumeCoversEnabled: false });

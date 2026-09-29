@@ -131,7 +131,10 @@ public sealed class VolumePassHarness : IDisposable
 
     public VolumeCoverPass Pass(IDictionary<string, string?>? config = null) => new(
         Db.Db, Auto.Service(), config is null ? Auto.Net.Settings() : Settings(config), Companions(), Maps(), Fetcher(),
-        new NullHasher(), Thumbnails, new CoverHashCache(), PassState, Time, Log<VolumeCoverPass>());
+        new NullHasher(), Thumbnails, new CoverHashCache(), PassState, Time, Log<VolumeCoverPass>(), Decisions);
+
+    /// <summary>The cover layer's queue: the pass asks it for a sweep after storing covers.</summary>
+    public com.lifepixer.mangapixer.Server.Features.Covers.CoverDecisionQueue Decisions { get; } = new();
 
     private MetadataSettingsService Settings(IDictionary<string, string?> config) => new(
         Db.Db, new AuditService(Db.Db), new ConfigurationBuilder().AddInMemoryCollection(config).Build(), Time,
@@ -220,13 +223,15 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
 
         Assert.Null(result.WaitingCode);
         var sent = _h.MangaDexRequests();
-        // search + one cover page (99 covers) + aggregate + two images (volumes 1 and 2).
-        Assert.Equal(5, sent.Count);
-        Assert.Equal(5, result.Requests);
+        // search + one cover page (99 covers) + aggregate + aggregate in the preferred language + two images (volumes 1 and 2).
+        Assert.Equal(6, sent.Count);
+        Assert.Equal(6, result.Requests);
         Assert.Equal("/manga", sent[0].AbsolutePath);
         Assert.StartsWith("?title=Berserk&", Uri.UnescapeDataString(sent[0].Query), StringComparison.Ordinal);
         Assert.DoesNotContain(sent, u => Uri.UnescapeDataString(u.ToString()).Contains("Synthetic", StringComparison.Ordinal)); // no folder or file name
         Assert.Contains(sent, u => u.AbsolutePath == $"/manga/{MdFixtures.BerserkId}/aggregate" && u.Query == "?includeUnavailable=1");
+        Assert.Contains(sent, u => u.AbsolutePath == $"/manga/{MdFixtures.BerserkId}/aggregate"
+            && Uri.UnescapeDataString(u.Query) == "?includeUnavailable=1&translatedLanguage[]=en");
         var covers = sent.Single(u => u.AbsolutePath == "/cover");
         Assert.Contains("locales[]=en&locales[]=ja", Uri.UnescapeDataString(covers.Query), StringComparison.Ordinal);
         Assert.All(sent.Where(u => u.Host == MetadataHttp.MangaDexImageHost), u =>
@@ -248,6 +253,12 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
         Assert.Equal(((int)VolumeMapSource.MangaDexAggregate, (int)VolumeMapState.Ok, 1), (map.Source, map.State, map.Version));
         Assert.Equal(43, map.KnownVolumeCount); // the highest /cover volume
         Assert.True(VolumeMapJson.Read(map.VolumesJson).Count >= 40);
+        // Released in the preferred language (English): canonical chapter numbers, ascending.
+        Assert.Equal("en", map.ReleasedLanguage);
+        var released = VolumeMapJson.ReadChapters(map.ReleasedChaptersJson).Select(c => VolumeMapJson.Parse(c)!.Value).ToList();
+        Assert.True(released.Count > 300);
+        Assert.Equal(released.Order(), released);
+        Assert.Contains(1m, released);
 
         // Preferred English is missing for Berserk: the Japanese covers of volumes 1 and 2 are stored.
         var stored = await _t.Db.VolumeCovers.Where(c => c.State == (int)VolumeCoverState.Stored).OrderBy(c => c.Volume).ToListAsync();
@@ -256,6 +267,8 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
         Assert.All(stored, c => Assert.NotNull(c.Hash));
         Assert.All(stored, c => Assert.True(File.Exists(_h.Store.PathFor(c.PublicId, c.StoredVersion))));
         Assert.True(await _t.Db.VolumeCovers.AnyAsync(c => c.Kind == (int)VolumeCoverKind.Main && c.RemoteId.StartsWith("main:")));
+        // A series with volume 1 covers never downloads its main cover.
+        Assert.False(await _t.Db.VolumeCovers.AnyAsync(c => c.Kind == (int)VolumeCoverKind.Main && c.State == (int)VolumeCoverState.Stored));
 
         // The worker got a SCRATCH file (deleted afterwards) and wrote into the data root's cover store.
         Assert.Equal(2, _h.Renderer.Requests.Count);
@@ -298,7 +311,8 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
         await _h.TickAsync();
 
         var sent = _h.MangaDexRequests();
-        Assert.Equal(["/manga/" + MdFixtures.BerserkId, "/cover", $"/manga/{MdFixtures.BerserkId}/aggregate"], sent.Select(u => u.AbsolutePath));
+        Assert.Equal(["/manga/" + MdFixtures.BerserkId, "/cover", $"/manga/{MdFixtures.BerserkId}/aggregate", $"/manga/{MdFixtures.BerserkId}/aggregate"],
+            sent.Select(u => u.AbsolutePath));
         Assert.Equal(firstVersion, (await _t.Db.SeriesVolumeMaps.SingleAsync()).Version); // unchanged answer: no new version
     }
 
@@ -338,6 +352,66 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
         Assert.Equal(((int)VolumeMapState.Ok, 20.0, 20), (ratio.State, ratio.ChaptersPerVolume!.Value, ratio.KnownVolumeCount!.Value));
         // The Missing report reads the same stored AniList row.
         Assert.True(await _t.Db.MetadataRecords.AnyAsync(r => r.Provider == "anilist" && r.ExternalId == "85143"));
+    }
+
+    [Fact]
+    public async Task NoVolume1Cover_DownloadsTheMainCover_Once()
+    {
+        await _h.Auto.EnableAutomaticAsync();
+        await SeriesAsync(MdFixtures.MuTowerOfGod, "Tower of God", null, "Synthetic Shelf c001.cbz");
+
+        await _h.TickAsync();
+
+        var images = _h.Handler.Seen.Where(s => s.Uri.Host == MetadataHttp.MangaDexImageHost).ToList();
+        var image = Assert.Single(images);
+        Assert.StartsWith($"/covers/{MdFixtures.TowerOfGodId}/", image.Uri.AbsolutePath, StringComparison.Ordinal);
+        var main = await _t.Db.VolumeCovers.SingleAsync(c => c.Kind == (int)VolumeCoverKind.Main);
+        Assert.Equal((int)VolumeCoverState.Stored, main.State);
+        Assert.True(File.Exists(_h.Store.PathFor(main.PublicId, main.StoredVersion)));
+        Assert.Equal(CoverRenderSources.Image, Assert.Single(_h.Renderer.Requests).Source);
+
+        _h.ResetRequests(failOnAnyRequest: true);
+        _h.Time.Advance(TimeSpan.FromDays(1));
+        await _h.TickAsync();
+        Assert.Equal(0, _h.Handler.CallCount); // stored: not fetched again
+    }
+
+    [Fact]
+    public async Task StoredCovers_AskTheCoverLayerForASweep_NoCoversNoSweep()
+    {
+        await _h.Auto.EnableAutomaticAsync();
+        await SeriesAsync(MdFixtures.MuBerserk, "Berserk", 43, "Synthetic Shelf v01.cbz");
+        await _h.TickAsync();
+        Assert.True(_h.Decisions.TakeSweepRequest());
+
+        _h.Time.Advance(TimeSpan.FromDays(1));
+        await _h.TickAsync(); // nothing new stored
+        Assert.False(_h.Decisions.TakeSweepRequest());
+    }
+
+    [Fact]
+    public async Task ANewPreferredLanguage_ReadsTheReleasedChaptersForIt_AndBumpsTheVersion()
+    {
+        await _h.Auto.EnableAutomaticAsync();
+        var (_, record) = await SeriesAsync(MdFixtures.MuBerserk, "Berserk", 43, "Synthetic Shelf v01.cbz");
+        await _h.TickAsync();
+        var before = await _t.Db.SeriesVolumeMaps.AsNoTracking().SingleAsync(m => m.RecordId == record.Id);
+        Assert.Equal("en", before.ReleasedLanguage);
+
+        // As the settings hook does: a new preferred language makes every MangaDex list due.
+        var row = await _t.Db.AppSettings.FirstAsync();
+        row.MetadataCoverLanguage = "fr";
+        await _t.Db.SaveChangesAsync();
+        await _t.Db.SeriesVolumeMaps.ExecuteUpdateAsync(s => s.SetProperty(m => m.NextCheckAt, (DateTimeOffset?)null));
+        _h.ResetRequests();
+
+        await _h.TickAsync();
+
+        Assert.Contains(_h.MangaDexRequests(), u => Uri.UnescapeDataString(u.Query) == "?includeUnavailable=1&translatedLanguage[]=fr");
+        var after = await _t.Db.SeriesVolumeMaps.AsNoTracking().SingleAsync(m => m.RecordId == record.Id);
+        Assert.Equal(("fr", "[]"), (after.ReleasedLanguage, after.ReleasedChaptersJson)); // nothing recorded as released in French
+        Assert.Equal(before.Version + 1, after.Version);
+        Assert.Equal(before.VolumesJson, after.VolumesJson);
     }
 
     [Fact]

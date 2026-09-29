@@ -150,7 +150,7 @@ public sealed class VolumeCoversHttpTests
 
         await Worker(factory).RunVolumeCoversAsync(CancellationToken.None);
 
-        Assert.Equal(4, MangaDexCalls(factory)); // search, cover list, aggregate, the volume 1 image
+        Assert.Equal(5, MangaDexCalls(factory)); // search, cover list, aggregate, aggregate in the preferred language, the volume 1 image
         Assert.DoesNotContain(factory.Handler.Seen, s => Uri.UnescapeDataString(s.Uri.ToString()).Contains(Sentinel, StringComparison.Ordinal));
         var status = await OkAsync<CoverPassStatusDto>(await admin.GetAsync("/api/v1/admin/metadata/volume-covers/status"));
         Assert.Equal((0, 1, (string?)null), (status.SeriesPending, status.CoversStored, status.Waiting));
@@ -170,6 +170,25 @@ public sealed class VolumeCoversHttpTests
             Assert.False(rendered.Contains("Berserk", StringComparison.OrdinalIgnoreCase), "A title leaked into a log line: " + e.MessageTemplate.Text);
             Assert.False(rendered.Contains("uploads.mangadex", StringComparison.OrdinalIgnoreCase), "An image address leaked into a log line: " + e.MessageTemplate.Text);
         }
+    }
+
+    [Fact]
+    public async Task ChangingThePreferredLanguage_ReadsTheReleasedChaptersAgain_ForThatLanguage()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(configureServices: s => Services(s, new FakeCoverRenderer()));
+        var admin = await StartAsync(factory);
+        await Worker(factory).RunVolumeCoversAsync(CancellationToken.None);
+        Assert.Contains(factory.Handler.Seen, s => Uri.UnescapeDataString(s.Uri.Query) == "?includeUnavailable=1&translatedLanguage[]=en");
+
+        var saved = await OkAsync<MetadataSettingsDto>(await admin.PutAsJsonAsync("/api/v1/admin/metadata/settings",
+            new UpdateMetadataSettingsRequest { PreferredCoverLanguage = "fr" }));
+        Assert.Equal("fr", saved.PreferredCoverLanguage);
+        await Worker(factory).RunVolumeCoversAsync(CancellationToken.None);
+
+        Assert.Contains(factory.Handler.Seen, s => Uri.UnescapeDataString(s.Uri.Query) == "?includeUnavailable=1&translatedLanguage[]=fr");
+        using var scope = factory.Services.CreateScope();
+        var map = await scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>().SeriesVolumeMaps.SingleAsync();
+        Assert.Equal(("fr", "[]"), (map.ReleasedLanguage, map.ReleasedChaptersJson));
     }
 
     [Fact]
@@ -235,7 +254,7 @@ public sealed class VolumeCoversHttpTests
 
         Assert.Equal("Ok", refreshed.State);
         var paths = factory.Handler.Seen.Where(s => s.Uri.Host == MetadataHttp.MangaDexApiHost).Select(s => s.Uri.AbsolutePath).ToList();
-        Assert.Equal(["/manga", "/cover", $"/manga/{MdFixtures.BerserkId}/aggregate"], paths);
+        Assert.Equal(["/manga", "/cover", $"/manga/{MdFixtures.BerserkId}/aggregate", $"/manga/{MdFixtures.BerserkId}/aggregate"], paths);
         Assert.DoesNotContain(factory.Handler.Seen, s => s.Uri.Host == MetadataHttp.MangaDexImageHost); // lists only, no images
     }
 

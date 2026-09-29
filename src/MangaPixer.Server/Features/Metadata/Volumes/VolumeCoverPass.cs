@@ -47,7 +47,8 @@ public sealed record VolumeCoverPassResult(int Requests, int SeriesChecked, int 
 /// <list type="number">
 /// <item>per due series: the MangaDex companion (cross-link), its cover list + volume list, and - when MangaDex gives no
 /// volume list - the AniList totals;</item>
-/// <item>breadth first across series: every series' volume 1 cover (preferred language, else the original language);</item>
+/// <item>breadth first across series: every series' volume 1 cover (preferred language, else the original language; the
+/// record's MAIN cover when MangaDex lists no volume 1 cover at all - webtoons);</item>
 /// <item>then per series the covers of the volumes it holds (a volume in an archive's name or ComicInfo, or a chapter the
 /// exact list places). Short-circuit: when the local volume 1 cover already IS the web volume 1 cover, the release has
 /// real covers on page 1 - a held volume archive is then only fetched when its page 1 is spread-shaped or shaped
@@ -78,12 +79,14 @@ public sealed class VolumeCoverPass
     private readonly VolumeCoverPassState _state;
     private readonly TimeProvider _time;
     private readonly ILogger<VolumeCoverPass> _logger;
+    private readonly Covers.CoverDecisionQueue? _decisions;
 
     public VolumeCoverPass(
         MangaPixerDbContext db, MetadataAutoMatchService autoMatch, MetadataSettingsService settings, CompanionLinkService companions,
         VolumeMapService maps, VolumeCoverFetcher fetcher, ICoverHasher hasher, ThumbnailStore thumbnails, CoverHashCache hashCache,
-        VolumeCoverPassState state, TimeProvider time, ILogger<VolumeCoverPass> logger)
+        VolumeCoverPassState state, TimeProvider time, ILogger<VolumeCoverPass> logger, Covers.CoverDecisionQueue? decisions = null)
     {
+        _decisions = decisions;
         _db = db;
         _autoMatch = autoMatch;
         _settings = settings;
@@ -176,6 +179,7 @@ public sealed class VolumeCoverPass
         }
         catch (MetadataGatewayException ex) when (MetadataAutoMatchService.IsRefusal(ex))
         {
+            CoversStored(stored);
             _state.Set(ex.Code, ex.RetryAt, _time.GetUtcNow());
             if (call.RequestsSent > 0 || checkedSeries > 0)
                 _logger.LogInformation(LogEvents.Metadata.VolumeCoverPass, "Volume cover pass: {Series} series, {Stored} covers, {Requests} requests; stopped {Code}",
@@ -183,10 +187,18 @@ public sealed class VolumeCoverPass
             return new VolumeCoverPassResult(call.RequestsSent, checkedSeries, stored, ex.Code);
         }
 
+        CoversStored(stored);
         if (call.RequestsSent > 0)
             _logger.LogInformation(LogEvents.Metadata.VolumeCoverPass, "Volume cover pass: {Series} series, {Stored} covers, {Requests} requests",
                 checkedSeries, stored, call.RequestsSent);
         return new VolumeCoverPassResult(call.RequestsSent, checkedSeries, stored, null);
+    }
+
+    /// <summary>New covers were stored: the cover layer decides again soon instead of at its next periodic sweep.</summary>
+    private void CoversStored(int stored)
+    {
+        if (stored > 0)
+            _decisions?.RequestSweep();
     }
 
     /// <summary>
@@ -239,8 +251,19 @@ public sealed class VolumeCoverPass
         if (await MangaDexRecordAsync(s.RecordId, ct) is not { } md)
             return false;
         var cover = await PickCoverAsync(md.Id, md.OriginalLanguage, volume, preferred, ct);
+        if (cover is null && volume == 1 && await MainCoverStandsInAsync(md.Id, ct))
+        {
+            // MangaDex lists no volume 1 cover at all (webtoons, series without volume covers): its main cover stands in
+            // (owner-approved wording, 1.29.0 RC) - one image per such series.
+            cover = await _db.VolumeCovers.FirstOrDefaultAsync(c => c.ProviderRecordId == md.Id && c.Kind == (int)VolumeCoverKind.Main
+                && c.State == (int)VolumeCoverState.Listed, ct);
+        }
         return cover is not null && await _fetcher.DownloadAsync(cover, s.LibraryId, call, ct);
     }
+
+    /// <summary>True when the MangaDex record's cover list (in the listed languages) has no volume 1 cover at all.</summary>
+    private Task<bool> MainCoverStandsInAsync(long mangaDexRecordId, CancellationToken ct) =>
+        _db.VolumeCovers.AllAsync(c => c.ProviderRecordId != mangaDexRecordId || c.Kind != (int)VolumeCoverKind.Volume || c.Volume != 1, ct);
 
     private sealed record MangaDexRef(long Id, string? OriginalLanguage);
 

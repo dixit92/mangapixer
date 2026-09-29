@@ -1155,7 +1155,7 @@ export interface MetadataSettingsDto {
   compareCoversEnabled?: boolean;
   /** True when Metadata:AutoMatch:CompareCovers=false switches it off regardless of the setting. */
   compareCoversDisabledByConfig?: boolean;
-  /** 1.29.0: "Preferred cover language" (a MangaDex locale code, default "en"). */
+  /** 1.29.0: "Preferred language (covers and releases)" (a MangaDex locale code, default "en"). */
   preferredCoverLanguage?: string;
   /** 1.29.0: "Volume covers from the web" (on by default). */
   volumeCoversEnabled?: boolean;
