@@ -26,6 +26,7 @@ import { MetadataReviewStateService } from '../../metadata-review-state.service'
 import { scorePercent } from '../metadata-admin-labels';
 import { LibraryMatchPanelComponent } from './library-match-panel.component';
 import { MetadataProvidersComponent } from './metadata-providers.component';
+import { CoverSettingsCardComponent } from './cover-settings-card.component';
 
 /**
  * Consent text version the page shows; must equal the server's `currentConsentVersion`. 2 (1.28.0): the text
@@ -114,6 +115,7 @@ export function validateThresholds(
   imports: [
     DatePipe, FormsModule, MatButtonModule, MatCheckboxModule, MatExpansionModule, MatFormFieldModule, MatIconModule,
     MatInputModule, MatProgressBarModule, MatSelectModule, MatSlideToggleModule, LibraryMatchPanelComponent, MetadataProvidersComponent,
+    CoverSettingsCardComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -401,6 +403,9 @@ export function validateThresholds(
                       data-testid="md-purge">Delete all fetched web data</button>
             }
           </section>
+
+          <!-- 7. Covers (1.29.0 cover layer: crop switch, "Show saved web covers" per library, delete stored covers) -->
+          <app-cover-settings-card [initial]="s" />
         </div>
       }
       @if (message()) { <p class="ok small" role="status">{{ message() }}</p> }
