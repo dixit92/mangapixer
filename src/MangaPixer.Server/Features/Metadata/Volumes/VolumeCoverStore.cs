@@ -49,6 +49,34 @@ public sealed partial class VolumeCoverStore
         }
     }
 
+    /// <summary>
+    /// Deletes every stored cover file whose <c>&lt;publicId&gt;-&lt;version&gt;</c> is not in <paramref name="kept"/>; returns how
+    /// many files were removed.
+    /// </summary>
+    public int DeleteUnreferenced(IReadOnlySet<string> kept)
+    {
+        if (!Directory.Exists(Root))
+            return 0;
+        var removed = 0;
+        foreach (var file in Directory.EnumerateFiles(Root, "vc*.webp", SearchOption.AllDirectories))
+        {
+            if (kept.Contains(Path.GetFileNameWithoutExtension(file)))
+                continue;
+            try
+            {
+                File.Delete(file);
+                removed++;
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+        return removed;
+    }
+
     /// <summary>Deletes every stored cover file; returns how many files were removed.</summary>
     public int DeleteAll()
     {

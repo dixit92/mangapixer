@@ -648,6 +648,7 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.Volumes.VolumeCoverFetcher>();
         services.AddScoped<Features.Metadata.Volumes.VolumeCoverPass>();
         services.AddScoped<Features.Metadata.Volumes.VolumeCoverAdminService>();
+        services.AddScoped<Features.Metadata.IMetadataRecordRemovedHandler, Features.Metadata.Volumes.VolumeCoverRecordCleanup>();
         services.AddScoped<Features.Metadata.Flags.MetadataFlagService>();
         services.AddHostedService<Hosting.MetadataAutoMatchHostedService>();
 

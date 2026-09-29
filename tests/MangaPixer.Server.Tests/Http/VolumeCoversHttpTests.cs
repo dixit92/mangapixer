@@ -240,6 +240,24 @@ public sealed class VolumeCoversHttpTests
     }
 
     [Fact]
+    public async Task DeletingAllFetchedWebData_AlsoRemovesTheMangaDexRecord_AndItsCoverFiles()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(configureServices: s => Services(s, new FakeCoverRenderer()));
+        var admin = await StartAsync(factory);
+        await Worker(factory).RunVolumeCoversAsync(CancellationToken.None);
+        Assert.Single(Directory.GetFiles(Path.Combine(factory.DataRoot, "volume-covers"), "*.webp", SearchOption.AllDirectories));
+
+        (await admin.PostAsJsonAsync("/api/v1/admin/metadata/purge", new MetadataPurgeRequest { LibraryId = null })).EnsureSuccessStatusCode();
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+        Assert.False(await db.MetadataRecords.AnyAsync());
+        Assert.False(await db.VolumeCovers.AnyAsync());
+        Assert.False(await db.MetadataCompanions.AnyAsync());
+        Assert.Empty(Directory.GetFiles(Path.Combine(factory.DataRoot, "volume-covers"), "*.webp", SearchOption.AllDirectories));
+    }
+
+    [Fact]
     public async Task RemovingMangaDex_PausesThePass_StoredCoversStay_UntilDeleted()
     {
         using var factory = new MetadataNetworkWebApplicationFactory(configureServices: s => Services(s, new FakeCoverRenderer()));
