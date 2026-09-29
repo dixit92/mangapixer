@@ -1731,7 +1731,7 @@ export interface NodeDeclaredFactsDto {
 // --- Missing volumes / chapters report (1.28.0, admin-only; stored data only) ---
 
 export type MissingUnitKind = 'Volume' | 'Chapter';
-export type MissingTotalSource = 'English' | 'Origin' | 'LatestChapter' | 'Converted';
+export type MissingTotalSource = 'English' | 'Origin' | 'LatestChapter' | 'Converted' | 'Released';
 export type MissingConfidence = 'Low' | 'Medium' | 'High';
 /** Worst first: Behind, Holes, UpToDate, NoTotal, then no verdict (Mixed, NoUnits). */
 export type MissingVerdict = 'Behind' | 'Holes' | 'UpToDate' | 'NoTotal' | 'Mixed' | 'NoUnits' | 'Restarts';
@@ -1751,9 +1751,13 @@ export interface MissingUnitGapDto {
   /** Holes below `have` (the first 50); `missingCount` has them all. */
   missing: number[];
   missingCount: number;
+  /** 1.29.0 RC: the total in the country of origin, context only (never makes a series "behind"). */
+  originTotal?: number | null;
 }
 
 export interface MissingSeriesDto {
+  /** 1.29.0 RC: the preferred language the totals follow ("en", "fr"): "behind" only against what is released in it. */
+  language?: string | null;
   nodeId: string;
   displayName: string;
   libraryId: string;
@@ -1868,6 +1872,10 @@ export interface VolumeStackSummaryDto {
   confidence: VolumeStackConfidence;
   firstChapter?: string | null;
   lastChapter?: string | null;
+  /** 1.29.0 RC: complete chapters of chapterCount (a split chapter counts once, when all its listed parts are here). */
+  chaptersPresent?: number | null;
+  /** 1.29.0 RC: a missing volume - a placeholder card (presentCount 0), never opened. */
+  missing?: boolean;
 }
 
 export type VolumeSlotKind = 'Item' | 'Missing';
@@ -1888,6 +1896,8 @@ export interface VolumeStackDto {
   source: VolumeListSource;
   presentCount: number;
   chapterCount?: number | null;
+  /** 1.29.0 RC: complete chapters of chapterCount. */
+  chaptersPresent?: number | null;
   missingCount: number;
   extraCount: number;
   previousKey?: string | null;
@@ -1902,6 +1912,16 @@ export interface VolumeViewDto {
   active: boolean;
   consolidated: boolean;
   stackCount: number;
+  /** 1.29.0 RC: the folder has its own series link - the status line below is shown. */
+  hasSeriesStatus?: boolean;
+  seriesStatus?: MetadataOriginStatus | null;
+  /** Whole volumes missing (gaps below the highest one here, and volumes released in the preferred language after it). */
+  missingVolumes?: number;
+  /** Chapters missing (gaps below the highest one here, and chapters released in the preferred language after it). */
+  missingChapters?: number;
+  /** What is released in the preferred language is known: "up to date" can be said. */
+  releaseKnown?: boolean;
+  language?: string | null;
 }
 
 export type CoverMode = 'Automatic' | 'FilePinned' | 'Archive' | 'VolumeCover' | 'Crop';

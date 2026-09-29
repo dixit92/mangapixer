@@ -28,6 +28,9 @@ import { CoverStateService } from '../../shared/cover-picker/cover-state.service
 import { StackCardComponent } from '../../shared/stack-card/stack-card.component';
 import { VolumeIncompleteBadgeComponent } from '../../shared/volume-stack/volume-incomplete-badge.component';
 import { VolumeViewSwitchComponent } from './volume-view-switch.component';
+import { VolumeSeriesStatusComponent } from './volume-series-status.component';
+import { MissingChapterCardComponent } from '../../shared/volume-stack/missing-chapter-card.component';
+import { VolumeStackStarComponent } from '../../shared/volume-stack/volume-stack-star.component';
 import { FolderViewActionComponent } from './folder-view-action.component';
 import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
 
@@ -90,6 +93,9 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     StackCardComponent,
     VolumeIncompleteBadgeComponent,
     VolumeViewSwitchComponent,
+    VolumeSeriesStatusComponent,
+    MissingChapterCardComponent,
+    VolumeStackStarComponent,
     FolderViewActionComponent,
   ],
   template: `
@@ -393,6 +399,12 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
       </mat-menu>
     }
 
+    <!-- Series status (1.29.0 RC): "Ongoing - up to date" / "... - 2 volumes, 3 chapters missing" while a linked series'
+         Volumes view is shown. -->
+    @if (volumeView()?.hasSeriesStatus && volumesActive() && !volumesSuspended()) {
+      <app-volume-series-status [view]="volumeView()!" />
+    }
+
     <app-continue-row [node]="nextUnread()" />
 
     @if (hasPrevious()) {
@@ -438,6 +450,12 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
          [style.--card-size]="cardSize() + 'px'"
          [style.--list-columns]="listColumns()">
       @for (node of nodes(); track node.id) {
+        @if (node.volumeStack?.missing) {
+          <!-- A missing volume (1.29.0 RC): a placeholder in its place, never opened or selected. -->
+          <div class="node-wrap">
+            <app-missing-chapter-card kind="volume" [chapter]="node.volumeStack!.key" [compact]="viewMode() === 'list'" />
+          </div>
+        } @else {
         <div class="node-wrap" [class.selected]="isSelected(node)">
           <!-- List-mode direct-select (1.21.0): a dedicated leading control so a row
                can be selected WITHOUT first entering select mode - tapping the row
@@ -468,6 +486,9 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
                 }
                 <mat-icon class="cover-fallback">collections_bookmark</mat-icon>
                 <app-volume-incomplete-badge [summary]="stack" />
+                @if (node.isFavorite && !selectMode()) {
+                  <app-volume-stack-star />
+                }
                 <ng-container *ngTemplateOutlet="markers; context: { $implicit: node }" />
               </app-stack-card>
             } @else {
@@ -536,6 +557,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
             }
           </a>
         </div>
+        }
       } @empty {
         <p class="empty">This folder is empty.</p>
       }
@@ -1575,8 +1597,11 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     if (!s) return '';
     const chapters = s.presentCount - (s.hasVolumeArchive ? 1 : 0);
     if (s.hasVolumeArchive) return chapters > 0 ? `Volume + ${chapters} chapter${chapters === 1 ? '' : 's'}` : 'Volume';
-    const whole = chapters - s.extraCount;
-    if (s.chapterCount != null && s.missingCount > 0) return `${whole} of ${s.chapterCount} chapters`;
+    // Complete chapters of the volume's chapters (a split chapter counts once) - "N of M" whenever some are not here.
+    if (s.chapterCount != null) {
+      const have = s.chaptersPresent ?? chapters - s.extraCount;
+      if (have < s.chapterCount) return `${have} of ${s.chapterCount} chapters`;
+    }
     return `${chapters} chapter${chapters === 1 ? '' : 's'}`;
   }
 

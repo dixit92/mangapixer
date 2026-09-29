@@ -9775,6 +9775,12 @@
         ],
         "type": "object",
         "properties": {
+          "language": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "nodeId": {
             "type": "string"
           },
@@ -9960,6 +9966,15 @@
           "missingCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "originTotal": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
               "integer",
               "string"
             ],
@@ -11258,6 +11273,15 @@
             ],
             "format": "int32"
           },
+          "chaptersPresent": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
           "missingCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
@@ -11362,6 +11386,18 @@
               "null",
               "string"
             ]
+          },
+          "chaptersPresent": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "missing": {
+            "type": "boolean"
           }
         }
       },
@@ -11394,6 +11430,44 @@
               "string"
             ],
             "format": "int32"
+          },
+          "hasSeriesStatus": {
+            "type": "boolean"
+          },
+          "seriesStatus": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MetadataOriginStatus"
+              }
+            ]
+          },
+          "missingVolumes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "missingChapters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "releaseKnown": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

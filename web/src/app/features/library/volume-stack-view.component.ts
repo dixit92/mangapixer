@@ -170,7 +170,9 @@ export class VolumeStackViewComponent implements OnInit {
     if (!s) return '';
     const items = s.slots.filter((x) => x.kind === 'Item');
     const hasVolumeFile = items.some((x) => !x.chapter);
-    const whole = items.filter((x) => !!x.chapter && !x.chapter.includes('.')).length;
+    const files = items.filter((x) => !!x.chapter && !x.chapter.includes('.')).length;
+    // Complete chapters: the server's count (a split chapter counts once, when all its listed parts are here).
+    const whole = hasVolumeFile ? files : s.chaptersPresent ?? files;
     const parts: string[] = [];
     if (hasVolumeFile) parts.push('Volume file');
     if (s.chapterCount != null && !hasVolumeFile) {
