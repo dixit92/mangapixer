@@ -142,8 +142,8 @@ public sealed class VolumeCoverAdminService
     }
 
     /// <summary>
-    /// "Check MangaDex again": the companion, its cover list and volume list (and, without a volume list, the AniList
-    /// totals) are read now, as an admin request. "Not on MangaDex" is cleared first, so it is looked up again.
+    /// "Check MangaDex again": the companion, its cover list and volume list are read now, as an admin request. "Not on
+    /// MangaDex" is cleared first, so it is looked up again.
     /// </summary>
     public async Task<IReadOnlyList<CompanionDto>?> RecheckAsync(string nodePublicId, string? actor, CancellationToken ct = default)
     {
@@ -192,7 +192,9 @@ public sealed class VolumeCoverAdminService
         var language = await _db.AppSettings.AsNoTracking().Where(s => s.Id == AppSettingsEntity.SingletonId)
             .Select(s => s.MetadataCoverLanguage).FirstOrDefaultAsync(ct) ?? "en";
         var series = new VolumeSeries(target.Series.Id, target.Node.LibraryId, [target.Node.Id], null, DateTimeOffset.MinValue);
-        await _pass.MetadataStepsAsync(series, language, call: null, force: true, allowAniList: true, ct);
+        // AniList is asked on admin request only from the Missing report (its approved wording); the background pass
+        // asks it when MangaDex gives no volume list.
+        await _pass.MetadataStepsAsync(series, language, call: null, force: true, allowAniList: false, ct);
     }
 
     /// <summary>
