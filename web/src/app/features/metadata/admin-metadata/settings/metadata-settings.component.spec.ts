@@ -85,7 +85,48 @@ describe('MetadataSettingsComponent', () => {
   it('shows the allowed sites as chips in the Web lookups card (1.28.0)', () => {
     const { el } = create();
     expect(Array.from(el.querySelectorAll('[data-testid="md-provider-chip"]')).map((e) => e.getAttribute('data-provider')))
-      .toEqual(['mangaupdates', 'anilist']);
+      .toEqual(['mangaupdates', 'mangadex', 'anilist']);
+  });
+
+  // --- 1.29.0: volume covers (MangaDex) ---
+
+  it('volume covers: the switch and the preferred language are ONE settings PUT each; the MangaDex credit shows', () => {
+    const { c, q } = create(settings({ volumeCoversEnabled: true, preferredCoverLanguage: 'en' }));
+    expect(q('[data-testid="md-mangadex-credit"]')!.textContent).toContain('MangaDex (mangadex.org)');
+    c.setVolumeCovers(false);
+    const off = http.expectOne({ method: 'PUT', url: SETTINGS });
+    expect(off.request.body).toEqual({ volumeCoversEnabled: false });
+    off.flush(settings({ volumeCoversEnabled: false }));
+    c.setCoverLanguage('ja');
+    expect(http.expectOne({ method: 'PUT', url: SETTINGS }).request.body).toEqual({ preferredCoverLanguage: 'ja' });
+  });
+
+  it('volume covers: an unusual stored language stays selectable, and the config switch is shown', () => {
+    const { c, q } = create(settings({ preferredCoverLanguage: 'sv', volumeCoversDisabledByConfig: true }));
+    expect(c.coverLanguages().some((o) => o.code === 'sv')).toBe(true);
+    expect(q('[data-testid="md-volume-covers-config"]')).not.toBeNull();
+    expect(q('[data-testid="md-volume-covers-switch"] [role="switch"]')!.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('volume covers: progress loads on demand, and deleting stored covers asks first', () => {
+    const { c, fixture, q } = create();
+    http.expectNone('/api/v1/admin/metadata/volume-covers/status');
+    q('[data-testid="md-volume-covers-progress"]')!.click();
+    http.expectOne({ method: 'GET', url: '/api/v1/admin/metadata/volume-covers/status' })
+      .flush({ seriesPending: 3, coversListed: 40, coversStored: 12, waiting: 'provider_not_allowed' });
+    fixture.detectChanges();
+    const status = q('[data-testid="md-volume-covers-status"]')!.textContent!;
+    expect(status).toContain('12 covers stored');
+    expect(status).toContain('3 series to check');
+    expect(status).toContain('MangaDex is not on the allowed sites.');
+    q('[data-testid="md-volume-covers-delete"]')!.click();
+    fixture.detectChanges();
+    http.expectNone(() => true);
+    q('[data-testid="md-volume-covers-delete-confirm"]')!.click();
+    http.expectOne({ method: 'DELETE', url: '/api/v1/admin/metadata/volume-covers' })
+      .flush({ seriesPending: 3, coversListed: 0, coversStored: 0, waiting: null });
+    expect(c.coverStatus()!.coversStored).toBe(0);
+    expect(c.message()).toBe('Stored volume covers deleted');
   });
 
   it('re-prompts on a stale consent version and honours the config kill', () => {

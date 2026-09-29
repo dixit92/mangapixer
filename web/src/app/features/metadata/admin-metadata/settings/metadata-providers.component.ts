@@ -57,6 +57,10 @@ import { MetadataApiService } from '../../metadata-api.service';
           <p class="note" data-testid="md-providers-mu-note">Identify, Automatic matching and refresh use MangaUpdates: they stay off
             until it is added back.</p>
         }
+        @if (mangaDexRemoved()) {
+          <p class="note" data-testid="md-providers-md-note">Volume covers and volume lists use MangaDex: they stay off until it is
+            added back. Covers already stored are kept.</p>
+        }
       }
       @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     </div>
@@ -99,6 +103,7 @@ export class MetadataProvidersComponent {
   readonly allowed = computed(() => this.providers().filter((p) => p.allowed));
   readonly removed = computed(() => this.providers().filter((p) => !p.allowed));
   readonly mangaUpdatesRemoved = computed(() => this.removed().some((p) => p.id === 'mangaupdates'));
+  readonly mangaDexRemoved = computed(() => this.removed().some((p) => p.id === 'mangadex'));
 
   remove(p: MetadataProviderDto): void {
     this.save([...this.removed().map((r) => r.id), p.id]);

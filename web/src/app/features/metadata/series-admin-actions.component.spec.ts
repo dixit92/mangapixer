@@ -6,6 +6,7 @@ import { Subject, of, throwError } from 'rxjs';
 
 import { FolderMetadataContentDto, IdentifyContextDto, SeriesInfoDto } from '../../core/api/api-types';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
+import { MangaDexMatchDialogService } from './companion/mangadex-match-dialog.service';
 import { MetadataApiService } from './metadata-api.service';
 import { MetadataStateService } from './metadata-state.service';
 import { SeriesAdminActionsComponent } from './series-admin-actions.component';
@@ -49,6 +50,7 @@ describe('SeriesAdminActionsComponent', () => {
       clearFolderContent: vi.fn((id: string) => of({ nodeId: id, content: null, effective: 'Auto' })),
     };
     const state = { announce: vi.fn(), refresh: vi.fn() };
+    const mangaDex = { open: vi.fn(() => Promise.resolve(true)) };
     TestBed.configureTestingModule({
       imports: [HostComponent],
       providers: [
@@ -56,6 +58,7 @@ describe('SeriesAdminActionsComponent', () => {
         { provide: MetadataApiService, useValue: api },
         { provide: IdentifyDialogService, useValue: dialog },
         { provide: MetadataStateService, useValue: state },
+        { provide: MangaDexMatchDialogService, useValue: mangaDex },
       ],
     });
     const fixture = TestBed.createComponent(HostComponent);
@@ -63,7 +66,7 @@ describe('SeriesAdminActionsComponent', () => {
     fixture.detectChanges();
     (fixture.nativeElement.querySelector('[data-testid="series-admin-menu"]') as HTMLButtonElement).click();
     fixture.detectChanges();
-    return { fixture, api, dialog, state };
+    return { fixture, api, dialog, state, mangaDex };
   }
 
   const item = (sel: string) => document.querySelector(sel) as HTMLButtonElement | null;
@@ -99,6 +102,18 @@ describe('SeriesAdminActionsComponent', () => {
   it('has no Refresh without a web record', () => {
     create(seriesInfo(), true);
     expect(item('[data-testid="refresh"]')).toBeNull();
+    expect(item('[data-testid="mangadex-match"]')).toBeNull();
+  });
+
+  it('offers Change MangaDex match for a MangaUpdates link and reports a change (1.29.0)', async () => {
+    const web = { provider: 'mangaupdates', providerName: 'MangaUpdates', fetchedAt: '2026-09-20T00:00:00Z', hasImage: false };
+    const { fixture, mangaDex } = create(seriesInfo({ nodeId: 'a1', state: 'Web', web }), true);
+    fixture.detectChanges();
+    item('[data-testid="mangadex-match"]')!.click();
+    expect(mangaDex.open).toHaveBeenCalledWith('a1');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(fixture.componentInstance.changes).toBe(1);
   });
 
   it('marks a node Don\'t match and reports the change', () => {

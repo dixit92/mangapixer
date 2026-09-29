@@ -31,15 +31,16 @@ describe('MetadataProvidersComponent', () => {
   it('shows each allowed site with its hosts and what is sent', () => {
     const { el } = create(settings());
     const chips = el.querySelectorAll('[data-testid="md-provider-chip"]');
-    expect(chips).toHaveLength(2);
-    expect(chips[1].textContent).toContain('graphql.anilist.co');
+    expect(chips).toHaveLength(3);
+    expect(chips[1].textContent).toContain('uploads.mangadex.org');
+    expect(chips[2].textContent).toContain('graphql.anilist.co');
     expect(chips[1].textContent).toContain('A linked title.');
     expect(el.querySelector('[data-testid="md-providers-removed"]')).toBeNull();
   });
 
   it('removing a site sends the removed set and emits the saved settings', () => {
     const { el, changed } = create(settings());
-    (el.querySelectorAll('[data-testid="md-provider-remove"]')[1] as HTMLButtonElement).click();
+    (el.querySelectorAll('[data-testid="md-provider-remove"]')[2] as HTMLButtonElement).click();
     const put = http.expectOne({ method: 'PUT', url: SETTINGS });
     expect(put.request.body).toEqual({ removedProviders: ['anilist'] });
     const saved = settings();
@@ -54,7 +55,8 @@ describe('MetadataProvidersComponent', () => {
     const { el } = create(initial);
     expect(el.querySelector('[data-testid="md-providers-none"]')).not.toBeNull();
     expect(el.querySelector('[data-testid="md-providers-mu-note"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="md-providers-md-note"]')).not.toBeNull();
     (el.querySelectorAll('[data-testid="md-provider-add"]')[0] as HTMLButtonElement).click();
-    expect(http.expectOne({ method: 'PUT', url: SETTINGS }).request.body).toEqual({ removedProviders: ['anilist'] });
+    expect(http.expectOne({ method: 'PUT', url: SETTINGS }).request.body).toEqual({ removedProviders: ['mangadex', 'anilist'] });
   });
 });

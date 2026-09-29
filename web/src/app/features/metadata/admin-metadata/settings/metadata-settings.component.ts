@@ -14,6 +14,7 @@ import { Observable } from 'rxjs';
 
 import {
   ApiError,
+  CoverPassStatusDto,
   MetadataLibrarySettingsDto,
   MetadataMatchRunDto,
   MetadataMatchThresholdBoundsDto,
@@ -26,6 +27,7 @@ import { MetadataReviewStateService } from '../../metadata-review-state.service'
 import { scorePercent } from '../metadata-admin-labels';
 import { LibraryMatchPanelComponent } from './library-match-panel.component';
 import { MetadataProvidersComponent } from './metadata-providers.component';
+import { coverLanguageOptions, volumeCoversWaitingLabel } from './volume-covers';
 
 /**
  * Consent text version the page shows; must equal the server's `currentConsentVersion`. 2 (1.28.0): the text
@@ -107,6 +109,9 @@ export function validateThresholds(
  * - Consent texts show until accepted, then fold behind "What is sent?" (owner, 2026-09-26).
  * - Per library "Match now" with the local estimate (decision 1).
  * - **Advanced**: the three thresholds with their bounds and Reset (decision 13).
+ * - **Volume covers** (1.29.0): "Volume covers from the web" (MangaDex, for series linked to MangaUpdates), the
+ *   preferred cover language, the pass's progress (loaded on demand), "Delete stored volume covers", and the ONE
+ *   MangaDex credit in the UI (owner: Metadata Manager + the docs only).
  */
 @Component({
   selector: 'app-metadata-settings',
@@ -292,6 +297,52 @@ export function validateThresholds(
             </p>
           </section>
 
+          <!-- 3b. Volume covers and volume lists (1.29.0, MangaDex) -->
+          <section class="card" aria-labelledby="md-vc-h" data-testid="md-volume-covers">
+            <h3 id="md-vc-h"><mat-icon aria-hidden="true">photo_library</mat-icon> Volume covers</h3>
+            <mat-slide-toggle [checked]="s.volumeCoversEnabled !== false && !s.volumeCoversDisabledByConfig"
+                              [disabled]="saving() || !!s.volumeCoversDisabledByConfig" (change)="setVolumeCovers($event.checked)"
+                              data-testid="md-volume-covers-switch">
+              Volume covers from the web
+            </mat-slide-toggle>
+            <p class="note">For series linked to MangaUpdates: the covers of volume 1 and of the volumes you have, and which
+              chapters make up each volume, from MangaDex. In the background with Automatic matching on; otherwise only when
+              you use Refresh or Change MangaDex match. Covers are stored on this server; the browser never contacts MangaDex.</p>
+            @if (s.volumeCoversDisabledByConfig) {
+              <p class="note" data-testid="md-volume-covers-config">Switched off in the server configuration (Metadata:AutoMatch:VolumeCovers).</p>
+            }
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="lang">
+              <mat-label>Preferred cover language</mat-label>
+              <mat-select [value]="s.preferredCoverLanguage ?? 'en'" (selectionChange)="setCoverLanguage($event.value)"
+                          [disabled]="saving()" data-testid="md-cover-language">
+                @for (o of coverLanguages(); track o.code) {
+                  <mat-option [value]="o.code">{{ o.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <p class="note">When a volume has no cover in this language yet, the cover in the series' original language is used,
+              and MangaPixer checks again on the refresh schedule.</p>
+            <p class="status" data-testid="md-volume-covers-status">
+              @if (coverStatus(); as cs) {
+                {{ cs.coversStored }} cover{{ cs.coversStored === 1 ? '' : 's' }} stored · {{ cs.coversListed }} known, not
+                downloaded · {{ cs.seriesPending }} series to check
+                @if (waitingLabel(); as w) { <br><span class="warn">{{ w }}</span> }
+              }
+              <button type="button" class="link" (click)="loadCoverStatus()" data-testid="md-volume-covers-progress">
+                {{ coverStatus() ? 'Refresh' : 'Show progress' }}</button>
+            </p>
+            @if (confirming() === 'covers') {
+              <span class="confirm">Delete every stored volume cover? The volume lists stay; nothing is sent.
+                <button mat-flat-button color="warn" type="button" (click)="deleteCovers()" data-testid="md-volume-covers-delete-confirm">Delete</button>
+                <button mat-button type="button" (click)="confirming.set(null)">Cancel</button></span>
+            } @else {
+              <button mat-stroked-button type="button" [disabled]="saving()" (click)="confirming.set('covers')"
+                      data-testid="md-volume-covers-delete">Delete stored volume covers</button>
+            }
+            <p class="credit" data-testid="md-mangadex-credit">Cover images and volume data from MangaDex (mangadex.org) -
+              thanks to MangaDex and its community.</p>
+          </section>
+
           </div>
 
           <!-- 4. Libraries (stage 1 rows + "Match now") -->
@@ -448,6 +499,8 @@ export function validateThresholds(
     .confirm { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
     .error { color: #f44336; }
     .ok { color: #4caf50; }
+    .lang { width: 260px; margin-top: 8px; }
+    .credit { font-size: 12px; color: #9a9aa8; margin: 12px 0 0; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
     @media (max-width: 599.98px) {
       .card { padding: 12px; }
       .lib .name { min-width: 100%; }
@@ -477,6 +530,10 @@ export class MetadataSettingsComponent implements OnInit {
   /** The library whose "Match now" panel is open. */
   readonly matching = signal<string | null>(null);
   readonly thresholdText = signal<ThresholdText>({ autoTitle: '', margin: '', reviewFloor: '' });
+  /** The volume-cover pass's progress (1.29.0), loaded on demand. */
+  readonly coverStatus = signal<CoverPassStatusDto | null>(null);
+  readonly coverLanguages = computed(() => coverLanguageOptions(this.settings()?.preferredCoverLanguage));
+  readonly waitingLabel = computed(() => volumeCoversWaitingLabel(this.coverStatus()?.waiting));
 
   /** Consent already given for the current text version. */
   readonly consentCurrent = computed(() => {
@@ -590,6 +647,40 @@ export class MetadataSettingsComponent implements OnInit {
   setCompareCovers(on: boolean): void {
     if (!this.settings()) return;
     this.save(this.api.updateSettings({ compareCoversEnabled: on }), on ? 'Covers will be compared' : 'Covers will not be compared');
+  }
+
+  /** "Volume covers from the web" (1.29.0): one settings PUT; no consent of its own (both consents cover it). */
+  setVolumeCovers(on: boolean): void {
+    if (!this.settings()) return;
+    this.save(this.api.updateSettings({ volumeCoversEnabled: on }), on ? 'Volume covers are on' : 'Volume covers are off');
+  }
+
+  /** The preferred cover language: every cover list is read again once (budgeted) to find covers in it. */
+  setCoverLanguage(code: string): void {
+    if (!this.settings() || code === this.settings()!.preferredCoverLanguage) return;
+    this.save(this.api.updateSettings({ preferredCoverLanguage: code }), 'Preferred cover language saved');
+  }
+
+  loadCoverStatus(): void {
+    this.api.getVolumeCoverStatus().subscribe({
+      next: (st) => this.coverStatus.set(st),
+      error: (err: ApiError) => this.error.set(err?.message || 'Failed to load the volume cover progress'),
+    });
+  }
+
+  /** "Delete stored volume covers": local only. */
+  deleteCovers(): void {
+    this.saving.set(true);
+    this.error.set(null);
+    this.confirming.set(null);
+    this.api.deleteStoredVolumeCovers().subscribe({
+      next: (st) => {
+        this.saving.set(false);
+        this.coverStatus.set(st);
+        this.message.set('Stored volume covers deleted');
+      },
+      error: (err: ApiError) => this.fail(err),
+    });
   }
 
   saveBudget(): void {
