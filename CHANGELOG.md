@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Accept the metadata consents again after this update.** Both consent texts now cover MangaDex (volume covers, and which chapters make up each volume, for series already linked to MangaUpdates) and AniList's totals as a fallback; fetching from the web and Automatic matching stay off until an admin accepts the new texts in Metadata Manager.
 - **Review rows open their folder.** Each row in the Metadata Manager's review lists has a folder button that opens the folder in the library - an archive opens the folder that contains it.
 - API (admin): review rows (`GET /api/v1/admin/metadata/review`) return `parentNodeId`, the folder that contains the row's folder or archive.
 - Updated dependencies: Angular 22.2.0 and Magick.NET 14.17.2 (ImageMagick 7.1.2-32, which now also bundles zstd); THIRD-PARTY-NOTICES refreshed.

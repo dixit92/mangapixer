@@ -5,7 +5,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { MetadataSettingsDto } from '../../../../core/api/api-types';
 import { estimate, settings } from '../metadata-admin.testing';
-import { CONSENT_TEXT_VERSION, MetadataSettingsComponent, parseDailyBudget, validateThresholds } from './metadata-settings.component';
+import { AUTO_CONSENT_TEXT_VERSION, CONSENT_TEXT_VERSION, MetadataSettingsComponent, parseDailyBudget, validateThresholds } from './metadata-settings.component';
 
 /**
  * Settings tab of /admin/metadata, mocked at the HTTP layer so the real
@@ -158,7 +158,7 @@ describe('MetadataSettingsComponent', () => {
 
   it('folds both consent texts behind "What is sent?" once accepted', () => {
     const { q, c, fixture } = create(settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION, autoMatchEnabled: true,
-      acceptedAutoConsentVersion: 2 }));
+      acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION }));
     expect(q('[data-testid="md-consent-text"]')).toBeNull();
     expect(q('[data-testid="md-auto-consent-text"]')).toBeNull();
     q('[data-testid="md-consent-toggle"]')!.click();
@@ -208,8 +208,8 @@ describe('MetadataSettingsComponent', () => {
     c.autoConsentTicked.set(true);
     c.setAuto(true);
     const put = http.expectOne({ method: 'PUT', url: SETTINGS });
-    expect(put.request.body).toEqual({ autoMatchEnabled: true, acceptedAutoConsentVersion: 2 });
-    put.flush(settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION, autoMatchEnabled: true, acceptedAutoConsentVersion: 2,
+    expect(put.request.body).toEqual({ autoMatchEnabled: true, acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION });
+    put.flush(settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION, autoMatchEnabled: true, acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION,
       autoConsentAt: '2026-09-26T00:00:00Z' }));
     http.expectNone(() => true);
     expect(c.autoConsentCurrent()).toBe(true);
@@ -218,13 +218,13 @@ describe('MetadataSettingsComponent', () => {
 
   it('turning Automatic matching off needs no consent; a stale automatic consent re-prompts', () => {
     const { c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION, autoMatchEnabled: true,
-      acceptedAutoConsentVersion: 2 }));
+      acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION }));
     expect(c.canToggleAuto()).toBe(true);
     c.setAuto(false);
     expect(http.expectOne({ method: 'PUT', url: SETTINGS }).request.body).toEqual({ autoMatchEnabled: false });
     TestBed.resetTestingModule();
-    // An earlier consent (v1, before the cover comparison) is not carried over (owner, 1.28.0).
-    const stale = create(settings({ fetchEnabled: true, acceptedAutoConsentVersion: 1, currentAutoConsentVersion: 2 }));
+    // An earlier consent is not carried over (owner, 1.28.0; again for v3 in 1.29.0).
+    const stale = create(settings({ fetchEnabled: true, acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION - 1, currentAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION }));
     expect(stale.c.autoConsentCurrent()).toBe(false);
     expect(stale.q('[data-testid="md-auto-consent"]')).not.toBeNull();
   });
@@ -239,14 +239,14 @@ describe('MetadataSettingsComponent', () => {
 
   it('"Compare covers" is ONE settings PUT, only while Automatic matching is on, and honours the config switch', () => {
     const { q, c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true,
-      acceptedAutoConsentVersion: 2, compareCoversEnabled: true }));
+      acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION, compareCoversEnabled: true }));
     const box = q('[data-testid="md-compare-covers"] input[type="checkbox"]') as HTMLInputElement;
     expect(box.checked).toBe(true);
     expect(box.disabled).toBe(false);
     c.setCompareCovers(false);
     const put = http.expectOne({ method: 'PUT', url: SETTINGS });
     expect(put.request.body).toEqual({ compareCoversEnabled: false });
-    put.flush(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true, acceptedAutoConsentVersion: 2,
+    put.flush(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true, acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION,
       compareCoversEnabled: false }));
     http.expectNone(() => true);
     expect(c.message()).toBe('Covers will not be compared');
@@ -257,7 +257,7 @@ describe('MetadataSettingsComponent', () => {
     TestBed.resetTestingModule();
 
     const held = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true,
-      acceptedAutoConsentVersion: 2, compareCoversDisabledByConfig: true }));
+      acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION, compareCoversDisabledByConfig: true }));
     expect((held.q('[data-testid="md-compare-covers"] input[type="checkbox"]') as HTMLInputElement).disabled).toBe(true);
     expect(held.q('[data-testid="md-compare-covers-config"]')).not.toBeNull();
   });

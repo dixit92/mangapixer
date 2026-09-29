@@ -30,15 +30,17 @@ import { MetadataProvidersComponent } from './metadata-providers.component';
 /**
  * Consent text version the page shows; must equal the server's `currentConsentVersion`. 2 (1.28.0): the text
  * describes the provider allowlist (MangaUpdates + AniList); an instance that accepted 1 re-accepts.
+ * 3 (1.29.0): MangaDex (volume covers and volume lists) joins the allowed sites; an earlier consent is not carried over.
  */
-export const CONSENT_TEXT_VERSION = 2;
+export const CONSENT_TEXT_VERSION = 3;
 
 /**
  * Automatic-lookups consent text version (stage 2, owner decisions 2 + 3); must equal the
  * server's `currentAutoConsentVersion`. Bump it whenever the text below changes.
  * v2 (1.28.0): the cover comparison downloads; an earlier consent is not carried over (owner).
+ * v3 (1.29.0): volume covers and volume lists from MangaDex (AniList totals as the fallback).
  */
-export const AUTO_CONSENT_TEXT_VERSION = 2;
+export const AUTO_CONSENT_TEXT_VERSION = 3;
 
 /** Integer-only daily budget in 1..1,000,000 (the server validates the same range). */
 export function parseDailyBudget(raw: string | number | null | undefined): number | null {
@@ -144,19 +146,22 @@ export function validateThresholds(
                 <li><strong>MangaUpdates</strong> (description, authors, genres, publication status, English release totals,
                   cover art): the search text you confirm in the Identify dialog (usually a folder or file name) and
                   MangaUpdates record numbers.</li>
-                <li><strong>AniList</strong> (volume and chapter totals, to convert chapters to volumes in the Missing report):
-                  the MangaUpdates title of a series that is already linked, or its AniList record number - never a folder
-                  or file name - and only when you ask for it in the Missing report.</li>
+                <li><strong>MangaDex</strong> (volume covers, and which chapters make up each volume, for series already linked
+                  to MangaUpdates): the MangaUpdates title of the linked series - never a folder or file name - MangaDex record
+                  numbers and your cover languages. Cover images are downloaded from MangaDex's image server
+                  (uploads.mangadex.org).</li>
+                <li><strong>AniList</strong> (volume and chapter totals, to convert chapters to volumes): the AniList record
+                  number when it is known, otherwise the MangaUpdates title of a series that is already linked - never a folder
+                  or file name.</li>
               </ul>
               <p>You can remove a site from the list at any time; nothing is ever sent to a removed site. Each site also
                 sees your server's IP address, as with any web request.</p>
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or
                 anything that identifies this server.</p>
-              <p><strong>When:</strong> only when an admin runs Identify, Look up, Refresh or a Missing-report lookup in an
-                enabled library. Nothing happens automatically unless you also turn on Automatic matching. Automatic matching
-                uses MangaUpdates only.</p>
-              <p>Fetched information is stored on this server and credited to the site that provided it, as-is. You can
-                switch this off at any time; stored information stays until you delete it.</p>
+              <p><strong>When:</strong> only when an admin runs Identify, Look up, Refresh, Choose cover or a Missing-report
+                lookup in an enabled library. Nothing happens automatically unless you also turn on Automatic matching.</p>
+              <p>Fetched information and covers are stored on this server as-is. You can switch this off at any time; stored
+                information stays until you delete it.</p>
             </div>
             }
             <app-metadata-providers [settings]="s" [disabled]="saving()" (changed)="apply($event)" />
@@ -220,12 +225,19 @@ export function validateThresholds(
                 with a fixed list of types to leave out (doujinshi, novels, artbooks, drama CDs; doujinshi are searched below a
                 folder whose Content is "Doujinshi &amp; adult one-shots"), and MangaUpdates record numbers to refresh linked
                 series. For a folder declared manga, manhwa or manhua, automatic searches leave the other two types out.
-                MangaUpdates also sees your server's IP address.</p>
+                Each site also sees your server's IP address.</p>
               <p><strong>Cover comparison:</strong> when two series tie on the title for a folder of volumes or a one-shot,
                 MangaPixer may also download the cover images of those two series from MangaUpdates' image server
                 (cdn.mangaupdates.com), by the address MangaUpdates gave, to compare them with the folder's own cover. These
                 downloads carry nothing from your library. The comparison runs on your server and the downloaded covers are
                 deleted right after.</p>
+              <p><strong>Volume covers and volume lists:</strong> for every series that gets linked - by Automatic matching or
+                by you - MangaPixer also finds the series on MangaDex by its MangaUpdates title (never a folder or file name),
+                reads which chapters make up each volume and which volume covers exist in your preferred cover language and the
+                original language, and downloads the covers of volume 1 and of the volumes you have from MangaDex's image
+                server (uploads.mangadex.org). It checks again on the refresh schedule until a cover in your preferred language
+                appears. When MangaDex has no volume list for a series, it asks AniList for the series' totals - by AniList
+                record number when known, otherwise by the MangaUpdates title. You can switch volume covers off below.</p>
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or anything
                 that identifies this server. Folders marked "Don't match", and everything inside them, are never looked up.</p>
               <p><strong>Budget:</strong> automatic requests come out of the same daily budget as Identify. When it is spent,

@@ -177,6 +177,7 @@ public static class MetadataConsent
     /// the web" switch can be turned on. A change of the network surface bumps it; an
     /// instance that accepted an older version stops fetching until an admin accepts again.
     /// 2 (1.28.0): the text describes the provider allowlist (MangaUpdates + AniList).
+    /// 3 (1.29.0): MangaDex (volume covers and volume lists) joins the allowed sites.
     /// </summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 }

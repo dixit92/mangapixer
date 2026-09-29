@@ -7,6 +7,7 @@ import {
   MetadataReviewSummaryDto,
   MetadataSettingsDto,
 } from '../../../core/api/api-types';
+import { AUTO_CONSENT_TEXT_VERSION, CONSENT_TEXT_VERSION } from './settings/metadata-settings.component';
 
 /** Test fixture builders for the stage-2 admin metadata specs. Synthetic values only. */
 
@@ -46,7 +47,7 @@ export function settings(overrides: Partial<MetadataSettingsDto> = {}): Metadata
     ],
     networkDisabledByConfig: false,
     acceptedConsentVersion: null,
-    currentConsentVersion: 2, // 1.28.0: the provider allowlist text
+    currentConsentVersion: CONSENT_TEXT_VERSION,
     consentAt: null,
     dailyBudget: 5000,
     defaultDailyBudget: 5000,
@@ -61,7 +62,7 @@ export function settings(overrides: Partial<MetadataSettingsDto> = {}): Metadata
     ],
     autoMatchEnabled: false,
     acceptedAutoConsentVersion: null,
-    currentAutoConsentVersion: 2,
+    currentAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION,
     autoConsentAt: null,
     thresholds: { autoTitle: 0.92, margin: 0.1, reviewFloor: 0.6 },
     defaultThresholds: { autoTitle: 0.92, margin: 0.1, reviewFloor: 0.6 },
