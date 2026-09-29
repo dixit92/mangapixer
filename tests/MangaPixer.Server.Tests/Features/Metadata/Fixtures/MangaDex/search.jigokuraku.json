@@ -1,0 +1,743 @@
+{
+ "result": "ok",
+ "response": "collection",
+ "data": [
+  {
+   "id": "cb77e4a6-3921-43b9-9d64-7d78cd3205ce",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "ja-ro": "Jigokuraku"
+    },
+    "altTitles": [
+     {
+      "ja": "地獄楽"
+     },
+     {
+      "ja-ro": "Jigoku Raku"
+     },
+     {
+      "en": "Hell's Paradise: Jigokuraku"
+     },
+     {
+      "en": "Hellven"
+     },
+     {
+      "en": "Heavenhell"
+     },
+     {
+      "en": "Paradition"
+     },
+     {
+      "ru": "Адский рай"
+     },
+     {
+      "zh-hk": "地獄樂"
+     },
+     {
+      "fa": "هلز پاردایس"
+     },
+     {
+      "pl": "Piekielny raj"
+     },
+     {
+      "th": "สุขาวดีอเวจี"
+     },
+     {
+      "cs": "Pekelný ráj"
+     },
+     {
+      "vi": "Địa Ngục Cực Lạc"
+     },
+     {
+      "fr": "Hell's Paradise"
+     },
+     {
+      "it": "Paradiso infernale"
+     },
+     {
+      "zh": "地狱乐"
+     }
+    ],
+    "links": {
+     "al": "100994",
+     "ap": "hells-paradise-jigokuraku",
+     "bl": "502485",
+     "bw": "series/151407/list",
+     "kt": "40546",
+     "mu": "s98fsyi",
+     "amz": "https://www.amazon.co.jp/dp/B07H6QR25X",
+     "cdj": "https://www.cdjapan.co.jp/product/NEOBK-2840899",
+     "ebj": "https://ebookjapan.yahoo.co.jp/books/451004/",
+     "mal": "112318",
+     "raw": "https://shonenjumpplus.com/episode/13932016480029295972",
+     "engtl": "https://mangaplus.shueisha.co.jp/titles/100040"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": "13",
+    "lastChapter": "127",
+    "status": "completed",
+    "year": 2018,
+    "contentRating": "suggestive",
+    "createdAt": "2019-03-12T21:24:49+00:00",
+    "updatedAt": "2026-09-10T05:44:48+00:00",
+    "tags": [
+     {
+      "id": "33771934-028e-4cb3-8744-691e866a923e",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Historical"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "81183756-1453-4c81-aa9e-f6e1b63be016",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Samurai"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "87cc87cd-a395-47af-b27a-93258283bbc6",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adventure"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "b29d6a3d-1569-4e7a-8caf-7557bc92cd5d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Gore"
+       },
+       "group": "content"
+      }
+     },
+     {
+      "id": "b9af3a63-f058-46de-a9a0-e0c13906197a",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Drama"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "cdc58593-87dd-415e-bbc0-2ec27bf404cc",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Fantasy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "eabc5b4c-6aff-42f3-b657-3e90cbd00b75",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Supernatural"
+       },
+       "group": "theme"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "801b900b-c364-450a-923a-76aba1bf010f",
+     "type": "author"
+    },
+    {
+     "id": "801b900b-c364-450a-923a-76aba1bf010f",
+     "type": "artist"
+    },
+    {
+     "id": "310eea75-9452-4fa5-93b5-881d4e3fecc1",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "c6eded90-7e15-4e3b-8f50-f415f02c32a2.jpg",
+      "volume": "13",
+      "locale": "ja"
+     }
+    },
+    {
+     "id": "140cadf4-ce3a-41e7-ba5d-58ee4b8fbdc1",
+     "type": "manga"
+    },
+    {
+     "id": "472be08a-29ee-4e9e-844c-ee93bdb70208",
+     "type": "manga"
+    },
+    {
+     "id": "67efeb77-350c-417a-a032-156a086cdbaa",
+     "type": "manga"
+    },
+    {
+     "id": "6b76a5e8-78f0-4477-a279-cf0f4bc017f6",
+     "type": "manga"
+    }
+   ]
+  },
+  {
+   "id": "67efeb77-350c-417a-a032-156a086cdbaa",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "ja-ro": "Jigokuraku (WEBTOON)"
+    },
+    "altTitles": [
+     {
+      "ja": "地獄楽 (WEBTOON)"
+     },
+     {
+      "en": "Hell’s Paradise: Jigokuraku (WEBTOON)"
+     },
+     {
+      "en": "Hellven (WEBTOON)"
+     },
+     {
+      "pl": "Piekielny Raj"
+     }
+    ],
+    "links": {
+     "engtl": "https://www.webtoons.com/en/fantasy/hells-paradise-jigokuraku/list?title_no=6546"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": "",
+    "lastChapter": "132",
+    "status": "completed",
+    "year": 2024,
+    "contentRating": "safe",
+    "createdAt": "2024-12-17T21:19:38+00:00",
+    "updatedAt": "2026-04-19T07:14:10+00:00",
+    "tags": [
+     {
+      "id": "33771934-028e-4cb3-8744-691e866a923e",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Historical"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "3e2b8dae-350e-4ab8-a8ce-016e844b9f0d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Long Strip"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "423e2eae-a7a2-4a8b-ac03-a8351462d71d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Romance"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "87cc87cd-a395-47af-b27a-93258283bbc6",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adventure"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "b29d6a3d-1569-4e7a-8caf-7557bc92cd5d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Gore"
+       },
+       "group": "content"
+      }
+     },
+     {
+      "id": "b9af3a63-f058-46de-a9a0-e0c13906197a",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Drama"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "f5ba408b-0e7a-484d-8d49-4e9125ac96de",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Full Color"
+       },
+       "group": "format"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "801b900b-c364-450a-923a-76aba1bf010f",
+     "type": "author"
+    },
+    {
+     "id": "801b900b-c364-450a-923a-76aba1bf010f",
+     "type": "artist"
+    },
+    {
+     "id": "1b8ec1a3-89be-4ddf-a562-d96961371942",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "ddf3b518-4f67-4634-bade-d55b9efbe4ac.jpg",
+      "volume": null,
+      "locale": "en"
+     }
+    },
+    {
+     "id": "140cadf4-ce3a-41e7-ba5d-58ee4b8fbdc1",
+     "type": "manga"
+    },
+    {
+     "id": "472be08a-29ee-4e9e-844c-ee93bdb70208",
+     "type": "manga"
+    },
+    {
+     "id": "6b76a5e8-78f0-4477-a279-cf0f4bc017f6",
+     "type": "manga"
+    },
+    {
+     "id": "cb77e4a6-3921-43b9-9d64-7d78cd3205ce",
+     "type": "manga"
+    },
+    {
+     "id": "22d49b20-7bfd-4e2c-a14f-f57bf912f5c2",
+     "type": "creator"
+    }
+   ]
+  },
+  {
+   "id": "472be08a-29ee-4e9e-844c-ee93bdb70208",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "ja-ro": "Jigokuraku: Kaitai Shinsho"
+    },
+    "altTitles": [
+     {
+      "ja": "地獄楽 解体新書"
+     },
+     {
+      "ja-ro": "Jigoku Raku: Kaitai Shinsho"
+     },
+     {
+      "en": "Hell's Paradise: Jigokuraku: New Book Of Anatomy"
+     },
+     {
+      "en": "Hellven: New Book Of Anatomy"
+     }
+    ],
+    "links": {
+     "al": "203365",
+     "bl": "931457",
+     "bw": "de34fcc4e6-0be9-4ab8-b25d-c9c4aa9fce15",
+     "amz": "https://www.amazon.co.jp/dp/4088826809",
+     "cdj": "https://www.cdjapan.co.jp/product/NEOBK-2592091",
+     "ebj": "https://ebookjapan.yahoo.co.jp/books/635903/",
+     "raw": "https://shonenjumpplus.com/volume/4856001361007431839"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": "1",
+    "lastChapter": "7",
+    "status": "completed",
+    "year": 2021,
+    "contentRating": "safe",
+    "createdAt": "2025-12-15T19:31:49+00:00",
+    "updatedAt": "2026-09-10T05:39:41+00:00",
+    "tags": [
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "87cc87cd-a395-47af-b27a-93258283bbc6",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adventure"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "eabc5b4c-6aff-42f3-b657-3e90cbd00b75",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Supernatural"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "ee968100-4191-4968-93d3-f82d72be7e46",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Mystery"
+       },
+       "group": "genre"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "801b900b-c364-450a-923a-76aba1bf010f",
+     "type": "author"
+    },
+    {
+     "id": "801b900b-c364-450a-923a-76aba1bf010f",
+     "type": "artist"
+    },
+    {
+     "id": "35c4530e-95c5-4974-be21-bb9b76bd8119",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "1554d18e-1a8c-4e53-90d3-00abb698ceb8.jpg",
+      "volume": "1",
+      "locale": "ja"
+     }
+    },
+    {
+     "id": "140cadf4-ce3a-41e7-ba5d-58ee4b8fbdc1",
+     "type": "manga"
+    },
+    {
+     "id": "67efeb77-350c-417a-a032-156a086cdbaa",
+     "type": "manga"
+    },
+    {
+     "id": "6b76a5e8-78f0-4477-a279-cf0f4bc017f6",
+     "type": "manga"
+    },
+    {
+     "id": "cb77e4a6-3921-43b9-9d64-7d78cd3205ce",
+     "type": "manga"
+    },
+    {
+     "id": "67591cb1-95e1-45fd-ab85-4a45485ffc80",
+     "type": "creator"
+    }
+   ]
+  },
+  {
+   "id": "140cadf4-ce3a-41e7-ba5d-58ee4b8fbdc1",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "ja-ro": "Jigokuraku Tokubetsu Hen: Mokke no Mori"
+    },
+    "altTitles": [
+     {
+      "ja": "地獄楽 特別編 勿怪の森"
+     },
+     {
+      "ja": "地獄楽 読切「勿怪の森」"
+     },
+     {
+      "ja": "地獄楽　勿怪の森"
+     },
+     {
+      "ja-ro": "Jigokuraku Yomikiri: Mokke no Mori"
+     },
+     {
+      "ja-ro": "Jigokuraku: Mokke no Mori"
+     },
+     {
+      "en": "Hell's Paradise: Jigokuraku Side Story: Forest of Misfortune"
+     },
+     {
+      "en": "Hellven Special Arc: Forest Of The Unexpected"
+     },
+     {
+      "en": "Hell's Paradise: Jigokuraku: Forest of Misfortune"
+     }
+    ],
+    "links": {
+     "al": "163556",
+     "ap": "hells-paradise-jigokuraku-side-story-forest-of-misfortune",
+     "kt": "jigokuraku-tokubetsu-hen-mokke-no-mori",
+     "mal": "157641",
+     "raw": "https://shonenjumpplus.com/episode/4856001361117478498",
+     "engtl": "https://mangaplus.shueisha.co.jp/titles/100238"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": "",
+    "lastChapter": "",
+    "status": "completed",
+    "year": 2023,
+    "contentRating": "safe",
+    "createdAt": "2023-04-07T17:24:26+00:00",
+    "updatedAt": "2026-04-19T07:36:20+00:00",
+    "tags": [
+     {
+      "id": "0234a31e-a729-4e28-9d6a-3f87c4966b9e",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Oneshot"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "cdc58593-87dd-415e-bbc0-2ec27bf404cc",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Fantasy"
+       },
+       "group": "genre"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "801b900b-c364-450a-923a-76aba1bf010f",
+     "type": "author"
+    },
+    {
+     "id": "801b900b-c364-450a-923a-76aba1bf010f",
+     "type": "artist"
+    },
+    {
+     "id": "275d3433-7626-4352-8822-6bac10677acc",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "063fce4a-5c75-415b-983d-8498c7845b19.jpg",
+      "volume": "0.2",
+      "locale": "ja"
+     }
+    },
+    {
+     "id": "472be08a-29ee-4e9e-844c-ee93bdb70208",
+     "type": "manga"
+    },
+    {
+     "id": "67efeb77-350c-417a-a032-156a086cdbaa",
+     "type": "manga"
+    },
+    {
+     "id": "6b76a5e8-78f0-4477-a279-cf0f4bc017f6",
+     "type": "manga"
+    },
+    {
+     "id": "cb77e4a6-3921-43b9-9d64-7d78cd3205ce",
+     "type": "manga"
+    },
+    {
+     "id": "fb03ae91-2304-4a1f-b9e2-6b5ba3313138",
+     "type": "creator"
+    }
+   ]
+  },
+  {
+   "id": "6b76a5e8-78f0-4477-a279-cf0f4bc017f6",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "ja-ro": "Jigokuraku ~Saikyou no Nukenin Gaman no Gabimaru~"
+    },
+    "altTitles": [
+     {
+      "ja": "じごくらく 〜最強の抜け忍 がまんの画眉丸〜"
+     },
+     {
+      "en": "Hellven ~The Strongest Rogue Ninja Gabimaru The Endurant~"
+     }
+    ],
+    "links": {
+     "al": "114822",
+     "ap": "jigokuraku-saikyou-no-nukenin-gaman-no-gabimaru",
+     "bw": "defa19fcf6-a584-46bb-a863-c1e979b8fc55",
+     "kt": "63874",
+     "mu": "z62qzwo",
+     "amz": "https://www.amazon.co.jp/dp/4088824083",
+     "cdj": "https://www.cdjapan.co.jp/product/NEOBK-2519533",
+     "ebj": "https://ebookjapan.yahoo.co.jp/books/603594/A002436729/",
+     "mal": "134556",
+     "raw": "https://shonenjumpplus.com/episode/10834108156744256679"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": "1",
+    "lastChapter": "21",
+    "status": "completed",
+    "year": 2020,
+    "contentRating": "safe",
+    "createdAt": "2023-11-05T08:57:40+00:00",
+    "updatedAt": "2026-04-19T06:05:05+00:00",
+    "tags": [
+     {
+      "id": "33771934-028e-4cb3-8744-691e866a923e",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Historical"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "423e2eae-a7a2-4a8b-ac03-a8351462d71d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Romance"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "4d32cc48-9f00-4cca-9b5a-a839f0764984",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Comedy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "87cc87cd-a395-47af-b27a-93258283bbc6",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adventure"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "eabc5b4c-6aff-42f3-b657-3e90cbd00b75",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Supernatural"
+       },
+       "group": "theme"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "1cf688bc-2ff9-48ab-8bcc-22bd0360ff1d",
+     "type": "author"
+    },
+    {
+     "id": "1cf688bc-2ff9-48ab-8bcc-22bd0360ff1d",
+     "type": "artist"
+    },
+    {
+     "id": "66660bda-0f9a-4f2d-9243-948e7500a0a8",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "aaf423ed-c490-417d-83f5-80a86651892a.jpg",
+      "volume": "1",
+      "locale": "ja"
+     }
+    },
+    {
+     "id": "140cadf4-ce3a-41e7-ba5d-58ee4b8fbdc1",
+     "type": "manga"
+    },
+    {
+     "id": "472be08a-29ee-4e9e-844c-ee93bdb70208",
+     "type": "manga"
+    },
+    {
+     "id": "67efeb77-350c-417a-a032-156a086cdbaa",
+     "type": "manga"
+    },
+    {
+     "id": "cb77e4a6-3921-43b9-9d64-7d78cd3205ce",
+     "type": "manga"
+    },
+    {
+     "id": "6640d5cb-18a0-4264-8c0a-9dcbe39be5ef",
+     "type": "creator"
+    }
+   ]
+  }
+ ],
+ "limit": 10,
+ "offset": 0,
+ "total": 5
+}

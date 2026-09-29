@@ -38,16 +38,18 @@ Records linked before MangaPixer 1.28.0 don't have the English total stored yet.
 
 ## Chapters per volume from AniList
 
-English editions are often counted only in volumes ("18 Volumes"), while you keep chapters, or the other way round. To compare them anyway, MangaPixer can ask [AniList](https://anilist.co) how many chapters and volumes the series has and convert with that ratio. This is the only thing AniList is used for, and it only happens when you ask:
+English editions are often counted only in volumes ("18 Volumes"), while you keep chapters, or the other way round. To compare them anyway, MangaPixer can ask [AniList](https://anilist.co) how many chapters and volumes the series has and convert with that ratio. This is the only thing AniList is used for (the Missing report and, from 1.29.0, [volume lists](series-information.md#volume-covers-and-volume-lists-mangadex)); it is never used to match a folder. It happens when you ask:
 
 - **Chapters per volume (AniList)** under a series asks for that series.
 - **Get chapters per volume from AniList** above the list asks for up to 20 linked series that don't have it yet (one request each, at most one per second). A series AniList had no match for is not asked again for a day.
 
-MangaPixer sends the MangaUpdates title of the linked series (never a folder or file name), or its AniList number once it is known, and keeps an entry only when its title matches the series and its start year is within a year. The entry's totals are stored on your server; the series line then shows them, for example "AniList: 116 chapters in 27 volumes, 4.3 per volume", with a link to the entry. Only a finished entry gives a ratio, because a running series' totals are not final.
+and, *new in 1.29.0*, on its own with **Automatic matching** and **Volume covers from the web** on: for a linked series that MangaDex gives no volume list for, the background volume-cover work asks AniList for its totals once, and again on the series' refresh schedule (every 30 days while it is ongoing, every 90 days once complete). Those requests count in the same daily budget and are paced at one per second.
+
+MangaPixer sends the MangaUpdates title of the linked series (never a folder or file name), or its AniList number once it is known - an AniList number an admin entered, one already stored, or the one the series' MangaDex record links to - and keeps an entry only when its title matches the series and its start year is within a year. The entry's totals are stored on your server; the series line then shows them, for example "AniList: 116 chapters in 27 volumes, 4.3 per volume", with a link to the entry. Only a finished entry gives a ratio, because a running series' totals are not final.
 
 With a ratio, a missing total is estimated from the other unit, marked **~** and **(estimate)**: "You have chapters 1-3 of ~116 (estimate)". The order is then: the English total of the same unit, the English total of the other unit converted, the total in the country of origin, and for chapters the latest release.
 
-The buttons appear only while **Fetch from the web** is on and AniList is one of the [allowed sites](series-information.md#allowed-sites). Every request counts in the daily request budget.
+The buttons appear only while **Fetch from the web** is on and AniList is one of the [allowed sites](series-information.md#allowed-sites); with AniList removed from the list, the automatic lookups stop too. Every request counts in the daily request budget.
 
 ## Reading a line
 

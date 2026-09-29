@@ -8,6 +8,8 @@ import { test, expect, Page, APIRequestContext } from '@playwright/test';
  *   the browser contacts no host but MangaPixer);
  * - Identify is disabled with its reason when web lookups are off, and the identify
  *   dialog opened from the selection menu shows the unavailable state.
+ * - the Volume covers card (1.29.0): MangaDex on the allowed sites, the switch, the preferred language, the
+ *   progress and the MangaDex credit - saving makes no lookup and no foreign request.
  * The Identify checks need a library with at least one folder (skipped otherwise).
  * Optional: E2E_SCREENSHOT_DIR saves the reviewed screenshots.
  */
@@ -137,5 +139,40 @@ test('Identify is disabled with the reason, and the dialog shows the unavailable
   await page.getByTestId('identify-close').click();
 
   expect((await settings(page)).budgetUsedToday).toBe(usedBefore);
+  expect(foreign).toEqual([]);
+});
+
+test('volume covers card (1.29.0): MangaDex is an allowed site; the switch and the language save with no provider request', async ({ page, baseURL }) => {
+  const foreign = watchForeignRequests(page, baseURL!);
+  await login(page);
+  const usedBefore = (await settings(page)).budgetUsedToday;
+  await page.goto('/admin/metadata');
+
+  const card = page.getByTestId('metadata-settings-card');
+  await expect(card.locator('[data-testid="md-provider-chip"][data-provider="mangadex"]')).toContainText('uploads.mangadex.org');
+  const covers = card.getByTestId('md-volume-covers');
+  await covers.scrollIntoViewIfNeeded();
+  await expect(covers.getByTestId('md-mangadex-credit')).toContainText('MangaDex (mangadex.org)');
+
+  // Progress is read on demand from MangaPixer (counts only).
+  await covers.getByTestId('md-volume-covers-progress').click();
+  await expect(covers.getByTestId('md-volume-covers-status')).toContainText('stored');
+  await shot(page, 'p-01-volume-covers-card');
+
+  const toggle = covers.getByTestId('md-volume-covers-switch').getByRole('switch');
+  await expect(toggle).toHaveAttribute('aria-checked', 'true');
+  await toggle.click();
+  await expect.poll(async () => (await (await page.request.get('/api/v1/admin/metadata/settings')).json()).volumeCoversEnabled).toBe(false);
+  await toggle.click();
+  await expect.poll(async () => (await (await page.request.get('/api/v1/admin/metadata/settings')).json()).volumeCoversEnabled).toBe(true);
+
+  await covers.getByTestId('md-cover-language').click();
+  await page.getByRole('option', { name: 'Japanese' }).click();
+  await expect.poll(async () => (await (await page.request.get('/api/v1/admin/metadata/settings')).json()).preferredCoverLanguage).toBe('ja');
+  await covers.getByTestId('md-cover-language').click();
+  await page.getByRole('option', { name: 'English' }).click();
+  await expect.poll(async () => (await (await page.request.get('/api/v1/admin/metadata/settings')).json()).preferredCoverLanguage).toBe('en');
+
+  expect((await settings(page)).budgetUsedToday).toBe(usedBefore); // nothing was looked up
   expect(foreign).toEqual([]);
 });

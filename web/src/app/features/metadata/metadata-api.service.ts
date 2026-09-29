@@ -5,6 +5,8 @@ import { catchError } from 'rxjs/operators';
 
 import {
   ApiError,
+  CompanionDto,
+  CoverPassStatusDto,
   CreateMetadataFlagRequest,
   FolderMetadataContentDto,
   FolderMetadataPrecedenceDto,
@@ -238,6 +240,38 @@ export class MetadataApiService {
 
   resolveFlag(flagId: string, outcome: Exclude<MetadataFlagState, 'Open'>): Observable<MetadataFlagDto> {
     return this.post<MetadataFlagDto>(`/admin/metadata/flags/${encodeURIComponent(flagId)}/resolve`, { outcome });
+  }
+
+  // --- MangaDex companion and stored volume covers (1.29.0, admin). The SERVER makes every provider request. ---
+
+  /** The companions (MangaDex, AniList) of the series the node is linked to. No network on the server. */
+  getCompanions(nodeId: string): Observable<CompanionDto[]> {
+    return this.get<CompanionDto[]>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/companions`);
+  }
+
+  /** "Change MangaDex match...": a MangaDex title address or id (parsed by the server; then one GET by id). */
+  setMangaDexCompanion(nodeId: string, reference: string): Observable<CompanionDto[]> {
+    return this.put<CompanionDto[]>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/companions/mangadex`, { reference });
+  }
+
+  /** "Not on MangaDex": never looked up there again. */
+  clearMangaDexCompanion(nodeId: string): Observable<CompanionDto[]> {
+    return this.delete<CompanionDto[]>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/companions/mangadex`);
+  }
+
+  /** "Check MangaDex again": the companion and its lists, now. */
+  recheckMangaDexCompanion(nodeId: string): Observable<CompanionDto[]> {
+    return this.post<CompanionDto[]>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/companions/mangadex/recheck`, {});
+  }
+
+  /** The background volume-cover pass: pending series, listed / stored covers, why it waits. */
+  getVolumeCoverStatus(): Observable<CoverPassStatusDto> {
+    return this.get<CoverPassStatusDto>('/admin/metadata/volume-covers/status');
+  }
+
+  /** "Delete stored volume covers" (local only). */
+  deleteStoredVolumeCovers(): Observable<CoverPassStatusDto> {
+    return this.delete<CoverPassStatusDto>('/admin/metadata/volume-covers');
   }
 
   private get<T>(path: string, params?: HttpParams): Observable<T> {

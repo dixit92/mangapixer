@@ -1945,7 +1945,7 @@ export interface CoverChoiceRequest {
   cropSide?: CoverCropSide | null;
 }
 
-/** A companion record of the node's linked series (lane P). */
+/** A companion record of the node's linked series (lane P): GET /admin/metadata/nodes/{nodeId}/companions. */
 export interface CompanionDto {
   provider: string;
   providerName: string;
@@ -1954,7 +1954,7 @@ export interface CompanionDto {
   checkedAt?: string | null;
 }
 
-/** PUT /nodes/{nodeId}/companions/mangadex (admin, lane P): a MangaDex title URL or UUID. */
+/** PUT /admin/metadata/nodes/{nodeId}/companions/mangadex (admin, lane P): a MangaDex title URL or UUID. */
 export interface CompanionReferenceRequest {
   reference: string;
 }
@@ -1966,7 +1966,7 @@ export interface VolumeListInfoDto {
   fetchedAt?: string | null;
 }
 
-/** The background volume-cover pass, for the Automatic matching card (lane P). */
+/** The background volume-cover pass (lane P): GET /admin/metadata/volume-covers/status, DELETE /admin/metadata/volume-covers. */
 export interface CoverPassStatusDto {
   seriesPending: number;
   coversListed: number;

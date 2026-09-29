@@ -29,7 +29,8 @@ public sealed record MetadataRateLimitOptions
 
     /// <summary>
     /// <c>graphql.anilist.co</c> (1.28.0): 1 request/s, burst 1 - under AniList's published 90 requests/minute
-    /// (lowered to 30 while degraded, when its 429 + Retry-After takes over). Admin actions only.
+    /// (lowered to 30 while degraded, when its 429 + Retry-After takes over). Admin actions and (1.29.0) the automatic
+    /// totals fallback of the volume-cover pass.
     /// </summary>
     public TokenBucketRateLimiterOptions AniList { get; init; } = new()
     {
@@ -41,8 +42,30 @@ public sealed record MetadataRateLimitOptions
         AutoReplenishment = true,
     };
 
-    /// <summary>How long AniList is left alone after a 429 / 503 that carries no Retry-After.</summary>
-    public TimeSpan AniListDefaultBackoff { get; init; } = TimeSpan.FromSeconds(60);
+    /// <summary>
+    /// <c>api.mangadex.org</c> (1.29.0): 2 requests/s, burst 2 - well under MangaDex's ~5 requests/s per IP; automatic
+    /// calls are paced at 1/s on top.
+    /// </summary>
+    public TokenBucketRateLimiterOptions MangaDexApi { get; init; } = new()
+    {
+        TokenLimit = 2,
+        TokensPerPeriod = 1,
+        ReplenishmentPeriod = TimeSpan.FromMilliseconds(500),
+        QueueLimit = 10,
+        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+        AutoReplenishment = true,
+    };
+
+    /// <summary><c>uploads.mangadex.org</c> cover images (1.29.0): 2 requests/s, burst 2.</summary>
+    public TokenBucketRateLimiterOptions MangaDexImages { get; init; } = new()
+    {
+        TokenLimit = 2,
+        TokensPerPeriod = 1,
+        ReplenishmentPeriod = TimeSpan.FromMilliseconds(500),
+        QueueLimit = 10,
+        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+        AutoReplenishment = true,
+    };
 
     /// <summary>
     /// Minimum spacing between AUTOMATIC requests (stage 2: at most 1 request/s, so
@@ -54,14 +77,16 @@ public sealed record MetadataRateLimitOptions
 /// <summary>
 /// Process-wide gateway state (singleton, 1.24.0 lane B2): the token buckets,
 /// the lock that serializes writes of the persisted budget/backoff columns, and
-/// the in-memory streak of consecutive 5xx/timeouts. 1.28.0: AniList's bucket and
-/// its backoff, kept in memory (the persisted backoff columns stay MangaUpdates'
-/// own, so an AniList 429 never pauses MangaUpdates; a restart forgets it, and
-/// AniList answers a request that comes too early with another 429).
+/// the in-memory streak of consecutive 5xx/timeouts. 1.29.0 (gateway
+/// generalisation): one set of buckets and one failure streak PER PROVIDER
+/// (MangaUpdates API + images, AniList, MangaDex API + images), so a busy or
+/// failing provider never slows or pauses another; the persisted backoff is per
+/// provider too (<see cref="MetadataBackoff"/>). The automatic pacing (at most one
+/// automatic request per second) stays process-wide, across providers.
 /// </summary>
 public sealed class MetadataGatewayState : IDisposable
 {
-    private int _failureStreak;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _failureStreaks = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _automaticGate = new(1, 1);
     private readonly TimeSpan _automaticInterval;
     private long _lastAutomaticTicks;
@@ -71,23 +96,29 @@ public sealed class MetadataGatewayState : IDisposable
         ApiLimiter = new TokenBucketRateLimiter(options.Api);
         ImageLimiter = new TokenBucketRateLimiter(options.Images);
         AniListLimiter = new TokenBucketRateLimiter(options.AniList);
-        AniListDefaultBackoff = options.AniListDefaultBackoff;
+        MangaDexApiLimiter = new TokenBucketRateLimiter(options.MangaDexApi);
+        MangaDexImageLimiter = new TokenBucketRateLimiter(options.MangaDexImages);
         _automaticInterval = options.AutomaticInterval;
     }
 
-    private long _aniListBackoffUntilTicks;
-
     public RateLimiter AniListLimiter { get; }
-    public TimeSpan AniListDefaultBackoff { get; }
+    public RateLimiter MangaDexApiLimiter { get; }
+    public RateLimiter MangaDexImageLimiter { get; }
 
-    /// <summary>The time AniList asked us to wait until, or null.</summary>
-    public DateTimeOffset? AniListBackoffUntil(DateTimeOffset now)
+    /// <summary>The API bucket of a provider (MangaUpdates' for an unknown id - it is refused before any call).</summary>
+    public RateLimiter ApiLimiterOf(string providerId) => providerId switch
     {
-        var ticks = Interlocked.Read(ref _aniListBackoffUntilTicks);
-        return ticks > now.UtcTicks ? new DateTimeOffset(ticks, TimeSpan.Zero) : null;
-    }
+        MetadataProviderAllowlist.AniList => AniListLimiter,
+        MetadataProviderAllowlist.MangaDex => MangaDexApiLimiter,
+        _ => ApiLimiter,
+    };
 
-    public void SetAniListBackoff(DateTimeOffset until) => Interlocked.Exchange(ref _aniListBackoffUntilTicks, until.UtcTicks);
+    /// <summary>The image bucket of a provider.</summary>
+    public RateLimiter ImageLimiterOf(string providerId) => providerId switch
+    {
+        MetadataProviderAllowlist.MangaDex => MangaDexImageLimiter,
+        _ => ImageLimiter,
+    };
 
     /// <summary>
     /// Waits until an automatic request may start: automatic requests are serialized
@@ -117,14 +148,18 @@ public sealed class MetadataGatewayState : IDisposable
     public RateLimiter ImageLimiter { get; }
     public SemaphoreSlim StateLock { get; } = new(1, 1);
 
-    public int IncrementFailureStreak() => Interlocked.Increment(ref _failureStreak);
-    public void ResetFailureStreak() => Interlocked.Exchange(ref _failureStreak, 0);
+    public int IncrementFailureStreak(string providerId = MetadataProviderAllowlist.MangaUpdates) =>
+        _failureStreaks.AddOrUpdate(providerId, 1, (_, n) => n + 1);
+
+    public void ResetFailureStreak(string providerId = MetadataProviderAllowlist.MangaUpdates) => _failureStreaks[providerId] = 0;
 
     public void Dispose()
     {
         ApiLimiter.Dispose();
         ImageLimiter.Dispose();
         AniListLimiter.Dispose();
+        MangaDexApiLimiter.Dispose();
+        MangaDexImageLimiter.Dispose();
         StateLock.Dispose();
         _automaticGate.Dispose();
     }

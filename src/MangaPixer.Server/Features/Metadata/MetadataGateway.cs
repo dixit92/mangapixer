@@ -79,6 +79,13 @@ public sealed class MetadataCallContext
 /// re-checked when a call returns, so a result that arrives after the admin turned
 /// the feature off is dropped, not stored.
 ///
+/// 1.29.0 (gateway generalisation): every provider has its own token buckets,
+/// persisted backoff and failure streak (<see cref="MetadataHttp.Transports"/>:
+/// API client, image client, fixed image hosts), so a 429 from MangaDex pauses
+/// MangaDex only. Companion calls (MangaDex, AniList - never an Identify provider)
+/// go through <see cref="CompanionCallAsync{T}"/> with the same gates, the same
+/// budget and, when automatic, the same pacing.
+///
 /// Logs carry provider, operation, status, elapsed ms and ids only - never the
 /// query text, titles, URLs or bodies; exceptions as their type name.
 /// </summary>
@@ -218,7 +225,7 @@ public sealed class MetadataGateway
         if (_cache.TryGetValue<ProviderSearchPage>(key, out var cached) && cached is not null)
             return cached;
 
-        var result = await CallAsync(provider.Id, "search", libraryId, _state.ApiLimiter,
+        var result = await CallAsync(provider.Id, "search", libraryId, _state.ApiLimiterOf(provider.Id),
             c => provider.SearchSeriesAsync(
                 new ProviderSearchQuery(text, libraryId, page, SearchPageSize, hideDoujinshiAndNovels, hideDoujinshiAndNovels && allowDoujinshi,
                     declaredType), c),
@@ -235,26 +242,30 @@ public sealed class MetadataGateway
         if (!MetadataIdentifiers.IsValidExternalId(externalId))
             throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "invalid_request", "The record id is not valid.");
         await ThrowIfSwitchedOffAsync(libraryId, call?.Origin ?? MetadataCallOrigin.Interactive, provider.Id, ct);
-        return await CallAsync(provider.Id, "get", libraryId, _state.ApiLimiter, c => provider.GetSeriesAsync(externalId, c), call, ct);
+        return await CallAsync(provider.Id, "get", libraryId, _state.ApiLimiterOf(provider.Id), c => provider.GetSeriesAsync(externalId, c), call, ct);
     }
 
     /// <summary>
     /// One gated image GET. The URL must come from a stored record or a search
     /// result held server-side (never from the client) and is re-validated against
-    /// the image allowlist; the body is capped and must carry image magic bytes.
+    /// THAT provider's image hosts (1.29.0: MangaUpdates' CDN, MangaDex's
+    /// <c>uploads.mangadex.org</c>); it uses that provider's image client, bucket and
+    /// backoff. The body is capped and must carry image magic bytes. HEAD is never used.
     /// </summary>
     public async Task<byte[]> FetchImageAsync(
         string providerId, long libraryId, string imageUrl, CancellationToken ct = default, MetadataCallContext? call = null)
     {
-        var provider = Provider(providerId);
+        var transport = MetadataHttp.Transport(providerId) is { ImageClient: not null } t
+            ? t
+            : throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "unknown_provider", "No such metadata provider.");
         if (!Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri)
-            || !HostAllowlistHandler.IsAllowed(uri, s_imageHosts))
+            || !HostAllowlistHandler.IsAllowed(uri, transport.ImageHosts))
             throw new MetadataGatewayException(StatusCodes.Status502BadGateway, "host_not_allowed", "The image address is not on the allowlist.");
 
-        await ThrowIfSwitchedOffAsync(libraryId, call?.Origin ?? MetadataCallOrigin.Interactive, provider.Id, ct);
-        return await CallAsync(provider.Id, "image", libraryId, _state.ImageLimiter, async c =>
+        await ThrowIfSwitchedOffAsync(libraryId, call?.Origin ?? MetadataCallOrigin.Interactive, transport.Id, ct);
+        return await CallAsync(transport.Id, "image", libraryId, _state.ImageLimiterOf(transport.Id), async c =>
         {
-            var client = _httpFactory.CreateClient(MetadataHttp.MangaUpdatesImageClient);
+            var client = _httpFactory.CreateClient(transport.ImageClient!);
             using var response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, c);
             MetadataHttp.EnsureSuccess(response);
             var bytes = await MetadataHttp.ReadBoundedAsync(response, MetadataHttp.MaxImageBytes, c);
@@ -265,80 +276,33 @@ public sealed class MetadataGateway
     }
 
     /// <summary>
-    /// One gated call to a chapters-per-volume source (1.28.0, AniList; admin actions only). Gates, in order: the
-    /// config kill switch, "Fetch from the web" with the current consent, the library's switch, the provider
-    /// allowlist; then the provider's own in-memory backoff (503), the ONE daily budget (429) and its token bucket
-    /// (1 request/s; a full queue refuses with 429). A 429 / 503 from the provider starts its backoff (Retry-After,
-    /// else <see cref="MetadataGatewayState.AniListDefaultBackoff"/>) and never touches MangaUpdates' persisted
-    /// backoff. The switches are re-checked when the call returns. Logs: provider, operation, status, timing.
+    /// One gated call to a chapters-per-volume source (1.28.0, AniList). Same as <see cref="CompanionCallAsync{T}"/>
+    /// for the provider's id: admin actions by default; (1.29.0) an <see cref="MetadataCallOrigin.Automatic"/> context
+    /// for the volume-cover pass's totals fallback (then the automatic switch + consent are required too, and the call
+    /// is paced). A 429 / 503 starts AniList's OWN persisted backoff and never touches MangaUpdates'.
     /// </summary>
-    public async Task<T> ConversionCallAsync<T>(
+    public Task<T> ConversionCallAsync<T>(
         Providers.AniList.IUnitConversionProvider provider, string operation, long libraryId, Func<CancellationToken, Task<T>> call,
+        CancellationToken ct = default, MetadataCallContext? context = null) =>
+        CompanionCallAsync(provider.Id, operation, libraryId, call, context, ct);
+
+    /// <summary>
+    /// One gated API call to a companion provider (1.29.0: MangaDex, AniList - providers that are never offered to
+    /// Identify or the matcher). Gates, in order: the config kill switch, "Fetch from the web" with the current consent,
+    /// for automatic calls the Automatic matching switch with the current automatic consent, the provider allowlist, the
+    /// library's switch; then the provider's persisted backoff (503), the ONE daily budget (429), the automatic pacing
+    /// and the provider's token bucket. Failures update the provider's own backoff; the switches are re-checked when
+    /// the call returns. <paramref name="call"/> must only translate HTTP/JSON (the provider classes).
+    /// </summary>
+    public async Task<T> CompanionCallAsync<T>(
+        string providerId, string operation, long libraryId, Func<CancellationToken, Task<T>> call, MetadataCallContext? context,
         CancellationToken ct = default)
     {
-        await ThrowIfSwitchedOffAsync(libraryId, MetadataCallOrigin.Interactive, provider.Id, ct);
-        if (_state.AniListBackoffUntil(DateTimeOffset.UtcNow) is { } until)
-            throw Refuse(libraryId, new MetadataGatewayException(StatusCodes.Status503ServiceUnavailable, "provider_backoff",
-                $"{provider.DisplayName} asked us to slow down. Try again later.", until));
-        if ((await _budget.GetAsync(ct)).Exhausted)
-            throw Refuse(libraryId, BudgetExhausted());
-
-        using var lease = await _state.AniListLimiter.AcquireAsync(1, ct);
-        if (!lease.IsAcquired)
-            throw Refuse(libraryId, new MetadataGatewayException(StatusCodes.Status429TooManyRequests, "provider_busy",
-                "Too many metadata requests are queued. Try again in a moment."));
-        if (!await _budget.TryConsumeAsync(ct))
-            throw Refuse(libraryId, BudgetExhausted());
-
-        var watch = Stopwatch.StartNew();
-        T result;
-        try
-        {
-            result = await call(ct);
-        }
-        catch (Exception ex) when (ex is not MetadataGatewayException && !(ex is OperationCanceledException && ct.IsCancellationRequested))
-        {
-            var status = ex is MetadataHttpStatusException http ? (int)http.Status : 0;
-            _logger.LogWarning(LogEvents.Metadata.ProviderCallFailed, "Metadata {Provider} {Operation} for library {LibraryId} failed: {Status} {Error} in {ElapsedMs} ms",
-                provider.Id, operation, libraryId, status, ex.GetType().Name, watch.ElapsedMilliseconds);
-            throw ex switch
-            {
-                MetadataHttpStatusException { Status: HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable } limited =>
-                    ConversionBackoff(provider, limited),
-                MetadataHttpStatusException => new MetadataGatewayException(StatusCodes.Status502BadGateway, "provider_error",
-                    $"{provider.DisplayName} returned an error. Try again later."),
-                OperationCanceledException or TimeoutException => new MetadataGatewayException(StatusCodes.Status504GatewayTimeout,
-                    "provider_timeout", $"{provider.DisplayName} did not answer in time."),
-                MetadataHostRefusedException refused => new MetadataGatewayException(StatusCodes.Status502BadGateway, refused.Code,
-                    $"{provider.DisplayName} answered with a redirect or an address that is not allowed."),
-                MetadataResponseTooLargeException => new MetadataGatewayException(StatusCodes.Status502BadGateway, "response_too_large",
-                    $"{provider.DisplayName}'s response was too large."),
-                MetadataResponseInvalidException invalid => new MetadataGatewayException(StatusCodes.Status502BadGateway, invalid.Code,
-                    $"{provider.DisplayName}'s response could not be read."),
-                _ => new MetadataGatewayException(StatusCodes.Status502BadGateway, "provider_unreachable",
-                    $"{provider.DisplayName} could not be reached."),
-            };
-        }
-
-        _logger.LogInformation(LogEvents.Metadata.ProviderCall, "Metadata {Provider} {Operation} ({Origin}) for library {LibraryId}: {Status} in {ElapsedMs} ms",
-            provider.Id, operation, MetadataCallOrigin.Interactive, libraryId, 200, watch.ElapsedMilliseconds);
-        await ThrowIfSwitchedOffAsync(libraryId, MetadataCallOrigin.Interactive, provider.Id, ct);
-        return result;
+        if (MetadataHttp.Transport(providerId) is null || _providers.Find(providerId) is not null)
+            throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "unknown_provider", "No such metadata provider.");
+        await ThrowIfSwitchedOffAsync(libraryId, context?.Origin ?? MetadataCallOrigin.Interactive, providerId, ct);
+        return await CallAsync(providerId, operation, libraryId, _state.ApiLimiterOf(providerId), call, context, ct);
     }
-
-    private MetadataGatewayException ConversionBackoff(Providers.AniList.IUnitConversionProvider provider, MetadataHttpStatusException limited)
-    {
-        var now = DateTimeOffset.UtcNow;
-        var wait = limited.RetryAfterDelta ?? (limited.RetryAfterDate is { } date ? date - now : _state.AniListDefaultBackoff);
-        wait = TimeSpan.FromSeconds(Math.Clamp(wait.TotalSeconds, 1, 3600));
-        var until = now + wait;
-        _state.SetAniListBackoff(until);
-        return new MetadataGatewayException(StatusCodes.Status503ServiceUnavailable, "provider_backoff",
-            $"{provider.DisplayName} asked us to slow down. Try again later.", until);
-    }
-
-    private static readonly IReadOnlySet<string> s_imageHosts =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { MetadataHttp.MangaUpdatesImageHost };
 
     private IMetadataProvider Provider(string providerId) =>
         _providers.Find(providerId)
@@ -358,9 +322,9 @@ public sealed class MetadataGateway
         Func<CancellationToken, Task<T>> call, MetadataCallContext? context, CancellationToken ct)
     {
         var origin = context?.Origin ?? MetadataCallOrigin.Interactive;
-        if (await _backoff.ActiveUntilAsync(ct) is { } until)
+        if (await _backoff.ActiveUntilAsync(providerId, ct) is { } until)
             throw Refuse(libraryId, new MetadataGatewayException(StatusCodes.Status503ServiceUnavailable, "provider_backoff",
-                "The metadata provider asked us to slow down. Try again later.", until));
+                $"{NameOf(providerId)} asked us to slow down. Try again later.", until));
 
         if ((await _budget.GetAsync(ct)).Exhausted)
             throw Refuse(libraryId, BudgetExhausted());
@@ -390,7 +354,7 @@ public sealed class MetadataGateway
 
         _logger.LogInformation(LogEvents.Metadata.ProviderCall, "Metadata {Provider} {Operation} ({Origin}) for library {LibraryId}: {Status} in {ElapsedMs} ms",
             providerId, operation, origin, libraryId, 200, watch.ElapsedMilliseconds);
-        await _backoff.RecordSuccessAsync(ct);
+        await _backoff.RecordSuccessAsync(providerId, ct);
 
         // In-flight calls finish, but their results are kept only if the switches are still on.
         await ThrowIfSwitchedOffAsync(libraryId, origin, providerId, ct);
@@ -426,56 +390,71 @@ public sealed class MetadataGateway
         new(StatusCodes.Status429TooManyRequests, "budget_exhausted",
             "Today's metadata request budget is used up. It resets at 00:00 UTC; an admin can raise it in Metadata Manager.");
 
-    /// <summary>Classifies a failed call, updates the persisted backoff / last error, and returns the error to throw.</summary>
+    /// <summary>"The metadata provider" for MangaUpdates (the wording of 1.24.0), else the provider's name.</summary>
+    private static string NameOf(string providerId) =>
+        providerId == MetadataProviderAllowlist.MangaUpdates ? "The metadata provider" : MetadataHttp.Transport(providerId)?.DisplayName ?? "The metadata provider";
+
+    /// <summary>
+    /// Classifies a failed call, updates THAT provider's persisted backoff / last error, and returns the error to throw.
+    /// A 429 / 503 - and for MangaDex a 403 (its edge's answer to a client that is too fast) - is a backoff.
+    /// </summary>
     private async Task<MetadataGatewayException> FailAsync(string providerId, string operation, long libraryId, Exception ex, long elapsedMs, CancellationToken ct)
     {
         var status = ex is MetadataHttpStatusException http ? (int)http.Status : 0;
         _logger.LogWarning(LogEvents.Metadata.ProviderCallFailed, "Metadata {Provider} {Operation} for library {LibraryId} failed: {Status} {Error} in {ElapsedMs} ms",
             providerId, operation, libraryId, status, ex.GetType().Name, elapsedMs);
 
+        var name = NameOf(providerId);
+        var forbiddenIsLimit = MetadataHttp.Transport(providerId)?.ForbiddenMeansSlowDown == true;
         switch (ex)
         {
-            case MetadataHttpStatusException { Status: HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable } limited:
+            case MetadataHttpStatusException limited when limited.Status is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable
+                || (forbiddenIsLimit && limited.Status == HttpStatusCode.Forbidden):
                 {
-                    var code = limited.Status == HttpStatusCode.TooManyRequests ? "rate_limited" : "http_503";
-                    var until = await _backoff.RecordRateLimitedAsync(limited.RetryAfterDelta, limited.RetryAfterDate, code, ct);
+                    var code = limited.Status switch
+                    {
+                        HttpStatusCode.TooManyRequests => "rate_limited",
+                        HttpStatusCode.Forbidden => "http_403",
+                        _ => "http_503",
+                    };
+                    var until = await _backoff.RecordRateLimitedAsync(providerId, limited.RetryAfterDelta, limited.RetryAfterDate, code, ct);
                     return new MetadataGatewayException(StatusCodes.Status503ServiceUnavailable, "provider_backoff",
-                        "The metadata provider is busy. Try again later.", until);
+                        $"{name} is busy. Try again later.", until);
                 }
             case MetadataHttpStatusException { Status: >= HttpStatusCode.InternalServerError }:
                 {
-                    var until = await _backoff.RecordFailureAsync("http_5xx", countsTowardStreak: true, ct);
+                    var until = await _backoff.RecordFailureAsync(providerId, "http_5xx", countsTowardStreak: true, ct);
                     return new MetadataGatewayException(StatusCodes.Status502BadGateway, "provider_error",
-                        "The metadata provider returned an error. Try again later.", until);
+                        $"{name} returned an error. Try again later.", until);
                 }
             case MetadataHttpStatusException:
-                await _backoff.RecordFailureAsync("http_4xx", countsTowardStreak: false, ct);
+                await _backoff.RecordFailureAsync(providerId, "http_4xx", countsTowardStreak: false, ct);
                 return new MetadataGatewayException(StatusCodes.Status502BadGateway, "provider_error",
-                    "The metadata provider rejected the request.");
+                    $"{name} rejected the request.");
             case OperationCanceledException or TimeoutException:
                 {
-                    var until = await _backoff.RecordFailureAsync("timeout", countsTowardStreak: true, ct);
+                    var until = await _backoff.RecordFailureAsync(providerId, "timeout", countsTowardStreak: true, ct);
                     return new MetadataGatewayException(StatusCodes.Status504GatewayTimeout, "provider_timeout",
-                        "The metadata provider did not answer in time.", until);
+                        $"{name} did not answer in time.", until);
                 }
             case MetadataHostRefusedException refused:
-                await _backoff.RecordFailureAsync(refused.Code, countsTowardStreak: false, ct);
+                await _backoff.RecordFailureAsync(providerId, refused.Code, countsTowardStreak: false, ct);
                 return new MetadataGatewayException(StatusCodes.Status502BadGateway, refused.Code,
-                    "The metadata provider answered with a redirect or an address that is not allowed.");
+                    $"{name} answered with a redirect or an address that is not allowed.");
             case MetadataResponseTooLargeException:
-                await _backoff.RecordFailureAsync("response_too_large", countsTowardStreak: false, ct);
+                await _backoff.RecordFailureAsync(providerId, "response_too_large", countsTowardStreak: false, ct);
                 return new MetadataGatewayException(StatusCodes.Status502BadGateway, "response_too_large",
-                    "The metadata provider's response was too large.");
+                    $"{name}'s response was too large.");
             case MetadataResponseInvalidException invalid:
-                await _backoff.RecordFailureAsync(invalid.Code, countsTowardStreak: false, ct);
+                await _backoff.RecordFailureAsync(providerId, invalid.Code, countsTowardStreak: false, ct);
                 return new MetadataGatewayException(StatusCodes.Status502BadGateway, invalid.Code,
-                    "The metadata provider's response could not be read.");
+                    $"{name}'s response could not be read.");
             default:
                 {
                     // Network errors (DNS, connection refused, TLS) count like a 5xx.
-                    var until = await _backoff.RecordFailureAsync("network_error", countsTowardStreak: true, ct);
+                    var until = await _backoff.RecordFailureAsync(providerId, "network_error", countsTowardStreak: true, ct);
                     return new MetadataGatewayException(StatusCodes.Status502BadGateway, "provider_unreachable",
-                        "The metadata provider could not be reached.", until);
+                        $"{name} could not be reached.", until);
                 }
         }
     }

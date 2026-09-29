@@ -18,6 +18,7 @@ public static class MetadataProviderAllowlist
 
     public const string MangaUpdates = "mangaupdates";
     public const string AniList = "anilist";
+    public const string MangaDex = "mangadex";
 
     /// <summary>An approved site: what it is used for and what is sent to it (shown on the chip).</summary>
     public sealed record ApprovedProvider(string Id, string Name, IReadOnlyList<string> Hosts, string UsedFor, string Sends);
@@ -29,9 +30,14 @@ public static class MetadataProviderAllowlist
             "Series details, cover art, publication status and English release totals.",
             "The search text you confirm (usually a folder or file name) and MangaUpdates record numbers; with Automatic "
             + "matching on, also the cleaned names of new series folders."),
+        new(MangaDex, "MangaDex", [MetadataHttp.MangaDexApiHost, MetadataHttp.MangaDexImageHost],
+            "Volume covers, and which chapters make up each volume, for series already linked to MangaUpdates.",
+            "The MangaUpdates title of a linked series (never a folder or file name), MangaDex record numbers and your cover "
+            + "languages; downloads cover images."),
         new(AniList, "AniList", [MetadataHttp.AniListHost],
-            "Chapters per volume for the Missing report, when an admin asks for it.",
-            "The MangaUpdates title of a series that is already linked (never a folder or file name)."),
+            "Chapters per volume, for the Missing report and virtual volumes - when an admin asks, or automatically when "
+            + "MangaDex has no volume list.",
+            "The AniList record number, or the MangaUpdates title of a series that is already linked (never a folder or file name)."),
     ];
 
     private sealed record State([property: JsonPropertyName("removed")] List<string>? Removed);

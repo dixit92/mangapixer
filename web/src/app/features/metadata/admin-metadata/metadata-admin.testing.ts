@@ -43,6 +43,7 @@ export function settings(overrides: Partial<MetadataSettingsDto> = {}): Metadata
     fetchEnabled: false,
     providers: [
       { id: 'mangaupdates', name: 'MangaUpdates', hosts: ['api.mangaupdates.com', 'cdn.mangaupdates.com'], usedFor: 'Series details.', sends: 'Search text.', allowed: true },
+      { id: 'mangadex', name: 'MangaDex', hosts: ['api.mangadex.org', 'uploads.mangadex.org'], usedFor: 'Volume covers.', sends: 'A linked title.', allowed: true },
       { id: 'anilist', name: 'AniList', hosts: ['graphql.anilist.co'], usedFor: 'Chapters per volume.', sends: 'A linked title.', allowed: true },
     ],
     networkDisabledByConfig: false,

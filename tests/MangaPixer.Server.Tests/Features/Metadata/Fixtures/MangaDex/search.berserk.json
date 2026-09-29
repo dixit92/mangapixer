@@ -1,0 +1,1368 @@
+{
+ "result": "ok",
+ "response": "collection",
+ "data": [
+  {
+   "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "ja-ro": "Berserk"
+    },
+    "altTitles": [
+     {
+      "ja": "ベルセルク"
+     },
+     {
+      "ko": "베르세르크"
+     },
+     {
+      "zh": "烙印勇士"
+     },
+     {
+      "zh-hk": "劍風傳奇"
+     },
+     {
+      "ar": "برسرك"
+     },
+     {
+      "ar": "بيرسيرك"
+     },
+     {
+      "be": "Бярсерк"
+     },
+     {
+      "de": "Berserk"
+     },
+     {
+      "he": "ברזרק"
+     },
+     {
+      "ne": "बर्सर्क"
+     },
+     {
+      "fa": "برزرک"
+     },
+     {
+      "ru": "Берсерк"
+     },
+     {
+      "th": "เบอร์เซิร์ก"
+     },
+     {
+      "th": "เทพมรณะ"
+     },
+     {
+      "uk": "Берсерк"
+     },
+     {
+      "bg": "Берсерк"
+     },
+     {
+      "bn": "রণোন্মত্ত"
+     },
+     {
+      "en": "Berserk"
+     },
+     {
+      "id": "Berserk"
+     }
+    ],
+    "links": {
+     "al": "30002",
+     "ap": "berserk",
+     "bl": "181526",
+     "bw": "series/16664/list",
+     "kt": "8",
+     "mu": "njeqwry",
+     "amz": "https://www.amazon.co.jp/-/en/dp/B074C597F1",
+     "cdj": "https://www.cdjapan.co.jp/product/NEOBK-3115032",
+     "ebj": "https://ebookjapan.yahoo.co.jp/books/127562/",
+     "mal": "2",
+     "raw": "https://younganimal.com/series/f68f676b354d4/",
+     "engtl": "https://www.darkhorsedirect.com/products/berserk-multi-volume-books"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": "",
+    "lastChapter": "",
+    "status": "ongoing",
+    "year": 1989,
+    "contentRating": "erotica",
+    "createdAt": "2018-01-30T13:50:05+00:00",
+    "updatedAt": "2026-09-03T17:00:25+00:00",
+    "tags": [
+     {
+      "id": "0a39b5a1-b235-4886-a747-1d05d216532d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Award Winning"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "36fd93ea-e8b8-445e-b836-358f02b3d33d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Monsters"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "39730448-9a5f-48a2-85b0-a70db87b1233",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Demons"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "3b60b75c-a2d7-4860-ab56-05f391bb889c",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Psychological"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "5fff9cde-849c-4d78-aab0-0d52b2ee1d25",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Survival"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "87cc87cd-a395-47af-b27a-93258283bbc6",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adventure"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "97893a4c-12af-4dac-b6be-0dffb353568e",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Sexual Violence"
+       },
+       "group": "content"
+      }
+     },
+     {
+      "id": "a1f53773-c69a-4ce5-8cab-fffcd90b1565",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Magic"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "ac72833b-c4e9-4878-b9db-6c8a4a99444a",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Military"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "b1e97889-25b4-4258-b28b-cd7f4d28ea9b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Philosophical"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "b29d6a3d-1569-4e7a-8caf-7557bc92cd5d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Gore"
+       },
+       "group": "content"
+      }
+     },
+     {
+      "id": "b9af3a63-f058-46de-a9a0-e0c13906197a",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Drama"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "cdad7e68-1419-41dd-bdce-27753074a640",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Horror"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "cdc58593-87dd-415e-bbc0-2ec27bf404cc",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Fantasy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "f8f62932-27da-4fe4-8ee1-6779a8c5edba",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Tragedy"
+       },
+       "group": "genre"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "5863578d-4e4f-4b57-b64d-1dd45a893cb0",
+     "type": "author"
+    },
+    {
+     "id": "e4dc18d8-1b8d-48e6-9b70-0f93a5af35ca",
+     "type": "author"
+    },
+    {
+     "id": "5863578d-4e4f-4b57-b64d-1dd45a893cb0",
+     "type": "artist"
+    },
+    {
+     "id": "8d88f37d-bd1e-4974-a309-7dfce13f9c56",
+     "type": "artist"
+    },
+    {
+     "id": "bab715d9-1b6a-4f50-8fea-ac5628ebfd8e",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "81e1c82d-6672-400c-8c58-4ff9bfb89031.jpg",
+      "volume": "43",
+      "locale": "ja"
+     }
+    },
+    {
+     "id": "4a5d677d-e3ac-4c23-a6bf-bb92c984fee4",
+     "type": "manga"
+    },
+    {
+     "id": "5a143603-d575-4062-9528-12c2ddb83af3",
+     "type": "manga"
+    },
+    {
+     "id": "77994aef-fe9a-418b-97a8-12b306a8dbdc",
+     "type": "manga"
+    },
+    {
+     "id": "d9e2f26e-c762-41a6-bb71-b6ae18cadde2",
+     "type": "manga"
+    },
+    {
+     "id": "fab932f0-385e-46c2-b67a-f7e68ad85208",
+     "type": "manga"
+    }
+   ]
+  },
+  {
+   "id": "77994aef-fe9a-418b-97a8-12b306a8dbdc",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "en": "Berserk - Heartache (Doujinshi)"
+    },
+    "altTitles": [
+     {
+      "en": "Berserk dj - Heartache"
+     }
+    ],
+    "links": {
+     "mu": "42k2if4"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": "3",
+    "lastChapter": null,
+    "status": "completed",
+    "year": null,
+    "contentRating": "pornographic",
+    "createdAt": "2019-12-15T22:29:27+00:00",
+    "updatedAt": "2025-11-14T11:24:48+00:00",
+    "tags": [
+     {
+      "id": "5920b825-4181-4a17-beeb-9918b0ff7a30",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Boys' Love"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "b13b2a48-c720-44a9-9c77-39c9979373fb",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Doujinshi"
+       },
+       "group": "format"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "72d57a97-4f60-4d19-a7fc-d6166aadb275",
+     "type": "author"
+    },
+    {
+     "id": "72d57a97-4f60-4d19-a7fc-d6166aadb275",
+     "type": "artist"
+    },
+    {
+     "id": "0a356372-bb40-4f9f-b72d-10b561b8c2f4",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "b845287f-acc9-4815-82f5-dfbc4efa4919.jpg",
+      "volume": null,
+      "locale": "ja"
+     }
+    },
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    }
+   ]
+  },
+  {
+   "id": "eec5f257-5174-4f88-b7a5-afd1fbec1e56",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "en": "Berserk - Lightning (Doujinshi)"
+    },
+    "altTitles": [
+     {
+      "en": "Berserk dj - Lightning"
+     },
+     {
+      "en": "ベルセルク dj - ライトニング"
+     }
+    ],
+    "links": {
+     "mu": "1hll4oh"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": null,
+    "lastChapter": null,
+    "status": "completed",
+    "year": null,
+    "contentRating": "pornographic",
+    "createdAt": "2020-01-17T22:00:54+00:00",
+    "updatedAt": "2025-11-14T15:43:43+00:00",
+    "tags": [
+     {
+      "id": "5920b825-4181-4a17-beeb-9918b0ff7a30",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Boys' Love"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "b13b2a48-c720-44a9-9c77-39c9979373fb",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Doujinshi"
+       },
+       "group": "format"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "72d57a97-4f60-4d19-a7fc-d6166aadb275",
+     "type": "author"
+    },
+    {
+     "id": "72d57a97-4f60-4d19-a7fc-d6166aadb275",
+     "type": "artist"
+    },
+    {
+     "id": "a7944144-d45b-4fd9-874b-04b8db69887f",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "f9e98d2f-b6c1-4ef0-9db5-7323bb4bd9f6.jpg",
+      "volume": null,
+      "locale": "ja"
+     }
+    }
+   ]
+  },
+  {
+   "id": "b65dae08-5bcc-43a0-b7a4-cd70a1d43387",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "en": "Berserk - Toxic (Doujinshi)"
+    },
+    "altTitles": [
+     {
+      "en": "Berserk dj - Toxic"
+     }
+    ],
+    "links": {
+     "mu": "f2q52st"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": null,
+    "lastChapter": null,
+    "status": "completed",
+    "year": null,
+    "contentRating": "pornographic",
+    "createdAt": "2019-12-15T18:16:10+00:00",
+    "updatedAt": "2025-11-14T14:03:08+00:00",
+    "tags": [
+     {
+      "id": "5920b825-4181-4a17-beeb-9918b0ff7a30",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Boys' Love"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "b13b2a48-c720-44a9-9c77-39c9979373fb",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Doujinshi"
+       },
+       "group": "format"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "72d57a97-4f60-4d19-a7fc-d6166aadb275",
+     "type": "author"
+    },
+    {
+     "id": "72d57a97-4f60-4d19-a7fc-d6166aadb275",
+     "type": "artist"
+    },
+    {
+     "id": "378c6c66-3904-4f1f-9b81-2c1dce72f366",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "b216dfd6-d5ed-4f8b-8765-219785f3cf27.jpg",
+      "volume": null,
+      "locale": "ja"
+     }
+    }
+   ]
+  },
+  {
+   "id": "b00acc54-2bf1-440e-8f33-da87227d82d6",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "en": "VRMMO Chronicles of a Solo Cleric ~Surprise! I’m Actually a Berserker!~"
+    },
+    "altTitles": [
+     {
+      "ja": "ソロ神官のVRMMO冒険記 〜どこから見ても狂戦士です本当にありがとうございました〜"
+     },
+     {
+      "en": "VRMMO Chronicles of a Solo Cleric ~No Matter How You Look At It, It's a Berserker! Thank You So Much~"
+     },
+     {
+      "ja-ro": "Solo Shinkan no VRMMO Boukenki: Doko kara Mite mo Berserker desu Hontou ni Arigatou Gozaimashita"
+     }
+    ],
+    "links": {
+     "al": "166133",
+     "mu": "26x5mx9",
+     "raw": "https://book.dmm.com/product/4319020/s299asnph00685/"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": "",
+    "lastChapter": "",
+    "status": "ongoing",
+    "year": 2023,
+    "contentRating": "suggestive",
+    "createdAt": "2023-07-13T22:01:53+00:00",
+    "updatedAt": "2023-07-15T16:53:32+00:00",
+    "tags": [
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "3e2b8dae-350e-4ab8-a8ce-016e844b9f0d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Long Strip"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "4d32cc48-9f00-4cca-9b5a-a839f0764984",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Comedy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "87cc87cd-a395-47af-b27a-93258283bbc6",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adventure"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "8c86611e-fab7-4986-9dec-d1a2f44acdd5",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Virtual Reality"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "9438db5a-7e2a-4ac0-b39e-e0d95a34b8a8",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Video Games"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "aafb99c1-7f60-43fa-b75f-fc9502ce29c7",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Harem"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "b9af3a63-f058-46de-a9a0-e0c13906197a",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Drama"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "cdc58593-87dd-415e-bbc0-2ec27bf404cc",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Fantasy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "e197df38-d0e7-43b5-9b09-2842d0c326dd",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Web Comic"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "f4122d1c-3b44-44d0-9936-ff7502c39ad3",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adaptation"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "f5ba408b-0e7a-484d-8d49-4e9125ac96de",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Full Color"
+       },
+       "group": "format"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "f003a5ec-4b59-491d-b7a6-550910fd5c63",
+     "type": "author"
+    },
+    {
+     "id": "f003a5ec-4b59-491d-b7a6-550910fd5c63",
+     "type": "artist"
+    },
+    {
+     "id": "3b5f0206-e292-466d-93f5-f9f2ebf63f32",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "fac369b9-c8f3-4fa2-b9da-f2fab0a9ca35.png",
+      "volume": "1",
+      "locale": "ja"
+     }
+    },
+    {
+     "id": "0c1bfc4c-ca4d-4c1d-80de-8f98793a46c8",
+     "type": "manga"
+    },
+    {
+     "id": "01642be8-72b8-48ae-9199-d8c747946ca5",
+     "type": "creator"
+    }
+   ]
+  },
+  {
+   "id": "30196491-8fc2-4961-8886-a58f898b1b3e",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "ja-ro": "Boushoku no Berserk: Ore dake Level to Iu Gainen o Toppa Suru"
+    },
+    "altTitles": [
+     {
+      "ja": "暴食のベルセルク～俺だけレベルという概念を突破する～ THE COMIC"
+     },
+     {
+      "en": "Berserk of Gluttony: The One that Exceeds the Concept of Levels"
+     },
+     {
+      "ko": "폭식의 베르세르크 ~나만 레벨이라는 개념을 돌파한다~"
+     },
+     {
+      "zh": "狂怒的暴食 ～只有我突破了等级这概念～"
+     },
+     {
+      "zh-hk": "狂怒的暴食 ～僅自己突破了等級這概念～"
+     },
+     {
+      "fr": "Berserk de la Gourmandise : Celui qui surpasse le concept même de niveaux"
+     },
+     {
+      "pl": "Berserk obżarstwa"
+     },
+     {
+      "ru": "Берсерк Ненажерливості"
+     },
+     {
+      "vi": "Bạo Thực Cuồng Nhân"
+     },
+     {
+      "bg": "Ненаситен берсерк - отвъд рамката на нивата"
+     },
+     {
+      "lt": "Godumo įniršis"
+     },
+     {
+      "tr": "Savaşının Açlığı: Seviye Denen Kavramı Sadece Ben Aşabilirim"
+     },
+     {
+      "uk": "Берсерк Обжорства"
+     },
+     {
+      "th": "จอมตะกละดาบคลั่ง -ข้านี่แหละจะทะลวงแนวความคิดที่เรียกว่าเลเวลเอง-"
+     },
+     {
+      "th": "จอมตะกละดาบคลั่ง The Comic"
+     }
+    ],
+    "links": {
+     "al": "101625",
+     "ap": "berserk-of-gluttony",
+     "bl": "553482",
+     "bw": "series/175790/list",
+     "kt": "40812",
+     "mu": "y10mhma",
+     "nu": "berserk-of-gluttony",
+     "amz": "https://www.amazon.co.jp/dp/B07PGBXYQZ",
+     "ebj": "https://ebookjapan.yahoo.co.jp/books/436470",
+     "mal": "113958",
+     "raw": "https://comicride.jp/series/f77308354d149",
+     "engtl": "https://sevenseasentertainment.com/series/berserk-of-gluttony-manga"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": "",
+    "lastChapter": "",
+    "status": "ongoing",
+    "year": 2018,
+    "contentRating": "safe",
+    "createdAt": "2019-03-26T07:49:40+00:00",
+    "updatedAt": "2026-09-23T01:02:10+00:00",
+    "tags": [
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "423e2eae-a7a2-4a8b-ac03-a8351462d71d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Romance"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "87cc87cd-a395-47af-b27a-93258283bbc6",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adventure"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "aafb99c1-7f60-43fa-b75f-fc9502ce29c7",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Harem"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "b9af3a63-f058-46de-a9a0-e0c13906197a",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Drama"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "cdc58593-87dd-415e-bbc0-2ec27bf404cc",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Fantasy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "f4122d1c-3b44-44d0-9936-ff7502c39ad3",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adaptation"
+       },
+       "group": "format"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "6e5e2e5e-a19c-4eaf-8f2b-de2593a2a060",
+     "type": "author"
+    },
+    {
+     "id": "6c744f72-ec67-455b-bdaa-93ef20adf2ae",
+     "type": "artist"
+    },
+    {
+     "id": "ae0865e8-6e55-4e09-b406-b8f0c33601a6",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "1790f17f-9184-4a48-8928-c45de48b778e.jpg",
+      "volume": "15",
+      "locale": "ja"
+     }
+    },
+    {
+     "id": "f4e9f182-8345-449b-98b3-54ba4f29493d",
+     "type": "manga"
+    }
+   ]
+  },
+  {
+   "id": "3278e597-7735-47e6-a79b-9a8fbde361de",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "en": "The Berserker's Second Playthrough"
+    },
+    "altTitles": [
+     {
+      "en": "Second Life of the Berserker"
+     },
+     {
+      "en": "The Berserker's Second Playthrough in the Game"
+     },
+     {
+      "ko": "게임 속 2회차 광전사"
+     }
+    ],
+    "links": {
+     "mu": "nv9cd5o",
+     "raw": "https://comic.naver.com/webtoon/list?titleId=846173"
+    },
+    "originalLanguage": "ko",
+    "lastVolume": "",
+    "lastChapter": "",
+    "status": "ongoing",
+    "year": 2025,
+    "contentRating": "safe",
+    "createdAt": "2026-04-14T22:37:30+00:00",
+    "updatedAt": "2026-04-21T19:10:12+00:00",
+    "tags": [
+     {
+      "id": "36fd93ea-e8b8-445e-b836-358f02b3d33d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Monsters"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "39730448-9a5f-48a2-85b0-a70db87b1233",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Demons"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "3e2b8dae-350e-4ab8-a8ce-016e844b9f0d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Long Strip"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "87cc87cd-a395-47af-b27a-93258283bbc6",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adventure"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "ace04997-f6bd-436e-b261-779182193d3d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Isekai"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "b29d6a3d-1569-4e7a-8caf-7557bc92cd5d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Gore"
+       },
+       "group": "content"
+      }
+     },
+     {
+      "id": "b9af3a63-f058-46de-a9a0-e0c13906197a",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Drama"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "cdc58593-87dd-415e-bbc0-2ec27bf404cc",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Fantasy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "e197df38-d0e7-43b5-9b09-2842d0c326dd",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Web Comic"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "eabc5b4c-6aff-42f3-b657-3e90cbd00b75",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Supernatural"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "f4122d1c-3b44-44d0-9936-ff7502c39ad3",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adaptation"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "f5ba408b-0e7a-484d-8d49-4e9125ac96de",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Full Color"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "f8f62932-27da-4fe4-8ee1-6779a8c5edba",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Tragedy"
+       },
+       "group": "genre"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "4923227a-1115-49d3-9b48-1a82fbacb89e",
+     "type": "author"
+    },
+    {
+     "id": "7e470d9b-57e3-421e-bb60-d8ed52f966a8",
+     "type": "artist"
+    },
+    {
+     "id": "476eb8b3-cfc3-45d4-bb13-b562bcd2107d",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "8d470478-7c12-43fc-8fe1-54e5c0cf8b35.png",
+      "volume": "1",
+      "locale": "ko"
+     }
+    },
+    {
+     "id": "086d46ca-9e85-47ef-8b2c-87ba0e922fc1",
+     "type": "creator"
+    }
+   ]
+  },
+  {
+   "id": "bef5c572-2fa2-479f-971c-6d7770d20e70",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "en": "Berserk - Sway (Doujinshi)"
+    },
+    "altTitles": [
+     {
+      "en": "Berserk dj - Sway"
+     }
+    ],
+    "links": {
+     "mu": "e3sipca"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": null,
+    "lastChapter": null,
+    "status": "completed",
+    "year": null,
+    "contentRating": "pornographic",
+    "createdAt": "2020-01-17T23:04:13+00:00",
+    "updatedAt": "2025-11-14T14:18:29+00:00",
+    "tags": [
+     {
+      "id": "5920b825-4181-4a17-beeb-9918b0ff7a30",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Boys' Love"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "b13b2a48-c720-44a9-9c77-39c9979373fb",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Doujinshi"
+       },
+       "group": "format"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "72d57a97-4f60-4d19-a7fc-d6166aadb275",
+     "type": "author"
+    },
+    {
+     "id": "72d57a97-4f60-4d19-a7fc-d6166aadb275",
+     "type": "artist"
+    },
+    {
+     "id": "a0155921-1229-4fe7-9bd1-77277ee610b6",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "1d6ad69f-774f-4dae-891d-a3e3a2bd7874.jpg",
+      "volume": null,
+      "locale": "ja"
+     }
+    },
+    {
+     "id": "dd86e9c2-5cff-4097-9cda-48bca16dce38",
+     "type": "manga"
+    }
+   ]
+  },
+  {
+   "id": "78567cc0-ed34-47f3-a3e1-72cbc07fe6f8",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "en": "REAL PLAY: BERSERKER"
+    },
+    "altTitles": [
+     {
+      "ko": "리플 : 버서커"
+     },
+     {
+      "ko-ro": "Ripple: Berserker"
+     }
+    ],
+    "links": {
+     "al": "146987",
+     "ap": "real-play-berserker",
+     "mu": "oghodx3",
+     "mal": "159765",
+     "raw": "https://page.kakao.com/home?seriesId=58603371"
+    },
+    "originalLanguage": "ko",
+    "lastVolume": "",
+    "lastChapter": "50",
+    "status": "completed",
+    "year": 2022,
+    "contentRating": "safe",
+    "createdAt": "2022-01-21T14:35:23+00:00",
+    "updatedAt": "2025-11-15T15:51:40+00:00",
+    "tags": [
+     {
+      "id": "256c8bd9-4904-4360-bf4f-508a76d67183",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Sci-Fi"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "3e2b8dae-350e-4ab8-a8ce-016e844b9f0d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Long Strip"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "8c86611e-fab7-4986-9dec-d1a2f44acdd5",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Virtual Reality"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "9438db5a-7e2a-4ac0-b39e-e0d95a34b8a8",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Video Games"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "b9af3a63-f058-46de-a9a0-e0c13906197a",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Drama"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "cdc58593-87dd-415e-bbc0-2ec27bf404cc",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Fantasy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "e197df38-d0e7-43b5-9b09-2842d0c326dd",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Web Comic"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "eabc5b4c-6aff-42f3-b657-3e90cbd00b75",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Supernatural"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "f5ba408b-0e7a-484d-8d49-4e9125ac96de",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Full Color"
+       },
+       "group": "format"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "180636eb-6b45-4c94-90cf-6fedfa701a31",
+     "type": "author"
+    },
+    {
+     "id": "180636eb-6b45-4c94-90cf-6fedfa701a31",
+     "type": "artist"
+    },
+    {
+     "id": "6a2f021e-bb85-44b6-b1ae-1179564578f4",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "4c58116c-3189-408b-836c-804be02737cf.jpg",
+      "volume": "1",
+      "locale": "ko"
+     }
+    },
+    {
+     "id": "bf5ae7ce-09ed-4f96-a34f-210eec3e5698",
+     "type": "creator"
+    }
+   ]
+  },
+  {
+   "id": "c2da78f5-9561-4d97-98c7-96dbe82754db",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "en": "Berserk - Living In Sin (Doujinshi)"
+    },
+    "altTitles": [
+     {
+      "en": "Berserk dj - Living In Sin"
+     }
+    ],
+    "links": {
+     "mu": "heh6hur"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": "1",
+    "lastChapter": "1",
+    "status": "completed",
+    "year": null,
+    "contentRating": "pornographic",
+    "createdAt": "2020-01-17T22:32:34+00:00",
+    "updatedAt": "2025-11-14T14:25:15+00:00",
+    "tags": [
+     {
+      "id": "0234a31e-a729-4e28-9d6a-3f87c4966b9e",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Oneshot"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "5920b825-4181-4a17-beeb-9918b0ff7a30",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Boys' Love"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "b13b2a48-c720-44a9-9c77-39c9979373fb",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Doujinshi"
+       },
+       "group": "format"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "72d57a97-4f60-4d19-a7fc-d6166aadb275",
+     "type": "author"
+    },
+    {
+     "id": "72d57a97-4f60-4d19-a7fc-d6166aadb275",
+     "type": "artist"
+    },
+    {
+     "id": "05d7ee97-67d9-4f3d-b1cf-2d438fd5ac05",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "c96cb2d3-264d-49f4-8e1e-62325bcafaa2.jpg",
+      "volume": null,
+      "locale": "ja"
+     }
+    }
+   ]
+  }
+ ],
+ "limit": 10,
+ "offset": 0,
+ "total": 30
+}

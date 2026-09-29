@@ -155,8 +155,8 @@ public static class MangaUpdatesMapping
     /// <summary>At most this many categories are stored (never displayed in stage 1).</summary>
     public const int MaxStoredCategories = 20;
 
-    internal static readonly IReadOnlySet<string> ImageHosts =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { MetadataHttp.MangaUpdatesImageHost };
+    /// <summary>The image hosts of MangaUpdates: the single source is its gateway transport (1.29.0).</summary>
+    internal static IReadOnlySet<string> ImageHosts => MetadataHttp.Transports[MetadataProviderAllowlist.MangaUpdates].ImageHosts;
 
     private static readonly IReadOnlySet<string> s_siteHosts =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "www.mangaupdates.com", "mangaupdates.com" };
