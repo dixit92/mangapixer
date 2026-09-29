@@ -98,7 +98,7 @@ public sealed class NodeCoverController : ControllerBase
 
         if (stream is not null)
         {
-            if (CoverCaching.Apply(Response, Request, "cov-" + resolved.Token, string.Equals(v, resolved.Token, StringComparison.Ordinal)))
+            if (CoverCaching.Apply(Response, Request, "cov-" + resolved.Version, string.Equals(v, resolved.Version, StringComparison.Ordinal)))
             {
                 await stream.DisposeAsync();
                 return StatusCode(StatusCodes.Status304NotModified);
@@ -113,8 +113,8 @@ public sealed class NodeCoverController : ControllerBase
         var fileIsTheCover = resolved.Image == CoverImageKind.File;
         if (_thumbnails.OpenRead(resolved.ArchiveNodeId, resolved.ContentVersion) is { } thumb)
         {
-            var etag = fileIsTheCover ? "cov-" + resolved.Token : $"thumb-{resolved.ArchiveNodeId}-{resolved.ContentVersion}";
-            if (CoverCaching.Apply(Response, Request, etag, fileIsTheCover && string.Equals(v, resolved.Token, StringComparison.Ordinal)))
+            var etag = fileIsTheCover ? "cov-" + resolved.Version : $"thumb-{resolved.ArchiveNodeId}-{resolved.ContentVersion}";
+            if (CoverCaching.Apply(Response, Request, etag, fileIsTheCover && string.Equals(v, resolved.Version, StringComparison.Ordinal)))
             {
                 await thumb.DisposeAsync();
                 return StatusCode(StatusCodes.Status304NotModified);

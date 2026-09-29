@@ -29,7 +29,7 @@ public enum CoverImageKind
 
 /// <summary>
 /// One node's resolved cover: which image, where it comes from and its URL token. <see cref="Layered"/> covers are served
-/// by <c>GET /nodes/{UrlNodePublicId}/cover?v={Token}</c>; plain file covers by <c>GET /items/{ArchivePublicId}/cover?v={ContentVersion}</c>.
+/// by <c>GET /nodes/{UrlNodePublicId}/cover?v={Version}</c>; plain file covers by <c>GET /items/{ArchivePublicId}/cover?v={ContentVersion}</c>.
 /// </summary>
 public sealed record CoverResolution
 {
@@ -55,12 +55,12 @@ public sealed record CoverResolution
     public long? RecordId { get; init; }
     public int ImageVersion { get; init; }
 
-    /// <summary>Changes whenever the layer, its target or the target's version changes.</summary>
-    public required string Token { get; init; }
+    /// <summary>The URL version (<c>v</c>): changes whenever the layer, its target or the target's version changes.</summary>
+    public required string Version { get; init; }
 
     public string Url => Layered
-        ? $"/api/v1/nodes/{UrlNodePublicId}/cover?v={Token}"
-        : $"/api/v1/items/{ArchivePublicId}/cover?v={Token}";
+        ? $"/api/v1/nodes/{UrlNodePublicId}/cover?v={Version}"
+        : $"/api/v1/items/{ArchivePublicId}/cover?v={Version}";
 }
 
 /// <summary>
@@ -227,7 +227,7 @@ public sealed class CoverResolutionService
                         ArchiveNodeId = archiveId,
                         ArchivePublicId = chosen.PublicId,
                         ContentVersion = chosenVersion,
-                        Token = Token("c", choice.Version, "file", archiveId, chosenVersion),
+                        Version = Token("c", choice.Version, "file", archiveId, chosenVersion),
                     };
                 case CoverChoiceMode.VolumeCover when webAllowed && choice.VolumeCoverId is { } coverId
                     && batch.VolumeCovers.TryGetValue(coverId, out var cover) && IsServable(cover):
@@ -239,7 +239,7 @@ public sealed class CoverResolutionService
                         ArchivePublicId = own.PublicId,
                         ContentVersion = own.ContentVersion,
                         CropSide = (CoverCropSide)side,
-                        Token = Token("c", choice.Version, "crop", own.Id, own.ContentVersion, side),
+                        Version = Token("c", choice.Version, "crop", own.Id, own.ContentVersion, side),
                     };
             }
             // A choice whose target is gone (or hidden) falls back to the automatic layer.
@@ -258,7 +258,7 @@ public sealed class CoverResolutionService
                         ArchivePublicId = own.PublicId,
                         ContentVersion = own.ContentVersion,
                         CropSide = (CoverCropSide)side,
-                        Token = Token("a", auto.Version, "crop", own.Id, own.ContentVersion, side),
+                        Version = Token("a", auto.Version, "crop", own.Id, own.ContentVersion, side),
                     };
                 case AutoCoverSource.WebVolume or AutoCoverSource.WebMain when webAllowed && auto.VolumeCoverId is { } coverId
                     && batch.VolumeCovers.TryGetValue(coverId, out var cover) && IsServable(cover):
@@ -270,7 +270,7 @@ public sealed class CoverResolutionService
                     {
                         RecordId = record.Id,
                         ImageVersion = record.ImageVersion,
-                        Token = Token("a", auto.Version, "poster", record.Id, record.ImageVersion),
+                        Version = Token("a", auto.Version, "poster", record.Id, record.ImageVersion),
                     }, nodeId, isFolder);
             }
         }
@@ -300,7 +300,7 @@ public sealed class CoverResolutionService
             ArchiveNodeId = own.Value.Id,
             ArchivePublicId = own.Value.PublicId,
             ContentVersion = own.Value.ContentVersion,
-            Token = own.Value.ContentVersion.ToString(CultureInfo.InvariantCulture),
+            Version = own.Value.ContentVersion.ToString(CultureInfo.InvariantCulture),
         };
     }
 
@@ -334,7 +334,7 @@ public sealed class CoverResolutionService
             VolumeCoverId = cover.Id,
             VolumeCoverPublicId = cover.PublicId,
             StoredVersion = cover.StoredVersion,
-            Token = Token(layer, layerVersion, "vc", cover.Id, cover.StoredVersion),
+            Version = Token(layer, layerVersion, "vc", cover.Id, cover.StoredVersion),
         };
         return WithFallbackArchive(batch, r, nodeId, isFolder);
     }
@@ -352,7 +352,7 @@ public sealed class CoverResolutionService
         Image = image,
         Layered = true,
         UrlNodePublicId = publicId,
-        Token = Token(layer, version),
+        Version = Token(layer, version),
     };
 
     private static bool IsLiveArchive((long LibraryId, string PublicId, int Kind, int Availability) n) =>
