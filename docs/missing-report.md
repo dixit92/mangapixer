@@ -23,7 +23,7 @@ The report shows **Behind or with gaps** by default. Switch to **All linked seri
 
 ## Which total it compares with
 
-**Behind means behind what is released in your preferred language** - the **Preferred cover language** in **Metadata Manager** > **Settings** (English by default). A volume that exists only in the original language is never counted as missing.
+**Behind means behind what is released in your preferred language** - **Preferred language (covers and releases)** in **Metadata Manager** > **Settings** (English by default). A volume that exists only in the original language is never counted as missing.
 
 MangaPixer uses the first of these totals that applies to your language:
 

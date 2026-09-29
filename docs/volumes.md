@@ -52,7 +52,7 @@ When a folder is linked to a series, its generic unit subfolders are merged into
 
 ## Missing volumes and chapters
 
-"Missing" means **released in your preferred language** - the **Preferred cover language** in **Metadata Manager** > **Settings** (English by default). A volume or chapter that exists only in the original language is never marked missing.
+"Missing" means **released in your preferred language** - **Preferred language (covers and releases)** in **Metadata Manager** > **Settings** (English by default). A volume or chapter that exists only in the original language is never marked missing.
 
 **Chapters.** When the volume list says a volume holds chapters 37 to 46 and one is not on your shelf, the stack gets an **incomplete mark** ("8/9": complete chapters you have out of the chapters the volume holds) and, inside, a **dashed placeholder** ("Ch. 39, Missing") where the chapter belongs. Placeholders aren't clickable; they only show what is missing.
 
