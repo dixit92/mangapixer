@@ -172,13 +172,16 @@ test('volume covers card (1.29.0): MangaDex is an allowed site; the switch and t
   await language.click();
   await page.getByRole('option', { name: 'Japanese' }).click();
   await expect.poll(async () => (await (await page.request.get('/api/v1/admin/metadata/settings')).json()).preferredCoverLanguage).toBe('ja');
-  // The server has it before the page applies its own save response (which re-enables the select and closes an open panel):
-  // wait for the page, not just the server, before opening the select again.
+  // The server has it before the page applies its own save response (which re-enables the select): wait for the page too.
   await expect(card.getByRole('status').filter({ hasText: 'Preferred language saved' })).toBeVisible();
   await expect(language).toContainText('Japanese');
   await expect(language).toHaveAttribute('aria-disabled', 'false');
-  await language.click();
-  await page.getByRole('option', { name: 'English' }).click();
+
+  // Back to English with the keyboard on the closed select (the option just above): the same selectionChange -> save path,
+  // without reopening the overlay panel, which CI's runner closed again under the click (a panel re-opened right after a save).
+  await language.focus();
+  await page.keyboard.press('ArrowUp');
+  await expect(language).toContainText('English');
   await expect.poll(async () => (await (await page.request.get('/api/v1/admin/metadata/settings')).json()).preferredCoverLanguage).toBe('en');
 
   expect((await settings(page)).budgetUsedToday).toBe(usedBefore); // nothing was looked up
