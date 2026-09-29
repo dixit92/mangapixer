@@ -180,13 +180,15 @@ public static class MissingUnits
         var volumes = volumesRestart ? new SortedSet<int>() : Union(volumeSets);
         var chapters = chaptersRestart ? new SortedSet<int>() : Union(chapterSets);
 
+        // With the language rule the origin totals are context only (they never make a series "behind").
+        var volumeOrigin = totals.Language is null ? null : totals.OriginVolumes;
+        var chapterOrigin = totals.Language is null ? null : totals.OriginChapters;
         var volumeGap = !HasProgress(volumes) ? null
-            : Gap(MissingUnitKind.Volume, volumeArchives, volumes, firstExpected: 1, VolumeTotals(totals))
-                with { OriginTotal = totals.Language is null ? null : totals.OriginVolumes };
+            : Gap(MissingUnitKind.Volume, volumeArchives, volumes, firstExpected: 1, VolumeTotals(totals), volumeOrigin);
         // Chapters next to volumes continue after the last volume: holes count from the lowest chapter on disk.
         var chapterGap = !HasProgress(chapters) ? null
-            : Gap(MissingUnitKind.Chapter, chapterArchives, chapters, firstExpected: volumeGap is not null ? chapters.Min : 1, ChapterTotals(totals))
-                with { OriginTotal = totals.Language is null ? null : totals.OriginChapters };
+            : Gap(MissingUnitKind.Chapter, chapterArchives, chapters, firstExpected: volumeGap is not null ? chapters.Min : 1, ChapterTotals(totals),
+                chapterOrigin);
 
         var gaps = new[] { volumeGap, chapterGap }.OfType<MissingUnitGap>().ToList();
         MissingVerdict verdict;
@@ -344,7 +346,7 @@ public static class MissingUnits
 
     private static MissingUnitGap Gap(
         MissingUnitKind kind, int archives, SortedSet<int> numbers, int firstExpected,
-        IEnumerable<(int Total, MissingTotalSource Source, MissingConfidence Confidence)> totals)
+        IEnumerable<(int Total, MissingTotalSource Source, MissingConfidence Confidence)> totals, int? originTotal)
     {
         var have = numbers.Max;
         // English first; a source whose total is below what is on disk (copies numbered like another edition,
@@ -375,6 +377,7 @@ public static class MissingUnits
             pick?.Confidence,
             pick is { } p ? Math.Max(0, p.Total - have) : 0,
             missing,
-            missingCount);
+            missingCount,
+            originTotal);
     }
 }

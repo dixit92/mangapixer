@@ -83,8 +83,14 @@ public sealed class MissingReportServiceTests
         await t.AddLinkAsync(chapters, record);
         t.Db.SeriesVolumeMaps.Add(new SeriesVolumeMapEntity
         {
-            RecordId = record.Id, Source = (int)VolumeMapSource.MangaDexAggregate, State = (int)VolumeMapState.Ok, VolumesJson = "[]",
-            ReleasedLanguage = "fr", ReleasedChaptersJson = "[\"1\",\"2\",\"3\",\"4\",\"4.5\",\"5\"]", ContentHash = "h", Version = 1,
+            RecordId = record.Id,
+            Source = (int)VolumeMapSource.MangaDexAggregate,
+            State = (int)VolumeMapState.Ok,
+            VolumesJson = "[]",
+            ReleasedLanguage = "fr",
+            ReleasedChaptersJson = "[\"1\",\"2\",\"3\",\"4\",\"4.5\",\"5\"]",
+            ContentHash = "h",
+            Version = 1,
             FetchedAt = DateTimeOffset.UtcNow,
         });
         t.Db.AppSettings.Add(new AppSettingsEntity { MetadataCoverLanguage = "fr" });
