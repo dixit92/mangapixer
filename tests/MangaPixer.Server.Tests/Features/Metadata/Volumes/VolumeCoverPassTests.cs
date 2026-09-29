@@ -83,6 +83,12 @@ public sealed class VolumePassHarness : IDisposable
     public ScratchWorkspaceManager Scratch { get; }
     public ThumbnailStore Thumbnails { get; }
     public FakeCoverRenderer Renderer { get; } = new();
+
+    /// <summary>The real worker renderer for process tests (else <see cref="Renderer"/>).</summary>
+    public ICoverRenderer? RendererOverride { get; set; }
+
+    /// <summary>The image bytes MangaDex's image host answers (default: PNG magic bytes + the path).</summary>
+    public byte[]? ImageBytes { get; set; }
     public VolumeCoverPassState PassState { get; } = new();
     public ScriptedHandler Handler => Auto.Handler;
     public ManualTime Time => Auto.Time;
@@ -91,32 +97,15 @@ public sealed class VolumePassHarness : IDisposable
     /// <summary>AniList answers by id (GraphQL body contains the id).</summary>
     public Dictionary<int, string> AniListById { get; } = [];
 
-    private static readonly Dictionary<string, string> s_searchByTitle = new(StringComparer.Ordinal)
-    {
-        ["Berserk"] = "berserk",
-        ["Jigokuraku"] = "jigokuraku",
-        ["Chainsaw Man"] = "chainsaw-man",
-        ["Tower of God"] = "tower-of-god",
-        ["JoJo no Kimyou na Bouken Part 3: Stardust Crusaders"] = "jojo-part-3",
-    };
-
-    private static readonly Dictionary<string, string> s_byId = new(StringComparer.Ordinal)
-    {
-        [MdFixtures.BerserkId] = "berserk",
-        [MdFixtures.ChainsawManId] = "chainsaw-man",
-        [MdFixtures.TowerOfGodId] = "tower-of-god",
-        [MdFixtures.JojoPart3Id] = "jojo-part-3",
-    };
-
     private HttpResponseMessage Route(HttpRequestMessage request)
     {
         if (Override?.Invoke(request) is { } overridden)
             return overridden;
         var uri = request.RequestUri!;
         if (uri.Host == MetadataHttp.MangaDexImageHost)
-            return ScriptedHandler.Bytes([.. MuFixtures.Png, .. Encoding.ASCII.GetBytes(uri.AbsolutePath)], "image/jpeg");
+            return ScriptedHandler.Bytes(ImageBytes ?? [.. MuFixtures.Png, .. Encoding.ASCII.GetBytes(uri.AbsolutePath)], "image/jpeg");
         if (uri.Host == MetadataHttp.MangaDexApiHost)
-            return MangaDex(uri);
+            return MdFixtures.Route(request)!;
         if (uri.Host == MetadataHttp.AniListHost)
         {
             var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
@@ -130,43 +119,6 @@ public sealed class VolumePassHarness : IDisposable
         return _inner!(request);
     }
 
-    private static HttpResponseMessage MangaDex(Uri uri)
-    {
-        var path = uri.AbsolutePath;
-        var query = Uri.UnescapeDataString(uri.Query);
-        if (path == "/manga")
-        {
-            var title = query.Split('&')[0]["?title=".Length..];
-            return s_searchByTitle.TryGetValue(title, out var name)
-                ? ScriptedHandler.Json(MdFixtures.Load("search." + name))
-                : ScriptedHandler.Json("{\"result\":\"ok\",\"response\":\"collection\",\"data\":[],\"limit\":10,\"offset\":0,\"total\":0}");
-        }
-        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (segments is ["manga", var id, "aggregate"])
-        {
-            return s_byId.TryGetValue(id, out var name)
-                ? ScriptedHandler.Json(MdFixtures.Load("aggregate." + name))
-                : ScriptedHandler.Json("{\"result\":\"ok\",\"volumes\":[]}");
-        }
-        if (segments is ["manga", var mangaId] && s_byId.TryGetValue(mangaId, out var record))
-        {
-            using var doc = System.Text.Json.JsonDocument.Parse(MdFixtures.Load("search." + record));
-            var item = doc.RootElement.GetProperty("data").EnumerateArray().First(m => m.GetProperty("id").GetString() == mangaId);
-            return ScriptedHandler.Json("{\"result\":\"ok\",\"response\":\"entity\",\"data\":" + item.GetRawText() + "}");
-        }
-        if (path == "/cover")
-        {
-            var manga = query.Split('&').First(p => p.StartsWith("?manga[]=", StringComparison.Ordinal) || p.StartsWith("manga[]=", StringComparison.Ordinal)).Split('=')[1];
-            return manga switch
-            {
-                MdFixtures.BerserkId => ScriptedHandler.Json(MdFixtures.Load("cover.berserk")),
-                MdFixtures.JojoPart3Id => ScriptedHandler.Json(MdFixtures.Load("cover.jojo-part-3")),
-                _ => ScriptedHandler.Json("{\"result\":\"ok\",\"data\":[],\"limit\":100,\"offset\":0,\"total\":0}"),
-            };
-        }
-        return ScriptedHandler.Json("{\"result\":\"error\",\"errors\":[{\"status\":404}]}", HttpStatusCode.NotFound);
-    }
-
     private ILogger<T> Log<T>() => Auto.Net.LoggerFactory.CreateLogger<T>();
 
     public CompanionLinkService Companions() =>
@@ -175,7 +127,7 @@ public sealed class VolumePassHarness : IDisposable
     public VolumeMapService Maps() =>
         new(Db.Db, Auto.Net.Gateway(), new MangaDexProvider(Auto.Net.HttpFactory), Auto.Net.Conversion(), Companions(), Time, Log<VolumeMapService>());
 
-    public VolumeCoverFetcher Fetcher() => new(Db.Db, Auto.Net.Gateway(), Renderer, Scratch, Store, Time, Log<VolumeCoverFetcher>());
+    public VolumeCoverFetcher Fetcher() => new(Db.Db, Auto.Net.Gateway(), RendererOverride ?? Renderer, Scratch, Store, Time, Log<VolumeCoverFetcher>());
 
     public VolumeCoverPass Pass(IDictionary<string, string?>? config = null) => new(
         Db.Db, Auto.Service(), config is null ? Auto.Net.Settings() : Settings(config), Companions(), Maps(), Fetcher(),

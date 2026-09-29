@@ -31,6 +31,67 @@ public static class MdFixtures
         return reader.ReadToEnd();
     }
 
+    private static readonly Dictionary<string, string> s_searchByTitle = new(StringComparer.Ordinal)
+    {
+        ["Berserk"] = "berserk",
+        ["Jigokuraku"] = "jigokuraku",
+        ["Chainsaw Man"] = "chainsaw-man",
+        ["Tower of God"] = "tower-of-god",
+        ["JoJo no Kimyou na Bouken Part 3: Stardust Crusaders"] = "jojo-part-3",
+    };
+
+    private static readonly Dictionary<string, string> s_byId = new(StringComparer.Ordinal)
+    {
+        [BerserkId] = "berserk",
+        [ChainsawManId] = "chainsaw-man",
+        [TowerOfGodId] = "tower-of-god",
+        [JojoPart3Id] = "jojo-part-3",
+    };
+
+    /// <summary>
+    /// Answers a request to <c>api.mangadex.org</c> from the recordings (searches by title, GET / aggregate by id, cover
+    /// lists), an empty answer for anything unknown; null for any other host.
+    /// </summary>
+    public static HttpResponseMessage? Route(HttpRequestMessage request)
+    {
+        var uri = request.RequestUri!;
+        if (uri.Host != MetadataHttp.MangaDexApiHost)
+            return null;
+        var path = uri.AbsolutePath;
+        var query = Uri.UnescapeDataString(uri.Query);
+        if (path == "/manga")
+        {
+            var title = query.Split('&')[0]["?title=".Length..];
+            return s_searchByTitle.TryGetValue(title, out var name)
+                ? ScriptedHandler.Json(Load("search." + name))
+                : ScriptedHandler.Json("{\"result\":\"ok\",\"response\":\"collection\",\"data\":[],\"limit\":10,\"offset\":0,\"total\":0}");
+        }
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments is ["manga", var id, "aggregate"])
+        {
+            return s_byId.TryGetValue(id, out var name)
+                ? ScriptedHandler.Json(Load("aggregate." + name))
+                : ScriptedHandler.Json("{\"result\":\"ok\",\"volumes\":[]}");
+        }
+        if (segments is ["manga", var mangaId] && s_byId.TryGetValue(mangaId, out var record))
+        {
+            using var doc = JsonDocument.Parse(Load("search." + record));
+            var item = doc.RootElement.GetProperty("data").EnumerateArray().First(m => m.GetProperty("id").GetString() == mangaId);
+            return ScriptedHandler.Json("{\"result\":\"ok\",\"response\":\"entity\",\"data\":" + item.GetRawText() + "}");
+        }
+        if (path == "/cover")
+        {
+            var manga = query.TrimStart('?').Split('&').First(p => p.StartsWith("manga[]=", StringComparison.Ordinal)).Split('=')[1];
+            return manga switch
+            {
+                BerserkId => ScriptedHandler.Json(Load("cover.berserk")),
+                JojoPart3Id => ScriptedHandler.Json(Load("cover.jojo-part-3")),
+                _ => ScriptedHandler.Json("{\"result\":\"ok\",\"data\":[],\"limit\":100,\"offset\":0,\"total\":0}"),
+            };
+        }
+        return ScriptedHandler.Json("{\"result\":\"error\",\"errors\":[{\"status\":404}]}", System.Net.HttpStatusCode.NotFound);
+    }
+
     public static IReadOnlyList<MangaDexManga> Search(string name)
     {
         using var doc = JsonDocument.Parse(Load("search." + name));
