@@ -31,6 +31,12 @@ public enum MissingTotalSource
     /// chapters / volumes): an estimate.
     /// </summary>
     Converted = 3,
+
+    /// <summary>
+    /// 1.29.0 RC: the chapters released in the preferred language (the series' volume list filtered by that language; chapters
+    /// only).
+    /// </summary>
+    Released = 4,
 }
 
 /// <summary>How far the total can be trusted as "what you could own".</summary>
@@ -73,13 +79,26 @@ public enum MissingVerdict
 /// The totals a stored record states (any may be null), plus an optional chapters-per-volume ratio that converts a
 /// total of one unit into the other when the record states none of the same unit.
 /// </summary>
+/// <para>
+/// 1.29.0 RC ("missing" = released in the PREFERRED language): with <paramref name="Language"/> set, only what is released in
+/// that language is compared - the English totals and the latest release only for English, <paramref name="ReleasedChapters"/>
+/// (the highest chapter the volume list names as released in that language) for any language; the origin totals never make a
+/// series "behind" (an untranslated volume is not missing) and are kept as context (<see cref="MissingUnitGap.OriginTotal"/>).
+/// Without a language every total counts (the 1.28.0 behaviour).
+/// </para>
 public sealed record PublishedTotals(
     int? EnglishVolumes = null,
     int? EnglishChapters = null,
     int? OriginVolumes = null,
     int? OriginChapters = null,
     double? LatestChapter = null,
-    double? ChaptersPerVolume = null);
+    double? ChaptersPerVolume = null,
+    string? Language = null,
+    int? ReleasedChapters = null)
+{
+    /// <summary>The language rule applies and the language is English (the only one with publisher totals today).</summary>
+    internal bool English => Language is null || string.Equals(Language, "en", StringComparison.OrdinalIgnoreCase);
+}
 
 /// <summary>One unit kind of one series.</summary>
 public sealed record MissingUnitGap(
@@ -93,7 +112,8 @@ public sealed record MissingUnitGap(
     MissingConfidence? Confidence,
     int BehindBy,
     IReadOnlyList<int> Missing,
-    int MissingCount);
+    int MissingCount,
+    int? OriginTotal = null);
 
 public sealed record MissingUnitsResult(
     MissingVerdict Verdict,
@@ -161,10 +181,12 @@ public static class MissingUnits
         var chapters = chaptersRestart ? new SortedSet<int>() : Union(chapterSets);
 
         var volumeGap = !HasProgress(volumes) ? null
-            : Gap(MissingUnitKind.Volume, volumeArchives, volumes, firstExpected: 1, VolumeTotals(totals));
+            : Gap(MissingUnitKind.Volume, volumeArchives, volumes, firstExpected: 1, VolumeTotals(totals))
+                with { OriginTotal = totals.Language is null ? null : totals.OriginVolumes };
         // Chapters next to volumes continue after the last volume: holes count from the lowest chapter on disk.
         var chapterGap = !HasProgress(chapters) ? null
-            : Gap(MissingUnitKind.Chapter, chapterArchives, chapters, firstExpected: volumeGap is not null ? chapters.Min : 1, ChapterTotals(totals));
+            : Gap(MissingUnitKind.Chapter, chapterArchives, chapters, firstExpected: volumeGap is not null ? chapters.Min : 1, ChapterTotals(totals))
+                with { OriginTotal = totals.Language is null ? null : totals.OriginChapters };
 
         var gaps = new[] { volumeGap, chapterGap }.OfType<MissingUnitGap>().ToList();
         MissingVerdict verdict;
@@ -278,28 +300,42 @@ public static class MissingUnits
         return false;
     }
 
-    // Volumes: English volumes, English chapters converted, origin volumes, origin chapters converted.
+    // Volumes: English volumes, English chapters converted, origin volumes, origin chapters converted. With the language rule:
+    // the English ones only, and only for English.
     private static IEnumerable<(int Total, MissingTotalSource Source, MissingConfidence Confidence)> VolumeTotals(PublishedTotals t)
     {
         var ratio = t.ChaptersPerVolume is { } r && r >= 1 ? r : (double?)null;
+        if (!t.English)
+            yield break;
         if (t.EnglishVolumes is { } e && e > 0)
             yield return (e, MissingTotalSource.English, MissingConfidence.High);
         if (ratio is { } r1 && t.EnglishChapters is { } ec && (int)Math.Floor(ec / r1) is var cv && cv > 0)
             yield return (cv, MissingTotalSource.Converted, MissingConfidence.Medium);
+        if (t.Language is not null)
+            yield break;
         if (t.OriginVolumes is { } o && o > 0)
             yield return (o, MissingTotalSource.Origin, MissingConfidence.Medium);
         if (ratio is { } r2 && t.OriginChapters is { } oc && (int)Math.Floor(oc / r2) is var ov && ov > 0)
             yield return (ov, MissingTotalSource.Converted, MissingConfidence.Low);
     }
 
-    // Chapters: English chapters, English volumes converted, origin chapters, the latest chapter.
+    // Chapters: English chapters, English volumes converted, origin chapters, the latest chapter. With the language rule: the
+    // English ones (English only), the chapters released in the language, the latest release (English only) - never the origin.
     private static IEnumerable<(int Total, MissingTotalSource Source, MissingConfidence Confidence)> ChapterTotals(PublishedTotals t)
     {
         var ratio = t.ChaptersPerVolume is { } r && r >= 1 ? r : (double?)null;
-        if (t.EnglishChapters is { } e && e > 0)
+        if (t.English && t.EnglishChapters is { } e && e > 0)
             yield return (e, MissingTotalSource.English, MissingConfidence.High);
-        if (ratio is { } r1 && t.EnglishVolumes is { } ev && (int)Math.Floor(ev * r1) is var ec && ec > 0)
+        if (t.English && ratio is { } r1 && t.EnglishVolumes is { } ev && (int)Math.Floor(ev * r1) is var ec && ec > 0)
             yield return (ec, MissingTotalSource.Converted, MissingConfidence.Medium);
+        if (t.Language is not null)
+        {
+            if (t.ReleasedChapters is { } rc && rc > 0)
+                yield return (rc, MissingTotalSource.Released, MissingConfidence.Medium);
+            if (t.English && t.LatestChapter is { } latest && latest >= 1)
+                yield return ((int)Math.Floor(latest), MissingTotalSource.LatestChapter, MissingConfidence.Low);
+            yield break;
+        }
         if (t.OriginChapters is { } o && o > 0)
             yield return (o, MissingTotalSource.Origin, MissingConfidence.Medium);
         if (t.LatestChapter is { } l && l >= 1)

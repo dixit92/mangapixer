@@ -216,4 +216,57 @@ public sealed class VolumeStackHttpTests : IClassFixture<MangaPixerWebApplicatio
         Assert.Equal(10, (await OkAsync<VolumeStackDto>(await reader.GetAsync($"/api/v1/nodes/{SeriesPubId}/volumes/1"))).PresentCount);
         Assert.Equal(2, (await OkAsync<PageResponse<CatalogNodeDto>>(await reader.GetAsync($"/api/v1/libraries/{LibPubId}/browse?parentId={SeriesPubId}"))).TotalCount);
     }
+
+    [Fact]
+    public async Task VolumesOnlyLinkedFolder_ShowsMissingVolumeCards_AndTheSeriesStatus()
+    {
+        var admin = await AdminAsync();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            if (!await db.CatalogNodes.AnyAsync(n => n.PublicId == "vsVolOnly"))
+            {
+                var lib = await db.Libraries.SingleAsync(l => l.PublicId == LibPubId);
+                var folder = await VolumeTestData.AddFolderAsync(db, lib.Id, null, "VS Volumes Only", "vsVolOnly");
+                foreach (var v in new[] { 1, 3 })
+                    await VolumeTestData.AddArchiveAsync(db, lib.Id, folder.Id, $"VS Volumes Only v{v:00}", $"vsvo{v}");
+                var record = await VolumeTestData.AddRecordAsync(db, status: MetadataOriginStatus.Complete, englishVolumes: 4);
+                await VolumeTestData.LinkAsync(db, folder, record.Id);
+            }
+        }
+
+        var view = await OkAsync<VolumeViewDto>(await admin.GetAsync("/api/v1/nodes/vsVolOnly/volume-view"));
+        Assert.True(view.Available);
+        Assert.True(view.HasSeriesStatus);
+        Assert.Equal((MetadataOriginStatus.Complete, 2, 0, true, "en"), (view.SeriesStatus, view.MissingVolumes, view.MissingChapters, view.ReleaseKnown, view.Language));
+
+        var page = await OkAsync<PageResponse<CatalogNodeDto>>(await admin.GetAsync($"/api/v1/libraries/{LibPubId}/browse?parentId=vsVolOnly&group=volumes"));
+        Assert.Equal(4, page.TotalCount);
+        Assert.Equal(["vsvo1", "vm.vsVolOnly.2", "vsvo3", "vm.vsVolOnly.4"], page.Items.Select(n => n.Id));
+        var missing = page.Items[1];
+        Assert.Equal((CatalogNodeKind.VolumeStack, "Volume 2", true, 0), (missing.Kind, missing.DisplayName, missing.VolumeStack!.Missing, missing.VolumeStack.PresentCount));
+        Assert.Null(missing.CoverUrl);
+        // A placeholder is never opened.
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/v1/nodes/vsVolOnly/volumes/2")).StatusCode);
+    }
+
+    [Fact]
+    public async Task AStackShowsTheStar_WhenAnyOfItsArchivesIsStarred()
+    {
+        var admin = await AdminAsync();
+        Assert.False((await BrowseAsync(admin, "pageSize=5&group=volumes")).Items[1].IsFavorite);
+
+        (await admin.PostAsync("/api/v1/nodes/vsc12/favorite", null)).EnsureSuccessStatusCode();
+        try
+        {
+            var page = await BrowseAsync(admin, "pageSize=5&group=volumes");
+            Assert.Equal((false, true), (page.Items[0].IsFavorite, page.Items[1].IsFavorite));
+            var stack = await OkAsync<VolumeStackDto>(await admin.GetAsync($"/api/v1/nodes/{SeriesPubId}/volumes/1"));
+            Assert.Equal((10, 10), (stack.ChapterCount, stack.ChaptersPresent + stack.MissingCount));
+        }
+        finally
+        {
+            (await admin.DeleteAsync("/api/v1/nodes/vsc12/favorite")).EnsureSuccessStatusCode();
+        }
+    }
 }
