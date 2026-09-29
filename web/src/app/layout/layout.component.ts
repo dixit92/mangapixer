@@ -60,8 +60,8 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
       <span class="spacer"></span>
 
       @if (auth.isAuthenticated()) {
-        <button mat-button routerLink="/libraries">Libraries</button>
-        <button mat-button routerLink="/search">Search</button>
+        <button mat-button class="nav-link" routerLink="/libraries">Libraries</button>
+        <button mat-button class="nav-link" routerLink="/search">Search</button>
 
         <!-- Admin nav badge (metadata stage 2): series to review + open flags. -->
         <button mat-icon-button [matMenuTriggerFor]="userMenu" (menuOpened)="refreshAttention()"
@@ -131,6 +131,12 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
        optically centers against the icon mark rather than sitting low. */
     .brand-text { position: relative; top: -2px; }
     .spacer { flex: 1 1 auto; }
+    /* Phones (390px): menu + brand + two text links + the account button overflowed the toolbar by ~12px, so every
+       page scrolled sideways and the account button was clipped. Tighten the gaps on narrow screens. */
+    @media (max-width: 599.98px) {
+      .brand { margin-right: 4px; }
+      .nav-link { min-width: 0; padding: 0 8px; }
+    }
     /* Two-column app shell (1.5.0): the persistent library sidebar sits on the
        window's left edge with the content column beside it. The sidebar reaches
        the edge itself, so the content column no longer needs the old home
