@@ -219,6 +219,9 @@ public static class AuditActions
     public const string MetadataConversionLookup = "metadata.conversion.lookup";
     public const string DeclaredFactsSet = "metadata.declared.set";
     public const string DeclaredFactsClear = "metadata.declared.clear";
+
+    // 1.29.0: per-folder view overrides (the Volumes view); ids only.
+    public const string FolderViewSettingsChange = "folder.view.change";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>

@@ -223,6 +223,23 @@ public sealed record MetadataSettingsDto
     /// <summary>True when <c>Metadata:AutoMatch:CompareCovers=false</c> switches cover comparison off regardless of the setting.</summary>
     public bool CompareCoversDisabledByConfig { get; init; }
 
+    // 1.29.0: volume covers and virtual volumes.
+
+    /// <summary>"Preferred cover language" (a MangaDex locale code, default "en"); the origin language is the fallback.</summary>
+    public string PreferredCoverLanguage { get; init; } = "en";
+
+    /// <summary>"Volume covers from the web" (on by default); fetching still needs both consents, the allowlist and the library switch.</summary>
+    public bool VolumeCoversEnabled { get; init; } = true;
+
+    /// <summary>True when <c>Metadata:AutoMatch:VolumeCovers=false</c> switches the volume-cover work off regardless of the setting.</summary>
+    public bool VolumeCoversDisabledByConfig { get; init; }
+
+    /// <summary>Local front / back spread crop of volume covers (on by default; no network).</summary>
+    public bool SpreadCropEnabled { get; init; } = true;
+
+    /// <summary>Global default of the Volumes view (virtual volume stacks; on by default).</summary>
+    public bool VirtualVolumesEnabled { get; init; } = true;
+
     // 1.28.0: the provider allowlist and consent renewal.
 
     /// <summary>The approved sites, each with whether it is on the allowlist.</summary>
@@ -263,6 +280,12 @@ public sealed record MetadataLibrarySettingsDto
 
     /// <summary>True when automatic matching runs for this library (global switch + automatic consent + this library's Fetch).</summary>
     public bool AutoMatchActive { get; init; }
+
+    /// <summary>"Show saved web covers" (1.29.0, on by default) - separate from <see cref="ShowSeriesInfo"/>.</summary>
+    public bool ShowWebCovers { get; init; } = true;
+
+    /// <summary>Library override of the Volumes view (1.29.0); null = the global default.</summary>
+    public ViewSwitch? VirtualVolumes { get; init; }
 }
 
 /// <summary>
@@ -302,6 +325,18 @@ public sealed record UpdateMetadataSettingsRequest
     /// null leaves the allowlist unchanged. An unknown id is rejected (<c>invalid_provider</c>).
     /// </summary>
     public IReadOnlyList<string>? RemovedProviders { get; init; }
+
+    /// <summary>1.29.0: a MangaDex locale code (<c>en</c>, <c>ja</c>, <c>pt-br</c>, <c>es-la</c>); anything else is <c>invalid_cover_language</c>.</summary>
+    public string? PreferredCoverLanguage { get; init; }
+
+    /// <summary>1.29.0: "Volume covers from the web"; null leaves it unchanged. Covered by both consents - no consent of its own.</summary>
+    public bool? VolumeCoversEnabled { get; init; }
+
+    /// <summary>1.29.0: local spread crop; null leaves it unchanged.</summary>
+    public bool? SpreadCropEnabled { get; init; }
+
+    /// <summary>1.29.0: global default of the Volumes view; null leaves it unchanged.</summary>
+    public bool? VirtualVolumesEnabled { get; init; }
 }
 
 /// <summary>Partial update of one library's toggles; null fields are left unchanged.</summary>
@@ -309,6 +344,15 @@ public sealed record UpdateMetadataLibraryRequest
 {
     public bool? FetchEnabled { get; init; }
     public bool? ShowSeriesInfo { get; init; }
+
+    /// <summary>1.29.0: "Show saved web covers" for this library.</summary>
+    public bool? ShowWebCovers { get; init; }
+
+    /// <summary>1.29.0: this library's Volumes view override; see <see cref="ResetVirtualVolumes"/> to inherit again.</summary>
+    public ViewSwitch? VirtualVolumes { get; init; }
+
+    /// <summary>1.29.0: back to the global default (clears <see cref="VirtualVolumes"/>).</summary>
+    public bool ResetVirtualVolumes { get; init; }
 }
 
 /// <summary>Sets a precedence override. For a library, null clears it (back to the default).</summary>

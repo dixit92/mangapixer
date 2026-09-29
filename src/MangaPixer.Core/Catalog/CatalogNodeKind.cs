@@ -6,7 +6,10 @@ namespace com.lifepixer.mangapixer.Core.Catalog;
 public enum CatalogNodeKind
 {
     Folder = 0,
-    Archive = 1
+    Archive = 1,
+
+    /// <summary>A virtual volume stack of the Volumes view (1.29.0): a browse entry only, never a stored node.</summary>
+    VolumeStack = 2,
 }
 
 /// <summary>

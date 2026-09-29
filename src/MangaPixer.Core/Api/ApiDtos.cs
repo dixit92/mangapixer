@@ -167,6 +167,15 @@ public sealed record CatalogNodeDto
     /// everywhere else, so older clients show a plain folder card.
     /// </summary>
     public int? FavoriteStackCount { get; init; }
+
+    /// <summary>
+    /// Virtual volume stack (1.29.0): set only on a browse entry of kind <see cref="CatalogNodeKind.VolumeStack"/> (the
+    /// Volumes view of a series); null everywhere else.
+    /// </summary>
+    public VolumeStackSummaryDto? VolumeStack { get; init; }
+
+    /// <summary>Where <see cref="CoverUrl"/> comes from (1.29.0 cover layer); null = the file cover (and older servers).</summary>
+    public CardCoverSource? CoverSource { get; init; }
 }
 
 /// <summary>
@@ -433,6 +442,12 @@ public sealed record LibraryViewPreferencesDto
     /// client that predates this field keeps the option on.
     /// </summary>
     public bool SeriesInfoOnHover { get; init; } = true;
+
+    /// <summary>
+    /// Per-user series view (1.29.0): the Volumes | Folders switch in the series header, remembered for the user. Null
+    /// (default, and a PUT from an older client) = follow the folder / library / global default.
+    /// </summary>
+    public com.lifepixer.mangapixer.Core.Metadata.SeriesViewMode? SeriesViewMode { get; init; }
 }
 
 /// <summary>

@@ -887,6 +887,7 @@ public sealed class ReadingStateService
             ShowFavoritesHomeRow = prefs.ShowFavoritesHomeRow,
             FavoritesSearchProminence = prefs.FavoritesSearchProminence,
             SeriesInfoOnHover = prefs.SeriesInfoOnHover,
+            SeriesViewMode = (Core.Metadata.SeriesViewMode?)prefs.SeriesViewMode,
         };
     }
 
@@ -919,6 +920,7 @@ public sealed class ReadingStateService
         prefs.ShowFavoritesHomeRow = preferences.ShowFavoritesHomeRow;
         prefs.FavoritesSearchProminence = preferences.FavoritesSearchProminence;
         prefs.SeriesInfoOnHover = preferences.SeriesInfoOnHover;
+        prefs.SeriesViewMode = preferences.SeriesViewMode is { } seriesView && Enum.IsDefined(seriesView) ? (int)seriesView : null;
 
         await _db.SaveChangesAsync(ct);
     }
