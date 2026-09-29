@@ -73,6 +73,19 @@ public sealed class LibraryEntity
     /// </summary>
     public int? MetadataPrecedence { get; set; }
 
+    /// <summary>
+    /// Library override of the Volumes view (1.29.0, <c>ViewSwitch</c> int value), or null to inherit
+    /// <see cref="AppSettingsEntity.VirtualVolumesEnabled"/>. Overridable per folder (<see cref="FolderViewSettingsEntity"/>).
+    /// </summary>
+    public int? VirtualVolumes { get; set; }
+
+    /// <summary>
+    /// Per-library "Show saved web covers", stored inverted (1.29.0): true keeps web covers (MangaDex volume covers, the
+    /// stored poster) out of this library's cards - the file covers show. Separate from
+    /// <see cref="MetadataSeriesInfoHidden"/> (owner decision). Column default 0 = shown.
+    /// </summary>
+    public bool WebCoversHidden { get; set; }
+
     public ICollection<LibraryGrantEntity> Grants { get; set; } = [];
     public ICollection<CatalogNodeEntity> Nodes { get; set; } = [];
 }
@@ -510,6 +523,12 @@ public sealed class ReaderPreferencesEntity
     /// </summary>
     public bool SeriesInfoOnHover { get; set; } = true;
 
+    /// <summary>
+    /// Per-user series view (1.29.0): the Volumes | Folders switch in the series header (<c>SeriesViewMode</c> int value),
+    /// remembered for the user; null = follow the library / folder / global default.
+    /// </summary>
+    public int? SeriesViewMode { get; set; }
+
     public UserEntity? User { get; set; }
 }
 
@@ -932,6 +951,23 @@ public sealed class AppSettingsEntity
 
     /// <summary>Provider allowlist state (JSON, max 4096), or null for the defaults (every approved provider in).</summary>
     public string? MetadataProvidersJson { get; set; }
+
+    // 1.29.0 (virtual volumes and volume covers; created by the contract migration, behaviour in the wave-2 lanes).
+
+    /// <summary>"Preferred cover language" (a MangaDex locale code, max 16). The origin language is the fallback.</summary>
+    public string MetadataCoverLanguage { get; set; } = "en";
+
+    /// <summary>
+    /// "Volume covers from the web" (MangaDex volume covers and volume lists). ON by default; fetching still needs both
+    /// consents, the allowlist and the library's fetch switch. The migration gives the existing row true.
+    /// </summary>
+    public bool MetadataVolumeCoversEnabled { get; set; } = true;
+
+    /// <summary>Local front / back spread crop of volume covers (no network). ON by default; the migration gives the existing row true.</summary>
+    public bool CoverSpreadCropEnabled { get; set; } = true;
+
+    /// <summary>Global default of the Volumes view (virtual volume stacks). ON by default; the migration gives the existing row true.</summary>
+    public bool VirtualVolumesEnabled { get; set; } = true;
 }
 
 /// <summary>
@@ -1353,4 +1389,230 @@ public sealed class SessionEntity
     public bool IsRevoked { get; set; }
 
     public UserEntity? User { get; set; }
+}
+
+/// <summary>
+/// A companion record of a linked series record (1.29.0): the MangaDex record (volume list, volume covers) or the
+/// AniList record (totals) of the series a node links to. The companion is provider data (a
+/// <see cref="MetadataRecordEntity"/> row) and is never linked to a node itself; the node keeps its one
+/// <see cref="NodeSeriesLinkEntity"/> to the series record. One row per (series record, provider).
+/// </summary>
+public sealed class MetadataCompanionEntity
+{
+    public long Id { get; set; }
+
+    /// <summary>The linked series record (MangaUpdates).</summary>
+    public long RecordId { get; set; }
+
+    /// <summary>Companion provider id (<c>mangadex</c>, <c>anilist</c>; max 32).</summary>
+    public string Provider { get; set; } = string.Empty;
+
+    /// <summary>The companion's record row; null while <c>NotFound</c> / <c>None</c> / <c>Failed</c>.</summary>
+    public long? CompanionRecordId { get; set; }
+
+    /// <summary><c>CompanionState</c> int value.</summary>
+    public int State { get; set; }
+
+    /// <summary><c>CompanionMethod</c> int value.</summary>
+    public int Method { get; set; }
+
+    public DateTimeOffset? CheckedAt { get; set; }
+
+    /// <summary>When the background pass may try again (NotFound / Failed / refresh cadence).</summary>
+    public DateTimeOffset? NextCheckAt { get; set; }
+
+    public MetadataRecordEntity? Record { get; set; }
+    public MetadataRecordEntity? CompanionRecord { get; set; }
+}
+
+/// <summary>
+/// The volume -> chapters map of a series (1.29.0), one row per (series record, <c>VolumeMapSource</c>). Keyed by the
+/// SERIES record the nodes link to, so browse needs one lookup per folder. The map is JSON because a folder always needs
+/// the whole map of one series and replaces it atomically; unit numbers are canonical invariant strings ("45.5"), never
+/// SQLite decimals. File names and ComicInfo volumes are read live from the catalog, never stored here.
+/// </summary>
+public sealed class SeriesVolumeMapEntity
+{
+    public long Id { get; set; }
+    public long RecordId { get; set; }
+
+    /// <summary><c>VolumeMapSource</c> int value.</summary>
+    public int Source { get; set; }
+
+    /// <summary><c>VolumeMapState</c> int value.</summary>
+    public int State { get; set; }
+
+    /// <summary><c>[{"v":"3","c":["17",...,"25.5"]}, ...]</c> after clean-up; null for a ratio-only source.</summary>
+    public string? VolumesJson { get; set; }
+
+    /// <summary>Chapters the provider lists without a volume (<c>["1150","1151"]</c>), or null.</summary>
+    public string? UnassignedJson { get; set; }
+
+    /// <summary>Average chapters per volume (the exact volumes' average, or the AniList ratio).</summary>
+    public double? ChaptersPerVolume { get; set; }
+
+    /// <summary>Highest volume number the provider knows (MangaDex <c>/cover</c> or <c>lastVolume</c>): caps estimated volumes.</summary>
+    public int? KnownVolumeCount { get; set; }
+
+    /// <summary>SHA-256 (hex) of the normalised payload: an unchanged refresh rewrites nothing.</summary>
+    public string ContentHash { get; set; } = string.Empty;
+
+    /// <summary>+1 whenever <see cref="ContentHash"/> changes (grouping caches and cover decisions key on it).</summary>
+    public int Version { get; set; }
+
+    public DateTimeOffset FetchedAt { get; set; }
+    public DateTimeOffset? NextCheckAt { get; set; }
+
+    public MetadataRecordEntity? Record { get; set; }
+}
+
+/// <summary>
+/// A web cover known for a provider record (1.29.0): listed by MangaDex, downloaded on demand by the background pass
+/// or an admin, re-encoded by the media worker into the thumbnail variant and stored under
+/// <c>DataRoot/volume-covers/</c> with its perceptual hash. No column holds a URL or a path: the image address is
+/// rebuilt from the provider record id and <see cref="RemoteFile"/> on the provider's fixed image host.
+/// </summary>
+public sealed class VolumeCoverEntity
+{
+    public long Id { get; set; }
+
+    /// <summary>Opaque public id (<c>vc</c> + hex, max 64).</summary>
+    public string PublicId { get; set; } = string.Empty;
+
+    /// <summary>The provider record (MangaDex) the cover belongs to.</summary>
+    public long ProviderRecordId { get; set; }
+
+    /// <summary><c>VolumeCoverKind</c> int value.</summary>
+    public int Kind { get; set; }
+
+    /// <summary>Integer volume number; null for a main cover or a cover without a volume.</summary>
+    public int? Volume { get; set; }
+
+    /// <summary>0 for the volume's own key <c>"N"</c>; k for an edition alternate <c>"N.k"</c> (picker only, never automatic).</summary>
+    public int Variant { get; set; }
+
+    /// <summary>Provider locale code (<c>ja</c>, <c>en</c>, <c>pt-br</c>; max 16).</summary>
+    public string Locale { get; set; } = string.Empty;
+
+    /// <summary>Provider cover id (MangaDex cover UUID; max 64).</summary>
+    public string RemoteId { get; set; } = string.Empty;
+
+    /// <summary>Provider file name (max 128).</summary>
+    public string RemoteFile { get; set; } = string.Empty;
+
+    /// <summary>Provider's last change; a newer value re-downloads.</summary>
+    public DateTimeOffset? RemoteUpdatedAt { get; set; }
+
+    /// <summary><c>VolumeCoverState</c> int value.</summary>
+    public int State { get; set; }
+
+    /// <summary>+1 per download (file name and URL version).</summary>
+    public int StoredVersion { get; set; }
+
+    /// <summary>64-bit perceptual hash of the stored image (<c>CoverHash</c>), as a signed 64-bit value.</summary>
+    public long? Hash { get; set; }
+
+    public int? Width { get; set; }
+    public int? Height { get; set; }
+    public DateTimeOffset ListedAt { get; set; }
+    public DateTimeOffset? StoredAt { get; set; }
+
+    public MetadataRecordEntity? ProviderRecord { get; set; }
+}
+
+/// <summary>
+/// An admin's cover choice for one node (1.29.0) - the top of the cover layer. No row = automatic. Global, not per user.
+/// </summary>
+public sealed class NodeCoverChoiceEntity
+{
+    public long Id { get; set; }
+    public long NodeId { get; set; }
+
+    /// <summary><c>CoverChoiceMode</c> int value.</summary>
+    public int Mode { get; set; }
+
+    /// <summary>Mode Archive: the archive whose file cover is shown (null after it is deleted -> automatic).</summary>
+    public long? ArchiveNodeId { get; set; }
+
+    /// <summary>Mode VolumeCover: the web cover (null after it is deleted -> automatic).</summary>
+    public long? VolumeCoverId { get; set; }
+
+    /// <summary>Mode Crop: <c>CoverCropSide</c> int value.</summary>
+    public int? CropSide { get; set; }
+
+    /// <summary>+1 on every change (cover URL version).</summary>
+    public int Version { get; set; }
+
+    public long? SetByUserId { get; set; }
+    public DateTimeOffset SetAt { get; set; }
+
+    public CatalogNodeEntity? Node { get; set; }
+}
+
+/// <summary>
+/// The automatic cover layer's decision for one node (1.29.0), one row per decided node - including "keep the file" so
+/// it is not re-decided. <see cref="InputsKey"/> hashes everything the decision read; a mismatch means re-decide.
+/// </summary>
+public sealed class NodeAutoCoverEntity
+{
+    /// <summary>Same as CatalogNodeEntity.Id (1:1).</summary>
+    public long NodeId { get; set; }
+
+    /// <summary><c>AutoCoverSource</c> int value.</summary>
+    public int Source { get; set; }
+
+    /// <summary>Source Crop: <c>CoverCropSide</c> int value.</summary>
+    public int? CropSide { get; set; }
+
+    /// <summary>Source WebVolume / WebMain: the web cover.</summary>
+    public long? VolumeCoverId { get; set; }
+
+    /// <summary><c>AutoCoverReason</c> int value.</summary>
+    public int Reason { get; set; }
+
+    /// <summary>64-bit hash of the local candidate (file thumbnail or crop) the decision compared, as a signed value.</summary>
+    public long? LocalHash { get; set; }
+
+    /// <summary>Hash of the decision's inputs (max 64).</summary>
+    public string InputsKey { get; set; } = string.Empty;
+
+    /// <summary>+1 when the decided source or target changes (cover URL version).</summary>
+    public int Version { get; set; }
+
+    /// <summary>Set when the origin-language cover was used because the preferred one is missing.</summary>
+    public DateTimeOffset? RecheckAt { get; set; }
+
+    public DateTimeOffset DecidedAt { get; set; }
+
+    public CatalogNodeEntity? Node { get; set; }
+}
+
+/// <summary>
+/// Persisted backoff of one metadata provider (1.29.0 gateway generalisation). MangaUpdates keeps its original
+/// <see cref="AppSettingsEntity"/> columns; every other provider has a row here.
+/// </summary>
+public sealed class MetadataProviderStateEntity
+{
+    /// <summary>Provider id (max 32).</summary>
+    public string Provider { get; set; } = string.Empty;
+
+    public DateTimeOffset? BackoffUntil { get; set; }
+    public int BackoffStep { get; set; }
+    public DateTimeOffset? LastErrorAt { get; set; }
+
+    /// <summary>A short error code, never a message (max 32).</summary>
+    public string? LastErrorCode { get; set; }
+}
+
+/// <summary>
+/// Admin per-folder view overrides (1.29.0): the Volumes view (<c>ViewSwitch</c> int value, null = inherit the library).
+/// One concern per table, like <see cref="FolderMetadataContentEntity"/>; the home of later per-folder view switches.
+/// </summary>
+public sealed class FolderViewSettingsEntity
+{
+    public long Id { get; set; }
+    public long NodeId { get; set; }
+    public int? VirtualVolumes { get; set; }
+
+    public CatalogNodeEntity? Node { get; set; }
 }
