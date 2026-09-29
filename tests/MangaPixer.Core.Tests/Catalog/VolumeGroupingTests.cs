@@ -298,7 +298,9 @@ public sealed class VolumeGroupingTests
     public void ComicInfo_NumberBecomesTheChapter_ButAVolumesOwnNumberDoesNot()
     {
         var chapters = VolumeGrouping.Group([Archive("Untitled A", ciVolume: 2, ciNumber: "5"), Archive("Untitled B", ciVolume: 2, ciNumber: "6")], null);
-        Assert.Equal(["5", "6"], [Stacks(chapters)[0].Stack!.FirstChapter, Stacks(chapters)[0].Stack!.LastChapter]);
+        var stack = Stacks(chapters)[0].Stack!;
+        Assert.Equal("5", stack.FirstChapter);
+        Assert.Equal("6", stack.LastChapter);
 
         // Volume 2, Number 2: the book's own issue number - a volume archive, a plain card.
         var volume = VolumeGrouping.Group([Archive("Untitled Book", ciVolume: 2, ciNumber: "2")], null);
