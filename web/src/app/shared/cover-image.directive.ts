@@ -36,9 +36,9 @@ export class CoverImageDirective implements OnDestroy {
     this.attempts += 1;
     this.clearTimer();
     this.timer = setTimeout(() => {
-      // Cache-bust so a previously-pending URL is actually re-requested.
-      const base = img.src.split('?')[0];
-      img.src = `${base}?r=${this.attempts}`;
+      // Cache-bust so a previously-pending URL is actually re-requested. The cover's own
+      // version (`v`, 1.29.0) is kept, so the retried URL still names the current cover.
+      img.src = retryUrl(img.src, this.attempts);
     }, delay);
   }
 
@@ -59,4 +59,12 @@ export class CoverImageDirective implements OnDestroy {
       this.timer = null;
     }
   }
+}
+
+/** The URL with `r=<attempt>` set and every other query parameter (the cover version `v`) kept. */
+export function retryUrl(src: string, attempt: number): string {
+  const [base, query = ''] = src.split('?');
+  const params = new URLSearchParams(query);
+  params.set('r', String(attempt));
+  return `${base}?${params.toString()}`;
 }

@@ -131,7 +131,7 @@ import {
                      series (the anchor rule), so the flag is re-fetched, not patched. -->
                 <a #contEl class="cont-card" [routerLink]="['/reader', item.itemId]">
                   <div class="cover" [appSeriesInfoHover]="item.hasSeriesInfo ? item.itemId : null" [hoverAnchor]="contEl">
-                    <img appCover [src]="coverUrl(item.itemId)" alt="" loading="lazy">
+                    <img appCover [src]="continueCover(item)" alt="" loading="lazy">
                     <mat-icon class="cover-fallback">menu_book</mat-icon>
                     <app-info-toggle [nodeId]="item.itemId" [hasSeriesInfo]="!!item.hasSeriesInfo" [anchored]="true" [overlay]="true" />
                     <app-star-toggle [nodeId]="item.itemId" [favorite]="!!item.isFavorite" [overlay]="true" [compact]="true" />
@@ -616,8 +616,9 @@ export class HomeComponent implements OnInit {
     }
   }
 
-  coverUrl(itemId: string): string {
-    return `/api/v1/items/${itemId}/cover`;
+  /** A Continue-reading card's cover: the server's (layered, versioned, 1.29.0), else the file cover (older servers). */
+  continueCover(item: ContinueReadingEntry): string {
+    return item.coverUrl ?? `/api/v1/items/${item.itemId}/cover`;
   }
 
   /** Remove an item from the Continue-reading strip (1.2.0) without marking it read. */
