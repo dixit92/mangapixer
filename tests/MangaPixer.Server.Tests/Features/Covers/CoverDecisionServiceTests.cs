@@ -47,8 +47,16 @@ public sealed class CoverDecisionServiceTests
         Assert.Equal(2, kit.Renderer.Requests.Count);
         Assert.True(File.Exists(kit.Files.CropPath(ltr.Id, 1, CoverCropSide.Right)));
         Assert.True(File.Exists(kit.Files.CropPath(rtl.Id, 1, CoverCropSide.Left)));
-        Assert.Equal(CoverDecisionOutcome.Unchanged, await kit.Decisions().DecideAsync(ltr.Id, default));
+        // Same inputs: not decided again, nothing rendered.
+        Assert.Equal(CoverDecisionOutcome.Unchanged, await kit.Decisions().DecideAsync(rtl.Id, default));
         Assert.Equal(2, kit.Renderer.Requests.Count);
+
+        // The direction is an input: v01, decided left-to-right, now takes the left half (the library reads right-to-left).
+        Assert.Equal(CoverDecisionOutcome.Decided, await kit.Decisions().DecideAsync(ltr.Id, default));
+        var redecided = await kit.AutoAsync(ltr.Id);
+        Assert.Equal((int)CoverCropSide.Left, redecided!.CropSide);
+        Assert.Equal(2, redecided.Version);
+        Assert.True(File.Exists(kit.Files.CropPath(ltr.Id, 1, CoverCropSide.Left)));
     }
 
     [Fact]
