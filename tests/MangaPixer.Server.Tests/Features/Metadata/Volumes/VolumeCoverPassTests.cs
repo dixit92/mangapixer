@@ -131,7 +131,10 @@ public sealed class VolumePassHarness : IDisposable
 
     public VolumeCoverPass Pass(IDictionary<string, string?>? config = null) => new(
         Db.Db, Auto.Service(), config is null ? Auto.Net.Settings() : Settings(config), Companions(), Maps(), Fetcher(),
-        new NullHasher(), Thumbnails, new CoverHashCache(), PassState, Time, Log<VolumeCoverPass>());
+        new NullHasher(), Thumbnails, new CoverHashCache(), PassState, Time, Log<VolumeCoverPass>(), Decisions);
+
+    /// <summary>The cover layer's queue: the pass asks it for a sweep after storing covers.</summary>
+    public com.lifepixer.mangapixer.Server.Features.Covers.CoverDecisionQueue Decisions { get; } = new();
 
     private MetadataSettingsService Settings(IDictionary<string, string?> config) => new(
         Db.Db, new AuditService(Db.Db), new ConfigurationBuilder().AddInMemoryCollection(config).Build(), Time,
@@ -371,6 +374,19 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
         _h.Time.Advance(TimeSpan.FromDays(1));
         await _h.TickAsync();
         Assert.Equal(0, _h.Handler.CallCount); // stored: not fetched again
+    }
+
+    [Fact]
+    public async Task StoredCovers_AskTheCoverLayerForASweep_NoCoversNoSweep()
+    {
+        await _h.Auto.EnableAutomaticAsync();
+        await SeriesAsync(MdFixtures.MuBerserk, "Berserk", 43, "Synthetic Shelf v01.cbz");
+        await _h.TickAsync();
+        Assert.True(_h.Decisions.TakeSweepRequest());
+
+        _h.Time.Advance(TimeSpan.FromDays(1));
+        await _h.TickAsync(); // nothing new stored
+        Assert.False(_h.Decisions.TakeSweepRequest());
     }
 
     [Fact]

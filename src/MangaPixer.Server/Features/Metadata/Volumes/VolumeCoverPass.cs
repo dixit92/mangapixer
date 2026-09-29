@@ -79,12 +79,14 @@ public sealed class VolumeCoverPass
     private readonly VolumeCoverPassState _state;
     private readonly TimeProvider _time;
     private readonly ILogger<VolumeCoverPass> _logger;
+    private readonly Covers.CoverDecisionQueue? _decisions;
 
     public VolumeCoverPass(
         MangaPixerDbContext db, MetadataAutoMatchService autoMatch, MetadataSettingsService settings, CompanionLinkService companions,
         VolumeMapService maps, VolumeCoverFetcher fetcher, ICoverHasher hasher, ThumbnailStore thumbnails, CoverHashCache hashCache,
-        VolumeCoverPassState state, TimeProvider time, ILogger<VolumeCoverPass> logger)
+        VolumeCoverPassState state, TimeProvider time, ILogger<VolumeCoverPass> logger, Covers.CoverDecisionQueue? decisions = null)
     {
+        _decisions = decisions;
         _db = db;
         _autoMatch = autoMatch;
         _settings = settings;
@@ -177,6 +179,7 @@ public sealed class VolumeCoverPass
         }
         catch (MetadataGatewayException ex) when (MetadataAutoMatchService.IsRefusal(ex))
         {
+            CoversStored(stored);
             _state.Set(ex.Code, ex.RetryAt, _time.GetUtcNow());
             if (call.RequestsSent > 0 || checkedSeries > 0)
                 _logger.LogInformation(LogEvents.Metadata.VolumeCoverPass, "Volume cover pass: {Series} series, {Stored} covers, {Requests} requests; stopped {Code}",
@@ -184,10 +187,18 @@ public sealed class VolumeCoverPass
             return new VolumeCoverPassResult(call.RequestsSent, checkedSeries, stored, ex.Code);
         }
 
+        CoversStored(stored);
         if (call.RequestsSent > 0)
             _logger.LogInformation(LogEvents.Metadata.VolumeCoverPass, "Volume cover pass: {Series} series, {Stored} covers, {Requests} requests",
                 checkedSeries, stored, call.RequestsSent);
         return new VolumeCoverPassResult(call.RequestsSent, checkedSeries, stored, null);
+    }
+
+    /// <summary>New covers were stored: the cover layer decides again soon instead of at its next periodic sweep.</summary>
+    private void CoversStored(int stored)
+    {
+        if (stored > 0)
+            _decisions?.RequestSweep();
     }
 
     /// <summary>
