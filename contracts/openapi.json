@@ -4854,35 +4854,6 @@
         }
       }
     },
-    "/api/v1/admin/metadata/volume-covers": {
-      "delete": {
-        "tags": [
-          "VolumeCoverImage"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/DeleteVolumeCoversResult"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DeleteVolumeCoversResult"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DeleteVolumeCoversResult"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/libraries": {
       "get": {
         "tags": [
@@ -6630,46 +6601,6 @@
           }
         }
       },
-      "CoverStateDto": {
-        "required": [
-          "mode"
-        ],
-        "type": "object",
-        "properties": {
-          "mode": {
-            "$ref": "#/components/schemas/CoverMode"
-          },
-          "autoSource": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/CardCoverSource"
-              }
-            ]
-          },
-          "reason": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "imageUrl": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "recheckAt": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          }
-        }
-      },
       "CoverPassStatusDto": {
         "required": [
           "seriesPending",
@@ -6707,6 +6638,46 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "CoverStateDto": {
+        "required": [
+          "mode"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/CoverMode"
+          },
+          "autoSource": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CardCoverSource"
+              }
+            ]
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "imageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recheckAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -6848,40 +6819,6 @@
       },
       "DeclaredType": {
         "type": "integer"
-      },
-      "DeleteVolumeCoversResult": {
-        "required": [
-          "coversDeleted",
-          "decisionsReset",
-          "choicesReset"
-        ],
-        "type": "object",
-        "properties": {
-          "coversDeleted": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "decisionsReset": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "choicesReset": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          }
-        }
       },
       "EffectiveDeclaredFactsDto": {
         "type": "object",
