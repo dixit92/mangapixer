@@ -1,0 +1,710 @@
+{
+ "result": "ok",
+ "response": "collection",
+ "data": [
+  {
+   "id": "c31927b3-8666-4e1f-a44d-319f3cec77df",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "en": "Tower of God (Book Version)"
+    },
+    "altTitles": [
+     {
+      "ko": "신의 탑"
+     },
+     {
+      "en": "Tower of God"
+     }
+    ],
+    "links": {
+     "mu": "5z98aus"
+    },
+    "originalLanguage": "ko",
+    "lastVolume": "",
+    "lastChapter": "",
+    "status": "ongoing",
+    "year": 2019,
+    "contentRating": "safe",
+    "createdAt": "2024-06-07T11:08:51+00:00",
+    "updatedAt": "2025-11-14T14:25:40+00:00",
+    "tags": [
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "3b60b75c-a2d7-4860-ab56-05f391bb889c",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Psychological"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "4d32cc48-9f00-4cca-9b5a-a839f0764984",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Comedy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "87cc87cd-a395-47af-b27a-93258283bbc6",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adventure"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "b9af3a63-f058-46de-a9a0-e0c13906197a",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Drama"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "cdc58593-87dd-415e-bbc0-2ec27bf404cc",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Fantasy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "eabc5b4c-6aff-42f3-b657-3e90cbd00b75",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Supernatural"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "ee968100-4191-4968-93d3-f82d72be7e46",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Mystery"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "f5ba408b-0e7a-484d-8d49-4e9125ac96de",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Full Color"
+       },
+       "group": "format"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "3db88f78-be84-4949-b608-09a87db3d300",
+     "type": "author"
+    },
+    {
+     "id": "3db88f78-be84-4949-b608-09a87db3d300",
+     "type": "artist"
+    },
+    {
+     "id": "bc1e3a3b-8fa8-4416-a8d0-5636a39ea30e",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "1139acf4-d88a-4415-af7d-5d21dd316280.jpg",
+      "volume": "15",
+      "locale": "ko"
+     }
+    },
+    {
+     "id": "c0ee660b-f9f2-45c3-8068-5123ff53f84a",
+     "type": "manga"
+    },
+    {
+     "id": "f319d314-4310-4610-bcea-98c0128def1d",
+     "type": "creator"
+    }
+   ]
+  },
+  {
+   "id": "c0ee660b-f9f2-45c3-8068-5123ff53f84a",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "ko-ro": "Sinui Tap"
+    },
+    "altTitles": [
+     {
+      "ko": "신의 탑"
+     },
+     {
+      "sv": "Guds Torn"
+     },
+     {
+      "hu": "Isten Tornya"
+     },
+     {
+      "el": "Kami no Tou"
+     },
+     {
+      "id": "Menara Dewa"
+     },
+     {
+      "ar": "Sin-ui Tab"
+     },
+     {
+      "fi": "Sinui Tap"
+     },
+     {
+      "tr": "Tanrının Kulesi"
+     },
+     {
+      "fr": "Toi La Ai"
+     },
+     {
+      "pt-br": "Torre de Deus"
+     },
+     {
+      "es": "Torre de Dios"
+     },
+     {
+      "de": "Turm Gottes"
+     },
+     {
+      "ro": "Turnul lui Dumnezeu"
+     },
+     {
+      "pl": "Wieża Boga"
+     },
+     {
+      "ru": "Башня Бога"
+     },
+     {
+      "ar": "برج"
+     },
+     {
+      "ar": "برج الإله"
+     },
+     {
+      "ja": "神の塔"
+     },
+     {
+      "zh-hk": "神之塔"
+     },
+     {
+      "lt": "Dievo Bokštas"
+     },
+     {
+      "zh": "神之塔"
+     },
+     {
+      "th": "ทาวเวอร์ออฟก๊อด หอคอยเทพเจ้า"
+     },
+     {
+      "en": "Tower of God"
+     }
+    ],
+    "links": {
+     "al": "85143",
+     "kt": "25436",
+     "mu": "5z98aus",
+     "mal": "122663",
+     "raw": "https://comic.naver.com/webtoon/list.nhn?titleId=183559",
+     "engtl": "https://www.webtoons.com/en/fantasy/tower-of-god/list?title_no=95"
+    },
+    "originalLanguage": "ko",
+    "lastVolume": null,
+    "lastChapter": null,
+    "status": "hiatus",
+    "year": 2010,
+    "contentRating": "safe",
+    "createdAt": "2018-01-18T00:00:00+00:00",
+    "updatedAt": "2026-01-21T12:43:33+00:00",
+    "tags": [
+     {
+      "id": "0a39b5a1-b235-4886-a747-1d05d216532d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Award Winning"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "3b60b75c-a2d7-4860-ab56-05f391bb889c",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Psychological"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "3e2b8dae-350e-4ab8-a8ce-016e844b9f0d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Long Strip"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "4d32cc48-9f00-4cca-9b5a-a839f0764984",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Comedy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "87cc87cd-a395-47af-b27a-93258283bbc6",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adventure"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "b9af3a63-f058-46de-a9a0-e0c13906197a",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Drama"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "cdc58593-87dd-415e-bbc0-2ec27bf404cc",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Fantasy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "e197df38-d0e7-43b5-9b09-2842d0c326dd",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Web Comic"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "eabc5b4c-6aff-42f3-b657-3e90cbd00b75",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Supernatural"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "ee968100-4191-4968-93d3-f82d72be7e46",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Mystery"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "f5ba408b-0e7a-484d-8d49-4e9125ac96de",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Full Color"
+       },
+       "group": "format"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "3db88f78-be84-4949-b608-09a87db3d300",
+     "type": "author"
+    },
+    {
+     "id": "3db88f78-be84-4949-b608-09a87db3d300",
+     "type": "artist"
+    },
+    {
+     "id": "b79547f6-e396-470a-9427-39c1f71af3b2",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "311cf373-290a-47f6-a3f1-5d7c4085c5b2.jpg",
+      "volume": null,
+      "locale": "ko"
+     }
+    },
+    {
+     "id": "57e1d491-1dc9-4854-83bf-7a9379566fb2",
+     "type": "manga"
+    },
+    {
+     "id": "c31927b3-8666-4e1f-a44d-319f3cec77df",
+     "type": "manga"
+    }
+   ]
+  },
+  {
+   "id": "57e1d491-1dc9-4854-83bf-7a9379566fb2",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "ko-ro": "Urek Mazino"
+    },
+    "altTitles": [
+     {
+      "en": "Tower of God: Urek Mazino"
+     },
+     {
+      "ko": "우렉 마지노"
+     },
+     {
+      "ko-ro": "Urek Maginot"
+     },
+     {
+      "pt-br": "Torre de Deus: Urek Mazino"
+     },
+     {
+      "en": "Tower of God: Urek's Ascent"
+     }
+    ],
+    "links": {
+     "al": "191727",
+     "mu": "7ic4l1q",
+     "mal": "181485",
+     "raw": "https://comic.naver.com/webtoon/list?titleId=838432",
+     "engtl": "https://www.webtoons.com/en/fantasy/tower-of-god-urek-mazino/list?title_no=8136"
+    },
+    "originalLanguage": "ko",
+    "lastVolume": "",
+    "lastChapter": "",
+    "status": "ongoing",
+    "year": 2025,
+    "contentRating": "safe",
+    "createdAt": "2025-04-28T22:50:05+00:00",
+    "updatedAt": "2026-01-23T10:20:55+00:00",
+    "tags": [
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "3e2b8dae-350e-4ab8-a8ce-016e844b9f0d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Long Strip"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "87cc87cd-a395-47af-b27a-93258283bbc6",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adventure"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "b9af3a63-f058-46de-a9a0-e0c13906197a",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Drama"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "cdc58593-87dd-415e-bbc0-2ec27bf404cc",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Fantasy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "e197df38-d0e7-43b5-9b09-2842d0c326dd",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Web Comic"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "f5ba408b-0e7a-484d-8d49-4e9125ac96de",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Full Color"
+       },
+       "group": "format"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "3db88f78-be84-4949-b608-09a87db3d300",
+     "type": "author"
+    },
+    {
+     "id": "3db88f78-be84-4949-b608-09a87db3d300",
+     "type": "artist"
+    },
+    {
+     "id": "64a48521-12f8-4290-a008-b9ba3124a634",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "5ed269d1-63af-45f8-8d67-4e8aa1e1b520.jpg",
+      "volume": "1",
+      "locale": "ko"
+     }
+    },
+    {
+     "id": "c0ee660b-f9f2-45c3-8068-5123ff53f84a",
+     "type": "manga"
+    },
+    {
+     "id": "c55f8354-ec7c-4543-afaf-71a5e7088124",
+     "type": "creator"
+    }
+   ]
+  },
+  {
+   "id": "a03e761d-97d2-4626-aeed-7ed67c0fac32",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "en": "Genshi Otome to Kami no Tou"
+    },
+    "altTitles": [
+     {
+      "en": "Primeval Maidens and the Tower of Gods"
+     },
+     {
+      "ru": "Доисторические девы и башня богов"
+     },
+     {
+      "ja": "原始乙女と神の塔"
+     }
+    ],
+    "links": {
+     "al": "117317",
+     "ap": "genshi-otome-to-kami-no-tou",
+     "kt": "33517",
+     "mu": "752vf26",
+     "mal": "82743"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": "1",
+    "lastChapter": "5",
+    "status": "completed",
+    "year": 2014,
+    "contentRating": "safe",
+    "createdAt": "2019-02-09T21:22:51+00:00",
+    "updatedAt": "2025-11-15T16:29:13+00:00",
+    "tags": [
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "4d32cc48-9f00-4cca-9b5a-a839f0764984",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Comedy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "cdc58593-87dd-415e-bbc0-2ec27bf404cc",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Fantasy"
+       },
+       "group": "genre"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "43fa8935-9025-4f35-afb6-ba64e7883fa2",
+     "type": "author"
+    },
+    {
+     "id": "43fa8935-9025-4f35-afb6-ba64e7883fa2",
+     "type": "artist"
+    },
+    {
+     "id": "81af78b3-9a6c-4fb9-8add-348b92275b9e",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "e8a764b8-d269-4a5a-9fb5-304c01dd363d.jpg",
+      "volume": null,
+      "locale": "ja"
+     }
+    }
+   ]
+  },
+  {
+   "id": "a5844c8d-b0a7-4a5d-b6ff-2d627d8dc355",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "en": "The Female God of Babel: KAMISAMA Club in Tower of Babel"
+    },
+    "altTitles": [
+     {
+      "en": "Babel Shiki Kami Girl"
+     },
+     {
+      "en": "バベル式 神ガール"
+     }
+    ],
+    "links": {
+     "al": "115753",
+     "ap": "babel-shiki-kami-girl",
+     "kt": "48034",
+     "mu": "7lbv2cu",
+     "mal": "105067"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": "2",
+    "lastChapter": "12",
+    "status": "completed",
+    "year": null,
+    "contentRating": "safe",
+    "createdAt": "2020-04-15T14:41:15+00:00",
+    "updatedAt": "2025-11-15T15:58:11+00:00",
+    "tags": [
+     {
+      "id": "caaa44eb-cd40-4177-b930-79d3ef2afe87",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "School Life"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "cdc58593-87dd-415e-bbc0-2ec27bf404cc",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Fantasy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "eabc5b4c-6aff-42f3-b657-3e90cbd00b75",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Supernatural"
+       },
+       "group": "theme"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "18c53f66-4726-4004-ada7-05ca36719f98",
+     "type": "author"
+    },
+    {
+     "id": "18c53f66-4726-4004-ada7-05ca36719f98",
+     "type": "artist"
+    },
+    {
+     "id": "bc76773b-057f-4ff5-aa3b-a7de36d93aa5",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "2336cc7e-5554-4dec-98fc-d44f19604925.jpg",
+      "volume": "2",
+      "locale": "ja"
+     }
+    }
+   ]
+  }
+ ],
+ "limit": 10,
+ "offset": 0,
+ "total": 5
+}

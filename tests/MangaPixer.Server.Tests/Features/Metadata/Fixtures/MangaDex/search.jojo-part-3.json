@@ -1,0 +1,432 @@
+{
+ "result": "ok",
+ "response": "collection",
+ "data": [
+  {
+   "id": "51f7d9fc-256e-4160-add1-ab9652f32ae1",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "ja-ro": "JoJo no Kimyou na Bouken: Part 3 - Stardust Crusaders Color-ban"
+    },
+    "altTitles": [
+     {
+      "en": "JoJo's Bizarre Adventure, Part 3: Stardust Crusaders - Digital Colored Comics"
+     },
+     {
+      "ja-ro": "JoJo no Kimyou na Bouken Part 3: Stardust Crusaders"
+     },
+     {
+      "ar": "مغامرة جوجو الغريبة الجزء 3:"
+     },
+     {
+      "ja": "ジョジョの奇妙な冒険"
+     },
+     {
+      "ja": "ジョジョの奇妙な冒険スターダストクルセイダース"
+     },
+     {
+      "ja": "ジョジョの奇妙な冒険 第3部 スターダストクルセイダース カラー版"
+     }
+    ],
+    "links": {
+     "mu": "rr8u5ip"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": "16",
+    "lastChapter": "152",
+    "status": "completed",
+    "year": 2012,
+    "contentRating": "safe",
+    "createdAt": "2018-05-26T13:53:21+00:00",
+    "updatedAt": "2026-05-11T17:19:18+00:00",
+    "tags": [
+     {
+      "id": "320831a8-4026-470b-94f6-8353740e6f04",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Official Colored"
+       },
+       "group": "format"
+      }
+     },
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "4d32cc48-9f00-4cca-9b5a-a839f0764984",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Comedy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "87cc87cd-a395-47af-b27a-93258283bbc6",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adventure"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "b9af3a63-f058-46de-a9a0-e0c13906197a",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Drama"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "eabc5b4c-6aff-42f3-b657-3e90cbd00b75",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Supernatural"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "ee968100-4191-4968-93d3-f82d72be7e46",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Mystery"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "f8f62932-27da-4fe4-8ee1-6779a8c5edba",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Tragedy"
+       },
+       "group": "genre"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "03e4afc4-cd94-45a0-bb36-dfd34fa370b3",
+     "type": "author"
+    },
+    {
+     "id": "03e4afc4-cd94-45a0-bb36-dfd34fa370b3",
+     "type": "artist"
+    },
+    {
+     "id": "33f8e7ab-477b-4fa9-a95d-15c3d81c0e23",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "3d199336-589d-432c-9db2-9eb4145df34f.jpg",
+      "volume": "16",
+      "locale": "ja"
+     }
+    },
+    {
+     "id": "0d39e7aa-4e4c-4644-83ae-eda8d0a1670f",
+     "type": "manga"
+    },
+    {
+     "id": "0d545e62-d4cd-4e65-a65c-a5c46b794918",
+     "type": "manga"
+    },
+    {
+     "id": "2153acfb-becb-4568-b971-7807dac26f4f",
+     "type": "manga"
+    },
+    {
+     "id": "29e808fb-84a6-40b6-acba-de92124aa921",
+     "type": "manga"
+    },
+    {
+     "id": "3148976a-e0b0-4a9c-a1eb-58783a11ff99",
+     "type": "manga"
+    },
+    {
+     "id": "487d9ac4-f5a3-44d8-9360-64d5f1671f34",
+     "type": "manga"
+    },
+    {
+     "id": "4b99307e-9809-49d5-a4ac-4d00dc045970",
+     "type": "manga"
+    },
+    {
+     "id": "54b83ecd-f9dc-4605-87a4-e06eb2e80f8a",
+     "type": "manga"
+    },
+    {
+     "id": "675b8c97-f719-48e5-8873-28dd01a74be2",
+     "type": "manga"
+    },
+    {
+     "id": "67e8e880-1777-4be9-b811-10a99470c7ce",
+     "type": "manga"
+    },
+    {
+     "id": "7685090e-084c-446e-a9d9-e4fef150d31e",
+     "type": "manga"
+    },
+    {
+     "id": "78647417-f64e-4fa7-bb57-b286a5a59453",
+     "type": "manga"
+    },
+    {
+     "id": "849eb10a-7092-40d1-b9e2-bdc450f43109",
+     "type": "manga"
+    },
+    {
+     "id": "8f7c11cd-ffb1-4eea-bda5-23bbc602ad17",
+     "type": "manga"
+    },
+    {
+     "id": "a5e82ab3-4a85-442d-bf64-c37e9de1602a",
+     "type": "manga"
+    },
+    {
+     "id": "b7af9467-a5d3-470a-86e9-b5ae4a82e0cd",
+     "type": "manga"
+    },
+    {
+     "id": "fd0737c5-fc82-45df-bffa-93ad738e7d92",
+     "type": "manga"
+    }
+   ]
+  },
+  {
+   "id": "0d545e62-d4cd-4e65-a65c-a5c46b794918",
+   "type": "manga",
+   "attributes": {
+    "title": {
+     "ja-ro": "JoJo no Kimyou na Bouken: Part 3 - Stardust Crusaders"
+    },
+    "altTitles": [
+     {
+      "ro": "Aventurile Bizare ale lui JoJo Partea 3: Vitejii Stelelor"
+     },
+     {
+      "ja-ro": "Dai 3 Bu Kuujou Joutarou: Mirai e no Isan"
+     },
+     {
+      "ja-ro": "JoJo no Kimyou na Bouken"
+     },
+     {
+      "ja-ro": "JoJo no Kimyou na Bouken: Stardust Crusaders"
+     },
+     {
+      "en": "JoJo's Bizarre Adventure Part 3 Jotaro Kujo: Heritage for the Future"
+     },
+     {
+      "ar": "مغامرة جوجو الغريبة الجز  3:"
+     },
+     {
+      "ja": "ジョジョの奇妙な冒険"
+     },
+     {
+      "ja": "ジョジョの奇妙な冒険スターダストクルセイダース"
+     },
+     {
+      "kk": "ДжоДжоның Шытырман Хикаясы: Жұлдыз-тозаң Кірескерлері"
+     },
+     {
+      "en": "JoJo's Bizarre Adventure Part 3 - Stardust Crusaders"
+     }
+    ],
+    "links": {
+     "al": "30872",
+     "ap": "jojos-bizarre-adventure-stardust-crusaders",
+     "kt": "1899",
+     "mu": "rr8u5ip",
+     "mal": "872",
+     "engtl": "https://www.viz.com/shonenjump/chapters/jojos-bizarre-adventure-part-thr"
+    },
+    "originalLanguage": "ja",
+    "lastVolume": "16",
+    "lastChapter": "152",
+    "status": "completed",
+    "year": 1989,
+    "contentRating": "safe",
+    "createdAt": "2019-06-28T15:03:34+00:00",
+    "updatedAt": "2026-05-11T17:19:15+00:00",
+    "tags": [
+     {
+      "id": "391b0423-d847-456f-aff0-8b0cfc03066b",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Action"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "4d32cc48-9f00-4cca-9b5a-a839f0764984",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Comedy"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "799c202e-7daa-44eb-9cf7-8a3c0441531e",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Martial Arts"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "87cc87cd-a395-47af-b27a-93258283bbc6",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Adventure"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "b29d6a3d-1569-4e7a-8caf-7557bc92cd5d",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Gore"
+       },
+       "group": "content"
+      }
+     },
+     {
+      "id": "b9af3a63-f058-46de-a9a0-e0c13906197a",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Drama"
+       },
+       "group": "genre"
+      }
+     },
+     {
+      "id": "d7d1730f-6eb0-4ba6-9437-602cac38664c",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Vampires"
+       },
+       "group": "theme"
+      }
+     },
+     {
+      "id": "eabc5b4c-6aff-42f3-b657-3e90cbd00b75",
+      "type": "tag",
+      "attributes": {
+       "name": {
+        "en": "Supernatural"
+       },
+       "group": "theme"
+      }
+     }
+    ]
+   },
+   "relationships": [
+    {
+     "id": "03e4afc4-cd94-45a0-bb36-dfd34fa370b3",
+     "type": "author"
+    },
+    {
+     "id": "03e4afc4-cd94-45a0-bb36-dfd34fa370b3",
+     "type": "artist"
+    },
+    {
+     "id": "e7330923-2465-404e-a0de-cdaa44a50dc5",
+     "type": "cover_art",
+     "attributes": {
+      "fileName": "062dcbaa-fb90-4bd6-8894-6717c7d54339.jpg",
+      "volume": "16",
+      "locale": "ja"
+     }
+    },
+    {
+     "id": "0d39e7aa-4e4c-4644-83ae-eda8d0a1670f",
+     "type": "manga"
+    },
+    {
+     "id": "0d89de3b-454b-422e-9eed-c17402cf1604",
+     "type": "manga"
+    },
+    {
+     "id": "2153acfb-becb-4568-b971-7807dac26f4f",
+     "type": "manga"
+    },
+    {
+     "id": "29e808fb-84a6-40b6-acba-de92124aa921",
+     "type": "manga"
+    },
+    {
+     "id": "487d9ac4-f5a3-44d8-9360-64d5f1671f34",
+     "type": "manga"
+    },
+    {
+     "id": "4b99307e-9809-49d5-a4ac-4d00dc045970",
+     "type": "manga"
+    },
+    {
+     "id": "51f7d9fc-256e-4160-add1-ab9652f32ae1",
+     "type": "manga"
+    },
+    {
+     "id": "5ed1f8fc-a119-4cbc-aeae-26ce2bd3f838",
+     "type": "manga"
+    },
+    {
+     "id": "61079efc-d1c4-4565-bbe6-de58e1d75fdf",
+     "type": "manga"
+    },
+    {
+     "id": "7685090e-084c-446e-a9d9-e4fef150d31e",
+     "type": "manga"
+    },
+    {
+     "id": "848a5814-6f15-4917-9487-ca5ec3da371f",
+     "type": "manga"
+    },
+    {
+     "id": "8f8c4f0e-93f5-433e-ba13-017746b485ec",
+     "type": "manga"
+    },
+    {
+     "id": "905224cb-1cb7-4e88-afb0-bab3878b97ec",
+     "type": "manga"
+    },
+    {
+     "id": "a5e82ab3-4a85-442d-bf64-c37e9de1602a",
+     "type": "manga"
+    }
+   ]
+  }
+ ],
+ "limit": 10,
+ "offset": 0,
+ "total": 2
+}

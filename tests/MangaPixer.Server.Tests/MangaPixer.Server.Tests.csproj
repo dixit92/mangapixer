@@ -22,6 +22,7 @@
     <!-- Recorded MangaUpdates API responses (1.24.0); replayed by a fake handler, never the network. -->
     <EmbeddedResource Include="Features\Metadata\Fixtures\MangaUpdates\*.json" LogicalName="MangaUpdates.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Features\Metadata\Fixtures\AniList\*.json" LogicalName="AniList.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Features\Metadata\Fixtures\MangaDex\*.json" LogicalName="MangaDex.%(Filename)%(Extension)" />
     <!-- Metadata auto-match golden set (moved from Core.Tests in 1.27.0 so it runs the production mapping and retrieval; see the README there). -->
     <EmbeddedResource Include="Features\Metadata\Fixtures\GoldenSet\*.json" LogicalName="GoldenSet.%(Filename)%(Extension)" />
   </ItemGroup>
