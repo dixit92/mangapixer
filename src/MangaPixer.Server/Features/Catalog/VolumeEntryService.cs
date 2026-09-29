@@ -93,7 +93,8 @@ public sealed class VolumeEntryService
 
         var revision = await _db.Libraries.AsNoTracking().Where(l => l.Id == info.LibraryId).Select(l => l.CatalogRevision).FirstOrDefaultAsync(ct);
         var context = await ContextAsync(info, ct);
-        var language = await ReleasedInLanguage.PreferredAsync(_db, ct);
+        // The preferred language matters only for a linked series (what is released in it); an unlinked folder never reads it.
+        var language = context.RecordId is null ? ReleasedInLanguage.DefaultLanguage : await ReleasedInLanguage.PreferredAsync(_db, ct);
         var mapKey = await MapKeyAsync(context.RecordId, ct);
         var key = $"volview:{info.Id}:{revision}:{context.Key}:{language}:{mapKey}";
         if (_cache is not null && _cache.TryGetValue(key, out FolderVolumeEntries? cached) && cached is not null)
