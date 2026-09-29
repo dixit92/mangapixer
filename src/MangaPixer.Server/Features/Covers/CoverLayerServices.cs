@@ -11,6 +11,7 @@ public static class CoverLayerServices
         services.AddScoped<ICoverResolver, LayeredCoverResolver>();
         services.AddScoped<CoverCropService>();
         services.AddScoped<CoverPickerService>();
+        services.AddScoped<StackCoverService>();
         services.AddScoped<CoverDirectionResolver>();
         services.AddScoped<CoverDecisionService>();
         services.AddSingleton<CoverDecisionQueue>();

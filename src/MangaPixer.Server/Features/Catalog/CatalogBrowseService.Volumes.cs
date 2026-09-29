@@ -52,7 +52,8 @@ public sealed partial class CatalogBrowseService
 
     /// <summary>
     /// The browse cards of virtual volume stacks: <c>Kind = VolumeStack</c>, the opaque <c>vs.&lt;folder&gt;.&lt;key&gt;</c> id, the
-    /// cover of the stack's first member (its real volume archive, else its first chapter - through the cover resolver), a
+    /// cover (a chapter-only stack: its volume's stored web cover when shown - <see cref="StackCoverService"/>; else the stack's
+    /// first member, its real volume archive or its first chapter, through the cover resolver), a
     /// read rollup over the members and the summary the card badges read. Two batched queries for the whole page.
     /// </summary>
     internal async Task<Dictionary<string, CatalogNodeDto>> BuildStackCardsAsync(
@@ -67,7 +68,9 @@ public sealed partial class CatalogBrowseService
             .DistinctBy(r => r.InternalId)
             .Select(r => new CoverTarget(r.InternalId, r.Id, false))
             .ToList();
-        var covers = await _covers.ResolveUrlsAsync(coverTargets, ct);
+        var covers = await _covers.ResolveAsync(coverTargets, ct);
+        // A chapter-only stack shows its volume's stored web cover (1.29.0, design 7.4) when the web-cover switches allow it.
+        var webCovers = await _stackCovers.ResolveAsync(view.FolderId, view.FolderPublicId, view.LibraryId, stacks, ct);
 
         var memberIds = stacks.SelectMany(s => s.Members).Select(m => view.Rows[m.Row.Id].InternalId).Distinct().ToList();
         var read = (await _db.ReadMarks.AsNoTracking().Where(m => m.UserId == userId && memberIds.Contains(m.ItemId)).Select(m => m.ItemId).ToListAsync(ct)).ToHashSet();
@@ -81,6 +84,8 @@ public sealed partial class CatalogBrowseService
             var readCount = ids.Count(read.Contains);
             var progressCount = ids.Count(id => !read.Contains(id) && inProgress.Contains(id));
             var first = view.Rows[stack.Members[0].Row.Id];
+            ResolvedCover? cover = webCovers.TryGetValue(stack.Key, out var web) ? new ResolvedCover(web.Url, CardCoverSource.WebVolume)
+                : covers.TryGetValue(first.InternalId, out var own) ? own : null;
             cards[stack.Key] = new CatalogNodeDto
             {
                 Id = VolumeStackId.Encode(view.FolderPublicId, stack.Key),
@@ -89,7 +94,8 @@ public sealed partial class CatalogBrowseService
                 Kind = CatalogNodeKind.VolumeStack,
                 DisplayName = stack.Label,
                 Availability = CatalogNodeAvailability.Available,
-                CoverUrl = covers.GetValueOrDefault(first.InternalId),
+                CoverUrl = cover?.Url,
+                CoverSource = cover?.Source,
                 ReadRollup = FolderReadRollupRules.Classify(ids.Count, readCount, progressCount),
                 VolumeStack = SummaryOf(stack),
             };

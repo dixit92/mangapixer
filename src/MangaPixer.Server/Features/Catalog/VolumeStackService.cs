@@ -3,13 +3,15 @@ namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Features.Covers;
 
 /// <summary>
 /// The Volumes view's read surface besides browse (1.29.0): whether a folder has a Volumes view and whether it is on for the
 /// viewer, and one stack's slots (present chapter cards plus a placeholder where a whole chapter is missing). Stored data
 /// only; the viewer needs access to the folder's library.
 /// </summary>
-public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowseService browse, LibraryAuthorizationService auth)
+public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowseService browse, LibraryAuthorizationService auth,
+    StackCoverService stackCovers)
 {
     /// <summary>The Volumes-view state of a folder, or null when the viewer cannot see it.</summary>
     public async Task<VolumeViewDto?> GetViewAsync(long userId, long folderId, CancellationToken ct)
@@ -48,6 +50,8 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             })
             .ToList();
 
+        // The header cover: the volume's stored web cover for a chapter-only stack (as its browse card), else the first member's.
+        var web = await stackCovers.ResolveAsync(view.FolderId, view.FolderPublicId, view.LibraryId, [stack], ct);
         var keys = VolumeGrouping.StackKeys(view.Entries);
         var index = keys.ToList().IndexOf(stack.Key);
         return new VolumeStackDto
@@ -55,7 +59,7 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             FolderId = view.FolderPublicId,
             Key = stack.Key,
             Label = stack.Label,
-            CoverUrl = cards[stack.Members[0].Row.Id].CoverUrl,
+            CoverUrl = web.TryGetValue(stack.Key, out var webCover) ? webCover.Url : cards[stack.Members[0].Row.Id].CoverUrl,
             Confidence = stack.Confidence,
             Source = stack.Source,
             PresentCount = stack.PresentCount,
