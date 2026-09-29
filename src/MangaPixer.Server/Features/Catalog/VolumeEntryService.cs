@@ -44,7 +44,29 @@ public sealed record FolderVolumeEntries(
 /// against what is released in the preferred language. <see cref="ReleaseKnown"/>: a volume total or a released chapter list
 /// exists for that language (else "up to date" cannot be said).
 /// </summary>
-public sealed record SeriesStatusInfo(MetadataOriginStatus? Status, int MissingVolumes, int MissingChapters, bool ReleaseKnown, string Language);
+public sealed record SeriesStatusInfo(MetadataOriginStatus? Status, int MissingVolumes, int MissingChapters, bool ReleaseKnown, string Language)
+{
+    /// <summary>The record's country / language of origin ("Complete (Japan)"), or null.</summary>
+    public MetadataOrigin? Origin { get; init; }
+
+    /// <summary>The record's volume total in the country of origin, or null.</summary>
+    public int? OriginVolumes { get; init; }
+
+    /// <summary>Volumes published in the preferred language (English publishers today), or null.</summary>
+    public int? ReleasedVolumes { get; init; }
+
+    /// <summary>The highest chapter released in the preferred language (the stored released list, else English publishers), or null.</summary>
+    public int? ReleasedChapter { get; init; }
+
+    /// <summary>English only: the series is licensed in English (MangaUpdates), or null when unknown / another language.</summary>
+    public bool? Licensed { get; init; }
+
+    /// <summary>English only: the scanlation is complete (MangaUpdates), or null when unknown / another language.</summary>
+    public bool? ScanlationComplete { get; init; }
+
+    /// <summary>The linked series record (the "covers downloading" note asks the cover pass about it).</summary>
+    public long? RecordId { get; init; }
+}
 
 /// <summary>
 /// Builds the Volumes-view entry list of a folder from stored data only (catalog rows, ComicInfo volume, the linked series'
@@ -120,7 +142,16 @@ public sealed class VolumeEntryService
         var user = await _db.ReaderPreferences.AsNoTracking().Where(p => p.UserId == userId).Select(p => p.SeriesViewMode).FirstOrDefaultAsync(ct);
         if (user is { } mode)
             return mode == (int)SeriesViewMode.Volumes;
+        return await IsDefaultActiveAsync(entries, ct);
+    }
 
+    /// <summary>
+    /// The folder's default without the viewer's own switch: the folder override (the folder itself, then its series folder),
+    /// else the library override, else the global default (on). The web client clears the viewer's switch when they choose
+    /// this value again, so an admin's default applies to them from then on (1.29.0 RC).
+    /// </summary>
+    public async Task<bool> IsDefaultActiveAsync(FolderVolumeEntries entries, CancellationToken ct)
+    {
         var folderIds = new List<long> { entries.FolderId };
         if (entries.SeriesFolderId is { } series && series != entries.FolderId)
             folderIds.Add(series);
@@ -204,14 +235,16 @@ public sealed class VolumeEntryService
     /// is Ok, the chapters-per-volume ratio (its own average, else the AniList row's), the highest volume the provider knows
     /// (else the record's volume total) and whether the series still runs. Stored rows only.
     /// </summary>
-    private async Task<(VolumeMapInput? Map, ReleaseInfo? Release, MetadataOriginStatus? Status)> LoadMapAsync(
+    private sealed record RecordFacts(MetadataOrigin? Origin, int? OriginVolumes, bool? LicensedEn, bool? TranslationComplete);
+
+    private async Task<(VolumeMapInput? Map, ReleaseInfo? Release, MetadataOriginStatus? Status, RecordFacts? Facts)> LoadMapAsync(
         long? recordId, string language, CancellationToken ct)
     {
         if (recordId is not { } id)
-            return (null, null, null);
+            return (null, null, null, null);
         var maps = await _db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == id).ToListAsync(ct);
         var record = await _db.MetadataRecords.AsNoTracking().Where(r => r.Id == id)
-            .Select(r => new { r.OriginVolumes, r.OriginStatus, r.PublishersJson }).FirstOrDefaultAsync(ct);
+            .Select(r => new { r.OriginVolumes, r.OriginStatus, r.PublishersJson, r.Origin, r.LicensedEn, r.TranslationComplete }).FirstOrDefaultAsync(ct);
         var mangadex = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.MangaDexAggregate && m.State == (int)VolumeMapState.Ok);
         var aniList = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.AniListRatio && m.State == (int)VolumeMapState.Ok);
         var volumes = ParseVolumes(mangadex?.VolumesJson);
@@ -224,7 +257,8 @@ public sealed class VolumeEntryService
         // this language only) and the volume total (English publishers today).
         var releasedMap = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.MangaDexAggregate && m.ReleasedLanguage is not null);
         var release = ReleasedInLanguage.For(language, record?.PublishersJson, releasedMap?.ReleasedLanguage, releasedMap?.ReleasedChaptersJson);
-        return (new VolumeMapInput(volumes, ratio, known, ongoing, source, release.Chapters, release.Volumes, release.Language), release, status);
+        var facts = record is null ? null : new RecordFacts((MetadataOrigin?)record.Origin, record.OriginVolumes, record.LicensedEn, record.TranslationComplete);
+        return (new VolumeMapInput(volumes, ratio, known, ongoing, source, release.Chapters, release.Volumes, release.Language), release, status, facts);
     }
 
     /// <summary><c>[{"v":"3","c":["17","18","25.5"]}]</c> -> volumes; malformed entries are skipped.</summary>
@@ -306,12 +340,22 @@ public sealed class VolumeEntryService
                 Add(archive, unit.Name);
         }
 
-        var (map, release, status) = await LoadMapAsync(context.RecordId, language, ct);
+        var (map, release, status, facts) = await LoadMapAsync(context.RecordId, language, ct);
         // Missing-volume placeholders only at the folder with its own link: a Season / Part subfolder holds part of the run.
         var grouping = VolumeGrouping.Group(rows, map, markMissingVolumes: context.Own);
         var statusInfo = context.Own && release is not null
             ? new SeriesStatusInfo(status is MetadataOriginStatus.Unknown ? null : status, grouping.MissingVolumeCount, grouping.MissingChapterCount,
                 release.Known, release.Language)
+            {
+                Origin = facts?.Origin,
+                OriginVolumes = facts?.OriginVolumes,
+                ReleasedVolumes = release.Volumes,
+                ReleasedChapter = release.LastChapter ?? release.EnglishChapters,
+                // MangaUpdates' "licensed" and "completely scanlated" are about English.
+                Licensed = ReleasedInLanguage.IsEnglish(release.Language) ? facts?.LicensedEn : null,
+                ScanlationComplete = ReleasedInLanguage.IsEnglish(release.Language) ? facts?.TranslationComplete : null,
+                RecordId = context.RecordId,
+            }
             : null;
         return new FolderVolumeEntries(
             folder.Id, folder.PublicId, folder.LibraryId, folder.LibraryPublicId,

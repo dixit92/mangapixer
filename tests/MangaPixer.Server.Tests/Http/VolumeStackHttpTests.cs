@@ -136,10 +136,16 @@ public sealed class VolumeStackHttpTests : IClassFixture<MangaPixerWebApplicatio
             var view = await OkAsync<VolumeViewDto>(await admin.GetAsync($"/api/v1/nodes/{SeriesPubId}/volume-view"));
             Assert.True(view.Available);
             Assert.False(view.Active);
+            Assert.True(view.DefaultActive); // the folder's own default (global on) - the switch clears the choice when it is chosen again
             Assert.Equal(2, (await BrowseAsync(admin, "pageSize=100&group=volumes")).TotalCount);
 
             await SetSwitchAsync(admin, "Volumes");
             Assert.Equal(2, (await BrowseAsync(admin, "pageSize=100")).TotalCount);
+
+            // Cleared (what the switch sends when the choice equals the default): the viewer follows the default again.
+            await SetSwitchAsync(admin, null);
+            view = await OkAsync<VolumeViewDto>(await admin.GetAsync($"/api/v1/nodes/{SeriesPubId}/volume-view"));
+            Assert.Equal((true, true), (view.Active, view.DefaultActive));
         }
         finally
         {
@@ -231,6 +237,8 @@ public sealed class VolumeStackHttpTests : IClassFixture<MangaPixerWebApplicatio
                 foreach (var v in new[] { 1, 3 })
                     await VolumeTestData.AddArchiveAsync(db, lib.Id, folder.Id, $"VS Volumes Only v{v:00}", $"vsvo{v}");
                 var record = await VolumeTestData.AddRecordAsync(db, status: MetadataOriginStatus.Complete, englishVolumes: 4);
+                (record.Origin, record.LicensedEn, record.TranslationComplete) = ((int)MetadataOrigin.Japan, true, false);
+                await db.SaveChangesAsync();
                 await VolumeTestData.LinkAsync(db, folder, record.Id);
             }
         }
@@ -239,6 +247,8 @@ public sealed class VolumeStackHttpTests : IClassFixture<MangaPixerWebApplicatio
         Assert.True(view.Available);
         Assert.True(view.HasSeriesStatus);
         Assert.Equal((MetadataOriginStatus.Complete, 2, 0, true, "en"), (view.SeriesStatus, view.MissingVolumes, view.MissingChapters, view.ReleaseKnown, view.Language));
+        // The status line's facts (1.29.0 RC): where the status applies, and what is out in English (MangaUpdates is about English).
+        Assert.Equal((MetadataOrigin.Japan, (int?)4, (bool?)true, (bool?)false), (view.Origin, view.ReleasedVolumes, view.Licensed, view.ScanlationComplete));
 
         var page = await OkAsync<PageResponse<CatalogNodeDto>>(await admin.GetAsync($"/api/v1/libraries/{LibPubId}/browse?parentId=vsVolOnly&group=volumes"));
         Assert.Equal(4, page.TotalCount);

@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
@@ -130,6 +131,42 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
     expect(apiSpy.browseLibrary.mock.calls.at(-1)![10]).toBe('volumes');
   });
 
+  it('choosing what the folder shows by default clears the stored choice, so the admin default applies again', () => {
+    // The admin turned the default off; this viewer once chose Volumes, which still wins.
+    const { fixture, comp, el, apiSpy } = setup({ view: { active: true, defaultActive: false }, prefs: { seriesViewMode: 'Volumes' } });
+    expect(comp.volumesActive()).toBe(true);
+
+    (el.querySelector('[data-testid="view-folders"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(apiSpy.setLibraryPreferences.mock.calls.at(-1)![0]).toMatchObject({ seriesViewMode: null });
+    expect(comp.seriesView()).toBeNull();
+    expect(comp.volumesActive()).toBe(false);
+    expect(apiSpy.browseLibrary.mock.calls.at(-1)![10]).toBe('flat'); // explicit: does not race the preference save
+    expect(el.querySelector('[data-testid="view-folders"]')!.getAttribute('aria-pressed')).toBe('true');
+
+    // The other side is a real choice again, remembered as before.
+    (el.querySelector('[data-testid="view-volumes"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(apiSpy.setLibraryPreferences.mock.calls.at(-1)![0]).toMatchObject({ seriesViewMode: 'Volumes' });
+    expect(apiSpy.browseLibrary.mock.calls.at(-1)![10]).toBe('volumes');
+  });
+
+  it('says when this series\' covers are still being downloaded, only in the Volumes view', () => {
+    const open = vi.spyOn(MatSnackBar.prototype, 'open');
+    setup({ view: { coversPending: 3 } });
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0][0]).toBe('Downloading 3 volume covers in the background - they appear as they arrive.');
+    TestBed.resetTestingModule();
+    open.mockClear();
+
+    setup({ view: { coversPending: 0 } });
+    TestBed.resetTestingModule();
+    setup({ view: { coversPending: 2 }, prefs: { seriesViewMode: 'Folders' } });
+    expect(open).not.toHaveBeenCalled();
+    open.mockRestore();
+  });
+
   it('makes the switch inert while another sort or a filter makes the list flat', () => {
     const { fixture, comp, el } = setup();
     const volumes = () => el.querySelector('[data-testid="view-volumes"]') as HTMLButtonElement;
@@ -206,7 +243,7 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
 
   it('shows the series status line while the Volumes view of a linked series is shown', () => {
     const { fixture, comp, el } = setup({ view: { hasSeriesStatus: true, seriesStatus: 'Ongoing', missingVolumes: 2, missingChapters: 3, releaseKnown: true, language: 'en' } });
-    expect(el.querySelector('[data-testid="series-status"]')!.textContent).toContain('Ongoing - 2 volumes, 3 chapters missing');
+    expect(el.querySelector('[data-testid="series-status"]')!.textContent).toContain('Ongoing · 2 volumes, 3 chapters missing');
 
     comp.setSeriesView(false);
     fixture.detectChanges();

@@ -143,13 +143,14 @@ public sealed class VolumeEntryServiceTests : IDisposable
 
         Assert.True(view.Available);
         Assert.Equal(["archive:Volumes Only v01", "archive:Volumes Only v02", "missing:3", "archive:Volumes Only v04", "missing:5", "missing:6"], Kinds(view));
-        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Ongoing, 3, 0, true, "en"), view.Status);
+        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Ongoing, 3, 0, true, "en") { OriginVolumes = 12, ReleasedVolumes = 6, RecordId = record.Id }, view.Status);
 
         // French: no volume total is known for it - only the gap below volume 4, never the untranslated origin volumes.
         await VolumeTestData.SetPreferredLanguageAsync(db, "fr");
         var french = (await service.GetEntriesAsync(folder.Id, default))!;
         Assert.Equal(["archive:Volumes Only v01", "archive:Volumes Only v02", "missing:3", "archive:Volumes Only v04"], Kinds(french));
-        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Ongoing, 1, 0, false, "fr"), french.Status);
+        // The English publishers say nothing about French.
+        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Ongoing, 1, 0, false, "fr") { OriginVolumes = 12, RecordId = record.Id }, french.Status);
     }
 
     [Fact]
@@ -167,7 +168,7 @@ public sealed class VolumeEntryServiceTests : IDisposable
 
         Assert.True(view.Available);
         Assert.Equal(0, view.StackCount);
-        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Complete, 0, 0, true, "en"), view.Status);
+        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Complete, 0, 0, true, "en") { ReleasedVolumes = 3, RecordId = record.Id }, view.Status);
 
         // The same folder without a link: nothing to show beyond the folder list.
         var plain = await VolumeTestData.AddFolderAsync(db, lib.Id, null, "Unlinked Set");
@@ -416,6 +417,8 @@ public sealed class VolumeEntryServiceTests : IDisposable
         db.ReaderPreferences.Add(new ReaderPreferencesEntity { UserId = user.Id, SeriesViewMode = (int)SeriesViewMode.Volumes });
         await db.SaveChangesAsync();
         Assert.True(await service.IsActiveAsync(user.Id, view, null, default));
+        // The default without the user's switch stays the folder's (what the switch compares with to clear the user's choice).
+        Assert.False(await service.IsDefaultActiveAsync(view, default));
 
         // An explicit request wins over everything.
         Assert.False(await service.IsActiveAsync(user.Id, view, "flat", default));

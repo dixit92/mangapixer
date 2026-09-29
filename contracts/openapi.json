@@ -11423,6 +11423,9 @@
           "active": {
             "type": "boolean"
           },
+          "defaultActive": {
+            "type": "boolean"
+          },
           "consolidated": {
             "type": "boolean"
           },
@@ -11471,6 +11474,63 @@
               "null",
               "string"
             ]
+          },
+          "origin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MetadataOrigin"
+              }
+            ]
+          },
+          "originVolumes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "releasedVolumes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "releasedChapter": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "licensed": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "scanlationComplete": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "coversPending": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },

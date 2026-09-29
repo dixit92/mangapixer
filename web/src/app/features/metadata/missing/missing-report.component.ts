@@ -50,7 +50,10 @@ type Filter = 'missing' | 'all';
         </mat-form-field>
       </div>
       <div class="convert-bar" data-testid="missing-convert-bar">
-        @if (aniListReady()) {
+        @if (aniListAutomatic()) {
+          <span class="muted small" data-testid="missing-convert-auto">Chapters per volume are looked up automatically: from MangaDex's
+            volume list, or from AniList for a linked series MangaDex has none for.</span>
+        } @else if (aniListReady()) {
           <button mat-stroked-button type="button" [disabled]="batchBusy()" (click)="lookupBatch()" data-testid="missing-convert-batch"
                   matTooltip="Asks AniList for up to 20 linked series that have no chapters-per-volume yet (one request each)">
             <mat-icon>swap_horiz</mat-icon> {{ batchBusy() ? 'Looking up…' : 'Get chapters per volume from AniList' }}
@@ -210,6 +213,17 @@ export class MissingReportComponent implements OnInit {
   });
 
   readonly aniListReady = computed(() => this.aniListBlocked() === null);
+
+  /**
+   * 1.29.0 RC: Automatic matching with "Volume covers from the web" already asks AniList in the background for a linked series
+   * MangaDex has no volume list for, so the batch button is not offered then (it stays the way in without Automatic matching).
+   */
+  readonly aniListAutomatic = computed(() => {
+    const s = this.state.settings();
+    return !!s && this.aniListReady() && !!s.autoMatchEnabled && !s.autoConsentRenewalNeeded
+      && s.acceptedAutoConsentVersion === s.currentAutoConsentVersion
+      && s.volumeCoversEnabled !== false && !s.volumeCoversDisabledByConfig;
+  });
 
   readonly verdictLabels = MISSING_VERDICT_LABELS;
   readonly confidenceLabels = MISSING_CONFIDENCE_LABELS;

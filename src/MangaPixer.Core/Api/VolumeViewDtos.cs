@@ -17,6 +17,12 @@ public sealed record VolumeViewDto
     /// <summary>The viewer sees the Volumes view now (the user's switch, else the folder / library / global default).</summary>
     public required bool Active { get; init; }
 
+    /// <summary>
+    /// 1.29.0 RC: what <see cref="Active"/> would be without the viewer's own switch (the folder / library / global default).
+    /// Choosing this value on the switch clears the viewer's choice, so an admin's later default change reaches them.
+    /// </summary>
+    public bool DefaultActive { get; init; }
+
     /// <summary>The list merges this series' generic <c>Volumes</c> / <c>Chapters</c> subfolders into one volume-ordered list.</summary>
     public required bool Consolidated { get; init; }
 
@@ -43,4 +49,28 @@ public sealed record VolumeViewDto
 
     /// <summary>The preferred language the missing counts follow ("en", "fr", ...).</summary>
     public string? Language { get; init; }
+
+    /// <summary>1.29.0 RC: the country / language of origin the <see cref="SeriesStatus"/> is about ("Complete (Japan)"), or null.</summary>
+    public MetadataOrigin? Origin { get; init; }
+
+    /// <summary>The volume total in the country of origin, or null.</summary>
+    public int? OriginVolumes { get; init; }
+
+    /// <summary>Volumes published in the preferred language (English publishers today), or null when unknown.</summary>
+    public int? ReleasedVolumes { get; init; }
+
+    /// <summary>The highest chapter released in the preferred language, or null when unknown.</summary>
+    public int? ReleasedChapter { get; init; }
+
+    /// <summary>English only: licensed in English (MangaUpdates); null when unknown or another language.</summary>
+    public bool? Licensed { get; init; }
+
+    /// <summary>English only: the scanlation is complete (MangaUpdates); null when unknown or another language.</summary>
+    public bool? ScanlationComplete { get; init; }
+
+    /// <summary>
+    /// 1.29.0 RC: covers of this series still being downloaded in the background (volume 1 and the volumes held here); 0 when
+    /// none, or when the background pass is waiting and nothing is on its way.
+    /// </summary>
+    public int CoversPending { get; init; }
 }

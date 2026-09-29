@@ -399,7 +399,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
       </mat-menu>
     }
 
-    <!-- Series status (1.29.0 RC): "Ongoing - up to date" / "... - 2 volumes, 3 chapters missing" while a linked series'
+    <!-- Series status (1.29.0 RC): "Complete (Japan) · English: 12 of 14 volumes · 2 volumes missing" while a linked series'
          Volumes view is shown. -->
     @if (volumeView()?.hasSeriesStatus && volumesActive() && !volumesSuspended()) {
       <app-volume-series-status [view]="volumeView()!" />
@@ -946,7 +946,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    */
   readonly seriesView = signal<SeriesViewMode | null>(null);
   readonly volumesActive = computed(() =>
-    this.seriesView() !== null ? this.seriesView() === 'Volumes' : (this.volumeView()?.active ?? true));
+    this.seriesView() !== null ? this.seriesView() === 'Volumes' : (this.volumeView()?.defaultActive ?? this.volumeView()?.active ?? true));
   /** The list is flat whatever the switch says: only the Name sort without a read-state or favorites filter groups. */
   readonly volumesSuspended = computed(() =>
     this.sort() !== 'name' || this.readStateFilter() !== 'all' || this.favoritesOnly());
@@ -1611,7 +1611,15 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private loadVolumeView(nodeId: string): void {
     this.volumeView.set(null);
     this.api.getVolumeView(nodeId).subscribe({
-      next: (v) => { if (this.parentId() === nodeId) this.volumeView.set(v); },
+      next: (v) => {
+        if (this.parentId() !== nodeId) return;
+        this.volumeView.set(v);
+        // 1.29.0 RC: this series' covers are still being downloaded in the background - say so once per visit.
+        if ((v.coversPending ?? 0) > 0 && this.volumesActive()) {
+          const n = v.coversPending!;
+          this.snackBar.open(`Downloading ${n} volume cover${n === 1 ? '' : 's'} in the background - they appear as they arrive.`, 'OK', { duration: 5000 });
+        }
+      },
       error: () => this.volumeView.set(null),
     });
   }
@@ -1619,12 +1627,20 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   /** The `group` browse parameter of the viewer's explicit choice; null lets the server follow the defaults. */
   private groupParam(): 'volumes' | 'flat' | null {
     const view = this.seriesView();
-    return view === 'Volumes' ? 'volumes' : view === 'Folders' ? 'flat' : null;
+    if (view !== null) return view === 'Volumes' ? 'volumes' : 'flat';
+    // Following the default: say it explicitly once this folder's default is known, so a reload right after the viewer's
+    // choice was cleared does not race the preference save.
+    const fallback = this.volumeView()?.defaultActive;
+    return fallback === undefined ? null : fallback ? 'volumes' : 'flat';
   }
 
-  /** The Volumes | Folders switch: remember the choice for this user and reload the list from the top. */
+  /**
+   * The Volumes | Folders switch: remember the choice for this user and reload the list from the top. Choosing what this
+   * folder shows by default clears the viewer's choice instead (1.29.0 RC), so an admin's later default change reaches them.
+   */
   setSeriesView(volumes: boolean): void {
-    this.seriesView.set(volumes ? 'Volumes' : 'Folders');
+    const followDefault = this.volumeView()?.defaultActive === volumes;
+    this.seriesView.set(followDefault ? null : volumes ? 'Volumes' : 'Folders');
     this.persistView();
     this.resetList();
     this.loadNodes();

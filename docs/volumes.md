@@ -65,7 +65,7 @@ When a folder is linked to a series, its generic unit subfolders are merged into
 
 **Volumes.** In a folder linked to a series, a whole volume with neither a volume file nor any chapter here shows as a dashed **Volume N - Missing** card in its place: the gaps below your highest volume, and the volumes after it that are released in your preferred language. Today MangaPixer knows the volume total only for English (the English publisher's total on the series record), so in another language only the gaps are shown. A `Season` or `Part` subfolder never shows missing volumes (the rest of the run is elsewhere).
 
-**Series status.** Above the list of a linked series the Volumes view says how the series stands: "Ongoing - up to date", "Complete - up to date", or "Ongoing - 2 volumes, 3 chapters missing". The first word is the series' publication status; "up to date" is said only when MangaPixer knows what is released in your language (otherwise only the status shows). The counts include gaps between loose chapters that no volume holds yet.
+**Series status.** Above the list of a linked series the Volumes view says how the series stands, for example "Complete (Japan) · English: 12 of 14 volumes · 2 volumes missing" or "Ongoing (Korea) · English scanlation: ongoing · up to date". The first part is the publication status in the country of origin. The second says what is out in your preferred language when MangaPixer knows it: the official release (from MangaUpdates' English publishers - "English: complete" once every volume is out), otherwise the chapters released in that language ("French: up to chapter 87", from MangaDex), and for English the scanlation status or "not licensed" (from MangaUpdates). The last part counts what is missing; "up to date" is said only when MangaPixer knows what is released in your language. The counts include gaps between loose chapters that no volume holds yet.
 
 The numbers agree with the [Missing volumes and chapters](missing-report.md) report: both use the same rules for extras, ranges, restarts and your preferred language.
 
@@ -79,7 +79,7 @@ A stack can't be selected or starred: open it to select or star its chapters. A 
 
 The Volumes view is on wherever there is something to group. Who decides, first match wins:
 
-1. **You**, with the Volumes | Folders switch.
+1. **You**, with the Volumes | Folders switch. Your choice applies to every series until you pick what the folder shows by default: then it is cleared, and the admin's settings below decide for you again.
 2. **An admin, per folder**: select one folder in the browse list, choose **View…** in the selection bar, then **Automatic**, **On** or **Off**.
 3. **An admin, per library**: **Metadata Manager** > **Settings** > **Libraries**, the **Volumes view** column (**Default**, **On**, **Off**).
 4. **An admin, globally**: **Metadata Manager** > **Settings** > **Volumes view**, **Group chapters into volumes by default** (on by default).
@@ -88,4 +88,4 @@ The Volumes view only reads what is already stored, so it keeps working when fet
 
 ## Where the volume list comes from
 
-For a series linked to a record, MangaPixer can fetch the volume list, and the covers of each volume, from [MangaDex](https://mangadex.org) when **Fetch from the web** and **Automatic matching** are on. That is described under [Series information](series-information.md); the credit for those covers and lists is in **Metadata Manager** > **Settings**. Nothing in this page needs it: file names and ComicInfo group on their own.
+For a series linked to a record, MangaPixer can fetch the volume list, and the covers of each volume, from [MangaDex](https://mangadex.org) when **Fetch from the web** and **Automatic matching** are on. That is described under [Series information](series-information.md); the credit for those covers and lists is in **Metadata Manager** > **Settings**. Nothing in this page needs it: file names and ComicInfo group on their own. While some of a series' covers are still being downloaded in the background, opening its Volumes view says so in a short message; the covers appear as they arrive.

@@ -47,7 +47,7 @@ Records linked before MangaPixer 1.28.0 don't have the English total stored yet.
 English editions are often counted only in volumes ("18 Volumes"), while you keep chapters, or the other way round. To compare them anyway, MangaPixer can ask [AniList](https://anilist.co) how many chapters and volumes the series has and convert with that ratio. This is the only thing AniList is used for (the Missing report and, from 1.29.0, [volume lists](series-information.md#volume-covers-and-volume-lists-mangadex)); it is never used to match a folder. It happens when you ask:
 
 - **Chapters per volume (AniList)** under a series asks for that series.
-- **Get chapters per volume from AniList** above the list asks for up to 20 linked series that don't have it yet (one request each, at most one per second). A series AniList had no match for is not asked again for a day.
+- **Get chapters per volume from AniList** above the list asks for up to 20 linked series that don't have it yet (one request each, at most one per second). A series AniList had no match for is not asked again for a day. With **Automatic matching** and **Volume covers from the web** on, this happens in the background for every linked series MangaDex has no volume list for, so the button is not shown.
 
 and, *new in 1.29.0*, on its own with **Automatic matching** and **Volume covers from the web** on: for a linked series that MangaDex gives no volume list for, the background volume-cover work asks AniList for its totals once, and again on the series' refresh schedule (every 30 days while it is ongoing, every 90 days once complete). Those requests count in the same daily budget and are paced at one per second.
 

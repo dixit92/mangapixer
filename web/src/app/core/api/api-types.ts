@@ -1912,6 +1912,8 @@ export interface VolumeViewDto {
   nodeId: string;
   available: boolean;
   active: boolean;
+  /** 1.29.0 RC: `active` without the viewer's own switch (folder / library / global default); choosing it clears the switch. */
+  defaultActive?: boolean;
   consolidated: boolean;
   stackCount: number;
   /** 1.29.0 RC: the folder has its own series link - the status line below is shown. */
@@ -1924,6 +1926,18 @@ export interface VolumeViewDto {
   /** What is released in the preferred language is known: "up to date" can be said. */
   releaseKnown?: boolean;
   language?: string | null;
+  /** 1.29.0 RC: the country / language of origin the status is about ("Complete (Japan)"). */
+  origin?: MetadataOrigin | null;
+  originVolumes?: number | null;
+  /** Volumes published in the preferred language (English publishers today). */
+  releasedVolumes?: number | null;
+  /** The highest chapter released in the preferred language. */
+  releasedChapter?: number | null;
+  /** English only (MangaUpdates): licensed in English / the scanlation is complete. */
+  licensed?: boolean | null;
+  scanlationComplete?: boolean | null;
+  /** 1.29.0 RC: covers of this series still being downloaded in the background (0 when none or the pass waits). */
+  coversPending?: number;
 }
 
 export type CoverMode = 'Automatic' | 'FilePinned' | 'Archive' | 'VolumeCover' | 'Crop';

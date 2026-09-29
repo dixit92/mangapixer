@@ -286,6 +286,25 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PendingCovers_CountsWantedCoversNotStoredYet_AndNoneWhileThePassWaits()
+    {
+        await _h.Auto.EnableAutomaticAsync();
+        var (_, record) = await SeriesAsync(MdFixtures.MuBerserk, "Berserk", 43, "Synthetic Shelf v01.cbz", "Synthetic Shelf v02.cbz");
+        await _h.TickAsync(); // stores volumes 1 and 2
+
+        // Volumes 1 and 2 are stored; volumes 3 and 4 are listed but not downloaded.
+        Assert.Equal(0, await _h.Pass().PendingCoversAsync(record.Id, [1, 2]));
+        Assert.Equal(1, await _h.Pass().PendingCoversAsync(record.Id, [2, 3]));
+        Assert.Equal(2, await _h.Pass().PendingCoversAsync(record.Id, [3, 4, 900])); // 900: no cover listed - never "on its way"
+
+        // Switched off: the pass waits, so nothing is on its way.
+        var row = await _t.Db.AppSettings.FirstAsync();
+        row.MetadataVolumeCoversEnabled = false;
+        await _t.Db.SaveChangesAsync();
+        Assert.Equal(0, await _h.Pass().PendingCoversAsync(record.Id, [3]));
+    }
+
+    [Fact]
     public async Task SecondTick_SendsNothing_UntilTheRefreshCadence()
     {
         await _h.Auto.EnableAutomaticAsync();

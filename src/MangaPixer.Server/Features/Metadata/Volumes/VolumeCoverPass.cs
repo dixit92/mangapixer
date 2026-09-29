@@ -261,6 +261,32 @@ public sealed class VolumeCoverPass
         return cover is not null && await _fetcher.DownloadAsync(cover, s.LibraryId, call, ct);
     }
 
+    /// <summary>
+    /// How many covers the pass still has to download for a linked series' view (1.29.0 RC, the "covers downloading" note):
+    /// volume 1 and each of <paramref name="volumes"/> with a listed cover but none stored yet (for a series MangaDex lists no
+    /// volume 1 cover for, its listed main cover). 0 while the pass waits (switched off, Automatic matching off, a consent to
+    /// renew, MangaDex off the allowed sites or asking to slow down) - then nothing is on its way. Stored rows only.
+    /// </summary>
+    public async Task<int> PendingCoversAsync(long seriesRecordId, IEnumerable<int> volumes, CancellationToken ct = default)
+    {
+        if (await MangaDexRecordAsync(seriesRecordId, ct) is not { } md || await WaitingAsync(ct) is not null)
+            return 0;
+        var wanted = volumes.Append(1).Where(v => v > 0).ToHashSet();
+        var rows = await _db.VolumeCovers.AsNoTracking()
+            .Where(c => c.ProviderRecordId == md.Id && c.Variant == 0 && (c.Kind == (int)VolumeCoverKind.Main || c.Kind == (int)VolumeCoverKind.Volume))
+            .Select(c => new { c.Kind, c.Volume, c.State })
+            .ToListAsync(ct);
+        var volumeRows = rows.Where(r => r.Kind == (int)VolumeCoverKind.Volume && r.Volume is { } v && wanted.Contains(v)).GroupBy(r => r.Volume!.Value);
+        var pending = volumeRows.Count(g => g.Any(r => r.State == (int)VolumeCoverState.Listed) && g.All(r => r.State != (int)VolumeCoverState.Stored));
+        var noVolumeOne = rows.All(r => r.Kind != (int)VolumeCoverKind.Volume || r.Volume != 1);
+        if (noVolumeOne && rows.Any(r => r.Kind == (int)VolumeCoverKind.Main && r.State == (int)VolumeCoverState.Listed)
+            && rows.All(r => r.Kind != (int)VolumeCoverKind.Main || r.State != (int)VolumeCoverState.Stored))
+        {
+            pending++;
+        }
+        return pending;
+    }
+
     /// <summary>True when the MangaDex record's cover list (in the listed languages) has no volume 1 cover at all.</summary>
     private Task<bool> MainCoverStandsInAsync(long mangaDexRecordId, CancellationToken ct) =>
         _db.VolumeCovers.AllAsync(c => c.ProviderRecordId != mangaDexRecordId || c.Kind != (int)VolumeCoverKind.Volume || c.Volume != 1, ct);
