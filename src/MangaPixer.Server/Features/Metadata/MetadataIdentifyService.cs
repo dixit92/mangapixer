@@ -597,10 +597,14 @@ public sealed class MetadataIdentifyService
         };
     }
 
-    /// <summary>Display-only ranking: best similarity, nudged by the year hint.</summary>
-    internal static double Rank(IEnumerable<string> queries, IEnumerable<string?> titles, int? yearHint, int? year)
+    /// <summary>
+    /// Display-only ranking: best similarity (the first title is the record's main title; a trailing author disambiguator on it
+    /// or on another title counts as in the matcher, 1.29.0), nudged by the year hint.
+    /// </summary>
+    internal static double Rank(IEnumerable<string> queries, IEnumerable<string?> titles, int? yearHint, int? year, IEnumerable<string>? authors = null)
     {
-        var score = TitleSimilarity.Best(queries, titles.OfType<string>());
+        var list = titles.ToList();
+        var score = AutoMatchText.BestTitleScore(queries, list.FirstOrDefault(), list.Skip(1), authors);
         if (yearHint is { } hint && year is { } y)
             score += Math.Abs(hint - y) <= 1 ? 0.05 : -0.10;
         return Math.Clamp(score, 0, 1);

@@ -26,7 +26,10 @@ public sealed record LocalUnitCounts(
     int? LowestVolume,
     int? HighestVolume,
     int? LowestChapter,
-    int? HighestChapter)
+    int? HighestChapter,
+    // 1.29.0 (owner): the highest volume that CHAPTER archive names state ("Title v09 c060") - a chapter folder also says how
+    // many volumes the run has reached, compared with volume totals only (never makes the folder "mixed").
+    int? HighestNamedVolume = null)
 {
     public static LocalUnitCounts Empty { get; } = new(0, 0, null, null, null, null);
 
@@ -127,7 +130,10 @@ public static class CountEvidence
             {
                 acc.ChapterArchives += sub.DescendantArchiveCount;
                 foreach (var n in names)
+                {
                     acc.Chapter(AutoMatchText.ChapterNumberOf(n) ?? AutoMatchText.BareNumberOf(n), AutoMatchText.UnitsOf(n) is { IsExtra: false } u ? u.Chapter : null);
+                    acc.NamedVolume(n);
+                }
                 if (names.Count == 0)
                     acc.Chapter(FolderRangeEnd(sub.DisplayName), AutoMatchText.UnitsOf(sub.DisplayName).Chapter);
             }
@@ -172,6 +178,10 @@ public static class CountEvidence
         var volumes = CountSignal.None;
         if (local.VolumeArchives > 0 && local.HighestVolume is > 0 and var lv && volumeTotal > 0)
             volumes = Exceeds(lv, volumeTotal) ? CountSignal.Conflict : CountSignal.Agree;
+        // A chapter folder whose names state their volume ("v09 c060", 1.29.0): the volume number is compared with the volume
+        // totals, like volume archives are.
+        else if (local.VolumeArchives == 0 && local.HighestNamedVolume is > 0 and var nv && volumeTotal > 0)
+            volumes = Exceeds(nv, volumeTotal) ? CountSignal.Conflict : CountSignal.Agree;
         var chapters = CountSignal.None;
         if (local.ChapterArchives > 0 && local.HighestChapter is > 0 and var lc && chapterBound > 0)
             chapters = !Exceeds(lc, chapterBound) ? CountSignal.Agree : latestOnly ? CountSignal.None : CountSignal.Conflict;
@@ -192,6 +202,9 @@ public static class CountEvidence
     {
         ArgumentNullException.ThrowIfNull(local);
         var (low, high, word) = volumes ? (local.LowestVolume, local.HighestVolume, "volume") : (local.LowestChapter, local.HighestChapter, "chapter");
+        // A chapter folder whose names state their volume (1.29.0): "chapters up to volume 9".
+        if (high is null && volumes && local.HighestNamedVolume is { } named)
+            return string.Create(CultureInfo.InvariantCulture, $"chapters up to volume {named}");
         if (high is not { } h)
             return null;
         return low is { } l && l < h
@@ -210,7 +223,7 @@ public static class CountEvidence
     {
         public int VolumeArchives;
         public int ChapterArchives;
-        private int? _lowVolume, _highVolume, _lowChapter, _highChapter;
+        private int? _lowVolume, _highVolume, _lowChapter, _highChapter, _highNamedVolume;
 
         public void AddLoose(string name)
         {
@@ -223,7 +236,16 @@ public static class CountEvidence
             {
                 ChapterArchives++;
                 Chapter(AutoMatchText.ChapterNumberOf(name), AutoMatchText.UnitsOf(name) is { IsExtra: false } u ? u.Chapter : null);
+                NamedVolume(name);
             }
+        }
+
+        /// <summary>The volume a chapter archive's name states (<c>Title v09 c060</c> -> 9), extras and ranges' top included.</summary>
+        public void NamedVolume(string name)
+        {
+            var units = AutoMatchText.UnitsOf(name);
+            if ((units.VolumeEnd ?? units.Volume) is { } v && v >= 1)
+                _highNamedVolume = Math.Max(_highNamedVolume ?? 0, (int)decimal.Floor(v));
         }
 
         // high: the matcher's integer (unchanged 1.27.0 helpers); low: the start a name states, for wording only.
@@ -240,6 +262,6 @@ public static class CountEvidence
             lowest = Math.Min(lowest ?? l, l);
         }
 
-        public LocalUnitCounts Result() => new(VolumeArchives, ChapterArchives, _lowVolume, _highVolume, _lowChapter, _highChapter);
+        public LocalUnitCounts Result() => new(VolumeArchives, ChapterArchives, _lowVolume, _highVolume, _lowChapter, _highChapter, _highNamedVolume);
     }
 }

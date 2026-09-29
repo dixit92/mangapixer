@@ -63,6 +63,23 @@ public sealed class MatchScorerTests
     }
 
     [Fact]
+    public void AltTitleDisambiguator_NamingTheRecordsOwnAuthor_CountsInFull_OtherwiseCapped()
+    {
+        // Owner RC review (1.29.0): a folder named by a series' English title; the right record's main title is the original one
+        // and its English alias carries MangaUpdates' author tag ("Fly Me to the Moon (HATA Kenjiro)"). Synthetic lookalikes.
+        var own = Score(Query(["Moon Letter"]), Rec("1", "Moon Letter"),
+            Rec("2", "Tsuki no Tegami", alt: ["Moon Letter (SATO Hana)"], authors: ["SATO Hana"]));
+        Assert.Equal(1.0, own.Ranked.Single(r => r.Candidate.ExternalId == "2").TitleScore, 3);
+        Assert.NotEqual(MatchBand.Auto, own.Band); // two works share the name: review, the right one among the top
+
+        // Before the record is fetched (a search hit: no authors yet) the stripped alias is evidence, never alone an auto link.
+        var hit = Score(Query(["Moon Letter"]), Rec("2", "Tsuki no Tegami", alt: ["Moon Letter (SATO Hana)"]));
+        Assert.Equal(AutoMatchText.DisambiguatedAliasFactor, hit.Ranked[0].TitleScore, 3);
+        Assert.NotEqual(MatchBand.Auto, hit.Band);
+        Assert.NotEqual(MatchBand.Unmatched, hit.Band);
+    }
+
+    [Fact]
     public void TildeSubtitle_AndATitleNumber_ReachReviewWithoutANumberPenalty()
     {
         // Live run (V): folder "<Two Words> Level 99"; the record's English alt writes the subtitle

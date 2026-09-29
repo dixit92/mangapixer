@@ -108,4 +108,21 @@ public sealed class CountEvidenceTests
         var units = new LocalUnitCounts(5, 0, 2, 9, null, null);
         Assert.Same(units, CountEvidence.FromContext(context with { Units = units }));
     }
+
+    [Fact]
+    public void ChapterNames_StatingTheirVolume_AreComparedWithTheVolumeTotal()
+    {
+        // 1.29.0 (owner): "Title v09 c060" tells how many volumes the run has reached - a volume signal, never "mixed".
+        var local = CountEvidence.LocalOf(["Some Title v01 c001.cbz", "Some Title v05 c030.cbz", "Some Title v09 c060.cbz"], null);
+        Assert.Equal((0, 3, 9), (local.VolumeArchives, local.ChapterArchives, local.HighestNamedVolume));
+        Assert.False(local.IsMixed);
+        Assert.Equal(CountSignal.Agree, CountEvidence.Compare(local, new PublishedUnitCounts(10, null, null, null, null)).Volumes);
+        Assert.Equal(CountSignal.Conflict, CountEvidence.Compare(local, new PublishedUnitCounts(3, null, null, null, null)).Volumes);
+        Assert.Equal("chapters up to volume 9", CountEvidence.Describe(local, volumes: true));
+
+        // Plain chapter names state no volume: no volume signal, as before.
+        var plain = CountEvidence.LocalOf(["Some Title - Chapter 001.cbz", "Some Title - Chapter 060.cbz"], null);
+        Assert.Null(plain.HighestNamedVolume);
+        Assert.Equal(CountSignal.None, CountEvidence.Compare(plain, new PublishedUnitCounts(3, null, null, null, null)).Volumes);
+    }
 }

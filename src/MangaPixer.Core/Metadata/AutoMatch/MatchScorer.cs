@@ -209,6 +209,18 @@ public sealed class MatchScorer : IMatchScorer
         // "Word (Other Name)" is another record's name for a different work - stripped, it scored a false 1.00.
         if (AutoMatchText.WithoutDisambiguator(c.Title) is { } stripped && !titles.Contains(stripped, StringComparer.OrdinalIgnoreCase))
             titles.Add(stripped);
+        // 1.29.0 (owner): an ALT title whose disambiguator names THIS record's author ("Fly Me to the Moon (HATA Kenjiro)" on
+        // "Tonikaku Kawaii") is the record's own name - stripped, it counts in full; any other stripped alias (a search hit
+        // before its authors are known, or a tag naming someone else) counts at DisambiguatedAliasFactor, never alone an
+        // automatic link.
+        var factors = titles.Select(_ => 1.0).ToList();
+        foreach (var (alias, factor) in AutoMatchText.DisambiguatedAliases(titles.Skip(1).ToList(), c.Authors))
+        {
+            if (titles.Contains(alias, StringComparer.OrdinalIgnoreCase))
+                continue;
+            titles.Add(alias);
+            factors.Add(factor);
+        }
         var titleNumbers = titles.Select(TitleNormalizer.NumberTokens).ToList();
         // "Title: Long Subtitle", "Title ~Subtitle~" and "Title - Subtitle" records also compare by the part
         // before the break, capped (1.26.1 colon; 1.27.0 tilde and spaced dash).
@@ -227,7 +239,10 @@ public sealed class MatchScorer : IMatchScorer
             var headForm = TitleNormalizer.ScoringForm(mainHead);
             foreach (var alias in titles.Skip(1).Where(t => TitleNormalizer.ScoringForm(t) == headForm).ToList())
             {
-                titles.Remove(alias);
+                var at = titles.IndexOf(alias, 1);
+                titles.RemoveAt(at);
+                factors.RemoveAt(at);
+                titleNumbers.RemoveAt(at); // (kept aligned with titles - before 1.29.0 a removed alias shifted the numbers by one)
                 if (!heads.Contains(alias, StringComparer.OrdinalIgnoreCase))
                     heads.Add(alias);
             }
@@ -269,7 +284,7 @@ public sealed class MatchScorer : IMatchScorer
                 }
                 else
                 {
-                    raw = TitleSimilarity.Score(v.Text, titles[i]);
+                    raw = TitleSimilarity.Score(v.Text, titles[i]) * factors[i];
                     // A shared number alone is no title evidence (1.27.0: "Title 99" vs an unrelated "... 99").
                     if (TitleSimilarity.SharesOnlyDigitTokens(v.Text, titles[i]))
                         raw *= DigitOnlyOverlapFactor;

@@ -293,6 +293,61 @@ public static partial class AutoMatchText
             : null;
     }
 
+    /// <summary>
+    /// Score factor of a title that matches only once its trailing <c>(disambiguator)</c> is removed and the tag is not known to
+    /// name the record's own author (1.29.0, owner): MangaUpdates adds the author to every same-named title
+    /// (<c>Fly Me to the Moon (HATA Kenjiro)</c>), so the stripped alias is real evidence - but several works share the name, so
+    /// on its own it stays below every automatic-link threshold and a clear margin below a record whose own title matches (an exact
+    /// stripped match scores 0.88 - still "Strong" in the Identify dialog).
+    /// </summary>
+    public const double DisambiguatedAliasFactor = 0.88;
+
+    /// <summary>
+    /// The stripped forms of a record's OTHER titles (alternative titles, a search hit's matched title) that carry a trailing
+    /// <c>(disambiguator)</c>, each with its score factor (1.29.0): 1 when the tag names one of the record's
+    /// <paramref name="authors"/> (the alias is this record's own name, like the stripped main title), else
+    /// <see cref="DisambiguatedAliasFactor"/> - a tag that names someone else, or authors not known yet (a search hit), can
+    /// never make a clean 1.00 (1.27.0: "Word (Other Name)" is often another work's name).
+    /// </summary>
+    public static IReadOnlyList<(string Title, double Factor)> DisambiguatedAliases(IEnumerable<string?> otherTitles, IEnumerable<string>? authors)
+    {
+        var known = (authors ?? []).Where(a => !string.IsNullOrWhiteSpace(a)).ToList();
+        var result = new List<(string Title, double Factor)>();
+        foreach (var title in otherTitles)
+        {
+            if (WithoutDisambiguator(title) is not { } bare || DisambiguatorTag(title) is not { } tag)
+                continue;
+            var factor = known.Any(a => NamesEqual(a, tag)) ? 1.0 : DisambiguatedAliasFactor;
+            var i = result.FindIndex(r => string.Equals(r.Title, bare, StringComparison.OrdinalIgnoreCase));
+            if (i < 0)
+                result.Add((bare, factor));
+            else if (factor > result[i].Factor)
+                result[i] = (bare, factor);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// The best title similarity of a record for display ranking (the Identify dialog, 1.29.0): its main and other titles as
+    /// written, the main title without its disambiguator, and the other titles' <see cref="DisambiguatedAliases"/> with their
+    /// factors.
+    /// </summary>
+    public static double BestTitleScore(IEnumerable<string> queries, string? mainTitle, IEnumerable<string?> otherTitles, IEnumerable<string>? authors = null)
+    {
+        var others = otherTitles.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t!).ToList();
+        var plain = new List<string>();
+        if (!string.IsNullOrWhiteSpace(mainTitle))
+            plain.Add(mainTitle);
+        plain.AddRange(others);
+        if (WithoutDisambiguator(mainTitle) is { } strippedMain)
+            plain.Add(strippedMain);
+        var queryList = queries.ToList();
+        var best = TitleSimilarity.Best(queryList, plain);
+        foreach (var (title, factor) in DisambiguatedAliases(others, authors))
+            best = Math.Max(best, factor * TitleSimilarity.Best(queryList, [title]));
+        return best;
+    }
+
     /// <summary>The earliest <c>(19xx|20xx)</c> / <c>[19xx|20xx]</c> year in the names, or null.</summary>
     public static int? EarliestYear(IEnumerable<string> names)
     {

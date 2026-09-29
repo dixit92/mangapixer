@@ -124,4 +124,16 @@ public sealed class AutoMatchTextTests
     [InlineData("Some Title", new string[0])]
     public void CreatorSplitTitles_AreTheTitlePart(string name, string[] expected) =>
         Assert.Equal(expected, AutoMatchText.CreatorSplitTitles(name));
+
+    [Fact]
+    public void DisambiguatedAliases_CountInFull_OnlyWhenTheTagNamesTheRecordsAuthor()
+    {
+        var aliases = AutoMatchText.DisambiguatedAliases(["Moon Letter (SATO Hana)", "Other Name (KATO Ken)", "No Tag", null], ["SATO Hana"]);
+        Assert.Equal(new[] { ("Moon Letter", 1.0), ("Other Name", AutoMatchText.DisambiguatedAliasFactor) }, aliases);
+
+        // The Identify dialog's display score (1.29.0): the same rule; a search hit knows no authors yet.
+        Assert.Equal(1.0, AutoMatchText.BestTitleScore(["Moon Letter"], "Tsuki no Tegami", ["Moon Letter (SATO Hana)"], ["SATO Hana"]), 3);
+        Assert.Equal(AutoMatchText.DisambiguatedAliasFactor, AutoMatchText.BestTitleScore(["Moon Letter"], "Tsuki no Tegami", ["Moon Letter (SATO Hana)"]), 3);
+        Assert.Equal(1.0, AutoMatchText.BestTitleScore(["Look Up"], "Look Up (SATO Hana)", []), 3); // the main title strips in full
+    }
 }
