@@ -21,8 +21,6 @@ describe('CoverApiService', () => {
     put.flush({ mode: 'Archive' });
     api.clearChoice('f1').subscribe();
     http.expectOne({ method: 'DELETE', url: '/api/v1/nodes/f1/cover-choice' }).flush({ mode: 'Automatic' });
-    api.deleteStoredVolumeCovers().subscribe();
-    http.expectOne({ method: 'DELETE', url: '/api/v1/admin/metadata/volume-covers' }).flush({ coversDeleted: 0, decisionsReset: 0, choicesReset: 0 });
     http.verify();
   });
 

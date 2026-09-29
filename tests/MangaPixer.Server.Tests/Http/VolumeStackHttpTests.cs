@@ -105,7 +105,7 @@ public sealed class VolumeStackHttpTests : IClassFixture<MangaPixerWebApplicatio
             (stack.VolumeStack!.PresentCount, stack.VolumeStack.ChapterCount, stack.VolumeStack.MissingCount, stack.VolumeStack.ExtraCount, stack.VolumeStack.Confidence));
         Assert.True(first.HasMore);
         Assert.StartsWith("v:", first.NextCursor);
-        Assert.Equal("/api/v1/items/vsc1/cover", stack.CoverUrl);
+        Assert.StartsWith("/api/v1/items/vsc1/cover", stack.CoverUrl); // the cover layer versions the URL (?v=)
 
         var second = await BrowseAsync(admin, $"pageSize=1&cursor={Uri.EscapeDataString(first.NextCursor!)}");
         Assert.Equal("Vol. 2", Assert.Single(second.Items).DisplayName);
@@ -167,7 +167,7 @@ public sealed class VolumeStackHttpTests : IClassFixture<MangaPixerWebApplicatio
             Assert.Equal(SeriesPubId, s.Item.ParentId);
             Assert.StartsWith("/api/v1/items/", s.Item.CoverUrl);
         });
-        Assert.Equal("/api/v1/items/vsc1/cover", one.CoverUrl);
+        Assert.StartsWith("/api/v1/items/vsc1/cover", one.CoverUrl); // the cover layer versions the URL (?v=)
 
         // Volume 2 is the last volume of an ongoing series: chapters 14-20 are not marked.
         var two = await OkAsync<VolumeStackDto>(await admin.GetAsync($"/api/v1/nodes/{SeriesPubId}/volumes/2"));
