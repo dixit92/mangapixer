@@ -23,18 +23,24 @@ The report shows **Behind or with gaps** by default. Switch to **All linked seri
 
 ## Which total it compares with
 
-MangaPixer uses the first total the linked record states, in this order:
+**Behind means behind what is released in your preferred language** - the **Preferred cover language** in **Metadata Manager** > **Settings** (English by default). A volume that exists only in the original language is never counted as missing.
 
-| Total | Confidence | Shown as |
-|---|---|---|
-| The English publisher's count ("10 Volumes / 60 Chapters; Ongoing") | high | (English) |
-| The count in the country of origin ("14 Volumes (Complete)", "195 Chapters") | medium: the English edition may differ | (original run) |
-| The latest released chapter, for chapters only | low: scanlation releases, not an official total | (latest release) |
-| The other unit's total converted with AniList's chapters per volume (see below) | medium from an English total, low from the origin | ~ (estimate) |
+MangaPixer uses the first of these totals that applies to your language:
+
+| Total | Language | Confidence | Shown as |
+|---|---|---|---|
+| The English publisher's count ("10 Volumes / 60 Chapters; Ongoing") | English | high | (English) |
+| The other unit's English total converted with AniList's chapters per volume (see below) | English | medium | ~ (estimate) |
+| The chapters the series' volume list names as released in your language, for chapters only | any | medium: includes fan translations | (released in your language) |
+| The latest released chapter, for chapters only | English | low: scanlation releases, not an official total | (latest release) |
+
+The count in the country of origin ("14 Volumes (Complete)", "195 Chapters") is **never** used for Behind; it is shown next to the line as context ("original run: 14"). For another language than English there is no volume total yet, so the volumes of a series get no Behind verdict - only their gaps.
 
 The (i) next to each line says which total was used. If a total is lower than the highest number you have (your copies follow another edition, or the English release is still catching up), MangaPixer moves on to the next total that covers what you have. If no total does, the series counts as up to date against the first one.
 
-Records linked before MangaPixer 1.28.0 don't have the English total stored yet. Until the record is refreshed, the report uses the total in the country of origin and says so under the series ("An English edition is listed; its total is read on the record's next refresh").
+Gaps are always counted: a number below your highest one is missing whatever the language, because a later one exists.
+
+Records linked before MangaPixer 1.28.0 don't have the English total stored yet. Until the record is refreshed, the series shows no English total and says so under the series ("An English edition is listed; its total is read on the record's next refresh").
 
 ## Chapters per volume from AniList
 
@@ -47,7 +53,7 @@ and, *new in 1.29.0*, on its own with **Automatic matching** and **Volume covers
 
 MangaPixer sends the MangaUpdates title of the linked series (never a folder or file name), or its AniList number once it is known - an AniList number an admin entered, one already stored, or the one the series' MangaDex record links to - and keeps an entry only when its title matches the series and its start year is within a year. The entry's totals are stored on your server; the series line then shows them, for example "AniList: 116 chapters in 27 volumes, 4.3 per volume", with a link to the entry. Only a finished entry gives a ratio, because a running series' totals are not final.
 
-With a ratio, a missing total is estimated from the other unit, marked **~** and **(estimate)**: "You have chapters 1-3 of ~116 (estimate)". The order is then: the English total of the same unit, the English total of the other unit converted, the total in the country of origin, and for chapters the latest release.
+With a ratio, a missing total is estimated from the other unit, marked **~** and **(estimate)**: "You have chapters 1-3 of ~116 (estimate)". The order is then: the English total of the same unit, the English total of the other unit converted, then for chapters the chapters released in your language and the latest release.
 
 The buttons appear only while **Fetch from the web** is on and AniList is one of the [allowed sites](series-information.md#allowed-sites); with AniList removed from the list, the automatic lookups stop too. Every request counts in the daily request budget.
 
@@ -57,6 +63,8 @@ The buttons appear only while **Fetch from the web** is on and AniList is one of
 - **You have 2 volumes (up to 16) of 18 (English) · 2 behind · missing 2-15**: your highest volume is 16, but only 2 volume numbers are on disk.
 - **You have chapters 1-6 of 10 (latest release) · 4 behind · missing 3, 5**: gaps are listed number by number (the first 50, then "+N more").
 
-A series is **Behind** when the total is higher than your highest number, **Gaps** when it isn't behind but numbers below your highest are missing, **Up to date** when neither is true, **No total known** when the record states no total, and **Mixed folder**, **No numbers** or **Numbering restarts** when there is nothing to compare.
+- **You have volumes 1-3; no total known (original run: 14)**: your preferred language has no volume total, so only gaps would count.
+
+A series is **Behind** when the total is higher than your highest number, **Gaps** when it isn't behind but numbers below your highest are missing, **Up to date** when neither is true, **No total known** when nothing states what is released in your language, and **Mixed folder**, **No numbers** or **Numbering restarts** when there is nothing to compare.
 
 The report only knows what the names and the record say. A wrong link gives a wrong answer: if a series looks far behind or ahead, check that the folder is linked to the right series (**Identify…** on its series page).

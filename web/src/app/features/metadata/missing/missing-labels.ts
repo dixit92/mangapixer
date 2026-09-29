@@ -11,6 +11,7 @@ export const MISSING_SOURCE_LABELS: Record<MissingTotalSource, string> = {
   Origin: 'original run',
   LatestChapter: 'latest release',
   Converted: 'estimate',
+  Released: 'released in your language',
 };
 
 export const MISSING_CONFIDENCE_LABELS: Record<MissingConfidence, string> = {
@@ -55,9 +56,21 @@ export function haveSentence(gap: MissingUnitGapDto): string {
   const range = gap.missingCount > 0
     ? `${gap.unitCount} ${unitWord(gap, gap.unitCount !== 1)} (up to ${gap.have})`
     : gap.lowest === gap.have ? `${unitWord(gap, false)} ${gap.have}` : `${unitWord(gap)} ${gap.lowest}-${gap.have}`;
-  if (gap.available == null || !gap.source) return `You have ${range}; no total known`;
+  if (gap.available == null || !gap.source) {
+    // 1.29.0 RC: the origin total never makes a series "behind" (an untranslated volume is not missing); context only.
+    return gap.originTotal ? `You have ${range}; no total known (original run: ${gap.originTotal})` : `You have ${range}; no total known`;
+  }
   const about = gap.source === 'Converted' ? '~' : '';
   return `You have ${range} of ${about}${gap.available} (${MISSING_SOURCE_LABELS[gap.source]})`;
+}
+
+/**
+ * The (i) tooltip of a line: which total was used. By source (1.29.0 RC: a released-in-your-language total is not "the total in
+ * the country of origin", although both are medium confidence); by confidence otherwise.
+ */
+export function totalTooltip(gap: MissingUnitGapDto): string {
+  if (gap.source === 'Released') return "Total from the chapters the series' volume list names as released in your preferred language";
+  return gap.confidence ? `Total from the ${MISSING_CONFIDENCE_LABELS[gap.confidence]}` : '';
 }
 
 /** "3 behind", "missing 3-4", "3 behind · missing 3-4, +12 more", or "" when complete. */

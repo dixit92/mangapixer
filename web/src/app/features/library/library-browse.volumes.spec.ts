@@ -187,4 +187,44 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
     expect(row.querySelector('app-star-toggle')).toBeNull();
     expect(el.querySelectorAll('.node-wrap')[2].querySelector('.row-select')).not.toBeNull();
   });
+
+  it('renders a missing volume as a dashed placeholder in its place, never a link or a selection', () => {
+    const missing = { ...stackNode('2'), id: 'vm.f1.2', coverUrl: null, availability: 'Unavailable',
+      volumeStack: { key: '2', label: 'Volume 2', presentCount: 0, missingCount: 0, extraCount: 0, hasVolumeArchive: false, confidence: 'Exact', missing: true } } as CatalogNodeDto;
+    const { fixture, comp, el } = setup({ nodes: [stackNode('1'), missing, stackNode('3')] });
+
+    const wraps = el.querySelectorAll('.node-wrap');
+    expect(wraps).toHaveLength(3);
+    const placeholder = wraps[1].querySelector('[data-testid="missing-volume"]')!;
+    expect(placeholder.getAttribute('aria-label')).toBe('Volume 2, missing');
+    expect(wraps[1].querySelector('a')).toBeNull();
+    comp.toggleSelectMode();
+    fixture.detectChanges();
+    comp.selectAll();
+    expect(comp.selected().size).toBe(0);
+  });
+
+  it('shows the series status line while the Volumes view of a linked series is shown', () => {
+    const { fixture, comp, el } = setup({ view: { hasSeriesStatus: true, seriesStatus: 'Ongoing', missingVolumes: 2, missingChapters: 3, releaseKnown: true, language: 'en' } });
+    expect(el.querySelector('[data-testid="series-status"]')!.textContent).toContain('Ongoing - 2 volumes, 3 chapters missing');
+
+    comp.setSeriesView(false);
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="series-status"]')).toBeNull();
+  });
+
+  it('shows no status line for a folder without its own link', () => {
+    expect(setup().el.querySelector('[data-testid="series-status"]')).toBeNull();
+  });
+
+  it('marks a stack whose archives include a starred one, and counts a split chapter once', () => {
+    const starred = { ...stackNode('1', { presentCount: 7, extraCount: 0, chapterCount: 4, chaptersPresent: 3, missingCount: 1 }), isFavorite: true };
+    const { el } = setup({ nodes: [starred, stackNode('2')] });
+
+    const first = el.querySelectorAll('.node-wrap')[0];
+    expect(first.querySelector('[data-testid="stack-star"]')).not.toBeNull();
+    expect(first.querySelector('.node-sub')!.textContent?.trim()).toBe('3 of 4 chapters');
+    expect(first.querySelector('[data-testid="stack-incomplete"]')!.textContent?.trim()).toBe('3/4');
+    expect(el.querySelectorAll('.node-wrap')[1].querySelector('[data-testid="stack-star"]')).toBeNull();
+  });
 });

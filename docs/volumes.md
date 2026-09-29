@@ -8,7 +8,7 @@ It works without any network access. Names like `Series v03 c012` group on their
 
 Open a series folder that has something to group. In the top bar a **Volumes | Folders** switch appears next to the series information button. **Volumes** is the grouped view; **Folders** is the real folder list with every file and subfolder as it is on disk. Your choice is remembered for you.
 
-The switch is only shown where a Volumes view exists. It is greyed out while another sort (Recently added, Recently read, Recently updated), a read-state filter or **Favorites only** is active: those views are about single items, so they always list them flat. **Hide empty folders** works in both views.
+The switch is only shown where a Volumes view exists: a folder whose files group into volumes, or a folder linked to a series that holds volumes (its Volumes view shows the series status, see [Missing volumes and chapters](#missing-volumes-and-chapters)). It is greyed out while another sort (Recently added, Recently read, Recently updated), a read-state filter or **Favorites only** is active: those views are about single items, so they always list them flat. **Hide empty folders** works in both views.
 
 ## How chapters are placed in a volume
 
@@ -18,9 +18,12 @@ For every chapter archive, the first rule that applies decides:
 2. **The volume list places it.** For a series linked to a record, the volume list stored with it says which chapters make up each volume.
 3. **Between two known volumes.** When exactly one volume is missing from the list between two known ones, the chapters in between belong to it. A chapter inside a known volume's own span belongs to that volume.
 4. **An estimate.** When several volumes are unknown, their chapters are split evenly; after the last known volume, chapters are placed in steps of the average chapters per volume, never past the last volume the series is known to have. A stack that uses an estimate is shown as **~ Volume 12**.
-5. **Otherwise it stays loose**, listed after the volumes as a normal chapter ("not in a volume yet"). That is where the chapters after the newest published volume of a running series end up.
+5. **Between two neighbouring volumes.** A chapter the list places in neither of two consecutive volumes (volume 1 ends at chapter 10, volume 2 starts at 12, and you have chapter 11) goes at the end of the first one.
+6. **Otherwise it stays loose**, listed after the volumes as a normal chapter ("not in a volume yet"). That is where the chapters after the newest published volume of a running series end up.
 
-Extras (a fractional chapter such as `c045.5`) follow their whole chapter into its volume.
+Extras (a fractional chapter such as `c045.5`) follow their whole chapter into its volume. A **split chapter** is different: when the volume list names only parts of a chapter (`4.1`, `4.2`) and not chapter 4 itself, the parts are chapter 4, and it is complete when all its parts are here (a `c004` file also covers them). Without a volume list, a fractional chapter is always an extra.
+
+A fractional **volume** (`Series v02.5`, a bonus book) goes at the end of volume 2's stack; if volume 2 has nothing here, it keeps its own card in its place.
 
 A folder that has no list and no linked series groups by names alone, and only when at least half of its chapters state their volume: one `v01` among two hundred bare chapters is not a grouped folder.
 
@@ -47,22 +50,30 @@ When a folder is linked to a series, its generic unit subfolders are merged into
 - If the numbering restarts, for example two folders that both start at chapter 1, nothing is merged, and a `Season` folder whose numbering restarts is never grouped.
 - A folder that is not linked (or is marked **Don't match**) never merges its subfolders; it only groups its own files by their names.
 
-## Missing chapters
+## Missing volumes and chapters
 
-When the volume list says a volume holds chapters 37 to 46 and one is not on your shelf, the stack gets an **incomplete mark** ("8/9": whole chapters you have out of whole chapters the volume holds) and, inside, a **dashed placeholder** ("Ch. 39, Missing") where the chapter belongs. Placeholders aren't clickable; they only show what is missing.
+"Missing" means **released in your preferred language** - the **Preferred cover language** in **Metadata Manager** > **Settings** (English by default). A volume or chapter that exists only in the original language is never marked missing.
 
-- **Extras are never missing.** `c045.5` is shown between 45 and 46 but never fills chapter 45 and is never counted as missing.
-- **The last volume of a running series** doesn't mark the chapters after your last one: they may not exist yet. Inside any other volume they are marked.
+**Chapters.** When the volume list says a volume holds chapters 37 to 46 and one is not on your shelf, the stack gets an **incomplete mark** ("8/9": complete chapters you have out of the chapters the volume holds) and, inside, a **dashed placeholder** ("Ch. 39, Missing") where the chapter belongs. Placeholders aren't clickable; they only show what is missing.
+
+- **A gap below your highest chapter** is missing: a later chapter is here, so this one exists.
+- **After your highest chapter**, a chapter is missing only when the series' volume list says it is released in your preferred language. When nothing says so, nothing after your last chapter is marked.
+- **Extras are never missing.** `c045.5` next to a listed chapter 45 is shown between 45 and 46 but never fills chapter 45 and is never counted as missing.
+- **Parts of a split chapter** are: with `5.1` and `5.3` here, `5.2` is missing, and chapter 5 is not complete.
 - A volume file covers its whole volume, so a stack with a volume file has no placeholders.
 - Estimated volumes mark missing chapters against their estimated range, so treat those marks as hints.
 
-The numbers agree with the [Missing volumes and chapters](missing-report.md) report: both use the same rules for extras, ranges and restarts.
+**Volumes.** In a folder linked to a series, a whole volume with neither a volume file nor any chapter here shows as a dashed **Volume N - Missing** card in its place: the gaps below your highest volume, and the volumes after it that are released in your preferred language. Today MangaPixer knows the volume total only for English (the English publisher's total on the series record), so in another language only the gaps are shown. A `Season` or `Part` subfolder never shows missing volumes (the rest of the run is elsewhere).
+
+**Series status.** Above the list of a linked series the Volumes view says how the series stands: "Ongoing - up to date", "Complete - up to date", or "Ongoing - 2 volumes, 3 chapters missing". The first word is the series' publication status; "up to date" is said only when MangaPixer knows what is released in your language (otherwise only the status shows). The counts include gaps between loose chapters that no volume holds yet.
+
+The numbers agree with the [Missing volumes and chapters](missing-report.md) report: both use the same rules for extras, ranges, restarts and your preferred language.
 
 ## Opening a stack
 
 Tap a stack to open the volume: its cover, "Volume 3", how many chapters you have of how many (and how many extras), where the grouping came from, **Previous** and **Next** volume, and the chapters in reading order with the read state, favorite star and series information button of a normal card. Tapping a chapter opens the reader as usual; the reader's previous / next chapter follow the folder, not the stack.
 
-A stack can't be selected or starred: open it to select or star its chapters.
+A stack can't be selected or starred: open it to select or star its chapters. A stack shows a star when any chapter in it is starred.
 
 ## Turning it on and off
 
