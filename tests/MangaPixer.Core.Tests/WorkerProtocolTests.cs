@@ -17,13 +17,14 @@ public sealed class WorkerProtocolTests
     };
 
     [Fact]
-    public void WorkerProtocolVersion_IsFour()
+    public void WorkerProtocolVersion_IsFive()
     {
         // v2 added on-demand page extraction (extract/extract_result/extract_error);
         // v3 (1.24.0) added the ComicInfo read (comicinfo/comicinfo_result/comicinfo_error
         // and the optional AnalyzeResult.ComicInfo); v4 (1.28.0) the cover hash for automatic
-        // matching (image_hash/image_hash_result/image_hash_error).
-        Assert.Equal(4, WorkerProtocolVersion.Current);
+        // matching (image_hash/image_hash_result/image_hash_error); v5 (1.29.0) the cover
+        // render for the cover layer (cover_render/cover_render_result/cover_render_error).
+        Assert.Equal(5, WorkerProtocolVersion.Current);
     }
 
     [Fact]
@@ -38,6 +39,27 @@ public sealed class WorkerProtocolTests
         var result = new ImageHashResult { JobId = "h1", Hash = ulong.MaxValue - 1, Width = 350, Height = 500 };
         var restored = JsonSerializer.Deserialize<ImageHashResult>(JsonSerializer.Serialize(result, s_options), s_options)!;
         Assert.Equal(result, restored);
+    }
+
+    [Fact]
+    public void CoverRenderMessages_RoundTrip_WithCamelCase_Defaults_AndTheFullUnsignedRange()
+    {
+        var request = new CoverRenderRequest { JobId = "c1", Source = CoverRenderSources.Image, ImagePath = "/scratch/x.img", OutputPath = "/scratch/x.webp" };
+        var requestJson = JsonSerializer.Serialize(request, s_options);
+        Assert.Contains("\"cropSide\":\"none\"", requestJson, StringComparison.Ordinal);
+        var restoredRequest = JsonSerializer.Deserialize<CoverRenderRequest>(requestJson, s_options)!;
+        Assert.Equal(request, restoredRequest);
+        Assert.Equal((CoverRenderLimits.DefaultMaxDimension, CoverRenderLimits.DefaultWebpQuality, CoverRenderLimits.DefaultCropAspect, true),
+            (restoredRequest.MaxDimension, restoredRequest.WebpQuality, restoredRequest.CropAspect, restoredRequest.ComputeHash));
+
+        var result = new CoverRenderResult { JobId = "c1", OutputPath = "/scratch/x.webp", Width = 280, Height = 400, SourceWidth = 1500, SourceHeight = 1000, Hash = ulong.MaxValue - 1 };
+        Assert.Equal(result, JsonSerializer.Deserialize<CoverRenderResult>(JsonSerializer.Serialize(result, s_options), s_options));
+
+        // A missing hash stays missing (ComputeHash = false), and an error carries only its code.
+        var noHash = result with { Hash = null };
+        Assert.Null(JsonSerializer.Deserialize<CoverRenderResult>(JsonSerializer.Serialize(noHash, s_options), s_options)!.Hash);
+        var error = new CoverRenderError { JobId = "c1", ErrorType = CoverRenderErrors.SourceChanged };
+        Assert.Equal(error, JsonSerializer.Deserialize<CoverRenderError>(JsonSerializer.Serialize(error, s_options), s_options));
     }
 
     [Fact]

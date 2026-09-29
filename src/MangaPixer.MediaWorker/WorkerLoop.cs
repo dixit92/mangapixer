@@ -133,6 +133,13 @@ public sealed class WorkerLoop
                     await HandleImageHashAsync(envelope.CorrelationId, request);
                     break;
                 }
+            case "cover_render":
+                {
+                    var request = WorkerProtocolFraming.GetPayload<CoverRenderRequest>(envelope)
+                        ?? throw new InvalidDataException("Missing cover_render request payload");
+                    await HandleCoverRenderAsync(envelope.CorrelationId, request);
+                    break;
+                }
             case "cancel":
                 {
                     // Cancellation is handled by the CancellationToken in the caller
@@ -441,6 +448,116 @@ public sealed class WorkerLoop
             : WorkerProtocolFraming.CreateEnvelope("image_hash_result", correlationId,
                 new ImageHashResult { JobId = request.JobId, Hash = outcome.Hash, Width = outcome.Width, Height = outcome.Height });
         await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, envelope, _shutdownToken);
+    }
+
+    /// <summary>
+    /// Renders one cover thumbnail (protocol v5, 1.29.0): from an archive page (validated like <c>extract</c>: stamp before
+    /// and after, solid / encrypted / missing entry as codes) or from a server-owned image file (size-capped, strict
+    /// formats). Writes only <see cref="CoverRenderRequest.OutputPath"/>; a failed render leaves no output behind.
+    /// </summary>
+    private async Task HandleCoverRenderAsync(string correlationId, CoverRenderRequest request)
+    {
+        RenderedCover outcome;
+        try
+        {
+            outcome = await RenderCoverAsync(request);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (IOException)
+        {
+            outcome = RenderedCover.Failed(CoverRenderErrors.Missing);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            outcome = RenderedCover.Failed(CoverRenderErrors.Missing);
+        }
+
+        if (outcome.Error is not null)
+        {
+            try { if (!string.IsNullOrEmpty(request.OutputPath)) File.Delete(request.OutputPath); } catch { /* best effort */ }
+        }
+        var envelope = outcome.Error is { } error
+            ? WorkerProtocolFraming.CreateEnvelope("cover_render_error", correlationId,
+                new CoverRenderError { JobId = request.JobId, ErrorType = error })
+            : WorkerProtocolFraming.CreateEnvelope("cover_render_result", correlationId, new CoverRenderResult
+            {
+                JobId = request.JobId,
+                OutputPath = request.OutputPath,
+                Width = outcome.Width,
+                Height = outcome.Height,
+                SourceWidth = outcome.SourceWidth,
+                SourceHeight = outcome.SourceHeight,
+                Hash = outcome.Hash,
+            });
+        await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, envelope, _shutdownToken);
+    }
+
+    private async Task<RenderedCover> RenderCoverAsync(CoverRenderRequest request)
+    {
+        if (string.IsNullOrEmpty(request.OutputPath) || !CoverRenderer.IsKnownSide(request.CropSide))
+            return RenderedCover.Failed(CoverRenderErrors.InvalidRequest);
+
+        byte[] bytes;
+        bool strict;
+        if (request.Source == CoverRenderSources.Image)
+        {
+            if (string.IsNullOrEmpty(request.ImagePath))
+                return RenderedCover.Failed(CoverRenderErrors.InvalidRequest);
+            var info = new FileInfo(request.ImagePath);
+            if (!info.Exists)
+                return RenderedCover.Failed(CoverRenderErrors.Missing);
+            var maxBytes = request.MaxBytes > 0 ? Math.Min(request.MaxBytes, CoverRenderLimits.MaxImageBytes) : CoverRenderLimits.MaxImageBytes;
+            if (info.Length == 0 || info.Length > maxBytes)
+                return RenderedCover.Failed(CoverRenderErrors.TooLarge);
+            bytes = await File.ReadAllBytesAsync(request.ImagePath, _shutdownToken);
+            strict = true;
+        }
+        else if (request.Source == CoverRenderSources.Archive)
+        {
+            if (string.IsNullOrEmpty(request.ArchivePath) || string.IsNullOrEmpty(request.SourceEntryKey))
+                return RenderedCover.Failed(CoverRenderErrors.InvalidRequest);
+            if (!File.Exists(request.ArchivePath))
+                return RenderedCover.Failed(CoverRenderErrors.Missing);
+            if (GetSourceStamp(request.ArchivePath) != (request.ExpectedLastWriteTicks, request.ExpectedByteLength))
+                return RenderedCover.Failed(CoverRenderErrors.SourceChanged);
+
+            using var reader = await ArchiveReader.OpenAsync(request.ArchivePath, _shutdownToken);
+            if (reader.IsSolid)
+                return RenderedCover.Failed(CoverRenderErrors.UnsupportedSolid);
+            try
+            {
+                using var entryStream = await reader.ExtractEntryAsync(request.SourceEntryKey, _shutdownToken);
+                using var ms = new MemoryStream();
+                await entryStream.CopyToAsync(ms, _shutdownToken);
+                bytes = ms.ToArray();
+            }
+            catch (System.Security.Cryptography.CryptographicException)
+            {
+                return RenderedCover.Failed(CoverRenderErrors.Encrypted);
+            }
+            catch (FileNotFoundException)
+            {
+                return RenderedCover.Failed(CoverRenderErrors.PageNotFound);
+            }
+            strict = false;
+        }
+        else
+        {
+            return RenderedCover.Failed(CoverRenderErrors.InvalidRequest);
+        }
+
+        var outDir = Path.GetDirectoryName(request.OutputPath);
+        if (!string.IsNullOrEmpty(outDir)) Directory.CreateDirectory(outDir);
+        var rendered = CoverRenderer.Render(bytes, strict, request);
+
+        // Post-validate an archive source: a change mid-render discards the output.
+        if (rendered.Error is null && request.Source == CoverRenderSources.Archive
+            && GetSourceStamp(request.ArchivePath!) != (request.ExpectedLastWriteTicks, request.ExpectedByteLength))
+            return RenderedCover.Failed(CoverRenderErrors.SourceChanged);
+        return rendered;
     }
 
     private async Task SendComicInfoErrorAsync(string correlationId, string errorType, string message)
