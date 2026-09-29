@@ -225,7 +225,7 @@ public sealed class MissingReportHttpTests : IClassFixture<MangaPixerWebApplicat
             return node;
         }
 
-        async Task SeriesAsync(string pub, string status, string[] loose, params (string Name, int[] Chapters)[] seasons)
+        async Task SeriesAsync(string pub, string status, string[] loose, int? released, params (string Name, int[] Chapters)[] seasons)
         {
             var folder = await AddAsync(pub, null, 0, pub + " Series");
             foreach (var (a, i) in loose.Select((a, i) => (a, i)))
@@ -257,11 +257,28 @@ public sealed class MissingReportHttpTests : IClassFixture<MangaPixerWebApplicat
                 UpdatedAt = DateTimeOffset.UtcNow,
             });
             await db.SaveChangesAsync();
+            if (released is { } through)
+            {
+                // 1.29.0 RC: the chapters released in the preferred language (English by default) - the only chapter total that
+                // counts once the origin totals are context only.
+                db.SeriesVolumeMaps.Add(new SeriesVolumeMapEntity
+                {
+                    RecordId = record.Id,
+                    Source = (int)VolumeMapSource.MangaDexAggregate,
+                    State = (int)VolumeMapState.Empty,
+                    ReleasedLanguage = "en",
+                    ReleasedChaptersJson = "[" + string.Join(",", Enumerable.Range(1, through).Select(c => $"\"{c}\"")) + "]",
+                    ContentHash = "h",
+                    Version = 1,
+                    FetchedAt = DateTimeOffset.UtcNow,
+                });
+                await db.SaveChangesAsync();
+            }
         }
 
-        await SeriesAsync("mrSeasons", "8 Chapters (Ongoing)", ["000"], ("Season 1", [1, 2, 3]), ("Season 2", [4, 5, 6]));
-        await SeriesAsync("mrRestart", "223 Chapters (Ongoing)", ["000"], ("Season 1", [1, 2, 3]), ("Season 2", [1, 2]));
-        await SeriesAsync("mrPrologue", "223 Chapters (Ongoing)", ["000"]);
+        await SeriesAsync("mrSeasons", "8 Chapters (Ongoing)", ["000"], 8, ("Season 1", [1, 2, 3]), ("Season 2", [4, 5, 6]));
+        await SeriesAsync("mrRestart", "223 Chapters (Ongoing)", ["000"], null, ("Season 1", [1, 2, 3]), ("Season 2", [1, 2]));
+        await SeriesAsync("mrPrologue", "223 Chapters (Ongoing)", ["000"], null);
     }
 
     [Fact]
@@ -275,6 +292,8 @@ public sealed class MissingReportHttpTests : IClassFixture<MangaPixerWebApplicat
         var seasons = page.Items.Single(i => i.NodeId == "mrSeasons");
         Assert.Equal(MissingVerdict.Behind, seasons.Verdict);
         Assert.Equal((0, 6, 8, 2), (seasons.Chapters!.Lowest, seasons.Chapters.Have, seasons.Chapters.Available, seasons.Chapters.BehindBy));
+        // Behind against the chapters released in the preferred language; the origin total is context only.
+        Assert.Equal((MissingTotalSource.Released, 8, "en"), (seasons.Chapters.Source, seasons.Chapters.OriginTotal, seasons.Language));
         var restarting = page.Items.Single(i => i.NodeId == "mrRestart");
         Assert.Equal(MissingVerdict.Restarts, restarting.Verdict);
         Assert.Null(restarting.Chapters);

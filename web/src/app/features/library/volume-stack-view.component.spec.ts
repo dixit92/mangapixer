@@ -142,4 +142,21 @@ describe('VolumeStackViewComponent', () => {
     expect(note.textContent).toContain('This volume is not available');
     expect(note.querySelector('a')!.getAttribute('href')).toBe('/libraries/lib1/browse/f1');
   });
+
+  it('counts a split chapter once and shows a missing part in its place (1.29.0 RC)', () => {
+    const split = stack({
+      chapterCount: 3, chaptersPresent: 2, missingCount: 1, extraCount: 0, presentCount: 4, previousKey: null, nextKey: null,
+      slots: [
+        { kind: 'Item', chapter: '3', item: item('c3', 'Series c003') },
+        { kind: 'Item', chapter: '4.1', item: item('c41', 'Series c004.1') },
+        { kind: 'Item', chapter: '4.2', item: item('c42', 'Series c004.2') },
+        { kind: 'Item', chapter: '5.1', item: item('c51', 'Series c005.1') },
+        { kind: 'Missing', chapter: '5.2' },
+      ],
+    });
+    const { el } = setup(split);
+
+    expect(el.querySelector('[data-testid="stack-counts"]')!.textContent).toBe('2 of 3 chapters');
+    expect(el.querySelector('[data-testid="missing-chapter"]')!.getAttribute('aria-label')).toBe('Chapter 5.2, missing');
+  });
 });

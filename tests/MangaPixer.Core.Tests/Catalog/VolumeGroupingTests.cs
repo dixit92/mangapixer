@@ -22,6 +22,8 @@ public sealed class VolumeGroupingTests
 
     private static IReadOnlyList<decimal> Range(int from, int to) => Enumerable.Range(from, to - from + 1).Select(n => (decimal)n).ToList();
 
+    private static IReadOnlySet<decimal> Units(int from, int to) => Range(from, to).ToHashSet();
+
     private static VolumeMapInput Map(bool ongoing = false, int? known = null, double? cpv = null, params (int Volume, int From, int To)[] volumes) =>
         new(volumes.Select(v => new VolumeMapVolume(v.Volume, Range(v.From, v.To))).ToList(), cpv, known, ongoing, VolumeListSource.MangaDex);
 
@@ -140,17 +142,88 @@ public sealed class VolumeGroupingTests
     }
 
     [Fact]
-    public void LastVolume_OfAnOngoingSeries_DoesNotMarkTrailingChapters()
+    public void TrailingChapters_AreMissingOnlyWhenReleasedInThePreferredLanguage()
     {
         var rows = Chapters(1, 3).Concat(Chapters(4, 5)).ToList(); // volume 2 lists 4..8, only 4-5 on disk
-        var ongoing = VolumeGrouping.Group(rows, Map(true, null, null, (1, 1, 3), (2, 4, 8)));
-        var complete = VolumeGrouping.Group(rows, Map(false, null, null, (1, 1, 3), (2, 4, 8)));
+        var unknown = VolumeGrouping.Group(rows, Map(false, null, null, (1, 1, 3), (2, 4, 8)));
+        var released = VolumeGrouping.Group(rows, Map(false, null, null, (1, 1, 3), (2, 4, 8)) with { ReleasedChapters = Units(1, 7) });
 
-        Assert.Empty(Stacks(ongoing)[1].Stack!.MissingChapters);
-        Assert.Equal([6, 7, 8], Stacks(complete)[1].Stack!.MissingChapters);
-        // A volume that is not the last one always marks trailing chapters.
+        // Nothing after chapter 5 is here, and nothing says 6-8 are released: not missing (also for a complete series).
+        Assert.Empty(Stacks(unknown)[1].Stack!.MissingChapters);
+        Assert.Equal([6m, 7m], Stacks(released)[1].Stack!.MissingChapters);
+        Assert.Equal(2, released.MissingChapterCount);
+    }
+
+    [Fact]
+    public void AGapBelowTheHighestChapterPresent_IsMissing_InAnyVolume()
+    {
+        // Chapter 3 is not here, but 4 is: 3 exists and is missing - also when the series is ongoing and the list says nothing else.
         var first = VolumeGrouping.Group(Chapters(1, 2).Concat(Chapters(4, 8)).ToList(), Map(true, null, null, (1, 1, 3), (2, 4, 8)));
-        Assert.Equal([3], Stacks(first)[0].Stack!.MissingChapters);
+        Assert.Equal([3m], Stacks(first)[0].Stack!.MissingChapters);
+        Assert.Equal((3, 2), (Stacks(first)[0].Stack!.ChapterCount, Stacks(first)[0].Stack!.ChaptersPresent));
+        Assert.Equal(1, first.MissingChapterCount);
+    }
+
+    [Fact]
+    public void AVolumeFileHere_RaisesTheHighestChapter_ItsVolumeCovers()
+    {
+        // Volume 2 (chapters 6-10) is a file; chapters 1-2 of volume 1 are here: 3-5 exist and are missing.
+        var rows = Chapters(1, 2).Append(Archive("Series v02")).ToList();
+        var r = VolumeGrouping.Group(rows, Map(true, null, null, (1, 1, 5), (2, 6, 10)));
+
+        Assert.Equal([3m, 4m, 5m], Stacks(r)[0].Stack!.MissingChapters);
+    }
+
+    [Fact]
+    public void SplitChapters_ArePartsWhenTheListHasNoPlainNumber()
+    {
+        var map = new VolumeMapInput([new VolumeMapVolume(1, [3m, 4.1m, 4.2m, 5.1m, 5.2m, 5.3m, 6m])], null, null, true, VolumeListSource.MangaDex);
+        var rows = new List<GroupingRow>
+        {
+            Archive("Series c003"), Archive("Series c004.1"), Archive("Series c004.2"), Archive("Series c005.1"), Archive("Series c005.3"), Archive("Series c006"),
+        };
+        var stack = Assert.Single(Stacks(VolumeGrouping.Group(rows, map))).Stack!;
+
+        // 5.2 is missing (5.1 and 5.3 are here); chapter 4 is complete through its parts; no part is an extra.
+        Assert.Equal([5.2m], stack.MissingChapters);
+        Assert.Equal((4, 3, 0), (stack.ChapterCount, stack.ChaptersPresent, stack.ExtraCount));
+        Assert.All(stack.Members, m => Assert.False(m.IsExtra));
+        Assert.Equal(["3", "4.1", "4.2", "5.1", "5.2", "5.3", "6"], VolumeGrouping.Slots(stack).Select(s => s.Chapter));
+        Assert.Equal(VolumeSlotKind.Missing, VolumeGrouping.Slots(stack).Single(s => s.Chapter == "5.2").Kind);
+    }
+
+    [Fact]
+    public void AWholeChapterFile_CoversItsListedParts()
+    {
+        var map = new VolumeMapInput([new VolumeMapVolume(1, [3m, 4.1m, 4.2m, 5m])], null, null, true, VolumeListSource.MangaDex);
+        var stack = Assert.Single(Stacks(VolumeGrouping.Group([Archive("Series c003"), Archive("Series c004"), Archive("Series c005")], map))).Stack!;
+
+        Assert.Empty(stack.MissingChapters);
+        Assert.Equal((3, 3), (stack.ChapterCount, stack.ChaptersPresent));
+    }
+
+    [Fact]
+    public void AFractionNextToItsListedWhole_StaysAnExtra_AndIsNeverMissing()
+    {
+        var map = new VolumeMapInput([new VolumeMapVolume(1, [9m, 10m, 10.5m, 11m])], null, null, true, VolumeListSource.MangaDex);
+
+        var without = Assert.Single(Stacks(VolumeGrouping.Group(Chapters(9, 11), map))).Stack!;
+        Assert.Empty(without.MissingChapters); // 10.5 is not here and not missing
+        Assert.Equal((3, 3), (without.ChapterCount, without.ChaptersPresent));
+
+        var extraOnly = Assert.Single(Stacks(VolumeGrouping.Group([Archive("Series c009"), Archive("Series c010.5"), Archive("Series c011")], map))).Stack!;
+        Assert.Equal([10m], extraOnly.MissingChapters); // the extra never fills chapter 10
+        Assert.Equal(1, extraOnly.ExtraCount);
+    }
+
+    [Fact]
+    public void WithoutAList_FractionsStayExtras()
+    {
+        var stack = Assert.Single(Stacks(VolumeGrouping.Group([Archive("Series v01 c004.1"), Archive("Series v01 c004.2"), Archive("Series v01 c005")], null))).Stack!;
+
+        Assert.Equal(2, stack.ExtraCount);
+        Assert.Empty(stack.MissingChapters);
+        Assert.Null(stack.ChapterCount);
     }
 
     [Fact]
@@ -212,15 +285,99 @@ public sealed class VolumeGroupingTests
     }
 
     [Fact]
-    public void AChapterBetweenTwoAdjacentVolumes_StaysLoose()
+    public void AChapterBetweenTwoAdjacentVolumes_GoesAtTheEndOfThePreviousVolume()
     {
-        // Volume 1 ends at 10, volume 2 starts at 12: chapter 11 could be in either.
-        var rows = new List<GroupingRow> { Archive("Synthetic - Chapter 010"), Archive("Synthetic - Chapter 011"), Archive("Synthetic - Chapter 012") };
+        // Volume 1 ends at 10, volume 2 starts at 12: chapter 11 (and 11.5) belong to neither list - the end of volume 1.
+        var rows = new List<GroupingRow>
+        {
+            Archive("Synthetic - Chapter 010"), Archive("Synthetic - Chapter 011"), Archive("Synthetic - c011.5"), Archive("Synthetic - Chapter 012"),
+        };
         var r = VolumeGrouping.Group(rows, Map(false, null, null, (1, 1, 10), (2, 12, 20)));
 
-        Assert.Equal(2, Stacks(r).Count);
-        var loose = Assert.Single(r.Entries, e => e.Rank == 2);
-        Assert.Equal("id:Synthetic - Chapter 011", loose.Row!.Id);
+        Assert.DoesNotContain(r.Entries, e => e.Rank == 2);
+        var first = Stacks(r)[0].Stack!;
+        Assert.Equal(["id:Synthetic - Chapter 010", "id:Synthetic - Chapter 011", "id:Synthetic - c011.5"], first.Members.Select(m => m.Row.Id));
+        Assert.Equal(VolumePlacement.Adjacent, first.Members[1].Placement);
+        // Not listed, so never counted as missing, and not part of the volume's chapter count.
+        Assert.Equal(10, first.ChapterCount);
+    }
+
+    [Fact]
+    public void AFractionalVolumeFile_GoesAtTheEndOfThePreviousVolumesStack()
+    {
+        var r = VolumeGrouping.Group([Archive("Series v02"), Archive("Series v02.5"), Archive("Series v03")], null);
+
+        var stack = Assert.Single(Stacks(r)).Stack!;
+        Assert.Equal("2", stack.Key);
+        Assert.Equal(["id:Series v02", "id:Series v02.5"], stack.Members.Select(m => m.Row.Id));
+        Assert.True(stack.Members[1].IsBonusVolume);
+        Assert.Equal(1, stack.ExtraCount);
+        Assert.Equal("id:Series v02.5", VolumeGrouping.Slots(stack)[^1].Member!.Row.Id);
+        // Alone (volume 2 has nothing here) it stays its own card in its place.
+        var alone = VolumeGrouping.Group([Archive("Series v01"), Archive("Series v02.5"), Archive("Series v03")], null);
+        Assert.Equal(["id:Series v01", "id:Series v02.5", "id:Series v03"], alone.Entries.Select(e => e.Id));
+        Assert.False(alone.Grouped);
+    }
+
+    [Fact]
+    public void AFractionalListVolume_JoinsThePreviousVolume()
+    {
+        var map = new VolumeMapInput(
+            [new VolumeMapVolume(2, [5m, 6m]), new VolumeMapVolume(2.5m, [6.1m, 6.2m])], null, null, false, VolumeListSource.MangaDex);
+        var r = VolumeGrouping.Group([Archive("Series c005"), Archive("Series c006"), Archive("Series c006.1")], map);
+
+        var stack = Assert.Single(Stacks(r)).Stack!;
+        Assert.Equal("2", stack.Key);
+        Assert.Equal(3, stack.PresentCount);
+    }
+
+    [Fact]
+    public void MissingVolumes_AreGapsBelowTheHighestVolume_AndReleasedVolumesAfterIt()
+    {
+        var rows = new List<GroupingRow> { Archive("Series v01"), Archive("Series v02"), Archive("Series v05") };
+        var map = VolumeMapInput.Empty with { ReleasedVolumeCount = 7 };
+
+        var r = VolumeGrouping.Group(rows, map, markMissingVolumes: true);
+
+        Assert.Equal(["id:Series v01", "id:Series v02", "vm:3", "vm:4", "id:Series v05", "vm:6", "vm:7"], r.Entries.Select(e => e.Id));
+        Assert.Equal(4, r.MissingVolumeCount);
+        Assert.True(r.Grouped);
+        Assert.All(r.Entries.Where(e => e.Kind == VolumeEntryKind.MissingVolume), e => Assert.Equal(0, e.Rank));
+        Assert.Equal(3m, r.Entries.First(e => e.Kind == VolumeEntryKind.MissingVolume).Volume);
+        // Unknown release total: only the gaps. Not asked for (an unlinked folder, a Season subfolder): none.
+        Assert.Equal(2, VolumeGrouping.Group(rows, VolumeMapInput.Empty, markMissingVolumes: true).MissingVolumeCount);
+        Assert.Equal(0, VolumeGrouping.Group(rows, map).MissingVolumeCount);
+    }
+
+    [Fact]
+    public void MissingVolumes_NeedAVolumeHere_AndARangeFileCoversItsRange()
+    {
+        var chaptersOnly = VolumeGrouping.Group(Chapters(1, 3), VolumeMapInput.Empty with { ReleasedVolumeCount = 5 }, markMissingVolumes: true);
+        Assert.Equal(0, chaptersOnly.MissingVolumeCount);
+
+        var range = VolumeGrouping.Group([Archive("Series Vol. 01-03"), Archive("Series v05")], null, markMissingVolumes: true);
+        Assert.Equal(["vm:4"], range.Entries.Where(e => e.Kind == VolumeEntryKind.MissingVolume).Select(e => e.Id));
+    }
+
+    [Fact]
+    public void ChapterStacks_CountAsPresentVolumes()
+    {
+        // Volumes 3 and 4 are stacks of chapters; 1 and 2 have nothing here.
+        var r = VolumeGrouping.Group(Chapters(21, 40), Map(true, null, null, (1, 1, 10), (2, 11, 20), (3, 21, 30), (4, 31, 40)), markMissingVolumes: true);
+
+        Assert.Equal(["vm:1", "vm:2", "vs:3", "vs:4"], r.Entries.Select(e => e.Id));
+        // Chapters 1-20 belong to the missing volumes: they are not counted again as missing chapters.
+        Assert.Equal(0, r.MissingChapterCount);
+    }
+
+    [Fact]
+    public void GapsBetweenLooseChapters_CountAsMissingChapters()
+    {
+        var rows = Chapters(1, 10).Append(Archive("Synthetic - Chapter 012")).Append(Archive("Synthetic - Chapter 015")).ToList();
+        var r = VolumeGrouping.Group(rows, Map(true, null, null, (1, 1, 10)));
+
+        Assert.Equal(3, r.MissingChapterCount); // 11, 13, 14
+        Assert.Equal(2, r.Entries.Count(e => e.Rank == 2));
     }
 
     [Fact]

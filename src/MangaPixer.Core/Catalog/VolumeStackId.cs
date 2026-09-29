@@ -9,7 +9,12 @@ public static class VolumeStackId
 {
     public const string Prefix = "vs.";
 
+    /// <summary>The id prefix of a missing-volume placeholder entry (1.29.0 RC): never opened.</summary>
+    public const string MissingPrefix = "vm.";
+
     public static string Encode(string folderPublicId, string key) => $"{Prefix}{folderPublicId}.{key}";
+
+    public static string EncodeMissing(string folderPublicId, string key) => $"{MissingPrefix}{folderPublicId}.{key}";
 
     /// <summary>Splits a stack id; false when the text is not one.</summary>
     public static bool TryDecode(string? id, out string folderPublicId, out string key)

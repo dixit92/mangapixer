@@ -6,7 +6,7 @@ import { VolumeStackSummaryDto } from '../../core/api/api-types';
  * The incomplete mark of a virtual volume stack (1.29.0): a small amber corner badge "8/10" - whole chapters present of
  * whole chapters the volume holds - shown only while chapters are missing. Extras (45.5) are never counted, so they never
  * make a volume look incomplete. Its own styles keep the near-budget browse CSS untouched; the badge sits in the cover's
- * top-left corner (a stack has no direction chip and no select check there).
+ * top-left corner (a stack has no direction chip and no select check there). A split chapter (4.1 + 4.2) counts once.
  */
 @Component({
   selector: 'app-volume-incomplete-badge',
@@ -32,7 +32,10 @@ export class VolumeIncompleteBadgeComponent {
   readonly shown = computed(() => this.summary().missingCount > 0);
   /** Whole chapters the volume holds (the provider's list or the estimated range). */
   readonly total = computed(() => this.summary().chapterCount ?? this.have() + this.summary().missingCount);
-  /** Whole chapters on disk: the members minus the extras (a volume archive never has missing chapters). */
-  readonly have = computed(() => Math.max(0, this.summary().presentCount - this.summary().extraCount));
+  /**
+   * Complete chapters here: the server's count (a split chapter counts once, when all its listed parts are here); else the members
+   * minus the extras.
+   */
+  readonly have = computed(() => this.summary().chaptersPresent ?? Math.max(0, this.summary().presentCount - this.summary().extraCount));
   readonly label = computed(() => `${this.have()} of ${this.total()} chapters`);
 }

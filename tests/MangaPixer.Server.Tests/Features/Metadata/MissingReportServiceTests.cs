@@ -11,7 +11,8 @@ using Xunit;
 /// <summary>
 /// Service-with-DB tests for the missing volumes / chapters report (1.28.0): which links count (own confirmed /
 /// auto links on folders; not Don't match, needs review, archives or removed folders), the Volumes / Chapters
-/// subfolders, the stored English totals vs the origin fallback, the filters, paging, and the per-node row.
+/// subfolders, the stored English totals (1.29.0 RC: the origin totals are context only; "behind" follows what is released in the
+/// preferred language), the filters, paging, and the per-node row.
 /// Synthetic names only.
 /// </summary>
 public sealed class MissingReportServiceTests
@@ -39,13 +40,14 @@ public sealed class MissingReportServiceTests
     }
 
     [Fact]
-    public async Task Report_ComparesWithTheStoredEnglishTotal_AndFallsBackToTheOrigin()
+    public async Task Report_ComparesWithTheStoredEnglishTotal_AndNeverWithTheOrigin()
     {
         await using var t = await MetadataTestDb.CreateAsync();
         var english = await SeriesAsync(t, "Alpha Series", "Alpha v01", "Alpha v02", "Alpha v03");
         await t.AddLinkAsync(english, await RecordAsync(t, "1", 14,
             "[{\"name\":\"Origin House\",\"kind\":\"original\"},{\"name\":\"Print English\",\"kind\":\"english\",\"volumes\":10,\"chapters\":60}]"));
-        // A record fetched before 1.28.0: an English publisher without totals -> origin total, flagged.
+        // A record fetched before 1.28.0: an English publisher without totals -> no volume verdict (1.29.0 RC: an origin volume
+        // that is not translated is not missing), the origin total as context, flagged.
         var legacy = await SeriesAsync(t, "Beta Series", "Beta v01", "Beta v02");
         await t.AddLinkAsync(legacy, await RecordAsync(t, "2", 5, "[{\"name\":\"Print English\",\"kind\":\"english\"}]"), SeriesLinkState.Auto);
 
@@ -62,10 +64,48 @@ public sealed class MissingReportServiceTests
         Assert.Equal(t.LibraryPublicId, alpha.LibraryId);
 
         var beta = page.Items.Single(i => i.DisplayName == "Beta Series");
-        Assert.Equal((5, MissingTotalSource.Origin, 3), (beta.Volumes!.Available, beta.Volumes.Source, beta.Volumes.BehindBy));
+        Assert.Equal(((int?)null, (MissingTotalSource?)null, 0, (int?)5), (beta.Volumes!.Available, beta.Volumes.Source, beta.Volumes.BehindBy, beta.Volumes.OriginTotal));
+        Assert.Equal(MissingVerdict.NoTotal, beta.Verdict);
         Assert.True(beta.EnglishTotalUnknown);
+        Assert.Equal("en", beta.Language);
         Assert.Equal(SeriesLinkState.Auto, beta.LinkState);
-        Assert.Equal(new[] { "Alpha Series", "Beta Series" }, page.Items.Select(i => i.DisplayName)); // behind by 7 before 3
+        Assert.Equal(new[] { "Alpha Series", "Beta Series" }, page.Items.Select(i => i.DisplayName)); // behind before no total
+    }
+
+    [Fact]
+    public async Task Report_FollowsThePreferredLanguage_AndItsReleasedChapters()
+    {
+        await using var t = await MetadataTestDb.CreateAsync();
+        var volumes = await SeriesAsync(t, "Eta Series", "Eta v01", "Eta v02");
+        await t.AddLinkAsync(volumes, await RecordAsync(t, "h1", 14, "[{\"name\":\"Print English\",\"kind\":\"english\",\"volumes\":10}]"));
+        var chapters = await SeriesAsync(t, "Theta Series", "Theta - Chapter 001", "Theta - Chapter 002");
+        var record = await RecordAsync(t, "h2", null, statusText: "40 Chapters (Ongoing)", latestChapter: 30);
+        await t.AddLinkAsync(chapters, record);
+        t.Db.SeriesVolumeMaps.Add(new SeriesVolumeMapEntity
+        {
+            RecordId = record.Id,
+            Source = (int)VolumeMapSource.MangaDexAggregate,
+            State = (int)VolumeMapState.Ok,
+            VolumesJson = "[]",
+            ReleasedLanguage = "fr",
+            ReleasedChaptersJson = "[\"1\",\"2\",\"3\",\"4\",\"4.5\",\"5\"]",
+            ContentHash = "h",
+            Version = 1,
+            FetchedAt = DateTimeOffset.UtcNow,
+        });
+        t.Db.AppSettings.Add(new AppSettingsEntity { MetadataCoverLanguage = "fr" });
+        await t.Db.SaveChangesAsync();
+
+        var (_, page) = await Service(t).ListAsync(null, onlyMissing: false, cursor: null, limit: 50);
+
+        // French: the English volume total says nothing about French volumes - no volume verdict, the origin total as context.
+        var eta = page!.Items.Single(i => i.DisplayName == "Eta Series");
+        Assert.Equal((MissingVerdict.NoTotal, (int?)null, (int?)14, "fr"), (eta.Verdict, eta.Volumes!.Available, eta.Volumes.OriginTotal, eta.Language));
+        Assert.False(eta.EnglishTotalUnknown);
+        // Chapters: the list read for French names 1-5 released (an English "latest release" does not count).
+        var theta = page.Items.Single(i => i.DisplayName == "Theta Series");
+        Assert.Equal((MissingVerdict.Behind, 5, MissingTotalSource.Released, 3), (theta.Verdict, theta.Chapters!.Available, theta.Chapters.Source, theta.Chapters.BehindBy));
+        Assert.Equal(40, theta.Chapters.OriginTotal);
     }
 
     [Fact]
@@ -115,8 +155,9 @@ public sealed class MissingReportServiceTests
         var row = await Service(t).ForNodeAsync(series.PublicId);
 
         Assert.NotNull(row);
-        Assert.Equal((2, 3, 1), (row!.Volumes!.Have, row.Volumes.Available, row.Volumes.BehindBy));
-        Assert.Equal((16, 20, MissingTotalSource.Origin), (row.Chapters!.Have, row.Chapters.Available, row.Chapters.Source));
+        // No English totals: the origin volume total is context only; chapters compare with the latest (English) release.
+        Assert.Equal((2, (int?)null, 0, (int?)3), (row!.Volumes!.Have, row.Volumes.Available, row.Volumes.BehindBy, row.Volumes.OriginTotal));
+        Assert.Equal((16, 18, MissingTotalSource.LatestChapter), (row.Chapters!.Have, row.Chapters.Available, row.Chapters.Source));
         Assert.Empty(row.Chapters.Missing); // chapters after volumes count from the lowest on disk
         Assert.Equal(0, row.MixedFolders);
         Assert.Null(await Service(t).ForNodeAsync(volumes.PublicId)); // no own link
@@ -152,10 +193,11 @@ public sealed class MissingReportServiceTests
 
         var row = await Service(t).ForNodeAsync(series.PublicId);
 
-        Assert.Equal(MissingVerdict.Behind, row!.Verdict);
-        Assert.Equal((0, 6, 10, 4), (row.Chapters!.Lowest, row.Chapters.Have, row.Chapters.Available, row.Chapters.BehindBy));
+        // Only origin totals: nothing counts as behind (1.29.0 RC), but the gap below the highest chapter here is missing.
+        Assert.Equal(MissingVerdict.Holes, row!.Verdict);
+        Assert.Equal((0, 6, (int?)null, 0, (int?)10), (row.Chapters!.Lowest, row.Chapters.Have, row.Chapters.Available, row.Chapters.BehindBy, row.Chapters.OriginTotal));
         Assert.Equal([5], row.Chapters.Missing);
-        Assert.Equal((2, 5, 3), (row.Volumes!.Have, row.Volumes.Available, row.Volumes.BehindBy));
+        Assert.Equal((2, (int?)null, (int?)5), (row.Volumes!.Have, row.Volumes.Available, row.Volumes.OriginTotal));
     }
 
     [Fact]
@@ -189,16 +231,17 @@ public sealed class MissingReportServiceTests
     {
         await using var t = await MetadataTestDb.CreateAsync();
         var other = await t.AddLibraryAsync("otherlib", "Other Lib");
+        static string English(int volumes) => $"[{{\"name\":\"Print English\",\"kind\":\"english\",\"volumes\":{volumes}}}]";
         for (var i = 0; i < 3; i++)
         {
             var behind = await SeriesAsync(t, $"Behind {i}", $"Behind {i} v01");
-            await t.AddLinkAsync(behind, await RecordAsync(t, "b" + i, 5));
+            await t.AddLinkAsync(behind, await RecordAsync(t, "b" + i, 5, English(5)));
         }
         var complete = await SeriesAsync(t, "Complete", "Complete v01", "Complete v02");
-        await t.AddLinkAsync(complete, await RecordAsync(t, "c", 2));
+        await t.AddLinkAsync(complete, await RecordAsync(t, "c", 2, English(2)));
         var elsewhere = await t.AddFolderAsync(null, "Elsewhere", other.Id);
         await t.AddArchiveAsync(elsewhere, "Elsewhere v01");
-        await t.AddLinkAsync(elsewhere, await RecordAsync(t, "e", 9));
+        await t.AddLinkAsync(elsewhere, await RecordAsync(t, "e", 9, English(9)));
 
         var svc = Service(t);
         var (_, all) = await svc.ListAsync(t.LibraryPublicId, onlyMissing: false, cursor: null, limit: 50);

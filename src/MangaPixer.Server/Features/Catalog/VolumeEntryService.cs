@@ -7,6 +7,7 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Metadata.Missing;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Missing;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -25,11 +26,25 @@ public sealed record FolderVolumeEntries(
     IReadOnlyDictionary<string, CatalogBrowseService.BrowseRow> Rows,
     int StackCount,
     bool Consolidated,
-    long? SeriesFolderId)
+    long? SeriesFolderId,
+    SeriesStatusInfo? Status = null)
 {
-    /// <summary>The Volumes view differs from the folder list: at least one stack, or merged unit subfolders.</summary>
-    public bool Available => StackCount > 0 || Consolidated;
+    /// <summary>
+    /// The Volumes view differs from the folder list: a stack, merged unit subfolders, a missing-volume placeholder, or (1.29.0 RC)
+    /// a folder with its own link that holds volumes - its header shows the series status.
+    /// </summary>
+    public bool Available => StackCount > 0 || Consolidated || Status is { MissingVolumes: > 0 } || (Status is not null && HasVolumes);
+
+    /// <summary>At least one volume entry (a volume file, a stack or a placeholder).</summary>
+    public bool HasVolumes => Entries.Any(e => e.Rank == 0);
 }
+
+/// <summary>
+/// The series status line of a folder with its own link (1.29.0 RC): the record's publication status and what is missing
+/// against what is released in the preferred language. <see cref="ReleaseKnown"/>: a volume total or a released chapter list
+/// exists for that language (else "up to date" cannot be said).
+/// </summary>
+public sealed record SeriesStatusInfo(MetadataOriginStatus? Status, int MissingVolumes, int MissingChapters, bool ReleaseKnown, string Language);
 
 /// <summary>
 /// Builds the Volumes-view entry list of a folder from stored data only (catalog rows, ComicInfo volume, the linked series'
@@ -78,12 +93,14 @@ public sealed class VolumeEntryService
 
         var revision = await _db.Libraries.AsNoTracking().Where(l => l.Id == info.LibraryId).Select(l => l.CatalogRevision).FirstOrDefaultAsync(ct);
         var context = await ContextAsync(info, ct);
+        // The preferred language matters only for a linked series (what is released in it); an unlinked folder never reads it.
+        var language = context.RecordId is null ? ReleasedInLanguage.DefaultLanguage : await ReleasedInLanguage.PreferredAsync(_db, ct);
         var mapKey = await MapKeyAsync(context.RecordId, ct);
-        var key = $"volview:{info.Id}:{revision}:{context.Key}:{mapKey}";
+        var key = $"volview:{info.Id}:{revision}:{context.Key}:{language}:{mapKey}";
         if (_cache is not null && _cache.TryGetValue(key, out FolderVolumeEntries? cached) && cached is not null)
             return cached;
 
-        var built = await BuildAsync(info, context, ct);
+        var built = await BuildAsync(info, context, language, ct);
         _cache?.Set(key, built, s_ttl);
         return built;
     }
@@ -174,10 +191,12 @@ public sealed class VolumeEntryService
         if (recordId is not { } id)
             return "-";
         var maps = await _db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == id)
-            .Select(m => new { m.Source, m.State, m.Version }).ToListAsync(ct);
+            .Select(m => new { m.Source, m.State, m.Version, m.ReleasedLanguage, Released = m.ReleasedChaptersJson == null ? -1 : m.ReleasedChaptersJson.Length })
+            .ToListAsync(ct);
         var record = await _db.MetadataRecords.AsNoTracking().Where(r => r.Id == id)
-            .Select(r => new { r.OriginVolumes, r.OriginStatus }).FirstOrDefaultAsync(ct);
-        return string.Join(',', maps.OrderBy(m => m.Source).Select(m => $"{m.Source}.{m.State}.{m.Version}")) + $"|{record?.OriginVolumes}|{record?.OriginStatus}";
+            .Select(r => new { r.OriginVolumes, r.OriginStatus, r.FetchedAt }).FirstOrDefaultAsync(ct);
+        return string.Join(',', maps.OrderBy(m => m.Source).Select(m => $"{m.Source}.{m.State}.{m.Version}.{m.ReleasedLanguage}.{m.Released}"))
+            + $"|{record?.OriginVolumes}|{record?.OriginStatus}|{record?.FetchedAt.UtcTicks}";
     }
 
     /// <summary>
@@ -185,13 +204,14 @@ public sealed class VolumeEntryService
     /// is Ok, the chapters-per-volume ratio (its own average, else the AniList row's), the highest volume the provider knows
     /// (else the record's volume total) and whether the series still runs. Stored rows only.
     /// </summary>
-    private async Task<VolumeMapInput?> LoadMapAsync(long? recordId, CancellationToken ct)
+    private async Task<(VolumeMapInput? Map, ReleaseInfo? Release, MetadataOriginStatus? Status)> LoadMapAsync(
+        long? recordId, string language, CancellationToken ct)
     {
         if (recordId is not { } id)
-            return null;
+            return (null, null, null);
         var maps = await _db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == id).ToListAsync(ct);
         var record = await _db.MetadataRecords.AsNoTracking().Where(r => r.Id == id)
-            .Select(r => new { r.OriginVolumes, r.OriginStatus }).FirstOrDefaultAsync(ct);
+            .Select(r => new { r.OriginVolumes, r.OriginStatus, r.PublishersJson }).FirstOrDefaultAsync(ct);
         var mangadex = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.MangaDexAggregate && m.State == (int)VolumeMapState.Ok);
         var aniList = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.AniListRatio && m.State == (int)VolumeMapState.Ok);
         var volumes = ParseVolumes(mangadex?.VolumesJson);
@@ -200,7 +220,11 @@ public sealed class VolumeEntryService
         var status = (MetadataOriginStatus?)record?.OriginStatus;
         var ongoing = status is not (MetadataOriginStatus.Complete or MetadataOriginStatus.Cancelled);
         var source = volumes.Count > 0 ? VolumeListSource.MangaDex : ratio is not null ? VolumeListSource.AniList : VolumeListSource.FileNames;
-        return new VolumeMapInput(volumes, ratio, known, ongoing, source);
+        // "Missing" = released in the preferred language (1.29.0 RC): the chapters the list names as released in it (read for
+        // this language only) and the volume total (English publishers today).
+        var releasedMap = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.MangaDexAggregate && m.ReleasedLanguage is not null);
+        var release = ReleasedInLanguage.For(language, record?.PublishersJson, releasedMap?.ReleasedLanguage, releasedMap?.ReleasedChaptersJson);
+        return (new VolumeMapInput(volumes, ratio, known, ongoing, source, release.Chapters, release.Volumes, release.Language), release, status);
     }
 
     /// <summary><c>[{"v":"3","c":["17","18","25.5"]}]</c> -> volumes; malformed entries are skipped.</summary>
@@ -244,7 +268,7 @@ public sealed class VolumeEntryService
 
     // --- Building ------------------------------------------------------------------------------------------------------
 
-    private async Task<FolderVolumeEntries> BuildAsync(NodeInfo folder, SeriesContext context, CancellationToken ct)
+    private async Task<FolderVolumeEntries> BuildAsync(NodeInfo folder, SeriesContext context, string language, CancellationToken ct)
     {
         // A unit subfolder of a linked series never groups when the series' numbering restarts across its folders.
         if (!context.Own && context.SeriesFolderId is { } seriesFolder && await SeriesRestartsAsync(seriesFolder, ct))
@@ -282,11 +306,17 @@ public sealed class VolumeEntryService
                 Add(archive, unit.Name);
         }
 
-        var map = await LoadMapAsync(context.RecordId, ct);
-        var grouping = VolumeGrouping.Group(rows, map);
+        var (map, release, status) = await LoadMapAsync(context.RecordId, language, ct);
+        // Missing-volume placeholders only at the folder with its own link: a Season / Part subfolder holds part of the run.
+        var grouping = VolumeGrouping.Group(rows, map, markMissingVolumes: context.Own);
+        var statusInfo = context.Own && release is not null
+            ? new SeriesStatusInfo(status is MetadataOriginStatus.Unknown ? null : status, grouping.MissingVolumeCount, grouping.MissingChapterCount,
+                release.Known, release.Language)
+            : null;
         return new FolderVolumeEntries(
             folder.Id, folder.PublicId, folder.LibraryId, folder.LibraryPublicId,
-            grouping.Entries, byId, grouping.StackCount, Consolidated: merged.Count > 0, context.SeriesFolderId ?? (context.Own ? folder.Id : null));
+            grouping.Entries, byId, grouping.StackCount, Consolidated: merged.Count > 0, context.SeriesFolderId ?? (context.Own ? folder.Id : null),
+            statusInfo);
     }
 
     private static FolderVolumeEntries Empty(NodeInfo folder, SeriesContext context) =>

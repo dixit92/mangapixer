@@ -71,6 +71,18 @@ public sealed record VolumeStackSummaryDto
     public required VolumeStackConfidence Confidence { get; init; }
     public string? FirstChapter { get; init; }
     public string? LastChapter { get; init; }
+
+    /// <summary>
+    /// 1.29.0 RC: the volume's chapters that are complete here (a split chapter counts once, when all its listed parts are here),
+    /// of <see cref="ChapterCount"/>; null when no list says.
+    /// </summary>
+    public int? ChaptersPresent { get; init; }
+
+    /// <summary>
+    /// 1.29.0 RC: a MISSING volume - neither a volume file nor any chapter of it is here (a gap below the highest volume here, or
+    /// released in the preferred language after it). A placeholder card, never opened; PresentCount is 0.
+    /// </summary>
+    public bool Missing { get; init; }
 }
 
 /// <summary>The stack view (<c>GET /nodes/{folderId}/volumes/{key}</c>).</summary>
@@ -84,6 +96,13 @@ public sealed record VolumeStackDto
     public required VolumeListSource Source { get; init; }
     public required int PresentCount { get; init; }
     public int? ChapterCount { get; init; }
+
+    /// <summary>1.29.0 RC: the complete chapters of <see cref="ChapterCount"/> (see <see cref="VolumeStackSummaryDto.ChaptersPresent"/>).</summary>
+    public int? ChaptersPresent { get; init; }
+
+    /// <summary>1.29.0 RC: a real volume file is the first slot (a fractional volume file, the last slot, is an extra).</summary>
+    public bool HasVolumeArchive { get; init; }
+
     public required int MissingCount { get; init; }
     public required int ExtraCount { get; init; }
     public string? PreviousKey { get; init; }

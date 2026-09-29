@@ -71,7 +71,8 @@ internal static class VolumeTestData
     }
 
     public static async Task<MetadataRecordEntity> AddRecordAsync(
-        MangaPixerDbContext db, string title = "Synthetic Record", int? originVolumes = null, MetadataOriginStatus status = MetadataOriginStatus.Ongoing)
+        MangaPixerDbContext db, string title = "Synthetic Record", int? originVolumes = null, MetadataOriginStatus status = MetadataOriginStatus.Ongoing,
+        int? englishVolumes = null)
     {
         var record = new MetadataRecordEntity
         {
@@ -81,6 +82,7 @@ internal static class VolumeTestData
             Title = title,
             OriginVolumes = originVolumes,
             OriginStatus = (int)status,
+            PublishersJson = englishVolumes is { } ev ? $"[{{\"name\":\"Print English\",\"kind\":\"english\",\"volumes\":{ev}}}]" : null,
             FetchedAt = DateTimeOffset.UtcNow,
         };
         db.MetadataRecords.Add(record);
@@ -99,6 +101,24 @@ internal static class VolumeTestData
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
         });
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>Marks a stored map's chapters released in <paramref name="language"/>: 1..<paramref name="through"/> (1.29.0 RC).</summary>
+    public static async Task SetReleasedAsync(MangaPixerDbContext db, SeriesVolumeMapEntity map, string language, int through)
+    {
+        map.ReleasedLanguage = language;
+        map.ReleasedChaptersJson = "[" + string.Join(",", Enumerable.Range(1, through).Select(c => $"\"{c}\"")) + "]";
+        await db.SaveChangesAsync();
+    }
+
+    public static async Task SetPreferredLanguageAsync(MangaPixerDbContext db, string language)
+    {
+        var row = await db.AppSettings.FindAsync(AppSettingsEntity.SingletonId);
+        if (row is null)
+            db.AppSettings.Add(new AppSettingsEntity { MetadataCoverLanguage = language });
+        else
+            row.MetadataCoverLanguage = language;
         await db.SaveChangesAsync();
     }
 

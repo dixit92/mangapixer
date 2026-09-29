@@ -235,4 +235,55 @@ public sealed class MissingUnitsTests
         var volumes = MissingUnits.Evaluate(One("Synthetic v01"), new PublishedTotals(EnglishChapters: 95, OriginVolumes: 20, ChaptersPerVolume: 9.5));
         Assert.Equal((10, MissingTotalSource.Converted), (volumes.Volumes!.Available, volumes.Volumes.Source));
     }
+
+    // --- 1.29.0 RC: "missing" = released in the preferred language ---
+
+    [Fact]
+    public void Language_English_ComparesWithTheEnglishTotal_AndKeepsTheOriginAsContext()
+    {
+        var r = MissingUnits.Evaluate(One("Synthetic v01", "Synthetic v02"), new PublishedTotals(EnglishVolumes: 4, OriginVolumes: 14, Language: "en"));
+
+        Assert.Equal(MissingVerdict.Behind, r.Verdict);
+        Assert.Equal((4, MissingTotalSource.English, 2, 14), (r.Volumes!.Available, r.Volumes.Source, r.Volumes.BehindBy, r.Volumes.OriginTotal));
+    }
+
+    [Fact]
+    public void Language_NeverFallsBackToTheOriginTotal()
+    {
+        var r = MissingUnits.Evaluate(One("Synthetic v01", "Synthetic v02"), new PublishedTotals(OriginVolumes: 14, Language: "en"));
+
+        Assert.Equal(MissingVerdict.NoTotal, r.Verdict);
+        Assert.Null(r.Volumes!.Available);
+        Assert.Equal(0, r.Volumes.BehindBy);
+        Assert.Equal(14, r.Volumes.OriginTotal);
+    }
+
+    [Fact]
+    public void Language_Other_IgnoresTheEnglishTotals_AndUsesTheReleasedChapters()
+    {
+        var volumes = MissingUnits.Evaluate(One("Synthetic v01"), new PublishedTotals(EnglishVolumes: 9, Language: "fr"));
+        Assert.Equal(MissingVerdict.NoTotal, volumes.Verdict);
+
+        var chapters = MissingUnits.Evaluate(One("Synthetic - Chapter 001", "Synthetic - Chapter 002"),
+            new PublishedTotals(EnglishChapters: 50, LatestChapter: 40, Language: "fr", ReleasedChapters: 6));
+        Assert.Equal((6, MissingTotalSource.Released, 4), (chapters.Chapters!.Available, chapters.Chapters.Source, chapters.Chapters.BehindBy));
+    }
+
+    [Fact]
+    public void Language_HolesBelowTheHighestNumber_StayMissing_WithoutAnyTotal()
+    {
+        var r = MissingUnits.Evaluate(One("Synthetic v01", "Synthetic v03"), new PublishedTotals(Language: "de"));
+
+        Assert.Equal(MissingVerdict.Holes, r.Verdict);
+        Assert.Equal([2], r.Volumes!.Missing);
+    }
+
+    [Fact]
+    public void WithoutALanguage_TheOriginStillCounts_As1280()
+    {
+        var r = MissingUnits.Evaluate(One("Synthetic v01"), new PublishedTotals(OriginVolumes: 3));
+
+        Assert.Equal((3, MissingTotalSource.Origin), (r.Volumes!.Available, r.Volumes.Source));
+        Assert.Null(r.Volumes.OriginTotal);
+    }
 }

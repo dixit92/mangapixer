@@ -53,7 +53,7 @@ async function ensureLibrary(page: Page): Promise<[string, string]> {
     if (!folder) return 0;
     const inside = await (await page.request.get(`/api/v1/libraries/${lib!.id}/browse?parentId=${folder}&pageSize=50&group=flat`)).json();
     return (inside.items as Node[]).length;
-  }, { timeout: 120_000, intervals: [1000, 2000, 5000] }).toBe(6);
+  }, { timeout: 120_000, intervals: [1000, 2000, 5000] }).toBe(7);
   return [lib!.id, folder];
 }
 
@@ -81,7 +81,7 @@ test('a folder of chapters that state their volume groups into stacks, offline',
   await expect(cards.nth(0).locator('.node-title')).toHaveText('Volume 1');
   await expect(cards.nth(0).locator('.node-sub')).toContainText('3 chapters');
   await expect(cards.nth(1).locator('.node-title')).toHaveText('Volume 2');
-  await expect(cards.nth(1).locator('.node-sub')).toContainText('2 chapters');
+  await expect(cards.nth(1).locator('.node-sub')).toHaveText('2 chapters + 1 extra');
   // Volume 3 is a real volume file with no chapters of its own: a plain card, not a stack.
   await expect(cards.nth(2).locator('.node-title')).toHaveText('Stacked Saga v03.cbz');
   await expect(page.locator('app-stack-card')).toHaveCount(2);
@@ -108,7 +108,10 @@ test('a stack opens its chapters, with previous / next volume', async ({ page })
   await page.getByTestId('stack-next').click();
   await expect(page).toHaveURL(/\/volume\/2$/);
   await expect(page.getByTestId('stack-title')).toHaveText('Volume 2');
-  await expect(page.getByTestId('stack-item')).toHaveCount(2);
+  // The fractional volume file (v02.5) closes volume 2's stack, as an extra.
+  await expect(page.getByTestId('stack-item')).toHaveCount(3);
+  await expect(page.getByTestId('stack-item').last()).toContainText('Stacked Saga v02.5.cbz');
+  await expect(page.getByTestId('stack-counts')).toHaveText('2 chapters - 1 extra');
   await expect(page.getByTestId('stack-next')).toHaveCount(0);
 
   // The breadcrumb names the REAL folder.
@@ -124,14 +127,14 @@ test('the Folders switch shows the real chapters and the choice is remembered', 
   await expect(page.locator('.node-wrap')).toHaveCount(3);
 
   await page.getByTestId('view-folders').click();
-  await expect(page.locator('.node-wrap')).toHaveCount(6);
+  await expect(page.locator('.node-wrap')).toHaveCount(7);
   await expect(page.locator('app-stack-card')).toHaveCount(0);
   await expect(page.locator('.node-wrap', { hasText: 'Stacked Saga v01 c001' })).toBeVisible();
   await shot(page, 'volumes-03-folders');
 
   // Remembered per user: a reload stays on Folders.
   await page.reload();
-  await expect(page.locator('.node-wrap')).toHaveCount(6);
+  await expect(page.locator('.node-wrap')).toHaveCount(7);
   await expect(page.getByTestId('view-folders')).toHaveAttribute('aria-pressed', 'true');
 
   await page.getByTestId('view-volumes').click();
@@ -152,4 +155,24 @@ test('the phone layout groups too', async ({ page }) => {
   await expect(page.locator('.node-wrap')).toHaveCount(3);
   await expect(page.getByTestId('volume-view-switch')).toBeVisible();
   await shot(page, 'volumes-04-phone');
+});
+
+test('a stack shows a star when one of its chapters is starred', async ({ page }) => {
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  await setSwitch(page, null);
+  const flat = await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?parentId=${folderId}&pageSize=50&group=flat`)).json();
+  const chapter = (flat.items as Node[]).find((n) => n.displayName === 'Stacked Saga v01 c002.cbz')!;
+  const headers = await csrf(page.request);
+  expect((await page.request.post(`/api/v1/nodes/${chapter.id}/favorite`, { headers })).ok()).toBeTruthy();
+  try {
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    const cards = page.locator('.node-wrap');
+    await expect(cards).toHaveCount(3);
+    await expect(cards.nth(0).getByTestId('stack-star')).toBeVisible();
+    await expect(cards.nth(1).getByTestId('stack-star')).toHaveCount(0);
+    await shot(page, 'volumes-05-stack-star');
+  } finally {
+    await page.request.delete(`/api/v1/nodes/${chapter.id}/favorite`, { headers });
+  }
 });

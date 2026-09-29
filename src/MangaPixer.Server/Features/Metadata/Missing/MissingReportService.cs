@@ -35,7 +35,7 @@ public sealed class MissingReportService
     }
 
     private sealed record LinkedRow(
-        long NodeId, string PublicId, string DisplayName, long LibraryId, int State,
+        long NodeId, string PublicId, string DisplayName, long LibraryId, int State, long RecordId,
         string Provider, string ExternalId, string Title, int? OriginVolumes, double? LatestChapter, string? StatusText, string? PublishersJson,
         DateTimeOffset FetchedAt);
 
@@ -120,7 +120,7 @@ public sealed class MissingReportService
             join n in _db.CatalogNodes.AsNoTracking() on l.NodeId equals n.Id
             where n.Kind == folder && n.Availability != tombstoned
             join r in _db.MetadataRecords.AsNoTracking() on l.RecordId equals r.Id
-            select new LinkedRow(n.Id, n.PublicId, n.DisplayName, n.LibraryId, l.State,
+            select new LinkedRow(n.Id, n.PublicId, n.DisplayName, n.LibraryId, l.State, r.Id,
                 r.Provider, r.ExternalId, r.Title, r.OriginVolumes, r.LatestChapter, r.StatusText, r.PublishersJson, r.FetchedAt);
         return await query.ToListAsync(ct);
     }
@@ -213,24 +213,37 @@ public sealed class MissingReportService
         }
 
         var foldersOf = folderOf.ToLookup(kv => kv.Value.Series, kv => new MissingFolder(kv.Value.Name, archivesIn.GetValueOrDefault(kv.Key) ?? []));
+
+        // 1.29.0 RC: "behind" only against what is released in the preferred language (the chapters the stored volume list
+        // names as released in it; English publisher totals for English). Stored rows only.
+        var language = await ReleasedInLanguage.PreferredAsync(_db, ct);
+        var recordIds = rows.Select(r => r.RecordId).Distinct().ToList();
+        var released = (await _db.SeriesVolumeMaps.AsNoTracking()
+                .Where(m => recordIds.Contains(m.RecordId) && m.Source == (int)VolumeMapSource.MangaDexAggregate && m.ReleasedLanguage != null)
+                .Select(m => new { m.RecordId, m.ReleasedLanguage, m.ReleasedChaptersJson })
+                .ToListAsync(ct))
+            .GroupBy(m => m.RecordId)
+            .ToDictionary(g => g.Key, g => g.First());
+
         var result = new Dictionary<long, MissingUnitsResult>();
         foreach (var row in rows)
-            result[row.NodeId] = MissingUnits.Evaluate(foldersOf[row.NodeId], TotalsOf(row) with { ChaptersPerVolume = ConversionOf(row, conversions)?.ChaptersPerVolume });
+        {
+            var map = released.GetValueOrDefault(row.RecordId);
+            var release = ReleasedInLanguage.For(language, row.PublishersJson, map?.ReleasedLanguage, map?.ReleasedChaptersJson);
+            result[row.NodeId] = MissingUnits.Evaluate(foldersOf[row.NodeId],
+                TotalsOf(row, release) with { ChaptersPerVolume = ConversionOf(row, conversions)?.ChaptersPerVolume });
+        }
         return result;
     }
 
-    private static PublishedTotals TotalsOf(LinkedRow row)
-    {
-        var english = MetadataJson.ReadList<MetadataJson.Publisher>(row.PublishersJson)
-            .Where(p => string.Equals(p.Kind, "english", StringComparison.Ordinal))
-            .ToList();
-        return new PublishedTotals(
-            EnglishVolumes: english.Max(p => p.Volumes),
-            EnglishChapters: english.Max(p => p.Chapters),
-            OriginVolumes: row.OriginVolumes,
-            OriginChapters: MangaUpdatesStatusParser.Parse(row.StatusText).Chapters,
-            LatestChapter: row.LatestChapter);
-    }
+    private static PublishedTotals TotalsOf(LinkedRow row, ReleaseInfo release) => new(
+        EnglishVolumes: release.Volumes,
+        EnglishChapters: release.EnglishChapters,
+        OriginVolumes: row.OriginVolumes,
+        OriginChapters: MangaUpdatesStatusParser.Parse(row.StatusText).Chapters,
+        LatestChapter: row.LatestChapter,
+        Language: release.Language,
+        ReleasedChapters: release.LastChapter);
 
     private async Task<List<MissingSeriesDto>> ToDtosAsync(
         IReadOnlyList<(LinkedRow Row, MissingUnitsResult Result)> page, IReadOnlyDictionary<string, MissingConversionDto> conversions, CancellationToken ct)
@@ -241,6 +254,8 @@ public sealed class MissingReportService
         var libraries = await _db.Libraries.AsNoTracking().Where(l => libraryIds.Contains(l.Id))
             .ToDictionaryAsync(l => l.Id, l => (l.PublicId, l.DisplayName), ct);
         var covers = await _covers.ResolveUrlsAsync(page.Select(p => new CoverTarget(p.Row.NodeId, p.Row.PublicId, true)).ToList(), ct);
+        var language = await ReleasedInLanguage.PreferredAsync(_db, ct);
+        var isEnglish = ReleasedInLanguage.IsEnglish(language);
         return page.Select(p =>
         {
             var library = libraries.GetValueOrDefault(p.Row.LibraryId);
@@ -260,7 +275,8 @@ public sealed class MissingReportService
                 Volumes = ToDto(p.Result.Volumes),
                 Chapters = ToDto(p.Result.Chapters),
                 MixedFolders = p.Result.MixedFolders,
-                EnglishTotalUnknown = english.Count > 0 && english.All(x => x.Volumes is null && x.Chapters is null),
+                EnglishTotalUnknown = isEnglish && english.Count > 0 && english.All(x => x.Volumes is null && x.Chapters is null),
+                Language = language,
                 Conversion = ConversionOf(p.Row, conversions),
                 StatusText = p.Row.StatusText,
                 FetchedAt = p.Row.FetchedAt,
@@ -281,5 +297,6 @@ public sealed class MissingReportService
         BehindBy = gap.BehindBy,
         Missing = gap.Missing,
         MissingCount = gap.MissingCount,
+        OriginTotal = gap.OriginTotal,
     };
 }

@@ -38,11 +38,20 @@ public sealed record MissingUnitGapDto
 
     /// <summary>All missing numbers below <see cref="Have"/> (may exceed the list).</summary>
     public required int MissingCount { get; init; }
+
+    /// <summary>
+    /// 1.29.0 RC: the total in the country of origin, as context only - it never makes a series "behind" (an untranslated
+    /// volume is not missing); null when the record states none.
+    /// </summary>
+    public int? OriginTotal { get; init; }
 }
 
 /// <summary>One linked series folder in the report.</summary>
 public sealed record MissingSeriesDto
 {
+    /// <summary>1.29.0 RC: the preferred language the totals follow ("en", "fr", ...): "behind" only against what is released in it.</summary>
+    public string? Language { get; init; }
+
     public required string NodeId { get; init; }
     public required string DisplayName { get; init; }
     public required string LibraryId { get; init; }

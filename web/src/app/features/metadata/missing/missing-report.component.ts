@@ -13,7 +13,7 @@ import { MetadataReviewStateService } from '../metadata-review-state.service';
 import { ReviewLibraryOption } from '../review/review-dashboard.component';
 import { MissingReportApiService } from './missing-report-api.service';
 import {
-  MISSING_CONFIDENCE_LABELS, MISSING_VERDICT_LABELS, batchSentence, conversionLine, gapDetail, gapsOf, haveSentence, noVerdictReason,
+  MISSING_CONFIDENCE_LABELS, MISSING_VERDICT_LABELS, batchSentence, conversionLine, gapDetail, gapsOf, haveSentence, noVerdictReason, totalTooltip,
 } from './missing-labels';
 
 type Filter = 'missing' | 'all';
@@ -92,8 +92,8 @@ type Filter = 'missing' | 'all';
                     <span class="have">{{ haveSentence(gap) }}</span>
                     @if (gapDetail(gap); as d) { <span class="detail">{{ d }}</span> }
                     @if (gap.confidence; as c) {
-                      <mat-icon class="conf" [class]="'c-' + c" [matTooltip]="'Total from the ' + confidenceLabels[c]"
-                                [attr.aria-label]="'Total from the ' + confidenceLabels[c]">info</mat-icon>
+                      <mat-icon class="conf" [class]="'c-' + c" [matTooltip]="totalTooltip(gap)"
+                                [attr.aria-label]="totalTooltip(gap)">info</mat-icon>
                     }
                   </p>
                 }
@@ -214,6 +214,7 @@ export class MissingReportComponent implements OnInit {
   readonly verdictLabels = MISSING_VERDICT_LABELS;
   readonly confidenceLabels = MISSING_CONFIDENCE_LABELS;
   readonly haveSentence = haveSentence;
+  readonly totalTooltip = totalTooltip;
   readonly gapDetail = gapDetail;
   readonly gapsOf = gapsOf;
   readonly noVerdictReason = noVerdictReason;

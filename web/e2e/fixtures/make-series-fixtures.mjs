@@ -11,6 +11,7 @@
 // And, next to it, <outDir>-volumes (1.29.0, the Volumes view e2e spec; offline, no ComicInfo):
 //   Stacked Saga/Stacked Saga v01 c001..c003.cbz   chapters that state volume 1
 //   Stacked Saga/Stacked Saga v02 c004..c005.cbz   chapters that state volume 2
+//   Stacked Saga/Stacked Saga v02.5.cbz            a fractional (bonus) volume: the end of volume 2's stack (1.29.0 RC)
 //   Stacked Saga/Stacked Saga v03.cbz              a real volume file (no chapters of its own volume)
 // Register <outDir> as a library, scan, and let analysis run; the spec does that itself
 // when E2E_SERIES_FIXTURE_ROOT names the path as the SERVER sees it.
@@ -132,5 +133,6 @@ for (const [volume, chapters] of [[1, [1, 2, 3]], [2, [4, 5]]]) {
     archive('Stacked Saga', `Stacked Saga v0${volume} c00${c}.cbz`, [40 + volume * 60, 90 + c * 20, 160], null, volumesDir);
   }
 }
+archive('Stacked Saga', 'Stacked Saga v02.5.cbz', [120, 200, 90], null, volumesDir);
 archive('Stacked Saga', 'Stacked Saga v03.cbz', [200, 80, 80], null, volumesDir);
 console.log(`Series fixtures written to ${outDir} (and ${volumesDir})`);

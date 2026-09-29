@@ -31,12 +31,17 @@ public sealed partial class CatalogBrowseService
         }
 
         var page = VolumePaging.Page(entries, cursor, before, pageSize, direction == SortDirection.Descending);
-        var plainRows = page.Entries.Where(e => e.Kind != VolumeEntryKind.Stack).Select(e => view.Rows[e.Row!.Id]).ToList();
+        var plainRows = page.Entries.Where(e => e.Kind is VolumeEntryKind.Archive or VolumeEntryKind.Folder).Select(e => view.Rows[e.Row!.Id]).ToList();
         var plainNodes = (await EnrichAsync(plainRows, userId, view.LibraryId, ct)).ToDictionary(n => n.Id, StringComparer.Ordinal);
         var stacks = await BuildStackCardsAsync(view, page.Entries.Where(e => e.Kind == VolumeEntryKind.Stack).Select(e => e.Stack!).ToList(), userId, ct);
 
         var items = page.Entries
-            .Select(e => e.Kind == VolumeEntryKind.Stack ? stacks[e.Stack!.Key] : plainNodes[e.Row!.Id])
+            .Select(e => e.Kind switch
+            {
+                VolumeEntryKind.Stack => stacks[e.Stack!.Key],
+                VolumeEntryKind.MissingVolume => MissingVolumeCard(view, e.Volume!.Value),
+                _ => plainNodes[e.Row!.Id],
+            })
             .ToList();
         return new PageResponse<CatalogNodeDto>
         {
@@ -77,6 +82,9 @@ public sealed partial class CatalogBrowseService
         var inProgress = (await _db.ReadingProgress.AsNoTracking()
             .Where(p => p.UserId == userId && memberIds.Contains(p.ItemId) && p.State == (int)ReadingState.InProgress)
             .Select(p => p.ItemId).ToListAsync(ct)).ToHashSet();
+        // A stack shows the star when ANY archive in it is starred (owner, 1.29.0 RC; display only - a stack is not a node).
+        var starred = (await _db.Favorites.AsNoTracking().Where(f => f.UserId == userId && memberIds.Contains(f.CatalogNodeId))
+            .Select(f => f.CatalogNodeId).ToListAsync(ct)).ToHashSet();
 
         foreach (var stack in stacks)
         {
@@ -97,10 +105,41 @@ public sealed partial class CatalogBrowseService
                 CoverUrl = cover?.Url,
                 CoverSource = cover?.Source,
                 ReadRollup = FolderReadRollupRules.Classify(ids.Count, readCount, progressCount),
+                IsFavorite = ids.Any(starred.Contains),
                 VolumeStack = SummaryOf(stack),
             };
         }
         return cards;
+    }
+
+    /// <summary>
+    /// The placeholder card of a missing volume (1.29.0 RC): <c>Kind = VolumeStack</c> with <see cref="VolumeStackSummaryDto.Missing"/>,
+    /// the opaque <c>vm.&lt;folder&gt;.&lt;key&gt;</c> id (never opened), no cover, nothing present.
+    /// </summary>
+    private static CatalogNodeDto MissingVolumeCard(FolderVolumeEntries view, decimal volume)
+    {
+        var key = VolumeGrouping.KeyOf(volume);
+        var label = VolumeGrouping.LabelOf(volume, VolumeStackConfidence.Exact);
+        return new CatalogNodeDto
+        {
+            Id = VolumeStackId.EncodeMissing(view.FolderPublicId, key),
+            ParentId = view.FolderPublicId,
+            LibraryId = view.LibraryPublicId,
+            Kind = CatalogNodeKind.VolumeStack,
+            DisplayName = label,
+            Availability = CatalogNodeAvailability.Unavailable,
+            VolumeStack = new VolumeStackSummaryDto
+            {
+                Key = key,
+                Label = label,
+                PresentCount = 0,
+                MissingCount = 0,
+                ExtraCount = 0,
+                HasVolumeArchive = false,
+                Confidence = VolumeStackConfidence.Exact,
+                Missing = true,
+            },
+        };
     }
 
     internal static VolumeStackSummaryDto SummaryOf(VolumeStack stack) => new()
@@ -115,5 +154,6 @@ public sealed partial class CatalogBrowseService
         Confidence = stack.Confidence,
         FirstChapter = stack.FirstChapter,
         LastChapter = stack.LastChapter,
+        ChaptersPresent = stack.ChaptersPresent,
     };
 }
