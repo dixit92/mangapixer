@@ -163,7 +163,11 @@ public sealed class MangaDexProviderTests
         // A stored AniList id wins over any other AniList link; then not fan-coloured; then the oldest record.
         MangaDexManga M(string id, string? al, bool fan, int year) => new()
         {
-            Id = id, Title = "T", MangaUpdatesLink = "njeqwry", AniListId = al, FanColored = fan,
+            Id = id,
+            Title = "T",
+            MangaUpdatesLink = "njeqwry",
+            AniListId = al,
+            FanColored = fan,
             CreatedAt = new DateTimeOffset(year, 1, 1, 0, 0, 0, TimeSpan.Zero),
         };
         var a = M("00000000-0000-4000-8000-00000000000a", "1", false, 2020);
