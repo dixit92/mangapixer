@@ -308,9 +308,9 @@ public sealed class MissingReportHttpTests : IClassFixture<MangaPixerWebApplicat
             await admin.PostAsJsonAsync("/api/v1/admin/metadata/missing/conversions", new MissingConversionBatchRequest { Library = LibPubId }, TestJson.Web));
         Assert.Equal((0, "metadata_disabled"), (batch.Looked, batch.StoppedCode));
 
-        // The settings list both approved sites, all in.
+        // The settings list every approved site, all in.
         var settings = await OkAsync<MetadataSettingsDto>(await admin.GetAsync("/api/v1/admin/metadata/settings"));
-        Assert.Equal(new[] { "mangaupdates", "anilist" }, settings.Providers.Select(p => p.Id));
+        Assert.Equal(new[] { "mangaupdates", "mangadex", "anilist" }, settings.Providers.Select(p => p.Id));
         Assert.All(settings.Providers, p => Assert.True(p.Allowed));
         Assert.False(settings.ConsentRenewalNeeded);
     }

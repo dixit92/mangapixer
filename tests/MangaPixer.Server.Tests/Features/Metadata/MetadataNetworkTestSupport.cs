@@ -199,6 +199,10 @@ public sealed class GatewayHarness : IDisposable
             .ConfigurePrimaryHttpMessageHandler(() => Handler);
         Program.AddMetadataClient(services, MetadataHttp.AniListClient, MetadataHttp.AniListHost, "application/json")
             .ConfigurePrimaryHttpMessageHandler(() => Handler);
+        Program.AddMetadataClient(services, MetadataHttp.MangaDexApiClient, MetadataHttp.MangaDexApiHost, "application/json")
+            .ConfigurePrimaryHttpMessageHandler(() => Handler);
+        Program.AddMetadataClient(services, MetadataHttp.MangaDexImageClient, MetadataHttp.MangaDexImageHost, "image/*")
+            .ConfigurePrimaryHttpMessageHandler(() => Handler);
         _http = services.BuildServiceProvider();
         HttpFactory = _http.GetRequiredService<IHttpClientFactory>();
         Provider = new MangaUpdatesProvider(HttpFactory);

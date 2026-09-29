@@ -97,7 +97,16 @@ public sealed class MetadataAutoMatchService
     // --- Gate ---
 
     /// <summary>The global automatic gate (everything but the per-library Fetch switch); null when open.</summary>
-    public async Task<AutomaticWait?> CheckGlobalGateAsync(CancellationToken ct = default)
+    public Task<AutomaticWait?> CheckGlobalGateAsync(CancellationToken ct = default) =>
+        CheckGlobalGateAsync(MetadataProviderAllowlist.MangaUpdates, ct);
+
+    /// <summary>
+    /// The global automatic gate for one provider (1.29.0): the kill switch, both consents, the provider allowlist entry
+    /// of <paramref name="providerId"/>, the matcher (MangaUpdates only - companion work needs no matcher), that
+    /// provider's own backoff and the one daily budget. Auto-match and refresh keep asking for MangaUpdates; the
+    /// volume-cover pass asks for <c>mangadex</c>, its totals fallback for <c>anilist</c>.
+    /// </summary>
+    public async Task<AutomaticWait?> CheckGlobalGateAsync(string providerId, CancellationToken ct = default)
     {
         if (_settings.NetworkDisabledByConfig)
             return new AutomaticWait("metadata_network_disabled", null);
@@ -110,11 +119,11 @@ public sealed class MetadataAutoMatchService
         if (!row.MetadataAutoMatchEnabled || row.MetadataAutoConsentVersion != MetadataAutoConsent.CurrentVersion)
             return new AutomaticWait("automatic_off", null);
         // Automatic matching and refresh ask MangaUpdates only: with it off the allowlist there is nothing to do.
-        if (!MetadataProviderAllowlist.IsAllowed(row.MetadataProvidersJson, MetadataProviderAllowlist.MangaUpdates))
+        if (!MetadataProviderAllowlist.IsAllowed(row.MetadataProvidersJson, providerId))
             return new AutomaticWait("provider_not_allowed", null);
-        if (!MatcherAvailable)
+        if (providerId == MetadataProviderAllowlist.MangaUpdates && !MatcherAvailable)
             return new AutomaticWait("matcher_unavailable", null);
-        if (await _backoff.ActiveUntilAsync(ct) is { } until)
+        if (await _backoff.ActiveUntilAsync(providerId, ct) is { } until)
             return new AutomaticWait("provider_backoff", until);
         if ((await _budget.GetAsync(ct)).Exhausted)
             return new AutomaticWait("budget_exhausted", _budget.Today().AddDays(1));

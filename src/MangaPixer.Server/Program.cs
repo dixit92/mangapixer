@@ -589,8 +589,8 @@ public sealed partial class Program
     /// </summary>
     /// <summary>
     /// The metadata network half (1.24.0, lane B2; network surface approved at
-    /// gate G1b). Exactly two named clients - the MangaUpdates API and its image
-    /// CDN - each behind a <see cref="Features.Metadata.HostAllowlistHandler"/>
+    /// gate G1b). Named clients - the MangaUpdates API and its image CDN, AniList
+    /// (1.28.0), the MangaDex API and its cover host (1.29.0) - each behind a <see cref="Features.Metadata.HostAllowlistHandler"/>
     /// that allows only its own host, on a primary handler that never follows a
     /// redirect and never keeps cookies; 10 s timeout; generic User-Agent with no
     /// version, contact or browser-UA fallback. The provider is resolved ONLY by
@@ -650,6 +650,9 @@ public sealed partial class Program
         AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaUpdatesApiClient, Features.Metadata.MetadataHttp.MangaUpdatesApiHost, "application/json");
         AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaUpdatesImageClient, Features.Metadata.MetadataHttp.MangaUpdatesImageHost, "image/*");
         AddMetadataClient(services, Features.Metadata.MetadataHttp.AniListClient, Features.Metadata.MetadataHttp.AniListHost, "application/json");
+        // MangaDex (1.29.0): ONLY as the companion of an already-linked MangaUpdates record (volume lists, volume covers).
+        AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaDexApiClient, Features.Metadata.MetadataHttp.MangaDexApiHost, "application/json");
+        AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaDexImageClient, Features.Metadata.MetadataHttp.MangaDexImageHost, "image/*");
     }
 
     internal static IHttpClientBuilder AddMetadataClient(IServiceCollection services, string name, string host, string accept)
