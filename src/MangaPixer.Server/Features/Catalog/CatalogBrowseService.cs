@@ -31,15 +31,17 @@ public sealed partial class CatalogBrowseService
     private readonly SeriesInfoFlagService _seriesInfoFlags;
     private readonly ICoverResolver _covers;
     private readonly VolumeEntryService _volumes;
+    private readonly StackCoverService _stackCovers;
 
     public CatalogBrowseService(MangaPixerDbContext db, LibraryAuthorizationService auth, SeriesInfoFlagService? seriesInfoFlags = null,
-        ICoverResolver? covers = null, VolumeEntryService? volumes = null)
+        ICoverResolver? covers = null, VolumeEntryService? volumes = null, StackCoverService? stackCovers = null)
     {
         _db = db;
         _auth = auth;
         _seriesInfoFlags = seriesInfoFlags ?? new SeriesInfoFlagService(db);
         _covers = covers ?? new FileCoverResolver(db);
         _volumes = volumes ?? new VolumeEntryService(db);
+        _stackCovers = stackCovers ?? new StackCoverService(db);
     }
 
     /// <summary>
