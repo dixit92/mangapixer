@@ -99,7 +99,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
          (links, buttons, sliders), which all carry their own accessible/keyboard
          semantics already. Marking the wrapper presentational keeps it out of the a11y
          tree instead of misrepresenting the whole toolbar as one focusable widget. -->
-    <div class="browse-bar" #browseBar [class.selecting]="selectMode()" role="presentation"
+    <div class="browse-bar" #browseBar [class.selecting]="selectMode()" [class.has-view-switch]="!!volumeView()?.available" role="presentation"
          (click)="onBarClick($event)">
       @if (!selectMode()) {
         <div class="breadcrumbs">
@@ -774,6 +774,9 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 4px;
         font-size: 15px; line-height: 1.35;
       }
+      /* The Volumes | Folders switch (1.29.0) would squeeze the trail: the bar wraps, the trail takes its own row. */
+      .browse-bar.has-view-switch { flex-wrap: wrap; }
+      .browse-bar.has-view-switch .breadcrumbs { flex-basis: 100%; }
       .breadcrumbs a { padding: 2px 0; }
       .breadcrumbs .sep { color: #6b6b78; }
       /* The current folder: the brightest crumb — the mobile "you are here".
