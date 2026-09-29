@@ -15,6 +15,10 @@ import {
   AuthUserDto,
   BookmarkDto,
   CatalogNodeDto,
+  FolderViewSettingsDto,
+  UpdateFolderViewSettingsRequest,
+  VolumeStackDto,
+  VolumeViewDto,
   ChangePasswordRequest,
   ContinueReadingEntry,
   CreateUserRequest,
@@ -149,6 +153,7 @@ export class ApiService {
     hideEmpty = false,
     before: string | null = null,
     favoritesOnly = false,
+    group: 'volumes' | 'flat' | null = null,
   ): Observable<PageResponse<CatalogNodeDto>> {
     let params = new HttpParams().set('pageSize', pageSize.toString());
     if (cursor) params = params.set('cursor', cursor);
@@ -167,6 +172,9 @@ export class ApiService {
     // Favorites-only filter (1.21.0). Omitted/false → no filter. Composes with the
     // read-state / hide-empty filters and keyset paging server-side.
     if (favoritesOnly) params = params.set('favoritesOnly', 'true');
+    // Volumes view (1.29.0): an explicit `volumes` / `flat` request overrides the stored Volumes | Folders
+    // switch for this call; omitted -> the server follows the user's stored switch and the folder / library defaults.
+    if (group) params = params.set('group', group);
     return this.get<PageResponse<CatalogNodeDto>>(
       `/libraries/${libraryId}/browse`,
       params,
@@ -355,6 +363,25 @@ export class ApiService {
 
   registerLibrary(request: RegisterLibraryRequest): Observable<LibraryDto> {
     return this.post<LibraryDto>('/admin/libraries', request);
+  }
+
+  /** Whether a folder has a Volumes view and whether it is on for the viewer (1.29.0). */
+  getVolumeView(nodeId: string): Observable<VolumeViewDto> {
+    return this.get<VolumeViewDto>(`/nodes/${nodeId}/volume-view`);
+  }
+
+  /** One virtual volume stack of a folder: its chapters in order with a placeholder per missing chapter (1.29.0). */
+  getVolumeStack(nodeId: string, key: string): Observable<VolumeStackDto> {
+    return this.get<VolumeStackDto>(`/nodes/${nodeId}/volumes/${encodeURIComponent(key)}`);
+  }
+
+  /** Admin: a folder's own Volumes view override (1.29.0; null = inherit the library). */
+  getFolderViewSettings(nodeId: string): Observable<FolderViewSettingsDto> {
+    return this.get<FolderViewSettingsDto>(`/admin/folders/${nodeId}/view-settings`);
+  }
+
+  setFolderViewSettings(nodeId: string, request: UpdateFolderViewSettingsRequest): Observable<FolderViewSettingsDto> {
+    return this.put<FolderViewSettingsDto>(`/admin/folders/${nodeId}/view-settings`, request);
   }
 
   browseLibraryPaths(path?: string): Observable<DirectoryListingDto> {
