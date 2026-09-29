@@ -41,9 +41,14 @@ public sealed class CoverDecisionServiceTests
         await kit.Decisions().DecideAsync(rtl.Id, default);
         Assert.Equal((int)CoverCropSide.Left, (await kit.AutoAsync(rtl.Id))!.CropSide);
 
-        // No web cover to compare with: no worker call at decision time (the crop renders when first served).
-        Assert.Empty(kit.Renderer.Requests);
+        // No web cover to compare with: nothing is hashed; each crop is rendered once, right after its decision, into the
+        // data root's crop store.
         Assert.Equal(0, kit.Hasher.Calls);
+        Assert.Equal(2, kit.Renderer.Requests.Count);
+        Assert.True(File.Exists(kit.Files.CropPath(ltr.Id, 1, CoverCropSide.Right)));
+        Assert.True(File.Exists(kit.Files.CropPath(rtl.Id, 1, CoverCropSide.Left)));
+        Assert.Equal(CoverDecisionOutcome.Unchanged, await kit.Decisions().DecideAsync(ltr.Id, default));
+        Assert.Equal(2, kit.Renderer.Requests.Count);
     }
 
     [Fact]

@@ -504,6 +504,10 @@ public sealed class CoverDecisionService
         existing.DecidedAt = DateTimeOffset.UtcNow;
         existing.RecheckAt = decision.NeedsRecheck ? DateTimeOffset.UtcNow + RecheckInterval(series.Record) : null;
         await _db.SaveChangesAsync(ct);
+        // A crop exists right after its decision (so the first card view does not wait for the worker); an existing
+        // file of this content version is kept. A failed render is retried when the cover is first served.
+        if (decision is { Source: AutoCoverSource.Crop, CropSide: { } cropSide })
+            await _crops.EnsureAsync(nodeId, cropSide, rerender: false, ct);
         _logger?.LogDebug(LogEvents.Metadata.CoverDecided, "Cover decided (node {NodeId}): {Source} / {Reason}", nodeId, decision.Source, decision.Reason);
         return CoverDecisionOutcome.Decided;
     }
