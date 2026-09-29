@@ -240,9 +240,10 @@ export function validateThresholds(
                 deleted right after.</p>
               <p><strong>Volume covers and volume lists:</strong> for every series that gets linked - by Automatic matching or
                 by you - MangaPixer also finds the series on MangaDex by its MangaUpdates title (never a folder or file name),
-                reads which chapters make up each volume and which volume covers exist in your preferred cover language and the
-                original language, and downloads the covers of volume 1 and of the volumes you have from MangaDex's image
-                server (uploads.mangadex.org). It checks again on the refresh schedule until a cover in your preferred language
+                reads which chapters make up each volume and which of them are released in your preferred language, and which
+                volume covers exist in your preferred cover language and the original language, and downloads the covers of
+                volume 1 and of the volumes you have (or, when there is no volume 1 cover, the series' main cover) from
+                MangaDex's image server (uploads.mangadex.org). It checks again on the refresh schedule until a cover in your preferred language
                 appears. When MangaDex has no volume list for a series, it asks AniList for the series' totals - by AniList
                 record number when known, otherwise by the MangaUpdates title. You can switch volume covers off below.</p>
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or anything
