@@ -83,7 +83,7 @@ test('a folder of chapters that state their volume groups into stacks, offline',
   await expect(cards.nth(1).locator('.node-title')).toHaveText('Vol. 2');
   await expect(cards.nth(1).locator('.node-sub')).toContainText('2 chapters');
   // Volume 3 is a real volume file with no chapters of its own: a plain card, not a stack.
-  await expect(cards.nth(2).locator('.node-title')).toHaveText('Stacked Saga v03');
+  await expect(cards.nth(2).locator('.node-title')).toHaveText('Stacked Saga v03.cbz');
   await expect(page.locator('app-stack-card')).toHaveCount(2);
   // Nothing is missing without a volume list: no incomplete mark.
   await expect(page.getByTestId('stack-incomplete')).toHaveCount(0);
