@@ -38,6 +38,7 @@ describe('LibraryBrowseComponent breadcrumbs', () => {
     } as CatalogNodeDto;
 
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of(prefs)),
       getLibraries: vi.fn().mockReturnValue(of(libs)),
       browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
@@ -279,6 +280,7 @@ describe('LibraryBrowseComponent card view', () => {
     const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
 
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of(libs)),
@@ -385,6 +387,7 @@ describe('LibraryBrowseComponent list columns', () => {
     const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
 
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of(libs)),
@@ -473,6 +476,7 @@ describe('LibraryBrowseComponent mark unread', () => {
     const setFolderRead = vi.fn().mockReturnValue(of({ affected: 0, total: 0 }));
 
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
@@ -568,6 +572,7 @@ describe('LibraryBrowseComponent range multi-select', () => {
   function setup(nodes: CatalogNodeDto[]) {
     const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
@@ -811,6 +816,7 @@ describe('LibraryBrowseComponent stale read-status refresh (1.7.1)', () => {
     const getReadMark = vi.fn();
     const getProgress = vi.fn();
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),
@@ -921,6 +927,7 @@ describe('LibraryBrowseComponent continue-row refresh (1.7.3)', () => {
       ? vi.fn(browseLibraryImpl)
       : vi.fn().mockReturnValue(of(initialPage));
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary,
@@ -1080,6 +1087,7 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
     const browseLibrary = vi.fn(opts.browse ?? (() => of(page([], null))));
     const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of(prefs)),
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
@@ -1526,6 +1534,7 @@ describe('LibraryBrowseComponent view menu selected highlight (1.8.1)', () => {
     const fullPrefs = { viewMode: 'card', density: 'comfortable', sort: 'name', direction: 'asc', ...prefs } as LibraryViewPreferencesDto;
     const emptyPage: PageResponse<CatalogNodeDto> = { items: [], totalCount: 0, nextCursor: null, hasMore: false };
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
@@ -1685,6 +1694,7 @@ describe('LibraryBrowseComponent "Recently updated" sort (1.12.0)', () => {
     const browseLibrary = vi.fn().mockReturnValue(of(emptyPage));
     const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
@@ -1793,6 +1803,7 @@ describe('LibraryBrowseComponent transient home-tap sort (1.12.0)', () => {
     const browseLibrary = vi.fn().mockReturnValue(of(emptyPage));
     const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name', direction: 'asc', cardSize: '150', libraryPageSize: 50 })),
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of([])),
@@ -1861,6 +1872,7 @@ describe('LibraryBrowseComponent browse visual polish (1.17.0)', () => {
   function setup(viewMode: 'card' | 'list', nodes: CatalogNodeDto[] = []) {
     const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode, density: 'comfortable', sort: 'name', direction: 'asc' })),
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
@@ -1984,6 +1996,7 @@ describe('LibraryBrowseComponent list-mode direct select (1.21.0)', () => {
   function setup(viewMode: 'card' | 'list', nodes: CatalogNodeDto[] = []) {
     const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode, density: 'comfortable', sort: 'name', direction: 'asc' })),
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
@@ -2080,6 +2093,7 @@ describe('LibraryBrowseComponent transient ?favorites=1 (1.27.0)', () => {
     const browseLibrary = vi.fn().mockReturnValue(of(emptyPage));
     const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name', direction: 'asc', cardSize: '150', libraryPageSize: 50 })),
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of([])),
