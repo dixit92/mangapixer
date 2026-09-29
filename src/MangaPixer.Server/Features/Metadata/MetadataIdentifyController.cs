@@ -19,10 +19,12 @@ using Microsoft.AspNetCore.Mvc;
 public sealed class MetadataIdentifyController : ControllerBase
 {
     private readonly MetadataIdentifyService _identify;
+    private readonly Volumes.VolumeCoverAdminService _volumeCovers;
 
-    public MetadataIdentifyController(MetadataIdentifyService identify)
+    public MetadataIdentifyController(MetadataIdentifyService identify, Volumes.VolumeCoverAdminService volumeCovers)
     {
         _identify = identify;
+        _volumeCovers = volumeCovers;
     }
 
     private string? Actor => User.Identity?.Name;
@@ -61,7 +63,14 @@ public sealed class MetadataIdentifyController : ControllerBase
     [ProducesResponseType<MetadataRefreshResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
     public Task<IActionResult> Refresh(string nodeId, CancellationToken ct) =>
-        Run(async () => await _identify.RefreshAsync(nodeId, Actor, ct));
+        Run(async () =>
+        {
+            var result = await _identify.RefreshAsync(nodeId, Actor, ct);
+            // 1.29.0: an admin's Refresh also reads the series' MangaDex companion and its lists (best effort).
+            if (result is { State: "Ok" })
+                await _volumeCovers.RefreshAfterRecordAsync(nodeId, ct);
+            return result;
+        });
 
     /// <summary>A search/preview candidate's image, by short-lived server-side token (no provider URL comes from the client).</summary>
     [HttpGet("candidates/{token}/image")]

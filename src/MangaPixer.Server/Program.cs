@@ -637,6 +637,17 @@ public sealed partial class Program
         // IMetadataProvider, so Identify / auto-match / refresh never see it.
         services.AddSingleton<Features.Metadata.Providers.AniList.IUnitConversionProvider, Features.Metadata.Providers.AniList.AniListProvider>();
         services.AddScoped<Features.Metadata.Missing.MissingConversionService>();
+        // MangaDex (1.29.0): ONLY the companion of an already-linked MangaUpdates record - volume lists and volume
+        // covers; not an IMetadataProvider, so Identify / auto-match / refresh never see it. The background pass runs in
+        // the automatic-matching hosted service; stored covers live in the data root.
+        services.AddSingleton<Features.Metadata.Providers.MangaDex.IMangaDexProvider, Features.Metadata.Providers.MangaDex.MangaDexProvider>();
+        services.AddSingleton(new Features.Metadata.Volumes.VolumeCoverStore(Path.Combine(dataRoot, Features.Metadata.Volumes.VolumeCoverStore.FolderName)));
+        services.AddSingleton<Features.Metadata.Volumes.VolumeCoverPassState>();
+        services.AddScoped<Features.Metadata.Volumes.CompanionLinkService>();
+        services.AddScoped<Features.Metadata.Volumes.VolumeMapService>();
+        services.AddScoped<Features.Metadata.Volumes.VolumeCoverFetcher>();
+        services.AddScoped<Features.Metadata.Volumes.VolumeCoverPass>();
+        services.AddScoped<Features.Metadata.Volumes.VolumeCoverAdminService>();
         services.AddScoped<Features.Metadata.Flags.MetadataFlagService>();
         services.AddHostedService<Hosting.MetadataAutoMatchHostedService>();
 

@@ -364,7 +364,8 @@ public sealed class MetadataIdentifyHttpTests
 }
 
 /// <summary>
-/// A test host whose three server-side named clients end in one
+/// A test host whose server-side named clients (MangaUpdates API + images, AniList, MangaDex API + images, Update
+/// Checker) all end in one
 /// <see cref="ScriptedHandler"/> (the real network is never reachable), with
 /// optional <c>Metadata:NetworkDisabled</c> and a Serilog collecting sink.
 /// </summary>
@@ -421,7 +422,11 @@ public sealed class MetadataNetworkWebApplicationFactory : WebApplicationFactory
                     services.Remove(descriptor);
             }
 
-            foreach (var name in new[] { MetadataHttp.MangaUpdatesApiClient, MetadataHttp.MangaUpdatesImageClient, UpdateCheckService.HttpClientName })
+            foreach (var name in new[]
+            {
+                MetadataHttp.MangaUpdatesApiClient, MetadataHttp.MangaUpdatesImageClient, MetadataHttp.AniListClient,
+                MetadataHttp.MangaDexApiClient, MetadataHttp.MangaDexImageClient, UpdateCheckService.HttpClientName,
+            })
                 services.AddHttpClient(name).ConfigurePrimaryHttpMessageHandler(() => Handler);
 
             _configureServices?.Invoke(services);

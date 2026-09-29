@@ -19,10 +19,12 @@ using Microsoft.Extensions.Caching.Memory;
 /// <see cref="MaxBatch"/>) asks AniList for the entry matching a linked MangaUpdates record and stores it as a
 /// record row with <c>Provider = "anilist"</c> (no new column): its volumes in <c>OriginVolumes</c>, its chapters in
 /// <c>LatestChapter</c>, and the cross reference <c>{"mangaupdates": "&lt;id&gt;"}</c> in <c>CrossIdsJson</c>. No folder
-/// is linked to it; nothing runs in the background.
+/// is linked to it. 1.29.0: the volume-cover pass also calls <see cref="LookupSeriesAsync"/> in the background (with
+/// Automatic matching on) for a linked series that MangaDex gives no volume list for.
 ///
-/// What is sent: the AniList id when one is already known (a stored row, or the MangaUpdates record's own cross
-/// reference); otherwise the LINKED MangaUpdates record's title - never a folder or file name. The answer is
+/// What is sent: the AniList id when one is already known (a stored row, the MangaUpdates record's own cross
+/// reference, or - 1.29.0 - the linked MangaDex record's own AniList link); otherwise the LINKED MangaUpdates record's
+/// title - never a folder or file name. The answer is
 /// accepted only when one entry's title matches the record's titles (<see cref="MinTitleScore"/>) and the start
 /// years agree within a year. Every call goes through <see cref="MetadataGateway.ConversionCallAsync{T}"/>.
 /// Logs and the audit carry counts and ids only.
@@ -196,30 +198,45 @@ public sealed class MissingConversionService
         return rows.Select(x => new Target(x.Id, x.PublicId, x.LibraryId, x.Record)).ToList();
     }
 
-    private async Task<MissingConversionOutcome> LookupRecordAsync(Target target, CancellationToken ct)
-    {
-        var mu = target.Record;
-        var stored = await _db.MetadataRecords
+    private async Task<MissingConversionOutcome> LookupRecordAsync(Target target, CancellationToken ct) =>
+        (await LookupSeriesAsync(target.Record, target.LibraryId, null, null, ct)).Outcome;
+
+    /// <summary>The stored AniList row of a MangaUpdates record, or null.</summary>
+    public async Task<MetadataRecordEntity?> StoredRowAsync(string muExternalId, CancellationToken ct = default) =>
+        (await _db.MetadataRecords
             .Where(r => r.Provider == MetadataProviderAllowlist.AniList && r.CrossIdsJson != null)
-            .ToListAsync(ct);
-        var existing = stored.FirstOrDefault(r => LinkedMangaUpdatesId(r.CrossIdsJson) == mu.ExternalId);
-        var knownId = existing?.ExternalId ?? CrossId(mu.CrossIdsJson);
+            .ToListAsync(ct))
+        .FirstOrDefault(r => LinkedMangaUpdatesId(r.CrossIdsJson) == muExternalId);
+
+    /// <summary>
+    /// Looks up the AniList entry of one linked MangaUpdates record <paramref name="mu"/> and stores it (1.29.0: shared
+    /// by the admin actions and the volume-cover pass). The id asked for, first that applies: a stored row's, the
+    /// MangaUpdates record's own cross reference, <paramref name="companionAniListId"/> (the linked MangaDex record's
+    /// <c>links.al</c>); otherwise a search by <paramref name="mu"/>'s title. <paramref name="call"/> carries the
+    /// origin (null = an admin action). Gateway refusals and provider failures throw <see cref="MetadataGatewayException"/>.
+    /// </summary>
+    public async Task<(MissingConversionOutcome Outcome, MetadataRecordEntity? Record, bool ById)> LookupSeriesAsync(
+        MetadataRecordEntity mu, long libraryId, string? companionAniListId, MetadataCallContext? call, CancellationToken ct = default)
+    {
+        var existing = await StoredRowAsync(mu.ExternalId, ct);
+        var knownId = existing?.ExternalId ?? CrossId(mu.CrossIdsJson)
+            ?? (int.TryParse(companionAniListId, NumberStyles.None, CultureInfo.InvariantCulture, out var al) && al > 0 ? companionAniListId : null);
 
         ConversionCandidate? match;
         if (knownId is not null)
         {
-            match = await _gateway.ConversionCallAsync(_provider, "get", target.LibraryId, c => _provider.GetAsync(knownId, c), ct);
+            match = await _gateway.ConversionCallAsync(_provider, "get", libraryId, c => _provider.GetAsync(knownId, c), ct, call);
         }
         else
         {
             var query = MetadataGateway.NormalizeQuery(mu.Title);
             if (query.Length is 0 or > MetadataGateway.MaxQueryLength)
-                return Miss(mu);
-            var candidates = await _gateway.ConversionCallAsync(_provider, "search", target.LibraryId, c => _provider.SearchAsync(query, c), ct);
+                return (Miss(mu), existing, false);
+            var candidates = await _gateway.ConversionCallAsync(_provider, "search", libraryId, c => _provider.SearchAsync(query, c), ct, call);
             match = Pick(mu, candidates);
         }
         if (match is null)
-            return Miss(mu);
+            return (Miss(mu), existing, knownId is not null);
 
         var now = _time.GetUtcNow();
         var record = existing ?? await _db.MetadataRecords.FirstOrDefaultAsync(r => r.Provider == MetadataProviderAllowlist.AniList && r.ExternalId == match.ExternalId, ct);
@@ -243,7 +260,8 @@ public sealed class MissingConversionService
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation(LogEvents.Metadata.RecordStored, "Metadata record {RecordId} stored ({Provider} {ExternalId})",
             record.Id, record.Provider, record.ExternalId);
-        return Ratio(record.OriginStatus, record.OriginVolumes, match.Chapters) is null ? MissingConversionOutcome.NoCounts : MissingConversionOutcome.Found;
+        var outcome = Ratio(record.OriginStatus, record.OriginVolumes, match.Chapters) is null ? MissingConversionOutcome.NoCounts : MissingConversionOutcome.Found;
+        return (outcome, record, knownId is not null);
     }
 
     private MissingConversionOutcome Miss(MetadataRecordEntity mu)

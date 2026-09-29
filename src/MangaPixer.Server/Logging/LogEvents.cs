@@ -393,5 +393,15 @@ public static class LogEvents
         public const int FlagCreated = 9230;
         public const int FlagResolved = 9231;
         public const int ReviewAction = 9240;
+
+        // Companions, volume lists and volume covers (1.29.0, 9300-9349). Ids, counts, codes and timings only - never
+        // titles, search text, file names or addresses.
+        public const int CompanionChecked = 9300;
+        public const int VolumeListStored = 9301;
+        public const int VolumeCoverStored = 9302;
+        public const int VolumeCoverFailed = 9303;
+        public const int VolumeCoverPass = 9304;
+        public const int VolumeCoverWaiting = 9305;
+        public const int VolumeCoversDeleted = 9306;
     }
 }

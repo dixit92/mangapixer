@@ -26,14 +26,16 @@ public sealed class MetadataAdminController : ControllerBase
     private readonly MetadataLinkService _links;
     private readonly MetadataIdentifyService _identify;
     private readonly AutoMatch.MetadataFolderContentService _content;
+    private readonly Volumes.VolumeCoverAdminService _volumeCovers;
 
     public MetadataAdminController(MetadataSettingsService settings, MetadataLinkService links, MetadataIdentifyService identify,
-        AutoMatch.MetadataFolderContentService content)
+        AutoMatch.MetadataFolderContentService content, Volumes.VolumeCoverAdminService volumeCovers)
     {
         _settings = settings;
         _links = links;
         _identify = identify;
         _content = content;
+        _volumeCovers = volumeCovers;
     }
 
     private string? Actor => User.Identity?.Name;
@@ -49,7 +51,10 @@ public sealed class MetadataAdminController : ControllerBase
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateSettings([FromBody] UpdateMetadataSettingsRequest request, CancellationToken ct)
     {
+        var before = await _settings.GetAsync(ct);
         var error = await _settings.UpdateAsync(request, Actor, ct);
+        if (error is null)
+            await _volumeCovers.AfterSettingsChangeAsync(before, await _settings.GetAsync(ct), ct);
         return error switch
         {
             null => Ok(await _settings.GetAsync(ct)),

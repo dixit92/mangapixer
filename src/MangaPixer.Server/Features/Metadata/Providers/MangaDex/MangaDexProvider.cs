@@ -56,6 +56,9 @@ public sealed record MangaDexManga
 
     /// <summary>The main cover's file name (<c>includes[]=cover_art</c>), validated, or null.</summary>
     public string? MainCoverFile { get; init; }
+
+    /// <summary>The main cover's id, or null.</summary>
+    public string? MainCoverId { get; init; }
 }
 
 /// <summary>One volume of an <c>aggregate</c> answer: its key and its chapters with their upload counts.</summary>
@@ -261,7 +264,7 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             }
         }
 
-        string? coverFile = null;
+        string? coverFile = null, coverId = null;
         if (item.TryGetProperty("relationships", out var relationships) && relationships.ValueKind == JsonValueKind.Array)
         {
             foreach (var rel in relationships.EnumerateArray())
@@ -270,6 +273,7 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
                     && coverAttributes.ValueKind == JsonValueKind.Object && Str(coverAttributes, "fileName") is { } file && IsValidFileName(file))
                 {
                     coverFile = file;
+                    coverId = Str(rel, "id") is { } relId && IsValidId(relId) ? relId : null;
                     break;
                 }
             }
@@ -292,7 +296,8 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             FanColored = fanColored,
             CreatedAt = DateTimeOffset.TryParse(Str(attributes, "createdAt"), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var created)
                 ? created : null,
-            MainCoverFile = coverFile,
+            MainCoverFile = coverId is null ? null : coverFile,
+            MainCoverId = coverFile is null ? null : coverId,
         };
     }
 
