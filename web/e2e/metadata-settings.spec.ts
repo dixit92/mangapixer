@@ -168,10 +168,16 @@ test('volume covers card (1.29.0): MangaDex is an allowed site; the switch and t
   await toggle.click();
   await expect.poll(async () => (await (await page.request.get('/api/v1/admin/metadata/settings')).json()).volumeCoversEnabled).toBe(true);
 
-  await covers.getByTestId('md-cover-language').click();
+  const language = covers.getByTestId('md-cover-language');
+  await language.click();
   await page.getByRole('option', { name: 'Japanese' }).click();
   await expect.poll(async () => (await (await page.request.get('/api/v1/admin/metadata/settings')).json()).preferredCoverLanguage).toBe('ja');
-  await covers.getByTestId('md-cover-language').click();
+  // The server has it before the page applies its own save response (which re-enables the select and closes an open panel):
+  // wait for the page, not just the server, before opening the select again.
+  await expect(card.getByRole('status').filter({ hasText: 'Preferred language saved' })).toBeVisible();
+  await expect(language).toContainText('Japanese');
+  await expect(language).toHaveAttribute('aria-disabled', 'false');
+  await language.click();
   await page.getByRole('option', { name: 'English' }).click();
   await expect.poll(async () => (await (await page.request.get('/api/v1/admin/metadata/settings')).json()).preferredCoverLanguage).toBe('en');
 
