@@ -16,7 +16,6 @@ public sealed class VolumeStackController(VolumeStackService service, CatalogIdR
 {
     [HttpGet("volume-view")]
     [ProducesResponseType<VolumeViewDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetView(string nodeId, CancellationToken ct)
     {
         if (UserId() is not { } userId)
@@ -30,7 +29,6 @@ public sealed class VolumeStackController(VolumeStackService service, CatalogIdR
 
     [HttpGet("volumes/{key}")]
     [ProducesResponseType<VolumeStackDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetStack(string nodeId, string key, CancellationToken ct)
     {
         if (UserId() is not { } userId)
