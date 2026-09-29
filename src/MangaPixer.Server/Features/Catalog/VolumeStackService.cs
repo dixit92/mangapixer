@@ -26,6 +26,12 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             Active = view.Available && await entries.IsActiveAsync(userId, view, null, ct),
             Consolidated = view.Consolidated,
             StackCount = view.StackCount,
+            HasSeriesStatus = view.Status is not null,
+            SeriesStatus = view.Status?.Status,
+            MissingVolumes = view.Status?.MissingVolumes ?? 0,
+            MissingChapters = view.Status?.MissingChapters ?? 0,
+            ReleaseKnown = view.Status?.ReleaseKnown ?? false,
+            Language = view.Status?.Language,
         };
     }
 
@@ -64,6 +70,7 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             Source = stack.Source,
             PresentCount = stack.PresentCount,
             ChapterCount = stack.ChapterCount,
+            ChaptersPresent = stack.ChaptersPresent,
             MissingCount = stack.MissingChapters.Count,
             ExtraCount = stack.ExtraCount,
             PreviousKey = index > 0 ? keys[index - 1] : null,
