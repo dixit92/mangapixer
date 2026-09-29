@@ -100,6 +100,9 @@ public sealed record VolumeStackDto
     /// <summary>1.29.0 RC: the complete chapters of <see cref="ChapterCount"/> (see <see cref="VolumeStackSummaryDto.ChaptersPresent"/>).</summary>
     public int? ChaptersPresent { get; init; }
 
+    /// <summary>1.29.0 RC: a real volume file is the first slot (a fractional volume file, the last slot, is an extra).</summary>
+    public bool HasVolumeArchive { get; init; }
+
     public required int MissingCount { get; init; }
     public required int ExtraCount { get; init; }
     public string? PreviousKey { get; init; }

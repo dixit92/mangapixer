@@ -1602,7 +1602,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       const have = s.chaptersPresent ?? chapters - s.extraCount;
       if (have < s.chapterCount) return `${have} of ${s.chapterCount} chapters`;
     }
-    return `${chapters} chapter${chapters === 1 ? '' : 's'}`;
+    const plain = chapters - s.extraCount;
+    const extras = s.extraCount > 0 ? ` + ${s.extraCount} extra${s.extraCount === 1 ? '' : 's'}` : '';
+    return plain > 0 ? `${plain} chapter${plain === 1 ? '' : 's'}${extras}` : `${s.extraCount} extra${s.extraCount === 1 ? '' : 's'}`;
   }
 
   /** Reads the folder's Volumes view state (drives the switch); a failure hides the switch. */

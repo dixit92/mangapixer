@@ -1898,6 +1898,8 @@ export interface VolumeStackDto {
   chapterCount?: number | null;
   /** 1.29.0 RC: complete chapters of chapterCount. */
   chaptersPresent?: number | null;
+  /** 1.29.0 RC: a real volume file is the first slot (a fractional volume file, the last slot, is an extra). */
+  hasVolumeArchive?: boolean;
   missingCount: number;
   extraCount: number;
   previousKey?: string | null;

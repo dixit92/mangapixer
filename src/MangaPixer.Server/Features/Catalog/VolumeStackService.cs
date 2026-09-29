@@ -71,6 +71,7 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             PresentCount = stack.PresentCount,
             ChapterCount = stack.ChapterCount,
             ChaptersPresent = stack.ChaptersPresent,
+            HasVolumeArchive = stack.HasVolumeArchive,
             MissingCount = stack.MissingChapters.Count,
             ExtraCount = stack.ExtraCount,
             PreviousKey = index > 0 ? keys[index - 1] : null,
