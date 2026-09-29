@@ -42,7 +42,13 @@ public sealed class VolumeEntryServiceTests : IDisposable
     }
 
     private static string[] Kinds(FolderVolumeEntries view) =>
-        view.Entries.Select(e => e.Kind == VolumeEntryKind.Stack ? "stack:" + e.Stack!.Key : (e.Kind == VolumeEntryKind.Folder ? "folder:" : "archive:") + e.Row!.Name).ToArray();
+        view.Entries.Select(e => e.Kind switch
+        {
+            VolumeEntryKind.Stack => "stack:" + e.Stack!.Key,
+            VolumeEntryKind.MissingVolume => "missing:" + VolumeGrouping.KeyOf(e.Volume!.Value),
+            VolumeEntryKind.Folder => "folder:" + e.Row!.Name,
+            _ => "archive:" + e.Row!.Name,
+        }).ToArray();
 
     // Series/ (linked) holds Volumes/ (v01, v02), Chapters/ (17-28), Season 2/ and Extras/ subfolders; the map places 1-8 in
     // volume 1, 9-16 in 2, 17-24 in 3, 25-32 in 4.
@@ -87,22 +93,90 @@ public sealed class VolumeEntryServiceTests : IDisposable
         var stack3 = view.Entries.Single(e => e.Kind == VolumeEntryKind.Stack && e.Stack!.Key == "3").Stack!;
         Assert.Equal(8, stack3.PresentCount);
         Assert.Empty(stack3.MissingChapters);
-        // Volume 4 lists 25-32, only 25-28 are on disk: the series is complete, so 29-32 are marked missing.
+        // Volume 4 lists 25-32, only 25-28 are on disk and nothing later is: without a released list nothing is marked missing.
         var stack4 = view.Entries.Single(e => e.Kind == VolumeEntryKind.Stack && e.Stack!.Key == "4").Stack!;
-        Assert.Equal([29, 30, 31, 32], stack4.MissingChapters);
+        Assert.Empty(stack4.MissingChapters);
         Assert.Equal(series.Id, view.SeriesFolderId);
     }
 
     [Fact]
-    public async Task OngoingSeries_DoesNotMarkTheTrailingChaptersOfItsLastVolume()
+    public async Task TrailingChapters_AreMissingOnlyWhenReleasedInThePreferredLanguage()
     {
         var (db, lib) = await SetupAsync();
         using var _ = db;
         var (series, _, _) = await SeedSeriesAsync(db, lib, MetadataOriginStatus.Ongoing);
+        var map = await db.SeriesVolumeMaps.SingleAsync();
+        var service = new VolumeEntryService(db);
+        IReadOnlyList<decimal> Missing4(FolderVolumeEntries v) => v.Entries.Single(e => e.Kind == VolumeEntryKind.Stack && e.Stack!.Key == "4").Stack!.MissingChapters;
 
-        var view = await new VolumeEntryService(db).GetEntriesAsync(series.Id, default);
+        // Released in English through chapter 30 (the preferred language defaults to English): 29 and 30 are missing, 31-32 not yet.
+        await VolumeTestData.SetReleasedAsync(db, map, "en", 30);
+        var english = (await service.GetEntriesAsync(series.Id, default))!;
+        Assert.Equal([29m, 30m], Missing4(english));
+        Assert.Equal((2, true, "en"), (english.Status!.MissingChapters, english.Status.ReleaseKnown, english.Status.Language));
 
-        Assert.Empty(view!.Entries.Single(e => e.Kind == VolumeEntryKind.Stack && e.Stack!.Key == "4").Stack!.MissingChapters);
+        // Another preferred language: the English list says nothing about it.
+        await VolumeTestData.SetPreferredLanguageAsync(db, "fr");
+        var french = (await service.GetEntriesAsync(series.Id, default))!;
+        Assert.Empty(Missing4(french));
+        Assert.False(french.Status!.ReleaseKnown);
+        Assert.Equal("fr", french.Status.Language);
+
+        // A list read for French counts.
+        await VolumeTestData.SetReleasedAsync(db, map, "fr", 29);
+        Assert.Equal([29m], Missing4((await service.GetEntriesAsync(series.Id, default))!));
+    }
+
+    [Fact]
+    public async Task AVolumesOnlyLinkedFolder_ShowsMissingVolumes_AgainstTheEnglishTotal()
+    {
+        var (db, lib) = await SetupAsync();
+        using var _ = db;
+        var folder = await VolumeTestData.AddFolderAsync(db, lib.Id, null, "Volumes Only");
+        foreach (var v in new[] { 1, 2, 4 })
+            await VolumeTestData.AddArchiveAsync(db, lib.Id, folder.Id, $"Volumes Only v{v:00}");
+        var record = await VolumeTestData.AddRecordAsync(db, status: MetadataOriginStatus.Ongoing, originVolumes: 12, englishVolumes: 6);
+        await VolumeTestData.LinkAsync(db, folder, record.Id);
+        var service = new VolumeEntryService(db);
+
+        var view = (await service.GetEntriesAsync(folder.Id, default))!;
+
+        Assert.True(view.Available);
+        Assert.Equal(["archive:Volumes Only v01", "archive:Volumes Only v02", "missing:3", "archive:Volumes Only v04", "missing:5", "missing:6"], Kinds(view));
+        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Ongoing, 3, 0, true, "en"), view.Status);
+
+        // French: no volume total is known for it - only the gap below volume 4, never the untranslated origin volumes.
+        await VolumeTestData.SetPreferredLanguageAsync(db, "fr");
+        var french = (await service.GetEntriesAsync(folder.Id, default))!;
+        Assert.Equal(["archive:Volumes Only v01", "archive:Volumes Only v02", "missing:3", "archive:Volumes Only v04"], Kinds(french));
+        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Ongoing, 1, 0, false, "fr"), french.Status);
+    }
+
+    [Fact]
+    public async Task AnUpToDateVolumesOnlyFolder_StillHasAVolumesView_ForItsStatus()
+    {
+        var (db, lib) = await SetupAsync();
+        using var _ = db;
+        var folder = await VolumeTestData.AddFolderAsync(db, lib.Id, null, "Complete Set");
+        foreach (var v in new[] { 1, 2, 3 })
+            await VolumeTestData.AddArchiveAsync(db, lib.Id, folder.Id, $"Complete Set v{v:00}");
+        var record = await VolumeTestData.AddRecordAsync(db, status: MetadataOriginStatus.Complete, englishVolumes: 3);
+        await VolumeTestData.LinkAsync(db, folder, record.Id);
+
+        var view = (await new VolumeEntryService(db).GetEntriesAsync(folder.Id, default))!;
+
+        Assert.True(view.Available);
+        Assert.Equal(0, view.StackCount);
+        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Complete, 0, 0, true, "en"), view.Status);
+
+        // The same folder without a link: nothing to show beyond the folder list.
+        var plain = await VolumeTestData.AddFolderAsync(db, lib.Id, null, "Unlinked Set");
+        foreach (var v in new[] { 1, 2, 4 })
+            await VolumeTestData.AddArchiveAsync(db, lib.Id, plain.Id, $"Unlinked Set v{v:00}");
+        var unlinked = (await new VolumeEntryService(db).GetEntriesAsync(plain.Id, default))!;
+        Assert.False(unlinked.Available);
+        Assert.Null(unlinked.Status);
+        Assert.DoesNotContain(unlinked.Entries, e => e.Kind == VolumeEntryKind.MissingVolume);
     }
 
     [Fact]
@@ -224,6 +298,9 @@ public sealed class VolumeEntryServiceTests : IDisposable
         Assert.Equal("5", stack.Key);
         Assert.Equal(10, stack.PresentCount);
         Assert.Equal(series.Id, view.SeriesFolderId);
+        // A Season subfolder holds part of the run: no missing-volume placeholders (volumes 1-4 are elsewhere) and no status line.
+        Assert.DoesNotContain(view.Entries, e => e.Kind == VolumeEntryKind.MissingVolume);
+        Assert.Null(view.Status);
         // The series folder keeps Season 1 / Season 2 as folders (never merged) and groups nothing of its own.
         var parent = await service.GetEntriesAsync(series.Id, default);
         Assert.False(parent!.Consolidated);
