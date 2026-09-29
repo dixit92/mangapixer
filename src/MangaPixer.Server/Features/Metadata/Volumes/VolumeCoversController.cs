@@ -258,7 +258,6 @@ public sealed class VolumeCoversController : ControllerBase
     /// <summary>The companions (MangaDex, AniList) of the series the node is linked to. No network.</summary>
     [HttpGet("nodes/{nodeId}/companions")]
     [ProducesResponseType<List<CompanionDto>>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Companions(string nodeId, CancellationToken ct) =>
         await _admin.ListAsync(nodeId, ct) is { } list ? Ok(list) : NotFound();
 
@@ -289,7 +288,6 @@ public sealed class VolumeCoversController : ControllerBase
     /// <summary>"Not on MangaDex": the series is never looked up there again. No network.</summary>
     [HttpDelete("nodes/{nodeId}/companions/mangadex")]
     [ProducesResponseType<List<CompanionDto>>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ClearMangaDex(string nodeId, CancellationToken ct) =>
         await _admin.SetNoneAsync(nodeId, Actor, ct) is { } list ? Ok(list) : NotFound();
 
