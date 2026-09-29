@@ -292,6 +292,17 @@ export function validateThresholds(
             </p>
           </section>
 
+          <!-- Volumes view (1.29.0): the global default of the virtual volume stacks. Reads stored data only; a library, a
+               folder and each person's own Volumes | Folders switch can override it. -->
+          <section class="card" aria-labelledby="md-volumes-h">
+            <h3 id="md-volumes-h"><mat-icon aria-hidden="true">collections_bookmark</mat-icon> Volumes view</h3>
+            <mat-slide-toggle [checked]="s.virtualVolumesEnabled !== false" [disabled]="saving()" (change)="setVirtualVolumes($event.checked)"
+                              data-testid="md-volumes-default">
+              Group chapters into volumes by default
+            </mat-slide-toggle>
+            <p class="note">A series' chapters show as volume stacks, ordered by volume, wherever the file names or a stored volume list say which volume they belong to. Each library and folder can override this, and everyone has a Volumes | Folders switch of their own.</p>
+          </section>
+
           </div>
 
           <!-- 4. Libraries (stage 1 rows + "Match now") -->
@@ -310,6 +321,15 @@ export function validateThresholds(
                       <mat-option value="default">Default (web first)</mat-option>
                       <mat-option value="WebFirst">Web first</mat-option>
                       <mat-option value="ComicInfoFirst">ComicInfo first</mat-option>
+                    </mat-select>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="prec">
+                    <mat-label>Volumes view</mat-label>
+                    <mat-select [value]="lib.virtualVolumes ?? 'default'" (selectionChange)="setVolumesView(lib, $event.value)" [disabled]="saving()"
+                                data-testid="md-lib-volumes">
+                      <mat-option value="default">Default</mat-option>
+                      <mat-option value="On">On</mat-option>
+                      <mat-option value="Off">Off</mat-option>
                     </mat-select>
                   </mat-form-field>
                   <span class="spacer"></span>
@@ -624,6 +644,16 @@ export class MetadataSettingsComponent implements OnInit {
   setLibrary(lib: MetadataLibrarySettingsDto, change: { fetchEnabled?: boolean; showSeriesInfo?: boolean }): void {
     if (change.fetchEnabled === false && this.matching() === lib.libraryId) this.matching.set(null);
     this.save(this.api.updateLibrary(lib.libraryId, change));
+  }
+
+  /** The global default of the Volumes view (1.29.0). */
+  setVirtualVolumes(on: boolean): void {
+    this.save(this.api.updateSettings({ virtualVolumesEnabled: on }), on ? 'Volumes view is on by default' : 'Volumes view is off by default');
+  }
+
+  /** One library's Volumes view override (1.29.0): On, Off, or back to the global default. */
+  setVolumesView(lib: MetadataLibrarySettingsDto, value: 'default' | 'On' | 'Off'): void {
+    this.save(this.api.updateLibrary(lib.libraryId, value === 'default' ? { resetVirtualVolumes: true } : { virtualVolumes: value }));
   }
 
   setPrecedence(lib: MetadataLibrarySettingsDto, value: MetadataPrecedence | 'default'): void {
