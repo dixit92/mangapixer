@@ -113,10 +113,12 @@ public sealed class VolumeStackHttpTests : IClassFixture<MangaPixerWebApplicatio
         Assert.True(second.HasPrevious);
         Assert.Equal(2, second.TotalCount);
 
+        // The page before the second entry is the first; nothing precedes the first entry.
         var back = await BrowseAsync(admin, $"pageSize=1&before={Uri.EscapeDataString(second.PrevCursor!)}");
-        Assert.Empty(back.Items); // nothing precedes the first entry
-        var before = await BrowseAsync(admin, $"pageSize=5&before={Uri.EscapeDataString(first.NextCursor!)}");
-        Assert.Equal(["Vol. 1"], before.Items.Select(n => n.DisplayName));
+        Assert.Equal(["Vol. 1"], back.Items.Select(n => n.DisplayName));
+        Assert.False(back.HasPrevious);
+        var beforeFirst = await BrowseAsync(admin, $"pageSize=5&before={Uri.EscapeDataString(first.NextCursor!)}");
+        Assert.Empty(beforeFirst.Items);
     }
 
     [Fact]

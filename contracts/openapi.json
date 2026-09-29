@@ -4354,6 +4354,13 @@
               "type": "boolean",
               "default": false
             }
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -4687,6 +4694,132 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/volume-view": {
+      "get": {
+        "tags": [
+          "VolumeStack"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeViewDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeViewDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeViewDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/volumes/{key}": {
+      "get": {
+        "tags": [
+          "VolumeStack"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeStackDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeStackDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeStackDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -5752,6 +5885,153 @@
           }
         }
       },
+      "CardCoverSource": {
+        "type": "integer"
+      },
+      "CatalogNodeAvailability": {
+        "type": "integer"
+      },
+      "CatalogNodeDto": {
+        "required": [
+          "id",
+          "parentId",
+          "libraryId",
+          "kind",
+          "displayName",
+          "availability"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CatalogNodeKind"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "availability": {
+            "$ref": "#/components/schemas/CatalogNodeAvailability"
+          },
+          "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "childFolderCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "childArchiveCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "readingState": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReadingState"
+              }
+            ]
+          },
+          "lastReadPage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "readerDefault": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReaderMode"
+              }
+            ]
+          },
+          "isRead": {
+            "type": "boolean"
+          },
+          "isFavorite": {
+            "type": "boolean"
+          },
+          "readRollup": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FolderReadRollup"
+              }
+            ]
+          },
+          "hasSeriesInfo": {
+            "type": "boolean"
+          },
+          "favoriteStackCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "volumeStack": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/VolumeStackSummaryDto"
+              }
+            ]
+          },
+          "coverSource": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CardCoverSource"
+              }
+            ]
+          }
+        }
+      },
       "CatalogNodeKind": {
         "type": "integer"
       },
@@ -6079,6 +6359,9 @@
             "$ref": "#/components/schemas/MetadataPrecedence"
           }
         }
+      },
+      "FolderReadRollup": {
+        "type": "integer"
       },
       "FolderViewSettingsDto": {
         "required": [
@@ -8938,7 +9221,48 @@
           }
         }
       },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "ReaderMode": {
+        "type": "integer"
+      },
+      "ReadingState": {
         "type": "integer"
       },
       "RecentChaptersDto": {
@@ -10025,6 +10349,233 @@
       "ViewSwitch": {
         "type": "integer"
       },
+      "VolumeListSource": {
+        "type": "integer"
+      },
+      "VolumeSlotDto": {
+        "required": [
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/VolumeSlotKind"
+          },
+          "chapter": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "item": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CatalogNodeDto"
+              }
+            ]
+          }
+        }
+      },
+      "VolumeSlotKind": {
+        "type": "integer"
+      },
+      "VolumeStackConfidence": {
+        "type": "integer"
+      },
+      "VolumeStackDto": {
+        "required": [
+          "folderId",
+          "key",
+          "label",
+          "confidence",
+          "source",
+          "presentCount",
+          "missingCount",
+          "extraCount",
+          "slots"
+        ],
+        "type": "object",
+        "properties": {
+          "folderId": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/VolumeStackConfidence"
+          },
+          "source": {
+            "$ref": "#/components/schemas/VolumeListSource"
+          },
+          "presentCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "chapterCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "missingCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "extraCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "previousKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "nextKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VolumeSlotDto"
+            }
+          }
+        }
+      },
+      "VolumeStackSummaryDto": {
+        "required": [
+          "key",
+          "label",
+          "presentCount",
+          "missingCount",
+          "extraCount",
+          "hasVolumeArchive",
+          "confidence"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "presentCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "chapterCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "missingCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "extraCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "hasVolumeArchive": {
+            "type": "boolean"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/VolumeStackConfidence"
+          },
+          "firstChapter": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lastChapter": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "VolumeViewDto": {
+        "required": [
+          "nodeId",
+          "available",
+          "active",
+          "consolidated",
+          "stackCount"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "consolidated": {
+            "type": "boolean"
+          },
+          "stackCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "WorkClass": {
         "type": "integer"
       },
@@ -10123,6 +10674,9 @@
     },
     {
       "name": "JumpIndex"
+    },
+    {
+      "name": "VolumeStack"
     },
     {
       "name": "Auth"
