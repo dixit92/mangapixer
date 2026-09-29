@@ -6,8 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **MangaDex as an allowed site (volume covers and volume lists).** A series linked to MangaUpdates now finds its MangaDex record on its own - only when MangaDex's own MangaUpdates link names the same series - and reads which chapters make up each volume and which volume covers exist in your **Preferred cover language** (default English) and the series' original language. With Automatic matching on, this runs in the background, a little at a time so new folders are still matched promptly, and downloads the covers of volume 1 and of the volumes you have; covers are stored on your server and the browser never contacts MangaDex. A cover missing in your language is looked for again on the series' refresh schedule. Everything counts in the daily request budget, at one request per second. MangaDex is credited in Metadata Manager next to its setting.
+- **Metadata Manager > Settings > Volume covers:** "Volume covers from the web" (on by default; still needs both consents, MangaDex on the allowed sites and the library's Fetch switch), Preferred cover language, the progress, and **Delete stored volume covers**. `Metadata__AutoMatch__VolumeCovers=false` switches it off regardless of the setting.
+- **Change MangaDex match...** in a linked series' Admin menu: see which MangaDex title is used, paste another MangaDex title address, mark the series **Not on MangaDex**, or **Check again**.
+
 ### Changed
 
+- AniList totals for the chapters <-> volumes conversion are now also looked up automatically (with Automatic matching on) for a linked series that MangaDex has no volume list for - by the AniList number MangaDex links when there is one.
+- An admin's **Refresh** of a linked series also reads its MangaDex volume list and cover list.
+- Each metadata site now has its own request rate and its own pause when it asks MangaPixer to slow down: a busy MangaDex or AniList never pauses MangaUpdates.
 - **Upgrade note:** this version adds a database migration (`AddVolumeCoversAndVirtualVolumes`: new tables for volume lists, volume covers and cover choices, and new settings columns; a snapshot is taken before it runs). The media worker protocol is now 5 (the server and the worker ship together; the server refuses an older worker).
 - **Accept the metadata consents again after this update.** Both consent texts now cover MangaDex (volume covers, and which chapters make up each volume, for series already linked to MangaUpdates) and AniList's totals as a fallback; fetching from the web and Automatic matching stay off until an admin accepts the new texts in Metadata Manager.
 - **Review rows open their folder.** Each row in the Metadata Manager's review lists has a folder button that opens the folder in the library - an archive opens the folder that contains it.
