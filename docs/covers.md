@@ -43,7 +43,7 @@ For a folder linked to a series, MangaPixer can also use covers it downloaded fr
 | A `Season` / `Part` subfolder | The cover of the volume its first chapter belongs to, when that is known. |
 | A volume stack of chapters (the [Volumes view](volumes.md)) | The cover of that volume from the web. A stack that holds the volume archive itself shows that archive's cover. No web cover for the volume: its first chapter's cover. |
 
-The preferred cover language is set in **Metadata Manager** > **Settings**. When a volume has no cover in that language yet, the cover from the country of origin is used and MangaPixer looks again later.
+The preferred language (**Preferred language (covers and releases)**) is set in **Metadata Manager** > **Settings**. When a volume has no cover in that language yet, the cover from the country of origin is used and MangaPixer looks again later.
 
 Two switches hide the stored web covers without deleting them:
 
