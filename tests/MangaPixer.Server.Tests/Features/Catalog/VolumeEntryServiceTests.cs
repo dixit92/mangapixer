@@ -78,7 +78,7 @@ public sealed class VolumeEntryServiceTests : IDisposable
         Assert.True(view.Consolidated);
         // Volume archives and stacks by volume number; the unmerged subfolders after them; the merged folders' cards are hidden.
         Assert.Equal(
-            ["archive:Synthetic Series v01", "archive:Synthetic Series v02", "stack:3", "stack:4", "folder:", "folder:"],
+            ["archive:Synthetic Series v01", "archive:Synthetic Series v02", "stack:3", "stack:4", "folder:Extras", "folder:Season 2"],
             Kinds(view));
         Assert.Equal(["Extras", "Season 2"], view.Entries.Where(e => e.Kind == VolumeEntryKind.Folder).Select(e => e.Row!.Name).Order());
         // The rows keep their REAL parent (the reader's neighbours and "open containing folder" follow it).
@@ -151,7 +151,7 @@ public sealed class VolumeEntryServiceTests : IDisposable
 
         // Merging Volumes/ would hide its subfolder: the card stays, Chapters/ still merges.
         Assert.Contains(view!.Entries, e => e.Kind == VolumeEntryKind.Folder && e.Row!.Id == volumes.PublicId);
-        Assert.DoesNotContain(view.Entries, e => e.Kind == VolumeEntryKind.Folder && e.Row!.DisplayName == "Chapters");
+        Assert.DoesNotContain(view.Entries, e => e.Kind == VolumeEntryKind.Folder && e.Row!.Name == "Chapters");
         Assert.True(view.Consolidated);
     }
 
@@ -170,7 +170,7 @@ public sealed class VolumeEntryServiceTests : IDisposable
 
         Assert.False(view!.Consolidated);
         Assert.True(view.Available);
-        Assert.Equal(["stack:2", "folder:"], Kinds(view));
+        Assert.Equal(["stack:2", "folder:Volumes"], Kinds(view));
         Assert.Contains(view.Entries, e => e.Kind == VolumeEntryKind.Folder && e.Row!.Id == volumes.PublicId);
         Assert.Equal(1, view.StackCount);
     }
@@ -227,7 +227,7 @@ public sealed class VolumeEntryServiceTests : IDisposable
         // The series folder keeps Season 1 / Season 2 as folders (never merged) and groups nothing of its own.
         var parent = await service.GetEntriesAsync(series.Id, default);
         Assert.False(parent!.Consolidated);
-        Assert.Equal(["folder:", "folder:"], Kinds(parent));
+        Assert.Equal(["folder:Season 1", "folder:Season 2"], Kinds(parent));
 
         // Season 1 restarting from chapter 1 again in a third season: no season groups.
         var season3 = await VolumeTestData.AddFolderAsync(db, lib.Id, series.Id, "Season 3");
@@ -271,13 +271,15 @@ public sealed class VolumeEntryServiceTests : IDisposable
         foreach (var (name, volume) in new[] { ("Untitled Book A", 1), ("Untitled Book B", 1), ("Untitled Book C", 2) })
         {
             var node = await VolumeTestData.AddArchiveAsync(db, lib.Id, folder.Id, name);
-            await VolumeTestData.AddComicInfoAsync(db, node.Id, volume, name[^1] == 'A' ? "1" : name[^1] == 'B' ? "2" : "3");
+            await VolumeTestData.AddComicInfoAsync(db, node.Id, volume, name[^1] == 'A' ? "5" : name[^1] == 'B' ? "6" : "7");
         }
 
         var view = await new VolumeEntryService(db).GetEntriesAsync(folder.Id, default);
 
-        Assert.Equal(["stack:1", "stack:2"], Kinds(view!));
-        Assert.Equal(["1", "2"], [view.Entries[0].Stack!.FirstChapter!, view.Entries[0].Stack!.LastChapter!]);
+        Assert.NotNull(view);
+        Assert.Equal(["stack:1", "stack:2"], Kinds(view));
+        Assert.Equal("5", view.Entries[0].Stack!.FirstChapter);
+        Assert.Equal("6", view.Entries[0].Stack!.LastChapter);
     }
 
     [Fact]
