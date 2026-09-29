@@ -32,7 +32,7 @@ describe('MetadataSettingsComponent Volumes view (1.29.0)', () => {
     const on = create();
     expect(on.el.querySelector('[data-testid="md-volumes-default"]')).not.toBeNull();
     expect(on.c.settings()?.virtualVolumesEnabled).toBeUndefined();
-    expect(on.el.querySelector('[data-testid="md-volumes-default"] input')!.hasAttribute('checked') || (on.el.querySelector('[data-testid="md-volumes-default"] input') as HTMLInputElement).checked).toBe(true);
+    expect(on.el.querySelector('[data-testid="md-volumes-default"] button[role="switch"]')!.getAttribute('aria-checked')).toBe('true');
   });
 
   it('turning the default off is ONE settings PUT with that field only', () => {
