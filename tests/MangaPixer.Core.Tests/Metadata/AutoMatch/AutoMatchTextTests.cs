@@ -50,6 +50,59 @@ public sealed class AutoMatchTextTests
     public void ChapterNumberOf_IsTheHighestStatedChapter(string name, int? expected) =>
         Assert.Equal(expected, AutoMatchText.ChapterNumberOf(name));
 
+    // Unit numbers v2 (1.29.0): volume, volume end, chapter, chapter end ("" = null), extra.
+    [Theory]
+    [InlineData("Some Title v03 (Digital).cbz", "3", "", "", "", false)]
+    [InlineData("Some Title c045.5.cbz", "", "", "45.5", "", true)]
+    [InlineData("Some Title v02.5.cbz", "2.5", "", "", "", true)]
+    [InlineData("Some Title v03 c012.cbz", "3", "", "12", "", false)]
+    [InlineData("Some Title Vol.3 Ch.12.5.cbz", "3", "", "12.5", "", true)]
+    [InlineData("Some Title Vol. 01-05.cbz", "1", "5", "", "", false)]
+    [InlineData("Some Title v01-v05.cbz", "1", "5", "", "", false)]
+    [InlineData("Some Title c010-012.cbz", "", "", "10", "12", false)]
+    [InlineData("Some Title Ch. 001-010.cbz", "", "", "1", "10", false)]
+    [InlineData("Some Title - Chapter 012.cbz", "", "", "12", "", false)]
+    [InlineData("Some Title - Episode 7.cbz", "", "", "7", "", false)]
+    [InlineData("Some Title #4.cbz", "", "", "4", "", false)]
+    [InlineData("001 [Chapter Title].cbz", "", "", "1", "", false)]
+    [InlineData("000.cbz", "", "", "0", "", false)]
+    [InlineData("012.5 [Side Story].cbz", "", "", "12.5", "", true)]
+    [InlineData("001-003 [Chapter Titles].cbz", "", "", "1", "3", false)]
+    [InlineData("2019 [Chapter Title].cbz", "", "", "", "", false)] // a leading year is not a chapter
+    [InlineData("Some Title v03 - 2019.cbz", "3", "", "", "", false)] // a year never ends a range
+    [InlineData("Some Title 001.cbz", "", "", "", "", false)] // a title and no token: not a unit
+    [InlineData("Some Title (Vol. 3).cbz", "3", "", "", "", false)] // only a bracket names the unit
+    [InlineData("[Group] Some Title - c007 [v2].cbz", "", "", "7", "", false)] // [v2] is a release revision
+    [InlineData("[Group] Some Title [v2].cbz", "", "", "", "", false)]
+    [InlineData("Some Title Extra.cbz", "", "", "", "", false)]
+    [InlineData("", "", "", "", "", false)]
+    public void UnitsOf_KeepsDecimalsBothNumbersAndRanges(string name, string volume, string volumeEnd, string chapter, string chapterEnd, bool extra)
+    {
+        static decimal? D(string s) => s.Length == 0 ? null : decimal.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Equal(new UnitNumbers(D(volume), D(volumeEnd), D(chapter), D(chapterEnd), extra), AutoMatchText.UnitsOf(name));
+    }
+
+    [Theory]
+    [InlineData("Some Title c045.5.cbz")]
+    [InlineData("Some Title v03 c012.cbz")]
+    [InlineData("Some Title Vol. 01-05.cbz")]
+    [InlineData("001 [Chapter Title].cbz")]
+    public void UnitsOf_LeavesTheMatcherIntegersAlone(string name)
+    {
+        // The matcher's helpers keep their 1.27.0 answers (the golden set depends on them).
+        var units = AutoMatchText.UnitsOf(name);
+        Assert.False(units.IsEmpty);
+        Assert.Equal(
+            (AutoMatchText.VolumeNumberOf(name), AutoMatchText.ChapterNumberOf(name)),
+            name switch
+            {
+                "Some Title c045.5.cbz" => ((int?)null, (int?)45),
+                "Some Title v03 c012.cbz" => (null, 12),
+                "Some Title Vol. 01-05.cbz" => (5, null),
+                _ => (null, 1),
+            });
+    }
+
     [Theory]
     [InlineData("Some Title by Family Given.cbz", new[] { "Family Given" })]
     [InlineData("Some Title - Chapter 012 | Family Given.cbz", new[] { "Family Given", "Some Title" })]
@@ -71,4 +124,16 @@ public sealed class AutoMatchTextTests
     [InlineData("Some Title", new string[0])]
     public void CreatorSplitTitles_AreTheTitlePart(string name, string[] expected) =>
         Assert.Equal(expected, AutoMatchText.CreatorSplitTitles(name));
+
+    [Fact]
+    public void DisambiguatedAliases_CountInFull_OnlyWhenTheTagNamesTheRecordsAuthor()
+    {
+        var aliases = AutoMatchText.DisambiguatedAliases(["Moon Letter (SATO Hana)", "Other Name (KATO Ken)", "No Tag", null], ["SATO Hana"]);
+        Assert.Equal(new[] { ("Moon Letter", 1.0), ("Other Name", AutoMatchText.DisambiguatedAliasFactor) }, aliases);
+
+        // The Identify dialog's display score (1.29.0): the same rule; a search hit knows no authors yet.
+        Assert.Equal(1.0, AutoMatchText.BestTitleScore(["Moon Letter"], "Tsuki no Tegami", ["Moon Letter (SATO Hana)"], ["SATO Hana"]), 3);
+        Assert.Equal(AutoMatchText.DisambiguatedAliasFactor, AutoMatchText.BestTitleScore(["Moon Letter"], "Tsuki no Tegami", ["Moon Letter (SATO Hana)"]), 3);
+        Assert.Equal(1.0, AutoMatchText.BestTitleScore(["Look Up"], "Look Up (SATO Hana)", []), 3); // the main title strips in full
+    }
 }

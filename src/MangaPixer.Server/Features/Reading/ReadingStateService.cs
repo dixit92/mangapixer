@@ -32,17 +32,20 @@ public sealed class ReadingStateService
     private readonly LibraryAuthorizationService _auth;
     private readonly ILogger<ReadingStateService>? _logger;
     private readonly SeriesInfoFlagService _seriesInfoFlags;
+    private readonly Covers.ICoverResolver _covers;
 
     public ReadingStateService(
         MangaPixerDbContext db,
         LibraryAuthorizationService auth,
         ILogger<ReadingStateService>? logger = null,
-        SeriesInfoFlagService? seriesInfoFlags = null)
+        SeriesInfoFlagService? seriesInfoFlags = null,
+        Covers.ICoverResolver? covers = null)
     {
         _db = db;
         _auth = auth;
         _logger = logger;
         _seriesInfoFlags = seriesInfoFlags ?? new SeriesInfoFlagService(db);
+        _covers = covers ?? new Covers.FileCoverResolver(db);
     }
 
     /// <summary>
@@ -721,8 +724,18 @@ public sealed class ReadingStateService
         var ids = entries.Select(e => e.ItemId).ToList();
         var starred = await FavoriteFlags.StarredAsync(_db, userId, ids, ct);
         var withInfo = await _seriesInfoFlags.WithAnchoredSeriesInfoAsync(ids, ct);
+        // 1.29.0: the card cover comes from the cover layer (one resolver call), not a client-built URL.
+        var internalIds = await _db.CatalogNodes.AsNoTracking().Where(n => ids.Contains(n.PublicId))
+            .Select(n => new { n.Id, n.PublicId }).ToListAsync(ct);
+        var covers = await _covers.ResolveUrlsAsync(internalIds.Select(n => new Covers.CoverTarget(n.Id, n.PublicId, false)).ToList(), ct);
+        var coverByPublicId = internalIds.Where(n => covers.ContainsKey(n.Id)).ToDictionary(n => n.PublicId, n => covers[n.Id], StringComparer.Ordinal);
         return entries
-            .Select(e => e with { IsFavorite = starred.Contains(e.ItemId), HasSeriesInfo = withInfo.Contains(e.ItemId) })
+            .Select(e => e with
+            {
+                IsFavorite = starred.Contains(e.ItemId),
+                HasSeriesInfo = withInfo.Contains(e.ItemId),
+                CoverUrl = coverByPublicId.TryGetValue(e.ItemId, out var url) ? url : null,
+            })
             .ToList();
     }
 
@@ -887,6 +900,7 @@ public sealed class ReadingStateService
             ShowFavoritesHomeRow = prefs.ShowFavoritesHomeRow,
             FavoritesSearchProminence = prefs.FavoritesSearchProminence,
             SeriesInfoOnHover = prefs.SeriesInfoOnHover,
+            SeriesViewMode = (Core.Metadata.SeriesViewMode?)prefs.SeriesViewMode,
         };
     }
 
@@ -919,6 +933,7 @@ public sealed class ReadingStateService
         prefs.ShowFavoritesHomeRow = preferences.ShowFavoritesHomeRow;
         prefs.FavoritesSearchProminence = preferences.FavoritesSearchProminence;
         prefs.SeriesInfoOnHover = preferences.SeriesInfoOnHover;
+        prefs.SeriesViewMode = preferences.SeriesViewMode is { } seriesView && Enum.IsDefined(seriesView) ? (int)seriesView : null;
 
         await _db.SaveChangesAsync(ct);
     }
@@ -1143,6 +1158,12 @@ public sealed record ContinueReadingEntry
     /// False while "Show series information" is off for the library or globally.
     /// </summary>
     public bool HasSeriesInfo { get; init; }
+
+    /// <summary>
+    /// The card's cover URL from the cover layer (1.29.0): versioned, layered (an admin choice or an automatic crop / web
+    /// cover when one applies), else the archive's file cover. Null only while the item has no cover at all.
+    /// </summary>
+    public string? CoverUrl { get; init; }
 }
 
 /// <summary>

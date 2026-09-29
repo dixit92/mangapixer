@@ -1,0 +1,2187 @@
+{
+ "result": "ok",
+ "response": "collection",
+ "data": [
+  {
+   "id": "31fb5489-1f1a-4003-8107-df8ac376a1a6",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "1",
+    "fileName": "bae91cd3-2847-4c19-8777-9da5db0ed2d1.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:26+00:00",
+    "updatedAt": "2025-08-27T19:24:39+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "1a6657f3-107a-45d4-94c2-efdbf17a2259",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "1.1",
+    "fileName": "b877b5d0-f5fd-4b7b-b7c1-51eb1faf28a5.jpg",
+    "locale": "ja",
+    "createdAt": "2024-05-06T17:30:02+00:00",
+    "updatedAt": "2025-09-10T13:54:20+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f73d34f6-f678-4f8b-9dff-5c759d5fc767",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "308031eb-def9-4fd2-909e-dbefc76a6987",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "1.2",
+    "fileName": "0df7ec20-26e9-4703-b3db-d3e664433825.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:45+00:00",
+    "updatedAt": "2025-09-10T13:54:20+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "5a621ba2-599b-403c-bd74-4d6cb71c8ee4",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "2",
+    "fileName": "00c4d205-e955-46c5-8a09-fcd5046cad59.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:43+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "4224f5d8-c71e-4f75-afc9-d1a7e2650f10",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "2.1",
+    "fileName": "ddf5b97b-7cee-47b4-8ada-41c48ee3fd3b.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:33+00:00",
+    "updatedAt": "2025-09-10T13:54:20+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "ed016b81-a8a2-4f6c-8e81-af809082ef58",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "2.2",
+    "fileName": "fbfea921-434c-479b-bcc5-5c7c0b72cbbc.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:51+00:00",
+    "updatedAt": "2025-09-10T13:54:20+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "a3353a22-936d-40e5-9663-98d6e85570bf",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "3",
+    "fileName": "5ca0c30f-e5b7-405c-8014-39b9cdbfbe91.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:44+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "ad9f98c6-a8ca-439a-aa8b-910696b236b4",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "3.1",
+    "fileName": "a82df757-07fa-4bff-8e7b-ba1375d7399c.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:38+00:00",
+    "updatedAt": "2025-09-10T13:54:20+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "455eb1a5-27f3-4f95-839c-dd22a289fd8b",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "3.2",
+    "fileName": "bedb2395-8995-46c7-8fce-70f89dc24b79.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:55+00:00",
+    "updatedAt": "2025-09-10T13:54:20+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "033aa1b0-0847-4bab-a7c6-f48e9cd68444",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "4",
+    "fileName": "46e070a7-629a-424e-a0a4-5e99959c4683.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:41+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "785eb5bc-df87-42b0-8b02-a8c31c315ae1",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "4.1",
+    "fileName": "b6782470-9db1-43bc-b14c-2e0137479fb1.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:36+00:00",
+    "updatedAt": "2025-09-10T13:54:21+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "3f78dd83-27c1-4f4d-9d04-0c8ebacb7b39",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "4.2",
+    "fileName": "8aee7c35-b81a-4384-bb6a-a4b4890881e1.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:39:01+00:00",
+    "updatedAt": "2025-09-10T13:54:20+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "4a3f1485-54cc-4c88-af6c-868c14a96cfc",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "5",
+    "fileName": "fdca00ea-d95b-45f7-86bb-1ed502430c2f.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:40+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "95c02ad3-3531-47d9-9bc2-4a632afdc138",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "5.1",
+    "fileName": "8bf9ce4a-eaae-47bd-a6c4-3bb0a07ad534.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:37+00:00",
+    "updatedAt": "2025-09-10T13:54:20+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "934c971a-1472-4fb8-b3d9-5bef5a6e77bb",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "5.2",
+    "fileName": "f227bf36-57d2-49aa-ad51-c405c9b79654.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:39:01+00:00",
+    "updatedAt": "2025-09-10T13:54:21+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "58109488-5f08-4309-83ad-4a085814aaf1",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "6",
+    "fileName": "9dab493c-e5e9-41ad-abc0-40a6783a1a84.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:41+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "cb0a491b-42d2-4c26-8f11-b9304a657dbd",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "6.1",
+    "fileName": "76d52104-ff9c-4b42-abb9-955cc8a073cc.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:36+00:00",
+    "updatedAt": "2025-09-10T13:54:21+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "7f387a39-9ba2-4fdc-8d88-cfe28e489fb8",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "6.2",
+    "fileName": "94e3bf80-cccc-487d-9de2-f5c95fb45b45.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:39:03+00:00",
+    "updatedAt": "2025-09-10T13:54:21+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "1b34728c-d392-4ba7-a9e7-479b34c7dbb6",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "7",
+    "fileName": "7b4ce148-e8be-48fc-b0e2-4bc7964c3982.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:41+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "74644e90-a420-43c7-b918-f82ec9bbcf9d",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "7.1",
+    "fileName": "48580632-e324-440a-bef2-8efb47f65513.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:38+00:00",
+    "updatedAt": "2025-09-10T13:54:21+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "da3a6de9-0609-4f2e-9f24-08744ddf9fe8",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "7.2",
+    "fileName": "bccc4a8a-abd7-484b-8e0d-f6b19e87369f.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:39:03+00:00",
+    "updatedAt": "2025-09-10T13:54:21+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "af8b6cd7-e7be-4431-b152-cc11755aeb48",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "8",
+    "fileName": "8b7575f0-79bb-4c5a-8b45-7ef0b1c09ff9.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:42+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "484eafb1-0b21-4b89-915c-957ff7de46b2",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "8.1",
+    "fileName": "60082d58-afda-4ae1-8321-d01b6c162b8c.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:12+00:00",
+    "updatedAt": "2025-09-10T13:54:21+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "ec2a1e7b-1c11-4f54-8494-740ff85b9e93",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "8.2",
+    "fileName": "e2d6d484-7bce-408f-8b44-0e946c699358.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:39:04+00:00",
+    "updatedAt": "2025-09-10T13:54:21+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "842dd3b4-b99e-424c-9595-3b2d54ee94c3",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "9",
+    "fileName": "0a4fb0f5-93c4-4557-b9ba-0f1882de4c7f.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:25+00:00",
+    "updatedAt": "2025-08-27T19:24:43+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "f27e8c03-8108-4789-b884-1d10412d85f5",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "9.1",
+    "fileName": "d9fa0b36-361d-4f95-aa8c-0a33c17a364a.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:34+00:00",
+    "updatedAt": "2025-09-10T13:54:21+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "6d8cebe2-c4cb-4f2f-976e-a4b2bdc8cf91",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "9.2",
+    "fileName": "28b55370-ae34-4075-8b92-b8efa1458a20.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:39:04+00:00",
+    "updatedAt": "2025-09-10T13:54:21+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "71df4d96-1f71-430d-9c1e-40f52776269d",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "10",
+    "fileName": "5632fc2e-0fe1-4036-9177-6fa01e4ca5f0.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:40+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "60915544-e873-4806-a388-ab3c1007f732",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "10.1",
+    "fileName": "4693a369-d9e2-4ad8-ba0a-d405c2d8170f.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:31+00:00",
+    "updatedAt": "2025-09-10T13:54:21+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "21202f80-2c86-4f47-981f-1937a11c2e55",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "10.2",
+    "fileName": "e50e8180-832d-4500-80e4-4fcab145eb7d.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:48+00:00",
+    "updatedAt": "2025-09-10T13:54:22+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "93079c66-6022-4e0f-a759-e27dafc0904e",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "11",
+    "fileName": "54e9e261-f9af-42e9-a4ec-dac55ae3e83e.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:25+00:00",
+    "updatedAt": "2025-08-27T19:24:40+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "8f323eab-23c6-449a-a74f-0a537ab12116",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "11.1",
+    "fileName": "a975086a-377f-47ef-baae-d99363b799b3.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:35+00:00",
+    "updatedAt": "2025-09-10T13:54:22+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "b85ed1e3-ef71-4f95-9e88-cf7a8f7f9439",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "11.2",
+    "fileName": "bef7b408-2d9e-4398-ad06-62d732747a15.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:46+00:00",
+    "updatedAt": "2025-09-10T13:54:28+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "be8a62b8-77af-4644-8f9e-df1b97a4bf8c",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "12",
+    "fileName": "fa1054c3-d0db-4c41-b7f5-79b240473b7b.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:26+00:00",
+    "updatedAt": "2025-08-27T19:24:40+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "ece0e221-0617-453c-8fe3-8c6c6f109b39",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "12.1",
+    "fileName": "8a1cd62c-d0f0-4971-a4bf-6de3f0217cf8.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:33+00:00",
+    "updatedAt": "2025-09-10T13:54:28+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "035c14b4-fbd5-4fd1-8a26-058b6e76a811",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "12.2",
+    "fileName": "89f73b2f-f857-40d1-a0a7-150d78aab26d.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:47+00:00",
+    "updatedAt": "2025-09-10T13:54:28+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "770d6388-0cb7-4005-8da8-57e8e62f479b",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "13",
+    "fileName": "9d04e56a-450a-43c9-94de-4d25d07ef27e.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:26+00:00",
+    "updatedAt": "2025-08-27T19:24:41+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "d90ec4ce-718a-4f14-9ad3-20b2f704ab05",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "13.1",
+    "fileName": "d87bf101-7917-4789-bedb-c15ffabd85b8.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:33+00:00",
+    "updatedAt": "2025-09-10T13:54:28+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "48f54edd-74a9-4f84-9efd-ec5b45b69eee",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "13.2",
+    "fileName": "a68001f1-3ce3-44e2-a1fc-86e728f72e5b.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:49+00:00",
+    "updatedAt": "2025-09-10T13:54:28+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "363a85f3-ce08-4f1f-a975-1b0a5e93c348",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "14",
+    "fileName": "8fad7375-604d-426c-90e8-08a456cf2d90.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:25+00:00",
+    "updatedAt": "2025-08-27T19:24:44+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "69ca562e-e56b-4214-a8a3-2231368914d4",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "14.1",
+    "fileName": "2c9929b7-3810-4951-8f98-daddb2dc1f2c.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:37+00:00",
+    "updatedAt": "2025-09-10T13:54:28+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "5aeb369c-c6fd-4fc0-b86f-42d692fe5130",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "14.2",
+    "fileName": "4d2c22e0-4f25-4b9e-8d93-63af730f84f2.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:49+00:00",
+    "updatedAt": "2025-09-10T13:54:28+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "f5b78387-f11c-45ae-ae5b-02cd11a9b1ff",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "15",
+    "fileName": "5ddf2ad6-926a-4a9a-8856-ce9b39e87f77.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:44+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "9e5694b9-cb31-40ff-90e2-d72b018f5299",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "15.1",
+    "fileName": "e18e3e3c-5273-4d4d-a65e-5d3a90f0fcda.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:32+00:00",
+    "updatedAt": "2025-09-10T13:54:28+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "f45fa75f-36ba-4f13-82e8-e03f4ff4d714",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "15.2",
+    "fileName": "a5b112ce-a8a7-426e-ad8a-e6dc12fd93d0.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:49+00:00",
+    "updatedAt": "2025-09-10T13:59:30+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "ff228ab2-bf4c-4441-88b1-ef3df8d1e209",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "16",
+    "fileName": "1b90163a-3a08-46f6-a809-d7e5d9b166be.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:26+00:00",
+    "updatedAt": "2025-08-27T19:24:40+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "a9abeba8-de4f-4561-b294-138b5f6da3a9",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "16.1",
+    "fileName": "a5fb5737-951d-456a-8b88-0ee59d13bf63.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:10+00:00",
+    "updatedAt": "2025-09-10T13:59:30+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "ef92ed96-1a3d-4f5e-87e4-3a8f6c3699e9",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "16.2",
+    "fileName": "47d092c5-0517-44ee-bdfd-589299e8a30e.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:49+00:00",
+    "updatedAt": "2025-09-10T13:59:30+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "68b620b5-4b12-421c-837f-edd3dc109621",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "17",
+    "fileName": "9f93fd8c-f78f-4a40-886b-68848a2a4ed2.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:40+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "9a5173b7-6654-4656-b915-9d1944d9c8c2",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "17.1",
+    "fileName": "94e79a51-b09e-4f6b-b03d-10973d12aa7a.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:08+00:00",
+    "updatedAt": "2025-09-10T13:59:30+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "548c2308-c702-4fa0-b5b9-3e7272b15fb7",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "17.2",
+    "fileName": "c85bb23a-9ff0-410d-9cef-9b3705d7349f.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:49+00:00",
+    "updatedAt": "2025-09-10T13:59:30+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "8c0ffb09-3581-43b9-9daf-9028c59cf1bf",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "18",
+    "fileName": "2bf0674f-b14e-4de4-92d3-10c2789b7dbf.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:41+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "e24a35ef-300b-4017-a810-5e484d498d0e",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "18.1",
+    "fileName": "0fc9897c-9225-457a-aa79-9ae331b5b6f8.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T17:22:10+00:00",
+    "updatedAt": "2025-09-10T13:59:30+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "6487dcea-8527-4c99-b2d0-79fd1bc1dbf9",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "af96b5ac-df66-4f31-9165-5d16959f2669",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "18.2",
+    "fileName": "9945f33d-55c9-4a58-af6e-a4d49c709eaa.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:49+00:00",
+    "updatedAt": "2025-09-10T13:59:30+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "02ddeaa4-f791-448e-912b-906a92b0a234",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "19",
+    "fileName": "3847228e-368f-4c3c-83d7-69ef77fa8383.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:25+00:00",
+    "updatedAt": "2025-08-27T19:24:42+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "bbc19e60-0525-4f6a-8195-359705fd8639",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "19.1",
+    "fileName": "2721110d-09e5-429e-880f-faea0b3a27a3.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:50+00:00",
+    "updatedAt": "2025-09-10T13:59:30+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "85e482a0-824b-42c7-b0f2-c1ceabe279ea",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "20",
+    "fileName": "3c9817ba-8c7e-419a-966a-93e5ac06e9d9.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:26+00:00",
+    "updatedAt": "2025-08-27T19:24:42+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "98db0523-ee3f-4fc3-bbe3-ce1f95d6cfb0",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "20.1",
+    "fileName": "549bc64f-c5a5-4588-8a86-c844436348b2.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:52+00:00",
+    "updatedAt": "2025-09-10T13:59:30+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "c9f01e69-b5b3-4a7a-9684-29c1d0b41ee5",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "21",
+    "fileName": "b8477b46-bc40-46ef-bf7d-1ea71083e61e.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:42+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "a3b841f7-e687-4f29-9f73-e18f8228a907",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "21.1",
+    "fileName": "04c98149-afdb-485a-a46f-7993a236380c.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:51+00:00",
+    "updatedAt": "2025-09-10T14:02:02+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "59360caa-7af8-47ea-ab19-7a1685c62aaa",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "22",
+    "fileName": "1202ca09-8661-4b55-8bc7-58574a31cc6c.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:42+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "9928cdad-be39-4ffc-a212-fa19be975e7b",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "22.1",
+    "fileName": "08617d5d-d628-4289-b265-c66bdf28f191.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:52+00:00",
+    "updatedAt": "2025-09-10T14:02:02+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "fb58650d-854c-419c-a234-afe48b7c51b9",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "23",
+    "fileName": "63df6c27-316c-4e06-9487-38d687144935.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:28+00:00",
+    "updatedAt": "2025-08-27T19:24:42+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "d85ab71f-212a-4fbf-81d7-dfc96433762f",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "23.1",
+    "fileName": "0618c077-15a7-435b-bc42-e3e2d9251b43.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:52+00:00",
+    "updatedAt": "2025-09-10T14:02:01+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "26fdd49d-86a2-4eea-bc8c-58d689e75944",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "24",
+    "fileName": "0de02a6e-7df9-4f84-aecf-de2d541fddd3.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:42+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "66d618f5-40cc-4f35-9ab3-ddb6df7b9c11",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "24.1",
+    "fileName": "68eb4391-e8c3-4645-b7ca-7f676dd85631.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:53+00:00",
+    "updatedAt": "2025-09-10T14:02:02+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "54cf8f0a-21a6-4c9e-86e5-431a452a3170",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "25",
+    "fileName": "c4e030b4-b643-4906-865d-914cad5ce6b5.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:43+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "c479b7d0-3050-4f23-ba4b-11133f601d9e",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "25.1",
+    "fileName": "b3e44f7b-1448-4889-8f4f-4cf6b70ee891.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:54+00:00",
+    "updatedAt": "2025-09-10T14:02:01+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "b39b92d9-4fcd-45de-9bff-4056bf220371",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "26",
+    "fileName": "d089faeb-49c3-4b75-8d08-2b36cd84242a.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:43+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "ce4806b8-0970-4fac-b05c-1368ed53f9ec",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "26.1",
+    "fileName": "c3fc7a81-a046-4870-922e-1542af1d68e5.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:54+00:00",
+    "updatedAt": "2025-09-10T14:02:02+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "b15f236d-6eb2-4261-9de9-0bff1d7cffc4",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "27",
+    "fileName": "8c4282b2-5b54-4dc3-989c-6ca900789982.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:30+00:00",
+    "updatedAt": "2025-08-27T19:24:43+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "1b4d4e6a-913a-4fe0-9cd3-5373267f64b7",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "27.1",
+    "fileName": "1c78f6fb-d132-498e-bcee-1f18ac0eef35.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:55+00:00",
+    "updatedAt": "2025-09-10T14:02:01+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "8bdc12e8-45b5-4cca-8fd5-e4abedbd6c6c",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "28",
+    "fileName": "85b06d4a-0e79-4f15-bb19-c8d7f4b8a8ad.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:26+00:00",
+    "updatedAt": "2025-08-27T19:24:43+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "d873c21c-c921-4fa0-af0f-dd7d572266d0",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "28.1",
+    "fileName": "618fec71-9b45-4cc9-a66d-fecfd78d43cd.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:56+00:00",
+    "updatedAt": "2025-09-10T14:02:02+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "40383aa1-3dd8-41c7-a3c0-0f6b8e4662f2",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "29",
+    "fileName": "85b8b23f-a015-4fa6-9a95-fb3a2a5c9084.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:26+00:00",
+    "updatedAt": "2025-08-27T19:24:44+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "d57b7045-1546-4f03-8049-9bf187ee9b4c",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "29.1",
+    "fileName": "99b32804-6d05-4d01-9113-16c4c87dabb7.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:56+00:00",
+    "updatedAt": "2025-09-10T14:02:02+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "331678c2-1364-49d2-b873-d82328dd3abf",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "30",
+    "fileName": "9352e37b-9e85-498a-ae21-c03321711217.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:26+00:00",
+    "updatedAt": "2025-08-27T19:24:44+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "71108a06-da06-4f7d-8233-dfd53941aa1e",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "30.1",
+    "fileName": "5a8a33e3-8ed6-4ed9-804c-d7c91a4fc616.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:57+00:00",
+    "updatedAt": "2025-09-10T14:08:54+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "0634780f-091a-4088-9076-4e1ef281629c",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "31",
+    "fileName": "16528760-97b1-4bc9-b5ec-b7f853c91595.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:44+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "e023cbe9-18b0-4f87-83b3-ff91758986cf",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "31.1",
+    "fileName": "d99bf25c-8c25-4a52-aca8-4c23ef497180.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:57+00:00",
+    "updatedAt": "2025-09-10T14:08:54+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "44589453-f9d9-4444-bfef-073cfc4525cc",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "32",
+    "fileName": "64e457b0-e5bd-4b9b-b6bd-fe9d5fd1cff7.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:44+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "57cecdb6-17ad-4fae-aff8-bab7e074f017",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "32.1",
+    "fileName": "a87dd741-ec6a-4267-b9dc-1f778086bffa.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:57+00:00",
+    "updatedAt": "2025-09-10T14:08:54+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "c4d66487-d439-4be2-9e55-da2e8b62888b",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "33",
+    "fileName": "25419cb9-1f5f-41c1-841e-20c696c679db.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:26+00:00",
+    "updatedAt": "2025-08-27T19:24:44+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "fcec3fb2-0dc9-4fff-88e8-f16f15c1764a",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "33.1",
+    "fileName": "ff92ffa9-3095-4303-8b78-945e273f32f9.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:57+00:00",
+    "updatedAt": "2025-09-10T14:08:54+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "51d4ab8e-d570-4749-b592-50bf24daa747",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "34",
+    "fileName": "bc519d78-f373-479b-bb64-7dc9d3d0c399.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:26+00:00",
+    "updatedAt": "2025-08-27T19:24:39+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "cc07a09f-9f95-4ea3-9cf1-d22985af9653",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "34.1",
+    "fileName": "3809fe12-6f12-4fc2-bb61-c29642591f83.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-16T07:57:46+00:00",
+    "updatedAt": "2025-09-10T14:08:55+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "cb3d2c6d-f854-4f2b-af57-1004eafe31fe",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "34.2",
+    "fileName": "88ca930c-4d22-4fb9-9321-c476aff8746a.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:58+00:00",
+    "updatedAt": "2025-09-10T14:08:54+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "d49c0cc6-fbbd-4289-bd1d-0e5c4a85762c",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "35",
+    "fileName": "8f2dcf18-b953-48ee-942a-9dbe3572abe4.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:24+00:00",
+    "updatedAt": "2025-08-27T19:24:39+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "9b1ad7e4-6b9a-4f37-b3a5-1e69dabd8494",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "35.1",
+    "fileName": "7dcc8bc8-14e9-4397-a1a6-61055ac75575.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:59+00:00",
+    "updatedAt": "2025-09-10T14:08:54+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "d18515cb-c71a-4092-b968-0cb362afdaa1",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "36",
+    "fileName": "dde92575-be7e-4e2b-a559-2be84ee032da.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:39+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "dcb905f0-c105-4fe5-af11-dc26a6845bf8",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "36.1",
+    "fileName": "1ea7a859-0b78-4bee-be9a-5537e8fb8e94.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:59+00:00",
+    "updatedAt": "2025-09-10T14:08:54+00:00",
+    "version": 3
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "dad07817-efff-44dd-b57f-ec41b3557364",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "37",
+    "fileName": "435a04a3-b91d-4b02-a5f3-e6421e630bb7.jpg",
+    "locale": "ja",
+    "createdAt": "2022-03-14T16:59:27+00:00",
+    "updatedAt": "2025-08-27T19:24:40+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "3d4df072-0316-4c9c-8a52-e40c887b86a1",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "07288817-1fe0-4fdf-a5fa-02ad11e227e9",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "37.1",
+    "fileName": "15ffc921-d8ae-465c-9b56-63eb98880e8c.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:59+00:00",
+    "updatedAt": "2025-09-10T14:08:54+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "d6e12e26-5072-4f7e-9039-eddcfbdefe14",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "38",
+    "fileName": "2c943409-1cae-480a-8a50-018dde187efa.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:38:59+00:00",
+    "updatedAt": "2025-09-10T14:08:54+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "c82386c9-48f0-4f25-9f4a-49f3a64a5626",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "39",
+    "fileName": "2be34952-489f-43ab-9bcb-11f3b3bccfb7.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:39:00+00:00",
+    "updatedAt": "2025-09-10T14:08:55+00:00",
+    "version": 4
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "609635ce-63ee-4f92-ba3a-b9a72adec9fb",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "40",
+    "fileName": "3a2de784-ed30-4740-9f9e-ce9716b42915.jpg",
+    "locale": "ja",
+    "createdAt": "2021-05-28T23:39:02+00:00",
+    "updatedAt": "2021-05-28T23:39:02+00:00",
+    "version": 2
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f8cc4f8a-e596-4618-ab05-ef6572980bbf",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "f72e2fde-14cf-47d9-99e8-335c5b99dded",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "41",
+    "fileName": "2a61abcb-8e6e-460d-8551-1caa93e09e39.jpg",
+    "locale": "ja",
+    "createdAt": "2021-12-22T12:25:06+00:00",
+    "updatedAt": "2022-03-14T16:59:11+00:00",
+    "version": 6
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "416fcfbb-0f5c-40e2-9a4f-5dca25a33514",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "96e4f744-bb72-4e47-9f75-635af4e7729b",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "42",
+    "fileName": "22ff2622-e93c-420f-b477-7a86eec02a1d.jpg",
+    "locale": "ja",
+    "createdAt": "2023-09-26T16:14:09+00:00",
+    "updatedAt": "2023-09-26T16:14:09+00:00",
+    "version": 1
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "416fcfbb-0f5c-40e2-9a4f-5dca25a33514",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "bab715d9-1b6a-4f50-8fea-ac5628ebfd8e",
+   "type": "cover_art",
+   "attributes": {
+    "volume": "43",
+    "fileName": "81e1c82d-6672-400c-8c58-4ff9bfb89031.jpg",
+    "locale": "ja",
+    "createdAt": "2025-08-22T11:23:23+00:00",
+    "updatedAt": "2025-08-22T11:23:23+00:00",
+    "version": 1
+   },
+   "relationships": [
+    {
+     "id": "801513ba-a712-498c-8f57-cae55b38cc92",
+     "type": "manga"
+    },
+    {
+     "id": "f73d34f6-f678-4f8b-9dff-5c759d5fc767",
+     "type": "user"
+    }
+   ]
+  }
+ ],
+ "limit": 100,
+ "offset": 0,
+ "total": 99
+}

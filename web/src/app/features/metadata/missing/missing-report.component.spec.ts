@@ -11,6 +11,7 @@ import { MetadataReviewStateService } from '../metadata-review-state.service';
 
 import { MissingReportComponent } from './missing-report.component';
 import { gap, missingPage, missingRow } from './missing.testing';
+import { CONSENT_TEXT_VERSION } from '../admin-metadata/settings/metadata-settings.component';
 
 /**
  * Missing tab (1.28.0): loads "behind or with gaps" by default, switches filter and library, renders the
@@ -18,7 +19,7 @@ import { gap, missingPage, missingRow } from './missing.testing';
  */
 describe('MissingReportComponent', () => {
   /** Fetch on with the current consent and both sites allowed, unless overridden. */
-  function create(s: MetadataSettingsDto = settings({ fetchEnabled: true, acceptedConsentVersion: 2 })) {
+  function create(s: MetadataSettingsDto = settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION })) {
     TestBed.configureTestingModule({
       imports: [MissingReportComponent],
       providers: [
@@ -126,8 +127,26 @@ describe('MissingReportComponent', () => {
     http.verify();
   });
 
+  it('offers no batch button while Automatic matching with volume covers looks the totals up in the background', () => {
+    const auto = settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION });
+    Object.assign(auto, { autoMatchEnabled: true, acceptedAutoConsentVersion: 3, currentAutoConsentVersion: 3, volumeCoversEnabled: true });
+    const a = create(auto);
+    a.http.expectOne((r) => r.url === '/api/v1/admin/metadata/missing').flush(missingPage([]));
+    a.fixture.detectChanges();
+    expect(a.el.querySelector('[data-testid="missing-convert-batch"]')).toBeNull();
+    expect(a.el.querySelector('[data-testid="missing-convert-auto"]')!.textContent).toContain('looked up automatically');
+    TestBed.resetTestingModule();
+
+    // Volume covers off: the background does not ask AniList, so the button is back.
+    const manual = create({ ...auto, volumeCoversEnabled: false });
+    manual.http.expectOne((r) => r.url === '/api/v1/admin/metadata/missing').flush(missingPage([]));
+    manual.fixture.detectChanges();
+    expect(manual.el.querySelector('[data-testid="missing-convert-batch"]')).not.toBeNull();
+    expect(manual.el.querySelector('[data-testid="missing-convert-auto"]')).toBeNull();
+  });
+
   it('says why AniList cannot be asked (removed from the allowed sites, or Fetch off)', () => {
-    const removed = settings({ fetchEnabled: true, acceptedConsentVersion: 2 });
+    const removed = settings({ fetchEnabled: true, acceptedConsentVersion: CONSENT_TEXT_VERSION });
     removed.providers = removed.providers!.map((p) => ({ ...p, allowed: p.id !== 'anilist' }));
     const a = create(removed);
     a.http.expectOne((r) => r.url === '/api/v1/admin/metadata/missing').flush(missingPage([missingRow()]));

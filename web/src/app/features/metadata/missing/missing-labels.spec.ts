@@ -1,4 +1,4 @@
-import { compactNumbers, gapDetail, haveSentence, noVerdictReason } from './missing-labels';
+import { compactNumbers, gapDetail, haveSentence, noVerdictReason, totalTooltip } from './missing-labels';
 import { gap, missingRow } from './missing.testing';
 
 describe('missing report labels', () => {
@@ -26,6 +26,23 @@ describe('missing report labels', () => {
 
   it('explains a missing verdict', () => {
     expect(noVerdictReason(missingRow({ verdict: 'Mixed' }))).toContain('mixed');
+    expect(noVerdictReason(missingRow({ verdict: 'Restarts' }))).toContain('starts again');
+    expect(noVerdictReason(missingRow({ verdict: 'NoUnits' }))).toContain('chapter 0 alone');
     expect(noVerdictReason(missingRow())).toBeNull();
+  });
+});
+
+describe('missing labels, preferred language (1.29.0 RC)', () => {
+  const base = { kind: 'Volume' as const, archiveCount: 3, unitCount: 3, lowest: 1, have: 3, behindBy: 0, missing: [], missingCount: 0 };
+
+  it('shows the origin total as context when no total is known in the preferred language', () => {
+    expect(haveSentence({ ...base, available: null, source: null, originTotal: 14 })).toBe('You have volumes 1-3; no total known (original run: 14)');
+  });
+
+  it('names a released-in-your-language total and explains it in the tooltip', () => {
+    const gap = { ...base, kind: 'Chapter' as const, available: 5, source: 'Released' as const, confidence: 'Medium' as const, behindBy: 2 };
+    expect(haveSentence(gap)).toBe('You have chapters 1-3 of 5 (released in your language)');
+    expect(totalTooltip(gap)).toContain('released in your preferred language');
+    expect(totalTooltip({ ...gap, source: 'English', confidence: 'High' })).toBe('Total from the English publisher total');
   });
 });

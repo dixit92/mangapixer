@@ -97,21 +97,33 @@ public sealed class MetadataAutoMatchService
     // --- Gate ---
 
     /// <summary>The global automatic gate (everything but the per-library Fetch switch); null when open.</summary>
-    public async Task<AutomaticWait?> CheckGlobalGateAsync(CancellationToken ct = default)
+    public Task<AutomaticWait?> CheckGlobalGateAsync(CancellationToken ct = default) =>
+        CheckGlobalGateAsync(MetadataProviderAllowlist.MangaUpdates, ct);
+
+    /// <summary>
+    /// The global automatic gate for one provider (1.29.0): the kill switch, both consents, the provider allowlist entry
+    /// of <paramref name="providerId"/>, the matcher (MangaUpdates only - companion work needs no matcher), that
+    /// provider's own backoff and the one daily budget. Auto-match and refresh keep asking for MangaUpdates; the
+    /// volume-cover pass asks for <c>mangadex</c>, its totals fallback for <c>anilist</c>.
+    /// </summary>
+    public async Task<AutomaticWait?> CheckGlobalGateAsync(string providerId, CancellationToken ct = default)
     {
         if (_settings.NetworkDisabledByConfig)
             return new AutomaticWait("metadata_network_disabled", null);
         var row = await _db.AppSettings.AsNoTracking()
             .Where(s => s.Id == AppSettingsEntity.SingletonId)
-            .Select(s => new { s.MetadataEnabled, s.MetadataConsentVersion, s.MetadataAutoMatchEnabled, s.MetadataAutoConsentVersion })
+            .Select(s => new { s.MetadataEnabled, s.MetadataConsentVersion, s.MetadataAutoMatchEnabled, s.MetadataAutoConsentVersion, s.MetadataProvidersJson })
             .FirstOrDefaultAsync(ct);
         if (row is not { MetadataEnabled: true } || row.MetadataConsentVersion != MetadataConsent.CurrentVersion)
             return new AutomaticWait("metadata_disabled", null);
         if (!row.MetadataAutoMatchEnabled || row.MetadataAutoConsentVersion != MetadataAutoConsent.CurrentVersion)
             return new AutomaticWait("automatic_off", null);
-        if (!MatcherAvailable)
+        // Automatic matching and refresh ask MangaUpdates only: with it off the allowlist there is nothing to do.
+        if (!MetadataProviderAllowlist.IsAllowed(row.MetadataProvidersJson, providerId))
+            return new AutomaticWait("provider_not_allowed", null);
+        if (providerId == MetadataProviderAllowlist.MangaUpdates && !MatcherAvailable)
             return new AutomaticWait("matcher_unavailable", null);
-        if (await _backoff.ActiveUntilAsync(ct) is { } until)
+        if (await _backoff.ActiveUntilAsync(providerId, ct) is { } until)
             return new AutomaticWait("provider_backoff", until);
         if ((await _budget.GetAsync(ct)).Exhausted)
             return new AutomaticWait("budget_exhausted", _budget.Today().AddDays(1));
@@ -643,10 +655,14 @@ public sealed class MetadataAutoMatchService
         return fresh.Count;
     }
 
-    /// <summary>Local refusals (nothing was wrong with the provider): the row waits, no attempt is counted.</summary>
+    /// <summary>
+    /// Local refusals (nothing was wrong with the provider): the row waits, no attempt is counted. A site removed from
+    /// the provider allowlist is one too - before 1.29.0 it counted as a failure, so removing MangaUpdates failed the
+    /// queued works (and marked refreshed records failed) instead of pausing them.
+    /// </summary>
     public static bool IsRefusal(MetadataGatewayException ex) => ex.Code is
         "metadata_network_disabled" or "metadata_disabled" or "library_metadata_disabled" or "automatic_off"
-        or "budget_exhausted" or "provider_backoff" or "provider_busy";
+        or "budget_exhausted" or "provider_backoff" or "provider_busy" or "provider_not_allowed";
 
     private sealed record CheckedWork(DetectedWork Work, WorkClassification Classification);
 

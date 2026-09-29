@@ -55,9 +55,10 @@ public sealed class ProviderAllowlistAndConversionTests : IAsyncLifetime
     public async Task Settings_ListEveryApprovedSite_AllInByDefault_RemoveAndAddBack()
     {
         var fresh = await _h.Settings().GetAsync();
-        Assert.Equal(["mangaupdates", "anilist"], fresh.Providers.Select(p => p.Id));
+        Assert.Equal(["mangaupdates", "mangadex", "anilist"], fresh.Providers.Select(p => p.Id));
         Assert.All(fresh.Providers, p => Assert.True(p.Allowed));
-        Assert.Contains("graphql.anilist.co", fresh.Providers[1].Hosts);
+        Assert.Contains("graphql.anilist.co", fresh.Providers[2].Hosts);
+        Assert.Equal(new[] { "api.mangadex.org", "uploads.mangadex.org" }, fresh.Providers[1].Hosts);
         Assert.Equal(new[] { "api.mangaupdates.com", "cdn.mangaupdates.com" }, fresh.Providers[0].Hosts);
 
         await RemoveAsync("anilist");
@@ -259,7 +260,7 @@ public sealed class ProviderAllowlistAndConversionTests : IAsyncLifetime
 
         Assert.Equal((0, "provider_backoff", 2), (batch!.Looked, batch.StoppedCode, batch.Remaining));
         Assert.Equal(1, _h.Handler.CallCount); // stopped at the first 429
-        Assert.NotNull(_h.State.AniListBackoffUntil(DateTimeOffset.UtcNow));
+        Assert.NotNull(await _h.Backoff().ActiveUntilAsync("anilist")); // AniList's own persisted backoff (1.29.0)
         Assert.Null((await _h.ReadSettingsAsync()).MetadataBackoffUntil); // MangaUpdates is not paused
 
         // While it lasts, nothing is sent.

@@ -205,10 +205,38 @@ public sealed class LibraryTreeSnapshot
         return _descendantArchives[id];
     }
 
+    /// <summary>At most this many archive names of one unit subfolder reach the count rule (1.29.0).</summary>
+    public const int MaxUnitArchiveNames = 500;
+
+    /// <summary>Display names of the live archives below a folder, depth first in catalog order, at most <paramref name="max"/>.</summary>
+    public IReadOnlyList<string> DescendantArchiveNames(long id, int max)
+    {
+        var names = new List<string>();
+        var stack = new Stack<long>();
+        stack.Push(id);
+        while (stack.Count > 0 && names.Count < max)
+        {
+            var children = ChildrenOf(stack.Pop());
+            foreach (var child in children)
+            {
+                if (child.IsFolder)
+                    continue;
+                if (names.Count >= max)
+                    break;
+                names.Add(child.Name);
+            }
+            for (var i = children.Count - 1; i >= 0; i--)
+                if (children[i].IsFolder)
+                    stack.Push(children[i].Id);
+        }
+        return names;
+    }
+
     /// <summary>
     /// The detector's view of a folder: display names only, direct archives in
     /// catalog order (<see cref="FolderShape.ArchiveNames"/> indexes map onto
-    /// <see cref="ChildArchives"/>), direct subfolders with their archive counts, and
+    /// <see cref="ChildArchives"/>), direct subfolders with their archive counts (unit subfolders also with their
+    /// archive names, for the count rule), and
     /// the library's provider authors unless the folder carries a link itself.
     /// </summary>
     public FolderShape ShapeOf(long folderId)
@@ -220,7 +248,8 @@ public sealed class LibraryTreeSnapshot
             folder.Name,
             Depth(folderId),
             ChildArchives(folderId).Select(a => a.Name).ToList(),
-            ChildFolders(folderId).Select(c => new ChildFolderShape(c.Name, DescendantArchiveCount(c.Id))).ToList(),
+            ChildFolders(folderId).Select(c => new ChildFolderShape(c.Name, DescendantArchiveCount(c.Id),
+                AutoMatchText.IsUnitFolderName(c.Name) ? DescendantArchiveNames(c.Id, MaxUnitArchiveNames) : null)).ToList(),
             parent?.Name,
             CategoryHint(folderId),
             authors);

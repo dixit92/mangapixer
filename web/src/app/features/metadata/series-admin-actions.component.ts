@@ -13,6 +13,8 @@ import { MetadataStateService } from './metadata-state.service';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
 import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessage } from './folder-content';
 import { DeclaredFactsDialogService } from './declared/declared-facts-dialog.service';
+import { MangaDexMatchDialogService } from './companion/mangadex-match-dialog.service';
+import { CoverPickerDialogService } from '../../shared/cover-picker/cover-picker-dialog.service';
 
 /**
  * Admin menu for one node's series metadata (1.24.0), shared by the overlay and the
@@ -23,6 +25,9 @@ import { DeclaredFactsDialogService } from './declared/declared-facts-dialog.ser
  * - Don't match / Clear Don't match - the node is not one series; nothing is inherited.
  * - Unlink - removes the node's own web link (inheritance resumes).
  * - Source precedence (folders): inherit / web first / ComicInfo first.
+ * - Change MangaDex match... (1.29.0, a node with a web link): the MangaDex record that gives the linked series its
+ *   volume covers and volume list - choose another, "Not on MangaDex", or check again.
+ * - Choose cover... (1.29.0) - the cover picker for this node (folders and archives).
  * - Content (folders, stage 2): Auto / Doujinshi & adult one-shots / Not doujinshi, with
  *   where the current value comes from and the detector's suggestion (loaded when the
  *   menu opens; hidden when the server has no Content setting).
@@ -53,6 +58,11 @@ import { DeclaredFactsDialogService } from './declared/declared-facts-dialog.ser
         <button mat-menu-item [disabled]="!identifyAvailable()" (click)="refresh()" data-testid="refresh">
           <mat-icon>refresh</mat-icon> Refresh from {{ info().web!.providerName }}
         </button>
+        @if (info().web!.provider === 'mangaupdates') {
+          <button mat-menu-item (click)="changeMangaDex()" data-testid="mangadex-match">
+            <mat-icon>photo_library</mat-icon> Change MangaDex match…
+          </button>
+        }
       }
       <mat-divider />
       @if (ownDontMatch()) {
@@ -70,6 +80,11 @@ import { DeclaredFactsDialogService } from './declared/declared-facts-dialog.ser
           <mat-icon>link_off</mat-icon> Unlink
         </button>
       }
+      <!-- 1.29.0 cover layer: the admin's cover choice for this node. -->
+      <mat-divider />
+      <button mat-menu-item (click)="chooseCover()" data-testid="choose-cover">
+        <mat-icon>image</mat-icon> Choose cover…
+      </button>
       @if (isFolder()) {
         <mat-divider />
         <span class="caption">Source precedence</span>
@@ -123,6 +138,8 @@ export class SeriesAdminActionsComponent {
   private readonly identifyDialog = inject(IdentifyDialogService);
   private readonly metadataState = inject(MetadataStateService);
   private readonly declaredDialog = inject(DeclaredFactsDialogService);
+  private readonly mangaDexDialog = inject(MangaDexMatchDialogService);
+  private readonly coverPicker = inject(CoverPickerDialogService);
 
   readonly info = input.required<SeriesInfoDto>();
   readonly changed = output<void>();
@@ -138,6 +155,13 @@ export class SeriesAdminActionsComponent {
   readonly contentOptions = FOLDER_CONTENT_OPTIONS;
   readonly caption = computed(() => contentCaption(this.content()));
   readonly suggested = computed(() => contentSuggestion(this.content()));
+
+  /** Opens the cover picker for this node; the card updates through `CoverStateService`. */
+  async chooseCover(): Promise<void> {
+    const info = this.info();
+    const name = info.nodeId === info.anchorNodeId ? info.anchorDisplayName : (info.title ?? info.anchorDisplayName);
+    if (await this.coverPicker.open(info.nodeId, name)) this.changed.emit();
+  }
 
   onMenuOpened(): void {
     this.checkIdentify();
@@ -201,6 +225,13 @@ export class SeriesAdminActionsComponent {
   identify(): void {
     void this.identifyDialog.open(this.info().nodeId).then((linked) => {
       if (linked) this.changed.emit();
+    });
+  }
+
+  /** The MangaDex companion of the linked series (1.29.0); the dialog makes every change itself. */
+  changeMangaDex(): void {
+    void this.mangaDexDialog.open(this.info().nodeId).then((changed) => {
+      if (changed) this.changed.emit();
     });
   }
 

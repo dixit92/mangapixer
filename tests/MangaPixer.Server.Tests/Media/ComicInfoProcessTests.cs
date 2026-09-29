@@ -245,7 +245,7 @@ public sealed class ComicInfoProcessTests : IClassFixture<WorkerProcessFixture>
         var reply = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(15));
         var error = WorkerProtocolFraming.GetPayload<AnalyzeError>(reply);
         Assert.Equal("protocol_version_mismatch", error!.ErrorType);
-        Assert.Equal(4, WorkerProtocolVersion.Current);
+        Assert.Equal(5, WorkerProtocolVersion.Current);
         cts.Cancel();
         try { await readLoop; } catch (OperationCanceledException) { }
     }

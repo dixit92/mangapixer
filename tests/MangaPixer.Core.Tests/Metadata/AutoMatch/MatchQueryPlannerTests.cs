@@ -58,9 +58,21 @@ public sealed class MatchQueryPlannerTests
         Assert.Equal(6, q.Context.LocalVolumes);
         Assert.Null(q.Context.LocalChapters);
 
-        var units = PlanFolder(Folder("Some Series", [], subs: [("Volumes", 11), ("Chapters", 80)]));
-        Assert.Equal(11, units.Context.LocalVolumes);
-        Assert.Equal(80, units.Context.LocalChapters);
+        // 1.29.0: a unit subfolder adds the numbers its archive names state, never its archive count.
+        var units = PlanFolder(new FolderShape("Some Series", 2, [],
+        [
+            new ChildFolderShape("Volumes", 3, ["Some Series v09.cbz", "Some Series v10.cbz", "Some Series v10.5.cbz"]),
+            new ChildFolderShape("Chapters", 80, Enumerable.Range(101, 80).Select(i => $"Some Series - Chapter {i}.cbz").ToList()),
+        ]));
+        Assert.Equal(10, units.Context.LocalVolumes);
+        Assert.Equal(180, units.Context.LocalChapters);
+        Assert.Equal((3, 80, 9, 101), (units.Context.Units!.VolumeArchives, units.Context.Units.ChapterArchives,
+            units.Context.Units.LowestVolume, units.Context.Units.LowestChapter));
+
+        // Without the names only a range the subfolder's own name states counts (never the 11 archives).
+        var counted = PlanFolder(Folder("Some Series", [], subs: [("Volumes", 11), ("Chapters 1-50", 80)]));
+        Assert.Null(counted.Context.LocalVolumes);
+        Assert.Equal(50, counted.Context.LocalChapters);
     }
 
     [Fact]

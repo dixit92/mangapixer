@@ -72,9 +72,9 @@ public sealed class MatchScorer : IMatchScorer
     /// <summary>Related top two need at least this raw title gap to stay auto.</summary>
     public const double RelatedSeparation = 0.10;
 
-    /// <summary>A count conflict: the local unit number &gt; <c>CountFactor x published + CountSlack</c>.</summary>
-    public const double CountFactor = 1.5;
-    public const int CountSlack = 2;
+    /// <summary>A count conflict: the local unit number &gt; <c>CountFactor x published + CountSlack</c> (<see cref="CountEvidence"/>).</summary>
+    public const double CountFactor = CountEvidence.Factor;
+    public const int CountSlack = CountEvidence.Slack;
 
 
     public const double PersistWindow = 0.15;
@@ -209,6 +209,18 @@ public sealed class MatchScorer : IMatchScorer
         // "Word (Other Name)" is another record's name for a different work - stripped, it scored a false 1.00.
         if (AutoMatchText.WithoutDisambiguator(c.Title) is { } stripped && !titles.Contains(stripped, StringComparer.OrdinalIgnoreCase))
             titles.Add(stripped);
+        // 1.29.0 (owner): an ALT title whose disambiguator names THIS record's author ("Fly Me to the Moon (HATA Kenjiro)" on
+        // "Tonikaku Kawaii") is the record's own name - stripped, it counts in full; any other stripped alias (a search hit
+        // before its authors are known, or a tag naming someone else) counts at DisambiguatedAliasFactor, never alone an
+        // automatic link.
+        var factors = titles.Select(_ => 1.0).ToList();
+        foreach (var (alias, factor) in AutoMatchText.DisambiguatedAliases(titles.Skip(1).ToList(), c.Authors))
+        {
+            if (titles.Contains(alias, StringComparer.OrdinalIgnoreCase))
+                continue;
+            titles.Add(alias);
+            factors.Add(factor);
+        }
         var titleNumbers = titles.Select(TitleNormalizer.NumberTokens).ToList();
         // "Title: Long Subtitle", "Title ~Subtitle~" and "Title - Subtitle" records also compare by the part
         // before the break, capped (1.26.1 colon; 1.27.0 tilde and spaced dash).
@@ -227,7 +239,10 @@ public sealed class MatchScorer : IMatchScorer
             var headForm = TitleNormalizer.ScoringForm(mainHead);
             foreach (var alias in titles.Skip(1).Where(t => TitleNormalizer.ScoringForm(t) == headForm).ToList())
             {
-                titles.Remove(alias);
+                var at = titles.IndexOf(alias, 1);
+                titles.RemoveAt(at);
+                factors.RemoveAt(at);
+                titleNumbers.RemoveAt(at); // (kept aligned with titles - before 1.29.0 a removed alias shifted the numbers by one)
                 if (!heads.Contains(alias, StringComparer.OrdinalIgnoreCase))
                     heads.Add(alias);
             }
@@ -269,7 +284,7 @@ public sealed class MatchScorer : IMatchScorer
                 }
                 else
                 {
-                    raw = TitleSimilarity.Score(v.Text, titles[i]);
+                    raw = TitleSimilarity.Score(v.Text, titles[i]) * factors[i];
                     // A shared number alone is no title evidence (1.27.0: "Title 99" vs an unrelated "... 99").
                     if (TitleSimilarity.SharesOnlyDigitTokens(v.Text, titles[i]))
                         raw *= DigitOnlyOverlapFactor;
@@ -317,27 +332,14 @@ public sealed class MatchScorer : IMatchScorer
         if (ctx.TallStrips && (c.Webtoon == true || origin is MetadataOrigin.Korea or MetadataOrigin.ChinaTaiwan))
             delta += OriginAgree;
 
-        // Counts: volumes vs volumes, chapters vs chapters (the E3 fix); unknown -> no signal. 1.27.0: the local side
-        // is the highest unit NUMBER the names state (extras and x.5 chapters do not inflate it); the published side
-        // is the largest number any source states - the latest chapter (it restarts per season on renumbered
-        // webtoons), the status total, the English publisher's totals. A folder that mixes volume and chapter
-        // archives gives no count signal at all (no subtraction heuristics).
-        if (!(ctx.VolumeLikeCount > 0 && ctx.ChapterLikeCount > 0))
+        // Counts: volumes vs volumes, chapters vs chapters, unit NUMBERS (not file counts); a mixed folder gives no signal,
+        // and the latest tracked chapter alone never conflicts with a record that counts its run in volumes. The rule
+        // lives in CountEvidence (1.29.0) so Identify's warning reads the same.
+        var count = CountEvidence.Compare(CountEvidence.FromContext(ctx), PublishedUnitCounts.Of(c));
+        foreach (var signal in new[] { count.Volumes, count.Chapters })
         {
-            var localVolumes = ctx.VolumeLikeCount > 0 ? ctx.LocalVolumes ?? ctx.VolumeLikeCount : 0;
-            var localChapters = ctx.ChapterLikeCount > 0 ? ctx.LocalChapters ?? ctx.ChapterLikeCount : 0;
-            var volumes = Math.Max(c.Volumes ?? 0, c.EnglishVolumes ?? 0);
-            var chapters = Math.Max(Math.Max(c.LatestChapter ?? 0, c.TotalChapters ?? 0), c.EnglishChapters ?? 0);
-            if (localVolumes > 0 && volumes > 0)
-            {
-                if (localVolumes > CountFactor * volumes + CountSlack) { delta += Conflict; reasons |= MatchReason.CountConflict; }
-                else delta += CountAgree;
-            }
-            if (localChapters > 0 && chapters > 0)
-            {
-                if (localChapters > CountFactor * chapters + CountSlack) { delta += Conflict; reasons |= MatchReason.CountConflict; }
-                else delta += CountAgree;
-            }
+            if (signal == CountSignal.Conflict) { delta += Conflict; reasons |= MatchReason.CountConflict; }
+            else if (signal == CountSignal.Agree) delta += CountAgree;
         }
 
         // Year: a file cannot predate the series (English release years bound it from above).

@@ -39,6 +39,7 @@ describe('LibraryBrowseComponent series info (1.24.0)', () => {
   function setup(viewMode: 'card' | 'list', nodes: CatalogNodeDto[], parentId: string | null = null, admin = false, prefs: Record<string, unknown> = {}) {
     const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
     const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode, density: 'comfortable', sort: 'name', direction: 'asc', ...prefs })),
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),

@@ -768,6 +768,88 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     internal static readonly TimeSpan ImageHashTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>
+    /// Renders one cover thumbnail in a worker (protocol v5 <c>cover_render</c>, 1.29.0): an archive page (optionally one
+    /// half of a jacket spread) or a SERVER-OWNED image file (provider bytes in scratch), downscaled to WebP and hashed.
+    /// The request's <c>JobId</c> is replaced by the pool's own. A direct slot like <see cref="HashImageAsync"/>; never throws
+    /// for worker-side problems: every failure is a <see cref="CoverRenderOutcome"/> error type.
+    /// </summary>
+    public async Task<CoverRenderOutcome> RenderCoverAsync(CoverRenderRequest request, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (_isShuttingDown)
+            return CoverRenderOutcome.Failed("unavailable");
+
+        var slot = await AcquireSlotAsync(ct);
+        if (slot is null)
+            return CoverRenderOutcome.Failed("busy");
+
+        var jobId = "cover-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            var tcs = new TaskCompletionSource<CoverRenderOutcome>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            Task HandleMessage(WorkerEnvelope envelope)
+            {
+                if (envelope.CorrelationId != jobId) return Task.CompletedTask;
+                switch (envelope.Type)
+                {
+                    case "cover_render_result":
+                        {
+                            var r = WorkerProtocolFraming.GetPayload<CoverRenderResult>(envelope);
+                            tcs.TrySetResult(r is null ? CoverRenderOutcome.Failed("render_failed") : CoverRenderOutcome.Ok(r));
+                            break;
+                        }
+                    case "cover_render_error":
+                        {
+                            var e = WorkerProtocolFraming.GetPayload<CoverRenderError>(envelope);
+                            tcs.TrySetResult(CoverRenderOutcome.Failed(e?.ErrorType ?? "render_failed"));
+                            break;
+                        }
+                    case "analyze_error":
+                        {
+                            // A worker-level error for this correlation id (e.g. an unknown message type from an older worker).
+                            var e = WorkerProtocolFraming.GetPayload<AnalyzeError>(envelope);
+                            tcs.TrySetResult(CoverRenderOutcome.Failed(e?.ErrorType ?? "render_failed"));
+                            break;
+                        }
+                }
+                return Task.CompletedTask;
+            }
+
+            slot.Supervisor.OnMessageReceived += HandleMessage;
+            try
+            {
+                await slot.Supervisor.SendMessageAsync(
+                    WorkerProtocolFraming.CreateEnvelope("cover_render", jobId, request with { JobId = jobId }), ct);
+                var timeout = Task.Delay(CoverRenderTimeout, ct);
+                var done = await Task.WhenAny(tcs.Task, timeout);
+                return done == tcs.Task ? await tcs.Task : CoverRenderOutcome.Failed("timeout");
+            }
+            finally
+            {
+                slot.Supervisor.OnMessageReceived -= HandleMessage;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return CoverRenderOutcome.Failed("cancelled");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(LogEvents.Worker.ExtractDispatchFailed, ex, "Cover render dispatch failed: {Error}", ex.GetType().Name);
+            return CoverRenderOutcome.Failed("render_failed");
+        }
+        finally
+        {
+            ReleaseSlot(slot);
+            SignalDispatch();
+        }
+    }
+
+    /// <summary>Deadline for one cover render (one page read from a possibly cold archive, one decode, one encode).</summary>
+    internal static readonly TimeSpan CoverRenderTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
     /// Finds a free worker slot, starting one if under the concurrency cap, and
     /// otherwise waiting briefly for one to free up. Marks the returned slot busy.
     /// Marks itself as a waiting reader for the duration of the call (even the
@@ -1334,6 +1416,36 @@ public sealed record ComicInfoReadOutcome
     public static ComicInfoReadOutcome Ok(ComicInfoOutcome outcome) => new() { Success = true, Outcome = outcome };
 
     public static ComicInfoReadOutcome Failed(string errorType) => new() { Success = false, ErrorType = errorType };
+}
+
+/// <summary>
+/// The outcome of <see cref="MediaWorkerPool.RenderCoverAsync"/>: the written thumbnail (path, size, source size, hash), or an
+/// error type (a <c>CoverRenderErrors</c> code, or <c>unavailable</c> / <c>busy</c> / <c>timeout</c> / <c>cancelled</c> /
+/// <c>render_failed</c>, or <c>protocol_version_mismatch</c> / <c>unknown_message_type</c> from a mismatched worker).
+/// </summary>
+public sealed record CoverRenderOutcome
+{
+    public bool Success { get; init; }
+    public string? ErrorType { get; init; }
+    public string? OutputPath { get; init; }
+    public int Width { get; init; }
+    public int Height { get; init; }
+    public int SourceWidth { get; init; }
+    public int SourceHeight { get; init; }
+    public ulong? Hash { get; init; }
+
+    public static CoverRenderOutcome Ok(CoverRenderResult r) => new()
+    {
+        Success = true,
+        OutputPath = r.OutputPath,
+        Width = r.Width,
+        Height = r.Height,
+        SourceWidth = r.SourceWidth,
+        SourceHeight = r.SourceHeight,
+        Hash = r.Hash,
+    };
+
+    public static CoverRenderOutcome Failed(string errorType) => new() { Success = false, ErrorType = errorType };
 }
 
 /// <summary>The outcome of <see cref="MediaWorkerPool.HashImageAsync"/>: a 64-bit perceptual hash, or an error type.</summary>

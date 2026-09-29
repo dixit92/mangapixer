@@ -5,6 +5,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatIconModule } from '@angular/material/icon';
 import { MatRadioModule } from '@angular/material/radio';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { RouterLink } from '@angular/router';
 
 import { MetadataReviewItemDto, MetadataReviewTab } from '../../../core/api/api-types';
 import {
@@ -18,6 +19,7 @@ import {
 } from '../admin-metadata/metadata-admin-labels';
 import { MetadataApiService } from '../metadata-api.service';
 import { CoverCompareDirective } from './cover-compare/cover-compare.directive';
+import { QueuedImageDirective, QueuedImageState } from './queued-image.directive';
 
 /** A row action; `rank` for Accept (the chosen stored candidate). */
 export type ReviewRowAction =
@@ -84,12 +86,14 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
  *
  * Candidate posters are NOT loaded until the row is expanded: each one costs a
  * provider request through the candidate-image token path. The linked record's poster
- * and archive covers are stored locally and always shown.
+ * and archive covers are stored locally and always shown. Provider images load through
+ * a small queue with retries (1.29.0): a refused one never shows as a broken image.
  */
 @Component({
   selector: 'app-review-row',
   standalone: true,
-  imports: [DatePipe, MatButtonModule, MatCheckboxModule, MatIconModule, MatRadioModule, MatTooltipModule, CoverCompareDirective],
+  imports: [DatePipe, MatButtonModule, MatCheckboxModule, MatIconModule, MatRadioModule, MatTooltipModule, RouterLink,
+    CoverCompareDirective, QueuedImageDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @let it = item();
@@ -115,7 +119,18 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
             <figcaption>Yours</figcaption>
           </figure>
           <figure class="cover">
-            @if (seriesCoverUrl(); as url) {
+            @if (candidateCoverUrl(); as url) {
+              <!-- A provider request: queued, retried, and "No cover" with a retry when it gives up (1.29.0). -->
+              <span class="frame">
+                <img #series="queuedImage" [appQueuedImage]="url" (queuedImageState)="seriesState.set($event)" alt=""
+                     data-testid="review-series-cover">
+                @if (seriesState() === 'failed') {
+                  <button type="button" class="none retry" (click)="$event.stopPropagation(); series.retry()"
+                          matTooltip="The cover could not be loaded. Tap to try again." data-testid="review-series-retry">
+                    No cover<br>Retry</button>
+                }
+              </span>
+            } @else if (seriesCoverUrl(); as url) {
               <img [src]="url" alt="" loading="lazy" data-testid="review-series-cover">
             } @else {
               <span class="none">No cover</span>
@@ -151,6 +166,14 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
             }
           </div>
         </div>
+        @if (!it.missing && tab() !== 'MissingFolders') {
+          <!-- 1.29.0 (owner): open the folder in browse, as the Missing tab does; an archive opens in its folder. -->
+          <a mat-icon-button class="open" [routerLink]="folderLink()" (click)="$event.stopPropagation()"
+             [attr.aria-label]="it.nodeKind === 'Archive' ? 'Open the folder that contains this archive' : 'Open this folder'"
+             [matTooltip]="it.nodeKind === 'Archive' ? 'Open containing folder' : 'Open folder'" data-testid="review-open-folder">
+            <mat-icon>folder_open</mat-icon>
+          </a>
+        }
         @if (hasCandidates()) {
           <button mat-icon-button type="button" class="expand" (click)="toggleExpand.emit()"
                   [attr.aria-expanded]="expanded()" [attr.aria-label]="expanded() ? 'Hide covers' : 'Show candidate covers'"
@@ -186,7 +209,7 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
             <mat-radio-button [value]="c.rank" class="cand" data-testid="review-candidate">
               <span class="cand-body">
                 @if (expanded() && c.imageToken) {
-                  <img class="poster" [src]="posterUrl(c.imageToken)" alt="" loading="lazy" data-testid="review-poster">
+                  <img class="poster" [appQueuedImage]="posterUrl(c.imageToken)" alt="" data-testid="review-poster">
                 }
                 <span class="cand-text">
                   <span class="cand-title">{{ c.title }}</span>
@@ -238,9 +261,14 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
     .cover img, .cover > mat-icon, .cover .none { width: 96px; height: 136px; border-radius: 6px; background: #2a2a36; object-fit: cover; }
     .cover > mat-icon, .cover .none { display: flex; align-items: center; justify-content: center; color: #8a8a99; font-size: 12px; }
     .cover figcaption { font-size: 11px; color: #9a9aa8; }
+    .frame { position: relative; display: block; width: 96px; height: 136px; border-radius: 6px; background: #2a2a36; }
+    .frame img { display: block; }
+    .frame .retry { position: absolute; inset: 0; border: 0; cursor: pointer; text-align: center; line-height: 1.4; font: inherit;
+      font-size: 12px; }
     @container (max-width: 520px) {
       .covers { flex-basis: 100%; order: -1; justify-content: center; }
-      .cover img, .cover > mat-icon, .cover .none { width: min(150px, 42cqw); height: auto; aspect-ratio: 0.7; }
+      .cover img, .cover > mat-icon, .cover .none, .frame { width: min(150px, 42cqw); height: auto; aspect-ratio: 0.7; }
+      .frame img { width: 100%; }
     }
     .title { flex: 1 1 auto; min-width: 0; }
     .name { all: unset; cursor: pointer; font-weight: 500; font-size: 15px; overflow-wrap: anywhere; }
@@ -255,7 +283,7 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
     .tag.flag { background: rgba(244, 67, 54, 0.18); color: #ff8a80; }
     .chip { padding: 0 8px; border-radius: 10px; background: rgba(179, 157, 255, 0.16); color: #d8ccff; line-height: 20px; }
     .chip.small { font-size: 11px; line-height: 18px; }
-    .expand { flex: none; }
+    .expand, .open { flex: none; }
     .link { margin: 6px 0 0; font-size: 13px; }
     .note { margin: 6px 0 0; font-size: 12px; color: #9a9aa8; }
     .muted { color: #9a9aa8; }
@@ -293,6 +321,8 @@ export class ReviewRowComponent {
 
   /** A local image that failed to load (no cover yet): show the kind icon instead. */
   readonly localFailed = signal(false);
+  /** The selected candidate's cover (a provider image): loading, loaded, or given up after its retries. */
+  readonly seriesState = signal<QueuedImageState>('loading');
 
   readonly actions = computed(() => rowActions(this.tab(), this.item()));
   readonly hasCandidates = computed(() => (this.item().candidates ?? []).length > 0);
@@ -324,6 +354,16 @@ export class ReviewRowComponent {
       return chosen?.imageToken ? this.posterUrl(chosen.imageToken) : null;
     }
     return it.link?.imageUrl ?? null;
+  });
+
+  /** The series cover when it is a provider request (a candidate's image), else null - a stored poster loads directly. */
+  readonly candidateCoverUrl = computed(() => (this.hasCandidates() ? this.seriesCoverUrl() : null));
+
+  /** The row's folder in browse: the folder itself, or an archive's containing folder (the library top level when none). */
+  readonly folderLink = computed(() => {
+    const it = this.item();
+    const folderId = it.nodeKind === 'Archive' ? it.parentNodeId : it.nodeId;
+    return folderId ? ['/libraries', it.libraryId, 'browse', folderId] : ['/libraries', it.libraryId, 'browse'];
   });
 
   readonly seriesCoverLabel = computed(() => (this.hasCandidates() ? 'Selected series' : 'Linked series'));

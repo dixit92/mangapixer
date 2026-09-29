@@ -545,6 +545,13 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "v",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -2508,6 +2515,334 @@
         }
       }
     },
+    "/api/v1/admin/metadata/nodes/{nodeId}/companions": {
+      "get": {
+        "tags": [
+          "VolumeCovers"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanionDto"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanionDto"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanionDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/metadata/nodes/{nodeId}/companions/mangadex": {
+      "put": {
+        "tags": [
+          "VolumeCovers"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanionReferenceRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanionReferenceRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanionReferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanionDto"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanionDto"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanionDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "VolumeCovers"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanionDto"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanionDto"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanionDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/metadata/nodes/{nodeId}/companions/mangadex/recheck": {
+      "post": {
+        "tags": [
+          "VolumeCovers"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanionDto"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanionDto"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanionDto"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/metadata/volume-covers/status": {
+      "get": {
+        "tags": [
+          "VolumeCovers"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverPassStatusDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverPassStatusDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverPassStatusDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/metadata/volume-covers": {
+      "delete": {
+        "tags": [
+          "VolumeCovers"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverPassStatusDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverPassStatusDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverPassStatusDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/metadata/review/summary": {
       "get": {
         "tags": [
@@ -4236,6 +4571,329 @@
         }
       }
     },
+    "/api/v1/nodes/{nodeId}/cover": {
+      "get": {
+        "tags": [
+          "NodeCover"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/cover-crops/{side}": {
+      "get": {
+        "tags": [
+          "NodeCover"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "side",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/cover-options": {
+      "get": {
+        "tags": [
+          "NodeCover"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverOptionsDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverOptionsDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverOptionsDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/cover-choice": {
+      "put": {
+        "tags": [
+          "NodeCover"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoverChoiceRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoverChoiceRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/CoverChoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverStateDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverStateDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverStateDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "NodeCover"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverStateDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverStateDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverStateDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/volumes/{key}/cover": {
+      "get": {
+        "tags": [
+          "StackCover"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "302": {
+            "description": "Found"
+          }
+        }
+      }
+    },
+    "/api/v1/volume-covers/{coverId}/image": {
+      "get": {
+        "tags": [
+          "VolumeCoverImage"
+        ],
+        "parameters": [
+          {
+            "name": "coverId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/libraries": {
       "get": {
         "tags": [
@@ -4353,6 +5011,13 @@
             "schema": {
               "type": "boolean",
               "default": false
+            }
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -4533,6 +5198,142 @@
         }
       }
     },
+    "/api/v1/admin/folders/{nodeId}/view-settings": {
+      "get": {
+        "tags": [
+          "FolderViewSettings"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderViewSettingsDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderViewSettingsDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderViewSettingsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "FolderViewSettings"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFolderViewSettingsRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFolderViewSettingsRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFolderViewSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderViewSettingsDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderViewSettingsDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderViewSettingsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/libraries/{libraryId}/jump-index": {
       "get": {
         "tags": [
@@ -4551,6 +5352,92 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/volume-view": {
+      "get": {
+        "tags": [
+          "VolumeStack"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeViewDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeViewDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeViewDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/volumes/{key}": {
+      "get": {
+        "tags": [
+          "VolumeStack"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeStackDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeStackDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeStackDto"
+                }
+              }
+            }
           }
         }
       }
@@ -5616,6 +6503,153 @@
           }
         }
       },
+      "CardCoverSource": {
+        "type": "integer"
+      },
+      "CatalogNodeAvailability": {
+        "type": "integer"
+      },
+      "CatalogNodeDto": {
+        "required": [
+          "id",
+          "parentId",
+          "libraryId",
+          "kind",
+          "displayName",
+          "availability"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CatalogNodeKind"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "availability": {
+            "$ref": "#/components/schemas/CatalogNodeAvailability"
+          },
+          "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "childFolderCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "childArchiveCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "readingState": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReadingState"
+              }
+            ]
+          },
+          "lastReadPage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "readerDefault": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReaderMode"
+              }
+            ]
+          },
+          "isRead": {
+            "type": "boolean"
+          },
+          "isFavorite": {
+            "type": "boolean"
+          },
+          "readRollup": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FolderReadRollup"
+              }
+            ]
+          },
+          "hasSeriesInfo": {
+            "type": "boolean"
+          },
+          "favoriteStackCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "volumeStack": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/VolumeStackSummaryDto"
+              }
+            ]
+          },
+          "coverSource": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CardCoverSource"
+              }
+            ]
+          }
+        }
+      },
       "CatalogNodeKind": {
         "type": "integer"
       },
@@ -5633,6 +6667,52 @@
             "type": "string"
           }
         }
+      },
+      "CompanionDto": {
+        "required": [
+          "provider",
+          "providerName",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "providerName": {
+            "type": "string"
+          },
+          "siteUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/CompanionState"
+          },
+          "checkedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "CompanionReferenceRequest": {
+        "required": [
+          "reference"
+        ],
+        "type": "object",
+        "properties": {
+          "reference": {
+            "type": "string"
+          }
+        }
+      },
+      "CompanionState": {
+        "type": "integer"
       },
       "ContinueReadingEntry": {
         "required": [
@@ -5683,6 +6763,198 @@
           },
           "hasSeriesInfo": {
             "type": "boolean"
+          },
+          "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CoverChoiceRequest": {
+        "required": [
+          "mode"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/CoverMode"
+          },
+          "archiveId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "volumeCoverId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cropSide": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CoverCropSide"
+              }
+            ]
+          }
+        }
+      },
+      "CoverCropSide": {
+        "type": "integer"
+      },
+      "CoverMode": {
+        "type": "integer"
+      },
+      "CoverOptionDto": {
+        "required": [
+          "kind",
+          "imageUrl",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/CoverOptionKind"
+          },
+          "archiveId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "CoverOptionKind": {
+        "type": "integer"
+      },
+      "CoverOptionsDto": {
+        "required": [
+          "nodeId",
+          "current",
+          "local",
+          "web",
+          "webAvailable"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "current": {
+            "$ref": "#/components/schemas/CoverStateDto"
+          },
+          "local": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoverOptionDto"
+            }
+          },
+          "web": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebCoverGroupDto"
+            }
+          },
+          "webAvailable": {
+            "type": "boolean"
+          },
+          "webUnavailableReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CoverPassStatusDto": {
+        "required": [
+          "seriesPending",
+          "coversListed",
+          "coversStored"
+        ],
+        "type": "object",
+        "properties": {
+          "seriesPending": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "coversListed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "coversStored": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "waiting": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CoverStateDto": {
+        "required": [
+          "mode"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/CoverMode"
+          },
+          "autoSource": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CardCoverSource"
+              }
+            ]
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "imageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recheckAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -5941,6 +7213,30 @@
           },
           "precedence": {
             "$ref": "#/components/schemas/MetadataPrecedence"
+          }
+        }
+      },
+      "FolderReadRollup": {
+        "type": "integer"
+      },
+      "FolderViewSettingsDto": {
+        "required": [
+          "nodeId"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "virtualVolumes": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ViewSwitch"
+              }
+            ]
           }
         }
       },
@@ -6527,6 +7823,16 @@
           },
           "seriesInfoOnHover": {
             "type": "boolean"
+          },
+          "seriesViewMode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SeriesViewMode"
+              }
+            ]
           }
         }
       },
@@ -6878,6 +8184,19 @@
           },
           "autoMatchActive": {
             "type": "boolean"
+          },
+          "showWebCovers": {
+            "type": "boolean"
+          },
+          "virtualVolumes": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ViewSwitch"
+              }
+            ]
           }
         }
       },
@@ -7700,6 +9019,12 @@
           "missing": {
             "type": "boolean"
           },
+          "parentNodeId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "coverUrl": {
             "type": [
               "null",
@@ -8156,6 +9481,21 @@
           "compareCoversDisabledByConfig": {
             "type": "boolean"
           },
+          "preferredCoverLanguage": {
+            "type": "string"
+          },
+          "volumeCoversEnabled": {
+            "type": "boolean"
+          },
+          "volumeCoversDisabledByConfig": {
+            "type": "boolean"
+          },
+          "spreadCropEnabled": {
+            "type": "boolean"
+          },
+          "virtualVolumesEnabled": {
+            "type": "boolean"
+          },
           "providers": {
             "type": "array",
             "items": {
@@ -8435,6 +9775,12 @@
         ],
         "type": "object",
         "properties": {
+          "language": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "nodeId": {
             "type": "string"
           },
@@ -8624,6 +9970,15 @@
               "string"
             ],
             "format": "int32"
+          },
+          "originTotal": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -8738,6 +10093,9 @@
         }
       },
       "ReaderMode": {
+        "type": "integer"
+      },
+      "ReadingState": {
         "type": "integer"
       },
       "RecentChaptersDto": {
@@ -9340,6 +10698,9 @@
           }
         }
       },
+      "SeriesViewMode": {
+        "type": "integer"
+      },
       "SetDeclaredFactsRequest": {
         "type": "object",
         "properties": {
@@ -9545,6 +10906,21 @@
           }
         }
       },
+      "UpdateFolderViewSettingsRequest": {
+        "type": "object",
+        "properties": {
+          "virtualVolumes": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ViewSwitch"
+              }
+            ]
+          }
+        }
+      },
       "UpdateLibraryRequest": {
         "required": [
           "displayName"
@@ -9590,6 +10966,25 @@
               "null",
               "boolean"
             ]
+          },
+          "showWebCovers": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "virtualVolumes": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ViewSwitch"
+              }
+            ]
+          },
+          "resetVirtualVolumes": {
+            "type": "boolean"
           }
         }
       },
@@ -9671,6 +11066,30 @@
             "items": {
               "type": "string"
             }
+          },
+          "preferredCoverLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "volumeCoversEnabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "spreadCropEnabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "virtualVolumesEnabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },
@@ -9760,6 +11179,430 @@
           }
         }
       },
+      "ViewSwitch": {
+        "type": "integer"
+      },
+      "VolumeCoverKind": {
+        "type": "integer"
+      },
+      "VolumeListSource": {
+        "type": "integer"
+      },
+      "VolumeSlotDto": {
+        "required": [
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/VolumeSlotKind"
+          },
+          "chapter": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "item": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CatalogNodeDto"
+              }
+            ]
+          }
+        }
+      },
+      "VolumeSlotKind": {
+        "type": "integer"
+      },
+      "VolumeStackConfidence": {
+        "type": "integer"
+      },
+      "VolumeStackDto": {
+        "required": [
+          "folderId",
+          "key",
+          "label",
+          "confidence",
+          "source",
+          "presentCount",
+          "missingCount",
+          "extraCount",
+          "slots"
+        ],
+        "type": "object",
+        "properties": {
+          "folderId": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/VolumeStackConfidence"
+          },
+          "source": {
+            "$ref": "#/components/schemas/VolumeListSource"
+          },
+          "presentCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "chapterCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "chaptersPresent": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "hasVolumeArchive": {
+            "type": "boolean"
+          },
+          "missingCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "extraCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "previousKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "nextKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VolumeSlotDto"
+            }
+          }
+        }
+      },
+      "VolumeStackSummaryDto": {
+        "required": [
+          "key",
+          "label",
+          "presentCount",
+          "missingCount",
+          "extraCount",
+          "hasVolumeArchive",
+          "confidence"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "presentCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "chapterCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "missingCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "extraCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "hasVolumeArchive": {
+            "type": "boolean"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/VolumeStackConfidence"
+          },
+          "firstChapter": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lastChapter": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "chaptersPresent": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "missing": {
+            "type": "boolean"
+          }
+        }
+      },
+      "VolumeViewDto": {
+        "required": [
+          "nodeId",
+          "available",
+          "active",
+          "consolidated",
+          "stackCount"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "defaultActive": {
+            "type": "boolean"
+          },
+          "consolidated": {
+            "type": "boolean"
+          },
+          "stackCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "hasSeriesStatus": {
+            "type": "boolean"
+          },
+          "seriesStatus": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MetadataOriginStatus"
+              }
+            ]
+          },
+          "missingVolumes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "missingChapters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "releaseKnown": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "origin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MetadataOrigin"
+              }
+            ]
+          },
+          "originVolumes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "releasedVolumes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "releasedChapter": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "licensed": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "scanlationComplete": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "coversPending": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "WebCoverDto": {
+        "required": [
+          "id",
+          "kind",
+          "locale",
+          "stored"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/VolumeCoverKind"
+          },
+          "volume": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "variant": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "locale": {
+            "type": "string"
+          },
+          "stored": {
+            "type": "boolean"
+          },
+          "imageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "WebCoverGroupDto": {
+        "required": [
+          "covers"
+        ],
+        "type": "object",
+        "properties": {
+          "volume": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "covers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebCoverDto"
+            }
+          }
+        }
+      },
       "WorkClass": {
         "type": "integer"
       },
@@ -9824,6 +11667,9 @@
       "name": "SeriesInfoImage"
     },
     {
+      "name": "VolumeCovers"
+    },
+    {
       "name": "MetadataReview"
     },
     {
@@ -9851,10 +11697,25 @@
       "name": "RecentChapters"
     },
     {
+      "name": "NodeCover"
+    },
+    {
+      "name": "StackCover"
+    },
+    {
+      "name": "VolumeCoverImage"
+    },
+    {
       "name": "Catalog"
     },
     {
+      "name": "FolderViewSettings"
+    },
+    {
       "name": "JumpIndex"
+    },
+    {
+      "name": "VolumeStack"
     },
     {
       "name": "Auth"

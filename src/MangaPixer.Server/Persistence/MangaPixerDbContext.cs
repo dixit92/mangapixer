@@ -82,6 +82,13 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<MetadataMatchCandidateEntity> MetadataMatchCandidates => Set<MetadataMatchCandidateEntity>();
     public DbSet<MetadataFlagEntity> MetadataFlags => Set<MetadataFlagEntity>();
     public DbSet<DeclaredFactEntity> DeclaredFacts => Set<DeclaredFactEntity>();
+    public DbSet<MetadataCompanionEntity> MetadataCompanions => Set<MetadataCompanionEntity>();
+    public DbSet<SeriesVolumeMapEntity> SeriesVolumeMaps => Set<SeriesVolumeMapEntity>();
+    public DbSet<VolumeCoverEntity> VolumeCovers => Set<VolumeCoverEntity>();
+    public DbSet<NodeCoverChoiceEntity> NodeCoverChoices => Set<NodeCoverChoiceEntity>();
+    public DbSet<NodeAutoCoverEntity> NodeAutoCovers => Set<NodeAutoCoverEntity>();
+    public DbSet<MetadataProviderStateEntity> MetadataProviderStates => Set<MetadataProviderStateEntity>();
+    public DbSet<FolderViewSettingsEntity> FolderViewSettings => Set<FolderViewSettingsEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -109,6 +116,7 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureMetadata(modelBuilder);
         ConfigureMetadataAutoMatch(modelBuilder);
         ConfigureDeclaredFacts(modelBuilder);
+        ConfigureVolumesAndCovers(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
@@ -124,6 +132,7 @@ public sealed class MangaPixerDbContext : DbContext
             e.Property(x => x.BackupLocationMarkerId).HasMaxLength(32);
             e.Property(x => x.MetadataLastErrorCode).HasMaxLength(32);
             e.Property(x => x.MetadataProvidersJson).HasMaxLength(4096);
+            e.Property(x => x.MetadataCoverLanguage).IsRequired().HasMaxLength(16);
         });
     }
 
@@ -717,6 +726,133 @@ public sealed class MangaPixerDbContext : DbContext
             e.HasOne<LibraryEntity>()
                 .WithMany()
                 .HasForeignKey(x => x.LibraryId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    /// <summary>
+    /// Virtual volumes and volume covers (1.29.0): companions of a series record, its volume maps, known web covers,
+    /// the per-node cover layer (admin choice + automatic decision), per-provider backoff and per-folder view settings.
+    /// </summary>
+    private static void ConfigureVolumesAndCovers(ModelBuilder mb)
+    {
+        mb.Entity<MetadataCompanionEntity>(e =>
+        {
+            e.ToTable("metadata_companions");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.Provider).IsRequired().HasMaxLength(32);
+            e.HasIndex(x => new { x.RecordId, x.Provider }).IsUnique();
+            // The background pass picks due rows by state and time.
+            e.HasIndex(x => new { x.State, x.NextCheckAt });
+            e.HasIndex(x => x.CompanionRecordId);
+            e.HasOne(x => x.Record)
+                .WithMany()
+                .HasForeignKey(x => x.RecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.CompanionRecord)
+                .WithMany()
+                .HasForeignKey(x => x.CompanionRecordId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        mb.Entity<SeriesVolumeMapEntity>(e =>
+        {
+            e.ToTable("series_volume_maps");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.ContentHash).IsRequired().HasMaxLength(64);
+            e.Property(x => x.ReleasedLanguage).HasMaxLength(16);
+            e.HasIndex(x => new { x.RecordId, x.Source }).IsUnique();
+            e.HasOne(x => x.Record)
+                .WithMany()
+                .HasForeignKey(x => x.RecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<VolumeCoverEntity>(e =>
+        {
+            e.ToTable("volume_covers");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.PublicId).IsRequired().HasMaxLength(64);
+            e.Property(x => x.Locale).IsRequired().HasMaxLength(16);
+            e.Property(x => x.RemoteId).IsRequired().HasMaxLength(64);
+            e.Property(x => x.RemoteFile).IsRequired().HasMaxLength(128);
+            e.HasIndex(x => x.PublicId).IsUnique();
+            e.HasIndex(x => new { x.ProviderRecordId, x.RemoteId }).IsUnique();
+            // "The volume N cover in locale L" - the decision's lookup.
+            e.HasIndex(x => new { x.ProviderRecordId, x.Kind, x.Volume, x.Variant, x.Locale });
+            e.HasIndex(x => x.State);
+            e.HasOne(x => x.ProviderRecord)
+                .WithMany()
+                .HasForeignKey(x => x.ProviderRecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<NodeCoverChoiceEntity>(e =>
+        {
+            e.ToTable("node_cover_choices");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.HasIndex(x => x.NodeId).IsUnique();
+            e.HasIndex(x => x.ArchiveNodeId);
+            e.HasIndex(x => x.VolumeCoverId);
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // A deleted target falls back to automatic (the choice row stays, its target goes null).
+            e.HasOne<CatalogNodeEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.ArchiveNodeId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<VolumeCoverEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.VolumeCoverId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<UserEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.SetByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        mb.Entity<NodeAutoCoverEntity>(e =>
+        {
+            e.ToTable("node_auto_covers");
+            // 1:1 with the node.
+            e.HasKey(x => x.NodeId);
+            e.Property(x => x.NodeId).ValueGeneratedNever();
+            e.Property(x => x.InputsKey).IsRequired().HasMaxLength(64);
+            e.HasIndex(x => x.VolumeCoverId);
+            e.HasIndex(x => x.RecheckAt);
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<VolumeCoverEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.VolumeCoverId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        mb.Entity<MetadataProviderStateEntity>(e =>
+        {
+            e.ToTable("metadata_provider_state");
+            e.HasKey(x => x.Provider);
+            e.Property(x => x.Provider).HasMaxLength(32);
+            e.Property(x => x.LastErrorCode).HasMaxLength(32);
+        });
+
+        mb.Entity<FolderViewSettingsEntity>(e =>
+        {
+            e.ToTable("folder_view_settings");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.HasIndex(x => x.NodeId).IsUnique();
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

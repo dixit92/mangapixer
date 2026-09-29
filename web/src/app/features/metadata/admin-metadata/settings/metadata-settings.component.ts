@@ -14,6 +14,7 @@ import { Observable } from 'rxjs';
 
 import {
   ApiError,
+  CoverPassStatusDto,
   MetadataLibrarySettingsDto,
   MetadataMatchRunDto,
   MetadataMatchThresholdBoundsDto,
@@ -26,19 +27,23 @@ import { MetadataReviewStateService } from '../../metadata-review-state.service'
 import { scorePercent } from '../metadata-admin-labels';
 import { LibraryMatchPanelComponent } from './library-match-panel.component';
 import { MetadataProvidersComponent } from './metadata-providers.component';
+import { coverLanguageOptions, volumeCoversWaitingLabel } from './volume-covers';
+import { CoverSettingsCardComponent } from './cover-settings-card.component';
 
 /**
  * Consent text version the page shows; must equal the server's `currentConsentVersion`. 2 (1.28.0): the text
  * describes the provider allowlist (MangaUpdates + AniList); an instance that accepted 1 re-accepts.
+ * 3 (1.29.0): MangaDex (volume covers and volume lists) joins the allowed sites; an earlier consent is not carried over.
  */
-export const CONSENT_TEXT_VERSION = 2;
+export const CONSENT_TEXT_VERSION = 3;
 
 /**
  * Automatic-lookups consent text version (stage 2, owner decisions 2 + 3); must equal the
  * server's `currentAutoConsentVersion`. Bump it whenever the text below changes.
  * v2 (1.28.0): the cover comparison downloads; an earlier consent is not carried over (owner).
+ * v3 (1.29.0): volume covers and volume lists from MangaDex (AniList totals as the fallback).
  */
-export const AUTO_CONSENT_TEXT_VERSION = 2;
+export const AUTO_CONSENT_TEXT_VERSION = 3;
 
 /** Integer-only daily budget in 1..1,000,000 (the server validates the same range). */
 export function parseDailyBudget(raw: string | number | null | undefined): number | null {
@@ -105,6 +110,9 @@ export function validateThresholds(
  * - Consent texts show until accepted, then fold behind "What is sent?" (owner, 2026-09-26).
  * - Per library "Match now" with the local estimate (decision 1).
  * - **Advanced**: the three thresholds with their bounds and Reset (decision 13).
+ * - **Volume covers** (1.29.0): "Volume covers from the web" (MangaDex, for series linked to MangaUpdates), the
+ *   preferred cover language, the pass's progress (loaded on demand), "Delete stored volume covers", and the ONE
+ *   MangaDex credit in the UI (owner: Metadata Manager + the docs only).
  */
 @Component({
   selector: 'app-metadata-settings',
@@ -112,6 +120,7 @@ export function validateThresholds(
   imports: [
     DatePipe, FormsModule, MatButtonModule, MatCheckboxModule, MatExpansionModule, MatFormFieldModule, MatIconModule,
     MatInputModule, MatProgressBarModule, MatSelectModule, MatSlideToggleModule, LibraryMatchPanelComponent, MetadataProvidersComponent,
+    CoverSettingsCardComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -144,19 +153,22 @@ export function validateThresholds(
                 <li><strong>MangaUpdates</strong> (description, authors, genres, publication status, English release totals,
                   cover art): the search text you confirm in the Identify dialog (usually a folder or file name) and
                   MangaUpdates record numbers.</li>
-                <li><strong>AniList</strong> (volume and chapter totals, to convert chapters to volumes in the Missing report):
-                  the MangaUpdates title of a series that is already linked, or its AniList record number - never a folder
-                  or file name - and only when you ask for it in the Missing report.</li>
+                <li><strong>MangaDex</strong> (volume covers, and which chapters make up each volume, for series already linked
+                  to MangaUpdates): the MangaUpdates title of the linked series - never a folder or file name - MangaDex record
+                  numbers and your cover languages. Cover images are downloaded from MangaDex's image server
+                  (uploads.mangadex.org).</li>
+                <li><strong>AniList</strong> (volume and chapter totals, to convert chapters to volumes): the AniList record
+                  number when it is known, otherwise the MangaUpdates title of a series that is already linked - never a folder
+                  or file name.</li>
               </ul>
               <p>You can remove a site from the list at any time; nothing is ever sent to a removed site. Each site also
                 sees your server's IP address, as with any web request.</p>
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or
                 anything that identifies this server.</p>
-              <p><strong>When:</strong> only when an admin runs Identify, Look up, Refresh or a Missing-report lookup in an
-                enabled library. Nothing happens automatically unless you also turn on Automatic matching. Automatic matching
-                uses MangaUpdates only.</p>
-              <p>Fetched information is stored on this server and credited to the site that provided it, as-is. You can
-                switch this off at any time; stored information stays until you delete it.</p>
+              <p><strong>When:</strong> only when an admin runs Identify, Look up, Refresh, Choose cover or a Missing-report
+                lookup in an enabled library. Nothing happens automatically unless you also turn on Automatic matching.</p>
+              <p>Fetched information and covers are stored on this server as-is. You can switch this off at any time; stored
+                information stays until you delete it.</p>
             </div>
             }
             <app-metadata-providers [settings]="s" [disabled]="saving()" (changed)="apply($event)" />
@@ -220,12 +232,20 @@ export function validateThresholds(
                 with a fixed list of types to leave out (doujinshi, novels, artbooks, drama CDs; doujinshi are searched below a
                 folder whose Content is "Doujinshi &amp; adult one-shots"), and MangaUpdates record numbers to refresh linked
                 series. For a folder declared manga, manhwa or manhua, automatic searches leave the other two types out.
-                MangaUpdates also sees your server's IP address.</p>
+                Each site also sees your server's IP address.</p>
               <p><strong>Cover comparison:</strong> when two series tie on the title for a folder of volumes or a one-shot,
                 MangaPixer may also download the cover images of those two series from MangaUpdates' image server
                 (cdn.mangaupdates.com), by the address MangaUpdates gave, to compare them with the folder's own cover. These
                 downloads carry nothing from your library. The comparison runs on your server and the downloaded covers are
                 deleted right after.</p>
+              <p><strong>Volume covers and volume lists:</strong> for every series that gets linked - by Automatic matching or
+                by you - MangaPixer also finds the series on MangaDex by its MangaUpdates title (never a folder or file name),
+                reads which chapters make up each volume and which of them are released in your preferred language, and which
+                volume covers exist in your preferred cover language and the original language, and downloads the covers of
+                volume 1 and of the volumes you have (or, when there is no volume 1 cover, the series' main cover) from
+                MangaDex's image server (uploads.mangadex.org). It checks again on the refresh schedule until a cover in your preferred language
+                appears. When MangaDex has no volume list for a series, it asks AniList for the series' totals - by AniList
+                record number when known, otherwise by the MangaUpdates title. You can switch volume covers off below.</p>
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or anything
                 that identifies this server. Folders marked "Don't match", and everything inside them, are never looked up.</p>
               <p><strong>Budget:</strong> automatic requests come out of the same daily budget as Identify. When it is spent,
@@ -280,6 +300,64 @@ export function validateThresholds(
             </p>
           </section>
 
+          <!-- 3b. Volume covers and volume lists (1.29.0, MangaDex) -->
+          <section class="card" aria-labelledby="md-vc-h" data-testid="md-volume-covers">
+            <h3 id="md-vc-h"><mat-icon aria-hidden="true">photo_library</mat-icon> Volume covers</h3>
+            <mat-slide-toggle [checked]="s.volumeCoversEnabled !== false && !s.volumeCoversDisabledByConfig"
+                              [disabled]="saving() || !!s.volumeCoversDisabledByConfig" (change)="setVolumeCovers($event.checked)"
+                              data-testid="md-volume-covers-switch">
+              Volume covers from the web
+            </mat-slide-toggle>
+            <p class="note">For series linked to MangaUpdates: the covers of volume 1 and of the volumes you have, and which
+              chapters make up each volume, from MangaDex. In the background with Automatic matching on; otherwise only when
+              you use Refresh or Change MangaDex match. Covers are stored on this server; the browser never contacts MangaDex.</p>
+            @if (s.volumeCoversDisabledByConfig) {
+              <p class="note" data-testid="md-volume-covers-config">Switched off in the server configuration (Metadata:AutoMatch:VolumeCovers).</p>
+            }
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="lang">
+              <mat-label>Preferred language (covers and releases)</mat-label>
+              <mat-select [value]="s.preferredCoverLanguage ?? 'en'" (selectionChange)="setCoverLanguage($event.value)"
+                          [disabled]="saving()" data-testid="md-cover-language">
+                @for (o of coverLanguages(); track o.code) {
+                  <mat-option [value]="o.code">{{ o.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <p class="note" data-testid="md-language-note">Decides which volume covers are preferred and which chapters and volumes
+              count as released - and so as missing - for you. When a volume has no cover in this language yet, the cover in the
+              series' original language is used, and MangaPixer checks again on the refresh schedule.</p>
+            <p class="status" data-testid="md-volume-covers-status">
+              @if (coverStatus(); as cs) {
+                {{ cs.coversStored }} cover{{ cs.coversStored === 1 ? '' : 's' }} stored · {{ cs.coversListed }} known, not
+                downloaded · {{ cs.seriesPending }} series to check
+                @if (waitingLabel(); as w) { <br><span class="warn">{{ w }}</span> }
+              }
+              <button type="button" class="link" (click)="loadCoverStatus()" data-testid="md-volume-covers-progress">
+                {{ coverStatus() ? 'Refresh' : 'Show progress' }}</button>
+            </p>
+            @if (confirming() === 'covers') {
+              <span class="confirm">Delete every stored volume cover? The volume lists stay; nothing is sent.
+                <button mat-flat-button color="warn" type="button" (click)="deleteCovers()" data-testid="md-volume-covers-delete-confirm">Delete</button>
+                <button mat-button type="button" (click)="confirming.set(null)">Cancel</button></span>
+            } @else {
+              <button mat-stroked-button type="button" [disabled]="saving()" (click)="confirming.set('covers')"
+                      data-testid="md-volume-covers-delete">Delete stored volume covers</button>
+            }
+            <p class="credit" data-testid="md-mangadex-credit">Cover images and volume data from MangaDex (mangadex.org) -
+              thanks to MangaDex and its community.</p>
+          </section>
+
+          <!-- Volumes view (1.29.0): the global default of the virtual volume stacks. Reads stored data only; a library, a
+               folder and each person's own Volumes | Folders switch can override it. -->
+          <section class="card" aria-labelledby="md-volumes-h">
+            <h3 id="md-volumes-h"><mat-icon aria-hidden="true">collections_bookmark</mat-icon> Volumes view</h3>
+            <mat-slide-toggle [checked]="s.virtualVolumesEnabled !== false" [disabled]="saving()" (change)="setVirtualVolumes($event.checked)"
+                              data-testid="md-volumes-default">
+              Group chapters into volumes by default
+            </mat-slide-toggle>
+            <p class="note">A series' chapters show as volume stacks, ordered by volume, wherever the file names or a stored volume list say which volume they belong to. Each library and folder can override this, and everyone has a Volumes | Folders switch of their own.</p>
+          </section>
+
           </div>
 
           <!-- 4. Libraries (stage 1 rows + "Match now") -->
@@ -298,6 +376,15 @@ export function validateThresholds(
                       <mat-option value="default">Default (web first)</mat-option>
                       <mat-option value="WebFirst">Web first</mat-option>
                       <mat-option value="ComicInfoFirst">ComicInfo first</mat-option>
+                    </mat-select>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="prec">
+                    <mat-label>Volumes view</mat-label>
+                    <mat-select [value]="lib.virtualVolumes ?? 'default'" (selectionChange)="setVolumesView(lib, $event.value)" [disabled]="saving()"
+                                data-testid="md-lib-volumes">
+                      <mat-option value="default">Default</mat-option>
+                      <mat-option value="On">On</mat-option>
+                      <mat-option value="Off">Off</mat-option>
                     </mat-select>
                   </mat-form-field>
                   <span class="spacer"></span>
@@ -389,6 +476,9 @@ export function validateThresholds(
                       data-testid="md-purge">Delete all fetched web data</button>
             }
           </section>
+
+          <!-- 7. Covers (1.29.0 cover layer: crop switch, "Show saved web covers" per library, delete stored covers) -->
+          <app-cover-settings-card [initial]="s" />
         </div>
       }
       @if (message()) { <p class="ok small" role="status">{{ message() }}</p> }
@@ -436,6 +526,8 @@ export function validateThresholds(
     .confirm { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
     .error { color: #f44336; }
     .ok { color: #4caf50; }
+    .lang { width: 100%; max-width: 360px; margin-top: 8px; }
+    .credit { font-size: 12px; color: #9a9aa8; margin: 12px 0 0; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
     @media (max-width: 599.98px) {
       .card { padding: 12px; }
       .lib .name { min-width: 100%; }
@@ -465,6 +557,10 @@ export class MetadataSettingsComponent implements OnInit {
   /** The library whose "Match now" panel is open. */
   readonly matching = signal<string | null>(null);
   readonly thresholdText = signal<ThresholdText>({ autoTitle: '', margin: '', reviewFloor: '' });
+  /** The volume-cover pass's progress (1.29.0), loaded on demand. */
+  readonly coverStatus = signal<CoverPassStatusDto | null>(null);
+  readonly coverLanguages = computed(() => coverLanguageOptions(this.settings()?.preferredCoverLanguage));
+  readonly waitingLabel = computed(() => volumeCoversWaitingLabel(this.coverStatus()?.waiting));
 
   /** Consent already given for the current text version. */
   readonly consentCurrent = computed(() => {
@@ -580,6 +676,43 @@ export class MetadataSettingsComponent implements OnInit {
     this.save(this.api.updateSettings({ compareCoversEnabled: on }), on ? 'Covers will be compared' : 'Covers will not be compared');
   }
 
+  /** "Volume covers from the web" (1.29.0): one settings PUT; no consent of its own (both consents cover it). */
+  setVolumeCovers(on: boolean): void {
+    if (!this.settings()) return;
+    this.save(this.api.updateSettings({ volumeCoversEnabled: on }), on ? 'Volume covers are on' : 'Volume covers are off');
+  }
+
+  /**
+   * The preferred language (covers and releases): every MangaDex cover list and released-chapter list is read again once
+   * (budgeted) for it.
+   */
+  setCoverLanguage(code: string): void {
+    if (!this.settings() || code === this.settings()!.preferredCoverLanguage) return;
+    this.save(this.api.updateSettings({ preferredCoverLanguage: code }), 'Preferred language saved');
+  }
+
+  loadCoverStatus(): void {
+    this.api.getVolumeCoverStatus().subscribe({
+      next: (st) => this.coverStatus.set(st),
+      error: (err: ApiError) => this.error.set(err?.message || 'Failed to load the volume cover progress'),
+    });
+  }
+
+  /** "Delete stored volume covers": local only. */
+  deleteCovers(): void {
+    this.saving.set(true);
+    this.error.set(null);
+    this.confirming.set(null);
+    this.api.deleteStoredVolumeCovers().subscribe({
+      next: (st) => {
+        this.saving.set(false);
+        this.coverStatus.set(st);
+        this.message.set('Stored volume covers deleted');
+      },
+      error: (err: ApiError) => this.fail(err),
+    });
+  }
+
   saveBudget(): void {
     const value = this.parsedBudget();
     if (value === null) return;
@@ -612,6 +745,16 @@ export class MetadataSettingsComponent implements OnInit {
   setLibrary(lib: MetadataLibrarySettingsDto, change: { fetchEnabled?: boolean; showSeriesInfo?: boolean }): void {
     if (change.fetchEnabled === false && this.matching() === lib.libraryId) this.matching.set(null);
     this.save(this.api.updateLibrary(lib.libraryId, change));
+  }
+
+  /** The global default of the Volumes view (1.29.0). */
+  setVirtualVolumes(on: boolean): void {
+    this.save(this.api.updateSettings({ virtualVolumesEnabled: on }), on ? 'Volumes view is on by default' : 'Volumes view is off by default');
+  }
+
+  /** One library's Volumes view override (1.29.0): On, Off, or back to the global default. */
+  setVolumesView(lib: MetadataLibrarySettingsDto, value: 'default' | 'On' | 'Off'): void {
+    this.save(this.api.updateLibrary(lib.libraryId, value === 'default' ? { resetVirtualVolumes: true } : { virtualVolumes: value }));
   }
 
   setPrecedence(lib: MetadataLibrarySettingsDto, value: MetadataPrecedence | 'default'): void {

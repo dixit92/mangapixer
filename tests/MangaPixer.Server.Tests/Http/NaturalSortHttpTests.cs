@@ -219,7 +219,7 @@ public sealed class NaturalSortHttpTests : IClassFixture<MangaPixerWebApplicatio
         var page = await BrowseAsync(client, libraryId);
         var series = page.Items.Single(i => i.DisplayName == "Series");
 
-        Assert.Equal($"/api/v1/items/{chapterIds["Chapter 2.cbz"]}/cover", series.CoverUrl);
+        Assert.Equal($"/api/v1/items/{chapterIds["Chapter 2.cbz"]}/cover?v=1", series.CoverUrl);
     }
 
     /// <summary>

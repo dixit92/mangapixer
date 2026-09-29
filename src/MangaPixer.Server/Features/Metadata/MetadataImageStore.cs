@@ -100,6 +100,21 @@ public sealed class MetadataImageStore : IMetadataRecordRemovedHandler
         return null;
     }
 
+    /// <summary>
+    /// The stored image file of a record version (a server-owned file the media worker may hash - the cover layer's
+    /// one-shot comparison), or null when it does not exist.
+    /// </summary>
+    public string? PathOf(long recordId, int imageVersion)
+    {
+        foreach (var extension in s_extensions)
+        {
+            var path = Path.Combine(_root, FileName(recordId, imageVersion, extension));
+            if (File.Exists(path))
+                return path;
+        }
+        return null;
+    }
+
     /// <summary>Deletes every stored image of the given records.</summary>
     public void DeleteRecords(IEnumerable<long> recordIds)
     {

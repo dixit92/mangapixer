@@ -116,7 +116,7 @@ public sealed class MissingReportHttpTests : IClassFixture<MangaPixerWebApplicat
         Assert.Equal(MissingVerdict.Behind, behind.Verdict);
         Assert.Equal((3, 10, 7, MissingTotalSource.English), (behind.Volumes!.Have, behind.Volumes.Available, behind.Volumes.BehindBy, behind.Volumes.Source));
         Assert.Equal("Missing Http", behind.LibraryName);
-        Assert.Equal("/api/v1/items/mrBehinda0/cover", behind.CoverUrl);
+        Assert.Equal("/api/v1/items/mrBehinda0/cover?v=1", behind.CoverUrl);
 
         var missing = await OkAsync<MissingReportPageDto>(await admin.GetAsync($"/api/v1/admin/metadata/missing?library={LibPubId}&onlyMissing=true"));
         Assert.Equal("mrBehind", Assert.Single(missing.Items).NodeId);
@@ -201,6 +201,117 @@ public sealed class MissingReportHttpTests : IClassFixture<MangaPixerWebApplicat
         Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync("/api/v1/admin/metadata/missing/mrBehind")).StatusCode);
     }
 
+    private const string SeasonLibPubId = "mrlib2";
+
+    // 1.29.0, the live finding's shape: mrSeasons = a loose 000 + Season 1 (chapters 1-3) + Season 2 (4-6), status "8 Chapters";
+    // mrRestart = Season 1 (1-3) + Season 2 (1-2), the numbering starts again; mrPrologue = a lone 000 of a 223-chapter record.
+    private async Task SeedSeasonsAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+        if (await db.Libraries.AnyAsync(l => l.PublicId == SeasonLibPubId))
+            return;
+        var lib = new LibraryEntity { PublicId = SeasonLibPubId, DisplayName = "Missing Seasons", RootPath = "/synthetic/mr2", CreatedAt = DateTimeOffset.UtcNow };
+        db.Libraries.Add(lib);
+        await db.SaveChangesAsync();
+
+        async Task<CatalogNodeEntity> AddAsync(string pub, long? parent, int kind, string name)
+        {
+            var node = Node(pub, lib.Id, parent, kind, name);
+            db.CatalogNodes.Add(node);
+            await db.SaveChangesAsync();
+            if (kind == 1)
+                db.ArchiveItems.Add(new ArchiveItemEntity { NodeId = node.Id, ContentVersion = 1, AnalysisState = 0, PageCount = 2 });
+            return node;
+        }
+
+        async Task SeriesAsync(string pub, string status, string[] loose, int? released, params (string Name, int[] Chapters)[] seasons)
+        {
+            var folder = await AddAsync(pub, null, 0, pub + " Series");
+            foreach (var (a, i) in loose.Select((a, i) => (a, i)))
+                await AddAsync($"{pub}a{i}", folder.Id, 1, a);
+            foreach (var (season, si) in seasons.Select((x, i) => (x, i)))
+            {
+                var sub = await AddAsync($"{pub}s{si}", folder.Id, 0, season.Name);
+                foreach (var c in season.Chapters)
+                    await AddAsync($"{pub}s{si}c{c}", sub.Id, 1, $"Synthetic - Chapter {c:D3}");
+            }
+            var record = new MetadataRecordEntity
+            {
+                PublicId = pub + "rec",
+                Provider = "mangaupdates",
+                ExternalId = pub + "1",
+                Title = pub + " Record",
+                StatusText = status,
+                FetchedAt = DateTimeOffset.UtcNow,
+            };
+            db.MetadataRecords.Add(record);
+            await db.SaveChangesAsync();
+            db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
+            {
+                NodeId = folder.Id,
+                LibraryId = lib.Id,
+                State = (int)SeriesLinkState.Auto,
+                RecordId = record.Id,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+            if (released is { } through)
+            {
+                // 1.29.0 RC: the chapters released in the preferred language (English by default) - the only chapter total that
+                // counts once the origin totals are context only.
+                db.SeriesVolumeMaps.Add(new SeriesVolumeMapEntity
+                {
+                    RecordId = record.Id,
+                    Source = (int)VolumeMapSource.MangaDexAggregate,
+                    State = (int)VolumeMapState.Empty,
+                    ReleasedLanguage = "en",
+                    ReleasedChaptersJson = "[" + string.Join(",", Enumerable.Range(1, through).Select(c => $"\"{c}\"")) + "]",
+                    ContentHash = "h",
+                    Version = 1,
+                    FetchedAt = DateTimeOffset.UtcNow,
+                });
+                await db.SaveChangesAsync();
+            }
+        }
+
+        await SeriesAsync("mrSeasons", "8 Chapters (Ongoing)", ["000"], 8, ("Season 1", [1, 2, 3]), ("Season 2", [4, 5, 6]));
+        await SeriesAsync("mrRestart", "223 Chapters (Ongoing)", ["000"], null, ("Season 1", [1, 2, 3]), ("Season 2", [1, 2]));
+        await SeriesAsync("mrPrologue", "223 Chapters (Ongoing)", ["000"], null);
+    }
+
+    [Fact]
+    public async Task SeasonSubfolders_AreCounted_RestartsGiveNoVerdict_AndAPrologueIsNotProgress()
+    {
+        await SeedSeasonsAsync();
+        var admin = await AdminAsync();
+
+        var page = await OkAsync<MissingReportPageDto>(await admin.GetAsync($"/api/v1/admin/metadata/missing?library={SeasonLibPubId}"));
+        Assert.Equal((3, 1, 2), (page.Summary.Series, page.Summary.Behind, page.Summary.NoVerdict));
+        var seasons = page.Items.Single(i => i.NodeId == "mrSeasons");
+        Assert.Equal(MissingVerdict.Behind, seasons.Verdict);
+        Assert.Equal((0, 6, 8, 2), (seasons.Chapters!.Lowest, seasons.Chapters.Have, seasons.Chapters.Available, seasons.Chapters.BehindBy));
+        // Behind against the chapters released in the preferred language; the origin total is context only.
+        Assert.Equal((MissingTotalSource.Released, 8, "en"), (seasons.Chapters.Source, seasons.Chapters.OriginTotal, seasons.Language));
+        var restarting = page.Items.Single(i => i.NodeId == "mrRestart");
+        Assert.Equal(MissingVerdict.Restarts, restarting.Verdict);
+        Assert.Null(restarting.Chapters);
+        var prologue = page.Items.Single(i => i.NodeId == "mrPrologue");
+        Assert.Equal(MissingVerdict.NoUnits, prologue.Verdict);
+        Assert.Null(prologue.Chapters);
+
+        var restart = await OkAsync<MissingSeriesDto>(await admin.GetAsync("/api/v1/admin/metadata/missing/mrRestart"));
+        Assert.Equal(MissingVerdict.Restarts, restart.Verdict);
+
+        // The series page line (every reader with access) reads the same row: never "chapter 0 of 223".
+        var line = await OkAsync<MissingSeriesDto>(await admin.GetAsync("/api/v1/nodes/mrPrologue/missing"));
+        Assert.Null(line.Chapters);
+        var seasonsLine = await OkAsync<MissingSeriesDto>(await admin.GetAsync("/api/v1/nodes/mrSeasons/missing"));
+        Assert.Equal((6, 8), (seasonsLine.Chapters!.Have, seasonsLine.Chapters.Available));
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/v1/nodes/mrSeasonss0/missing")).StatusCode); // a Season folder has no own link
+    }
+
     [Fact]
     public async Task Conversion_IsWired_AndGatedByTheFetchSwitch()
     {
@@ -216,9 +327,9 @@ public sealed class MissingReportHttpTests : IClassFixture<MangaPixerWebApplicat
             await admin.PostAsJsonAsync("/api/v1/admin/metadata/missing/conversions", new MissingConversionBatchRequest { Library = LibPubId }, TestJson.Web));
         Assert.Equal((0, "metadata_disabled"), (batch.Looked, batch.StoppedCode));
 
-        // The settings list both approved sites, all in.
+        // The settings list every approved site, all in.
         var settings = await OkAsync<MetadataSettingsDto>(await admin.GetAsync("/api/v1/admin/metadata/settings"));
-        Assert.Equal(new[] { "mangaupdates", "anilist" }, settings.Providers.Select(p => p.Id));
+        Assert.Equal(new[] { "mangaupdates", "mangadex", "anilist" }, settings.Providers.Select(p => p.Id));
         Assert.All(settings.Providers, p => Assert.True(p.Allowed));
         Assert.False(settings.ConsentRenewalNeeded);
     }

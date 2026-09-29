@@ -293,6 +293,61 @@ public static partial class AutoMatchText
             : null;
     }
 
+    /// <summary>
+    /// Score factor of a title that matches only once its trailing <c>(disambiguator)</c> is removed and the tag is not known to
+    /// name the record's own author (1.29.0, owner): MangaUpdates adds the author to every same-named title
+    /// (<c>Fly Me to the Moon (HATA Kenjiro)</c>), so the stripped alias is real evidence - but several works share the name, so
+    /// on its own it stays below every automatic-link threshold and a clear margin below a record whose own title matches (an exact
+    /// stripped match scores 0.88 - still "Strong" in the Identify dialog).
+    /// </summary>
+    public const double DisambiguatedAliasFactor = 0.88;
+
+    /// <summary>
+    /// The stripped forms of a record's OTHER titles (alternative titles, a search hit's matched title) that carry a trailing
+    /// <c>(disambiguator)</c>, each with its score factor (1.29.0): 1 when the tag names one of the record's
+    /// <paramref name="authors"/> (the alias is this record's own name, like the stripped main title), else
+    /// <see cref="DisambiguatedAliasFactor"/> - a tag that names someone else, or authors not known yet (a search hit), can
+    /// never make a clean 1.00 (1.27.0: "Word (Other Name)" is often another work's name).
+    /// </summary>
+    public static IReadOnlyList<(string Title, double Factor)> DisambiguatedAliases(IEnumerable<string?> otherTitles, IEnumerable<string>? authors)
+    {
+        var known = (authors ?? []).Where(a => !string.IsNullOrWhiteSpace(a)).ToList();
+        var result = new List<(string Title, double Factor)>();
+        foreach (var title in otherTitles)
+        {
+            if (WithoutDisambiguator(title) is not { } bare || DisambiguatorTag(title) is not { } tag)
+                continue;
+            var factor = known.Any(a => NamesEqual(a, tag)) ? 1.0 : DisambiguatedAliasFactor;
+            var i = result.FindIndex(r => string.Equals(r.Title, bare, StringComparison.OrdinalIgnoreCase));
+            if (i < 0)
+                result.Add((bare, factor));
+            else if (factor > result[i].Factor)
+                result[i] = (bare, factor);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// The best title similarity of a record for display ranking (the Identify dialog, 1.29.0): its main and other titles as
+    /// written, the main title without its disambiguator, and the other titles' <see cref="DisambiguatedAliases"/> with their
+    /// factors.
+    /// </summary>
+    public static double BestTitleScore(IEnumerable<string> queries, string? mainTitle, IEnumerable<string?> otherTitles, IEnumerable<string>? authors = null)
+    {
+        var others = otherTitles.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t!).ToList();
+        var plain = new List<string>();
+        if (!string.IsNullOrWhiteSpace(mainTitle))
+            plain.Add(mainTitle);
+        plain.AddRange(others);
+        if (WithoutDisambiguator(mainTitle) is { } strippedMain)
+            plain.Add(strippedMain);
+        var queryList = queries.ToList();
+        var best = TitleSimilarity.Best(queryList, plain);
+        foreach (var (title, factor) in DisambiguatedAliases(others, authors))
+            best = Math.Max(best, factor * TitleSimilarity.Best(queryList, [title]));
+        return best;
+    }
+
     /// <summary>The earliest <c>(19xx|20xx)</c> / <c>[19xx|20xx]</c> year in the names, or null.</summary>
     public static int? EarliestYear(IEnumerable<string> names)
     {
@@ -359,6 +414,20 @@ public static partial class AutoMatchText
             : null;
     }
 
+    /// <summary>
+    /// The bare leading number of a name without a volume / chapter token and without a title (<c>01.cbz</c>,
+    /// <c>012 [Title]</c>) - the unit number of an archive inside a <c>Volumes</c> / <c>Chapters</c> subfolder - or null.
+    /// </summary>
+    public static int? BareNumberOf(string? archiveName)
+    {
+        if (archiveName is null || VolumeToken().IsMatch(archiveName) || ChapterToken().IsMatch(archiveName) || !IsChapterLike(archiveName))
+            return null;
+        var bare = Bare(ArchiveExtension().Replace(archiveName, string.Empty));
+        return LeadingNumber().Match(bare) is { Success: true } m && !YearOnly().IsMatch(m.Groups["n"].Value)
+            ? int.Parse(m.Groups["n"].Value, CultureInfo.InvariantCulture)
+            : null;
+    }
+
     private static int? HighestNumber(MatchCollection matches)
     {
         int? best = null;
@@ -369,6 +438,77 @@ public static partial class AutoMatchText
                 best = value;
         }
         return best;
+    }
+
+    // Unit numbers v2 (1.29.0): decimals kept, a range as start / end (the end may repeat the token: "v01-v05").
+    // <t> is the token, so a bracketed single-letter token ("[v2]", a release revision) can be told apart.
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?<t>volumes|volume|vols|vol|v)\.?\s*(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?:(?:volumes|volume|vols|vol|v)\.?\s*)?(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex VolumeUnit();
+
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?<t>chapters|chapter|chap|ch|episode|ep)\.?\s*|(?<t>c)|(?<t>#)\s*)(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?:(?:chapters|chapter|chap|ch|episode|ep)\.?\s*|c|#\s*)?(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ChapterUnit();
+
+    [GeneratedRegex(@"^\s*(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])", RegexOptions.CultureInvariant)]
+    private static partial Regex LeadingUnit();
+
+    /// <summary>
+    /// Every unit number an archive name states (1.29.0; <see cref="UnitNumbers"/>): <c>Title v03 c012</c> -> volume 3,
+    /// chapter 12; <c>c045.5</c> -> chapter 45.5, an extra; <c>Vol. 01-05</c> -> volumes 1 to 5; <c>001 [Chapter Title]</c>
+    /// -> chapter 1 (a bare leading number of a name without a title, as <see cref="ChapterNumberOf"/>; a leading 19xx /
+    /// 20xx is a year). Tokens inside brackets are read only when the rest of the name states none, and then never a
+    /// single-letter token (<c>[v2]</c> is a release revision). A range whose end is a year is one number. Unlike
+    /// <see cref="VolumeNumberOf"/> / <see cref="ChapterNumberOf"/> (the matcher's integers, unchanged), nothing is
+    /// truncated and a name states both kinds.
+    /// </summary>
+    public static UnitNumbers UnitsOf(string? archiveName)
+    {
+        if (string.IsNullOrWhiteSpace(archiveName))
+            return default;
+        var name = ArchiveExtension().Replace(archiveName.Normalize(NormalizationForm.FormKC).Trim(), string.Empty);
+        var outside = Bare(name);
+
+        var volume = RangeOf(VolumeUnit().Matches(outside), allowShortToken: true);
+        var chapter = RangeOf(ChapterUnit().Matches(outside), allowShortToken: true);
+        if (volume is null && chapter is null)
+        {
+            // Only brackets name a unit ("Title (Vol. 3)"); a single letter there is a revision, not a unit.
+            volume = RangeOf(VolumeUnit().Matches(name), allowShortToken: false);
+            chapter = RangeOf(ChapterUnit().Matches(name), allowShortToken: false);
+        }
+        if (volume is null && chapter is null && IsChapterLike(archiveName)
+            && LeadingUnit().Match(outside) is { Success: true } lead && !YearOnly().IsMatch(lead.Groups["n"].Value))
+        {
+            chapter = RangeOf([lead], allowShortToken: true);
+        }
+
+        var extra = chapter is { } c ? decimal.Truncate(c.Start) != c.Start
+            : volume is { } v && decimal.Truncate(v.Start) != v.Start;
+        return new UnitNumbers(volume?.Start, volume?.End, chapter?.Start, chapter?.End, extra);
+    }
+
+    /// <summary>The lowest start and the highest end over the matches; the end is null when it is not above the start.</summary>
+    private static (decimal Start, decimal? End)? RangeOf(IEnumerable<Match> matches, bool allowShortToken)
+    {
+        decimal? start = null, end = null;
+        foreach (var m in matches)
+        {
+            if (!allowShortToken && m.Groups["t"] is { Success: true } t && t.Value.Length == 1)
+                continue;
+            var n = decimal.Parse(m.Groups["n"].Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture);
+            var high = n;
+            if (m.Groups["m"].Success)
+            {
+                var e = decimal.Parse(m.Groups["m"].Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture);
+                // "Title v03 - 2019": a year, not the end of a range.
+                if (e > n && !(n < 1900 && YearOnly().IsMatch(m.Groups["m"].Value)))
+                    high = e;
+            }
+            start = start is null ? n : Math.Min(start.Value, n);
+            end = end is null ? high : Math.Max(end.Value, high);
+        }
+        return start is null ? null : (start.Value, end > start ? end : null);
     }
 
     /// <summary>

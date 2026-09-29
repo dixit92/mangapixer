@@ -40,7 +40,8 @@ export interface PageResponse<T> {
   nextUnread?: CatalogNodeDto | null;
 }
 
-export type CatalogNodeKind = 'Folder' | 'Archive';
+/** 'VolumeStack' (1.29.0): a virtual volume stack of the Volumes view - a browse entry only, never a stored node. */
+export type CatalogNodeKind = 'Folder' | 'Archive' | 'VolumeStack';
 
 export type CatalogNodeAvailability =
   | 'Available'
@@ -92,6 +93,10 @@ export interface CatalogNodeDto {
    * absent everywhere else.
    */
   favoriteStackCount?: number | null;
+  /** 1.29.0: set only on a browse entry of kind 'VolumeStack' (the Volumes view of a series). */
+  volumeStack?: VolumeStackSummaryDto | null;
+  /** 1.29.0: where coverUrl comes from (the cover layer); null/absent = the file cover. */
+  coverSource?: CardCoverSource | null;
 }
 
 export interface BreadcrumbEntry {
@@ -211,6 +216,11 @@ export interface ContinueReadingEntry {
    * Optional for older servers.
    */
   hasSeriesInfo?: boolean;
+  /**
+   * The card's cover URL from the cover layer (1.29.0): versioned, layered (an admin choice or an automatic crop / web
+   * cover when one applies), else the file cover. Optional for older servers (the client then builds the file cover URL).
+   */
+  coverUrl?: string | null;
 }
 
 /**
@@ -360,6 +370,11 @@ export interface LibraryViewPreferencesDto {
    * that shows the (i) opens a read-only series summary popover.
    */
   seriesInfoOnHover?: boolean;
+  /**
+   * Per-user series view (1.29.0): the Volumes | Folders switch in the series header, remembered for the user.
+   * Null/absent = follow the folder / library / global default.
+   */
+  seriesViewMode?: SeriesViewMode | null;
 }
 
 // --- YACReader progress import (1.2.0, admin-only) ---
@@ -1104,6 +1119,10 @@ export interface MetadataLibrarySettingsDto {
   linkCount: number;
   /** Global switch + automatic consent + this library's Fetch. */
   autoMatchActive?: boolean;
+  /** 1.29.0: "Show saved web covers" (on by default) - separate from showSeriesInfo. */
+  showWebCovers?: boolean;
+  /** 1.29.0: this library's Volumes view override; null = the global default. */
+  virtualVolumes?: ViewSwitch | null;
 }
 
 /** GET/PUT /admin/metadata/settings (the settings card is lane B2's). */
@@ -1136,6 +1155,16 @@ export interface MetadataSettingsDto {
   compareCoversEnabled?: boolean;
   /** True when Metadata:AutoMatch:CompareCovers=false switches it off regardless of the setting. */
   compareCoversDisabledByConfig?: boolean;
+  /** 1.29.0: "Preferred language (covers and releases)" (a MangaDex locale code, default "en"). */
+  preferredCoverLanguage?: string;
+  /** 1.29.0: "Volume covers from the web" (on by default). */
+  volumeCoversEnabled?: boolean;
+  /** 1.29.0: true when Metadata:AutoMatch:VolumeCovers=false switches it off regardless of the setting. */
+  volumeCoversDisabledByConfig?: boolean;
+  /** 1.29.0: local front / back spread crop (on by default; no network). */
+  spreadCropEnabled?: boolean;
+  /** 1.29.0: global default of the Volumes view (on by default). */
+  virtualVolumesEnabled?: boolean;
   /** 1.28.0: the approved sites (the provider allowlist), each with whether it is in. */
   providers?: MetadataProviderDto[];
   /** 1.28.0: "Fetch from the web" was on under an older consent - off until an admin accepts again. */
@@ -1169,11 +1198,25 @@ export interface UpdateMetadataSettingsRequest {
   compareCoversEnabled?: boolean | null;
   /** 1.28.0: the full set of provider ids to keep off the allowlist ([] = all in); null/absent = unchanged. */
   removedProviders?: string[] | null;
+  /** 1.29.0: a MangaDex locale code (en, ja, pt-br, es-la); anything else is invalid_cover_language. */
+  preferredCoverLanguage?: string | null;
+  /** 1.29.0: "Volume covers from the web"; null leaves it unchanged. */
+  volumeCoversEnabled?: boolean | null;
+  /** 1.29.0: local spread crop; null leaves it unchanged. */
+  spreadCropEnabled?: boolean | null;
+  /** 1.29.0: global default of the Volumes view; null leaves it unchanged. */
+  virtualVolumesEnabled?: boolean | null;
 }
 
 export interface UpdateMetadataLibraryRequest {
   fetchEnabled?: boolean | null;
   showSeriesInfo?: boolean | null;
+  /** 1.29.0: "Show saved web covers". */
+  showWebCovers?: boolean | null;
+  /** 1.29.0: the library's Volumes view override; see resetVirtualVolumes. */
+  virtualVolumes?: ViewSwitch | null;
+  /** 1.29.0: back to the global default. */
+  resetVirtualVolumes?: boolean;
 }
 
 export interface SetMetadataPrecedenceRequest {
@@ -1419,6 +1462,8 @@ export interface MetadataReviewItemDto {
   /** Up to 3 ancestor display names below the library root, outermost first. */
   trail?: string[];
   missing?: boolean;
+  /** The containing folder, for the row's "open folder" link; null at the library's top level. */
+  parentNodeId?: string | null;
   /** Local cover: the archive's own, or a folder's first archive (as browse shows it). */
   coverUrl?: string | null;
   workClass?: WorkClass | null;
@@ -1472,7 +1517,7 @@ export interface MetadataReviewBulkResultDto {
 export interface MetadataAutoMatchStatusDto {
   enabled: boolean;
   active: boolean;
-  /** automatic_off, metadata_disabled, metadata_network_disabled, budget_exhausted, provider_backoff. */
+  /** automatic_off, metadata_disabled, metadata_network_disabled, provider_not_allowed, budget_exhausted, provider_backoff. */
   waitingCode?: string | null;
   waitingUntil?: string | null;
   pending: number;
@@ -1686,10 +1731,10 @@ export interface NodeDeclaredFactsDto {
 // --- Missing volumes / chapters report (1.28.0, admin-only; stored data only) ---
 
 export type MissingUnitKind = 'Volume' | 'Chapter';
-export type MissingTotalSource = 'English' | 'Origin' | 'LatestChapter' | 'Converted';
+export type MissingTotalSource = 'English' | 'Origin' | 'LatestChapter' | 'Converted' | 'Released';
 export type MissingConfidence = 'Low' | 'Medium' | 'High';
 /** Worst first: Behind, Holes, UpToDate, NoTotal, then no verdict (Mixed, NoUnits). */
-export type MissingVerdict = 'Behind' | 'Holes' | 'UpToDate' | 'NoTotal' | 'Mixed' | 'NoUnits';
+export type MissingVerdict = 'Behind' | 'Holes' | 'UpToDate' | 'NoTotal' | 'Mixed' | 'NoUnits' | 'Restarts';
 
 export interface MissingUnitGapDto {
   kind: MissingUnitKind;
@@ -1706,9 +1751,13 @@ export interface MissingUnitGapDto {
   /** Holes below `have` (the first 50); `missingCount` has them all. */
   missing: number[];
   missingCount: number;
+  /** 1.29.0 RC: the total in the country of origin, context only (never makes a series "behind"). */
+  originTotal?: number | null;
 }
 
 export interface MissingSeriesDto {
+  /** 1.29.0 RC: the preferred language the totals follow ("en", "fr"): "behind" only against what is released in it. */
+  language?: string | null;
   nodeId: string;
   displayName: string;
   libraryId: string;
@@ -1781,4 +1830,196 @@ export interface MissingConversionBatchResultDto {
   remaining: number;
   stoppedCode?: string | null;
   stoppedMessage?: string | null;
+}
+
+// --- Virtual volumes and volume covers (1.29.0 contract; lanes S, C and P fill the endpoints) ---
+
+/** A per-library / per-folder view override. */
+export type ViewSwitch = 'Off' | 'On';
+
+/** The per-user series view: the Volumes | Folders switch in the series header. */
+export type SeriesViewMode = 'Folders' | 'Volumes';
+
+/** GET/PUT /admin/folders/{nodeId}/view-settings (admin). */
+export interface FolderViewSettingsDto {
+  nodeId: string;
+  /** This folder's Volumes view override; null = inherit the library. */
+  virtualVolumes?: ViewSwitch | null;
+}
+
+/** PUT /admin/folders/{nodeId}/view-settings: replaces the overrides; a null field inherits again. */
+export interface UpdateFolderViewSettingsRequest {
+  virtualVolumes?: ViewSwitch | null;
+}
+
+/** Where a card's cover comes from. */
+export type CardCoverSource = 'File' | 'Crop' | 'WebVolume' | 'WebMain' | 'Poster' | 'Chosen';
+
+/** Exact: file names / ComicInfo, the provider list, or bounded by neighbours. Estimated: shown "~ Volume N". */
+export type VolumeStackConfidence = 'Exact' | 'Estimated';
+
+export type VolumeListSource = 'FileNames' | 'MangaDex' | 'AniList' | 'Mixed';
+
+/** A virtual volume stack as a browse entry (CatalogNodeDto.volumeStack). Unit numbers are strings ("3", "45.5"). */
+export interface VolumeStackSummaryDto {
+  key: string;
+  label: string;
+  presentCount: number;
+  chapterCount?: number | null;
+  missingCount: number;
+  extraCount: number;
+  hasVolumeArchive: boolean;
+  confidence: VolumeStackConfidence;
+  firstChapter?: string | null;
+  lastChapter?: string | null;
+  /** 1.29.0 RC: complete chapters of chapterCount (a split chapter counts once, when all its listed parts are here). */
+  chaptersPresent?: number | null;
+  /** 1.29.0 RC: a missing volume - a placeholder card (presentCount 0), never opened. */
+  missing?: boolean;
+}
+
+export type VolumeSlotKind = 'Item' | 'Missing';
+
+export interface VolumeSlotDto {
+  kind: VolumeSlotKind;
+  chapter?: string | null;
+  item?: CatalogNodeDto | null;
+}
+
+/** GET /nodes/{folderId}/volumes/{key} (lane S). */
+export interface VolumeStackDto {
+  folderId: string;
+  key: string;
+  label: string;
+  coverUrl?: string | null;
+  confidence: VolumeStackConfidence;
+  source: VolumeListSource;
+  presentCount: number;
+  chapterCount?: number | null;
+  /** 1.29.0 RC: complete chapters of chapterCount. */
+  chaptersPresent?: number | null;
+  /** 1.29.0 RC: a real volume file is the first slot (a fractional volume file, the last slot, is an extra). */
+  hasVolumeArchive?: boolean;
+  missingCount: number;
+  extraCount: number;
+  previousKey?: string | null;
+  nextKey?: string | null;
+  slots: VolumeSlotDto[];
+}
+
+/** GET /nodes/{nodeId}/volume-view (lane S): whether a folder has a Volumes view and whether it is on for the viewer. */
+export interface VolumeViewDto {
+  nodeId: string;
+  available: boolean;
+  active: boolean;
+  /** 1.29.0 RC: `active` without the viewer's own switch (folder / library / global default); choosing it clears the switch. */
+  defaultActive?: boolean;
+  consolidated: boolean;
+  stackCount: number;
+  /** 1.29.0 RC: the folder has its own series link - the status line below is shown. */
+  hasSeriesStatus?: boolean;
+  seriesStatus?: MetadataOriginStatus | null;
+  /** Whole volumes missing (gaps below the highest one here, and volumes released in the preferred language after it). */
+  missingVolumes?: number;
+  /** Chapters missing (gaps below the highest one here, and chapters released in the preferred language after it). */
+  missingChapters?: number;
+  /** What is released in the preferred language is known: "up to date" can be said. */
+  releaseKnown?: boolean;
+  language?: string | null;
+  /** 1.29.0 RC: the country / language of origin the status is about ("Complete (Japan)"). */
+  origin?: MetadataOrigin | null;
+  originVolumes?: number | null;
+  /** Volumes published in the preferred language (English publishers today). */
+  releasedVolumes?: number | null;
+  /** The highest chapter released in the preferred language. */
+  releasedChapter?: number | null;
+  /** English only (MangaUpdates): licensed in English / the scanlation is complete. */
+  licensed?: boolean | null;
+  scanlationComplete?: boolean | null;
+  /** 1.29.0 RC: covers of this series still being downloaded in the background (0 when none or the pass waits). */
+  coversPending?: number;
+}
+
+export type CoverMode = 'Automatic' | 'FilePinned' | 'Archive' | 'VolumeCover' | 'Crop';
+export type CoverOptionKind = 'File' | 'CropLeft' | 'CropRight' | 'Archive';
+export type VolumeCoverKind = 'Volume' | 'Main';
+export type CoverCropSide = 'Left' | 'Right';
+export type CompanionState = 'Auto' | 'Confirmed' | 'NotFound' | 'None' | 'Failed';
+
+export interface CoverStateDto {
+  mode: CoverMode;
+  autoSource?: CardCoverSource | null;
+  reason?: string | null;
+  imageUrl?: string | null;
+  recheckAt?: string | null;
+}
+
+export interface CoverOptionDto {
+  kind: CoverOptionKind;
+  archiveId?: string | null;
+  imageUrl: string;
+  label: string;
+}
+
+export interface WebCoverDto {
+  id: string;
+  kind: VolumeCoverKind;
+  volume?: number | null;
+  variant?: number;
+  locale: string;
+  /** false = choosing it downloads it (one request). */
+  stored: boolean;
+  imageUrl?: string | null;
+}
+
+export interface WebCoverGroupDto {
+  volume?: number | null;
+  covers: WebCoverDto[];
+}
+
+/** GET /nodes/{nodeId}/cover-options (admin, lane C). */
+export interface CoverOptionsDto {
+  nodeId: string;
+  current: CoverStateDto;
+  local: CoverOptionDto[];
+  web: WebCoverGroupDto[];
+  webAvailable: boolean;
+  webUnavailableReason?: string | null;
+}
+
+/** PUT /nodes/{nodeId}/cover-choice (admin, lane C). */
+export interface CoverChoiceRequest {
+  mode: CoverMode;
+  archiveId?: string | null;
+  volumeCoverId?: string | null;
+  cropSide?: CoverCropSide | null;
+}
+
+/** A companion record of the node's linked series (lane P): GET /admin/metadata/nodes/{nodeId}/companions. */
+export interface CompanionDto {
+  provider: string;
+  providerName: string;
+  siteUrl?: string | null;
+  state: CompanionState;
+  checkedAt?: string | null;
+}
+
+/** PUT /admin/metadata/nodes/{nodeId}/companions/mangadex (admin, lane P): a MangaDex title URL or UUID. */
+export interface CompanionReferenceRequest {
+  reference: string;
+}
+
+export interface VolumeListInfoDto {
+  source: VolumeListSource;
+  exactVolumes: number;
+  estimatedVolumes: number;
+  fetchedAt?: string | null;
+}
+
+/** The background volume-cover pass (lane P): GET /admin/metadata/volume-covers/status, DELETE /admin/metadata/volume-covers. */
+export interface CoverPassStatusDto {
+  seriesPending: number;
+  coversListed: number;
+  coversStored: number;
+  waiting?: string | null;
 }

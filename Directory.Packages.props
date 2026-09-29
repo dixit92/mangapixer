@@ -37,7 +37,7 @@
 
     <!-- Archive and image processing (versions vetted for compatibility) -->
     <PackageVersion Include="SharpCompress" Version="0.50.4" />
-    <PackageVersion Include="Magick.NET-Q8-AnyCPU" Version="14.17.1" />
+    <PackageVersion Include="Magick.NET-Q8-AnyCPU" Version="14.17.2" />
 
     <!-- Transitive security pins: override vulnerable transitive versions -->
     <!-- SQLitePCLRaw: use 3.x bundle for FTS5/trigram support and security fixes -->

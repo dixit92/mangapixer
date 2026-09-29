@@ -121,6 +121,8 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
             ["MangaPixer:Scanning:Scheduler:Enabled"] = "false",
             // Metadata stage 2: tests drive automatic-matching passes directly.
             ["Metadata:AutoMatch:WorkerEnabled"] = "false",
+            // Cover layer (1.29.0): tests drive decisions directly; the background sweep never races a test.
+            ["Covers:SweepEnabled"] = "false",
         };
         if (extra is not null)
         {

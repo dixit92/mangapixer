@@ -574,6 +574,36 @@ public sealed class AutoMatchServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task MangaUpdatesOffTheAllowlist_PausesTheQueue_WithoutCountingAttempts()
+    {
+        var alpha = await SeriesAsync("Alpha Saga");
+        _h.Search["Alpha Saga"] = [new MuJson.Hit(101, "Alpha Saga")];
+        _h.Records[101] = MuJson.Get(101, "Alpha Saga");
+        await _h.EnableAutomaticAsync();
+        await EnqueueAsync();
+        var row = await _db.Db.AppSettings.FirstAsync();
+        row.MetadataProvidersJson = MetadataProviderAllowlist.Write([MetadataProviderAllowlist.MangaUpdates]);
+        await _db.Db.SaveChangesAsync();
+
+        Assert.Equal("provider_not_allowed", (await _h.Service().CheckGlobalGateAsync())!.Code);
+        // A row leased before the removal (the gate passed a moment earlier) is released, not failed.
+        var leased = await _h.Service().LeaseNextAsync("test");
+        var refused = await Assert.ThrowsAsync<MetadataGatewayException>(() => _h.Service().ProcessAsync(leased!));
+        Assert.True(MetadataAutoMatchService.IsRefusal(refused), refused.Code);
+        _db.Db.ChangeTracker.Clear();
+        var queue = await QueueOfAsync(alpha);
+        Assert.Equal(QueueState.Pending, queue.State);
+        Assert.Equal(0, queue.Attempts);
+        Assert.Equal(0, _h.Handler.CallCount);
+
+        row = await _db.Db.AppSettings.FirstAsync();
+        row.MetadataProvidersJson = null; // added back
+        await _db.Db.SaveChangesAsync();
+        await _h.DrainAsync();
+        Assert.Equal((int)SeriesLinkState.Auto, (await LinkOfAsync(alpha))!.State);
+    }
+
+    [Fact]
     public async Task ProviderFailure_CountsAnAttempt_AndGivesUpAfterThree()
     {
         var alpha = await SeriesAsync("Alpha Saga");

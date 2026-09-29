@@ -59,6 +59,20 @@ public sealed class MetadataSettingsService
     public bool CompareCoversDisabledByConfig =>
         bool.TryParse(_configuration["Metadata:AutoMatch:CompareCovers"], out var compare) && !compare;
 
+    /// <summary>The volume-cover kill switch (<c>Metadata:AutoMatch:VolumeCovers=false</c>, 1.29.0).</summary>
+    public bool VolumeCoversDisabledByConfig =>
+        bool.TryParse(_configuration[VolumeCoversConfigKey], out var covers) && !covers;
+
+    /// <summary>Configuration key of the volume-cover kill switch (1.29.0).</summary>
+    public const string VolumeCoversConfigKey = "Metadata:AutoMatch:VolumeCovers";
+
+    /// <summary>
+    /// A MangaDex locale code for "Preferred cover language" (1.29.0): a lowercase 2-3 letter language, optionally a
+    /// 2-4 character region or script (<c>en</c>, <c>ja</c>, <c>pt-br</c>, <c>es-la</c>, <c>zh-hk</c>, <c>ja-ro</c>).
+    /// </summary>
+    public static bool IsValidCoverLanguage(string? value) =>
+        value is { Length: >= 2 and <= 16 } && System.Text.RegularExpressions.Regex.IsMatch(value, "^[a-z]{2,3}(-[a-z]{2,4})?$");
+
     /// <summary>
     /// True when series information of <paramref name="libraryId"/> must be hidden
     /// (global OR library "Show series information" off).
@@ -94,7 +108,7 @@ public sealed class MetadataSettingsService
 
         var libraries = await _db.Libraries.AsNoTracking()
             .OrderBy(l => l.DisplayName)
-            .Select(l => new { l.Id, l.PublicId, l.DisplayName, l.MetadataEnabled, l.MetadataSeriesInfoHidden, l.MetadataPrecedence })
+            .Select(l => new { l.Id, l.PublicId, l.DisplayName, l.MetadataEnabled, l.MetadataSeriesInfoHidden, l.MetadataPrecedence, l.WebCoversHidden, l.VirtualVolumes })
             .ToListAsync(ct);
 
         var (total, read, found) = await ComicInfoBackfillService.CountAsync(_db, ct);
@@ -134,6 +148,8 @@ public sealed class MetadataSettingsService
                 Precedence = (MetadataPrecedence?)l.MetadataPrecedence,
                 LinkCount = linkCounts.GetValueOrDefault(l.Id),
                 AutoMatchActive = automaticOn && l.MetadataEnabled,
+                ShowWebCovers = !l.WebCoversHidden,
+                VirtualVolumes = (ViewSwitch?)l.VirtualVolumes,
             }).ToList(),
             AutoMatchEnabled = row?.MetadataAutoMatchEnabled ?? false,
             AcceptedAutoConsentVersion = row?.MetadataAutoConsentVersion,
@@ -146,6 +162,11 @@ public sealed class MetadataSettingsService
                 || (row.MetadataAutoTitleThreshold is null && row.MetadataMarginThreshold is null && row.MetadataReviewFloorThreshold is null),
             CompareCoversEnabled = row?.MetadataCoverCompareEnabled ?? true,
             CompareCoversDisabledByConfig = CompareCoversDisabledByConfig,
+            PreferredCoverLanguage = row?.MetadataCoverLanguage ?? "en",
+            VolumeCoversEnabled = row?.MetadataVolumeCoversEnabled ?? true,
+            VolumeCoversDisabledByConfig = VolumeCoversDisabledByConfig,
+            SpreadCropEnabled = row?.CoverSpreadCropEnabled ?? true,
+            VirtualVolumesEnabled = row?.VirtualVolumesEnabled ?? true,
             Providers = MetadataProviderAllowlist.ToDtos(row?.MetadataProvidersJson),
             ConsentRenewalNeeded = ConsentRenewalNeeded(row),
             AutoConsentRenewalNeeded = AutoConsentRenewalNeeded(row),
@@ -173,6 +194,8 @@ public sealed class MetadataSettingsService
             return "invalid_thresholds";
         if (request.RemovedProviders is { } removedProviders && !removedProviders.All(MetadataProviderAllowlist.IsKnown))
             return "invalid_provider";
+        if (request.PreferredCoverLanguage is { } language && !IsValidCoverLanguage(language))
+            return "invalid_cover_language";
 
         var row = await _db.AppSettings.FirstOrDefaultAsync(s => s.Id == AppSettingsEntity.SingletonId, ct);
 
@@ -274,6 +297,28 @@ public sealed class MetadataSettingsService
             }
         }
 
+        // 1.29.0: volume covers and virtual volumes - plain settings, no consent of their own (the covers ride on both consents).
+        if (request.PreferredCoverLanguage is { } coverLanguage && !string.Equals(coverLanguage, row.MetadataCoverLanguage, StringComparison.Ordinal))
+        {
+            row.MetadataCoverLanguage = coverLanguage;
+            audits.Add(AuditActions.MetadataSettingsChange);
+        }
+        if (request.VolumeCoversEnabled is { } volumeCovers && volumeCovers != row.MetadataVolumeCoversEnabled)
+        {
+            row.MetadataVolumeCoversEnabled = volumeCovers;
+            audits.Add(AuditActions.MetadataSettingsChange);
+        }
+        if (request.SpreadCropEnabled is { } crop && crop != row.CoverSpreadCropEnabled)
+        {
+            row.CoverSpreadCropEnabled = crop;
+            audits.Add(AuditActions.MetadataSettingsChange);
+        }
+        if (request.VirtualVolumesEnabled is { } virtualVolumes && virtualVolumes != row.VirtualVolumesEnabled)
+        {
+            row.VirtualVolumesEnabled = virtualVolumes;
+            audits.Add(AuditActions.MetadataSettingsChange);
+        }
+
         if (request.RemovedProviders is { } removed)
         {
             var json = MetadataProviderAllowlist.Write(removed);
@@ -317,6 +362,18 @@ public sealed class MetadataSettingsService
         {
             library.MetadataSeriesInfoHidden = !show;
             audits.Add(show ? AuditActions.MetadataLibraryShowEnable : AuditActions.MetadataLibraryShowDisable);
+        }
+        // 1.29.0: "Show saved web covers" (separate from "Show series information") and the Volumes view override.
+        if (request.ShowWebCovers is { } showCovers && showCovers == library.WebCoversHidden)
+        {
+            library.WebCoversHidden = !showCovers;
+            audits.Add(AuditActions.MetadataSettingsChange);
+        }
+        int? virtualVolumes = request.ResetVirtualVolumes ? null : request.VirtualVolumes is { } view ? (int)view : library.VirtualVolumes;
+        if (virtualVolumes != library.VirtualVolumes)
+        {
+            library.VirtualVolumes = virtualVolumes;
+            audits.Add(AuditActions.MetadataSettingsChange);
         }
 
         await _db.SaveChangesAsync(ct);

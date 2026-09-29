@@ -393,5 +393,23 @@ public static class LogEvents
         public const int FlagCreated = 9230;
         public const int FlagResolved = 9231;
         public const int ReviewAction = 9240;
+
+        // Companions, volume lists and volume covers (1.29.0, 9300-9349). Ids, counts, codes and timings only - never
+        // titles, search text, file names or addresses.
+        public const int CompanionChecked = 9300;
+        public const int VolumeListStored = 9301;
+        public const int VolumeCoverStored = 9302;
+        public const int VolumeCoverFailed = 9303;
+        public const int VolumeCoverPass = 9304;
+        public const int VolumeCoverWaiting = 9305;
+        public const int VolumeCoversDeleted = 9306;
+
+        // Cover layer (1.29.0, 9380-9389). Node ids, counts, sources and codes only - never paths or names.
+        public const int CoverDecided = 9380;
+        public const int CoverDecisionFailed = 9381;
+        public const int CoverCropRendered = 9382;
+        public const int CoverCropFailed = 9383;
+        public const int CoverSweep = 9384;
+        public const int CoverChoiceChanged = 9385;
     }
 }

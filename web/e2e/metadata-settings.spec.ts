@@ -8,6 +8,8 @@ import { test, expect, Page, APIRequestContext } from '@playwright/test';
  *   the browser contacts no host but MangaPixer);
  * - Identify is disabled with its reason when web lookups are off, and the identify
  *   dialog opened from the selection menu shows the unavailable state.
+ * - the Volume covers card (1.29.0): MangaDex on the allowed sites, the switch, the preferred language, the
+ *   progress and the MangaDex credit - saving makes no lookup and no foreign request.
  * The Identify checks need a library with at least one folder (skipped otherwise).
  * Optional: E2E_SCREENSHOT_DIR saves the reviewed screenshots.
  */
@@ -17,7 +19,7 @@ const SHOTS = process.env['E2E_SCREENSHOT_DIR'];
 
 test.describe.configure({ mode: 'serial' });
 
-interface Node { id: string; displayName: string; kind: string }
+interface Node { id: string; displayName: string; kind: string; hasSeriesInfo?: boolean }
 
 async function login(page: Page): Promise<void> {
   await page.goto('/login');
@@ -110,7 +112,9 @@ test('Identify is disabled with the reason, and the dialog shows the unavailable
   let target: { libraryId: string; folder: Node } | null = null;
   for (const lib of libs) {
     const root = await (await page.request.get(`/api/v1/libraries/${lib.id}/browse?pageSize=50`)).json();
-    const folder = (root.items as Node[]).find((n) => n.kind === 'Folder');
+    // A folder that shows the series (i): the menu and the dialog under test live there. (Any fixture library another spec
+    // registered earlier also holds folders without series information.)
+    const folder = (root.items as Node[]).find((n) => n.kind === 'Folder' && n.hasSeriesInfo);
     if (folder) { target = { libraryId: lib.id, folder }; break; }
   }
   test.skip(!target, 'No library with a folder to identify');
@@ -137,5 +141,49 @@ test('Identify is disabled with the reason, and the dialog shows the unavailable
   await page.getByTestId('identify-close').click();
 
   expect((await settings(page)).budgetUsedToday).toBe(usedBefore);
+  expect(foreign).toEqual([]);
+});
+
+test('volume covers card (1.29.0): MangaDex is an allowed site; the switch and the language save with no provider request', async ({ page, baseURL }) => {
+  const foreign = watchForeignRequests(page, baseURL!);
+  await login(page);
+  const usedBefore = (await settings(page)).budgetUsedToday;
+  await page.goto('/admin/metadata');
+
+  const card = page.getByTestId('metadata-settings-card');
+  await expect(card.locator('[data-testid="md-provider-chip"][data-provider="mangadex"]')).toContainText('uploads.mangadex.org');
+  const covers = card.getByTestId('md-volume-covers');
+  await covers.scrollIntoViewIfNeeded();
+  await expect(covers.getByTestId('md-mangadex-credit')).toContainText('MangaDex (mangadex.org)');
+
+  // Progress is read on demand from MangaPixer (counts only).
+  await covers.getByTestId('md-volume-covers-progress').click();
+  await expect(covers.getByTestId('md-volume-covers-status')).toContainText('stored');
+  await shot(page, 'p-01-volume-covers-card');
+
+  const toggle = covers.getByTestId('md-volume-covers-switch').getByRole('switch');
+  await expect(toggle).toHaveAttribute('aria-checked', 'true');
+  await toggle.click();
+  await expect.poll(async () => (await (await page.request.get('/api/v1/admin/metadata/settings')).json()).volumeCoversEnabled).toBe(false);
+  await toggle.click();
+  await expect.poll(async () => (await (await page.request.get('/api/v1/admin/metadata/settings')).json()).volumeCoversEnabled).toBe(true);
+
+  const language = covers.getByTestId('md-cover-language');
+  await language.click();
+  await page.getByRole('option', { name: 'Japanese' }).click();
+  await expect.poll(async () => (await (await page.request.get('/api/v1/admin/metadata/settings')).json()).preferredCoverLanguage).toBe('ja');
+  // The server has it before the page applies its own save response (which re-enables the select): wait for the page too.
+  await expect(card.getByRole('status').filter({ hasText: 'Preferred language saved' })).toBeVisible();
+  await expect(language).toContainText('Japanese');
+  await expect(language).toHaveAttribute('aria-disabled', 'false');
+
+  // Back to English with the keyboard on the closed select (the option just above): the same selectionChange -> save path,
+  // without reopening the overlay panel, which CI's runner closed again under the click (a panel re-opened right after a save).
+  await language.focus();
+  await page.keyboard.press('ArrowUp');
+  await expect(language).toContainText('English');
+  await expect.poll(async () => (await (await page.request.get('/api/v1/admin/metadata/settings')).json()).preferredCoverLanguage).toBe('en');
+
+  expect((await settings(page)).budgetUsedToday).toBe(usedBefore); // nothing was looked up
   expect(foreign).toEqual([]);
 });

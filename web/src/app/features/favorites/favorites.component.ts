@@ -12,6 +12,7 @@ import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
+import { StackCardComponent } from '../../shared/stack-card/stack-card.component';
 import { CatalogNodeDto } from '../../core/api/api-types';
 import {
   favoriteLink,
@@ -48,6 +49,7 @@ import {
     StarToggleComponent,
     InfoToggleComponent,
     SeriesInfoHoverDirective,
+    StackCardComponent,
   ],
   template: `
     <h2>Favorites</h2>
@@ -62,16 +64,14 @@ import {
             <div class="fav-card">
               <a #cardEl [routerLink]="getNodeLink(node)" [queryParams]="stackParams(node)" class="fav-link stack-link"
                  [attr.aria-label]="node.displayName + ', ' + stackLabel(node)">
-                <div class="stack">
-                  <div class="cover" [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">
-                    @if (coverSrc(node); as src) {
-                      <img appCover [src]="src" alt="" loading="lazy">
-                    }
-                    <mat-icon class="cover-fallback">folder</mat-icon>
-                    <span class="count-badge" [matTooltip]="stackLabel(node)">{{ node.favoriteStackCount }}</span>
-                    <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
-                  </div>
-                </div>
+                <app-stack-card [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">
+                  @if (coverSrc(node); as src) {
+                    <img appCover [src]="src" alt="" loading="lazy">
+                  }
+                  <mat-icon class="cover-fallback">folder</mat-icon>
+                  <span class="count-badge" [matTooltip]="stackLabel(node)">{{ node.favoriteStackCount }}</span>
+                  <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
+                </app-stack-card>
                 <div class="fav-title" [title]="node.displayName"
                      [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">{{ node.displayName }}</div>
                 <div class="fav-sub">{{ stackLabel(node) }}</div>
@@ -140,17 +140,8 @@ import {
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .fav-sub { font-size: 12px; color: #999; }
-    /* Stack (1.27.0): the Home "New chapters" stacked-paper edges behind the cover, and
-       the number of favorites inside in the top-right corner. */
-    .stack { position: relative; }
-    .stack .cover { position: relative; z-index: 1; }
-    .stack::before, .stack::after {
-      content: ''; position: absolute; inset: 0; border-radius: 8px; z-index: 0;
-      background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.08);
-    }
-    .stack::before { transform: translate(4px, -4px); }
-    .stack::after { transform: translate(8px, -8px); opacity: 0.55; }
-    .stack-link:hover .cover, .stack-link:focus-visible .cover { outline: 2px solid rgba(124,77,255,0.6); outline-offset: 1px; }
+    /* Stack (1.27.0): the shared stacked card (app-stack-card, 1.29.0) draws the paper
+       edges; the number of favorites inside sits in the top-right corner. */
     .count-badge {
       position: absolute; top: 6px; right: 6px; z-index: 2;
       font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px;

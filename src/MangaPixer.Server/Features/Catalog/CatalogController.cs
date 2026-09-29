@@ -144,6 +144,7 @@ public sealed class CatalogController : ControllerBase
         [FromQuery] bool hideEmpty = false,
         [FromQuery] string? before = null,
         [FromQuery] bool favoritesOnly = false,
+        [FromQuery] string? group = null,
         CancellationToken ct = default)
     {
         var userId = GetUserId();
@@ -182,7 +183,7 @@ public sealed class CatalogController : ControllerBase
             direction: ParseDirection(direction, storedDirection, effectiveSort),
             sort: effectiveSort, incognito: _incognito.IsIncognito,
             readState: ParseReadState(readState), hideEmpty: hideEmpty, before: before,
-            favoritesOnly: favoritesOnly, ct: ct);
+            favoritesOnly: favoritesOnly, group: group, ct: ct);
 
         return Ok(result);
     }

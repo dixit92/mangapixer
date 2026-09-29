@@ -108,6 +108,21 @@ describe('HomeComponent', () => {
     expect(cards[1].textContent).toContain('Beta');
   });
 
+  it('uses the server-sent (layered, versioned) cover of a Continue reading entry, else the file cover (1.29.0)', () => {
+    const fixture = createComponent({
+      continueReading: [
+        { itemId: 'i1', displayName: 'One', pageIndex: 2, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z', libraryId: 'L1', libraryName: 'Alpha',
+          coverUrl: '/api/v1/nodes/i1/cover?v=k3' },
+        { itemId: 'i2', displayName: 'Two', pageIndex: 0, contentVersion: 1, updatedAt: '2026-09-10T00:00:00Z', libraryId: 'L2', libraryName: 'Beta' },
+      ],
+    });
+    const cmp = fixture.componentInstance;
+    expect(cmp.continueCover(cmp.continueReading()[0])).toBe('/api/v1/nodes/i1/cover?v=k3');
+    expect(cmp.continueCover(cmp.continueReading()[1])).toBe('/api/v1/items/i2/cover');
+    const srcs = Array.from(fixture.nativeElement.querySelectorAll('img') as NodeListOf<HTMLImageElement>).map((i) => i.getAttribute('src'));
+    expect(srcs).toContain('/api/v1/nodes/i1/cover?v=k3');
+  });
+
   it('shows a reading-direction indicator only for libraries with an explicit mode', () => {
     const fixture = createComponent();
     const cards = fixture.nativeElement.querySelectorAll('.library-card') as NodeListOf<HTMLElement>;

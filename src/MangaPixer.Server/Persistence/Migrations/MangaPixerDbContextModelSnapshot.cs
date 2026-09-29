@@ -38,6 +38,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<bool?>("BackupsEnabled")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("CoverSpreadCropEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long?>("MetadataAutoConsentAt")
                         .HasColumnType("INTEGER");
 
@@ -71,6 +74,11 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<bool>("MetadataCoverCompareEnabled")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("MetadataCoverLanguage")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("MetadataDailyBudget")
                         .HasColumnType("INTEGER");
 
@@ -103,6 +111,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<bool>("MetadataSeriesInfoHidden")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("MetadataVolumeCoversEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("UpdateCheckEnabled")
                         .HasColumnType("INTEGER");
 
@@ -112,6 +123,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<string>("UpdateLastKnownLatestVersion")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("VirtualVolumesEnabled")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -633,6 +647,26 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.ToTable("folder_reader_defaults", (string)null);
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.FolderViewSettingsEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("NodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("VirtualVolumes")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NodeId")
+                        .IsUnique();
+
+                    b.ToTable("folder_view_settings", (string)null);
+                });
+
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.HomeExcludedLibraryEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -815,6 +849,12 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("VirtualVolumes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("WebCoversHidden")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PublicId")
@@ -846,6 +886,47 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("library_grants", (string)null);
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataCompanionEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("CheckedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("CompanionRecordId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Method")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("NextCheckAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("RecordId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanionRecordId");
+
+                    b.HasIndex("RecordId", "Provider")
+                        .IsUnique();
+
+                    b.HasIndex("State", "NextCheckAt");
+
+                    b.ToTable("metadata_companions", (string)null);
                 });
 
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataFlagEntity", b =>
@@ -1145,6 +1226,30 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.ToTable("metadata_match_runs", (string)null);
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataProviderStateEntity", b =>
+                {
+                    b.Property<string>("Provider")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("BackoffStep")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("BackoffUntil")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("LastErrorAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Provider");
+
+                    b.ToTable("metadata_provider_state", (string)null);
+                });
+
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataRecordEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -1276,6 +1381,93 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("metadata_records", (string)null);
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.NodeAutoCoverEntity", b =>
+                {
+                    b.Property<long>("NodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("CropSide")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("DecidedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("InputsKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("LocalHash")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Reason")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("RecheckAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("VolumeCoverId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("NodeId");
+
+                    b.HasIndex("RecheckAt");
+
+                    b.HasIndex("VolumeCoverId");
+
+                    b.ToTable("node_auto_covers", (string)null);
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.NodeCoverChoiceEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ArchiveNodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("CropSide")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("NodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SetAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("SetByUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("VolumeCoverId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ArchiveNodeId");
+
+                    b.HasIndex("NodeId")
+                        .IsUnique();
+
+                    b.HasIndex("SetByUserId");
+
+                    b.HasIndex("VolumeCoverId");
+
+                    b.ToTable("node_cover_choices", (string)null);
                 });
 
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.NodeSeriesLinkEntity", b =>
@@ -1488,6 +1680,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<bool>("SeriesInfoOnHover")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("SeriesViewMode")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("ShowFavoritesHomeRow")
                         .HasColumnType("INTEGER");
 
@@ -1668,6 +1863,62 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.ToTable("scan_runs", (string)null);
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.SeriesVolumeMapEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double?>("ChaptersPerVolume")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("FetchedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("KnownVolumeCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("NextCheckAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RecordId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ReleasedChaptersJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleasedLanguage")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UnassignedJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("VolumesJson")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordId", "Source")
+                        .IsUnique();
+
+                    b.ToTable("series_volume_maps", (string)null);
+                });
+
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.SessionEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -1784,6 +2035,83 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.VolumeCoverEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("Hash")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Height")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ListedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Locale")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ProviderRecordId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PublicId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RemoteFile")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RemoteId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("RemoteUpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("StoredAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("StoredVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Variant")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Volume")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Width")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique();
+
+                    b.HasIndex("State");
+
+                    b.HasIndex("ProviderRecordId", "RemoteId")
+                        .IsUnique();
+
+                    b.HasIndex("ProviderRecordId", "Kind", "Volume", "Variant", "Locale");
+
+                    b.ToTable("volume_covers", (string)null);
                 });
 
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchiveItemEntity", b =>
@@ -1916,6 +2244,17 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Navigation("Node");
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.FolderViewSettingsEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Node")
+                        .WithMany()
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Node");
+                });
+
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.HomeExcludedLibraryEntity", b =>
                 {
                     b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
@@ -1955,6 +2294,24 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Navigation("Library");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataCompanionEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataRecordEntity", "CompanionRecord")
+                        .WithMany()
+                        .HasForeignKey("CompanionRecordId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataRecordEntity", "Record")
+                        .WithMany()
+                        .HasForeignKey("RecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CompanionRecord");
+
+                    b.Navigation("Record");
                 });
 
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataFlagEntity", b =>
@@ -2025,6 +2382,48 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .HasForeignKey("LibraryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.NodeAutoCoverEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Node")
+                        .WithMany()
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.VolumeCoverEntity", null)
+                        .WithMany()
+                        .HasForeignKey("VolumeCoverId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Node");
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.NodeCoverChoiceEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ArchiveNodeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Node")
+                        .WithMany()
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("SetByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.VolumeCoverEntity", null)
+                        .WithMany()
+                        .HasForeignKey("VolumeCoverId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Node");
                 });
 
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.NodeSeriesLinkEntity", b =>
@@ -2106,6 +2505,17 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.SeriesVolumeMapEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataRecordEntity", "Record")
+                        .WithMany()
+                        .HasForeignKey("RecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Record");
+                });
+
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.SessionEntity", b =>
                 {
                     b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
@@ -2115,6 +2525,17 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.VolumeCoverEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataRecordEntity", "ProviderRecord")
+                        .WithMany()
+                        .HasForeignKey("ProviderRecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProviderRecord");
                 });
 
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchiveItemEntity", b =>

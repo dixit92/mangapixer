@@ -355,7 +355,7 @@ public sealed class MetadataAutoMatchHttpTests
         Assert.Equal(1, bulk.Succeeded);
         Assert.Equal("not_found", bulk.Results.Single(r => r.NodeId == "nope").Code);
         var allConfirmed = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=Confirmed&limit=10"));
-        Assert.Equal("/api/v1/items/amArc/cover", allConfirmed.Items.Single(i => i.NodeId == "amLinked").CoverUrl); // its first archive, as browse
+        Assert.Equal("/api/v1/items/amArc/cover?v=1", allConfirmed.Items.Single(i => i.NodeId == "amLinked").CoverUrl); // its first archive, as browse
         var confirmed = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=Confirmed&limit=1"));
         Assert.Equal(3, confirmed.Total);
         Assert.True(confirmed.HasMore);
@@ -365,6 +365,39 @@ public sealed class MetadataAutoMatchHttpTests
         var runs = await OkAsync<MetadataMatchRunsDto>(await admin.GetAsync("/api/v1/admin/metadata/runs"));
         Assert.Equal(1, runs.Items.Single(r => r.RunId == "mmseed").ReviewAcceptedTop); // local-only counter
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync("/api/v1/admin/metadata/review?tab=99")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Review_RowsCarryTheirContainingFolder_NullAtTheLibraryTopLevel()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(configureServices: Fakes);
+        await SeedAsync(factory);
+        using (var scope = factory.Services.CreateScope())
+        {
+            // A nested work in review: a subfolder of amPlain.
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            var lib = await db.Libraries.SingleAsync(l => l.PublicId == LibPub);
+            var plain = await db.CatalogNodes.SingleAsync(n => n.PublicId == "amPlain");
+            var nested = Node("amNested", lib.Id, plain.Id, CatalogNodeKind.Folder, "Nested Saga");
+            db.CatalogNodes.Add(nested);
+            await db.SaveChangesAsync();
+            var now = DateTimeOffset.UtcNow;
+            db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
+            {
+                NodeId = nested.Id,
+                LibraryId = lib.Id,
+                State = (int)SeriesLinkState.NeedsReview,
+                MatchMethod = 3,
+                CreatedAt = now,
+                UpdatedAt = now,
+            });
+            await db.SaveChangesAsync();
+        }
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var page = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=NeedsReview"));
+        Assert.Null(page.Items.Single(i => i.NodeId == "amReview").ParentNodeId);
+        Assert.Equal("amPlain", page.Items.Single(i => i.NodeId == "amNested").ParentNodeId);
     }
 
     [Fact]

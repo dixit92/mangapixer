@@ -8,11 +8,12 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// from the web" consent, which keeps manual Identify working). The text lives in
 /// the web client; a change of the automatic network surface bumps the version and
 /// automatic work stops until an admin accepts the new text. v2 (1.28.0): the cover comparison downloads
-/// (<see cref="AutoMatchCoverComparer"/>); a v1 consent is not carried over (owner, 2026-09-28).
+/// (<see cref="AutoMatchCoverComparer"/>); a v1 consent is not carried over (owner, 2026-09-28). v3 (1.29.0): volume
+/// covers and volume lists from MangaDex, AniList totals as the fallback (owner-approved text, 2026-09-29).
 /// </summary>
 public static class MetadataAutoConsent
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 }
 
 /// <summary>Threshold DTO mapping and validation (bounds from <see cref="MatchThresholds"/>).</summary>

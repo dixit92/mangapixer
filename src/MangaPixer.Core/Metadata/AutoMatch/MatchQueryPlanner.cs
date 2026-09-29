@@ -54,26 +54,19 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
         var volumeLike = archives.Count(AutoMatchText.IsVolumeLike);
         var chapterLike = archives.Count(AutoMatchText.IsChapterLike);
         var archiveCount = archives.Count;
-        // The count rule compares unit NUMBERS (1.27.0): the highest one the names state; unit subfolders add
-        // their archive count (their archive names are not read here).
-        var localVolumes = HighestOrZero(archives.Select(AutoMatchText.VolumeNumberOf));
-        var localChapters = HighestOrZero(archives.Select(AutoMatchText.ChapterNumberOf));
         foreach (var sub in folder.Subfolders ?? [])
         {
             if (sub.DescendantArchiveCount <= 0 || !AutoMatchText.IsUnitFolderName(sub.DisplayName))
                 continue;
             archiveCount += sub.DescendantArchiveCount;
             if (AutoMatchText.IsVolumeFolderName(sub.DisplayName))
-            {
                 volumeLike += sub.DescendantArchiveCount;
-                localVolumes = Math.Max(localVolumes, sub.DescendantArchiveCount);
-            }
             else if (AutoMatchText.IsChapterFolderName(sub.DisplayName))
-            {
                 chapterLike += sub.DescendantArchiveCount;
-                localChapters = Math.Max(localChapters, sub.DescendantArchiveCount);
-            }
         }
+        // The count rule compares unit NUMBERS (1.27.0), and since 1.29.0 unit subfolders add the numbers their archive
+        // names state, never their archive count (CountEvidence.LocalOf).
+        var units = CountEvidence.LocalOf(archives, folder.Subfolders);
 
         var years = new List<int>();
         if (AutoMatchText.EarliestYear(archives) is { } archiveYear) years.Add(archiveYear);
@@ -90,12 +83,11 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             authorTags,
             string.IsNullOrWhiteSpace(comicInfoSeries) ? null : comicInfoSeries.Trim(),
             AutoMatchText.CreatorHints(folder.DisplayName),
-            localVolumes > 0 ? localVolumes : null,
-            localChapters > 0 ? localChapters : null);
+            units.HighestVolume is > 0 ? units.HighestVolume : null,
+            units.HighestChapter is > 0 ? units.HighestChapter : null,
+            Units: units);
         return new MatchQuery(variants.ToList(), context);
     }
-
-    private static int HighestOrZero(IEnumerable<int?> numbers) => numbers.Max() ?? 0;
 
     public MatchQuery PlanArchiveGroup(FolderShape folder, WorkClassification classification, ArchiveGroup group)
     {
@@ -162,7 +154,8 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             authorTags,
             CreatorHints: names.SelectMany(AutoMatchText.CreatorHints).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             LocalVolumes: names.Select(AutoMatchText.VolumeNumberOf).Max(),
-            LocalChapters: names.Select(AutoMatchText.ChapterNumberOf).Max());
+            LocalChapters: names.Select(AutoMatchText.ChapterNumberOf).Max(),
+            Units: CountEvidence.LocalOf(names, null));
         return new MatchQuery(variants.ToList(), context);
     }
 

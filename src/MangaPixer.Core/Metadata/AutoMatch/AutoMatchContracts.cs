@@ -82,8 +82,12 @@ public enum ContentSuggestion
     DoujinshiAndAdultOneShots = 1,
 }
 
-/// <summary>A direct subfolder as the detector sees it.</summary>
-public sealed record ChildFolderShape(string DisplayName, int DescendantArchiveCount);
+/// <summary>
+/// A direct subfolder as the detector sees it. <c>ArchiveNames</c> (optional, 1.29.0): the display names of the archives
+/// below a UNIT subfolder (bounded), so the count rule reads their unit numbers (<see cref="CountEvidence.LocalOf"/>);
+/// null for other subfolders.
+/// </summary>
+public sealed record ChildFolderShape(string DisplayName, int DescendantArchiveCount, IReadOnlyList<string>? ArchiveNames = null);
 
 /// <summary>
 /// One folder, as the detector sees it: display names only (never paths), counts, and the
@@ -147,6 +151,8 @@ public sealed record QueryVariant(string Text, QueryVariantKind Kind);
 /// <c>LocalVolumes</c> / <c>LocalChapters</c> (optional, 1.27.0): what the count rule compares - the highest unit
 /// number the archive names state (decimals and extras do not inflate it), or the archive count of unit
 /// subfolders whose archive names are not read; null falls back to <c>VolumeLikeCount</c> / <c>ChapterLikeCount</c>.
+/// <c>Units</c> (optional, 1.29.0): the count rule's local side (<see cref="CountEvidence.LocalOf"/>) - the unit numbers of the
+/// folder and its unit subfolders; when null the rule reads the fields above (<see cref="CountEvidence.FromContext"/>).
 /// <c>CoverMatches</c> (optional, 1.28.0): external ids of candidates whose cover image is the same as the work's
 /// local cover (<see cref="CoverEvidence"/>); positive evidence only, set by the caller after comparing covers.
 /// </summary>
@@ -163,7 +169,8 @@ public sealed record MatchContext(
     IReadOnlyList<string>? CreatorHints = null,
     int? LocalVolumes = null,
     int? LocalChapters = null,
-    IReadOnlySet<string>? CoverMatches = null);
+    IReadOnlySet<string>? CoverMatches = null,
+    LocalUnitCounts? Units = null);
 
 /// <summary>
 /// What to look up for one work: ordered, de-duplicated variants (the caller sends at most the

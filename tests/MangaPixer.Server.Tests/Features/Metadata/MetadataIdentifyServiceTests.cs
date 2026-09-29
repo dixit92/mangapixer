@@ -202,16 +202,61 @@ public sealed class MetadataIdentifyServiceTests : IAsyncLifetime
         _h.Handler.Respond = _ => ScriptedHandler.Json(
             "{\"series_id\":13184758110,\"title\":\"Solo Leveling (Novel)\",\"type\":\"Novel\",\"year\":\"2016\",\"status\":\"2 Volumes (Complete)\"}");
         var folder = await _db.AddFolderAsync(null, "Solo Leveling (2018)");
-        for (var i = 0; i < 10; i++)
-            await _db.AddArchiveAsync(folder, $"c{i:D3}.cbz");
+        for (var i = 1; i <= 10; i++)
+            await _db.AddArchiveAsync(folder, $"Solo Leveling v{i:D2}.cbz");
 
         var preview = await _h.Identify().PreviewAsync(folder.PublicId, new IdentifyPreviewRequest { Provider = Mu, ExternalId = "13184758110" });
 
         var codes = preview!.Warnings.Select(w => w.Code).ToList();
         Assert.Contains("format_novel", codes);
         Assert.Contains("year_mismatch", codes);
-        Assert.Contains("count_mismatch", codes);
+        Assert.Equal("The record lists 2 volumes; this folder has volumes 1-10.",
+            preview.Warnings.Single(w => w.Code == "count_mismatch").Message); // volumes against volumes, named
         Assert.Equal(MetadataFormat.Novel, preview.Format);
+    }
+
+    [Fact]
+    public async Task Preview_ChapterFolder_IsNotComparedWithAVolumeTotal()
+    {
+        // Owner report (1.28.0): "The record lists 18 volumes/chapters; this folder has 43 items." for 43 chapter archives
+        // of a record with 7 volumes (ongoing) and a latest tracked chapter of 18. Chapters have no total to compare with.
+        await _h.EnableAsync();
+        _h.Handler.Respond = _ => ScriptedHandler.Json(
+            "{\"series_id\":4410,\"title\":\"Some Series\",\"type\":\"Manga\",\"latest_chapter\":18,\"status\":\"7 Volumes (Ongoing)\"}");
+        var folder = await _db.AddFolderAsync(null, "Some Series");
+        for (var i = 1; i <= 43; i++)
+            await _db.AddArchiveAsync(folder, $"Some Series - Chapter {i:D3}.cbz");
+
+        var preview = await _h.Identify().PreviewAsync(folder.PublicId, new IdentifyPreviewRequest { Provider = Mu, ExternalId = "4410" });
+
+        Assert.DoesNotContain(preview!.Warnings, w => w.Code == "count_mismatch");
+    }
+
+    [Fact]
+    public async Task Preview_ChapterTotal_ReadsSeasonSubfolders_AndNamesChapters()
+    {
+        await _h.EnableAsync();
+        _h.Handler.Respond = _ => ScriptedHandler.Json(
+            "{\"series_id\":4411,\"title\":\"Some Series\",\"type\":\"Manhwa\",\"latest_chapter\":20,\"status\":\"40 Chapters (Complete)\"}");
+        var folder = await _db.AddFolderAsync(null, "Some Series");
+        await _db.AddArchiveAsync(folder, "000.cbz");
+        var one = await _db.AddFolderAsync(folder, "Season 1");
+        var two = await _db.AddFolderAsync(folder, "Season 2");
+        for (var i = 1; i <= 60; i++)
+            await _db.AddArchiveAsync(i <= 30 ? one : two, $"Some Series - Chapter {i:D3}.cbz");
+        var other = await _db.AddFolderAsync(folder, "Another Work");
+        await _db.AddArchiveAsync(other, "Another Work - Chapter 999.cbz"); // not a unit subfolder: not read
+
+        var preview = await _h.Identify().PreviewAsync(folder.PublicId, new IdentifyPreviewRequest { Provider = Mu, ExternalId = "4411" });
+
+        // 60 > 1.5 x 40 + 2 = 62? No - within the slack: no warning.
+        Assert.DoesNotContain(preview!.Warnings, w => w.Code == "count_mismatch");
+
+        for (var i = 61; i <= 90; i++)
+            await _db.AddArchiveAsync(two, $"Some Series - Chapter {i:D3}.cbz");
+        preview = await _h.Identify().PreviewAsync(folder.PublicId, new IdentifyPreviewRequest { Provider = Mu, ExternalId = "4411" });
+        Assert.Equal("The record lists 40 chapters; this folder has chapters 0-90.",
+            preview!.Warnings.Single(w => w.Code == "count_mismatch").Message);
     }
 
     [Fact]

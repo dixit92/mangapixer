@@ -16,7 +16,8 @@ using Microsoft.Extensions.Logging;
 /// (switch off, backoff, budget spent until the next UTC day) the pass stops and
 /// the loop sleeps until the next tick - leased rows are released, and a crash
 /// leaves only leases that expire and are picked up again. Failures are logged by
-/// type only and never crash the host.
+/// type only and never crash the host. 1.29.0: after the matching pass (and the
+/// refresh check) each tick also runs one time-sliced tick of the volume-cover pass.
 /// </summary>
 public sealed class MetadataAutoMatchHostedService : BackgroundService
 {
@@ -55,6 +56,7 @@ public sealed class MetadataAutoMatchHostedService : BackgroundService
                     lastRefresh = DateTimeOffset.UtcNow;
                     await RunRefreshAsync(stoppingToken);
                 }
+                await RunVolumeCoversAsync(stoppingToken);
                 await _state.WaitAsync(_options.TickInterval, stoppingToken);
             }
         }
@@ -115,6 +117,27 @@ public sealed class MetadataAutoMatchHostedService : BackgroundService
             _logger.LogWarning(LogEvents.Metadata.AutoMatchFailed, "Automatic matching pass failed: {Error}", ex.GetType().Name);
         }
         return processed;
+    }
+
+    /// <summary>
+    /// One tick of the volume-cover / volume-list pass (1.29.0): at most <see cref="Features.Metadata.Volumes.VolumeCoverPass.SliceRequests"/>
+    /// requests, so the next matching pass is never far away. Failures are logged by type only.
+    /// </summary>
+    public async Task RunVolumeCoversAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<Features.Metadata.Volumes.VolumeCoverPass>().RunTickAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(LogEvents.Metadata.VolumeCoverPass, "Volume cover pass failed: {Error}", ex.GetType().Name);
+        }
     }
 
     private async Task RunRefreshAsync(CancellationToken ct)
