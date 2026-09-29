@@ -4825,6 +4825,46 @@
         }
       }
     },
+    "/api/v1/nodes/{nodeId}/volumes/{key}/cover": {
+      "get": {
+        "tags": [
+          "StackCover"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "302": {
+            "description": "Found"
+          }
+        }
+      }
+    },
     "/api/v1/volume-covers/{coverId}/image": {
       "get": {
         "tags": [
@@ -11521,6 +11561,9 @@
     },
     {
       "name": "NodeCover"
+    },
+    {
+      "name": "StackCover"
     },
     {
       "name": "VolumeCoverImage"
