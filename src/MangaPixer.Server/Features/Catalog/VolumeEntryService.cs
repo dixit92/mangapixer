@@ -8,6 +8,7 @@ using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Metadata.Missing;
 using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -442,6 +443,6 @@ public sealed class VolumeEntryService
             join n in _db.CatalogNodes.AsNoTracking() on e.NodeId equals n.Id
             where n.ParentId != null && parentIds.Contains(n.ParentId.Value) && e.State == 1 && (e.Volume != null || e.Number != null)
             select new { e.NodeId, e.Volume, e.Number }).ToListAsync(ct);
-        return rows.ToDictionary(r => r.NodeId, r => (r.Volume, r.Number));
+        return rows.ToDictionary(r => r.NodeId, r => (r.Volume, (string?)r.Number));
     }
 }
