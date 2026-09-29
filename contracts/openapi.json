@@ -11282,6 +11282,9 @@
             ],
             "format": "int32"
           },
+          "hasVolumeArchive": {
+            "type": "boolean"
+          },
           "missingCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
