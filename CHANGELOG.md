@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Upgrade note:** this version adds a database migration (`AddVolumeCoversAndVirtualVolumes`: new tables for volume lists, volume covers and cover choices, and new settings columns; a snapshot is taken before it runs). The media worker protocol is now 5 (the server and the worker ship together; the server refuses an older worker).
 - **Accept the metadata consents again after this update.** Both consent texts now cover MangaDex (volume covers, and which chapters make up each volume, for series already linked to MangaUpdates) and AniList's totals as a fallback; fetching from the web and Automatic matching stay off until an admin accepts the new texts in Metadata Manager.
 - **Review rows open their folder.** Each row in the Metadata Manager's review lists has a folder button that opens the folder in the library - an archive opens the folder that contains it.
 - API (admin): review rows (`GET /api/v1/admin/metadata/review`) return `parentNodeId`, the folder that contains the row's folder or archive.
