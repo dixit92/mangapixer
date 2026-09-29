@@ -100,7 +100,7 @@ public sealed class VolumeStackHttpTests : IClassFixture<MangaPixerWebApplicatio
         var first = await BrowseAsync(admin, "pageSize=1");
         Assert.Equal(2, first.TotalCount);
         var stack = Assert.Single(first.Items);
-        Assert.Equal((CatalogNodeKind.VolumeStack, $"vs.{SeriesPubId}.1", "Vol. 1"), (stack.Kind, stack.Id, stack.DisplayName));
+        Assert.Equal((CatalogNodeKind.VolumeStack, $"vs.{SeriesPubId}.1", "Volume 1"), (stack.Kind, stack.Id, stack.DisplayName));
         Assert.Equal((10, 10, 1, 1, VolumeStackConfidence.Exact),
             (stack.VolumeStack!.PresentCount, stack.VolumeStack.ChapterCount, stack.VolumeStack.MissingCount, stack.VolumeStack.ExtraCount, stack.VolumeStack.Confidence));
         Assert.True(first.HasMore);
@@ -108,14 +108,14 @@ public sealed class VolumeStackHttpTests : IClassFixture<MangaPixerWebApplicatio
         Assert.StartsWith("/api/v1/items/vsc1/cover", stack.CoverUrl); // the cover layer versions the URL (?v=)
 
         var second = await BrowseAsync(admin, $"pageSize=1&cursor={Uri.EscapeDataString(first.NextCursor!)}");
-        Assert.Equal("Vol. 2", Assert.Single(second.Items).DisplayName);
+        Assert.Equal("Volume 2", Assert.Single(second.Items).DisplayName);
         Assert.False(second.HasMore);
         Assert.True(second.HasPrevious);
         Assert.Equal(2, second.TotalCount);
 
         // The page before the second entry is the first; nothing precedes the first entry.
         var back = await BrowseAsync(admin, $"pageSize=1&before={Uri.EscapeDataString(second.PrevCursor!)}");
-        Assert.Equal(["Vol. 1"], back.Items.Select(n => n.DisplayName));
+        Assert.Equal(["Volume 1"], back.Items.Select(n => n.DisplayName));
         Assert.False(back.HasPrevious);
         var beforeFirst = await BrowseAsync(admin, $"pageSize=5&before={Uri.EscapeDataString(first.NextCursor!)}");
         Assert.Empty(beforeFirst.Items);
@@ -154,7 +154,7 @@ public sealed class VolumeStackHttpTests : IClassFixture<MangaPixerWebApplicatio
 
         var one = await OkAsync<VolumeStackDto>(await admin.GetAsync($"/api/v1/nodes/{SeriesPubId}/volumes/1"));
 
-        Assert.Equal((SeriesPubId, "1", "Vol. 1", VolumeStackConfidence.Exact, VolumeListSource.MangaDex), (one.FolderId, one.Key, one.Label, one.Confidence, one.Source));
+        Assert.Equal((SeriesPubId, "1", "Volume 1", VolumeStackConfidence.Exact, VolumeListSource.MangaDex), (one.FolderId, one.Key, one.Label, one.Confidence, one.Source));
         Assert.Equal((10, 10, 1, 1), (one.PresentCount, one.ChapterCount, one.MissingCount, one.ExtraCount));
         Assert.Equal((null, "2"), (one.PreviousKey, one.NextKey));
         Assert.Equal(["1", "2", "3", "4", "5", "6", "7", "7.5", "8", "9", "10"], one.Slots.Select(s => s.Chapter));

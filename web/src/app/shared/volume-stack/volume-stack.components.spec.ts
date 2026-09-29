@@ -7,7 +7,7 @@ import { VolumeIncompleteBadgeComponent } from './volume-incomplete-badge.compon
 /** The incomplete mark and the missing-chapter placeholder of the Volumes view (1.29.0). */
 describe('volume stack pieces', () => {
   function summary(over: Partial<VolumeStackSummaryDto> = {}): VolumeStackSummaryDto {
-    return { key: '3', label: 'Vol. 3', presentCount: 8, chapterCount: 9, missingCount: 1, extraCount: 0, hasVolumeArchive: false, confidence: 'Exact', ...over };
+    return { key: '3', label: 'Volume 3', presentCount: 8, chapterCount: 9, missingCount: 1, extraCount: 0, hasVolumeArchive: false, confidence: 'Exact', ...over };
   }
 
   describe('VolumeIncompleteBadgeComponent', () => {

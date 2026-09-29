@@ -145,9 +145,9 @@ public static class VolumeGrouping
     /// <summary>The display / route key of a volume (<c>3</c>, <c>2.5</c>).</summary>
     public static string KeyOf(decimal volume) => Canonical(volume);
 
-    /// <summary>The label of a stack (<c>Vol. 3</c>, <c>~ Vol. 12</c> when estimated).</summary>
+    /// <summary>The label of a stack (<c>Volume 3</c>, <c>~ Volume 12</c> when estimated).</summary>
     public static string LabelOf(decimal volume, VolumeStackConfidence confidence) =>
-        (confidence == VolumeStackConfidence.Estimated ? "~ Vol. " : "Vol. ") + Canonical(volume);
+        (confidence == VolumeStackConfidence.Estimated ? "~ Volume " : "Volume ") + Canonical(volume);
 
     /// <summary>A canonical invariant number string: <c>45</c>, <c>45.5</c> (no trailing zeros).</summary>
     public static string Canonical(decimal value) =>

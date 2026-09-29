@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 public sealed record StackCover(string Key, long VolumeCoverId, string VolumeCoverPublicId, int StoredVersion, string Version, string Url);
 
 /// <summary>
-/// Web volume covers on virtual volume STACKS (1.29.0, design 7.4 / P2.2): a chapter-only stack ("Vol. 3 - 10 chapters", no
+/// Web volume covers on virtual volume STACKS (1.29.0, design 7.4 / P2.2): a chapter-only stack ("Volume 3 - 10 chapters", no
 /// real volume archive) shows the stored web cover of its volume - preferred language, else the origin language - instead
 /// of its first chapter's page 1. A stack with a real volume archive keeps that archive's resolved cover (not handled here).
 /// The same read-time rules as the cover layer: shown only while "Volume covers from the web" is on and the library's

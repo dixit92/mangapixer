@@ -78,9 +78,9 @@ test('a folder of chapters that state their volume groups into stacks, offline',
 
   const cards = page.locator('.node-wrap');
   await expect(cards).toHaveCount(3);
-  await expect(cards.nth(0).locator('.node-title')).toHaveText('Vol. 1');
+  await expect(cards.nth(0).locator('.node-title')).toHaveText('Volume 1');
   await expect(cards.nth(0).locator('.node-sub')).toContainText('3 chapters');
-  await expect(cards.nth(1).locator('.node-title')).toHaveText('Vol. 2');
+  await expect(cards.nth(1).locator('.node-title')).toHaveText('Volume 2');
   await expect(cards.nth(1).locator('.node-sub')).toContainText('2 chapters');
   // Volume 3 is a real volume file with no chapters of its own: a plain card, not a stack.
   await expect(cards.nth(2).locator('.node-title')).toHaveText('Stacked Saga v03.cbz');
@@ -97,9 +97,9 @@ test('a stack opens its chapters, with previous / next volume', async ({ page })
   await setSwitch(page, null);
   await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
 
-  await page.locator('.node-wrap', { hasText: 'Vol. 1' }).locator('a.node-card').click();
+  await page.locator('.node-wrap', { hasText: 'Volume 1' }).locator('a.node-card').click();
   await expect(page).toHaveURL(new RegExp(`/libraries/${libraryId}/browse/${folderId}/volume/1$`));
-  await expect(page.getByTestId('stack-title')).toHaveText('Vol. 1');
+  await expect(page.getByTestId('stack-title')).toHaveText('Volume 1');
   await expect(page.getByTestId('stack-counts')).toHaveText('3 chapters');
   await expect(page.getByTestId('stack-item')).toHaveCount(3);
   await expect(page.getByTestId('stack-prev')).toHaveCount(0);
@@ -107,7 +107,7 @@ test('a stack opens its chapters, with previous / next volume', async ({ page })
 
   await page.getByTestId('stack-next').click();
   await expect(page).toHaveURL(/\/volume\/2$/);
-  await expect(page.getByTestId('stack-title')).toHaveText('Vol. 2');
+  await expect(page.getByTestId('stack-title')).toHaveText('Volume 2');
   await expect(page.getByTestId('stack-item')).toHaveCount(2);
   await expect(page.getByTestId('stack-next')).toHaveCount(0);
 

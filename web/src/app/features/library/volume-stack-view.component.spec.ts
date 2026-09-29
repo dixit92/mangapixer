@@ -30,7 +30,7 @@ describe('VolumeStackViewComponent', () => {
 
   function stack(over: Partial<VolumeStackDto> = {}): VolumeStackDto {
     return {
-      folderId: 'f1', key: '5', label: 'Vol. 5', coverUrl: '/api/v1/items/c37/cover', confidence: 'Exact', source: 'MangaDex',
+      folderId: 'f1', key: '5', label: 'Volume 5', coverUrl: '/api/v1/items/c37/cover', confidence: 'Exact', source: 'MangaDex',
       presentCount: 4, chapterCount: 5, missingCount: 1, extraCount: 1, previousKey: '4', nextKey: '6', slots, ...over,
     };
   }
@@ -59,7 +59,7 @@ describe('VolumeStackViewComponent', () => {
     const { el, apiSpy } = setup(stack());
 
     expect(apiSpy.getVolumeStack).toHaveBeenCalledWith('f1', '5');
-    expect(el.querySelector('[data-testid="stack-title"]')!.textContent).toBe('Vol. 5');
+    expect(el.querySelector('[data-testid="stack-title"]')!.textContent).toBe('Volume 5');
     expect(el.querySelector('[data-testid="stack-counts"]')!.textContent).toBe('3 of 5 chapters - 1 extra');
     expect(el.querySelector('[data-testid="stack-source"]')!.textContent).toBe("Grouped by the series' volume list");
   });
@@ -73,7 +73,7 @@ describe('VolumeStackViewComponent', () => {
       ['Shelf', '/libraries/lib1/browse/anc'],
       ['My Series', '/libraries/lib1/browse/f1'],
     ]);
-    expect(el.querySelector('.current')!.textContent).toBe('Vol. 5');
+    expect(el.querySelector('.current')!.textContent).toBe('Volume 5');
     expect(el.textContent).not.toMatch(/MangaDex|AniList|MangaUpdates/);
   });
 
@@ -113,7 +113,7 @@ describe('VolumeStackViewComponent', () => {
   });
 
   it('says so when the volume is estimated, and where a file-name grouping came from', () => {
-    const { el } = setup(stack({ confidence: 'Estimated', source: 'AniList', label: '~ Vol. 5' }));
+    const { el } = setup(stack({ confidence: 'Estimated', source: 'AniList', label: '~ Volume 5' }));
     expect(el.querySelector('[data-testid="stack-source"]')!.textContent).toContain('Volumes estimated from the published totals');
     expect(el.querySelector('[data-testid="stack-source"]')!.textContent).toContain('Volume boundaries are estimated');
   });

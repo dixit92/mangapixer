@@ -17,7 +17,7 @@ using Xunit;
 public sealed class StackCoverServiceTests
 {
     private static VolumeStack Stack(string key, bool hasVolumeArchive = false) => new(
-        key, decimal.Parse(key, System.Globalization.CultureInfo.InvariantCulture), "Vol. " + key, VolumeStackConfidence.Exact,
+        key, decimal.Parse(key, System.Globalization.CultureInfo.InvariantCulture), "Volume " + key, VolumeStackConfidence.Exact,
         VolumeListSource.MangaDex, [], [], 2, 2, 0, hasVolumeArchive, "1", "2");
 
     private static async Task<(CoverLayerTestKit Kit, CatalogNodeEntity Folder, MetadataRecordEntity Record, MetadataRecordEntity Companion)> SeedAsync()

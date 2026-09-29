@@ -1851,7 +1851,7 @@ export interface UpdateFolderViewSettingsRequest {
 /** Where a card's cover comes from. */
 export type CardCoverSource = 'File' | 'Crop' | 'WebVolume' | 'WebMain' | 'Poster' | 'Chosen';
 
-/** Exact: file names / ComicInfo, the provider list, or bounded by neighbours. Estimated: shown "~ Vol. N". */
+/** Exact: file names / ComicInfo, the provider list, or bounded by neighbours. Estimated: shown "~ Volume N". */
 export type VolumeStackConfidence = 'Exact' | 'Estimated';
 
 export type VolumeListSource = 'FileNames' | 'MangaDex' | 'AniList' | 'Mixed';

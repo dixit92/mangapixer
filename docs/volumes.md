@@ -1,6 +1,6 @@
 # Volumes view
 
-A manga that comes as loose chapters, or as a `Volumes` folder next to a `Chapters` folder, is easier to read as **volumes**. The **Volumes view** groups a series' chapters into **volume stacks** ("Vol. 3 - 10 chapters"), orders everything by volume, and shows where a chapter is missing. Your files are never touched: the view is built from your archive names, their embedded ComicInfo and, for linked series, the volume list stored with the series record.
+A manga that comes as loose chapters, or as a `Volumes` folder next to a `Chapters` folder, is easier to read as **volumes**. The **Volumes view** groups a series' chapters into **volume stacks** ("Volume 3 - 10 chapters"), orders everything by volume, and shows where a chapter is missing. Your files are never touched: the view is built from your archive names, their embedded ComicInfo and, for linked series, the volume list stored with the series record.
 
 It works without any network access. Names like `Series v03 c012` group on their own; a stored volume list only adds the volumes your file names don't state.
 
@@ -17,7 +17,7 @@ For every chapter archive, the first rule that applies decides:
 1. **The file name or ComicInfo says so.** `Title v03 c012` is chapter 12 of volume 3. An archive named only `Chapter 12` with ComicInfo *Volume* 3 is in volume 3 too (a ComicInfo volume that is a year, such as 2019, is ignored).
 2. **The volume list places it.** For a series linked to a record, the volume list stored with it says which chapters make up each volume.
 3. **Between two known volumes.** When exactly one volume is missing from the list between two known ones, the chapters in between belong to it. A chapter inside a known volume's own span belongs to that volume.
-4. **An estimate.** When several volumes are unknown, their chapters are split evenly; after the last known volume, chapters are placed in steps of the average chapters per volume, never past the last volume the series is known to have. A stack that uses an estimate is shown as **~ Vol. 12**.
+4. **An estimate.** When several volumes are unknown, their chapters are split evenly; after the last known volume, chapters are placed in steps of the average chapters per volume, never past the last volume the series is known to have. A stack that uses an estimate is shown as **~ Volume 12**.
 5. **Otherwise it stays loose**, listed after the volumes as a normal chapter ("not in a volume yet"). That is where the chapters after the newest published volume of a running series end up.
 
 Extras (a fractional chapter such as `c045.5`) follow their whole chapter into its volume.
@@ -60,7 +60,7 @@ The numbers agree with the [Missing volumes and chapters](missing-report.md) rep
 
 ## Opening a stack
 
-Tap a stack to open the volume: its cover, "Vol. 3", how many chapters you have of how many (and how many extras), where the grouping came from, **Previous** and **Next** volume, and the chapters in reading order with the read state, favorite star and series information button of a normal card. Tapping a chapter opens the reader as usual; the reader's previous / next chapter follow the folder, not the stack.
+Tap a stack to open the volume: its cover, "Volume 3", how many chapters you have of how many (and how many extras), where the grouping came from, **Previous** and **Next** volume, and the chapters in reading order with the read state, favorite star and series information button of a normal card. Tapping a chapter opens the reader as usual; the reader's previous / next chapter follow the folder, not the stack.
 
 A stack can't be selected or starred: open it to select or star its chapters.
 

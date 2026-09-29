@@ -69,7 +69,7 @@ describe('CoverPickerDialogComponent', () => {
       expect(q(id)).not.toBeNull();
     }
     expect(q('cover-pick-web-vc2')!.disabled).toBe(true); // not downloaded: no request from the picker
-    expect(el.textContent).toContain('Vol. 1');
+    expect(el.textContent).toContain('Volume 1');
     expect(el.textContent).not.toContain('MangaDex'); // the credit lives in Metadata Manager only
   });
 

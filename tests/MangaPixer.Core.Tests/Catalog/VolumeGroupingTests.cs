@@ -41,7 +41,7 @@ public sealed class VolumeGroupingTests
         Assert.Equal(2, r.StackCount);
         var stacks = Stacks(r).Select(e => e.Stack!).ToList();
         Assert.Equal(["1", "2"], stacks.Select(s => s.Key));
-        Assert.Equal(["Vol. 1", "Vol. 2"], stacks.Select(s => s.Label));
+        Assert.Equal(["Volume 1", "Volume 2"], stacks.Select(s => s.Label));
         Assert.Equal([3, 2], stacks.Select(s => s.PresentCount));
         Assert.All(stacks, s => Assert.Equal(VolumeStackConfidence.Exact, s.Confidence));
         Assert.All(stacks, s => Assert.Equal(VolumeListSource.FileNames, s.Source));
@@ -94,7 +94,7 @@ public sealed class VolumeGroupingTests
 
         Assert.Equal([0, 0, 1, 2], r.Entries.Select(e => e.Rank));
         Assert.Equal([VolumeEntryKind.Stack, VolumeEntryKind.Archive, VolumeEntryKind.Folder, VolumeEntryKind.Archive], r.Entries.Select(e => e.Kind));
-        Assert.Equal("Vol. 1", r.Entries[0].Stack!.Label);
+        Assert.Equal("Volume 1", r.Entries[0].Stack!.Label);
         Assert.Equal("id:Series v02", r.Entries[1].Row!.Id);
     }
 
@@ -163,7 +163,7 @@ public sealed class VolumeGroupingTests
         Assert.Equal(["49", "50", "51"], stacks.Select(s => s.Key));
         var bounded = stacks[1];
         Assert.Equal(VolumeStackConfidence.Exact, bounded.Confidence);
-        Assert.Equal("Vol. 50", bounded.Label);
+        Assert.Equal("Volume 50", bounded.Label);
         Assert.Equal(9, bounded.PresentCount); // 481..489
         Assert.Equal(9, bounded.ChapterCount);
         Assert.Empty(bounded.MissingChapters);
@@ -179,7 +179,7 @@ public sealed class VolumeGroupingTests
         var stacks = Stacks(r).Select(e => e.Stack!).ToList();
         Assert.Equal(["2", "3", "4"], stacks.Select(s => s.Key));
         Assert.All(stacks, s => Assert.Equal(VolumeStackConfidence.Estimated, s.Confidence));
-        Assert.Equal(["~ Vol. 2", "~ Vol. 3", "~ Vol. 4"], stacks.Select(s => s.Label));
+        Assert.Equal(["~ Volume 2", "~ Volume 3", "~ Volume 4"], stacks.Select(s => s.Label));
         Assert.Equal([10, 10, 10], stacks.Select(s => s.PresentCount));
         Assert.Equal("11", stacks[0].FirstChapter);
         Assert.Equal("40", stacks[2].LastChapter);
@@ -350,7 +350,7 @@ public sealed class VolumeGroupingTests
         Assert.True(string.CompareOrdinal(VolumeGrouping.SortableKey(9m), VolumeGrouping.SortableKey(10m)) < 0);
         Assert.Equal("3", VolumeGrouping.KeyOf(3.00m));
         Assert.Equal("2.5", VolumeGrouping.KeyOf(2.50m));
-        Assert.Equal("~ Vol. 12", VolumeGrouping.LabelOf(12m, VolumeStackConfidence.Estimated));
+        Assert.Equal("~ Volume 12", VolumeGrouping.LabelOf(12m, VolumeStackConfidence.Estimated));
     }
 
     [Fact]

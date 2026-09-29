@@ -106,7 +106,7 @@ function samePick(a: CoverPick | null, b: CoverPick): boolean {
         } @else {
           @for (group of o.web; track group.volume) {
             <div class="volume">
-              <span class="vol-label">{{ group.volume === null || group.volume === undefined ? 'Series' : 'Vol. ' + group.volume }}</span>
+              <span class="vol-label">{{ group.volume === null || group.volume === undefined ? 'Series' : 'Volume ' + group.volume }}</span>
               <div class="grid" role="group" [attr.aria-label]="group.volume === null || group.volume === undefined ? 'Series covers' : 'Volume ' + group.volume">
                 @for (c of group.covers; track c.id) {
                   <button type="button" class="tile" [class.picked]="isPicked({ kind: 'web', coverId: c.id })"

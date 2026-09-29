@@ -34,7 +34,7 @@ public enum VolumeStackConfidence
     /// <summary>From the file names / ComicInfo, the provider's volume list, or bounded by known neighbours.</summary>
     Exact = 0,
 
-    /// <summary>Some members were placed by an average (shown "~ Vol. N").</summary>
+    /// <summary>Some members were placed by an average (shown "~ Volume N").</summary>
     Estimated = 1,
 }
 
@@ -53,7 +53,7 @@ public sealed record VolumeStackSummaryDto
     /// <summary>The volume key ("3"); with the folder id it names the stack view.</summary>
     public required string Key { get; init; }
 
-    /// <summary>"Vol. 3" or "~ Vol. 12".</summary>
+    /// <summary>"Volume 3" or "~ Volume 12".</summary>
     public required string Label { get; init; }
 
     /// <summary>Members present (the volume archive counts as one).</summary>

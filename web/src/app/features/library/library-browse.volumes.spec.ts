@@ -20,10 +20,10 @@ import { CatalogNodeDto, PageResponse, VolumeStackSummaryDto, VolumeViewDto } fr
 describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
   function stackNode(key: string, over: Partial<VolumeStackSummaryDto> = {}): CatalogNodeDto {
     return {
-      id: `vs.f1.${key}`, parentId: 'f1', libraryId: 'lib1', kind: 'VolumeStack', displayName: `Vol. ${key}`,
+      id: `vs.f1.${key}`, parentId: 'f1', libraryId: 'lib1', kind: 'VolumeStack', displayName: `Volume ${key}`,
       availability: 'Available', coverUrl: `/api/v1/items/c${key}/cover`, childFolderCount: null, childArchiveCount: null,
       pageCount: null, readingState: null, lastReadPage: null, readerDefault: null, isRead: false, readRollup: 'Unread', hasSeriesInfo: false,
-      volumeStack: { key, label: `Vol. ${key}`, presentCount: 8, chapterCount: 9, missingCount: 1, extraCount: 0, hasVolumeArchive: false, confidence: 'Exact', ...over },
+      volumeStack: { key, label: `Volume ${key}`, presentCount: 8, chapterCount: 9, missingCount: 1, extraCount: 0, hasVolumeArchive: false, confidence: 'Exact', ...over },
     } as CatalogNodeDto;
   }
 
@@ -72,7 +72,7 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
     expect(first.querySelector('[data-testid="stack-incomplete"]')!.textContent?.trim()).toBe('8/9');
     expect(first.querySelector('app-star-toggle')).toBeNull();
     expect(first.querySelector('app-info-toggle')).toBeNull();
-    expect(first.querySelector('.node-title')!.textContent).toBe('Vol. 1');
+    expect(first.querySelector('.node-title')!.textContent).toBe('Volume 1');
     expect(first.querySelector('.node-sub')!.textContent?.trim()).toBe('8 of 9 chapters');
     // A complete volume has no mark; a plain archive is not a stack card.
     const second = el.querySelectorAll('.node-wrap')[1];

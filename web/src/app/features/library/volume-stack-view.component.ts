@@ -13,7 +13,7 @@ import { MissingChapterCardComponent } from '../../shared/volume-stack/missing-c
 
 /**
  * The stack view of one virtual volume (1.29.0): `/libraries/:libraryId/browse/:nodeId/volume/:key`. A header (cover,
- * "Vol. 3", "8 of 10 chapters - 1 extra", where the grouping came from), previous / next volume, then the ordered slots:
+ * "Volume 3", "8 of 10 chapters - 1 extra", where the grouping came from), previous / next volume, then the ordered slots:
  * chapter cards (their own cover, read state, star and (i) as in the folder list) with a dashed placeholder where a whole
  * chapter is missing. Opening a chapter opens the reader as usual; the reader's previous / next stay folder-level, and the
  * breadcrumbs name the REAL folder. Extras (45.5) show in their place and are never "missing".
@@ -174,7 +174,9 @@ export class VolumeStackViewComponent implements OnInit {
     const parts: string[] = [];
     if (hasVolumeFile) parts.push('Volume file');
     if (s.chapterCount != null && !hasVolumeFile) {
-      parts.push(s.missingCount > 0 ? `${whole} of ${s.chapterCount} chapters` : `${s.chapterCount} chapters`);
+      // "1 of 5 chapters" whenever fewer are here than the volume holds - also when the rest is not marked missing (the last
+      // volume of an ongoing series); owner review, 1.29.0 RC.
+      parts.push(whole < s.chapterCount ? `${whole} of ${s.chapterCount} chapters` : `${s.chapterCount} chapters`);
     } else if (whole > 0) {
       parts.push(`${hasVolumeFile ? '+ ' : ''}${whole} chapter${whole === 1 ? '' : 's'}`);
     }

@@ -77,7 +77,7 @@ public sealed class CatalogBrowseVolumesTests : IDisposable
         Assert.Equal(15, page.TotalCount); // 12 stacks + volume 13 + the subfolder + 1 loose chapter
         Assert.True(page.HasMore);
         Assert.StartsWith("v:", page.NextCursor);
-        Assert.Equal(["Vol. 1", "Vol. 2", "Vol. 3", "Vol. 4", "Vol. 5"], Labels(page));
+        Assert.Equal(["Volume 1", "Volume 2", "Volume 3", "Volume 4", "Volume 5"], Labels(page));
         Assert.All(page.Items, n => Assert.Equal(CatalogNodeKind.VolumeStack, n.Kind));
         Assert.False(page.HasPrevious);
         var first = page.Items[0];
@@ -85,7 +85,7 @@ public sealed class CatalogBrowseVolumesTests : IDisposable
         Assert.Equal(series.PublicId, first.ParentId);
         Assert.Equal(lib.PublicId, first.LibraryId);
         var summary = first.VolumeStack!;
-        Assert.Equal(("1", "Vol. 1", 3, 10, 7, false, VolumeStackConfidence.Exact), (summary.Key, summary.Label, summary.PresentCount, summary.ChapterCount, summary.MissingCount, summary.HasVolumeArchive, summary.Confidence));
+        Assert.Equal(("1", "Volume 1", 3, 10, 7, false, VolumeStackConfidence.Exact), (summary.Key, summary.Label, summary.PresentCount, summary.ChapterCount, summary.MissingCount, summary.HasVolumeArchive, summary.Confidence));
         Assert.Equal(("1", "3"), (summary.FirstChapter, summary.LastChapter));
         // The stack cover is its first chapter's file cover (never a path).
         var chapter1 = await db.CatalogNodes.SingleAsync(n => n.DisplayName == "Big - Chapter 001");
@@ -113,7 +113,7 @@ public sealed class CatalogBrowseVolumesTests : IDisposable
         Assert.Equal(15, labels.Count);
         Assert.Equal(15, labels.Distinct().Count());
         Assert.Equal(["Big v13", "Side Story", "Big - Chapter 999"], labels.TakeLast(3));
-        Assert.Equal(Enumerable.Range(1, Volumes).Select(v => $"Vol. {v}"), labels.Take(Volumes));
+        Assert.Equal(Enumerable.Range(1, Volumes).Select(v => $"Volume {v}"), labels.Take(Volumes));
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public sealed class CatalogBrowseVolumesTests : IDisposable
 
         var first = await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 5);
         var second = await service.BrowseAsync(user.Id, lib.Id, series.Id, first.NextCursor, pageSize: 5);
-        Assert.Equal(["Vol. 6", "Vol. 7", "Vol. 8", "Vol. 9", "Vol. 10"], Labels(second));
+        Assert.Equal(["Volume 6", "Volume 7", "Volume 8", "Volume 9", "Volume 10"], Labels(second));
         Assert.True(second.HasPrevious);
         Assert.NotNull(second.PrevCursor);
         Assert.Equal(15, second.TotalCount);
@@ -157,11 +157,11 @@ public sealed class CatalogBrowseVolumesTests : IDisposable
 
         var page = await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 4, direction: SortDirection.Descending);
 
-        Assert.Equal(["Big - Chapter 999", "Side Story", "Big v13", "Vol. 12"], Labels(page));
+        Assert.Equal(["Big - Chapter 999", "Side Story", "Big v13", "Volume 12"], Labels(page));
         Assert.Equal(CatalogNodeKind.Archive, page.Items[0].Kind);
         Assert.Equal(CatalogNodeKind.Folder, page.Items[1].Kind);
         var next = await service.BrowseAsync(user.Id, lib.Id, series.Id, page.NextCursor, pageSize: 4, direction: SortDirection.Descending);
-        Assert.Equal(["Vol. 11", "Vol. 10", "Vol. 9", "Vol. 8"], Labels(next));
+        Assert.Equal(["Volume 11", "Volume 10", "Volume 9", "Volume 8"], Labels(next));
     }
 
     [Fact]
