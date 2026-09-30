@@ -188,13 +188,29 @@ public sealed class RecentChaptersHttpTests : IClassFixture<MangaPixerWebApplica
 
                 CatalogNodeEntity Folder(string id, string name, long? parent) => new()
                 {
-                    PublicId = id, LibraryId = lib.Id, Kind = 0, ParentId = parent, DisplayName = name,
-                    RelativePath = id, PathKey = id, SortKey = "0" + name, Availability = 0, CreatedAt = now,
+                    PublicId = id,
+                    LibraryId = lib.Id,
+                    Kind = 0,
+                    ParentId = parent,
+                    DisplayName = name,
+                    RelativePath = id,
+                    PathKey = id,
+                    SortKey = "0" + name,
+                    Availability = 0,
+                    CreatedAt = now,
                 };
                 CatalogNodeEntity Archive(string id, string name, long parent, TimeSpan age) => new()
                 {
-                    PublicId = id, LibraryId = lib.Id, Kind = 1, ParentId = parent, DisplayName = name,
-                    RelativePath = id, PathKey = id, SortKey = "1" + name, Availability = 0, CreatedAt = now - age,
+                    PublicId = id,
+                    LibraryId = lib.Id,
+                    Kind = 1,
+                    ParentId = parent,
+                    DisplayName = name,
+                    RelativePath = id,
+                    PathKey = id,
+                    SortKey = "1" + name,
+                    Availability = 0,
+                    CreatedAt = now - age,
                 };
 
                 // Manga (category) -> two series, one with Vol N unit folders; Manhwa (category) -> one series.
