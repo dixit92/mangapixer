@@ -655,9 +655,9 @@ public sealed class MatchScorerTests
     {
         // 1.30.0 (backlog, owner fixture shape "<Series> - <Subtitle> [<Note>]", 58 chapter archives): the main record matched only
         // the head through the subtitle split (0.97) and stayed a close, related second. It is now capped like a record-side head.
-        var q = Planned("Alpha Garden - Night Chapter", 58);
+        var q = Planned("Alpha Garden - Before the Frost", 58);
         var main = Rec("1", "Alpha Garden", volumes: 30, related: [("2", "Spin-off")]);
-        var spinOff = Rec("2", "Alpha Garden - Night Chapter", volumes: 10, related: [("1", "Main Story")]);
+        var spinOff = Rec("2", "Alpha Garden - Before the Frost", volumes: 10, related: [("1", "Main Story")]);
 
         var o = Score(q, main, spinOff);
 
@@ -671,7 +671,7 @@ public sealed class MatchScorerTests
     public void AFolderSubtitle_NoCandidateHas_LeavesTheHeadMatchAlone()
     {
         // "Title Words - Something" where no record carries "Something": the franchise record keeps its derived score.
-        var q = Planned("Alpha Garden - Night Chapter", 20);
+        var q = Planned("Alpha Garden - Before the Frost", 20);
 
         var o = Score(q, Rec("1", "Alpha Garden", volumes: 30));
 
@@ -681,10 +681,10 @@ public sealed class MatchScorerTests
     [Fact]
     public void AFolderSubtitle_TheMainRecordCarriesItself_IsNotCapped()
     {
-        // The subtitle is the main record's own English subtitle (its alt "Alpha Garden: Night Chapter"): nothing to outweigh.
-        var q = Planned("Alpha Garden - Night Chapter", 20);
+        // The subtitle is the main record's own English subtitle (its alt "Alpha Garden: Before the Frost"): nothing to outweigh.
+        var q = Planned("Alpha Garden - Before the Frost", 20);
 
-        var o = Score(q, Rec("1", "Arufa Gaaden", alt: ["Alpha Garden: Night Chapter"], volumes: 30), Rec("3", "Alpha Garden Other"));
+        var o = Score(q, Rec("1", "Arufa Gaaden", alt: ["Alpha Garden: Before the Frost"], volumes: 30), Rec("3", "Alpha Garden Other"));
 
         Assert.Equal("1", o.Ranked[0].Candidate.ExternalId);
         Assert.True(o.Ranked[0].TitleScore > 0.95);

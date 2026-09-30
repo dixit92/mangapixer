@@ -249,7 +249,7 @@ public sealed class AutoMatchLookup
 
     /// <summary>
     /// The best-ranked unfetched hit at the review floor whose title score comes from an author-tagged alias (an alternative
-    /// title with a trailing <c>(disambiguator)</c>, scored at <see cref="AutoMatchText.DisambiguatedAliasFactor"/>) - the score that
+    /// title whose trailing <c>(disambiguator)</c> names a person, <see cref="AutoMatchText.IsPersonTag"/>, scored at <see cref="AutoMatchText.DisambiguatedAliasFactor"/>) - the score that
     /// would rise if the tag named the record's author (1.30.0). Null when there is none.
     /// </summary>
     internal static ScoredCandidate? TaggedAliasHit(MatchQuery query, IReadOnlyList<ScoredCandidate> ranked,
@@ -259,8 +259,9 @@ public sealed class AutoMatchLookup
         return ranked.FirstOrDefault(r => r.TitleScore >= thresholds.ReviewFloor
             && r.TitleScore < 1.0 - 1e-9
             && !fetched.ContainsKey(r.Candidate.ExternalId)
-            && AutoMatchText.DisambiguatedAliases(r.Candidate.AltTitles ?? [], r.Candidate.Authors)
-                .Any(a => a.Factor < 1.0 && a.Factor * TitleSimilarity.Best(texts, [a.Title]) >= r.TitleScore - 0.02));
+            && (r.Candidate.AltTitles ?? []).Any(t => AutoMatchText.IsPersonTag(AutoMatchText.DisambiguatorTag(t))
+                && AutoMatchText.WithoutDisambiguator(t) is { } alias
+                && AutoMatchText.DisambiguatedAliasFactor * TitleSimilarity.Best(texts, [alias]) >= r.TitleScore - 0.02));
     }
 
     /// <summary>Page 1 left the top two tied, or nothing at the review floor (1.27.0).</summary>

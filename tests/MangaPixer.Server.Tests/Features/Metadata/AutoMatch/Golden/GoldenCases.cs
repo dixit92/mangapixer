@@ -94,9 +94,9 @@ public static class GoldenCases
     private const string BerserkOfGluttonyComic = "74072114866";
     private const string Jigokuraku2005 = "10294535868";
     private const string AttackOnTitanBeforeTheFall = "28267595998";
-    private const string TonikakuKawaii = "TODO-TK";
-    private const string WindBreakerKorea = "TODO-KR";
-    private const string WindBreakerJapan = "TODO-JP";
+    private const string TonikakuKawaii = "37088343287";
+    private const string WindBreakerKorea = "18602075756";
+    private const string WindBreakerJapan = "25370933222";
 
     private static readonly string[] s_artistFolder =
     [
