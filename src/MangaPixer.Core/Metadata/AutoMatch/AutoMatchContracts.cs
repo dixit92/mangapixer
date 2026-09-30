@@ -286,6 +286,19 @@ public enum MatchReason
     /// volume list (flagged on the Auto-linked list only). Never raised by the scorer.
     /// </summary>
     ReachConflict = 1 << 12,
+
+    /// <summary>
+    /// 1.30.0 (owner: a spin-off decision is not automatic): only the folder name's subtitle decides between the top record and
+    /// one of its SERIES FAMILY (<see cref="SeriesFamilies"/>) - the other matched the name's head and, without the subtitle cap
+    /// (<see cref="MatchScorer.SubtitleHeadCap"/>), would have been a close second. A veto: the work goes to Needs review.
+    /// </summary>
+    SubtitleFamily = 1 << 13,
+
+    /// <summary>
+    /// 1.30.0: another candidate at the review floor is the same series family as the top (a main story, spin-off, side story,
+    /// prequel or sequel - <see cref="SeriesFamilies"/>). Informational, never a veto: shown as a chip on review and Auto-linked rows.
+    /// </summary>
+    SeriesFamily = 1 << 14,
 }
 
 public sealed record ScoredCandidate(MatchCandidate Candidate, double TitleScore, double AdjustedScore, MatchReason Reasons);

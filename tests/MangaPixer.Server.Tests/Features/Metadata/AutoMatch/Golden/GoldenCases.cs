@@ -293,11 +293,12 @@ public static class GoldenCases
 
         // --- 1.30.0: a folder subtitle that is a spin-off's subtitle; an author-tagged alias --------------------------------
         // The owner's fixture shape "<Series> - <Subtitle> [<Note>]" with 58 chapter archives: the spin-off record carries the
-        // subtitle; the main record matched only the bare head through the subtitle split (0.97, a close related second).
-        new("S01 subtitle: the spin-off, not the main series", F("Shingeki no Kyojin - Before the Fall", Chaps("Shingeki no Kyojin - Before the Fall", 58)),
-            WorkClass.Series, MatchBand.Auto, AttackOnTitanBeforeTheFall),
-        new("S02 subtitle with the English series name", F("Attack on Titan - Before the Fall", Chaps("Attack on Titan - Before the Fall", 58)),
-            WorkClass.Series, MatchBand.Auto, AttackOnTitanBeforeTheFall),
+        // subtitle; the main record matched only the bare head through the subtitle split (0.97, a close related second). The
+        // spin-off ranks first, but only the subtitle separates the two records of one series family: review (owner, 1.30.0).
+        new("S01 subtitle: the spin-off first, not the main series - for review", F("Shingeki no Kyojin - Before the Fall", Chaps("Shingeki no Kyojin - Before the Fall", 58)),
+            WorkClass.Series, MatchBand.NeedsReview, AttackOnTitanBeforeTheFall),
+        new("S02 subtitle with the English series name - for review", F("Attack on Titan - Before the Fall", Chaps("Attack on Titan - Before the Fall", 58)),
+            WorkClass.Series, MatchBand.NeedsReview, AttackOnTitanBeforeTheFall),
         // The right record's main title is the original name; the search matches its English alias with MangaUpdates' author tag,
         // which counts in full only once the record is fetched (one extra GET per work).
         new("T01 author-tagged alias: the record is fetched and the tag verified", F("Fly Me to the Moon", Vols("Fly Me to the Moon", 20)),
