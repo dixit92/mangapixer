@@ -280,6 +280,21 @@ public sealed class VolumeGroupingTests
     }
 
     [Fact]
+    public void AnExtrasSubfolder_StaysAFolderNextToTheVolumeStacks()
+    {
+        // Owner (1.30.0, folder-native): Series/c001..c020 + Series/Extras/special.cbz, 10 chapters a volume -> two stacks AND the
+        // "Extras" folder card; nothing inside Extras is grouped or counted.
+        var map = Map(false, null, null, (1, 1, 10), (2, 11, 20));
+        var rows = Chapters(1, 20).Append(Folder("Extras")).ToList();
+        var r = VolumeGrouping.Group(rows, map, markMissingVolumes: true);
+
+        Assert.Equal(["1", "2"], Stacks(r).Select(e => e.Stack!.Key));
+        var folder = Assert.Single(r.Entries, e => e.Kind == VolumeEntryKind.Folder);
+        Assert.Equal("Extras", folder.Row!.Name);
+        Assert.Equal(0, r.MissingVolumeCount);
+    }
+
+    [Fact]
     public void WithoutAList_FractionsStayExtras()
     {
         var stack = Assert.Single(Stacks(VolumeGrouping.Group([Archive("Series v01 c004.1"), Archive("Series v01 c004.2"), Archive("Series v01 c005")], null))).Stack!;
