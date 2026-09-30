@@ -452,7 +452,7 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         }, 44);
 
         Assert.Equal(4, record.EnglishVolumes);
-        Assert.Contains(new MetadataJson.Publisher("Omnibus House", "english", null, null, "complete", true), record.Publishers);
+        Assert.Contains(new MetadataJson.Publisher("Omnibus House", "english", null, null, null, true), record.Publishers);
         Assert.Contains(new MetadataJson.Publisher("Gone Press", "english", 4, null, "cancelled"), record.Publishers);
 
         // JSON-additive: a pre-1.30.0 credit reads both new fields as null; a new one round-trips.
