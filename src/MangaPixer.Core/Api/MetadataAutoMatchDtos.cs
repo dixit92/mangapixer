@@ -215,7 +215,7 @@ public sealed record MetadataReviewCandidateDto
 
     /// <summary>
     /// 1.30.0: the candidate's role in its family: <c>main_story</c>, <c>spin_off</c>, <c>side_story</c>, <c>prequel</c>, <c>sequel</c>,
-    /// <c>alternate</c>, <c>adaptation</c>, <c>source</c> or <c>related</c> (same family, relation unknown). Null without a family.
+    /// <c>alternate</c> (version), <c>alternate_story</c>, <c>adaptation</c>, <c>source</c> or <c>related</c> (same family, relation unknown). Null without a family.
     /// </summary>
     public string? FamilyRole { get; init; }
 }

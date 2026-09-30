@@ -16,6 +16,7 @@ const ROLE_LABELS: Record<string, string> = {
   prequel: 'Prequel',
   sequel: 'Sequel',
   alternate: 'Alternate version',
+  alternate_story: 'Alternate story',
   adaptation: 'Adaptation',
   source: 'Original work',
   related: 'Related',

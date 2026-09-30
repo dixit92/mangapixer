@@ -8,7 +8,11 @@ public static class SeriesFamilyRole
     public const string SideStory = "side_story";
     public const string Prequel = "prequel";
     public const string Sequel = "sequel";
+    /// <summary>An alternate version of the same story (MangaUpdates <c>Alternate Version</c>: a remake, a colour edition ...).</summary>
     public const string Alternate = "alternate";
+
+    /// <summary>An alternate story (MangaUpdates <c>Alternate Story</c>: another take on the same characters or world).</summary>
+    public const string AlternateStory = "alternate_story";
 
     /// <summary>An adaptation of the family's main record (the main record is its source).</summary>
     public const string Adaptation = "adaptation";
@@ -50,7 +54,7 @@ public static class SeriesFamilies
         ["prequel"] = SeriesFamilyRole.Prequel,
         ["sequel"] = SeriesFamilyRole.Sequel,
         ["alternate version"] = SeriesFamilyRole.Alternate,
-        ["alternate story"] = SeriesFamilyRole.Alternate,
+        ["alternate story"] = SeriesFamilyRole.AlternateStory,
         ["adapted from"] = SeriesFamilyRole.Source,
         ["full anthology"] = SeriesFamilyRole.Related,
     };
@@ -64,7 +68,7 @@ public static class SeriesFamilies
         ["prequel"] = SeriesFamilyRole.Sequel,
         ["sequel"] = SeriesFamilyRole.Prequel,
         ["alternate version"] = SeriesFamilyRole.Alternate,
-        ["alternate story"] = SeriesFamilyRole.Alternate,
+        ["alternate story"] = SeriesFamilyRole.AlternateStory,
         ["adapted from"] = SeriesFamilyRole.Adaptation,
         ["full anthology"] = SeriesFamilyRole.Related,
     };

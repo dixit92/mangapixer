@@ -1461,7 +1461,10 @@ export interface MetadataReviewCandidateDto {
    * the rank of the family's first candidate. Null when no other candidate of the row is its family.
    */
   familyGroup?: number | null;
-  /** 1.30.0: the candidate's role in its family (main_story, spin_off, side_story, prequel, sequel, alternate, adaptation, source, related). */
+  /**
+   * 1.30.0: the candidate's role in its family (main_story, spin_off, side_story, prequel, sequel, alternate, alternate_story,
+   * adaptation, source, related).
+   */
   familyRole?: string | null;
 }
 

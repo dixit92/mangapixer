@@ -25,7 +25,8 @@ describe('series family blocks', () => {
   });
 
   it('labels the roles', () => {
-    expect(['main_story', 'spin_off', 'side_story', 'prequel', 'sequel', 'source', 'related', 'something_new', null].map(familyRoleLabel))
-      .toEqual(['Main story', 'Spin-off', 'Side story', 'Prequel', 'Sequel', 'Original work', 'Related', 'something new', '']);
+    expect(['main_story', 'spin_off', 'side_story', 'prequel', 'sequel', 'alternate', 'alternate_story', 'source', 'related', 'something_new', null]
+      .map(familyRoleLabel)).toEqual(['Main story', 'Spin-off', 'Side story', 'Prequel', 'Sequel', 'Alternate version', 'Alternate story',
+      'Original work', 'Related', 'something new', '']);
   });
 });

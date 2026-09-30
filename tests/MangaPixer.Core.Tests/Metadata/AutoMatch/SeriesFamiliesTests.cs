@@ -121,6 +121,17 @@ public sealed class SeriesFamiliesTests
     }
 
     [Fact]
+    public void AlternateStory_AndAlternateVersion_KeepTheirOwnRoles()
+    {
+        // The fixture's subtitle pair is an "Alternate Story" - not an edition of the same story.
+        var story = SeriesFamilies.Of([Rec("2", "Alpha Garden - Before the Frost", related: [("1", "alternate story")]), Rec("1", "Alpha Garden")]);
+        var version = SeriesFamilies.Of([Rec("2", "Alpha Garden - Full Colour", related: [("1", "alternate version")]), Rec("1", "Alpha Garden")]);
+
+        Assert.Equal([SeriesFamilyRole.AlternateStory, SeriesFamilyRole.MainStory], story.Select(m => m!.Role));
+        Assert.Equal([SeriesFamilyRole.Alternate, SeriesFamilyRole.MainStory], version.Select(m => m!.Role));
+    }
+
+    [Fact]
     public void TwoFamilies_KeepTheirOwnGroups()
     {
         var family = SeriesFamilies.Of([
