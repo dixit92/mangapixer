@@ -11,12 +11,13 @@ import { LibraryBrowseComponent } from './library-browse.component';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
-import { CatalogNodeDto, PageResponse, VolumeStackSummaryDto, VolumeViewDto } from '../../core/api/api-types';
+import { CatalogNodeDto, PageResponse, VolumeStackDto, VolumeStackSummaryDto, VolumeViewDto } from '../../core/api/api-types';
 
 /**
  * The Volumes view in browse (1.29.0): stack cards on the shared stack card with the incomplete mark, the link into the stack
- * view, the Volumes | Folders switch (persisted through library-preferences, sent as `group`), and selection that never
- * includes a stack. The list itself comes from the server; these tests drive the component with canned pages.
+ * view, the Volumes | Folders switch (persisted through library-preferences, sent as `group`), and (1.30.0) selection of a
+ * whole stack - its actions apply to every member archive - while a missing-volume placeholder is never selectable. The list
+ * itself comes from the server; these tests drive the component with canned pages.
  */
 describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
   function stackNode(key: string, over: Partial<VolumeStackSummaryDto> = {}): CatalogNodeDto {
@@ -36,6 +37,18 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
     } as CatalogNodeDto;
   }
 
+  /** The stack endpoint's answer: two chapter files and a missing chapter, members `c<key>a` and `c<key>b`. */
+  function stackDto(key: string): VolumeStackDto {
+    return {
+      folderId: 'f1', key, label: `Volume ${key}`, confidence: 'Exact', source: 'MangaDex', presentCount: 2, chapterCount: 3, missingCount: 1,
+      extraCount: 0, slots: [
+        { kind: 'Item', chapter: '1', item: archiveNode(`c${key}a`) },
+        { kind: 'Item', chapter: '2', item: archiveNode(`c${key}b`) },
+        { kind: 'Missing', chapter: '3' },
+      ],
+    };
+  }
+
   function setup(opts: { nodes?: CatalogNodeDto[]; view?: Partial<VolumeViewDto>; prefs?: Record<string, unknown>; admin?: boolean; viewMode?: string } = {}) {
     const nodes = opts.nodes ?? [stackNode('1'), stackNode('2', { missingCount: 0, chapterCount: 8, presentCount: 8 }), archiveNode('loose')];
     const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
@@ -49,6 +62,9 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'f1', trail: [] })),
       getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
       getNode: vi.fn().mockReturnValue(of({ displayName: 'Series' } as CatalogNodeDto)),
+      getVolumeStack: vi.fn().mockImplementation((_folder: string, key: string) => of(stackDto(key))),
+      setItemRead: vi.fn().mockImplementation((id: string, read: boolean) => of({ itemId: id, isRead: read })),
+      setFavorite: vi.fn().mockReturnValue(of(undefined)),
     };
     TestBed.configureTestingModule({
       imports: [LibraryBrowseComponent],
@@ -184,21 +200,120 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
     expect(volumes().disabled).toBe(true);
   });
 
-  it('never selects a stack: a tap, Select all and a range leave it out', () => {
-    const { fixture, comp, el } = setup();
+  it('selects a whole stack: a tap, Select all, Select all unread and a range include it (1.30.0)', () => {
+    const readStack = { ...stackNode('3'), readRollup: 'Read' } as CatalogNodeDto;
+    const { fixture, comp, el } = setup({ nodes: [stackNode('1'), stackNode('2'), readStack, archiveNode('loose')] });
     comp.toggleSelectMode();
     fixture.detectChanges();
 
     (el.querySelectorAll('.node-card')[0] as HTMLElement).click();
-    expect(comp.selected().size).toBe(0);
+    expect([...comp.selected()]).toEqual(['vs.f1.1']);
+    // The select check shows on a stack card, and the incomplete mark makes room for it.
+    fixture.detectChanges();
+    const first = el.querySelectorAll('.node-wrap')[0];
+    expect(first.classList).toContain('selected');
+    expect(first.querySelector('.check.on')).not.toBeNull();
+    expect(first.querySelector('[data-testid="stack-incomplete"]')!.classList).toContain('moved');
+
     comp.selectAll();
-    expect([...comp.selected()]).toEqual(['loose']);
+    expect([...comp.selected()].sort()).toEqual(['loose', 'vs.f1.1', 'vs.f1.2', 'vs.f1.3']);
     comp.clearSelection();
     comp.selectAllUnread();
-    expect([...comp.selected()]).toEqual(['loose']);
-    // No select check on a stack; the archive has one.
-    expect(el.querySelectorAll('.node-wrap')[0].querySelector('.check')).toBeNull();
-    expect(el.querySelectorAll('.node-wrap')[2].querySelector('.check')).not.toBeNull();
+    expect([...comp.selected()].sort()).toEqual(['loose', 'vs.f1.1', 'vs.f1.2']); // the read stack is left out
+    comp.clearSelection();
+    comp.selectAllRead();
+    expect([...comp.selected()]).toEqual(['vs.f1.3']);
+
+    // Shift-click fills the range across stacks and the archive.
+    comp.clearSelection();
+    (el.querySelectorAll('.node-card')[0] as HTMLElement).click();
+    (el.querySelectorAll('.node-card')[3] as HTMLElement).dispatchEvent(new MouseEvent('click', { shiftKey: true, bubbles: true, cancelable: true }));
+    expect(comp.selected().size).toBe(4);
+  });
+
+  it('keeps a stack out of the admin actions that address stored nodes', () => {
+    const { fixture, comp } = setup({ admin: true });
+    comp.toggleSelectMode();
+    fixture.detectChanges();
+
+    comp.selectAll();
+
+    expect([...comp.selected()].sort()).toEqual(['loose', 'vs.f1.1', 'vs.f1.2']);
+    expect([...comp.selectedNodeIds()]).toEqual(['loose']);
+  });
+
+  it('marks a whole stack read in one step: every member archive, then its card shows Read', () => {
+    const { fixture, comp, el, apiSpy } = setup();
+    comp.toggleSelectMode();
+    fixture.detectChanges();
+    (el.querySelectorAll('.node-card')[0] as HTMLElement).click();
+
+    comp.bulkMarkRead(true);
+    fixture.detectChanges();
+
+    expect(apiSpy.getVolumeStack).toHaveBeenCalledWith('f1', '1');
+    expect(apiSpy.setItemRead.mock.calls.map((c) => [c[0], c[1]])).toEqual([['c1a', true], ['c1b', true]]);
+    expect(comp.nodes().find((n) => n.id === 'vs.f1.1')!.readRollup).toBe('Read');
+    expect(el.querySelectorAll('.node-wrap')[0].querySelector('.badge.read')).not.toBeNull();
+    expect(comp.busy()).toBe(false);
+
+    comp.bulkMarkRead(false);
+    expect(apiSpy.setItemRead.mock.calls.slice(2).map((c) => [c[0], c[1]])).toEqual([['c1a', false], ['c1b', false]]);
+    expect(comp.nodes().find((n) => n.id === 'vs.f1.1')!.readRollup).toBe('Unread');
+  });
+
+  it('marks a stack together with loose archives, and never asks for a stack it does not hold selected', () => {
+    const { comp, apiSpy } = setup();
+    comp.selected.set(new Set(['vs.f1.2', 'loose']));
+
+    comp.bulkMarkRead(true);
+
+    expect(apiSpy.getVolumeStack).toHaveBeenCalledTimes(1);
+    expect(apiSpy.getVolumeStack).toHaveBeenCalledWith('f1', '2');
+    expect(apiSpy.setItemRead.mock.calls.map((c) => c[0]).sort()).toEqual(['c2a', 'c2b', 'loose']);
+  });
+
+  it('adds a whole stack to the favorites through its member archives, and marks the card', () => {
+    const { comp, apiSpy } = setup();
+    comp.selected.set(new Set(['vs.f1.1', 'loose']));
+
+    comp.bulkFavorite(true);
+
+    expect(apiSpy.setFavorite.mock.calls.map((c) => [c[0], c[1]]).sort()).toEqual([['c1a', true], ['c1b', true], ['loose', true]]);
+    expect(comp.nodes().find((n) => n.id === 'vs.f1.1')!.isFavorite).toBe(true);
+    expect(comp.nodes().find((n) => n.id === 'vs.f1.2')!.isFavorite).toBeFalsy();
+
+    comp.bulkFavorite(false);
+    expect(comp.nodes().find((n) => n.id === 'vs.f1.1')!.isFavorite).toBe(false);
+  });
+
+  it('re-derives a stack card when a chapter inside it changes (the stack page or the reader), debounced', () => {
+    vi.useFakeTimers();
+    try {
+      const { comp, apiSpy } = setup();
+      const readState = TestBed.inject(ReadStateService);
+      apiSpy.getVolumeStack.mockImplementation((_folder: string, key: string) => of({
+        ...stackDto(key),
+        slots: [
+          { kind: 'Item', chapter: '1', item: { ...archiveNode(`c${key}a`), isRead: true } },
+          { kind: 'Item', chapter: '2', item: { ...archiveNode(`c${key}b`), isFavorite: key === '1' } },
+        ],
+      } as VolumeStackDto));
+
+      readState.notifyChanged('c1a');
+      readState.notifyChanged('c1b');
+      expect(apiSpy.getVolumeStack).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(400);
+
+      // One refresh for the two notifications: a request per listed stack (the archive is not one).
+      expect(apiSpy.getVolumeStack).toHaveBeenCalledTimes(2);
+      const first = comp.nodes().find((n) => n.id === 'vs.f1.1')!;
+      expect(first.readRollup).toBe('Reading'); // one of two members read
+      expect(first.isFavorite).toBe(true);
+      expect(comp.nodes().find((n) => n.id === 'vs.f1.2')!.isFavorite).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows the admin "View..." action enabled for exactly one selected folder', () => {
@@ -214,15 +329,27 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
     expect(action().disabled).toBe(false);
   });
 
-  it('keeps the list mode working: a stack row has a cover, its mark and no select box', () => {
+  it('keeps the list mode working: a stack row has a cover, its mark and a select box, but no star of its own', () => {
     const { el } = setup({ viewMode: 'list' });
 
     const row = el.querySelectorAll('.node-wrap')[0];
     expect(row.querySelector('app-stack-card')).toBeNull(); // rows use the plain small cover
     expect(row.querySelector('[data-testid="stack-incomplete"]')).not.toBeNull();
-    expect(row.querySelector('.row-select')).toBeNull();
-    expect(row.querySelector('app-star-toggle')).toBeNull();
+    expect(row.querySelector('.row-select')).not.toBeNull(); // a whole stack is selectable (1.30.0)
+    expect(row.querySelector('app-star-toggle')).toBeNull(); // a stack is not a node: no star of its own
     expect(el.querySelectorAll('.node-wrap')[2].querySelector('.row-select')).not.toBeNull();
+    expect(el.querySelectorAll('.node-wrap')[2].querySelector('app-star-toggle')).not.toBeNull();
+  });
+
+  it('selects a stack through the list row checkbox, which turns select mode on', () => {
+    const { fixture, comp, el } = setup({ viewMode: 'list' });
+
+    (el.querySelectorAll('.node-wrap')[1].querySelector('.row-select') as HTMLElement).click();
+    fixture.detectChanges();
+
+    expect(comp.selectMode()).toBe(true);
+    expect([...comp.selected()]).toEqual(['vs.f1.2']);
+    expect(el.querySelectorAll('.node-wrap')[1].classList).toContain('selected');
   });
 
   it('renders a missing volume as a dashed placeholder in its place, never a link or a selection', () => {
@@ -238,7 +365,11 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
     comp.toggleSelectMode();
     fixture.detectChanges();
     comp.selectAll();
-    expect(comp.selected().size).toBe(0);
+    // The two real stacks are selected (1.30.0); the placeholder never is - not by Select all, a tap or a range.
+    expect([...comp.selected()].sort()).toEqual(['vs.f1.1', 'vs.f1.3']);
+    expect(wraps[1].querySelector('.check')).toBeNull();
+    comp.onCardClick({ preventDefault: () => undefined, stopPropagation: () => undefined, shiftKey: false } as unknown as MouseEvent, missing);
+    expect(comp.selected().has('vm.f1.2')).toBe(false);
   });
 
   it('shows the series status line while the Volumes view of a linked series is shown', () => {

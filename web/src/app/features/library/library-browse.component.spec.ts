@@ -608,6 +608,17 @@ describe('LibraryBrowseComponent range multi-select', () => {
     } as unknown as MouseEvent;
   }
 
+  /** A touch long-press (1.30.0: the timer lives in the shared NodeSelection, so drive it through the pointer handlers). */
+  function longPress(comp: LibraryBrowseComponent, target: CatalogNodeDto): void {
+    vi.useFakeTimers();
+    try {
+      comp.onCardPointerDown({ pointerType: 'touch' } as PointerEvent, target);
+      vi.advanceTimersByTime(600);
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
   const ids = ['a', 'b', 'c', 'd', 'e'];
   function setupFive() {
     return setup(ids.map((id) => node(id)));
@@ -699,7 +710,7 @@ describe('LibraryBrowseComponent range multi-select', () => {
   it('long-press enters select mode and selects+anchors the pressed card when not already selecting', () => {
     const { comp } = setupFive();
 
-    (comp as unknown as { onLongPress: (n: CatalogNodeDto) => void }).onLongPress(node('c'));
+    longPress(comp, node('c'));
 
     expect(comp.selectMode()).toBe(true);
     expect([...comp.selected()]).toEqual(['c']);
@@ -712,7 +723,7 @@ describe('LibraryBrowseComponent range multi-select', () => {
     comp.selectMode.set(true);
     comp.onCardClick(mouseEvent(), node('b')); // anchor = index 1
 
-    (comp as unknown as { onLongPress: (n: CatalogNodeDto) => void }).onLongPress(node('d'));
+    longPress(comp, node('d'));
 
     expect(comp.rangePromptNode()?.id).toBe('d');
     expect([...comp.selected()]).toEqual(['b']); // unchanged until confirmed
@@ -722,7 +733,7 @@ describe('LibraryBrowseComponent range multi-select', () => {
     const { comp } = setupFive();
     comp.selectMode.set(true);
     comp.onCardClick(mouseEvent(), node('b'));
-    (comp as unknown as { onLongPress: (n: CatalogNodeDto) => void }).onLongPress(node('d'));
+    longPress(comp, node('d'));
 
     comp.confirmSelectToHere();
 
@@ -734,7 +745,7 @@ describe('LibraryBrowseComponent range multi-select', () => {
     const { comp } = setupFive();
     comp.selectMode.set(true);
     comp.onCardClick(mouseEvent(), node('b'));
-    (comp as unknown as { onLongPress: (n: CatalogNodeDto) => void }).onLongPress(node('d'));
+    longPress(comp, node('d'));
 
     comp.dismissRangePrompt();
 
@@ -772,7 +783,7 @@ describe('LibraryBrowseComponent range multi-select', () => {
     const { comp } = setupFive();
     comp.selectMode.set(true);
     comp.onCardClick(mouseEvent(), node('b'));
-    (comp as unknown as { onLongPress: (n: CatalogNodeDto) => void }).onLongPress(node('d'));
+    longPress(comp, node('d'));
 
     comp.clearSelection();
 
