@@ -3313,6 +3313,92 @@
         }
       }
     },
+    "/api/v1/admin/metadata/official-releases": {
+      "get": {
+        "tags": [
+          "OfficialReleases"
+        ],
+        "parameters": [
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "schema": {
+              "default": 0,
+              "$ref": "#/components/schemas/OfficialReleasesFilter"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfficialReleasesPageDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfficialReleasesPageDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfficialReleasesPageDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/metadata/missing": {
       "get": {
         "tags": [
@@ -6647,6 +6733,12 @@
                 "$ref": "#/components/schemas/CardCoverSource"
               }
             ]
+          },
+          "alsoInVolume": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -6712,6 +6804,9 @@
         }
       },
       "CompanionState": {
+        "type": "integer"
+      },
+      "CompletionBasis": {
         "type": "integer"
       },
       "ContinueReadingEntry": {
@@ -9757,6 +9852,14 @@
               "string"
             ],
             "format": "int32"
+          },
+          "upgrades": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -9861,6 +9964,16 @@
           "fetchedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "progress": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SeriesProgressDto"
+              }
+            ]
           }
         }
       },
@@ -10092,6 +10205,171 @@
           }
         }
       },
+      "OfficialReleaseRowDto": {
+        "required": [
+          "nodeId",
+          "displayName",
+          "libraryId",
+          "libraryName",
+          "recordTitle",
+          "linkState",
+          "progress"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "libraryName": {
+            "type": "string"
+          },
+          "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordTitle": {
+            "type": "string"
+          },
+          "linkState": {
+            "$ref": "#/components/schemas/SeriesLinkState"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/SeriesProgressDto"
+          }
+        }
+      },
+      "OfficialReleasesFilter": {
+        "type": "integer"
+      },
+      "OfficialReleasesPageDto": {
+        "required": [
+          "items",
+          "summary",
+          "total",
+          "language"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfficialReleaseRowDto"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/OfficialReleasesSummaryDto"
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "language": {
+            "type": "string"
+          }
+        }
+      },
+      "OfficialReleasesSummaryDto": {
+        "required": [
+          "series",
+          "upgrades",
+          "finishedNotHeld",
+          "completeCollections"
+        ],
+        "type": "object",
+        "properties": {
+          "series": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "upgrades": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "finishedNotHeld": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "completeCollections": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ReachResolution": {
+        "type": "integer"
+      },
       "ReaderMode": {
         "type": "integer"
       },
@@ -10227,6 +10505,9 @@
             ]
           }
         }
+      },
+      "SeriesCompletion": {
+        "type": "integer"
       },
       "SeriesCreatorDto": {
         "required": [
@@ -10683,6 +10964,105 @@
           }
         }
       },
+      "SeriesProgressDto": {
+        "required": [
+          "trackers",
+          "missingVolumes",
+          "missingChapters",
+          "releaseKnown",
+          "upgradeVolumes",
+          "upgradeCount",
+          "completion"
+        ],
+        "type": "object",
+        "properties": {
+          "trackers": {
+            "$ref": "#/components/schemas/SeriesTrackersDto"
+          },
+          "reach": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SeriesReachDto"
+              }
+            ]
+          },
+          "missingVolumes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "missingChapters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "releaseKnown": {
+            "type": "boolean"
+          },
+          "upgradeVolumes": {
+            "type": "array",
+            "items": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          "upgradeCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "completion": {
+            "$ref": "#/components/schemas/SeriesCompletion"
+          },
+          "completionBasis": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CompletionBasis"
+              }
+            ]
+          },
+          "completionTarget": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "completionHeld": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "completionInChapters": {
+            "type": "boolean"
+          }
+        }
+      },
       "SeriesPublisherDto": {
         "required": [
           "name",
@@ -10695,6 +11075,171 @@
           },
           "kind": {
             "type": "string"
+          }
+        }
+      },
+      "SeriesReachDto": {
+        "required": [
+          "volumeFiles",
+          "chapters",
+          "overlapChapters",
+          "resolution"
+        ],
+        "type": "object",
+        "properties": {
+          "volumeFiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnitSpanDto"
+            }
+          },
+          "chapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnitSpanDto"
+            }
+          },
+          "reachChapter": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reachVolume": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "overlapChapters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/ReachResolution"
+          }
+        }
+      },
+      "SeriesTrackersDto": {
+        "required": [
+          "language"
+        ],
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string"
+          },
+          "origin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MetadataOrigin"
+              }
+            ]
+          },
+          "originStatus": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MetadataOriginStatus"
+              }
+            ]
+          },
+          "originVolumes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "originChapters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "officialPublisher": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "officialVolumes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "officialChapters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "officialStatus": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MetadataOriginStatus"
+              }
+            ]
+          },
+          "licensed": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "latestChapter": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "scanlationComplete": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "releasedChapter": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -10838,6 +11383,31 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "UnitSpanDto": {
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object",
+        "properties": {
+          "from": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "to": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -11318,6 +11888,12 @@
             "items": {
               "$ref": "#/components/schemas/VolumeSlotDto"
             }
+          },
+          "officialRelease": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -11401,6 +11977,12 @@
           },
           "missing": {
             "type": "boolean"
+          },
+          "officialRelease": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -11531,6 +12113,16 @@
               "string"
             ],
             "format": "int32"
+          },
+          "progress": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SeriesProgressDto"
+              }
+            ]
           }
         }
       },
@@ -11674,6 +12266,9 @@
     },
     {
       "name": "MissingReport"
+    },
+    {
+      "name": "OfficialReleases"
     },
     {
       "name": "NodeMissing"

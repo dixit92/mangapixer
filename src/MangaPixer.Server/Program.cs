@@ -636,6 +636,8 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.Review.MetadataReviewService>();
         // Missing volumes / chapters report (1.28.0): stored data only, no request.
         services.AddScoped<Features.Metadata.Missing.MissingReportService>();
+        // Official releases tab (1.30.0, reach): stored data only, no request.
+        services.AddScoped<Features.Metadata.Reach.OfficialReleasesService>();
         // AniList (1.28.0): ONLY the Missing report's chapters-per-volume lookup (admin action); not an
         // IMetadataProvider, so Identify / auto-match / refresh never see it.
         services.AddSingleton<Features.Metadata.Providers.AniList.IUnitConversionProvider, Features.Metadata.Providers.AniList.AniListProvider>();
