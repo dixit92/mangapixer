@@ -232,12 +232,13 @@ public static class MangaUpdatesMapping
         int? englishVolumes = null, englishChapters = null;
         foreach (var p in s.Publishers ?? [])
         {
-            int? publisherVolumes = null, publisherChapters = null;
+            var edition = MangaUpdatesStatusParser.PublisherEdition.Empty;
             if (string.Equals(p.Type?.Trim(), "English", StringComparison.OrdinalIgnoreCase))
             {
-                (publisherVolumes, publisherChapters) = MangaUpdatesStatusParser.ParsePublisherNotes(p.Notes);
-                englishVolumes = Max(englishVolumes, publisherVolumes);
-                englishChapters = Max(englishChapters, publisherChapters);
+                // 1.30.0: the regular edition only (an omnibus count is not the original's numbering), with its own status.
+                edition = MangaUpdatesStatusParser.ParsePublisherEdition(p.Notes);
+                englishVolumes = Max(englishVolumes, edition.Volumes);
+                englishChapters = Max(englishChapters, edition.Chapters);
             }
             if (publishers.Count >= 30) break;
             if (MetadataText.Line(p.PublisherName, 256) is not { } name) continue;
@@ -248,7 +249,8 @@ public static class MangaUpdatesMapping
                 _ => "other",
             };
             // 1.28.0: the English totals are stored with the publisher (the missing volumes / chapters report).
-            publishers.Add(new MetadataJson.Publisher(name, kind, publisherVolumes, publisherChapters));
+            publishers.Add(new MetadataJson.Publisher(name, kind, edition.Volumes, edition.Chapters,
+                MetadataJson.Publisher.StatusWord(edition.Status), edition.Omnibus ? true : null));
         }
 
         var genres = (s.Genres ?? [])

@@ -176,6 +176,12 @@ public sealed record CatalogNodeDto
 
     /// <summary>Where <see cref="CoverUrl"/> comes from (1.29.0 cover layer); null = the file cover (and older servers).</summary>
     public CardCoverSource? CoverSource { get; init; }
+
+    /// <summary>
+    /// 1.30.0 (reach): on a chapter archive of a linked series, the volume key ("10") of a volume FILE of the same series that
+    /// already holds its chapters - "Also in Volume 10". Null everywhere else.
+    /// </summary>
+    public string? AlsoInVolume { get; init; }
 }
 
 /// <summary>

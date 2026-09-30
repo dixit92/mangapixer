@@ -20,8 +20,9 @@ import { formatLabel } from '../series-info-labels';
  * them (`MetadataSummaryTileComponent`) so its in-page stats can switch to one without a
  * circular import between the two components.
  */
-export type AdminMetadataTab = 'settings' | 'review' | 'flags' | 'runs' | 'missing';
-export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 'review', 'flags', 'runs', 'missing'];
+export type AdminMetadataTab = 'settings' | 'review' | 'flags' | 'runs' | 'missing' | 'official';
+/** In tab order; 1.30.0 appends Official releases after Missing (the indexes of the others never move). */
+export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 'review', 'flags', 'runs', 'missing', 'official'];
 
 export interface ReviewTabDef {
   tab: MetadataReviewTab;
@@ -67,6 +68,7 @@ const REASONS: Record<string, { label: string; tip: string }> = {
   // The declared type as evidence (1.30.0): a strong hint both ways, never a block.
   declared_type: { label: 'Fits declared type', tip: 'The record comes from the country the declared type names (for example Manhwa: Korea). Counts in its favour.' },
   not_declared_type: { label: 'Not declared type', tip: 'The record is not the type declared for this folder. Counts against it, but never blocks a link.' },
+  reach: { label: 'Reach', tip: 'What the folder holds does not fit this series: its volumes or chapters go far past the record, or its volume numbers disagree with the series\' volume list.' },
 };
 
 export function reasonLabel(code: string): string {

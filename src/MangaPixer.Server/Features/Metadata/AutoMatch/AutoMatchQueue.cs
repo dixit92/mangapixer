@@ -90,6 +90,7 @@ public static class MatchReasonCodes
         (MatchReason.ReviewOnlyClass, "review_only"),
         (MatchReason.DeclaredTypeAgree, "declared_type"),
         (MatchReason.DeclaredTypeMismatch, "not_declared_type"),
+        (MatchReason.ReachConflict, "reach"),
     ];
 
     public static IReadOnlyList<string> Of(int reasons) => Of((MatchReason)reasons);

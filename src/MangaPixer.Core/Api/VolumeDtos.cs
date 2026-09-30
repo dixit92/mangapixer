@@ -83,6 +83,12 @@ public sealed record VolumeStackSummaryDto
     /// released in the preferred language after it). A placeholder card, never opened; PresentCount is 0.
     /// </summary>
     public bool Missing { get; init; }
+
+    /// <summary>
+    /// 1.30.0: the language code ("en") when this volume, held here without a volume file, is released officially in the preferred
+    /// language - "Volume 15 available in English"; null otherwise.
+    /// </summary>
+    public string? OfficialRelease { get; init; }
 }
 
 /// <summary>The stack view (<c>GET /nodes/{folderId}/volumes/{key}</c>).</summary>
@@ -108,6 +114,9 @@ public sealed record VolumeStackDto
     public string? PreviousKey { get; init; }
     public string? NextKey { get; init; }
     public required IReadOnlyList<VolumeSlotDto> Slots { get; init; }
+
+    /// <summary>1.30.0: see <see cref="VolumeStackSummaryDto.OfficialRelease"/>.</summary>
+    public string? OfficialRelease { get; init; }
 }
 
 /// <summary>One slot of a stack view: a present item, or a missing chapter's placeholder.</summary>

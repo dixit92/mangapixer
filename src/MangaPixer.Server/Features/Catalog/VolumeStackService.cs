@@ -46,6 +46,7 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             Licensed = view.Status?.Licensed,
             ScanlationComplete = view.Status?.ScanlationComplete,
             CoversPending = coversPending,
+            Progress = view.Status?.Progress,
         };
     }
 
@@ -81,7 +82,7 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             {
                 Kind = s.Kind,
                 Chapter = s.Chapter,
-                Item = s.Member is { } member ? cards[member.Row.Id] : null,
+                Item = s.Member is { } member ? WithAlsoInVolume(cards[member.Row.Id], view) : null,
             })
             .ToList();
 
@@ -106,8 +107,13 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             PreviousKey = index > 0 ? keys[index - 1] : null,
             NextKey = index >= 0 && index < keys.Count - 1 ? keys[index + 1] : null,
             Slots = slots,
+            OfficialRelease = stack.OfficialRelease,
         };
     }
+
+    /// <summary>A chapter card that a volume file of the series already holds says so (1.30.0, "Also in Volume 10").</summary>
+    internal static CatalogNodeDto WithAlsoInVolume(CatalogNodeDto card, FolderVolumeEntries view) =>
+        view.AlsoInVolume.TryGetValue(card.Id, out var volume) ? card with { AlsoInVolume = volume } : card;
 
     private async Task<bool> CanSeeAsync(long userId, long libraryId, CancellationToken ct) =>
         (await auth.GetVisibleLibraryIdsAsync(userId, incognito: false, ct)).Contains(libraryId);

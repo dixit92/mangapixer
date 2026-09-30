@@ -279,6 +279,13 @@ public enum MatchReason
     /// type is a strong hint - users are often unsure between manga, manhwa and manhua).
     /// </summary>
     DeclaredTypeMismatch = 1 << 11,
+
+    /// <summary>
+    /// 1.30.0 (lane R, reach): after linking, the folder's reach contradicts the record - a volume or chapter file far past every
+    /// total known for it (the Auto link dropped to Needs review), or chapter files whose stated volumes disagree with the record's
+    /// volume list (flagged on the Auto-linked list only). Never raised by the scorer.
+    /// </summary>
+    ReachConflict = 1 << 12,
 }
 
 public sealed record ScoredCandidate(MatchCandidate Candidate, double TitleScore, double AdjustedScore, MatchReason Reasons);

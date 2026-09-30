@@ -267,6 +267,8 @@ public sealed partial class CatalogBrowseService
 
         // Enrich the page's rows into card DTOs (covers, reader defaults, read state, rollups, favourites, (i)).
         var nodes = await EnrichAsync(rows, userId, libraryId, ct);
+        if (parentId is { } folderId && rows.Any(r => r.Kind == (int)CatalogNodeKind.Archive))
+            nodes = await WithAlsoInVolumeAsync(nodes, folderId, ct);
 
         // Compute next cursor from the last row on the current page. recentlyRead
         // paginates by offset (in-memory pure-recency order); the others use a keyset.

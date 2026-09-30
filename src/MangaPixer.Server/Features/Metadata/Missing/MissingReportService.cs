@@ -7,8 +7,10 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Metadata.Missing;
+using com.lifepixer.mangapixer.Core.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -61,7 +63,7 @@ public sealed class MissingReportService
         var conversions = await ConversionsAsync(rows, ct);
         var results = await EvaluateAsync(rows, conversions, ct);
         var ordered = rows
-            .Select(r => (Row: r, Result: results[r.NodeId]))
+            .Select(r => (Row: r, Result: results[r.NodeId].Result, Progress: results[r.NodeId].Progress))
             .OrderBy(x => x.Result.Verdict)
             .ThenByDescending(x => Math.Max(x.Result.Volumes?.BehindBy ?? 0, x.Result.Chapters?.BehindBy ?? 0))
             .ThenBy(x => x.Row.DisplayName, StringComparer.OrdinalIgnoreCase)
@@ -75,6 +77,7 @@ public sealed class MissingReportService
             UpToDate = ordered.Count(x => x.Result.Verdict == MissingVerdict.UpToDate),
             NoTotal = ordered.Count(x => x.Result.Verdict == MissingVerdict.NoTotal),
             NoVerdict = ordered.Count(x => x.Result.Verdict is MissingVerdict.Mixed or MissingVerdict.NoUnits or MissingVerdict.Restarts),
+            Upgrades = ordered.Count(x => x.Progress.Result.UpgradeVolumes.Count > 0),
         };
         var filtered = onlyMissing
             ? ordered.Where(x => x.Result.Verdict is MissingVerdict.Behind or MissingVerdict.Holes).ToList()
@@ -104,7 +107,8 @@ public sealed class MissingReportService
             return null;
         var conversions = await ConversionsAsync(rows, ct);
         var results = await EvaluateAsync(rows, conversions, ct);
-        return (await ToDtosAsync([(rows[0], results[rows[0].NodeId])], conversions, ct))[0];
+        var one = results[rows[0].NodeId];
+        return (await ToDtosAsync([(rows[0], one.Result, one.Progress)], conversions, ct))[0];
     }
 
     private async Task<List<LinkedRow>> LinkedFoldersAsync(long? libraryId, long? nodeId, CancellationToken ct)
@@ -163,90 +167,26 @@ public sealed class MissingReportService
         row.Provider == MetadataProviderAllowlist.MangaUpdates ? conversions.GetValueOrDefault(row.ExternalId) : null;
 
     /// <summary>Unit subfolders are followed this many levels below the linked folder (<c>Season 1/Volumes</c>).</summary>
-    public const int MaxUnitDepth = 3;
+    public const int MaxUnitDepth = SeriesProgressLoader.MaxUnitDepth;
 
     /// <summary>
-    /// Evaluates every row with batched queries, one level at a time. A series is the linked folder's own archives plus
-    /// every unit subfolder below it (1.29.0, the matcher's SeriesWithUnits shape: <c>Volumes</c>, <c>Chapters</c>,
-    /// <c>Season 2</c>, <c>Part 3</c>, <c>12</c> ...; up to <see cref="MaxUnitDepth"/> levels) that has no link of its own
-    /// (not linked, not Don't match, not in review) and is not side material (Extras, Specials, Colored ...). Other
-    /// subfolders are separate works. Each folder is evaluated as its own list, so numbering that restarts per folder is seen.
+    /// Evaluates every row through the shared progress engine (1.30.0, <see cref="SeriesProgressLoader"/>): the series scope (the
+    /// linked folder plus its unit subfolders), volume files and chapter files merged through the stored volume list, compared per
+    /// kind with what is released in the preferred language. The same numbers as the Volumes view; an official volume held only as
+    /// chapters is an upgrade, never behind. Batched queries; stored rows only.
     /// </summary>
-    private async Task<Dictionary<long, MissingUnitsResult>> EvaluateAsync(
+    private async Task<Dictionary<long, (MissingUnitsResult Result, SeriesProgressEntry Progress)>> EvaluateAsync(
         IReadOnlyList<LinkedRow> rows, IReadOnlyDictionary<string, MissingConversionDto> conversions, CancellationToken ct)
     {
-        var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
-        var archive = (int)CatalogNodeKind.Archive;
-        // Folder id -> (series node id, display name); the series' own folder has no name hint.
-        var folderOf = rows.ToDictionary(r => r.NodeId, r => (Series: r.NodeId, Name: (string?)null));
-        var archivesIn = new Dictionary<long, List<string>>();
-        var frontier = rows.Select(r => r.NodeId).ToList();
-        for (var depth = 0; depth <= MaxUnitDepth && frontier.Count > 0; depth++)
-        {
-            var level = frontier;
-            var children = await _db.CatalogNodes.AsNoTracking()
-                .Where(n => n.ParentId != null && level.Contains(n.ParentId.Value) && n.Availability != tombstoned)
-                .OrderBy(n => n.SortKey)
-                .Select(n => new { n.Id, ParentId = n.ParentId!.Value, n.Kind, n.DisplayName })
-                .ToListAsync(ct);
-            foreach (var c in children.Where(c => c.Kind == archive))
-            {
-                if (!archivesIn.TryGetValue(c.ParentId, out var list))
-                    archivesIn[c.ParentId] = list = [];
-                list.Add(c.DisplayName);
-            }
-            if (depth == MaxUnitDepth)
-                break;
-
-            var units = children
-                .Where(c => c.Kind != archive && AutoMatchText.IsUnitFolderName(c.DisplayName) && !CountEvidence.IsSideFolderName(c.DisplayName))
-                .ToList();
-            var unitIds = units.Select(u => u.Id).ToList();
-            var ownLinked = (await _db.NodeSeriesLinks.AsNoTracking().Where(l => unitIds.Contains(l.NodeId)).Select(l => l.NodeId).ToListAsync(ct))
-                .ToHashSet();
-            frontier = [];
-            foreach (var u in units.Where(u => !ownLinked.Contains(u.Id)))
-            {
-                folderOf[u.Id] = (folderOf[u.ParentId].Series, u.DisplayName);
-                frontier.Add(u.Id);
-            }
-        }
-
-        var foldersOf = folderOf.ToLookup(kv => kv.Value.Series, kv => new MissingFolder(kv.Value.Name, archivesIn.GetValueOrDefault(kv.Key) ?? []));
-
-        // 1.29.0 RC: "behind" only against what is released in the preferred language (the chapters the stored volume list
-        // names as released in it; English publisher totals for English). Stored rows only.
-        var language = await ReleasedInLanguage.PreferredAsync(_db, ct);
-        var recordIds = rows.Select(r => r.RecordId).Distinct().ToList();
-        var released = (await _db.SeriesVolumeMaps.AsNoTracking()
-                .Where(m => recordIds.Contains(m.RecordId) && m.Source == (int)VolumeMapSource.MangaDexAggregate && m.ReleasedLanguage != null)
-                .Select(m => new { m.RecordId, m.ReleasedLanguage, m.ReleasedChaptersJson })
-                .ToListAsync(ct))
-            .GroupBy(m => m.RecordId)
-            .ToDictionary(g => g.Key, g => g.First());
-
-        var result = new Dictionary<long, MissingUnitsResult>();
-        foreach (var row in rows)
-        {
-            var map = released.GetValueOrDefault(row.RecordId);
-            var release = ReleasedInLanguage.For(language, row.PublishersJson, map?.ReleasedLanguage, map?.ReleasedChaptersJson);
-            result[row.NodeId] = MissingUnits.Evaluate(foldersOf[row.NodeId],
-                TotalsOf(row, release) with { ChaptersPerVolume = ConversionOf(row, conversions)?.ChaptersPerVolume });
-        }
-        return result;
+        var targets = rows.Select(r => new SeriesProgressTarget(r.NodeId, r.RecordId, ConversionOf(r, conversions)?.ChaptersPerVolume)).ToList();
+        var loaded = await new SeriesProgressLoader(_db).LoadAsync(targets, ct);
+        return loaded.ToDictionary(
+            kv => kv.Key,
+            kv => (SeriesProgress.ToMissing(kv.Value.Result, kv.Value.VolumeArchives, kv.Value.ChapterArchives), kv.Value));
     }
 
-    private static PublishedTotals TotalsOf(LinkedRow row, ReleaseInfo release) => new(
-        EnglishVolumes: release.Volumes,
-        EnglishChapters: release.EnglishChapters,
-        OriginVolumes: row.OriginVolumes,
-        OriginChapters: MangaUpdatesStatusParser.Parse(row.StatusText).Chapters,
-        LatestChapter: row.LatestChapter,
-        Language: release.Language,
-        ReleasedChapters: release.LastChapter);
-
     private async Task<List<MissingSeriesDto>> ToDtosAsync(
-        IReadOnlyList<(LinkedRow Row, MissingUnitsResult Result)> page, IReadOnlyDictionary<string, MissingConversionDto> conversions, CancellationToken ct)
+        IReadOnlyList<(LinkedRow Row, MissingUnitsResult Result, SeriesProgressEntry Progress)> page, IReadOnlyDictionary<string, MissingConversionDto> conversions, CancellationToken ct)
     {
         if (page.Count == 0)
             return [];
@@ -280,6 +220,7 @@ public sealed class MissingReportService
                 Conversion = ConversionOf(p.Row, conversions),
                 StatusText = p.Row.StatusText,
                 FetchedAt = p.Row.FetchedAt,
+                Progress = p.Progress.Dto,
             };
         }).ToList();
     }

@@ -65,9 +65,30 @@ When a folder is linked to a series, its generic unit subfolders are merged into
 
 **Volumes.** In a folder linked to a series, a whole volume with neither a volume file nor any chapter here shows as a dashed **Volume N - Missing** card in its place: the gaps below your highest volume, and the volumes after it that are released in your preferred language. Today MangaPixer knows the volume total only for English (the English publisher's total on the series record), so in another language only the gaps are shown. A `Season` or `Part` subfolder never shows missing volumes (the rest of the run is elsewhere).
 
-**Series status.** Above the list of a linked series the Volumes view says how the series stands, for example "Complete (Japan) · English: 12 of 14 volumes · 2 volumes missing" or "Ongoing (Korea) · English scanlation: ongoing · up to date". The first part is the publication status in the country of origin. The second says what is out in your preferred language when MangaPixer knows it: the official release (from MangaUpdates' English publishers - "English: complete" once every volume is out), otherwise the chapters released in that language ("French: up to chapter 87", from MangaDex), and for English the scanlation status or "not licensed" (from MangaUpdates). The last part counts what is missing; "up to date" is said only when MangaPixer knows what is released in your language. The counts include gaps between loose chapters that no volume holds yet.
+**Series status.** Above the list of a linked series the Volumes view says how the series stands and what you have - see [What you have](#what-you-have) below. "Up to date" is said only when MangaPixer knows what is released in your language. The counts include gaps between loose chapters that no volume holds yet.
 
-The numbers agree with the [Missing volumes and chapters](missing-report.md) report: both use the same rules for extras, ranges, restarts and your preferred language.
+The numbers agree with the [Missing volumes and chapters](missing-report.md) report: both are worked out the same way, with the same rules for extras, ranges, restarts and your preferred language.
+
+## What you have
+
+*New in 1.30.0.* Above the list of a linked series, two lines say how the series stands and what your folder holds:
+
+- **Ongoing (Japan): 22 volumes · English (Yen Press): 14 volumes, ongoing · English scanlation: to chapter 65**
+- **You have volumes 1-14 + chapters 47-65 · up to date**
+
+The first line keeps track of each kind of release separately:
+
+- **The original run**: the publication status and the volume (or chapter) total in the country of origin. It is context only: a volume that exists only in the original language is never missing.
+- **The official release in your preferred language**: the publisher, how many volumes (or, for a publisher that releases chapter by chapter, chapters) it has out, and its own status - ongoing, complete, on hiatus, or **dropped** when the publisher stopped. Today MangaPixer knows this only for English (the English publishers on the MangaUpdates record). Omnibus, 2-in-1 / 3-in-1 and perfect editions are named but not compared volume by volume, because their volume numbers are not the original's. "English: not licensed" is shown when MangaUpdates says so.
+- **The released chapters**: for English, the latest scanlation chapter from MangaUpdates (", complete" once the scanlation is finished); for another language, the chapters MangaDex lists as released in it ("French: to chapter 87").
+
+The second line merges your **volume files and chapter files into one range** through the series' volume list. If Volume 10 holds chapters 81 to 90 and you also have chapter files 85 to 120, you have "volumes 1-10 + chapters 91-120": chapters 85 to 90 count once. Those chapter files show **Also in Volume 10** on their cards, in both the Folders and the Volumes view. When the volume list only estimates which chapters a volume holds, the overlap is not claimed and every chapter file is listed.
+
+**Official volumes you hold as chapters.** A volume that is out officially in your preferred language, but that you have only as chapter files, is an **upgrade**, not a gap: its stack shows **Available in English** and the second line says "Volume 15 available in English". It is never counted as missing and never makes a series "behind". Metadata Manager lists these series in the [Official releases](official-releases.md) tab.
+
+**Complete collection.** When a series is finished and your folder holds all of it, the line says **Complete collection** instead of "up to date". Finished means, in this order: the official edition in your language is complete and you have every volume of it; the English scanlation is complete and you have every chapter; or the original run has ended and you have all of its volumes. A volume you have as a complete run of chapters counts as held. A series finished in your language that you don't hold whole says "finished in English" next to what is missing.
+
+Records fetched before 1.30.0 don't carry the English publisher's own status yet; it is read on the record's next refresh (or when an admin refreshes the series). Until then MangaPixer treats an English edition as complete when the series is complete in the original language and every original volume is out in English.
 
 ## Opening a stack
 
