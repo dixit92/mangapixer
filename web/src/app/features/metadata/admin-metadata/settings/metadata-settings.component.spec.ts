@@ -131,6 +131,19 @@ describe('MetadataSettingsComponent', () => {
     expect(c.message()).toBe('Stored volume covers deleted');
   });
 
+  it('volume covers: an idle pass reads "nothing waiting" and the listed covers read as not needed (1.30.0)', () => {
+    const { fixture, q } = create();
+    q('[data-testid="md-volume-covers-progress"]')!.click();
+    http.expectOne({ method: 'GET', url: '/api/v1/admin/metadata/volume-covers/status' })
+      .flush({ seriesPending: 0, coversListed: 5947, coversStored: 3054, waiting: null });
+    fixture.detectChanges();
+    const status = q('[data-testid="md-volume-covers-status"]')!.textContent!.replace(/\s+/g, ' ');
+    expect(status).toContain('3054 covers stored');
+    expect(status).toContain('nothing waiting');
+    expect(status).not.toContain('series to check');
+    expect(status).toContain('5947 more listed on MangaDex, not needed');
+  });
+
   it('re-prompts on a stale consent version and honours the config kill', () => {
     const stale = create(settings({ acceptedConsentVersion: 0 }));
     expect(stale.c.consentCurrent()).toBe(false);

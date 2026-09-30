@@ -94,6 +94,17 @@ public sealed class CoverRulesTests
     }
 
     [Fact]
+    public void Volume_ClearlyDifferentFromAnOriginLanguageFallback_KeepsTheLocalCover()
+    {
+        // 1.30.0 soak test: an official English volume 1 next to MangaDex's Japanese volume 1 cover (no English one listed).
+        var d = CoverRules.DecideVolume(false, CoverCropSide.Right, Base, null, Web(Away(32), originFallback: true));
+        Assert.Equal((AutoCoverSource.File, AutoCoverReason.OtherLanguageKept), (d.Source, d.Reason));
+        Assert.False(d.NeedsRecheck); // nothing web is used; a preferred-language cover arriving later changes the inputs
+        var spread = CoverRules.DecideVolume(true, CoverCropSide.Left, Base, Away(64), Web(Away(32), originFallback: true));
+        Assert.Equal((AutoCoverSource.Crop, CoverCropSide.Left, AutoCoverReason.OtherLanguageKept), (spread.Source, spread.CropSide, spread.Reason));
+    }
+
+    [Fact]
     public void Volume_Uncertain_KeepsTheLocalCover()
     {
         var d = CoverRules.DecideVolume(false, CoverCropSide.Right, Base, null, Web(Away(15)));
@@ -120,10 +131,12 @@ public sealed class CoverRulesTests
     }
 
     [Fact]
-    public void Volume_OriginLanguageWebCover_AsksForARecheck()
+    public void OriginLanguageWebCover_AsksForARecheck_WhereItIsUsed()
     {
-        var d = CoverRules.DecideVolume(false, CoverCropSide.Right, Base, null, Web(Away(40), originFallback: true));
-        Assert.True(d.NeedsRecheck);
+        // A series folder without a local volume 1 uses the original-language volume 1 cover and re-checks it later.
+        Assert.True(CoverRules.DecideSeriesFolder(false, null, false, Web(Away(40), originFallback: true), null, null).NeedsRecheck);
+        // A volume never uses it over its own cover (1.30.0), so nothing is re-checked.
+        Assert.False(CoverRules.DecideVolume(false, CoverCropSide.Right, Base, null, Web(Away(40), originFallback: true)).NeedsRecheck);
         Assert.False(CoverRules.DecideVolume(false, CoverCropSide.Right, Base, null, Web(Away(4), originFallback: true)).NeedsRecheck);
     }
 
@@ -176,6 +189,18 @@ public sealed class CoverRulesTests
     {
         var d = CoverRules.DecideSeriesFolder(true, Base, false, Web(Away(bits)), null, null);
         Assert.Equal((AutoCoverSource.WebVolume, AutoCoverReason.SeriesVolume1), (d.Source, d.Reason));
+    }
+
+    [Theory]
+    [InlineData(15)]
+    [InlineData(35)]
+    public void SeriesFolder_WebVolume1OnlyInTheOriginLanguage_KeepsTheFile(int bits)
+    {
+        // 1.30.0 soak test: the folder showed the Japanese volume 1 cover over the local English volume 1.
+        var d = CoverRules.DecideSeriesFolder(true, Base, false, Web(Away(bits), originFallback: true), null, null);
+        Assert.Equal((AutoCoverSource.File, AutoCoverReason.OtherLanguageKept), (d.Source, d.Reason));
+        // Without a local volume 1 the original-language cover still stands in (unchanged).
+        Assert.Equal(AutoCoverSource.WebVolume, CoverRules.DecideSeriesFolder(false, null, false, Web(Away(bits), originFallback: true), null, null).Source);
     }
 
     [Fact]

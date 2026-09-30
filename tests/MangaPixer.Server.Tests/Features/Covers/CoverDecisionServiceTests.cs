@@ -86,10 +86,12 @@ public sealed class CoverDecisionServiceTests
 
         Assert.Equal(CoverDecisionOutcome.Decided, await kit.Decisions().DecideAsync(v2.Id, default));
         var auto = await kit.AutoAsync(v2.Id);
-        Assert.Equal((int)AutoCoverSource.WebVolume, auto!.Source);
-        Assert.Equal(web.Id, auto.VolumeCoverId);
-        Assert.Equal((int)AutoCoverReason.LocalNotCover, auto.Reason);
-        Assert.NotNull(auto.RecheckAt); // Japanese because the preferred English cover is missing
+        // 1.30.0 (owner soak test): only the original-language (Japanese) cover exists - a cover in another language is no
+        // evidence that page 1 is not the cover, so the file is kept; nothing web is used, so nothing is re-checked.
+        Assert.Equal((int)AutoCoverSource.File, auto!.Source);
+        Assert.Null(auto.VolumeCoverId);
+        Assert.Equal((int)AutoCoverReason.OtherLanguageKept, auto.Reason);
+        Assert.Null(auto.RecheckAt);
         Assert.Equal(unchecked((long)Local), auto.LocalHash);
         var calls = kit.Hasher.Calls;
 
@@ -97,14 +99,16 @@ public sealed class CoverDecisionServiceTests
         Assert.Equal(CoverDecisionOutcome.Unchanged, await kit.Decisions().DecideAsync(v2.Id, default));
         Assert.Equal(calls, kit.Hasher.Calls);
 
-        // The preferred-language cover arrives and it is the same art as page 1: keep the file.
-        await kit.AddStoredCoverAsync(companion, 2, "en", Away(3));
+        // The preferred-language cover arrives and page 1 is clearly not it (a credit page): the web cover is used.
+        var english = await kit.AddStoredCoverAsync(companion, 2, "en", Away(35));
         Assert.Equal(CoverDecisionOutcome.Decided, await kit.Decisions().DecideAsync(v2.Id, default));
         auto = await kit.AutoAsync(v2.Id);
-        Assert.Equal((int)AutoCoverSource.File, auto!.Source);
-        Assert.Equal((int)AutoCoverReason.FileMatchesWeb, auto.Reason);
+        Assert.Equal((int)AutoCoverSource.WebVolume, auto!.Source);
+        Assert.Equal(english.Id, auto.VolumeCoverId);
+        Assert.Equal((int)AutoCoverReason.LocalNotCover, auto.Reason);
         Assert.Null(auto.RecheckAt);
         Assert.Equal(2, auto.Version);
+        Assert.NotEqual(web.Id, auto.VolumeCoverId);
     }
 
     [Fact]

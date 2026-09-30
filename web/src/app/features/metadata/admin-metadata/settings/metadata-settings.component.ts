@@ -327,8 +327,10 @@ export function validateThresholds(
               series' original language is used, and MangaPixer checks again on the refresh schedule.</p>
             <p class="status" data-testid="md-volume-covers-status">
               @if (coverStatus(); as cs) {
-                {{ cs.coversStored }} cover{{ cs.coversStored === 1 ? '' : 's' }} stored · {{ cs.coversListed }} known, not
-                downloaded · {{ cs.seriesPending }} series to check
+                {{ cs.coversStored }} cover{{ cs.coversStored === 1 ? '' : 's' }} stored ·
+                @if (cs.seriesPending > 0) { {{ cs.seriesPending }} series to check } @else { nothing waiting }
+                · {{ cs.coversListed }} more listed on MangaDex, not needed (other volumes and languages - only volume 1 and the
+                volumes you have are downloaded)
                 @if (waitingLabel(); as w) { <br><span class="warn">{{ w }}</span> }
               }
               <button type="button" class="link" (click)="loadCoverStatus()" data-testid="md-volume-covers-progress">

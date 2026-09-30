@@ -45,6 +45,9 @@ public sealed class CoverDecisionService
     /// <summary>A subtree decision stops after this many archives (a huge chapter folder is decided over several passes).</summary>
     public const int MaxSubtreeArchives = 5000;
 
+    /// <summary>Bumped when <see cref="CoverRules"/> changes what it decides for the same inputs (see <c>Key</c>).</summary>
+    internal const int RulesRevision = 2;
+
     private const double TallRatio = 2.0;
     private const int MaxMeasuredPages = 400;
 
@@ -526,7 +529,9 @@ public sealed class CoverDecisionService
 
     private static string Key(params object?[] parts)
     {
-        var text = string.Join('|', parts.Select(p => Convert.ToString(p, CultureInfo.InvariantCulture) ?? "-"));
+        // The rules revision is part of every key: a rules change re-decides every node once (1.30.0: rules 2 - a cover in
+        // the original language never replaces a local cover).
+        var text = RulesRevision + "|" + string.Join('|', parts.Select(p => Convert.ToString(p, CultureInfo.InvariantCulture) ?? "-"));
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)))[..40];
     }
 

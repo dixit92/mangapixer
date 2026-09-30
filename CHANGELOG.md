@@ -34,6 +34,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Covers:** a volume cover from the web in the series' original language (used when MangaDex has none in your preferred language) no longer replaces your own volume's cover or its series folder's cover - an English edition's cover differs from the Japanese one by design. Covers already chosen are decided again once after the update.
+- Metadata Manager > Volume covers: the progress line no longer counts covers MangaPixer never downloads as waiting - it reads "nothing waiting" when the background pass is done, and the covers MangaDex lists for volumes you don't have (or in another language) are shown as not needed.
 - A volume's card in the folder list showed a stale read state and star after you changed its chapters on the volume page or in the reader; it now refreshes.
 
 - **Volumes view:** a chapter that the series' volume list places in two volumes (split across the boundary) is no longer marked missing in the second volume when its file is in the first one's stack.

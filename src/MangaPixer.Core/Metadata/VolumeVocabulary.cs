@@ -156,6 +156,12 @@ public enum AutoCoverReason
 
     /// <summary>A Season / Part subfolder shows the cover of the volume its first chapter belongs to.</summary>
     SubfolderFirstVolume = 11,
+
+    /// <summary>
+    /// The only web cover is in the series' original language (the preferred one has none): a cover in another language is no
+    /// evidence that page 1 is not the cover, so the local cover is kept (1.30.0, owner soak test).
+    /// </summary>
+    OtherLanguageKept = 12,
 }
 
 /// <summary>Which half of a spread page.</summary>

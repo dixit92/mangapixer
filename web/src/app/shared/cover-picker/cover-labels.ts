@@ -7,6 +7,7 @@ const REASONS: Record<string, string> = {
   LocalNotCover: 'the volume cover from the web (page 1 is not the cover)',
   FileMatchesWeb: "this file's cover (it matches the web cover)",
   UncertainKept: "this file's cover (close to the web cover - another edition?)",
+  OtherLanguageKept: "this file's cover (the web cover is only in the original language)",
   NoWebCover: "this file's cover (no web cover)",
   SeriesVolume1: 'the volume 1 cover from the web',
   ChapterFolderDefault: 'the series cover from the web (a chapter folder)',

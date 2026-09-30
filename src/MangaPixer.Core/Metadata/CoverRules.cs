@@ -72,7 +72,8 @@ public static class CoverRules
     /// <summary>
     /// A volume archive of a linked series, or an unlinked volume-like archive (web = null). L = the front-half crop
     /// when page 1 is a spread, else the file. No web volume N cover -> L (never the poster). L Same as W -> L; spread
-    /// and the OTHER half Same as W -> the other half; uncertain -> L; Different -> W.
+    /// and the OTHER half Same as W -> the other half; uncertain -> L; Different -> W - unless W is the original-language
+    /// fallback (1.30.0, owner): an English edition's cover differs from the Japanese one by design, so L is kept.
     /// </summary>
     /// <param name="spread">Page 1 is spread-shaped.</param>
     /// <param name="front">The front half by the book's direction.</param>
@@ -93,7 +94,10 @@ public static class CoverRules
             case CoverVerdict.Different:
                 if (spread && Compare(otherHalfHash, web.Hash) == CoverVerdict.Same)
                     return CoverDecision.Crop(Other(front), AutoCoverReason.SpreadOtherSide);
-                return CoverDecision.FromWeb(web, AutoCoverReason.LocalNotCover);
+                // Only a cover in the preferred language can show that page 1 is not the cover.
+                return web.OriginFallback
+                    ? local with { Reason = AutoCoverReason.OtherLanguageKept }
+                    : CoverDecision.FromWeb(web, AutoCoverReason.LocalNotCover);
             default:
                 if (spread && Compare(otherHalfHash, web.Hash) == CoverVerdict.Same)
                     return CoverDecision.Crop(Other(front), AutoCoverReason.SpreadOtherSide);
@@ -120,7 +124,8 @@ public static class CoverRules
     /// <summary>
     /// A linked series folder (volumes, chapters or mixed). With a local volume 1: its resolved local cover Same as the
     /// web volume 1 cover -> the file default; no web volume 1 cover -> the file default (integrator default: the main
-    /// cover / poster usually shows the newest volume); else the web volume 1 cover. Without a local volume 1: web
+    /// cover / poster usually shows the newest volume); a web volume 1 cover only in the original language (the preferred one
+    /// is missing) -> the file default (1.30.0, owner: never a cover in another language over yours); else the web volume 1 cover. Without a local volume 1: web
     /// volume 1 > web main > stored poster > file.
     /// </summary>
     /// <param name="hasLocalVolume1">A live volume 1 archive exists below the folder.</param>
@@ -133,8 +138,10 @@ public static class CoverRules
         {
             if (webVolume1 is null)
                 return CoverDecision.File(AutoCoverReason.NoWebCover);
-            return Compare(localVolume1Hash, webVolume1.Hash) == CoverVerdict.Same
-                ? CoverDecision.File(AutoCoverReason.FileMatchesWeb)
+            if (Compare(localVolume1Hash, webVolume1.Hash) == CoverVerdict.Same)
+                return CoverDecision.File(AutoCoverReason.FileMatchesWeb);
+            return webVolume1.OriginFallback
+                ? CoverDecision.File(AutoCoverReason.OtherLanguageKept)
                 : CoverDecision.FromWeb(webVolume1, AutoCoverReason.SeriesVolume1);
         }
 
