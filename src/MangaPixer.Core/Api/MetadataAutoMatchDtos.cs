@@ -192,7 +192,10 @@ public sealed record MetadataReviewCandidateDto
     /// <summary>After corroboration (type, count, year, author ...), 0-1.</summary>
     public required double AdjustedScore { get; init; }
 
-    /// <summary>Reason chips: <c>close_second</c>, <c>count</c>, <c>year</c>, <c>type</c>, <c>related_pair</c>, <c>one_shot</c>, <c>author</c>, <c>number</c>, <c>review_only</c>.</summary>
+    /// <summary>
+    /// Reason chips: <c>close_second</c>, <c>count</c>, <c>year</c>, <c>type</c>, <c>related_pair</c>, <c>one_shot</c>, <c>author</c>,
+    /// <c>number</c>, <c>review_only</c>; the declared-type evidence (1.30.0) <c>declared_type</c> (fits) and <c>not_declared_type</c>.
+    /// </summary>
     public IReadOnlyList<string> Reasons { get; init; } = [];
 
     /// <summary>

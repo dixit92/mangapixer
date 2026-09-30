@@ -13,13 +13,15 @@ import {
  * settings only: nothing is ever inferred from library or folder names.
  */
 export const DECLARED_TYPE_OPTIONS: readonly { value: DeclaredType; label: string }[] = [
-  { value: 'Manga', label: 'Manga' },
-  { value: 'Manhwa', label: 'Manhwa' },
-  { value: 'Manhua', label: 'Manhua' },
-  { value: 'Webtoon', label: 'Webtoon' },
-  { value: 'Comic', label: 'Comic' },
-  { value: 'GraphicNovel', label: 'Graphic novel' },
-  { value: 'Novel', label: 'Novel' },
+  // Each type names its country of origin (1.30.0, owner): the matcher prefers records from that country, and the
+  // three words are easy to mix up. Same labels as the server (`DeclaredFactKeys.TypeLabel`).
+  { value: 'Manga', label: 'Manga (Japan)' },
+  { value: 'Manhwa', label: 'Manhwa (Korea)' },
+  { value: 'Manhua', label: 'Manhua (China)' },
+  { value: 'Webtoon', label: 'Webtoon (any country)' },
+  { value: 'Comic', label: 'Comic (Western)' },
+  { value: 'GraphicNovel', label: 'Graphic novel (Western)' },
+  { value: 'Novel', label: 'Novel (any country)' },
 ];
 
 /** Creator roles the server accepts; '' = no role. Labels match the series credits (Story / Art). */
@@ -64,7 +66,7 @@ export function hasDeclared(e: EffectiveDeclaredFactsDto | null | undefined): bo
   return !!e && (!!e.type || (e.creators ?? []).length > 0);
 }
 
-/** One-line summary for a library row: "Manga · 2 creators" ('' when nothing is declared). */
+/** One-line summary for a library row: "Manga (Japan) · 2 creators" ('' when nothing is declared). */
 export function declaredSummary(type: DeclaredType | null | undefined, creators: readonly DeclaredCreatorDto[] | null | undefined): string {
   const parts: string[] = [];
   if (type) parts.push(declaredTypeLabel(type));

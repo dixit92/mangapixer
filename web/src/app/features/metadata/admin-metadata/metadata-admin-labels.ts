@@ -64,6 +64,9 @@ const REASONS: Record<string, { label: string; tip: string }> = {
   author: { label: 'Author', tip: 'An author in your files differs from the record\'s authors.' },
   number: { label: 'Numbered', tip: 'A number in the folder name does not match the record.' },
   review_only: { label: 'Review only', tip: 'This folder shape is never linked automatically (a collection or an archive group).' },
+  // The declared type as evidence (1.30.0): a strong hint both ways, never a block.
+  declared_type: { label: 'Fits declared type', tip: 'The record comes from the country the declared type names (for example Manhwa: Korea). Counts in its favour.' },
+  not_declared_type: { label: 'Not declared type', tip: 'The record is not the type declared for this folder. Counts against it, but never blocks a link.' },
 };
 
 export function reasonLabel(code: string): string {

@@ -50,7 +50,6 @@ public sealed class MetadataAutoMatchService
     private readonly IMatchQueryPlanner? _planner;
     private readonly IMatchScorer? _scorer;
     private readonly bool _providerAuthorFolders;
-    private readonly bool _declaredTypeFilter;
     private readonly AutoMatchCoverComparer? _covers;
     private readonly Declared.IDeclaredFactsReader? _declared;
 
@@ -86,7 +85,6 @@ public sealed class MetadataAutoMatchService
         _planner = planners.LastOrDefault();
         _scorer = scorers.LastOrDefault();
         _providerAuthorFolders = (options ?? new MetadataAutoMatchOptions()).ProviderAuthorFolders;
-        _declaredTypeFilter = (options ?? new MetadataAutoMatchOptions()).DeclaredTypeFilter;
         _covers = covers;
         _declared = declared;
     }
@@ -602,7 +600,7 @@ public sealed class MetadataAutoMatchService
             var allowDoujinshi = await EffectiveContentAsync(work.Work.FolderId, ct) == MetadataFolderContent.DoujinshiAndAdultOneShots;
             var declared = _declared is null ? null
                 : (await _declared.EffectiveForLibraryAsync(row.LibraryId, ct)).GetValueOrDefault(work.Work.FolderId);
-            var lookupEngine = new AutoMatchLookup(_db, _gateway, _planner, _scorer, _covers, _declaredTypeFilter);
+            var lookupEngine = new AutoMatchLookup(_db, _gateway, _planner, _scorer, _covers);
             lookup = await lookupEngine.LookupAsync(tree, work.Work, work.Classification, await ThresholdsAsync(ct), allowDoujinshi, call, ct,
                 declared);
         }

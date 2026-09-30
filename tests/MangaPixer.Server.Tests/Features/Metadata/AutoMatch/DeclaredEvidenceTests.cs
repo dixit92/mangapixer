@@ -5,10 +5,11 @@ using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Declared;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 /// <summary>
-/// Service-with-DB tests of declared facts as matching evidence (1.28.0) through the production path: a
+/// Service-with-DB tests of declared facts as matching evidence (1.28.0; the type a strong hint since 1.30.0) through the production path: a
 /// <c>declared_facts</c> row -> <see cref="DeclaredFactsReader"/> -> <c>MetadataAutoMatchService.ProcessAsync</c> -> the real
 /// planner and scorer. Two records share a title and differ only by their author disambiguator: without a declaration
 /// the work waits in review; with the library's declared author it links the right record automatically. Synthetic.
@@ -94,26 +95,73 @@ public sealed class DeclaredEvidenceTests : IAsyncLifetime
         _h.Handler.Seen.Where(r => r.Method == HttpMethod.Post).Select(r => System.Text.Json.JsonDocument.Parse(r.Body!).RootElement)
             .SelectMany(b => b.GetProperty("filter_types").EnumerateArray().Select(t => t.GetString()!)).Distinct().Order(StringComparer.Ordinal).ToList();
 
-    [Fact]
-    public async Task ByDefault_ADeclaredManhwa_LeavesTheOtherTwoOriginsOutOfAutomaticSearches()
+    // Two records share a title with no disambiguator and differ only by origin (1.30.0): the declared type settles the tie.
+    private const string OriginTitle = "Qzv Lantern Road";
+
+    private async Task<CatalogNodeEntity> OriginTieFolderAsync()
     {
-        var folder = await FolderAsync();
-        await DeclareAsync(folder.Id, DeclaredFactKeys.Type, DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa));
-
-        await MatchAsync(folder);
-
-        Assert.Equal(["Artbook", "Doujinshi", "Drama CD", "Manga", "Manhua", "Novel"], SentFilterTypes());
+        _h.Search[OriginTitle] = [new MuJson.Hit(811, OriginTitle, "Manga"), new MuJson.Hit(812, OriginTitle, "Manhwa")];
+        _h.Records[811] = MuJson.Get(811, OriginTitle, type: "Manga");
+        _h.Records[812] = MuJson.Get(812, OriginTitle, type: "Manhwa");
+        var folder = await _db.AddFolderAsync(null, OriginTitle);
+        for (var i = 1; i <= 3; i++)
+            await _db.AddArchiveAsync(folder, $"{OriginTitle} v{i:D2}");
+        return folder;
     }
 
     [Fact]
-    public async Task WithTheKillSwitch_ADeclaredType_IsNotSentAsASearchFilter()
+    public async Task ADeclaredManhwa_IsAStrongHint_ItSettlesAnOriginTie_AndIsNeverSent()
     {
-        var folder = await FolderAsync();
+        var folder = await OriginTieFolderAsync();
         await DeclareAsync(folder.Id, DeclaredFactKeys.Type, DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa));
 
-        await MatchAsync(folder, new MetadataAutoMatchOptions { DeclaredTypeFilter = false });
+        var link = await MatchAsync(folder);
 
-        Assert.Equal(["Artbook", "Doujinshi", "Drama CD", "Novel"], SentFilterTypes()); // the fixed filter only
+        Assert.Equal((int)SeriesLinkState.Auto, link.State);
+        Assert.Equal("812", link.Record!.ExternalId);
+        // 1.30.0: the declaration no longer narrows the provider type filter - only the fixed four types are sent.
+        Assert.Equal(["Artbook", "Doujinshi", "Drama CD", "Novel"], SentFilterTypes());
+    }
+
+    [Fact]
+    public async Task WithoutADeclaration_AnOriginTieWaitsInReview()
+    {
+        var link = await MatchAsync(await OriginTieFolderAsync());
+
+        Assert.Equal((int)SeriesLinkState.NeedsReview, link.State);
+    }
+
+    [Fact]
+    public async Task AWrongDeclaredType_IsNeverAVeto_TheOnlyRecordStillLinks()
+    {
+        const string title = "Qzv Quiet Orchard";
+        _h.Search[title] = [new MuJson.Hit(821, title, "Manhwa")];
+        _h.Records[821] = MuJson.Get(821, title, type: "Manhwa");
+        var folder = await _db.AddFolderAsync(null, title);
+        for (var i = 1; i <= 3; i++)
+            await _db.AddArchiveAsync(folder, $"{title} v{i:D2}");
+        await DeclareAsync(folder.Id, DeclaredFactKeys.Type, DeclaredFactKeys.TypeSlug(DeclaredType.Manga));
+
+        var link = await MatchAsync(folder);
+
+        Assert.Equal((int)SeriesLinkState.Auto, link.State);
+        Assert.Equal("821", link.Record!.ExternalId);
+    }
+
+    [Fact]
+    public async Task TheRetiredFilterSwitch_IsIgnored()
+    {
+        // Metadata:AutoMatch:DeclaredTypeFilter (1.28.0 - 1.29.x) is retired: an old value is read without an error and changes nothing.
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Metadata:AutoMatch:DeclaredTypeFilter"] = "true" }).Build();
+        var options = MetadataAutoMatchOptions.FromConfiguration(config);
+        var folder = await OriginTieFolderAsync();
+        await DeclareAsync(folder.Id, DeclaredFactKeys.Type, DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa));
+
+        await MatchAsync(folder, options);
+
+        Assert.Equal(new MetadataAutoMatchOptions(), options);
+        Assert.Equal(["Artbook", "Doujinshi", "Drama CD", "Novel"], SentFilterTypes());
     }
 
     [Fact]

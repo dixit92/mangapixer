@@ -115,7 +115,7 @@ public sealed class FakeMatchScorer : IMatchScorer
 /// <summary>Synthetic MangaUpdates JSON (the fields the provider reads).</summary>
 public static class MuJson
 {
-    public sealed record Hit(long Id, string Title, string Type = "Manga", int Year = 2001, string? Image = null);
+    public sealed record Hit(long Id, string Title, string Type = "Manga", int Year = 2001, string? Image = null, string? HitTitle = null);
 
     public static string Search(params Hit[] hits) => JsonSerializer.Serialize(new
     {
@@ -130,6 +130,7 @@ public static class MuJson
                 year = h.Year.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 image = h.Image is null ? null : new { url = new { original = h.Image, thumb = h.Image } },
             },
+            hit_title = h.HitTitle ?? h.Title,
         }),
     });
 
