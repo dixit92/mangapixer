@@ -119,6 +119,11 @@ test('a stack opens its chapters, with previous / next volume', async ({ page })
   await expect(page.locator('.node-wrap')).toHaveCount(3);
 });
 
+/** The next save of the viewer's browse preferences (the Volumes | Folders choice). */
+function savedPreferences(page: Page) {
+  return page.waitForResponse((r) => r.url().includes('/api/v1/reading/library-preferences') && r.request().method() === 'PUT');
+}
+
 test('the Folders switch shows the real chapters and the choice is remembered', async ({ page }) => {
   await login(page);
   const [libraryId, folderId] = await ensureLibrary(page);
@@ -126,7 +131,10 @@ test('the Folders switch shows the real chapters and the choice is remembered', 
   await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
   await expect(page.locator('.node-wrap')).toHaveCount(3);
 
+  // Wait for the choice to be saved before the reload below (it raced the save on the GitHub runner and on the box).
+  const savedFolders = savedPreferences(page);
   await page.getByTestId('view-folders').click();
+  await savedFolders;
   await expect(page.locator('.node-wrap')).toHaveCount(7);
   await expect(page.locator('app-stack-card')).toHaveCount(0);
   await expect(page.locator('.node-wrap', { hasText: 'Stacked Saga v01 c001' })).toBeVisible();
@@ -137,7 +145,9 @@ test('the Folders switch shows the real chapters and the choice is remembered', 
   await expect(page.locator('.node-wrap')).toHaveCount(7);
   await expect(page.getByTestId('view-folders')).toHaveAttribute('aria-pressed', 'true');
 
+  const savedVolumes = savedPreferences(page);
   await page.getByTestId('view-volumes').click();
+  await savedVolumes;
   await expect(page.locator('.node-wrap')).toHaveCount(3);
   await page.reload();
   await expect(page.locator('.node-wrap')).toHaveCount(3);
