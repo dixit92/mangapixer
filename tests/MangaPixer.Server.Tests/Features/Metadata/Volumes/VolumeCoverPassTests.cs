@@ -4,6 +4,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.WorkerProtocol;
 using com.lifepixer.mangapixer.Server.Features.Admin;
@@ -283,6 +284,54 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
 
         // Logs carry no title, search text or address.
         Assert.DoesNotContain(_h.Auto.Net.Logs.Lines, l => l.Contains("Berserk", StringComparison.Ordinal) || l.Contains("uploads.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AVolumeHeldAsAllOfItsChapters_GetsItsCover_AVolumeHeldInPartDoesNot()
+    {
+        // 1.30.0 (owner): MangaDex's exact list gives volume 41 chapters 358-364 and volume 40 chapters 351-357 (+ extras 356.1 /
+        // 356.2). All of 41 is here as chapter files; 40 only in part (351-353); 42 by one chapter that names its volume.
+        await _h.Auto.EnableAutomaticAsync();
+        var chapters = Enumerable.Range(358, 7).Concat([351, 352, 353])
+            .Select(c => $"Synthetic Shelf c{c:D3}.cbz").Append("Synthetic Shelf v42 c365.cbz").ToArray();
+        await SeriesAsync(MdFixtures.MuBerserk, "Berserk", 43, chapters);
+
+        var result = await _h.TickAsync();
+
+        Assert.Null(result.WaitingCode);
+        var images = _h.MangaDexRequests().Where(u => u.Host == MetadataHttp.MangaDexImageHost).ToList();
+        // Volume 1 (always) and volume 41 - never 40 or 42.
+        Assert.Equal(2, images.Count);
+        var stored = await _t.Db.VolumeCovers.Where(c => c.State == (int)VolumeCoverState.Stored).Select(c => c.Volume).OrderBy(v => v).ToListAsync();
+        Assert.Equal([1, 41], stored);
+        // The same request kind as for a volume file: a cover image by the id MangaDex returned, nothing from the library.
+        Assert.All(images, u => Assert.StartsWith($"/covers/{MdFixtures.BerserkId}/", u.AbsolutePath, StringComparison.Ordinal));
+        Assert.DoesNotContain(_h.MangaDexRequests(), u => Uri.UnescapeDataString(u.ToString()).Contains("Synthetic", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void VolumesHeldAsChapters_TheExactListOnly_EveryListedChapter_SplitPartsCount()
+    {
+        static List<GroupingRow> Rows(params string[] names) => names.Select((n, i) => new GroupingRow(
+            i.ToString(System.Globalization.CultureInfo.InvariantCulture), GroupingRowKind.Archive, n, n)).ToList();
+        var exact = new List<VolumeMapVolume>
+        {
+            new(1, [1m, 2m, 3m]),
+            new(2, [4m, 5m, 5.5m]), // 5.5 next to its listed whole chapter is an extra: not required
+            new(4, [9m, 10m]),      // volume 3 is not listed: only bounded (chapters 6-8) - never downloaded as chapters
+        };
+
+        Assert.Equal([2], VolumeCoverPass.VolumesHeldAsChapters(Rows("S c004", "S c005"), exact).Order());
+        // A split chapter on disk (4.1 + 4.2) counts as chapter 4.
+        Assert.Equal([2], VolumeCoverPass.VolumesHeldAsChapters(Rows("S c004.1", "S c004.2", "S c005"), exact).Order());
+        Assert.Empty(VolumeCoverPass.VolumesHeldAsChapters(Rows("S c004"), exact));
+        Assert.Empty(VolumeCoverPass.VolumesHeldAsChapters(Rows("S c006", "S c007", "S c008"), exact));
+        // A volume FILE is not "held as chapters" (its cover is fetched as a held volume file).
+        Assert.Empty(VolumeCoverPass.VolumesHeldAsChapters(Rows("S v02", "S c004", "S c005"), exact));
+        Assert.Equal([1, 2, 4], VolumeCoverPass.VolumesHeldAsChapters(
+            Rows("S c001", "S c002", "S c003", "S c004", "S c005", "S c009", "S c010"), exact).Order());
+        // No exact list: nothing.
+        Assert.Empty(VolumeCoverPass.VolumesHeldAsChapters(Rows("S c004", "S c005"), []));
     }
 
     [Fact]

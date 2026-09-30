@@ -50,20 +50,30 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
         };
     }
 
-    /// <summary>The whole volumes present in the view (volume files and stacks; never a missing-volume placeholder).</summary>
-    private static HashSet<int> HeldVolumes(FolderVolumeEntries view)
+    /// <summary>
+    /// The whole volumes whose cover the pass fetches for this view: a volume file, or a stack holding all the chapters the exact
+    /// list gives its volume (1.30.0 - never a stack held in part, a bounded or an estimated one; never a missing-volume placeholder).
+    /// </summary>
+    internal static HashSet<int> HeldVolumes(FolderVolumeEntries view)
     {
         var held = new HashSet<int>();
         foreach (var e in view.Entries)
         {
-            if (e.Rank == 0 && e.Kind != VolumeEntryKind.MissingVolume
-                && decimal.TryParse(e.VolumeKey, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var v) && v == decimal.Truncate(v))
+            if (e.Rank != 0 || e.Kind == VolumeEntryKind.MissingVolume
+                || !decimal.TryParse(e.VolumeKey, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var v) || v != decimal.Truncate(v))
             {
-                held.Add((int)v);
+                continue;
             }
+            if (e.Kind != VolumeEntryKind.Stack || e.Stack is not { } stack || stack.HasVolumeArchive || HeldAsChapters(stack))
+                held.Add((int)v);
         }
         return held;
     }
+
+    /// <summary>A chapter stack of a volume the exact list names, with every listed chapter here.</summary>
+    private static bool HeldAsChapters(VolumeStack stack) =>
+        stack.Confidence == VolumeStackConfidence.Exact && stack.ChapterCount is > 0 && stack.ChaptersPresent == stack.ChapterCount
+        && stack.Members.All(m => m.Placement is not (VolumePlacement.Bounded or VolumePlacement.Estimated));
 
     /// <summary>One stack of a folder, or null (unknown folder / key, no access, nothing groups here).</summary>
     public async Task<VolumeStackDto?> GetStackAsync(long userId, long folderId, string key, CancellationToken ct)

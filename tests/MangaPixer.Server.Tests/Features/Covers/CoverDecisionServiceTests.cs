@@ -194,7 +194,7 @@ public sealed class CoverDecisionServiceTests
     }
 
     [Fact]
-    public async Task SeriesFolder_WithoutLocalVolume1_ShowsTheWebVolume1_WithAMatchingVolume1_KeepsTheFile()
+    public async Task SeriesFolder_WithoutLocalVolume1_ShowsTheWebVolume1_WithALocalVolume1_NamesIt()
     {
         await using var kit = await CoverLayerTestKit.CreateAsync();
         var chapters = await kit.Db.AddFolderAsync(null, "Chapters Series");
@@ -215,13 +215,16 @@ public sealed class CoverDecisionServiceTests
         var record2 = await kit.Db.AddRecordAsync("106", "Volume Series");
         await kit.Db.AddLinkAsync(volumes, record2);
         var companion2 = await kit.AddCompanionAsync(record2);
-        await kit.AddBookAsync(volumes, "Volume Series v01", 700, 1000, Local);
+        var v01 = await kit.AddBookAsync(volumes, "Volume Series v01", 700, 1000, Local);
         await kit.AddBookAsync(volumes, "Volume Series v02", 700, 1000, Local);
         await kit.AddStoredCoverAsync(companion2, 1, "en", Away(2));
         Assert.True(await kit.Decisions().DecideSubtreeAsync(volumes.Id, default) >= 2); // volume 1 and the folder
+        Assert.Equal((int)AutoCoverReason.FileMatchesWeb, (await kit.AutoAsync(v01.Id))!.Reason);
+        // 1.30.0: the folder names its volume 1 (which decided "its file matches the web cover").
         auto = await kit.AutoAsync(volumes.Id);
-        Assert.Equal((int)AutoCoverSource.File, auto!.Source);
-        Assert.Equal((int)AutoCoverReason.FileMatchesWeb, auto.Reason);
+        Assert.Equal((int)AutoCoverSource.LocalVolume1, auto!.Source);
+        Assert.Equal(v01.Id, auto.ArchiveNodeId);
+        Assert.Equal((int)AutoCoverReason.SeriesLocalVolume1, auto.Reason);
     }
 
     [Fact]

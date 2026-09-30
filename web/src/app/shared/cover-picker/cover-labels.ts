@@ -10,6 +10,7 @@ const REASONS: Record<string, string> = {
   OtherLanguageKept: "this file's cover (the web cover is only in the original language)",
   NoWebCover: "this file's cover (no web cover)",
   SeriesVolume1: 'the volume 1 cover from the web',
+  SeriesLocalVolume1: 'the cover of your volume 1 (as its own card shows it)',
   ChapterFolderDefault: 'the series cover from the web (a chapter folder)',
   WebtoonDefault: 'the series cover from the web (a webtoon)',
   OneShotDefault: 'the cover from the web (a one-shot)',

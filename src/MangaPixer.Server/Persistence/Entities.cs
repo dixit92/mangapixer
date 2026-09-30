@@ -1584,6 +1584,12 @@ public sealed class NodeAutoCoverEntity
     /// <summary>Source WebVolume / WebMain: the web cover.</summary>
     public long? VolumeCoverId { get; set; }
 
+    /// <summary>
+    /// Source LocalVolume1 (1.30.0): the series' volume 1 archive whose resolved cover the folder shows. No foreign key - the
+    /// resolver checks that it is still a live archive, and the folder is decided again when its volume 1 changes.
+    /// </summary>
+    public long? ArchiveNodeId { get; set; }
+
     /// <summary><c>AutoCoverReason</c> int value.</summary>
     public int Reason { get; set; }
 
