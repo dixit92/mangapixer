@@ -102,6 +102,22 @@ public static class DeclaredFactKeys
     /// <summary>The stored value of a type (stable lower-case slug; never the enum's int).</summary>
     public static string TypeSlug(DeclaredType type) => Slugs[type];
 
+    /// <summary>
+    /// The type with its country of origin, as the web client shows it (1.30.0, owner): <c>Manga (Japan)</c>, <c>Manhwa (Korea)</c>,
+    /// <c>Manhua (China)</c>, <c>Webtoon (any country)</c>, <c>Comic (Western)</c>, <c>Graphic novel (Western)</c>, <c>Novel (any country)</c>.
+    /// </summary>
+    public static string TypeLabel(DeclaredType type) => type switch
+    {
+        DeclaredType.Manga => "Manga (Japan)",
+        DeclaredType.Manhwa => "Manhwa (Korea)",
+        DeclaredType.Manhua => "Manhua (China)",
+        DeclaredType.Webtoon => "Webtoon (any country)",
+        DeclaredType.Comic => "Comic (Western)",
+        DeclaredType.GraphicNovel => "Graphic novel (Western)",
+        DeclaredType.Novel => "Novel (any country)",
+        _ => type.ToString(),
+    };
+
     public static DeclaredType? ParseType(string? slug)
     {
         if (slug is null)

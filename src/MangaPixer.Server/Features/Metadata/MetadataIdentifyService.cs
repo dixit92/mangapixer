@@ -51,6 +51,7 @@ public sealed class MetadataIdentifyService
     private readonly TimeProvider _time;
     private readonly ILogger<MetadataIdentifyService> _logger;
     private readonly ICoverResolver _covers;
+    private readonly Declared.IDeclaredFactsReader? _declared;
 
     public MetadataIdentifyService(
         MangaPixerDbContext db,
@@ -65,7 +66,8 @@ public sealed class MetadataIdentifyService
         IMemoryCache cache,
         TimeProvider time,
         ILogger<MetadataIdentifyService> logger,
-        ICoverResolver? covers = null)
+        ICoverResolver? covers = null,
+        Declared.IDeclaredFactsReader? declared = null)
     {
         _db = db;
         _gateway = gateway;
@@ -80,6 +82,7 @@ public sealed class MetadataIdentifyService
         _time = time;
         _logger = logger;
         _covers = covers ?? new FileCoverResolver(db);
+        _declared = declared;
     }
 
     private sealed record CandidateImage(string Provider, long LibraryId, string Url);
@@ -250,7 +253,8 @@ public sealed class MetadataIdentifyService
             Strength = TitleSimilarity.Label(score),
             FetchedAt = record.FetchedAt,
             Local = local,
-            Warnings = Warnings(record, local, name.YearHint, await LocalUnitsAsync(node, ct), node.Kind == (int)CatalogNodeKind.Folder),
+            Warnings = Warnings(record, local, name.YearHint, await LocalUnitsAsync(node, ct), node.Kind == (int)CatalogNodeKind.Folder,
+                await DeclaredTypeAsync(node, ct)),
         };
     }
 
@@ -695,7 +699,37 @@ public sealed class MetadataIdentifyService
         }
     }
 
-    private static List<IdentifyWarningDto> Warnings(MetadataRecordEntity record, IdentifyLocalDto local, int? yearHint, LocalUnitCounts units, bool isFolder)
+    /// <summary>The type declared for a folder (or an archive's folder), or null (1.30.0).</summary>
+    private async Task<DeclaredType?> DeclaredTypeAsync(CatalogNodeEntity node, CancellationToken ct)
+    {
+        if (_declared is null)
+            return null;
+        var effective = await _declared.EffectiveForLibraryAsync(node.LibraryId, ct);
+        var folderId = node.Kind == (int)CatalogNodeKind.Folder ? node.Id : node.ParentId;
+        return folderId is { } id && effective.TryGetValue(id, out var facts) ? facts.TypeValue : null;
+    }
+
+    /// <summary>
+    /// The declared-type warning (1.30.0): the record contradicts the type declared for the folder - the same rule as the Info
+    /// panel's conflict badge and the matcher's evidence (<see cref="DeclaredFactsComparer.TypeSignal"/>). A hint, never a block.
+    /// </summary>
+    internal static IdentifyWarningDto? DeclaredTypeWarning(DeclaredType? declared, MetadataRecordEntity record)
+    {
+        if (declared is not { } type
+            || DeclaredFactsComparer.TypeSignal(type, (MetadataOrigin?)record.Origin, (MetadataFormat?)record.Format, record.Webtoon)
+                != DeclaredTypeSignal.Mismatch)
+            return null;
+        var what = record.ProviderType is { Length: > 0 } t ? t : "another type";
+        return new IdentifyWarningDto
+        {
+            Code = "declared_type",
+            Message = $"This folder is declared {DeclaredFactKeys.TypeLabel(type)}; MangaUpdates lists this record as {what}. "
+                + "A declared type is a hint: it does not block the link.",
+        };
+    }
+
+    private static List<IdentifyWarningDto> Warnings(MetadataRecordEntity record, IdentifyLocalDto local, int? yearHint, LocalUnitCounts units, bool isFolder,
+        DeclaredType? declared = null)
     {
         var warnings = new List<IdentifyWarningDto>();
         var nameLower = local.DisplayName.ToLowerInvariant();
@@ -712,6 +746,8 @@ public sealed class MetadataIdentifyService
             warnings.Add(new IdentifyWarningDto { Code = "year_mismatch", Message = $"The name says {hint}; the record starts in {year}." });
         foreach (var message in CountWarnings(units, PublishedOf(record), isFolder))
             warnings.Add(new IdentifyWarningDto { Code = "count_mismatch", Message = message });
+        if (DeclaredTypeWarning(declared, record) is { } typeWarning)
+            warnings.Add(typeWarning);
         if (record.FetchState == 1)
             warnings.Add(new IdentifyWarningDto { Code = "record_gone", Message = "MangaUpdates no longer lists this record." });
         return warnings;
