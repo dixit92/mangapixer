@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.Tests.Core.Metadata;
 
+using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Metadata.Missing;
 using Xunit;
 
@@ -191,6 +192,36 @@ public sealed class MissingUnitsTests
         Assert.Equal(MissingVerdict.Holes, r.Verdict);
         Assert.Equal([3], r.Chapters!.Missing); // 3.5 does not fill 3; no 1.5 or 2.5 is ever missing
         Assert.Equal((4, 3), (r.Chapters.ArchiveCount, r.Chapters.UnitCount));
+    }
+
+    [Fact]
+    public void SplitChapterParts_FillTheirChapter()
+    {
+        var r = MissingUnits.Evaluate(
+            One("Synthetic c001", "Synthetic c002.1", "Synthetic c002.2", "Synthetic c003", "Synthetic c003.2", "Synthetic c004"),
+            new PublishedTotals(OriginChapters: 4));
+
+        Assert.Equal(MissingVerdict.UpToDate, r.Verdict);
+        Assert.Empty(r.Chapters!.Missing);
+        Assert.Equal((6, 4), (r.Chapters.ArchiveCount, r.Chapters.UnitCount));
+    }
+
+    private static UnitNumbers Ch(decimal c) => new(null, null, c, null, decimal.Truncate(c) != c);
+
+    [Fact]
+    public void SplitsOf_TellsPartsFromExtras()
+    {
+        // 2.1 + 2.2: parts; 3 + 3.2: the file 3 is the first part; 5.4 + 5.5: .5 continues .4; 6.1 + 6.3: 6.2 is missing.
+        var s = MissingUnits.SplitsOf([Ch(2.1m), Ch(2.2m), Ch(3m), Ch(3.2m), Ch(5.4m), Ch(5.5m), Ch(6.1m), Ch(6.3m)]);
+        Assert.Equal([2, 3, 5, 6], s.Chapters.Order());
+        Assert.Equal([2.1m, 2.2m, 3.2m, 5.4m, 5.5m, 6.1m, 6.3m], s.Parts.Order());
+        Assert.Equal([5.1m, 5.2m, 5.3m, 6.2m], s.MissingParts);
+
+        // Extras stay extras: a lone .5 (with or without its whole), a lone .2, a .1 next to its whole file, 12.25.
+        var extras = MissingUnits.SplitsOf([Ch(10m), Ch(10.5m), Ch(11.5m), Ch(12.2m), Ch(13m), Ch(13.1m), Ch(14.25m), Ch(14.75m)]);
+        Assert.Empty(extras.Chapters);
+        Assert.Empty(extras.Parts);
+        Assert.Empty(extras.MissingParts);
     }
 
     [Fact]
