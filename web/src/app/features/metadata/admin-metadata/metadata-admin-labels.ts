@@ -20,8 +20,9 @@ import { formatLabel } from '../series-info-labels';
  * them (`MetadataSummaryTileComponent`) so its in-page stats can switch to one without a
  * circular import between the two components.
  */
-export type AdminMetadataTab = 'settings' | 'review' | 'flags' | 'runs' | 'missing';
-export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 'review', 'flags', 'runs', 'missing'];
+export type AdminMetadataTab = 'settings' | 'review' | 'flags' | 'runs' | 'missing' | 'official';
+/** In tab order; 1.30.0 appends Official releases after Missing (the indexes of the others never move). */
+export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 'review', 'flags', 'runs', 'missing', 'official'];
 
 export interface ReviewTabDef {
   tab: MetadataReviewTab;

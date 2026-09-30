@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -12,6 +12,8 @@ import { ApiError, MissingReportSummaryDto, MissingSeriesDto } from '../../../co
 import { MetadataReviewStateService } from '../metadata-review-state.service';
 import { ReviewLibraryOption } from '../review/review-dashboard.component';
 import { MissingReportApiService } from './missing-report-api.service';
+import { reachSentence, upgradeText } from '../progress/series-progress-labels';
+import { CompletionMarkComponent } from '../official/completion-mark.component';
 import {
   MISSING_CONFIDENCE_LABELS, MISSING_VERDICT_LABELS, batchSentence, conversionLine, gapDetail, gapsOf, haveSentence, noVerdictReason, totalTooltip,
 } from './missing-labels';
@@ -19,7 +21,8 @@ import {
 type Filter = 'missing' | 'all';
 
 /**
- * Missing tab of `/admin/metadata` (1.28.0): every folder linked to a series, its highest volume / chapter
+ * Missing tab of `/admin/metadata` (1.28.0; 1.30.0: volume files and chapter files merged through the stored volume list - the
+ * same engine as the Volumes view - and an official volume held as chapters is an upgrade, never behind): every folder linked to a series, its highest volume / chapter
  * number on disk against the total its stored record states (English publisher first, then the country of
  * origin, then the latest chapter), holes in the local numbering, and where the total came from. Built from
  * stored data only - opening the tab never contacts a provider. Default filter: behind or with gaps.
@@ -29,13 +32,14 @@ type Filter = 'missing' | 'all';
   standalone: true,
   imports: [
     RouterLink, MatButtonModule, MatButtonToggleModule, MatFormFieldModule, MatIconModule, MatProgressSpinnerModule, MatSelectModule,
-    MatTooltipModule,
+    MatTooltipModule, CompletionMarkComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="missing" data-testid="missing-report">
-      <p class="intro">Compares the volume and chapter numbers in your archive names with the totals of each linked series'
-        stored record. Nothing is fetched to build this list; totals update when records refresh.</p>
+      <p class="intro">Compares the volumes and chapters in your folders - volume files and chapter files merged through each linked
+        series' stored volume list - with what its stored record says is released in your language. Nothing is fetched to build
+        this list; totals update when records refresh.</p>
       <div class="toolbar">
         <mat-button-toggle-group [value]="filter()" (change)="setFilter($event.value)" aria-label="Which series" hideSingleSelectionIndicator>
           <mat-button-toggle value="missing" data-testid="missing-filter-missing">Behind or with gaps</mat-button-toggle>
@@ -68,6 +72,9 @@ type Filter = 'missing' | 'all';
         <p class="summary" data-testid="missing-summary">
           {{ s.series }} linked series · <span class="behind">{{ s.behind }} behind</span> · {{ s.holes }} with gaps ·
           {{ s.upToDate }} up to date @if (s.noTotal) { · {{ s.noTotal }} without a total } @if (s.noVerdict) { · {{ s.noVerdict }} not comparable }
+          @if (s.upgrades) {
+            · <button type="button" class="link" (click)="openOfficial.emit()" data-testid="missing-upgrades-link">{{ s.upgrades }} with official volumes to get</button>
+          }
         </p>
       }
 
@@ -88,8 +95,11 @@ type Filter = 'missing' | 'all';
                 <header>
                   <a class="name" [routerLink]="['/series', row.nodeId]" data-testid="missing-series-link">{{ row.displayName }}</a>
                   <span class="verdict" data-testid="missing-verdict">{{ verdictLabels[row.verdict] }}</span>
+                  <app-completion-mark [progress]="row.progress" />
                 </header>
                 <p class="meta">{{ row.recordTitle }} · {{ row.libraryName }}@if (row.linkState === 'Auto') { · <span class="auto">automatic link</span> }</p>
+                @if (reachSentence(row.progress); as r) { <p class="reach" data-testid="missing-reach">{{ r }}</p> }
+                @if (row.progress && upgradeText(row.progress); as u) { <p class="note upgrade" data-testid="missing-upgrade">{{ u }} (an upgrade, not missing)</p> }
                 @for (gap of gapsOf(row); track gap.kind) {
                   <p class="gap" data-testid="missing-gap">
                     <span class="have">{{ haveSentence(gap) }}</span>
@@ -141,6 +151,9 @@ type Filter = 'missing' | 'all';
     .lib-filter { width: 220px; }
     .summary { margin: 4px 0 12px; font-size: 13px; color: #c8c8d4; }
     .summary .behind { color: #ffb74d; }
+    .link { background: none; border: 0; padding: 0; font: inherit; color: #b39dff; cursor: pointer; text-decoration: underline; }
+    .reach { margin: 2px 0; font-size: 13px; overflow-wrap: anywhere; }
+    .note.upgrade { color: #b39dff; }
     .list { display: flex; flex-direction: column; gap: 8px; }
     .row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: #1c1c26;
       border: 1px solid rgba(255, 255, 255, 0.06); border-left: 3px solid #555; }
@@ -187,6 +200,8 @@ export class MissingReportComponent implements OnInit {
 
   readonly libraries = input<ReviewLibraryOption[]>([]);
   readonly initialLibrary = input<string | null>(null);
+  /** 1.30.0: the summary's "with official volumes to get" opens the Official releases tab. */
+  readonly openOfficial = output<void>();
 
   readonly filter = signal<Filter>('missing');
   readonly library = signal<string | null>(null);
@@ -233,6 +248,8 @@ export class MissingReportComponent implements OnInit {
   readonly gapsOf = gapsOf;
   readonly noVerdictReason = noVerdictReason;
   readonly conversionLine = conversionLine;
+  readonly reachSentence = reachSentence;
+  readonly upgradeText = upgradeText;
 
   ngOnInit(): void {
     this.library.set(this.initialLibrary());

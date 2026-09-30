@@ -107,6 +107,7 @@ test('every main page fits a phone and a tablet screen', async ({ page }) => {
     ['metadata flags', '/admin/metadata?tab=flags'],
     ['metadata runs', '/admin/metadata?tab=runs'],
     ['metadata missing', '/admin/metadata?tab=missing'],
+    ['metadata official releases', '/admin/metadata?tab=official'],
     ['debug log', '/admin/logging'],
     ['reader', `/reader/${archiveId}`],
   ];

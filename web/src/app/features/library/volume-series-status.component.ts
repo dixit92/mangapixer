@@ -1,41 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 
-import { MetadataOrigin, MetadataOriginStatus, VolumeViewDto } from '../../core/api/api-types';
+import { VolumeViewDto } from '../../core/api/api-types';
+import {
+  ORIGIN_PLACES, STATUS_WORDS, folderLine, languageName, progressIcon, trackersLine,
+} from '../metadata/progress/series-progress-labels';
 
-const STATUS_WORDS: Partial<Record<MetadataOriginStatus, string>> = {
-  Ongoing: 'Ongoing',
-  Complete: 'Complete',
-  Hiatus: 'On hiatus',
-  Cancelled: 'Cancelled',
-};
-
-/** A language code as an English name ("fr" -> "French"); the code itself when the runtime cannot name it. */
-export function languageName(code: string | null | undefined): string {
-  if (!code) return '';
-  try {
-    return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) ?? code;
-  } catch {
-    return code;
-  }
-}
-
-/** Where the publication status applies ("Complete (Japan)"); null for an unknown or "other" origin. */
-const ORIGIN_PLACES: Partial<Record<MetadataOrigin, string>> = {
-  Japan: 'Japan',
-  Korea: 'Korea',
-  ChinaTaiwan: 'China / Taiwan',
-  EnglishOriginal: 'English original',
-  Philippines: 'Philippines',
-  Indonesia: 'Indonesia',
-  Thailand: 'Thailand',
-  Vietnam: 'Vietnam',
-  Malaysia: 'Malaysia',
-  Nordic: 'Nordic',
-  French: 'France',
-  Spanish: 'Spain',
-  German: 'Germany',
-};
+export { languageName };
 
 /**
  * What is out in the preferred language, when known: the official release ("English: 12 of 14 volumes", "English: complete"),
@@ -80,34 +51,65 @@ export function seriesStatusLine(view: VolumeViewDto | null | undefined): string
   return line || null;
 }
 
-/** The status line under the browse bar while the Volumes view of a linked series is shown. */
+/**
+ * The status lines under the browse bar while the Volumes view of a linked series is shown. 1.30.0 (reach): two lines from the
+ * series' progress - the trackers ("Ongoing (Japan): 22 volumes · English (Yen Press): 14 volumes, ongoing · English scanlation:
+ * to chapter 65") and what the folder holds ("You have volumes 1-14 + chapters 47-65 · up to date · Volume 15 available in
+ * English"), with the completion mark; the 1.29.0 one-line form when the server sends no progress.
+ */
 @Component({
   selector: 'app-volume-series-status',
   standalone: true,
   imports: [MatIconModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (line(); as text) {
-      <p class="status" [class.missing]="hasMissing()" data-testid="series-status" [title]="hint()">
-        <mat-icon aria-hidden="true">{{ hasMissing() ? 'error_outline' : 'check_circle_outline' }}</mat-icon>
-        <span>{{ text }}</span>
-      </p>
+    @if (lines(); as l) {
+      <div class="status" [class.missing]="hasMissing()" [class.complete]="complete()" data-testid="series-status" [title]="hint()">
+        <mat-icon aria-hidden="true">{{ icon() }}</mat-icon>
+        <div class="text">
+          @if (l.trackers) { <span class="trackers" data-testid="series-trackers">{{ l.trackers }}</span> }
+          @if (l.folder) { <span class="folder" data-testid="series-folder">{{ l.folder }}</span> }
+        </div>
+      </div>
     }
   `,
   styles: [`
     :host { display: block; }
-    .status { display: flex; align-items: center; gap: 6px; margin: -6px 0 12px; font-size: 13px; color: #b8b8c6; }
-    .status.missing { color: #ffcc80; }
-    mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    .status { display: flex; align-items: flex-start; gap: 6px; margin: -6px 0 12px; font-size: 13px; color: #b8b8c6; min-width: 0; }
+    .text { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+    .status.missing .folder { color: #ffcc80; }
+    .status.missing mat-icon { color: #ffcc80; }
+    .status.complete mat-icon, .status.complete .folder { color: #a5d6a7; }
+    mat-icon { font-size: 18px; width: 18px; height: 18px; flex: none; }
   `],
 })
 export class VolumeSeriesStatusComponent {
   readonly view = input.required<VolumeViewDto>();
 
-  readonly line = computed(() => seriesStatusLine(this.view()));
-  readonly hasMissing = computed(() => (this.view().missingVolumes ?? 0) + (this.view().missingChapters ?? 0) > 0);
+  /** The two lines of the progress, else the 1.29.0 single line as the "folder" line. */
+  readonly lines = computed(() => {
+    const view = this.view();
+    if (!view.hasSeriesStatus) return null;
+    const progress = view.progress;
+    if (progress) {
+      const trackers = trackersLine(progress);
+      const folder = folderLine(progress);
+      return trackers || folder ? { trackers, folder } : null;
+    }
+    const line = seriesStatusLine(view);
+    return line ? { trackers: null, folder: line } : null;
+  });
+  readonly hasMissing = computed(() => {
+    const p = this.view().progress;
+    return p ? p.missingVolumes + p.missingChapters > 0 : (this.view().missingVolumes ?? 0) + (this.view().missingChapters ?? 0) > 0;
+  });
+  readonly complete = computed(() => this.view().progress?.completion === 'CompleteCollection');
+  readonly icon = computed(() => {
+    const p = this.view().progress;
+    return p ? progressIcon(p) : this.hasMissing() ? 'error_outline' : 'check_circle_outline';
+  });
   readonly hint = computed(() => {
-    const name = languageName(this.view().language);
+    const name = languageName(this.view().language ?? this.view().progress?.trackers.language);
     return name ? `Missing means released in ${name}, your preferred language.` : '';
   });
 }
