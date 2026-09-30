@@ -133,3 +133,32 @@ test('every main page fits a phone and a tablet screen', async ({ page }) => {
 
   expect(failures, `pages that do not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });
+
+test('the declared-facts dialog and its type list fit a phone and a tablet screen', async ({ page }) => {
+  // 1.30.0: each type names its country of origin ("Manhwa (Korea)") and the dialog explains the type is a hint.
+  test.setTimeout(120_000);
+  const failures: string[] = [];
+  await login(page);
+  const [, folderId] = await ensureLibrary(page);
+  for (const size of SIZES) {
+    await page.setViewportSize(size);
+    await page.goto(`/series/${folderId}`);
+    await page.getByTestId('series-admin-menu').click();
+    await page.getByTestId('declared-facts').click();
+    await expect(page.getByTestId('declared-type-hint')).toBeVisible();
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-declared-facts.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px declared facts: ${p.kind}: ${p.what} - ${p.detail}`);
+
+    // Open the type list with the keyboard (a closed mat-select is driven by keys, 1.29.0 CI flake).
+    await page.getByTestId('declared-type-select').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('option', { name: 'Manhwa (Korea)' })).toBeVisible();
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-declared-type-list.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px declared type list: ${p.kind}: ${p.what} - ${p.detail}`);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+  }
+  expect(failures, `declared-facts dialog does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+});
