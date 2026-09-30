@@ -45,12 +45,14 @@ public sealed class VolumeMapService
     private readonly MissingConversionService _conversion;
     private readonly CompanionLinkService _companions;
     private readonly TimeProvider _time;
+    private readonly Reach.ReachCheckService? _reach;
     private readonly ILogger<VolumeMapService> _logger;
 
     public VolumeMapService(
         MangaPixerDbContext db, MetadataGateway gateway, IMangaDexProvider mangaDex, MissingConversionService conversion,
-        CompanionLinkService companions, TimeProvider time, ILogger<VolumeMapService> logger)
+        CompanionLinkService companions, TimeProvider time, ILogger<VolumeMapService> logger, Reach.ReachCheckService? reach = null)
     {
+        _reach = reach;
         _db = db;
         _gateway = gateway;
         _mangaDex = mangaDex;
@@ -281,7 +283,8 @@ public sealed class VolumeMapService
             map = new SeriesVolumeMapEntity { RecordId = series.Id, Source = (int)source };
             _db.SeriesVolumeMaps.Add(map);
         }
-        if (!string.Equals(map.ContentHash, hash, StringComparison.Ordinal))
+        var changed = !string.Equals(map.ContentHash, hash, StringComparison.Ordinal);
+        if (changed)
         {
             map.State = (int)state;
             map.VolumesJson = volumesJson;
@@ -298,6 +301,9 @@ public sealed class VolumeMapService
         map.FetchedAt = now;
         map.NextCheckAt = CompanionSchedule.NextCheck(series, now);
         await _db.SaveChangesAsync(ct);
+        // 1.30.0 (reach): a new or changed volume list may show that an automatic link contradicts what its folder holds.
+        if (changed && _reach is not null)
+            await _reach.TryCheckRecordAsync(series.Id, ct);
         return map;
     }
 

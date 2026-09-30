@@ -6,6 +6,7 @@ using System.Threading.RateLimiting;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Hosting;
@@ -256,6 +257,41 @@ public sealed class VolumeCoversHttpTests
         var paths = factory.Handler.Seen.Where(s => s.Uri.Host == MetadataHttp.MangaDexApiHost).Select(s => s.Uri.AbsolutePath).ToList();
         Assert.Equal(["/manga", "/cover", $"/manga/{MdFixtures.BerserkId}/aggregate", $"/manga/{MdFixtures.BerserkId}/aggregate"], paths);
         Assert.DoesNotContain(factory.Handler.Seen, s => s.Uri.Host == MetadataHttp.MangaDexImageHost); // lists only, no images
+    }
+
+    [Fact]
+    public async Task StoringTheVolumeList_RechecksTheRecordsAutoLinks_AFolderFarPastItDropsToReview()
+    {
+        // 1.30.0 (reach): the wiring of the reach check - the admin Refresh reads the MangaDex volume list, the store runs the check.
+        using var factory = new MetadataNetworkWebApplicationFactory(configureServices: s => Services(s, new FakeCoverRenderer()));
+        var admin = await StartAsync(factory, automatic: false);
+        long farId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            var lib = await db.Libraries.SingleAsync(l => l.PublicId == LibPub);
+            var record = await db.MetadataRecords.SingleAsync(r => r.PublicId == "vcrec");
+            var far = Node("vcFar", lib.Id, null, CatalogNodeKind.Folder, $"{Sentinel} Far");
+            db.CatalogNodes.Add(far);
+            await db.SaveChangesAsync();
+            db.CatalogNodes.Add(Node("vcFarA", lib.Id, far.Id, CatalogNodeKind.Archive, $"{Sentinel} Far c2000"));
+            db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
+            {
+                NodeId = far.Id, LibraryId = lib.Id, State = (int)SeriesLinkState.Auto, RecordId = record.Id,
+                CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+            farId = far.Id;
+        }
+
+        (await admin.PostAsync("/api/v1/admin/metadata/nodes/vcFolder/refresh", null)).EnsureSuccessStatusCode();
+
+        using var check = factory.Services.CreateScope();
+        var after = check.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+        Assert.Equal((int)SeriesLinkState.NeedsReview, (await after.NodeSeriesLinks.SingleAsync(l => l.NodeId == farId)).State);
+        Assert.Equal((int)SeriesLinkState.Auto, (await after.NodeSeriesLinks.SingleAsync(l => l.Node!.PublicId == "vcFolder")).State);
+        var candidate = await after.MetadataMatchCandidates.SingleAsync(c => c.NodeId == farId);
+        Assert.Equal((int)MatchReason.ReachConflict, candidate.Reasons);
     }
 
     [Fact]

@@ -638,6 +638,8 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.Missing.MissingReportService>();
         // Official releases tab (1.30.0, reach): stored data only, no request.
         services.AddScoped<Features.Metadata.Reach.OfficialReleasesService>();
+        // Reach check (1.30.0): an Auto link whose folder contradicts its record's new data drops to review.
+        services.AddScoped<Features.Metadata.Reach.ReachCheckService>();
         // AniList (1.28.0): ONLY the Missing report's chapters-per-volume lookup (admin action); not an
         // IMetadataProvider, so Identify / auto-match / refresh never see it.
         services.AddSingleton<Features.Metadata.Providers.AniList.IUnitConversionProvider, Features.Metadata.Providers.AniList.AniListProvider>();

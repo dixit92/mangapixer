@@ -263,6 +263,13 @@ public enum MatchReason
     /// cover. No reason chip (it never demotes); kept so the stored reasons show why a tie was broken.
     /// </summary>
     CoverMatch = 1 << 9,
+
+    /// <summary>
+    /// 1.30.0 (lane R, reach): after linking, the folder's reach contradicts the record - a volume or chapter file far past every
+    /// total known for it (the Auto link dropped to Needs review), or chapter files whose stated volumes disagree with the record's
+    /// volume list (flagged on the Auto-linked list only). Never raised by the scorer.
+    /// </summary>
+    ReachConflict = 1 << 10,
 }
 
 public sealed record ScoredCandidate(MatchCandidate Candidate, double TitleScore, double AdjustedScore, MatchReason Reasons);

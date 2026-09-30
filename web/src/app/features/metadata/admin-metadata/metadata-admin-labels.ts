@@ -65,6 +65,7 @@ const REASONS: Record<string, { label: string; tip: string }> = {
   author: { label: 'Author', tip: 'An author in your files differs from the record\'s authors.' },
   number: { label: 'Numbered', tip: 'A number in the folder name does not match the record.' },
   review_only: { label: 'Review only', tip: 'This folder shape is never linked automatically (a collection or an archive group).' },
+  reach: { label: 'Reach', tip: 'What the folder holds does not fit this series: its volumes or chapters go far past the record, or its volume numbers disagree with the series\' volume list.' },
 };
 
 export function reasonLabel(code: string): string {

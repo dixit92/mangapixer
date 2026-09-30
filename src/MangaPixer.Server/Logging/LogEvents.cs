@@ -404,6 +404,10 @@ public static class LogEvents
         public const int VolumeCoverWaiting = 9305;
         public const int VolumeCoversDeleted = 9306;
 
+        // Reach (1.30.0, 9350-9359). Node / record ids, counts and the conflict kind only - never names or titles.
+        public const int ReachConflict = 9350;
+        public const int ReachCheckFailed = 9351;
+
         // Cover layer (1.29.0, 9380-9389). Node ids, counts, sources and codes only - never paths or names.
         public const int CoverDecided = 9380;
         public const int CoverDecisionFailed = 9381;
