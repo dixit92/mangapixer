@@ -1447,7 +1447,7 @@ export interface MetadataReviewCandidateDto {
   volumes?: number | null;
   titleScore: number;
   adjustedScore: number;
-  /** close_second, count, year, type, related_pair, one_shot, author, number, review_only. */
+  /** close_second, count, year, type, related_pair, one_shot, author, number, review_only; declared_type, not_declared_type (1.30.0). */
   reasons?: string[];
   /** For GET /admin/metadata/candidates/{token}/image (fetched only when loaded). */
   imageToken?: string | null;

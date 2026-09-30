@@ -225,7 +225,8 @@ describe('MetadataSettingsComponent', () => {
     expect(text).toContain('in every library whose Fetch switch is on');
     expect(text).toContain('What is sent automatically:');
     expect(text).toContain('nobody reviews before it is sent');
-    expect(text).toContain('For a folder declared manga, manhwa or manhua, automatic searches leave the other two types out.');
+    // 1.30.0: a declared type is no longer sent as a search filter, so the consent text no longer names it.
+    expect(text).not.toContain('declared manga');
     expect(text).toContain('Cover comparison:');
     expect(text).toContain('download the cover images of those two series from MangaUpdates\' image server (cdn.mangaupdates.com)');
     expect(text).toContain('These downloads carry nothing from your library.');

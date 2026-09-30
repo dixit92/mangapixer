@@ -1,5 +1,5 @@
 import { NodeDeclaredFactsDto } from '../../../core/api/api-types';
-import { conflictText, creatorsText, declaredErrorText, declaredSummary, hasDeclared, sourceText } from './declared-facts';
+import { conflictText, creatorsText, declaredErrorText, declaredSummary, declaredTypeLabel, DECLARED_TYPE_OPTIONS, hasDeclared, sourceText } from './declared-facts';
 
 /** Declared facts labels (1.28.0): sources, summaries, the conflict line (both sides), error words. */
 describe('declared facts labels', () => {
@@ -11,11 +11,20 @@ describe('declared facts labels', () => {
     expect(sourceText(null, null)).toBe('');
   });
 
+  it('names every type with its country of origin (1.30.0)', () => {
+    expect(DECLARED_TYPE_OPTIONS.map((o) => o.label)).toEqual([
+      'Manga (Japan)', 'Manhwa (Korea)', 'Manhua (China)', 'Webtoon (any country)', 'Comic (Western)', 'Graphic novel (Western)',
+      'Novel (any country)',
+    ]);
+    expect(declaredTypeLabel('Manhua')).toBe('Manhua (China)');
+    expect(declaredTypeLabel(null)).toBe('');
+  });
+
   it('lists creators with their role and summarizes a scope', () => {
     expect(creatorsText([{ name: 'A Writer', role: 'writer' }, { name: 'An Artist', role: 'artist' }, { name: 'Someone' }]))
       .toBe('A Writer (Story), An Artist (Art), Someone');
-    expect(declaredSummary('GraphicNovel', [])).toBe('Graphic novel');
-    expect(declaredSummary('Manga', [{ name: 'One Name' }])).toBe('Manga · One Name');
+    expect(declaredSummary('GraphicNovel', [])).toBe('Graphic novel (Western)');
+    expect(declaredSummary('Manga', [{ name: 'One Name' }])).toBe('Manga (Japan) · One Name');
     expect(declaredSummary(null, [{ name: 'A' }, { name: 'B' }])).toBe('2 creators');
     expect(declaredSummary(null, null)).toBe('');
     expect(hasDeclared({ creators: [] })).toBe(false);

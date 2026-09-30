@@ -53,7 +53,7 @@ describe('DeclaredFactsDialogComponent', () => {
     const { c, el, api } = create();
     expect(api.get).toHaveBeenCalledWith({ kind: 'folder', id: 'f1' });
     expect(text(el.querySelector('[data-testid="declared-lead"]')!)).toContain('For this folder and everything below it: Synthetic Series');
-    expect(c.inheritedTypeText()).toBe('Inherit: Manhwa (from Synthetic Shelf)');
+    expect(c.inheritedTypeText()).toBe('Inherit: Manhwa (Korea), from Synthetic Shelf');
     expect(text(el.querySelector('[data-testid="declared-creators-inherited"]')!))
       .toBe('Inherits Library Author (Story & art) (from the Comics library)');
     expect(el.querySelector('[data-testid="declared-clear"]')).toBeNull();
@@ -127,7 +127,7 @@ describe('DeclaredFactsLineComponent', () => {
       effective: { type: 'Manga', typeSource: 'Library', typeFrom: 'Comics', creators: [{ name: 'Web Author', role: 'author' }], creatorsSource: 'Own' },
     });
     expect(api.forNode).toHaveBeenCalledWith('n1');
-    expect(text(el.querySelector('[data-testid="declared-line"]')!)).toBe('Declared: Manga · Web Author (Story & art)');
+    expect(text(el.querySelector('[data-testid="declared-line"]')!)).toBe('Declared: Manga (Japan) · Web Author (Story & art)');
     expect(el.querySelector('[data-testid="declared-conflict"]')).toBeNull();
   });
 
@@ -137,7 +137,7 @@ describe('DeclaredFactsLineComponent', () => {
       effective: { type: 'Manhwa', typeSource: 'Own', creators: [{ name: 'Someone Else' }], creatorsSource: 'Own' },
       conflict: { providerName: 'MangaUpdates', type: true, recordType: 'Manga', creators: true, recordCreators: ['Web Author'] },
     });
-    expect(text(el.querySelector('[data-testid="declared-type"]')!)).toBe('Manhwa');
+    expect(text(el.querySelector('[data-testid="declared-type"]')!)).toBe('Manhwa (Korea)');
     const conflict = el.querySelector('[data-testid="declared-conflict"]')!;
     expect(conflict.getAttribute('role')).toBe('note');
     expect(text(conflict)).toContain('Conflict MangaUpdates says: Manga · Web Author');
@@ -175,6 +175,6 @@ describe('LibraryDeclaredFactsComponent', () => {
     expect(dialog.open).toHaveBeenCalledWith({ kind: 'library', id: 'lib1' });
     await fixture.whenStable();
     fixture.detectChanges();
-    expect(text(el.querySelector('[data-testid="library-declared-summary"]')!)).toBe('Manga · 2 creators');
+    expect(text(el.querySelector('[data-testid="library-declared-summary"]')!)).toBe('Manga (Japan) · 2 creators');
   });
 });
