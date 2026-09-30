@@ -14,7 +14,6 @@ public sealed class OfficialReleasesController(OfficialReleasesService service) 
 {
     [HttpGet]
     [ProducesResponseType<OfficialReleasesPageDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> List([FromQuery] string? library = null, [FromQuery] OfficialReleasesFilter filter = OfficialReleasesFilter.ToAct,
         [FromQuery] string? cursor = null, [FromQuery] int limit = 50, CancellationToken ct = default)
     {
