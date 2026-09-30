@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Metadata Manager > Review on a phone:** the covers now sit above each row's text. The series name had been squeezed to one letter per line and the covers ran off the left edge of the screen.
+
 ## [1.29.1] - 2026-09-30
 
 ### Fixed

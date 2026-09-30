@@ -1,4 +1,5 @@
 import { test, expect, Page, APIRequestContext, Request, Route } from '@playwright/test';
+import { expectFitsScreen } from './layout';
 
 /**
  * The Metadata Manager admin page (metadata stage 2, lane C; renamed from "Series
@@ -303,6 +304,15 @@ test('phone: review cards with a bottom action bar, no inline actions', async ({
   await expect(bar).toBeVisible();
   await expect(bar.getByTestId('bar-accept')).toBeVisible();
   await expect(page.getByTestId('review-accept')).toHaveCount(0); // no inline actions on phone
+  // The rows fit the screen: covers above the text, the title one line wide (1.28.0 - 1.29.1 squeezed it to one letter per line).
+  await expectFitsScreen(page, 'review tab (phone)');
+  await page.getByTestId('review-name').first().click();
+  await expectFitsScreen(page, 'review tab, focused row (phone)');
+  // The text column has room and the name is one line (it was ~10 px wide and 200+ px tall).
+  const column = await page.getByTestId('review-row').first().locator('.main').boundingBox();
+  const name = await page.getByTestId('review-name').first().boundingBox();
+  expect(column!.width).toBeGreaterThan(200);
+  expect(name!.height).toBeLessThan(40);
   await shot(page, 'c-09-review-phone');
   await pageTab(page, 'Settings').click();
   await expect(page.getByTestId('metadata-settings-card')).toBeVisible();

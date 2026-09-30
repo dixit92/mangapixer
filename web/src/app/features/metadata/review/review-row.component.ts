@@ -252,7 +252,8 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
       outline: none; transition: border-color 120ms; }
     .row.focused { border-color: #b39dff; box-shadow: 0 0 0 1px #b39dff inset; }
     .row.selected { background: #242036; }
-    .layout { display: flex; align-items: flex-start; gap: 12px; container-type: inline-size; }
+    /* Wraps: below 520 px the covers take a line of their own above the text (flex-basis 100% in the container query). */
+    .layout { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; container-type: inline-size; }
     .main { flex: 1 1 260px; min-width: 0; }
     .head { display: flex; align-items: flex-start; gap: 10px; }
     .sel { margin-top: 6px; }
