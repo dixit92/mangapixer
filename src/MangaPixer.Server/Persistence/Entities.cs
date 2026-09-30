@@ -1339,6 +1339,15 @@ public sealed class MetadataMatchCandidateEntity
     public string? ImageRemoteUrl { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
+    /// <summary>
+    /// 1.30.0: the <see cref="Rank"/> of the first candidate of this one's series family among the work's stored candidates
+    /// (<c>SeriesFamilies</c>); null when no other stored candidate is its family.
+    /// </summary>
+    public int? FamilyGroup { get; set; }
+
+    /// <summary>1.30.0: this candidate's role in its series family (<c>SeriesFamilyRole</c> code: <c>main_story</c>, <c>spin_off</c>, ...).</summary>
+    public string? FamilyRole { get; set; }
+
     public CatalogNodeEntity? Node { get; set; }
 }
 

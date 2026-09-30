@@ -194,7 +194,9 @@ public sealed record MetadataReviewCandidateDto
 
     /// <summary>
     /// Reason chips: <c>close_second</c>, <c>count</c>, <c>year</c>, <c>type</c>, <c>related_pair</c>, <c>one_shot</c>, <c>author</c>,
-    /// <c>number</c>, <c>review_only</c>; the declared-type evidence (1.30.0) <c>declared_type</c> (fits) and <c>not_declared_type</c>.
+    /// <c>number</c>, <c>review_only</c>; the declared-type evidence (1.30.0) <c>declared_type</c> (fits) and <c>not_declared_type</c>;
+    /// <c>reach</c>; the series family (1.30.0) <c>subtitle_family</c> (only the folder's subtitle separates the top from a record of
+    /// its family) and <c>series_family</c> (another candidate is the same series family).
     /// </summary>
     public IReadOnlyList<string> Reasons { get; init; } = [];
 
@@ -203,6 +205,19 @@ public sealed record MetadataReviewCandidateDto
     /// poster is fetched (one request, gated) only when the client loads it.
     /// </summary>
     public string? ImageToken { get; init; }
+
+    /// <summary>
+    /// 1.30.0: candidates of this row that are one series family (a main story with its spin-offs, side stories, prequels or
+    /// sequels - MangaUpdates' related series, else the same title head and author) share this value: the <see cref="Rank"/> of
+    /// the family's first candidate. Null when no other candidate of the row is its family.
+    /// </summary>
+    public int? FamilyGroup { get; init; }
+
+    /// <summary>
+    /// 1.30.0: the candidate's role in its family: <c>main_story</c>, <c>spin_off</c>, <c>side_story</c>, <c>prequel</c>, <c>sequel</c>,
+    /// <c>alternate</c>, <c>adaptation</c>, <c>source</c> or <c>related</c> (same family, relation unknown). Null without a family.
+    /// </summary>
+    public string? FamilyRole { get; init; }
 }
 
 /// <summary>One row of a review tab: a work (a folder, an archive, or a numbered archive group).</summary>

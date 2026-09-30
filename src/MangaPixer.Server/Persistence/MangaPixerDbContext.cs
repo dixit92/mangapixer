@@ -296,6 +296,7 @@ public sealed class MangaPixerDbContext : DbContext
             e.Property(x => x.Title).IsRequired().HasMaxLength(512);
             e.Property(x => x.ProviderType).HasMaxLength(32);
             e.Property(x => x.ImageRemoteUrl).HasMaxLength(512);
+            e.Property(x => x.FamilyRole).HasMaxLength(32);
             e.HasIndex(x => new { x.NodeId, x.Rank }).IsUnique();
             e.HasOne(x => x.Node)
                 .WithMany()

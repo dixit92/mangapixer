@@ -860,9 +860,13 @@ public sealed class MetadataAutoMatchService
 
     private void AddCandidates(long nodeId, IReadOnlyList<ScoredCandidate> candidates, WorkLookupResult lookup, DateTimeOffset now)
     {
+        var stored = candidates.Take(5).ToList();
+        // 1.30.0: records of one series family among the stored candidates are shown together on the review row, with their roles.
+        var families = SeriesFamilies.Of(stored.Select(c => c.Candidate).ToList());
         var rank = 1;
-        foreach (var c in candidates.Take(5))
+        foreach (var c in stored)
         {
+            var family = families[rank - 1];
             lookup.Fetched.TryGetValue(c.Candidate.ExternalId, out var full);
             lookup.HitImages.TryGetValue(c.Candidate.ExternalId, out var hitImage);
             _db.MetadataMatchCandidates.Add(new MetadataMatchCandidateEntity
@@ -882,6 +886,8 @@ public sealed class MetadataAutoMatchService
                 Reasons = (int)c.Reasons,
                 ImageRemoteUrl = full?.ImageRemoteUrl ?? hitImage,
                 CreatedAt = now,
+                FamilyGroup = family is null ? null : family.Group + 1,
+                FamilyRole = family?.Role,
             });
         }
     }
