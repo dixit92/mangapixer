@@ -6,6 +6,7 @@ using System.Text;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -152,6 +153,54 @@ public sealed class CoverResolutionService
                 result[t.NodeId] = resolved;
         }
         return result;
+    }
+
+    /// <summary>
+    /// The SERIES cover of archive cards (1.30.0, Home's Continue reading): for each archive whose nearest Confirmed / Auto link
+    /// sits on an ancestor folder, that folder's resolved cover - but only when it is the folder's OWN (an admin choice, its local
+    /// volume 1, a web cover; <see cref="CoverResolution.OwnLayer"/>), never its first file by name. Omitted (the card keeps its own
+    /// cover): unlinked or Don't match, an archive linked on its own (a one-shot), an archive that IS a volume (its own resolved
+    /// cover is a volume cover already), a folder without a cover of its own.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<long, CoverResolution>> SeriesCoversAsync(IReadOnlyCollection<CoverTarget> archives, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(archives);
+        var result = new Dictionary<long, CoverResolution>();
+        var ids = archives.Where(a => !a.IsFolder).Select(a => a.NodeId).Distinct().ToList();
+        if (ids.Count == 0)
+            return result;
+        var seriesOf = (await CoverLinks.NearestAsync(_db, ids, ct))
+            .Where(kv => kv.Value.IsLinked && kv.Value.Depth >= 1)
+            .ToDictionary(kv => kv.Key, kv => kv.Value.LinkNodeId);
+        if (seriesOf.Count == 0)
+            return result;
+
+        var candidates = seriesOf.Keys.ToList();
+        var names = await _db.CatalogNodes.AsNoTracking().Where(n => candidates.Contains(n.Id))
+            .Select(n => new { n.Id, n.DisplayName }).ToListAsync(ct);
+        var comicVolumes = (await _db.EmbeddedMetadata.AsNoTracking().Where(e => candidates.Contains(e.NodeId) && e.Volume != null)
+            .Select(e => e.NodeId).ToListAsync(ct)).ToHashSet();
+        foreach (var n in names.Where(n => IsVolumeArchive(n.DisplayName, comicVolumes.Contains(n.Id))))
+            seriesOf.Remove(n.Id);
+
+        var folderIds = seriesOf.Values.Distinct().ToList();
+        var folders = await _db.CatalogNodes.AsNoTracking()
+            .Where(n => folderIds.Contains(n.Id) && n.Kind == (int)CatalogNodeKind.Folder && n.Availability != (int)CatalogNodeAvailability.Tombstoned)
+            .Select(n => new { n.Id, n.PublicId }).ToListAsync(ct);
+        var resolved = await ResolveAsync(folders.Select(f => new CoverTarget(f.Id, f.PublicId, IsFolder: true)).ToList(), ct);
+        foreach (var (archiveId, folderId) in seriesOf)
+        {
+            if (resolved.TryGetValue(folderId, out var cover) && cover.OwnLayer)
+                result[archiveId] = cover with { NodeId = archiveId };
+        }
+        return result;
+    }
+
+    /// <summary>The archive is a volume, not a chapter: its name states a volume and no chapter, or ComicInfo gives the volume.</summary>
+    private static bool IsVolumeArchive(string name, bool comicInfoVolume)
+    {
+        var units = AutoMatchText.UnitsOf(name);
+        return units.Chapter is null && (units.Volume is not null || (units.IsEmpty && comicInfoVolume));
     }
 
     /// <summary>Resolves one node (the cover endpoint, the picker).</summary>

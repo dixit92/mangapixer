@@ -30,6 +30,14 @@ public interface ICoverResolver
     /// </summary>
     async Task<IReadOnlyDictionary<long, ResolvedCover>> ResolveAsync(IReadOnlyCollection<CoverTarget> targets, CancellationToken ct) =>
         (await ResolveUrlsAsync(targets, ct)).ToDictionary(kv => kv.Key, kv => new ResolvedCover(kv.Value, CardCoverSource.File));
+
+    /// <summary>
+    /// The series cover URL of archive cards that belong to a linked series folder with a cover of its own (1.30.0, Home's
+    /// Continue reading - <see cref="CoverResolutionService.SeriesCoversAsync"/>); archives without one are omitted and keep
+    /// their own cover. The default knows no layer, so it returns none.
+    /// </summary>
+    Task<IReadOnlyDictionary<long, string>> SeriesCoverUrlsAsync(IReadOnlyCollection<CoverTarget> archives, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyDictionary<long, string>>(new Dictionary<long, string>());
 }
 
 /// <summary>
@@ -43,6 +51,9 @@ public sealed class LayeredCoverResolver(CoverResolutionService resolutions) : I
 
     public async Task<IReadOnlyDictionary<long, ResolvedCover>> ResolveAsync(IReadOnlyCollection<CoverTarget> targets, CancellationToken ct) =>
         (await resolutions.ResolveAsync(targets, ct)).ToDictionary(kv => kv.Key, kv => new ResolvedCover(kv.Value.Url, kv.Value.Source));
+
+    public async Task<IReadOnlyDictionary<long, string>> SeriesCoverUrlsAsync(IReadOnlyCollection<CoverTarget> archives, CancellationToken ct) =>
+        (await resolutions.SeriesCoversAsync(archives, ct)).ToDictionary(kv => kv.Key, kv => kv.Value.Url);
 }
 
 /// <summary>
