@@ -1,4 +1,4 @@
-import { MissingReportPageDto, MissingSeriesDto, MissingUnitGapDto } from '../../../core/api/api-types';
+import { MissingReportPageDto, MissingSeriesDto, MissingUnitGapDto, SeriesProgressDto } from '../../../core/api/api-types';
 
 /** Synthetic report rows for the missing-report specs. */
 export function gap(over: Partial<MissingUnitGapDto> = {}): MissingUnitGapDto {
@@ -22,5 +22,15 @@ export function missingPage(items: MissingSeriesDto[], nextCursor: string | null
     summary: { series: items.length, behind: items.filter((i) => i.verdict === 'Behind').length, holes: 0, upToDate: 0, noTotal: 0, noVerdict: 0 },
     total: items.length,
     nextCursor,
+  };
+}
+
+/** A 1.30.0 progress of the owner example: volumes 1-14 + chapters 43-57, English 15 volumes (one upgrade). */
+export function ownerProgress(over: Partial<SeriesProgressDto> = {}): SeriesProgressDto {
+  return {
+    trackers: { language: 'en', origin: 'Japan', originStatus: 'Ongoing', originVolumes: 22, officialPublisher: 'Synthetic Press', officialVolumes: 15,
+      officialStatus: 'Ongoing', latestChapter: 57 },
+    reach: { volumeFiles: [{ from: 1, to: 14 }], chapters: [{ from: 43, to: 57 }], overlapChapters: 0, resolution: 'VolumeList' },
+    missingVolumes: 0, missingChapters: 0, releaseKnown: true, upgradeVolumes: [15], upgradeCount: 1, completion: 'None', ...over,
   };
 }
