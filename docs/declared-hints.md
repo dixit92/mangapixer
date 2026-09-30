@@ -1,6 +1,6 @@
 # Declared facts
 
-You know your library better than any website does. **Declared facts** let an admin write down what the works in a folder, or in a whole library, are: their **type** (manga, manhwa, manhua, webtoon, comic, graphic novel or novel) and their **creators** (names, each with an optional role). MangaPixer shows them next to the series information and points out when a linked MangaUpdates record says something else.
+You know your library better than any website does. **Declared facts** let an admin write down what the works in a folder, or in a whole library, are: their **type** (manga, manhwa, manhua, webtoon, comic, graphic novel or novel - each shown with the country it stands for, for example **Manhwa (Korea)**) and their **creators** (names, each with an optional role). MangaPixer shows them next to the series information and points out when a linked MangaUpdates record says something else.
 
 Declared facts are explicit settings. MangaPixer never guesses them from the name of a library or folder: a folder called `Manhwa` declares nothing until an admin declares it.
 
@@ -21,7 +21,7 @@ Example: the library `Comics` declares **Comic**; its folder `Imports/Korean` de
 
 In the editor:
 
-1. **Type**: pick one, or leave it at the first entry, which shows what applies from above (for example "Inherit: Manhwa (from Korean)") or **Not set**.
+1. **Type**: pick one, or leave it at the first entry, which shows what applies from above (for example "Inherit: Manhwa (Korea), from Korean") or **Not set**. The types name their country of origin: **Manga (Japan)**, **Manhwa (Korea)**, **Manhua (China)**, **Webtoon (any country)**, **Comic (Western)**, **Graphic novel (Western)** and **Novel (any country)**. Pick by where the works come from; if you are not sure, leave it unset.
 2. **Creators**: type a name, pick a role if you know it (**Story**, **Art**, **Story & art**, or **Any role**) and press **Add** (or Enter). Each creator appears as a chip; remove one with its **×**. Up to 20 creators. While a folder declares no creators, the editor shows the ones it inherits.
 3. **Save**. **Clear** removes this folder's or library's own declaration, so what is declared above applies again.
 
@@ -40,7 +40,7 @@ A declaration never changes the linked record, and the record never changes the 
 
 ## Declared facts and automatic matching
 
-With **Automatic matching** on, declared facts are used as evidence, only ever in favour of a record: a declared manga, manhwa, manhua or webtoon type prefers records of that origin, and declared creators prefer records by them (a folder of several same-titled series links the one by the declared author). A declared manga, manhwa or manhua type also narrows the automatic searches of that folder: MangaUpdates is asked to leave the other two types out, so a folder declared manhwa is not searched for manga or manhua records. That is the one way a declaration can rule records out, so check the type before you declare it - a folder of Japanese manga declared manhwa finds nothing. See [Automatic matching](series-information.md#automatic-matching).
+With **Automatic matching** on, declared facts are used as evidence. A declared **type** is a strong hint in both directions: records from the country the type names are clearly preferred, and records the type contradicts (a Japanese record for a folder declared manhwa) lose the same amount. That settles a tie between two series with the same name - a Korean webtoon and a Japanese manga both called *Wind Breaker*, for example - but it never beats a record whose title fits the folder better, and it never blocks a link: a folder declared with the wrong type still finds and links its series. The review list shows the evidence on each candidate (**Fits declared type** / **Not declared type**), and **Identify…** warns when the record you preview does not fit the declared type. Declared **creators** prefer records by them (a folder of several same-titled series links the one by the declared author) and never count against a record. See [Automatic matching](series-information.md#automatic-matching).
 
 ## Declared facts and Content
 
@@ -48,7 +48,7 @@ The folder **Content** setting (**Doujinshi & adult one-shots**, see [Series inf
 
 ## Privacy
 
-Declared facts are stored in MangaPixer's own database. Reading or changing them makes no request to MangaUpdates or any other site. The only declared fact that ever leaves your server is a declared manga, manhwa or manhua type, and only as the list of types an automatic search leaves out (see [What is sent](series-information.md#what-is-sent)); creators, other types and the folders they are declared on are never sent.
+Declared facts are stored in MangaPixer's own database. Reading or changing them makes no request to MangaUpdates or any other site, and no declared fact - type, creators, or the folders they are declared on - is ever sent anywhere; they are only compared, on your server, with what the sites return.
 
 ## Good to know
 
