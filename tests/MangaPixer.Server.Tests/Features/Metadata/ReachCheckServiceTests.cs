@@ -54,7 +54,11 @@ public sealed class ReachCheckServiceTests : IDisposable
         db.NodeSeriesLinks.Single(l => l.NodeId == folder.Id).MatchScore = 0.97;
         db.MetadataMatchQueue.Add(new MetadataMatchQueueEntity
         {
-            NodeId = folder.Id, LibraryId = lib.Id, State = 2, Outcome = (int)MatchBand.Auto, EnqueuedAt = DateTimeOffset.UtcNow,
+            NodeId = folder.Id,
+            LibraryId = lib.Id,
+            State = 2,
+            Outcome = (int)MatchBand.Auto,
+            EnqueuedAt = DateTimeOffset.UtcNow,
             OutcomeReasons = (int)MatchReason.CoverMatch,
         });
         await db.SaveChangesAsync();

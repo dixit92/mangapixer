@@ -277,8 +277,12 @@ public sealed class VolumeCoversHttpTests
             db.CatalogNodes.Add(Node("vcFarA", lib.Id, far.Id, CatalogNodeKind.Archive, $"{Sentinel} Far c2000"));
             db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
             {
-                NodeId = far.Id, LibraryId = lib.Id, State = (int)SeriesLinkState.Auto, RecordId = record.Id,
-                CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+                NodeId = far.Id,
+                LibraryId = lib.Id,
+                State = (int)SeriesLinkState.Auto,
+                RecordId = record.Id,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
             });
             await db.SaveChangesAsync();
             farId = far.Id;
