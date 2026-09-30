@@ -1,15 +1,15 @@
 # Missing volumes and chapters
 
-Which series are you behind on, and which volumes are missing from your shelf? The **Missing** report answers that for every folder linked to a series. It compares the volume and chapter numbers in your archive names with the totals the linked series record states.
+Which series are you behind on, and which volumes are missing from your shelf? The **Missing** report answers that for every folder linked to a series. It compares the volumes and chapters in your folders - volume files and chapter files merged into one range through the series' volume list, as the [Volumes view](volumes.md#what-you-have) does - with what the linked series record says is released in your language.
 
-The report is built from what MangaPixer has already stored: your archive names and the series records it fetched when the folders were linked or last refreshed. **Opening it never contacts a website.** Totals update when records refresh.
+The report is built from what MangaPixer has already stored: your archive names, the series records and volume lists it fetched when the folders were linked or last refreshed. **Opening it never contacts a website.** Totals update when records refresh.
 
 ## Where to find it
 
 - **MangaPixer Administration** > **Metadata Manager** > **Missing**. Admins only.
 - On a series page, admins also see a short line under the buttons, for example "You have volumes 1-7 of 10 (English) · 3 behind", with a link to the report.
 
-The report shows **Behind or with gaps** by default. Switch to **All linked series** to see everything, and use **Library** to narrow it to one library. The line above the list counts every linked series: how many are behind, how many have gaps, how many are up to date, how many have no known total and how many can't be compared. Each series name opens its series page, and the folder button browses the folder.
+The report shows **Behind or with gaps** by default. Switch to **All linked series** to see everything, and use **Library** to narrow it to one library. The line above the list counts every linked series: how many are behind, how many have gaps, how many are up to date, how many have no known total and how many can't be compared, and - *new in 1.30.0* - how many have official volumes you hold only as chapters (the link opens the [Official releases](official-releases.md) tab). Each series name opens its series page, and the folder button browses the folder. Each row also says what you have ("You have volumes 1-14 + chapters 47-65") and shows the **Complete collection** mark of a finished series you hold whole.
 
 ## What counts
 
@@ -19,7 +19,9 @@ The report shows **Behind or with gaps** by default. Switch to **All linked seri
 - **Extras never count as missing.** A `.5` chapter or volume (`c045.5`, `v02.5`, usually an extra) is shown where it belongs but never fills a number and is never missing: `c045.5` without `c045` still leaves chapter 45 missing.
 - **Chapter 0 alone is not progress.** A lone `000.cbz` or prologue does not make "You have chapter 0 of 223"; with no other numbered archive the series has **No numbers**.
 - **Numbering that starts again.** When `Season 1` and `Season 2` (or `Part 1` and `Part 2`) both start from chapter 1, or the same numbers appear in two subfolders, the numbers on disk can't be compared with one total. The series gets no verdict (**Numbering restarts**) instead of a wrong count. Seasons that carry on the numbering (`Season 2` starts at 101) count as one run.
-- **Volumes and chapters are counted separately** and never converted into each other. A folder with both volume and chapter archives gives no answer; it is shown as **Mixed folder**. A `Volumes` subfolder next to a `Chapters` subfolder is fine: each is compared with its own total. Chapters kept next to volumes usually carry on from the last volume, so only numbers from the lowest chapter you have upward are checked for gaps.
+- **Volume files and chapter files are merged** (*new in 1.30.0*). With the series' volume list, the chapters inside your volume files count as held, so chapter files that repeat them are counted once and nothing inside a volume file is ever missing. This works for a folder that mixes volume and chapter files as well as for separate `Volumes` and `Chapters` subfolders (a mixed folder was not compared before 1.30.0). Without a volume list, chapters kept next to volumes usually carry on from the last volume, so only numbers from the lowest chapter you have upward are checked for gaps.
+- **An official volume you hold as chapters is an upgrade, never missing.** When the English edition has volume 15 out and you have its chapters as chapter files, the series is not behind; the row says "Volume 15 available in English (an upgrade, not missing)".
+- **Chapters are compared only when you keep chapter files.** A folder of volume files is never "behind" a scanlation.
 
 ## Which total it compares with
 
@@ -65,6 +67,8 @@ The buttons appear only while **Fetch from the web** is on and AniList is one of
 
 - **You have volumes 1-3; no total known (original run: 14)**: your preferred language has no volume total, so only gaps would count.
 
-A series is **Behind** when the total is higher than your highest number, **Gaps** when it isn't behind but numbers below your highest are missing, **Up to date** when neither is true, **No total known** when nothing states what is released in your language, and **Mixed folder**, **No numbers** or **Numbering restarts** when there is nothing to compare.
+A series is **Behind** when the total is higher than your highest number, **Gaps** when it isn't behind but numbers below your highest are missing, **Up to date** when neither is true, **No total known** when nothing states what is released in your language, and **No numbers** or **Numbering restarts** when there is nothing to compare.
+
+From 1.30.0 the volume line counts a volume you hold as chapters as held ("You have volumes 1-19 of 15 (English)" can mean volumes 1-14 as files and 15-19 as chapter files), and the chapter line counts the chapters inside your volume files. An official volume's chapters count as released in your language.
 
 The report only knows what the names and the record say. A wrong link gives a wrong answer: if a series looks far behind or ahead, check that the folder is linked to the right series (**Identify…** on its series page).
