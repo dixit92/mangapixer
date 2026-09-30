@@ -187,9 +187,11 @@ const cand = (rank: number, title: string, score: number, reasons: string[] = []
 });
 
 const REVIEW_ITEMS = [
+  // 1.30.0: the first two candidates are one series family (a main story and its sequel) - shown together with their roles.
   { nodeId: 'r1', nodeKind: 'Folder', displayName: 'Synthetic Saga', libraryId: 'lib-x', libraryName: 'Sample Library',
-    trail: ['Manga'], workClass: 'Series', matchLevel: 'Folder', itemCount: 24, openFlagCount: 0, reasons: ['close_second'],
-    candidates: [cand(1, 'Synthetic Saga', 0.94, ['close_second']), cand(2, 'Synthetic Saga Returns', 0.91), cand(3, 'Synthetic Saga (Novel)', 0.9, ['type'])] },
+    trail: ['Manga'], workClass: 'Series', matchLevel: 'Folder', itemCount: 24, openFlagCount: 0, reasons: ['close_second', 'series_family'],
+    candidates: [{ ...cand(1, 'Synthetic Saga', 0.94, ['close_second']), familyGroup: 1, familyRole: 'main_story' },
+      { ...cand(2, 'Synthetic Saga Returns', 0.91), familyGroup: 1, familyRole: 'sequel' }, cand(3, 'Synthetic Saga (Novel)', 0.9, ['type'])] },
   { nodeId: 'r2', nodeKind: 'Folder', displayName: 'Example Chronicle', libraryId: 'lib-x', libraryName: 'Sample Library',
     trail: ['Manga', 'E'], workClass: 'SeriesWithUnits', matchLevel: 'Folder', itemCount: 11, openFlagCount: 1, reasons: ['count', 'year'],
     candidates: [cand(1, 'Example Chronicle', 0.88, ['count']), cand(2, 'Example Chronicles Zero', 0.8, ['year'])] },
@@ -266,6 +268,12 @@ test('review dashboard with synthetic contract-shaped data: keyboard, deferred U
   // every other candidate's poster still costs nothing until its row is expanded.
   const tokens = () => [...new Set(seen.images.map((u) => u.split('/candidates/')[1].split('/')[0]))].sort();
   await expect.poll(tokens).toEqual(['tok-14-1', 'tok-17-1', 'tok-20-1']);
+  // 1.30.0 (owner): a series family is shown together, flagged, each candidate with its role.
+  const family = rows.first().getByTestId('review-family');
+  await expect(family).toContainText('Same series family - check which one');
+  await expect(family.getByTestId('review-candidate')).toHaveCount(2);
+  await expect(family.getByTestId('review-family-role')).toHaveText(['Main story', 'Sequel']);
+  await expect(rows.first().getByTestId('review-reason')).toHaveText(['Close second', 'Series family']);
   await shot(page, 'c-05-review-desktop', true);
 
   await page.keyboard.press('e'); // expand the focused row: its other candidates' posters load now
@@ -307,6 +315,12 @@ test('phone: review cards with a bottom action bar, no inline actions', async ({
   await expect(page.getByTestId('review-accept')).toHaveCount(0); // no inline actions on phone
   // The rows fit the screen: covers above the text, the title one line wide (1.28.0 - 1.29.1 squeezed it to one letter per line).
   await expectFitsScreen(page, 'review tab (phone)');
+  // 1.30.0: the series family block on a phone card: the note and both roles visible, nothing past the screen edge.
+  const family = page.getByTestId('review-row').first().getByTestId('review-family');
+  await expect(family).toContainText('Same series family - check which one');
+  await expect(family.getByTestId('review-family-role')).toHaveText(['Main story', 'Sequel']);
+  await family.scrollIntoViewIfNeeded();
+  await expectFitsScreen(page, 'review tab, series family (phone)');
   await page.getByTestId('review-name').first().click();
   await expectFitsScreen(page, 'review tab, focused row (phone)');
   // The text column has room and the name is one line (it was ~10 px wide and 200+ px tall).
