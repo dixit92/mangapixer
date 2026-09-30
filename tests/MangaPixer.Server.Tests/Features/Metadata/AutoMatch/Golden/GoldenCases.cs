@@ -283,8 +283,13 @@ public static class GoldenCases
             WorkClass.Series, MatchBand.NeedsReview),
         new("H08 declared manhwa: the Korean \"Wind Breaker\"", F("Wind Breaker", Chaps("Wind Breaker", 40)),
             WorkClass.Series, MatchBand.Auto, WindBreakerKorea, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), [])),
-        new("H09 declared manga: the Japanese \"Wind Breaker\"", F("Wind Breaker", Chaps("Wind Breaker", 40)),
+        new("H09 declared manga, a folder of volumes: the Japanese \"Wind Breaker\"", F("Wind Breaker", Vols("Wind Breaker", 12)),
             WorkClass.Series, MatchBand.Auto, WindBreakerJapan, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manga), [])),
+        // The declaration is a hint among the other evidence: 40 chapter archives agree with the Korean record's 556 chapters
+        // (+0.01) and nothing is compared with the Japanese record's volumes, so the declared manga puts the Japanese record
+        // first by 0.09 - just under the margin: review, the declared type's record on top.
+        new("H10 declared manga, a folder of chapters: the Japanese record first, in review", F("Wind Breaker", Chaps("Wind Breaker", 40)),
+            WorkClass.Series, MatchBand.NeedsReview, WindBreakerJapan, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manga), [])),
 
         // --- 1.30.0: a folder subtitle that is a spin-off's subtitle; an author-tagged alias --------------------------------
         // The owner's fixture shape "<Series> - <Subtitle> [<Note>]" with 58 chapter archives: the spin-off record carries the

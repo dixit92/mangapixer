@@ -155,21 +155,21 @@ public sealed class AutoMatchRetrievalTests : IAsyncLifetime
     public async Task AHitMatchedThroughAnAuthorTaggedTitle_GetsOneExtraGet_AndTheTagIsVerified()
     {
         // 1.30.0 (owner-confirmed): the right record's main title is its original name; the search matched its English alias with
-        // MangaUpdates' author tag ("Moon Letter (Synthetic Author)"), which scores 0.88 until the record's authors are known. It is
+        // MangaUpdates' author tag ("Moon Letter (SYNTHETIC Author)"), which scores 0.88 until the record's authors are known. It is
         // third on the page and more than 0.10 below the best hit, so the top-two GETs skip it; one extra GET verifies the tag.
         var pages = new Dictionary<(string, int), (MuJson.Hit[], int)>
         {
             [("Moon Letter", 1)] = ([
                 new MuJson.Hit(901, "Moon Letter"),
                 new MuJson.Hit(902, "Moon Letters From Afar"),
-                new MuJson.Hit(903, "Tsuki no Tegami", HitTitle: "Moon Letter (Synthetic Author)"),
+                new MuJson.Hit(903, "Tsuki no Tegami", HitTitle: "Moon Letter (SYNTHETIC Author)"),
             ], 3),
         };
         var records = new Dictionary<long, string>
         {
-            [901] = MuJson.Get(901, "Moon Letter"),
-            [902] = MuJson.Get(902, "Moon Letters From Afar"),
-            [903] = MuJson.Get(903, "Tsuki no Tegami", alt: ["Moon Letter (Synthetic Author)"]),
+            [901] = MuJson.Get(901, "Moon Letter", status: "10 Volumes (Complete)"),
+            [902] = MuJson.Get(902, "Moon Letters From Afar", status: "10 Volumes (Complete)"),
+            [903] = MuJson.Get(903, "Tsuki no Tegami", alt: ["Moon Letter (SYNTHETIC Author)"], status: "10 Volumes (Complete)"),
         };
 
         var (result, _, gets) = await RunAsync(Query("Moon Letter"), pages, records);
@@ -191,9 +191,9 @@ public sealed class AutoMatchRetrievalTests : IAsyncLifetime
         };
         var records = new Dictionary<long, string>
         {
-            [921] = MuJson.Get(921, "Moon Letter (SOMEONE Else)"),
-            [922] = MuJson.Get(922, "Moon Letter (OTHER Person)"),
-            [923] = MuJson.Get(923, "Moon Letter (THIRD Writer)"),
+            [921] = MuJson.Get(921, status: "10 Volumes (Complete)", title: "Moon Letter (SOMEONE Else)"),
+            [922] = MuJson.Get(922, status: "10 Volumes (Complete)", title: "Moon Letter (OTHER Person)"),
+            [923] = MuJson.Get(923, status: "10 Volumes (Complete)", title: "Moon Letter (THIRD Writer)"),
         };
 
         var (_, _, gets) = await RunAsync(Query("Moon Letter"), main, records);
