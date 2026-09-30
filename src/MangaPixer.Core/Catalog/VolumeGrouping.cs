@@ -104,7 +104,8 @@ public sealed record VolumeStack(
     bool HasVolumeArchive,
     string? FirstChapter,
     string? LastChapter,
-    int? ChaptersPresent = null);
+    int? ChaptersPresent = null,
+    string? OfficialRelease = null);
 
 public enum VolumeEntryKind
 {
@@ -155,10 +156,16 @@ public sealed record VolumeEntry
 
 /// <summary>
 /// The entries plus what is missing: the missing volumes (placeholders) and the number of missing chapter units - the stacks'
-/// placeholders plus the gaps between loose chapters below the highest one present.
+/// placeholders plus the gaps between loose chapters below the highest one present. 1.30.0: the missing units themselves
+/// (<see cref="MissingChapterUnits"/>, ascending; parts of split chapters included) and the missing volume numbers, so the
+/// reach / progress engine and the Missing report read the same answer as the Volumes view.
 /// </summary>
 public sealed record VolumeGroupingResult(IReadOnlyList<VolumeEntry> Entries, int StackCount, int MissingVolumeCount = 0, int MissingChapterCount = 0)
 {
+    public IReadOnlyList<decimal> MissingChapterUnits { get; init; } = [];
+
+    public IReadOnlyList<int> MissingVolumeNumbers { get; init; } = [];
+
     /// <summary>True when at least one stack or missing-volume placeholder formed (the Volumes view differs from the flat list).</summary>
     public bool Grouped => StackCount > 0 || MissingVolumeCount > 0;
 
@@ -429,6 +436,7 @@ public static class VolumeGrouping
         }
 
         var missingVolumes = 0;
+        var missingVolumeNumbers = new List<int>();
         if (markMissingVolumes)
         {
             var present = byVolume.Keys.Where(v => v >= 1).ToHashSet();
@@ -453,12 +461,17 @@ public static class VolumeGrouping
                         Volume = v,
                     });
                     missingVolumes++;
+                    missingVolumeNumbers.Add(v);
                 }
             }
         }
 
         entries.Sort(Compare);
-        return new VolumeGroupingResult(entries, stackCount, missingVolumes, missingChapters.Count);
+        return new VolumeGroupingResult(entries, stackCount, missingVolumes, missingChapters.Count)
+        {
+            MissingChapterUnits = missingChapters.Order().ToList(),
+            MissingVolumeNumbers = missingVolumeNumbers,
+        };
     }
 
     private static VolumeEntry LooseArchive(GroupingRow row) =>
@@ -545,7 +558,22 @@ public static class VolumeGrouping
             HasVolumeArchive: hasVolumeArchive,
             FirstChapter: chapterNumbers.Count > 0 ? Canonical(chapterNumbers[0]) : null,
             LastChapter: chapterNumbers.Count > 0 ? Canonical(chapterNumbers[^1]) : null,
-            ChaptersPresent: chaptersPresent);
+            ChaptersPresent: chaptersPresent,
+            OfficialRelease: OfficialReleaseOf(volume, hasVolumeArchive, map));
+    }
+
+    /// <summary>
+    /// The language code when a volume held here WITHOUT a volume file is released officially in the preferred language (1.30.0,
+    /// "Volume 15 available in English"): a whole volume up to <see cref="VolumeMapInput.ReleasedVolumeCount"/> (the preferred
+    /// language's official volume total). Never for a volume whose file is here.
+    /// </summary>
+    public static string? OfficialReleaseOf(decimal volume, bool hasVolumeArchive, VolumeMapInput map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        return !hasVolumeArchive && volume >= 1 && decimal.Truncate(volume) == volume && map.ReleasedVolumeCount is { } n && volume <= n
+            && !string.IsNullOrEmpty(map.ReleasedLanguage)
+            ? map.ReleasedLanguage
+            : null;
     }
 
     /// <summary>One slot of the stack view: a present member or a missing chapter's placeholder.</summary>
