@@ -1197,6 +1197,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       if (this.favoritesFromQuery) this.favoritesOnly.set(true);
       this.resetList();
       this.loadLibraryName(libId);
+      // Forget the previous folder's Volumes view before loading the list: its default would otherwise pick the new folder's
+      // `group` (1.30.0 soak test - a category folder's "flat" made its series open without the missing-volume cards).
+      this.volumeView.set(null);
       this.loadNodes();
       // The jump rail is a library-root navigation aid. It is
       // only meaningful for the name sort in ascending order — its bucket

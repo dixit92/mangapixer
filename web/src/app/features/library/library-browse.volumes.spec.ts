@@ -5,7 +5,7 @@ import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of } from 'rxjs';
+import { BehaviorSubject, Observable, of } from 'rxjs';
 
 import { LibraryBrowseComponent } from './library-browse.component';
 import { ApiService } from '../../core/api/api.service';
@@ -49,12 +49,13 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
     };
   }
 
-  function setup(opts: { nodes?: CatalogNodeDto[]; view?: Partial<VolumeViewDto>; prefs?: Record<string, unknown>; admin?: boolean; viewMode?: string } = {}) {
+  function setup(opts: { nodes?: CatalogNodeDto[]; view?: Partial<VolumeViewDto>; prefs?: Record<string, unknown>; admin?: boolean; viewMode?: string;
+    route?: Observable<{ get: (k: string) => string | null }>; viewOf?: (nodeId: string) => VolumeViewDto } = {}) {
     const nodes = opts.nodes ?? [stackNode('1'), stackNode('2', { missingCount: 0, chapterCount: 8, presentCount: 8 }), archiveNode('loose')];
     const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
     const view: VolumeViewDto = { nodeId: 'f1', available: true, active: true, consolidated: false, stackCount: 2, ...opts.view };
     const apiSpy = {
-      getVolumeView: vi.fn().mockReturnValue(of(view)),
+      getVolumeView: opts.viewOf ? vi.fn().mockImplementation((id: string) => of(opts.viewOf!(id))) : vi.fn().mockReturnValue(of(view)),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: opts.viewMode ?? 'card', density: 'comfortable', sort: 'name', direction: 'asc', ...opts.prefs })),
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
@@ -73,7 +74,7 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
         { provide: ApiService, useValue: apiSpy },
         { provide: AuthService, useValue: { isAdmin: () => !!opts.admin, currentUser: () => null } },
         { provide: ReadStateService, useValue: new ReadStateService() },
-        { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : 'f1') }) } },
+        { provide: ActivatedRoute, useValue: { paramMap: opts.route ?? of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : 'f1') }) } },
       ],
     });
     const fixture = TestBed.createComponent(LibraryBrowseComponent);
@@ -115,6 +116,21 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
     expect(setup().el.querySelector('[data-testid="volume-view-switch"]')).not.toBeNull();
     TestBed.resetTestingModule();
     expect(setup({ view: { available: false, active: false, stackCount: 0 } }).el.querySelector('[data-testid="volume-view-switch"]')).toBeNull();
+  });
+
+  it('opens a series from a folder without a Volumes view with the server default, not that folder\'s "flat" (1.30.0)', () => {
+    const route = new BehaviorSubject<{ get: (k: string) => string | null }>({ get: (k) => (k === 'libraryId' ? 'lib1' : 'category') });
+    const { apiSpy } = setup({
+      route,
+      viewOf: (id) => id === 'category'
+        ? { nodeId: id, available: false, active: false, defaultActive: false, consolidated: false, stackCount: 0 }
+        : { nodeId: id, available: true, active: true, defaultActive: true, consolidated: false, stackCount: 1 },
+    });
+    expect(apiSpy.browseLibrary.mock.calls[0][1]).toBe('category');
+    route.next({ get: (k) => (k === 'libraryId' ? 'lib1' : 'series') });
+    const seriesCall = apiSpy.browseLibrary.mock.calls.at(-1)!;
+    expect(seriesCall[1]).toBe('series');
+    expect(seriesCall[10]).toBeNull(); // the category's default ("flat") must not leak into the series
   });
 
   it('follows the server default until the viewer chooses, and the stored choice after', () => {
