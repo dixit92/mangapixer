@@ -30,6 +30,7 @@ public sealed class MetadataRefreshService
     private readonly MetadataGatewayState _gatewayState;
     private readonly TimeProvider _time;
     private readonly ILogger<MetadataRefreshService> _logger;
+    private readonly Reach.ReachCheckService _reach;
 
     public MetadataRefreshService(
         MangaPixerDbContext db,
@@ -39,7 +40,8 @@ public sealed class MetadataRefreshService
         MetadataBudget budget,
         MetadataGatewayState gatewayState,
         TimeProvider time,
-        ILogger<MetadataRefreshService> logger)
+        ILogger<MetadataRefreshService> logger,
+        Reach.ReachCheckService reach)
     {
         _db = db;
         _gateway = gateway;
@@ -49,6 +51,7 @@ public sealed class MetadataRefreshService
         _gatewayState = gatewayState;
         _time = time;
         _logger = logger;
+        _reach = reach;
     }
 
     /// <summary>One pass; returns how many records were refreshed (or found gone).</summary>
@@ -104,6 +107,8 @@ public sealed class MetadataRefreshService
                     var oldImage = record.ImageRemoteUrl;
                     MetadataIdentifyService.Apply(record, fetched, at);
                     await _db.SaveChangesAsync(ct);
+                    // 1.30.0 (reach): refreshed totals may contradict an Auto link's reach (never throws).
+                    await _reach.TryCheckRecordAsync(record.Id, ct);
                     if (record.ImageRemoteUrl is not null && (record.ImageState != 1 || !string.Equals(oldImage, record.ImageRemoteUrl, StringComparison.Ordinal)))
                         await _identify.TryStoreImageAsync(record, libraryId, ct, call);
                 }

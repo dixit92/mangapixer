@@ -22,6 +22,8 @@ import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.compon
 import { MissingChapterCardComponent } from '../../shared/volume-stack/missing-chapter-card.component';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import { SeriesSelectionActionsComponent } from '../metadata/series-selection-actions.component';
+import { OfficialReleaseBadgeComponent } from '../../shared/volume-stack/official-release-badge.component';
+import { AlsoInVolumeBadgeComponent } from '../../shared/volume-stack/also-in-volume-badge.component';
 
 /**
  * The stack view of one virtual volume (1.29.0): `/libraries/:libraryId/browse/:nodeId/volume/:key`. A header (cover,
@@ -42,7 +44,7 @@ import { SeriesSelectionActionsComponent } from '../metadata/series-selection-ac
   imports: [
     RouterLink, MatButtonModule, MatIconModule, CoverImageDirective, InfoToggleComponent, StarToggleComponent,
     MissingChapterCardComponent, NodeRowComponent, SelectionBarComponent, SeriesSelectionActionsComponent,
-    CoverSelectionActionComponent,
+    CoverSelectionActionComponent, OfficialReleaseBadgeComponent, AlsoInVolumeBadgeComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -105,6 +107,7 @@ import { SeriesSelectionActionsComponent } from '../metadata/series-selection-ac
         </div>
         <div class="head-text">
           <h1 data-testid="stack-title">{{ s.label }}</h1>
+          <app-official-release-badge [language]="s.officialRelease" [overlay]="false" />
           <p class="counts" data-testid="stack-counts">{{ counts() }}</p>
           <p class="source" data-testid="stack-source">{{ sourceText() }}</p>
         </div>
@@ -134,6 +137,7 @@ import { SeriesSelectionActionsComponent } from '../metadata/series-selection-ac
                   <div class="cover">
                     @if (item.coverUrl) { <img appCover [src]="item.coverUrl" alt="" loading="lazy"> }
                     <mat-icon class="fallback">menu_book</mat-icon>
+                    <app-also-in-volume-badge [volume]="item.alsoInVolume" />
                     @if (item.isRead) {
                       <span class="badge read">✓ Read</span>
                     } @else if (item.readingState === 'InProgress') {

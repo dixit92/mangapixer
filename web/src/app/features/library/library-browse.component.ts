@@ -27,6 +27,8 @@ import { CoverSelectionActionComponent } from '../../shared/cover-picker/cover-s
 import { CoverStateService } from '../../shared/cover-picker/cover-state.service';
 import { StackCardComponent } from '../../shared/stack-card/stack-card.component';
 import { VolumeIncompleteBadgeComponent } from '../../shared/volume-stack/volume-incomplete-badge.component';
+import { OfficialReleaseBadgeComponent } from '../../shared/volume-stack/official-release-badge.component';
+import { AlsoInVolumeBadgeComponent } from '../../shared/volume-stack/also-in-volume-badge.component';
 import { VolumeViewSwitchComponent } from './volume-view-switch.component';
 import { VolumeSeriesStatusComponent } from './volume-series-status.component';
 import { MissingChapterCardComponent } from '../../shared/volume-stack/missing-chapter-card.component';
@@ -95,6 +97,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     CoverSelectionActionComponent,
     StackCardComponent,
     VolumeIncompleteBadgeComponent,
+    OfficialReleaseBadgeComponent,
+    AlsoInVolumeBadgeComponent,
     VolumeViewSwitchComponent,
     VolumeSeriesStatusComponent,
     MissingChapterCardComponent,
@@ -467,6 +471,11 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
                 }
                 <mat-icon class="cover-fallback">collections_bookmark</mat-icon>
                 <app-volume-incomplete-badge [summary]="stack" [moved]="selectMode()" />
+                <!-- 1.30.0 (reach): the volume is out officially in the preferred language (bottom-left; select mode moves the
+                     incomplete mark there). -->
+                @if (!selectMode()) {
+                  <app-official-release-badge [language]="stack.officialRelease" />
+                }
                 @if (node.isFavorite && !selectMode()) {
                   <app-volume-stack-star />
                 }
@@ -493,6 +502,9 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
                 <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
                 <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
               }
+
+              <!-- 1.30.0 (reach): a volume file of this series already holds this chapter archive. -->
+              <app-also-in-volume-badge [volume]="node.alsoInVolume" />
 
               <!-- Read/selection markers overlay the cover. -->
               <ng-container *ngTemplateOutlet="markers; context: { $implicit: node }" />

@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **What you have.** A linked series now says, above its Volumes view and on its series page, how each kind of release stands - the original run, the official release in your language (publisher, volumes, its own status) and the released chapters - and what your folder holds, with volume files and chapter files merged into one range: "You have volumes 1-14 + chapters 47-65 · up to date". Chapter files that a volume file already holds are counted once and show **Also in Volume N**.
+- **Official releases.** A volume released officially in your language that you hold only as chapters is an upgrade, not a gap: its stack says **Available in English**, and the new **Official releases** tab in Metadata Manager lists these series, finished series you don't hold whole, and your complete collections.
+- **Complete collection.** A finished series your folder holds whole is marked **Complete collection**; a series finished in your language that you don't hold whole says so.
 - **Select inside a volume.** A volume's page now has **Select**, like the folder list: tap chapters (on a phone too), Shift-click or long-press for a range, then **Mark read**, **Mark unread**, **Favorites** or - for admins - the **Series** menu and **Cover...**.
 - **Select a whole volume.** In the Volumes view a volume can be selected like a folder or an archive; **Mark read**, **Mark unread** and **Favorites** apply to every archive in it in one step. A missing volume or chapter can't be selected.
 - **List view inside a volume.** A volume's page follows your library view: with **List** chosen it shows the same compact rows as the folder list, with the same column count.
@@ -16,6 +19,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The Missing report reads volumes and chapters the same way as the Volumes view: through the series' volume list, so a folder that mixes volume and chapter files gets numbers ("Mixed folder" is gone), chapters inside your volume files count as held, and an official volume you have as chapters is never "behind".
+- MangaUpdates' English publisher notes are read per edition: omnibus, 2-in-1 / 3-in-1 and perfect editions no longer count as the English volume total, and the publisher's own status (ongoing, complete, dropped) is stored with it (records pick it up on their next refresh).
+- An automatically linked folder whose volumes or chapters go far past everything known about its series moves back to **Needs review** (reason "Reach") when the series' volume list arrives or changes, or its record is refreshed; volume numbers that disagree with the list only add the reason.
 - A declared type (manga, manhwa, manhua, webtoon, comic, graphic novel) is now a strong hint for automatic matching instead of a search filter: a series from the country the type names is clearly preferred and one the type contradicts loses the same amount, which settles a tie between two series of the same name - but a wrong declared type no longer keeps the right series from being found or linked. Nothing you declare is sent to MangaUpdates any more.
 - Declared types show the country they stand for - Manga (Japan), Manhwa (Korea), Manhua (China), Comic (Western), ... - in the declared-facts editor, the Declared line and the library list.
 - A folder named `Series - Subtitle` now matches the spin-off that carries that subtitle rather than the main series.

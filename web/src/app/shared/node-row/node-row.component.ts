@@ -10,6 +10,8 @@ import { SeriesInfoHoverDirective } from '../hover-info/series-info-hover.direct
 import { InfoToggleComponent } from '../info-toggle/info-toggle.component';
 import { StarToggleComponent } from '../star-toggle/star-toggle.component';
 import { VolumeIncompleteBadgeComponent } from '../volume-stack/volume-incomplete-badge.component';
+import { OfficialReleaseBadgeComponent } from '../volume-stack/official-release-badge.component';
+import { AlsoInVolumeBadgeComponent } from '../volume-stack/also-in-volume-badge.component';
 
 /** Short label of a folder's direction override chip ("LTR", "RTL", "Vertical", "Spread"). */
 export function directionShort(mode: ReaderMode): string {
@@ -37,7 +39,7 @@ export function directionShort(mode: ReaderMode): string {
   standalone: true,
   imports: [
     RouterLink, MatIconModule, MatTooltipModule, CoverImageDirective, FolderRollupBadgeComponent, SeriesInfoHoverDirective,
-    InfoToggleComponent, StarToggleComponent, VolumeIncompleteBadgeComponent,
+    InfoToggleComponent, StarToggleComponent, VolumeIncompleteBadgeComponent, OfficialReleaseBadgeComponent, AlsoInVolumeBadgeComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -76,6 +78,12 @@ export function directionShort(mode: ReaderMode): string {
           <div class="node-sub">{{ subtitle() }}</div>
         </div>
         <div class="row-markers">
+          <!-- 1.30.0 (reach): an official release of a volume held as chapters / a chapter a volume file here already holds. -->
+          @if (isStack()) {
+            <app-official-release-badge [language]="node().volumeStack?.officialRelease" [overlay]="false" />
+          } @else {
+            <app-also-in-volume-badge [volume]="node().alsoInVolume" [overlay]="false" />
+          }
           @if (!isStack()) {
             <app-star-toggle [nodeId]="node().id" [favorite]="!!node().isFavorite" />
             @if (!selectMode()) {
