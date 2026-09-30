@@ -6,7 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Select inside a volume.** A volume's page now has **Select**, like the folder list: tap chapters (on a phone too), Shift-click or long-press for a range, then **Mark read**, **Mark unread**, **Favorites** or - for admins - the **Series** menu and **Cover...**.
+- **Select a whole volume.** In the Volumes view a volume can be selected like a folder or an archive; **Mark read**, **Mark unread** and **Favorites** apply to every archive in it in one step. A missing volume or chapter can't be selected.
+- **List view inside a volume.** A volume's page follows your library view: with **List** chosen it shows the same compact rows as the folder list, with the same column count.
+- **Favorites** in the selection bar of the folder list: add or remove the selected items (a volume through all its archives).
+- Review candidates show whether they fit the folder's declared type (**Fits declared type** / **Not declared type**), and Identify warns when the series you preview is not the declared type.
+
+### Changed
+
+- A declared type (manga, manhwa, manhua, webtoon, comic, graphic novel) is now a strong hint for automatic matching instead of a search filter: a series from the country the type names is clearly preferred and one the type contradicts loses the same amount, which settles a tie between two series of the same name - but a wrong declared type no longer keeps the right series from being found or linked. Nothing you declare is sent to MangaUpdates any more.
+- Declared types show the country they stand for - Manga (Japan), Manhwa (Korea), Manhua (China), Comic (Western), ... - in the declared-facts editor, the Declared line and the library list.
+- A folder named `Series - Subtitle` now matches the spin-off that carries that subtitle rather than the main series.
+- A series found only through an English title that MangaUpdates tags with its author (`Fly Me to the Moon (HATA Kenjiro)`) is looked up once more, so the author can be checked and the right series ranks first.
+- **New chapters on Home** is stacked by the series folder instead of the top-level folder. In a library whose top level is categories (Manga, Manhwa, ...) each card is now a series, not a category: the folder with its own series link, or else the folder that holds the new archives (volume folders such as "Vol 3" stay part of their series).
+
+### Removed
+
+- The `Metadata:AutoMatch:DeclaredTypeFilter` setting (the declared-type search filter is gone; an old value is ignored).
+
 ### Fixed
+
+- A volume's card in the folder list showed a stale read state and star after you changed its chapters on the volume page or in the reader; it now refreshes.
 
 - **Volumes view:** a chapter that the series' volume list places in two volumes (split across the boundary) is no longer marked missing in the second volume when its file is in the first one's stack.
 - **Metadata Manager > Review on a phone:** the covers now sit above each row's text. The series name had been squeezed to one letter per line and the covers ran off the left edge of the screen.
