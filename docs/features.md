@@ -39,7 +39,7 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 ## Home
 
 - "Continue reading": one row across all your libraries.
-- "New chapters": recently added archives, grouped by library and stacked per top-level folder (latest chapter plus a "+N" badge). Each user chooses the time window in days (30 by default) and which libraries contribute.
+- "New chapters": recently added archives, grouped by library and stacked per series folder (latest chapter plus a "+N" badge): the folder with its own series link, or else the folder that holds the new archives, so a library whose top level is categories such as Manga and Manhwa shows one card per series, not per category. Each user chooses the time window in days (30 by default) and which libraries contribute.
 - Continue reading and New chapters cards carry the same controls as the library view: the favorites star and, where there is series information, the (i) and the summary on hover.
 - A grid of your libraries.
 

@@ -8,7 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { forkJoin, of, catchError, filter, switchMap } from 'rxjs';
+import { Observable, forkJoin, of, catchError, filter, map, switchMap } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
@@ -32,7 +32,10 @@ import { VolumeSeriesStatusComponent } from './volume-series-status.component';
 import { MissingChapterCardComponent } from '../../shared/volume-stack/missing-chapter-card.component';
 import { VolumeStackStarComponent } from '../../shared/volume-stack/volume-stack-star.component';
 import { FolderViewActionComponent } from './folder-view-action.component';
-import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
+import { NodeRowComponent, directionShort as directionChip } from '../../shared/node-row/node-row.component';
+import { SelectionBarComponent } from '../../shared/selection/selection-bar.component';
+import { NodeSelection } from '../../shared/selection/node-selection';
+import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, FolderReadRollup, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
 
 /**
  * Library browse component. Shows the actual folder/archive tree with keyset
@@ -97,6 +100,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     MissingChapterCardComponent,
     VolumeStackStarComponent,
     FolderViewActionComponent,
+    NodeRowComponent,
+    SelectionBarComponent,
   ],
   template: `
     <!-- Sticky top bar: breadcrumbs + Select normally; the merged action set while
@@ -315,29 +320,9 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
           <mat-icon>checklist</mat-icon> Select
         </button>
       } @else {
-        <span class="count">{{ selected().size }} selected</span>
-        <div class="actions">
-          <button mat-button [matMenuTriggerFor]="selectMenu" [disabled]="busy() || nodes().length === 0"
-                  matTooltip="Select the whole folder">
-            <mat-icon>playlist_add_check</mat-icon><span class="lbl">Select</span>
-          </button>
-          <mat-menu #selectMenu="matMenu">
-            <button mat-menu-item (click)="selectAll()">
-              <mat-icon>select_all</mat-icon> Select all
-            </button>
-            <button mat-menu-item (click)="selectAllUnread()">
-              <mat-icon>radio_button_unchecked</mat-icon> Select all unread
-            </button>
-            <button mat-menu-item (click)="selectAllRead()">
-              <mat-icon>check_circle</mat-icon> Select all read
-            </button>
-          </mat-menu>
-          <button mat-button (click)="bulkMarkRead(true)" [disabled]="busy() || selected().size === 0">
-            <mat-icon>check_circle</mat-icon><span class="lbl">Mark read</span>
-          </button>
-          <button mat-button (click)="bulkMarkRead(false)" [disabled]="busy() || selected().size === 0">
-            <mat-icon>remove_done</mat-icon><span class="lbl">Mark unread</span>
-          </button>
+        <app-selection-bar [count]="selected().size" [busy]="busy()" [selectDisabled]="nodes().length === 0"
+                           (selectAll)="selectAll()" (selectUnread)="selectAllUnread()" (selectRead)="selectAllRead()"
+                           (markRead)="bulkMarkRead($event)" (favorite)="bulkFavorite($event)" (done)="toggleSelectMode()">
           @if (auth.isAdmin()) {
             <button mat-button [matMenuTriggerFor]="dirMenu"
                     [disabled]="busy() || selectedFolderCount() === 0"
@@ -349,15 +334,13 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
                 <button mat-menu-item (click)="bulkSetDirection(opt.value)">{{ opt.label }}</button>
               }
             </mat-menu>
-            <app-series-selection-actions [nodes]="nodes()" [selected]="selected()" [disabled]="busy()" />
+            <!-- A volume stack is not a stored node: the admin actions below see only the real nodes of the selection. -->
+            <app-series-selection-actions [nodes]="nodes()" [selected]="selectedNodeIds()" [disabled]="busy()" />
             <!-- 1.29.0 cover layer: "Cover..." for exactly one selected item. -->
-            <app-cover-selection-action [nodes]="nodes()" [selected]="selected()" [disabled]="busy()" />
-            <app-folder-view-action [nodes]="nodes()" [selected]="selected()" [disabled]="busy()" (saved)="onFolderViewSaved()" />
+            <app-cover-selection-action [nodes]="nodes()" [selected]="selectedNodeIds()" [disabled]="busy()" />
+            <app-folder-view-action [nodes]="nodes()" [selected]="selectedNodeIds()" [disabled]="busy()" (saved)="onFolderViewSaved()" />
           }
-        </div>
-        <button mat-stroked-button class="done" (click)="toggleSelectMode()">
-          <mat-icon>close</mat-icon> Done
-        </button>
+        </app-selection-bar>
       }
     </div>
 
@@ -438,7 +421,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         </span>
       }
 
-      @if (selectMode() && node.kind !== 'VolumeStack') {
+      @if (selectMode() && isSelectable(node)) {
         <span class="check" [class.on]="isSelected(node)">
           <mat-icon>{{ isSelected(node) ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
         </span>
@@ -455,21 +438,18 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
           <div class="node-wrap">
             <app-missing-chapter-card kind="volume" [chapter]="node.volumeStack!.key" [compact]="viewMode() === 'list'" />
           </div>
+        } @else if (viewMode() === 'list') {
+          <!-- List view (1.30.0): the shared row (also the volume stack page's), which holds the leading checkbox, the
+               trailing star / (i) / read markers and the select check. A whole volume stack is selectable like any node. -->
+          <app-node-row [node]="node" [link]="selectMode() ? null : getNodeLink(node)" [subtitle]="nodeSub(node)"
+                        [selectMode]="selectMode()" [selected]="isSelected(node)" [selectable]="true"
+                        [rangePrompt]="rangePromptNode()?.id === node.id" [hoverId]="hoverNodeId(node)"
+                        [showDirection]="auth.isAdmin()"
+                        (activate)="onCardClick($event, node)" (rowSelect)="onRowSelectClick($event, node)"
+                        (pressStart)="onCardPointerDown($event, node)" (pressEnd)="onCardPointerUp()"
+                        (selectToHere)="onSelectToHereClick($event)" (dismissPrompt)="onDismissRangePromptClick($event)" />
         } @else {
         <div class="node-wrap" [class.selected]="isSelected(node)">
-          <!-- List-mode direct-select (1.21.0): a dedicated leading control so a row
-               can be selected WITHOUT first entering select mode - tapping the row
-               body still opens the item (selectMode still gates that). Selecting the
-               first item this way turns select mode on so the bulk-action bar
-               appears; card view keeps its existing selectMode-only overlay. -->
-          @if (viewMode() === 'list' && node.kind !== 'VolumeStack') {
-            <button type="button" class="row-select" role="checkbox"
-                    [attr.aria-checked]="isSelected(node)"
-                    [attr.aria-label]="(isSelected(node) ? 'Deselect ' : 'Select ') + node.displayName"
-                    (click)="onRowSelectClick($event, node)">
-              <mat-icon>{{ isSelected(node) ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
-            </button>
-          }
           <a #cardEl class="node-card" [routerLink]="selectMode() ? null : getNodeLink(node)"
              (click)="onCardClick($event, node)"
              (pointerdown)="onCardPointerDown($event, node)"
@@ -478,46 +458,44 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
              (pointerleave)="onCardPointerCancel()">
             <!-- Series information on hover (1.27.0): the cover, the title and the (i) are
                  hover zones of the item that shows the (i); the popover sits beside the card. -->
-            @if (node.kind === 'VolumeStack' && viewMode() !== 'list' && node.volumeStack; as stack) {
-              <!-- Virtual volume stack (1.29.0): the shared stacked-paper card; the incomplete mark sits top-left. -->
+            @if (node.kind === 'VolumeStack' && node.volumeStack; as stack) {
+              <!-- Virtual volume stack (1.29.0): the shared stacked-paper card; the incomplete mark sits top-left
+                   (bottom-left while selecting, where the select check owns top-left). -->
               <app-stack-card [stacked]="true">
                 @if (node.coverUrl) {
                   <img appCover [src]="node.coverUrl" alt="" loading="lazy">
                 }
                 <mat-icon class="cover-fallback">collections_bookmark</mat-icon>
-                <app-volume-incomplete-badge [summary]="stack" />
+                <app-volume-incomplete-badge [summary]="stack" [moved]="selectMode()" />
                 @if (node.isFavorite && !selectMode()) {
                   <app-volume-stack-star />
                 }
                 <ng-container *ngTemplateOutlet="markers; context: { $implicit: node }" />
+                @if (rangePromptNode()?.id === node.id) {
+                  <div class="range-prompt">
+                    <button type="button" (click)="onSelectToHereClick($event)">Select to here</button>
+                    <button type="button" class="cancel" (click)="onDismissRangePromptClick($event)">Cancel</button>
+                  </div>
+                }
               </app-stack-card>
             } @else {
             <div class="cover" [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">
               @if (node.coverUrl) {
                 <img appCover [src]="node.coverUrl" alt="" loading="lazy">
               }
-              <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : node.kind === 'VolumeStack' ? 'collections_bookmark' : 'menu_book' }}</mat-icon>
-              @if (node.volumeStack; as stack) {
-                <app-volume-incomplete-badge [summary]="stack" />
-              }
+              <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
 
-              <!-- Favorite star (1.21.0): an overlay toggle in the cover corner of a
-                   CARD. List rows put it in the trailing row-markers group instead
-                   (1.22.2): the 32px overlay hid most of the 46px list thumbnail. Its own
-                   component styles keep this out of the near-budget inline CSS below. -->
-              <!-- Neither is shown in select mode (a tap selects there; the select check takes
-                   the top-left corner). The star sits bottom-right on every card surface (1.28.0). -->
-              @if (viewMode() !== 'list' && !selectMode() && node.kind !== 'VolumeStack') {
+              <!-- Neither the favorite star nor the (i) is shown in select mode (a tap selects there; the select check
+                   takes the top-left corner). The star sits bottom-right on every card surface (1.28.0); the (i)
+                   (1.24.0) bottom-left, and shows itself only for the node's OWN info. List rows put both in the row's
+                   trailing marker group (the shared row component). -->
+              @if (!selectMode()) {
                 <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
-                <!-- Series info (1.24.0): cover bottom-left; shows itself only for the node's OWN info. -->
                 <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
               }
 
-              <!-- Card mode: read/selection markers overlay the cover. List mode renders
-                   the same markers to the RIGHT of the row instead (1.17.0), see below. -->
-              @if (viewMode() !== 'list') {
-                <ng-container *ngTemplateOutlet="markers; context: { $implicit: node }" />
-              }
+              <!-- Read/selection markers overlay the cover. -->
+              <ng-container *ngTemplateOutlet="markers; context: { $implicit: node }" />
 
               <!-- Touch range fill (long-press "Select to here"): shown only on the
                    long-pressed card, over its cover so it stays reachable without
@@ -533,28 +511,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
             <div class="node-text">
               <div class="node-title" [title]="node.displayName"
                    [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">{{ node.displayName }}</div>
-              <div class="node-sub">
-                @if (node.kind === 'VolumeStack') { {{ stackSubtitle(node) }} }
-                @else if (node.pageCount !== null) { {{ node.pageCount }} pages }
-                @else if (node.kind === 'Folder' && node.childArchiveCount !== null) { {{ node.childArchiveCount }} items }
-                @if (node.availability !== 'Available') { · {{ node.availability }} }
-              </div>
+              <div class="node-sub">{{ nodeSub(node) }}</div>
             </div>
-            <!-- List mode (1.17.0): markers trail the row so the small thumbnail stays
-                 unobstructed. Same template as the card overlay, so the two never drift.
-                 The favorite star leads the group (1.22.2) at its full touch size. -->
-            @if (viewMode() === 'list') {
-              <div class="row-markers">
-                @if (node.kind !== 'VolumeStack') {
-                  <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" />
-                }
-                @if (!selectMode() && node.kind !== 'VolumeStack') {
-                  <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [compact]="true"
-                                   [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl" />
-                }
-                <ng-container *ngTemplateOutlet="markers; context: { $implicit: node }" />
-              </div>
-            }
           </a>
         </div>
         }
@@ -609,9 +567,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     /* Current folder: plain text, not a link. Slightly brighter than the muted
        ancestors' link color to read as "you are here", but no pointer/underline. */
     .breadcrumbs .current { color: #e6e6ee; font-weight: 500; }
-    .count { font-weight: 600; }
-    .actions { flex: 1 1 auto; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-    .actions mat-icon, .select-toggle mat-icon, .done mat-icon { margin-right: 4px; }
+    /* The selection bar's own rules (.count, .actions, .done) live in the shared app-selection-bar (1.30.0). */
+    .select-toggle mat-icon { margin-right: 4px; }
     /* Card size slider (1.6.0). Sits inline in the browse bar between the
        breadcrumbs and the View menu; the small/large icons frame the range. */
     .size-control { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
@@ -664,32 +621,6 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
       }
     }
     .nodes.list .node-wrap { min-width: 0; display: flex; align-items: center; gap: 4px; }
-    .nodes.list .node-wrap .node-card { flex: 1 1 auto; min-width: 0; }
-    .row-select {
-      flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
-      width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px;
-      background: transparent; color: #8a8a99; cursor: pointer;
-    }
-    .row-select mat-icon { font-size: 20px; width: 20px; height: 20px; }
-    .row-select[aria-checked="true"] { color: #7c4dff; }
-    .nodes.list .node-card {
-      display: flex; align-items: center; gap: 12px;
-      padding: 6px; border-radius: 8px; background: rgba(255,255,255,0.03);
-    }
-    .nodes.list .cover { width: 46px; height: 66px; flex: 0 0 auto; border-radius: 4px; }
-    .nodes.list .cover-fallback { font-size: 24px; width: 24px; height: 24px; }
-    /* List markers (1.17.0) sit in a trailing flex group at the right of the row, in
-       normal flow - not absolutely positioned over the 46px thumbnail. The rollup
-       badge lives in a shared child component, hence ::ng-deep for that one rule. */
-    .nodes.list .row-markers {
-      flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding-right: 4px;
-    }
-    .nodes.list .row-markers .badge,
-    .nodes.list .row-markers ::ng-deep .badge { position: static; font-size: 11px; padding: 2px 6px; }
-    .nodes.list .row-markers .check { position: static; background: transparent; }
-    .nodes.list .row-markers .check.on { background: #fff; }
-    .nodes.list .node-text { flex: 1 1 auto; min-width: 0; }
-    .nodes.list .node-title { margin-top: 0; white-space: nowrap; }
     .node-wrap { position: relative; border-radius: 8px; }
     .node-wrap.selected { outline: 2px solid #7c4dff; outline-offset: 3px; }
     .node-card { cursor: pointer; text-decoration: none; color: inherit; display: block; }
@@ -786,9 +717,6 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
           The trail is allowed to wrap, the type is larger, and the current folder is
           the prominent, high-contrast element so "where am I" reads at a glance. --- */
     @media (max-width: 599.98px) {
-      .actions .lbl { display: none; }
-      .actions mat-icon { margin-right: 0; }
-
       ::ng-deep .view-options-menu .view-size-section { display: block; }
       .size-control-inline { display: none; }
 
@@ -826,6 +754,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly readState = inject(ReadStateService);
+  private readonly favorites = inject(FavoritesStateService);
+  private stackRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   readonly auth = inject(AuthService);
 
   // Per-folder direction override options (1.2.0). null = inherit (clear).
@@ -967,32 +897,18 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   readonly jumpBuckets = signal<JumpIndexBucketDto[]>([]);
   readonly activeJump = signal<string | null>(null);
 
-  // Selection mode (1.2.0 read-marks + merged card actions).
-  readonly selectMode = signal(false);
-  readonly selected = signal<Set<string>>(new Set());
+  // Selection mode (1.2.0 read-marks + merged card actions). The state and its gestures (tap, shift-click range, touch
+  // long-press "Select to here", the list row checkbox, Select all) live in the shared `NodeSelection` (1.30.0), which the
+  // volume stack page uses as well; these members expose it under the names this component and its specs have always used.
+  // A missing-volume placeholder is never selectable; a whole volume stack is (1.30.0).
+  private readonly selection = new NodeSelection<CatalogNodeDto>(() => this.nodes(), (n) => this.isSelectable(n));
+  readonly selectMode = this.selection.mode;
+  readonly selected = this.selection.selected;
   readonly busy = signal(false);
 
-  /**
-   * Range selection (1.7.0). The ANCHOR is the index (within the currently
-   * displayed `nodes()` order) of the last INDIVIDUALLY selected/deselected
-   * item — a plain click, a ctrl/cmd-click, or the item long-press entered
-   * select mode on. Shift-click and touch "Select to here" both fill the
-   * inclusive range between the anchor and the target from this index, so the
-   * range always follows the active sort/direction (requirement: range is
-   * over the visible, currently-displayed order).
-   */
-  readonly anchorIndex = signal<number | null>(null);
-
-  /**
-   * The card currently showing the long-press "Select to here" action (touch
-   * range-fill). Null when no prompt is open. Only one card shows the prompt
-   * at a time.
-   */
-  readonly rangePromptNode = signal<CatalogNodeDto | null>(null);
-
-  private longPressTimer: ReturnType<typeof setTimeout> | null = null;
-  private longPressTriggered = false;
-  private readonly longPressMs = 550;
+  /** The range anchor and the touch "Select to here" prompt (1.7.0): see `NodeSelection`. */
+  readonly anchorIndex = this.selection.anchorIndex;
+  readonly rangePromptNode = this.selection.rangePromptNode;
 
   // Per-user library view mode. Tolerant: unknown/legacy persisted values fall back.
   // 1.6.0: the former Grid and Poster modes are merged into a single Card view whose
@@ -1076,6 +992,17 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   // change never resets them - the server writes every field unconditionally.
   private storedPrefs: LibraryViewPreferencesDto | null = null;
 
+  /**
+   * The selection without volume stacks (1.30.0): a stack is not a stored node, so the admin actions that address nodes
+   * (series metadata, cover, folder view) only ever see the real ones. Read / unread and favorites apply to the stacks'
+   * member archives instead.
+   */
+  readonly selectedNodeIds = computed<ReadonlySet<string>>(() => {
+    const stacks = new Set(this.nodes().filter((n) => n.kind === 'VolumeStack').map((n) => n.id));
+    const chosen = this.selected();
+    return stacks.size === 0 ? chosen : new Set([...chosen].filter((id) => !stacks.has(id)));
+  });
+
   /** How many currently-selected nodes are folders (gates the Direction action). */
   readonly selectedFolderCount = computed(() => {
     const ids = this.selected();
@@ -1095,7 +1022,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     effect(() => { this.nodes(); this.jumpBuckets(); this.scheduleScrollSpy(); });
     // 1.24.0: a star toggled or a series link changed anywhere patches the card's DTO in
     // place (no reload), so a star / (i) re-created after select mode seeds from it.
-    inject(FavoritesStateService).changed$.pipe(takeUntilDestroyed())
+    this.favorites.changed$.pipe(takeUntilDestroyed())
       .subscribe((c) => this.patchNode(c.nodeId, { isFavorite: c.favorite }));
     inject(MetadataStateService).changed$.pipe(takeUntilDestroyed())
       .subscribe((c) => this.patchNode(c.nodeId, { hasSeriesInfo: c.hasSeriesInfo }));
@@ -1105,7 +1032,10 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   private patchNode(nodeId: string, patch: Partial<CatalogNodeDto>): void {
-    if (!this.nodes().some((n) => n.id === nodeId)) return;
+    if (!this.nodes().some((n) => n.id === nodeId)) {
+      if ('isFavorite' in patch) this.scheduleStackRefresh();
+      return;
+    }
     this.nodes.update((list) => list.map((n) => (n.id === nodeId ? { ...n, ...patch } : n)));
   }
 
@@ -1167,6 +1097,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.stackRefreshTimer !== null) clearTimeout(this.stackRefreshTimer);
     this.scrollTarget?.removeEventListener('scroll', this.onScroll);
     this.sentinelObserver?.disconnect();
     this.topSentinelObserver?.disconnect();
@@ -1581,15 +1512,29 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
 
   /** Short label for a folder's direction override chip. */
   directionShort(mode: ReaderMode): string {
-    switch (mode) {
-      case 'PagedLtr': return 'LTR';
-      case 'PagedRtl': return 'RTL';
-      case 'VerticalWebtoon': return 'Vertical';
-      default: return 'Spread';
-    }
+    return directionChip(mode);
   }
 
   // --- Volumes view (1.29.0) ---
+
+  /** The subtitle line of a card or row: a stack's chapter summary, an archive's pages, a folder's items, then "· Unavailable". */
+  nodeSub(node: CatalogNodeDto): string {
+    const base = node.kind === 'VolumeStack' ? this.stackSubtitle(node)
+      : node.pageCount !== null ? `${node.pageCount} pages`
+      : node.kind === 'Folder' && node.childArchiveCount !== null ? `${node.childArchiveCount} items`
+      : '';
+    return node.availability !== 'Available' ? `${base} · ${node.availability}`.trim() : base;
+  }
+
+  /** Whether a listed entry can be selected: everything except a missing-volume placeholder (1.30.0). */
+  isSelectable(node: CatalogNodeDto): boolean {
+    return !node.volumeStack?.missing;
+  }
+
+  /** Whether a listed entry counts as read for "Select all read / unread": an archive's mark, a stack's rollup. */
+  private isReadEntry(node: CatalogNodeDto): boolean {
+    return node.kind === 'VolumeStack' ? node.readRollup === 'Read' : node.isRead;
+  }
 
   /** The card subtitle of a stack: "10 chapters", "Volume + 4 chapters", "8 of 10 chapters". */
   stackSubtitle(node: CatalogNodeDto): string {
@@ -1772,202 +1717,89 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     }).subscribe({ error: () => { /* non-fatal: the choice still applies this session */ } });
   }
 
-  // --- Selection mode (1.2.0) ---
+  // --- Selection mode (1.2.0; state and gestures in the shared NodeSelection since 1.30.0) ---
 
   toggleSelectMode(): void {
-    this.selectMode.update((v) => !v);
-    if (!this.selectMode()) this.clearSelection();
+    this.selection.toggleMode();
   }
 
   isSelected(node: CatalogNodeDto): boolean {
-    return this.selected().has(node.id);
+    return this.selection.isSelected(node);
   }
 
-  /**
-   * Desktop card click, file-browser semantics (1.7.0):
-   *  - a long-press already handled this pointer session (touch) - suppress
-   *    the trailing click entirely.
-   *  - Shift-click, with an anchor set: fills the inclusive range from the
-   *    anchor to the clicked card (display order) into the selection.
-   *  - Plain click or Ctrl/Cmd-click: toggles just this card and moves the
-   *    anchor to it (Ctrl/Cmd is equivalent to a plain click here, since
-   *    every click in select mode already toggles rather than replacing the
-   *    selection - it is accepted so the file-browser modifier still "works").
-   * Outside select mode, a click is a normal navigation and this is a no-op.
-   */
+  /** Card click (file-browser semantics: tap / Ctrl-click toggles one, Shift-click fills a range); see `NodeSelection.click`. */
   onCardClick(event: MouseEvent, node: CatalogNodeDto): void {
-    if (this.longPressTriggered) {
-      // The long-press action already ran (or its prompt is open); this is
-      // the click that follows the touch release and must be swallowed.
-      this.longPressTriggered = false;
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
-    if (!this.selectMode()) return;
-    event.preventDefault();
-    event.stopPropagation();
-    // A volume stack is not a stored node: it cannot be selected (open it to select its chapters).
-    if (node.kind === 'VolumeStack') return;
-
-    const index = this.nodes().findIndex((n) => n.id === node.id);
-    if (index === -1) return;
-
-    if (event.shiftKey && this.anchorIndex() !== null) {
-      this.selectRange(this.anchorIndex()!, index);
-      return;
-    }
-    this.toggleOne(node, index);
+    this.selection.click(event, node);
   }
 
-  /**
-   * List-mode direct-select control (1.21.0): tapping/activating the leading row
-   * checkbox selects without requiring select mode first. Selecting the first item
-   * turns select mode on so the bulk-action bar appears; deselecting back to zero
-   * does NOT turn it back off (mirrors the explicit Select/Done toggle - only
-   * "Done" or clearing the selection exits select mode).
-   */
+  /** List row checkbox: selects without entering select mode first (1.21.0). */
   onRowSelectClick(event: Event, node: CatalogNodeDto): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (node.kind === 'VolumeStack') return;
-    const index = this.nodes().findIndex((n) => n.id === node.id);
-    if (index === -1) return;
-    if (!this.selectMode()) this.selectMode.set(true);
-    this.toggleOne(node, index);
-  }
-
-  /** Toggle a single node's selection and move the range anchor to it. */
-  private toggleOne(node: CatalogNodeDto, index: number): void {
-    this.selected.update((set) => {
-      const next = new Set(set);
-      if (next.has(node.id)) next.delete(node.id);
-      else next.add(node.id);
-      return next;
-    });
-    this.anchorIndex.set(index);
-  }
-
-  /** Add the inclusive range [fromIndex, toIndex] (display order) to the selection. */
-  private selectRange(fromIndex: number, toIndex: number): void {
-    const lo = Math.min(fromIndex, toIndex);
-    const hi = Math.max(fromIndex, toIndex);
-    const rangeIds = this.nodes().slice(lo, hi + 1).filter((n) => n.kind !== 'VolumeStack').map((n) => n.id);
-    this.selected.update((set) => new Set([...set, ...rangeIds]));
-    this.anchorIndex.set(toIndex);
+    this.selection.rowSelect(event, node);
   }
 
   // --- Touch range selection: long-press -> "Select to here" (1.7.0) ---
 
-  /** Start the long-press timer for a touch/pen pointer only; mouse uses shift-click instead. */
   onCardPointerDown(event: PointerEvent, node: CatalogNodeDto): void {
-    if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
-    this.clearLongPressTimer();
-    this.longPressTimer = setTimeout(() => this.onLongPress(node), this.longPressMs);
+    this.selection.pointerDown(event, node);
   }
 
-  /** A normal tap released before the long-press fired: just cancel the timer. */
   onCardPointerUp(): void {
-    this.clearLongPressTimer();
+    this.selection.pointerEnd();
   }
 
-  /** Pointer left/cancelled (scroll, interruption): cancel the pending long-press. */
   onCardPointerCancel(): void {
-    this.clearLongPressTimer();
+    this.selection.pointerEnd();
   }
 
-  private clearLongPressTimer(): void {
-    if (this.longPressTimer !== null) {
-      clearTimeout(this.longPressTimer);
-      this.longPressTimer = null;
-    }
-  }
-
-  /**
-   * Long-press fired on `node`. Mental model: tap = one, long-press = range fill.
-   *  - Not yet in select mode: enter it and select+anchor this card (nothing to
-   *    fill a range from yet).
-   *  - In select mode with no anchor yet (nothing individually selected since
-   *    entering select mode / after Select all* reset it): same as above.
-   *  - In select mode with an anchor: open "Select to here" on this card so the
-   *    range is filled only on explicit confirmation.
-   * `longPressTriggered` suppresses the click event that the browser fires on
-   * touch release right after this.
-   */
-  private onLongPress(node: CatalogNodeDto): void {
-    if (node.kind === 'VolumeStack') return;
-    this.longPressTriggered = true;
-    const index = this.nodes().findIndex((n) => n.id === node.id);
-    if (index === -1) return;
-
-    if (!this.selectMode()) {
-      this.selectMode.set(true);
-      this.toggleOne(node, index);
-      return;
-    }
-    if (this.anchorIndex() === null) {
-      this.toggleOne(node, index);
-      return;
-    }
-    this.rangePromptNode.set(node);
-  }
-
-  /** Button click wrapper: stop the click from bubbling to the card's own click handler. */
   onSelectToHereClick(event: Event): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.confirmSelectToHere();
+    this.selection.selectToHere(event);
   }
 
-  /** Button click wrapper: stop the click from bubbling to the card's own click handler. */
   onDismissRangePromptClick(event: Event): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.dismissRangePrompt();
+    this.selection.dismissPrompt(event);
   }
 
   /** Confirm the "Select to here" prompt: fill the range from the anchor to the prompted card. */
   confirmSelectToHere(): void {
-    const target = this.rangePromptNode();
-    const anchor = this.anchorIndex();
-    this.rangePromptNode.set(null);
-    if (target === null || anchor === null) return;
-    const index = this.nodes().findIndex((n) => n.id === target.id);
-    if (index !== -1) this.selectRange(anchor, index);
+    this.selection.confirmSelectToHere();
   }
 
   /** Dismiss the "Select to here" prompt without changing the selection. */
   dismissRangePrompt(): void {
-    this.rangePromptNode.set(null);
+    this.selection.dismissRangePrompt();
   }
 
   // --- Whole-folder selection (1.7.0) ---
 
   /** Select every currently-listed node (respects the active sort/filter, not just the loaded page). */
   selectAll(): void {
-    this.selected.set(new Set(this.nodes().filter((n) => n.kind !== 'VolumeStack').map((n) => n.id)));
-    const count = this.nodes().length;
-    this.anchorIndex.set(count > 0 ? count - 1 : null);
+    this.selection.selectAll();
   }
 
   /** Select every currently-listed node that is not yet marked read. */
   selectAllUnread(): void {
-    this.selected.set(new Set(this.nodes().filter((n) => n.kind !== 'VolumeStack' && !n.isRead).map((n) => n.id)));
-    this.anchorIndex.set(null);
+    this.selection.selectWhere((n) => !this.isReadEntry(n));
   }
 
   /** Select every currently-listed node that is marked read. */
   selectAllRead(): void {
-    this.selected.set(new Set(this.nodes().filter((n) => n.kind !== 'VolumeStack' && n.isRead).map((n) => n.id)));
-    this.anchorIndex.set(null);
+    this.selection.selectWhere((n) => this.isReadEntry(n));
   }
 
   clearSelection(): void {
-    this.selected.set(new Set());
-    this.anchorIndex.set(null);
-    this.rangePromptNode.set(null);
-    this.clearLongPressTimer();
-    this.longPressTriggered = false;
+    this.selection.clear();
+  }
+
+  /**
+   * The archive ids each selected volume stack holds (1.30.0), from the stack endpoint: a browse card lists none. A stack
+   * applies an action to ALL of its member archives - chapters, a volume file and extras alike. Empty without stacks.
+   */
+  private stackMembers(stacks: CatalogNodeDto[]): Observable<Map<string, string[]>> {
+    if (stacks.length === 0) return of(new Map<string, string[]>());
+    return forkJoin(stacks.map((s) =>
+      this.api.getVolumeStack(s.parentId, s.volumeStack!.key).pipe(
+        map((dto) => [s.id, dto.slots.flatMap((slot) => (slot.item ? [slot.item.id] : []))] as const),
+      ))).pipe(map((pairs) => new Map(pairs)));
   }
 
   /**
@@ -1989,19 +1821,28 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const chosen = this.nodes().filter((n) => ids.has(n.id));
     const archives = chosen.filter((n) => n.kind === 'Archive');
     const folders = chosen.filter((n) => n.kind === 'Folder');
-
-    const calls = [
-      ...archives.map((a) => this.api.setItemRead(a.id, read)),
-      ...folders.map((f) => this.api.setFolderRead(f.id, read)),
-    ];
-    if (calls.length === 0) return;
+    // A whole volume stack (1.30.0): every member archive is marked, in one step.
+    const stacks = chosen.filter((n) => n.kind === 'VolumeStack' && this.isSelectable(n));
+    if (archives.length + folders.length + stacks.length === 0) return;
 
     this.busy.set(true);
-    forkJoin(calls).subscribe({
-      next: () => {
+    this.stackMembers(stacks).pipe(
+      switchMap((members) => {
+        const memberIds = [...members.values()].flat();
+        const calls = [
+          ...archives.map((a) => this.api.setItemRead(a.id, read)),
+          ...memberIds.map((id) => this.api.setItemRead(id, read)),
+          ...folders.map((f) => this.api.setFolderRead(f.id, read)),
+        ];
+        return (calls.length > 0 ? forkJoin(calls) : of([])).pipe(map(() => memberIds.length));
+      }),
+    ).subscribe({
+      next: (memberCount) => {
         const archiveIds = new Set(archives.map((a) => a.id));
+        const stackIds = new Set(stacks.map((n) => n.id));
         this.nodes.update((list) =>
           list.map((n) => {
+            if (stackIds.has(n.id)) return { ...n, readRollup: (read ? 'Read' : 'Unread') as FolderReadRollup };
             if (!archiveIds.has(n.id)) return n;
             const updated = { ...n, isRead: read };
             // Marking unread is a full reset: drop the "Reading" state and last-read
@@ -2013,11 +1854,51 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
             return updated;
           }));
 
+        const items = archives.length + memberCount;
         const folderNote = folders.length
           ? ` and ${folders.length} folder${folders.length > 1 ? 's' : ''}`
           : '';
         this.snackBar.open(
-          `Marked ${read ? 'read' : 'unread'}: ${archives.length} item${archives.length === 1 ? '' : 's'}${folderNote}`,
+          `Marked ${read ? 'read' : 'unread'}: ${items} item${items === 1 ? '' : 's'}${folderNote}`,
+          'Close', { duration: 2500 });
+        this.busy.set(false);
+      },
+      error: (err) => {
+        this.busy.set(false);
+        this.snackBar.open(`Failed: ${err.message}`, 'Close', { duration: 4000 });
+      },
+    });
+  }
+
+  /**
+   * Add the selection to (or remove it from) the favorites (1.30.0): archives and folders themselves, a volume stack through
+   * every one of its member archives (a stack is not a node and has no star of its own; its card shows a star when ANY member
+   * is starred).
+   */
+  bulkFavorite(favorite: boolean): void {
+    const ids = this.selected();
+    const chosen = this.nodes().filter((n) => ids.has(n.id));
+    const direct = chosen.filter((n) => n.kind === 'Archive' || n.kind === 'Folder');
+    const stacks = chosen.filter((n) => n.kind === 'VolumeStack' && this.isSelectable(n));
+    if (direct.length + stacks.length === 0) return;
+
+    this.busy.set(true);
+    this.stackMembers(stacks).pipe(
+      switchMap((members) => {
+        const memberIds = [...members.values()].flat();
+        const calls = [...direct.map((n) => n.id), ...memberIds].map((id) => this.favorites.setFavorite(id, favorite));
+        return (calls.length > 0 ? forkJoin(calls) : of([])).pipe(map(() => memberIds.length));
+      }),
+    ).subscribe({
+      next: (memberCount) => {
+        // Archives and folders patch themselves through the favorites channel; a stack's mark is derived from its members.
+        const stackIds = new Set(stacks.map((n) => n.id));
+        if (stackIds.size > 0) {
+          this.nodes.update((list) => list.map((n) => (stackIds.has(n.id) ? { ...n, isFavorite: favorite } : n)));
+        }
+        const items = direct.length + memberCount;
+        this.snackBar.open(
+          `${favorite ? 'Added to' : 'Removed from'} favorites: ${items} item${items === 1 ? '' : 's'}`,
           'Close', { duration: 2500 });
         this.busy.set(false);
       },
@@ -2169,7 +2050,11 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * endpoints below are the ones that are actually user-scoped.
    */
   private refreshNodeStatus(itemId: string): void {
-    if (!this.nodes().some((n) => n.id === itemId)) return;
+    if (!this.nodes().some((n) => n.id === itemId)) {
+      // Not a listed card: it may be a chapter inside a volume stack (1.30.0) - re-derive the stack cards.
+      this.scheduleStackRefresh();
+      return;
+    }
     forkJoin({
       read: this.api.getReadMark(itemId).pipe(
         catchError(() => of<ReadMarkDto>({ itemId, isRead: false }))),
@@ -2185,6 +2070,42 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
               lastReadPage: progress ? progress.pageIndex : n.lastReadPage,
             }
           : n));
+    });
+  }
+
+  /**
+   * A chapter inside a volume stack changed (read state or star, on the stack page or in the reader): a stack card's read
+   * rollup and star are derived from its member archives, so they are re-derived from the stack endpoint (1.30.0). Debounced:
+   * a bulk action announces once per chapter. Without a listed stack there is nothing to do.
+   */
+  private scheduleStackRefresh(): void {
+    if (!this.nodes().some((n) => n.kind === 'VolumeStack' && this.isSelectable(n))) return;
+    if (this.stackRefreshTimer !== null) clearTimeout(this.stackRefreshTimer);
+    this.stackRefreshTimer = setTimeout(() => {
+      this.stackRefreshTimer = null;
+      this.refreshStacks();
+    }, 300);
+  }
+
+  private refreshStacks(): void {
+    const stacks = this.nodes().filter((n) => n.kind === 'VolumeStack' && this.isSelectable(n));
+    if (stacks.length === 0) return;
+    const folderId = this.parentId();
+    forkJoin(stacks.map((s) =>
+      this.api.getVolumeStack(s.parentId, s.volumeStack!.key).pipe(
+        map((dto) => ({ id: s.id, items: dto.slots.flatMap((slot) => (slot.item ? [slot.item] : [])) })),
+        catchError(() => of(null)),
+      ))).subscribe((results) => {
+      if (this.parentId() !== folderId) return;
+      const byId = new Map(results.flatMap((r) => (r ? [[r.id, r.items] as const] : [])));
+      this.nodes.update((list) => list.map((n) => {
+        const items = byId.get(n.id);
+        if (!items) return n;
+        const read = items.filter((i) => i.isRead).length;
+        const started = items.some((i) => !i.isRead && i.readingState === 'InProgress');
+        const readRollup: FolderReadRollup = read >= items.length ? 'Read' : read > 0 || started ? 'Reading' : 'Unread';
+        return { ...n, readRollup, isFavorite: items.some((i) => i.isFavorite) };
+      }));
     });
   }
 

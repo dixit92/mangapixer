@@ -109,7 +109,7 @@ Filters apply to the current view only and are not saved.
 
 ### Selecting items
 
-Choose **Select** to pick several items for a bulk action, such as marking them read or (for admins) setting a reading direction or using the **Series** menu (see [Series information](series-information.md)). In **List** view you can also tick the checkbox on any row directly, without choosing **Select** first; tapping the row itself still opens it. See [Read and unread](reader.md#read-and-unread) for the selection shortcuts.
+Choose **Select** to pick several items for a bulk action, such as marking them read, adding them to your favorites or (for admins) setting a reading direction or using the **Series** menu (see [Series information](series-information.md)). In **List** view you can also tick the checkbox on any row directly, without choosing **Select** first; tapping the row itself still opens it. In the Volumes view a whole volume can be selected too, and a volume's own page has the same **Select** mode for its chapters (see [Volumes view](volumes.md#selecting-in-a-volume)). See [Read and unread](reader.md#read-and-unread) for the selection shortcuts.
 
 ### Jump navigation
 
