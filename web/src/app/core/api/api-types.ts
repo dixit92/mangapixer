@@ -377,6 +377,8 @@ export interface LibraryViewPreferencesDto {
    * Null/absent = follow the folder / library / global default.
    */
   seriesViewMode?: SeriesViewMode | null;
+  /** 1.30.0: the viewer's view of a volume's page ('card' | 'list'); null = follow `viewMode`. */
+  stackViewMode?: string | null;
 }
 
 // --- YACReader progress import (1.2.0, admin-only) ---

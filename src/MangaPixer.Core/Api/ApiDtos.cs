@@ -454,6 +454,12 @@ public sealed record LibraryViewPreferencesDto
     /// (default, and a PUT from an older client) = follow the folder / library / global default.
     /// </summary>
     public com.lifepixer.mangapixer.Core.Metadata.SeriesViewMode? SeriesViewMode { get; init; }
+
+    /// <summary>
+    /// Per-user view of a volume's page (1.30.0): <c>card</c> or <c>list</c>, remembered for the user; null (default, and a PUT
+    /// from an older client) = follow <see cref="ViewMode"/>.
+    /// </summary>
+    public string? StackViewMode { get; init; }
 }
 
 /// <summary>

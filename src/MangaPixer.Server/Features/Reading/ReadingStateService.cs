@@ -901,6 +901,7 @@ public sealed class ReadingStateService
             FavoritesSearchProminence = prefs.FavoritesSearchProminence,
             SeriesInfoOnHover = prefs.SeriesInfoOnHover,
             SeriesViewMode = (Core.Metadata.SeriesViewMode?)prefs.SeriesViewMode,
+            StackViewMode = prefs.StackViewMode,
         };
     }
 
@@ -934,6 +935,7 @@ public sealed class ReadingStateService
         prefs.FavoritesSearchProminence = preferences.FavoritesSearchProminence;
         prefs.SeriesInfoOnHover = preferences.SeriesInfoOnHover;
         prefs.SeriesViewMode = preferences.SeriesViewMode is { } seriesView && Enum.IsDefined(seriesView) ? (int)seriesView : null;
+        prefs.StackViewMode = preferences.StackViewMode is "card" or "list" ? preferences.StackViewMode : null;
 
         await _db.SaveChangesAsync(ct);
     }

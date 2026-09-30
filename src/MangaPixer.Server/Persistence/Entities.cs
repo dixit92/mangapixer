@@ -529,6 +529,11 @@ public sealed class ReaderPreferencesEntity
     /// </summary>
     public int? SeriesViewMode { get; set; }
 
+    /// <summary>
+    /// Per-user view of a volume's page (1.30.0): "card" or "list"; null = follow the library view (<c>LibraryViewMode</c>).
+    /// </summary>
+    public string? StackViewMode { get; set; }
+
     public UserEntity? User { get; set; }
 }
 

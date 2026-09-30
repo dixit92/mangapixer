@@ -10,7 +10,7 @@ import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
-import { CatalogNodeDto, LibraryViewMode, VolumeSlotDto, VolumeStackDto } from '../../core/api/api-types';
+import { CatalogNodeDto, LibraryViewMode, LibraryViewPreferencesDto, VolumeSlotDto, VolumeStackDto } from '../../core/api/api-types';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { CoverSelectionActionComponent } from '../../shared/cover-picker/cover-selection-action.component';
 import { CoverStateService } from '../../shared/cover-picker/cover-state.service';
@@ -111,6 +111,13 @@ import { AlsoInVolumeBadgeComponent } from '../../shared/volume-stack/also-in-vo
           <p class="counts" data-testid="stack-counts">{{ counts() }}</p>
           <p class="source" data-testid="stack-source">{{ sourceText() }}</p>
         </div>
+        <!-- 1.30.0 (owner): this page's own Card / List choice - cards to see the covers, a list to read the archive names. -->
+        <div class="view-switch" role="group" aria-label="View">
+          <button mat-icon-button type="button" [attr.aria-pressed]="viewMode() === 'card'" aria-label="Cards" title="Cards"
+                  data-testid="stack-view-card" (click)="setViewMode('card')"><mat-icon>grid_view</mat-icon></button>
+          <button mat-icon-button type="button" [attr.aria-pressed]="viewMode() === 'list'" aria-label="List" title="List"
+                  data-testid="stack-view-list" (click)="setViewMode('list')"><mat-icon>view_list</mat-icon></button>
+        </div>
       </header>
 
       <div class="slots" [class.list]="viewMode() === 'list'" [class.selecting]="selection.mode()"
@@ -195,6 +202,8 @@ import { AlsoInVolumeBadgeComponent } from '../../shared/volume-stack/also-in-vo
     .head-cover img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; }
     .fallback { position: absolute; z-index: 0; font-size: 40px; width: 40px; height: 40px; color: #777; }
     h1 { margin: 0 0 6px; font-size: 24px; }
+    .view-switch { margin-left: auto; display: flex; gap: 2px; align-self: flex-start; }
+    .view-switch [aria-pressed='true'] { color: #b39dff; background: rgba(124, 77, 255, 0.16); }
     .counts { margin: 0 0 4px; color: #e6e6ee; }
     .source { margin: 0; color: #8a8a99; font-size: 13px; }
     .slots { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
@@ -266,6 +275,7 @@ export class VolumeStackViewComponent implements OnInit {
 
   /** Card or List: the viewer's own library view preference, the one the folder browse uses (default Card). */
   readonly viewMode = signal<LibraryViewMode>('card');
+  private prefs: LibraryViewPreferencesDto | null = null;
   /** The list-view column count from 960px, from the same preference (1-3, default 2). */
   readonly listColumns = signal(2);
 
@@ -327,11 +337,22 @@ export class VolumeStackViewComponent implements OnInit {
       .subscribe((c) => this.patchItems(new Set([c.nodeId]), { coverUrl: c.coverUrl, coverSource: c.coverSource }));
   }
 
+  /** This page's own Card / List choice, remembered for the viewer (the rest of the preferences are sent back unchanged). */
+  setViewMode(mode: LibraryViewMode): void {
+    if (this.viewMode() === mode) return;
+    this.viewMode.set(mode);
+    if (!this.prefs) return;
+    this.prefs = { ...this.prefs, stackViewMode: mode };
+    this.api.setLibraryPreferences(this.prefs).subscribe({ error: () => { /* non-fatal: the choice still applies this visit */ } });
+  }
+
   ngOnInit(): void {
-    // The viewer's view mode (Card / List) and list columns: the browse preference, read once.
+    // The viewer's view mode (Card / List) and list columns: this page's own choice (1.30.0), else the browse preference.
     this.api.getLibraryPreferences().pipe(catchError(() => of(null))).subscribe((p) => {
       if (!p) return;
-      this.viewMode.set(p.viewMode === 'list' ? 'list' : 'card');
+      this.prefs = p;
+      const mode = p.stackViewMode === 'card' || p.stackViewMode === 'list' ? p.stackViewMode : p.viewMode;
+      this.viewMode.set(mode === 'list' ? 'list' : 'card');
       const columns = Number(p.listColumns);
       if (Number.isInteger(columns) && columns >= 1 && columns <= 3) this.listColumns.set(columns);
     });

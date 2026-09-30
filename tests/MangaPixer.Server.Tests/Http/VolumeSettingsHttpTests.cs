@@ -140,6 +140,25 @@ public sealed class VolumeSettingsHttpTests
     }
 
     [Fact]
+    public async Task StackView_IsRememberedPerUser_OnlyCardOrList_AndNullFollowsTheLibraryView()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true);
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+        const string Url = "/api/v1/reading/library-preferences";
+
+        var initial = await OkAsync<LibraryViewPreferencesDto>(await admin.GetAsync(Url));
+        Assert.Null(initial.StackViewMode);
+
+        (await admin.PutAsJsonAsync(Url, initial with { StackViewMode = "list" }, TestJson.Web)).EnsureSuccessStatusCode();
+        var stored = await OkAsync<LibraryViewPreferencesDto>(await admin.GetAsync(Url));
+        Assert.Equal("list", stored.StackViewMode);
+        Assert.Equal(initial.ViewMode, stored.ViewMode); // the library view is its own preference
+
+        (await admin.PutAsJsonAsync(Url, initial with { StackViewMode = "gallery" }, TestJson.Web)).EnsureSuccessStatusCode();
+        Assert.Null((await OkAsync<LibraryViewPreferencesDto>(await admin.GetAsync(Url))).StackViewMode); // unknown value: follow the library view
+    }
+
+    [Fact]
     public async Task FolderViewSettings_AdminOnly_FoldersOnly_AndNullInheritsAgain()
     {
         using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true);

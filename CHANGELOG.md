@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Complete collection.** A finished series your folder holds whole is marked **Complete collection**; a series finished in your language that you don't hold whole says so.
 - **Select inside a volume.** A volume's page now has **Select**, like the folder list: tap chapters (on a phone too), Shift-click or long-press for a range, then **Mark read**, **Mark unread**, **Favorites** or - for admins - the **Series** menu and **Cover...**.
 - **Select a whole volume.** In the Volumes view a volume can be selected like a folder or an archive; **Mark read**, **Mark unread** and **Favorites** apply to every archive in it in one step. A missing volume or chapter can't be selected.
+- **Card / List switch on a volume's page.** It remembers your choice for volume pages (cards show the covers, the list shows the archive names); until you choose, it follows your library view.
 - **List view inside a volume.** A volume's page follows your library view: with **List** chosen it shows the same compact rows as the folder list, with the same column count.
 - **Favorites** in the selection bar of the folder list: add or remove the selected items (a volume through all its archives).
 - Review candidates show whether they fit the folder's declared type (**Fits declared type** / **Not declared type**), and Identify warns when the series you preview is not the declared type.
@@ -34,6 +35,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A series opened from a folder that has no Volumes view (for example a category folder) now shows its Volumes view with the missing-volume cards; they only appeared after a reload.
+- A series is never marked **Complete collection** while chapters or volumes released in your language are missing; the last chapter of a finished scanlation is the highest one anything lists.
 - **Covers:** a volume cover from the web in the series' original language (used when MangaDex has none in your preferred language) no longer replaces your own volume's cover or its series folder's cover - an English edition's cover differs from the Japanese one by design. Covers already chosen are decided again once after the update.
 - Metadata Manager > Volume covers: the progress line no longer counts covers MangaPixer never downloads as waiting - it reads "nothing waiting" when the background pass is done, and the covers MangaDex lists for volumes you don't have (or in another language) are shown as not needed.
 - A volume's card in the folder list showed a stale read state and star after you changed its chapters on the volume page or in the reader; it now refreshes.

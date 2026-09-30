@@ -42,11 +42,13 @@ describe('VolumeStackViewComponent', () => {
     };
   }
 
-  function setup(result: VolumeStackDto | null, opts: { viewMode?: string; listColumns?: number; admin?: boolean; prefsFail?: boolean } = {}) {
+  function setup(result: VolumeStackDto | null, opts: { viewMode?: string; stackViewMode?: string | null; listColumns?: number; admin?: boolean; prefsFail?: boolean } = {}) {
     const apiSpy = {
       getLibraryPreferences: vi.fn().mockReturnValue(opts.prefsFail
         ? throwError(() => new Error('500'))
-        : of({ viewMode: opts.viewMode ?? 'card', density: 'comfortable', sort: 'name', direction: 'asc', listColumns: opts.listColumns ?? 2 })),
+        : of({ viewMode: opts.viewMode ?? 'card', density: 'comfortable', sort: 'name', direction: 'asc', listColumns: opts.listColumns ?? 2,
+          stackViewMode: opts.stackViewMode ?? null })),
+      setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       setItemRead: vi.fn().mockImplementation((id: string, read: boolean) => of({ itemId: id, isRead: read })),
       setFavorite: vi.fn().mockReturnValue(of(undefined)),
       getVolumeStack: vi.fn().mockReturnValue(result ? of(result) : throwError(() => new Error('404'))),
@@ -178,6 +180,23 @@ describe('VolumeStackViewComponent', () => {
     expect(el.querySelector('[data-testid="missing-chapter"]')!.getAttribute('aria-label')).toBe('Chapter 5.2, missing');
   });
   // --- List view (1.30.0) ---
+
+  it('has its own Card / List switch: remembered for the viewer, the other preferences sent back unchanged (1.30.0)', () => {
+    const { el, fixture, apiSpy } = setup(stack(), { viewMode: 'card' });
+    const list = el.querySelector('[data-testid="stack-view-list"]') as HTMLButtonElement;
+    expect(el.querySelector('[data-testid="stack-view-card"]')!.getAttribute('aria-pressed')).toBe('true');
+    list.click();
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="stack-slots"]')!.classList).toContain('list');
+    expect(list.getAttribute('aria-pressed')).toBe('true');
+    const saved = apiSpy.setLibraryPreferences.mock.calls.at(-1)![0];
+    expect(saved).toMatchObject({ stackViewMode: 'list', viewMode: 'card', listColumns: 2, sort: 'name' });
+  });
+
+  it('prefers its own stored choice over the library view mode', () => {
+    const { el } = setup(stack(), { viewMode: 'card', stackViewMode: 'list' });
+    expect(el.querySelector('[data-testid="stack-slots"]')!.classList).toContain('list');
+  });
 
   it('follows the viewer\'s library view mode: Card by default, List rows when the preference says so', () => {
     const card = setup(stack());

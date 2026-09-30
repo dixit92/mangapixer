@@ -7908,6 +7908,12 @@
                 "$ref": "#/components/schemas/SeriesViewMode"
               }
             ]
+          },
+          "stackViewMode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
