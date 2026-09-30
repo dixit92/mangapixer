@@ -5,6 +5,7 @@ using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Declared;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 /// <summary>
@@ -151,7 +152,7 @@ public sealed class DeclaredEvidenceTests : IAsyncLifetime
     public async Task TheRetiredFilterSwitch_IsIgnored()
     {
         // Metadata:AutoMatch:DeclaredTypeFilter (1.28.0 - 1.29.x) is retired: an old value is read without an error and changes nothing.
-        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+        var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Metadata:AutoMatch:DeclaredTypeFilter"] = "true" }).Build();
         var options = MetadataAutoMatchOptions.FromConfiguration(config);
         var folder = await OriginTieFolderAsync();
