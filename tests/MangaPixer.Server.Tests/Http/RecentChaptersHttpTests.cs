@@ -174,6 +174,68 @@ public sealed class RecentChaptersHttpTests : IClassFixture<MangaPixerWebApplica
     }
 
     [Fact]
+    public async Task GetRecentChapters_CategoryLibrary_StacksBySeriesFolder()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            if (!await db.Libraries.AnyAsync(l => l.PublicId == "reccatlib"))
+            {
+                var now = DateTimeOffset.UtcNow;
+                var lib = new LibraryEntity { PublicId = "reccatlib", DisplayName = "Category Library", RootPath = "/tmp/recent-cat", CreatedAt = now };
+                db.Libraries.Add(lib);
+                await db.SaveChangesAsync();
+
+                CatalogNodeEntity Folder(string id, string name, long? parent) => new()
+                {
+                    PublicId = id, LibraryId = lib.Id, Kind = 0, ParentId = parent, DisplayName = name,
+                    RelativePath = id, PathKey = id, SortKey = "0" + name, Availability = 0, CreatedAt = now,
+                };
+                CatalogNodeEntity Archive(string id, string name, long parent, TimeSpan age) => new()
+                {
+                    PublicId = id, LibraryId = lib.Id, Kind = 1, ParentId = parent, DisplayName = name,
+                    RelativePath = id, PathKey = id, SortKey = "1" + name, Availability = 0, CreatedAt = now - age,
+                };
+
+                // Manga (category) -> two series, one with Vol N unit folders; Manhwa (category) -> one series.
+                var manga = Folder("reccatManga", "Manga", null);
+                var manhwa = Folder("reccatManhwa", "Manhwa", null);
+                db.CatalogNodes.AddRange(manga, manhwa);
+                await db.SaveChangesAsync();
+                var one = Folder("reccatOne", "Series One", manga.Id);
+                var two = Folder("reccatTwo", "Series Two", manga.Id);
+                var three = Folder("reccatThree", "Series Three", manhwa.Id);
+                db.CatalogNodes.AddRange(one, two, three);
+                await db.SaveChangesAsync();
+                var vol1 = Folder("reccatVol1", "Vol 1", two.Id);
+                db.CatalogNodes.Add(vol1);
+                await db.SaveChangesAsync();
+                db.CatalogNodes.AddRange(
+                    Archive("reccat1a", "One 1.cbz", one.Id, TimeSpan.FromHours(1)),
+                    Archive("reccat1b", "One 2.cbz", one.Id, TimeSpan.FromHours(2)),
+                    Archive("reccat2a", "Two 1.cbz", vol1.Id, TimeSpan.FromHours(3)),
+                    Archive("reccat3a", "Three 1.cbz", three.Id, TimeSpan.FromHours(4)));
+                await db.SaveChangesAsync();
+            }
+        }
+
+        var client = await GetAuthenticatedClientAsync();
+        client.DefaultRequestHeaders.Remove("X-Incognito");
+
+        var response = await client.GetAsync("/api/v1/home/recent-chapters");
+        response.EnsureSuccessStatusCode();
+        var dto = await response.Content.ReadFromJsonAsync<RecentChaptersDto>();
+        var group = Assert.Single(dto!.Libraries, g => g.LibraryId == "reccatlib");
+
+        // A card per SERIES (not per category), newest first; "Vol 1" folds into Series Two.
+        Assert.Equal(new[] { "reccatOne", "reccatTwo", "reccatThree" }, group.Stacks.Select(s => s.Id).ToArray());
+        Assert.All(group.Stacks, s => Assert.True(s.IsFolder));
+        Assert.Equal(new[] { 2, 1, 1 }, group.Stacks.Select(s => s.NewCount).ToArray());
+        Assert.Equal("Series One", group.Stacks[0].DisplayName);
+        Assert.Equal("reccat1a", group.Stacks[0].LatestItemId);
+    }
+
+    [Fact]
     public async Task GetRecentChapters_RequiresAuthentication()
     {
         await SeedAsync();
