@@ -379,7 +379,9 @@
          versioned private cover URLs. Migrations AddVolumeCoversAndVirtualVolumes + AddVolumeMapReleases; both metadata consents
          v3. Worker protocol 5 (cover_render). Bugfixes ship as 1.29.x. -->
     <MangaPixerVersionMinor>29</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <!-- 1.29.1 - PATCH (2026-09-30, integrator-direct): split chapters on disk (2.1 + 2.2) count as a listed whole chapter
+         instead of extras with the chapter marked missing; start-up log warnings (EF 10114 / 10102, HTTP_PORTS override). -->
+    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
