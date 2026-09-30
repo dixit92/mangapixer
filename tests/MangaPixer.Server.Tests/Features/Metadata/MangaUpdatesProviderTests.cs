@@ -112,7 +112,8 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         Assert.Contains(new MetadataJson.Creator("MIURA Kentaro", "author", "22635311083"), r.Creators);
         Assert.Contains(new MetadataJson.Creator("MIURA Kentaro", "artist", "22635311083"), r.Creators);
         Assert.Contains(new MetadataJson.Publisher("Hakusensha", "original"), r.Publishers);
-        Assert.Contains(new MetadataJson.Publisher("Dark Horse", "english", 42), r.Publishers); // 1.28.0: the English totals are kept
+        // 1.28.0: the English totals are kept; 1.30.0: with the regular edition's own status (the 3-in-1 omnibus never counts).
+        Assert.Contains(new MetadataJson.Publisher("Dark Horse", "english", 42, null, "ongoing"), r.Publishers);
         Assert.Contains("Seinen", r.Genres);
         Assert.Equal(MangaUpdatesMapping.MaxStoredCategories, r.Categories.Count);
         Assert.True(r.Categories.Zip(r.Categories.Skip(1)).All(p => p.First.Votes >= p.Second.Votes));
@@ -408,6 +409,61 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
     [InlineData(null, null, null)]
     public void PublisherNotes_ReadVolumeAndChapterTotals(string? notes, int? volumes, int? chapters) =>
         Assert.Equal((volumes, chapters), MangaUpdatesStatusParser.ParsePublisherNotes(notes));
+
+    // The shapes stored in the recorded MangaUpdates fixtures (1.30.0): several editions per note, omnibus editions, "Defunct".
+    [Theory]
+    [InlineData("14 Volumes; Ongoing", 14, null, MetadataOriginStatus.Ongoing, false)]
+    [InlineData("13+2 Volumes; Complete", 15, null, MetadataOriginStatus.Complete, false)]
+    [InlineData("5 Vols - Complete", 5, null, MetadataOriginStatus.Complete, false)]
+    [InlineData("11 Vol - Ongoing", 11, null, MetadataOriginStatus.Ongoing, false)]
+    [InlineData("22 Volumes; Completed", 22, null, MetadataOriginStatus.Complete, false)]
+    [InlineData("201 Chapters; Defunct", null, 201, MetadataOriginStatus.Cancelled, false)]
+    [InlineData("86 Chapters; Ongoing", null, 86, MetadataOriginStatus.Ongoing, false)]
+    [InlineData("10 Volumes / 60 Chapters; Ongoing", 10, 60, MetadataOriginStatus.Ongoing, false)]
+    [InlineData("42 Volumes - Ongoing  | 14 Omnibus; print, 3-in-1 - Ongoing", 42, null, MetadataOriginStatus.Ongoing, false)]
+    [InlineData("18 Physical Volumes; Complete | 9 Physical Perfect Edition Omnibuses; Complete", 18, null, MetadataOriginStatus.Complete, false)]
+    [InlineData("7 Physical Volumes; Ongoing", 7, null, MetadataOriginStatus.Ongoing, false)]
+    [InlineData("13 Digital Volumes; Hiatus", 13, null, MetadataOriginStatus.Hiatus, false)]
+    [InlineData("12 Volumes; Complete | 3 Volumes (Dropped)", 12, null, MetadataOriginStatus.Complete, false)]
+    [InlineData("5 Omnibus Volumes; Complete", null, null, null, true)]
+    [InlineData("6 Volumes (3-in-1); Ongoing", null, null, null, true)]
+    [InlineData("Dropped", null, null, MetadataOriginStatus.Cancelled, false)]
+    [InlineData("Digital, Print", null, null, null, false)]
+    [InlineData("1995, 2008", null, null, null, false)]
+    [InlineData("", null, null, null, false)]
+    public void PublisherEdition_ReadsTheRegularEditionAndItsStatus(string notes, int? volumes, int? chapters, MetadataOriginStatus? status, bool omnibus) =>
+        Assert.Equal(new MangaUpdatesStatusParser.PublisherEdition(volumes, chapters, status, omnibus),
+            MangaUpdatesStatusParser.ParsePublisherEdition(notes));
+
+    [Fact]
+    public void Mapping_EnglishPublisher_StoresItsStatus_AndAnOmnibusOnlyCountNeverFeedsTheEnglishTotal()
+    {
+        var record = MangaUpdatesMapping.ToRecord(new MuSeries
+        {
+            SeriesId = 44,
+            Title = "Synthetic Omnibus",
+            Type = "Manga",
+            Status = "20 Volumes (Complete)",
+            Publishers =
+            [
+                new MuPublisher { PublisherName = "Omnibus House", Type = "English", Notes = "7 Omnibus Volumes; Complete" },
+                new MuPublisher { PublisherName = "Gone Press", Type = "English", Notes = "4 Volumes; Defunct" },
+            ],
+        }, 44);
+
+        Assert.Equal(4, record.EnglishVolumes);
+        Assert.Contains(new MetadataJson.Publisher("Omnibus House", "english", null, null, "complete", true), record.Publishers);
+        Assert.Contains(new MetadataJson.Publisher("Gone Press", "english", 4, null, "cancelled"), record.Publishers);
+
+        // JSON-additive: a pre-1.30.0 credit reads both new fields as null; a new one round-trips.
+        var json = MetadataJson.WriteList(record.Publishers.ToList());
+        Assert.Equal(record.Publishers, MetadataJson.ReadList<MetadataJson.Publisher>(json));
+        var old = MetadataJson.ReadList<MetadataJson.Publisher>("[{\"name\":\"Old\",\"kind\":\"english\",\"volumes\":3}]")[0];
+        Assert.Null(old.Status);
+        Assert.Null(old.StatusValue);
+        Assert.Null(old.Omnibus);
+        Assert.Equal(MetadataOriginStatus.Cancelled, record.Publishers.First(p => p.Name == "Gone Press").StatusValue);
+    }
 
     [Fact]
     public void Mapping_EnglishTotals_AreTheLargestOfTheEnglishPublishers_AndReachTheCandidate()
