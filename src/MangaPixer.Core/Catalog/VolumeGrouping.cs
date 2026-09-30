@@ -356,6 +356,17 @@ public static class VolumeGrouping
             }
         }
 
+        // A listed unit is missing only when no file in the folder holds it (1.30.0): a chapter the list places in two volumes
+        // (split across the boundary) sits in the first one's stack and counts as present in the second.
+        var folderUnits = chapters.Select(c => c.Units).ToList();
+        var folderWholes = MissingUnits.FileNumbersOf(folderUnits, MissingUnitKind.Chapter);
+        var folderSplits = MissingUnits.SplitsOf(folderUnits).Chapters;
+        var folderParts = chapters.Select(c => c.Units.Chapter).OfType<decimal>().Where(c => decimal.Truncate(c) != c).ToHashSet();
+        bool InFolder(decimal u) =>
+            decimal.Truncate(u) == u
+                ? u <= MissingUnits.MaxNumber && (folderWholes.Contains((int)u) || folderSplits.Contains((int)u))
+                : folderParts.Contains(u) || folderWholes.Contains((int)decimal.Truncate(u));
+
         var stackCount = 0;
         var missingChapters = new HashSet<decimal>();
         foreach (var (volume, bucket) in byVolume)
@@ -378,7 +389,7 @@ public static class VolumeGrouping
                 }
                 continue;
             }
-            var stack = BuildStack(volume, bucket.Volumes, bucket.Chapters, extras, resolver, map, high);
+            var stack = BuildStack(volume, bucket.Volumes, bucket.Chapters, extras, resolver, map, high, InFolder);
             missingChapters.UnionWith(stack.MissingChapters);
             var first = stack.Members.OrderBy(m => m.Row.SortKey, StringComparer.Ordinal).First().Row.SortKey;
             entries.Add(new VolumeEntry
@@ -466,7 +477,7 @@ public static class VolumeGrouping
 
     private static VolumeStack BuildStack(
         decimal volume, List<StackMember> volumeArchives, List<StackMember> chapterMembers, List<StackMember> bonusMembers,
-        VolumeResolver resolver, VolumeMapInput map, decimal? high)
+        VolumeResolver resolver, VolumeMapInput map, decimal? high, Func<decimal, bool> inFolder)
     {
         var hasVolumeArchive = volumeArchives.Count > 0;
         var required = resolver.RequiredUnits(volume);
@@ -492,8 +503,9 @@ public static class VolumeGrouping
         var wholes = MissingUnits.FileNumbersOf(units, MissingUnitKind.Chapter);
         var parts = chapterMembers.Where(m => m.Chapter is { } c && decimal.Truncate(c) != c).Select(m => m.Chapter!.Value).ToHashSet();
         bool Present(decimal u) =>
-            decimal.Truncate(u) == u ? u <= MissingUnits.MaxNumber && (wholes.Contains((int)u) || splits.Chapters.Contains((int)u))
-                : parts.Contains(u) || wholes.Contains((int)decimal.Truncate(u));
+            (decimal.Truncate(u) == u ? u <= MissingUnits.MaxNumber && (wholes.Contains((int)u) || splits.Chapters.Contains((int)u))
+                : parts.Contains(u) || wholes.Contains((int)decimal.Truncate(u)))
+            || inFolder(u);
         // A part missing between the parts here (4.1 and 4.3: 4.2) of a listed whole chapter; a later part exists, so it is released.
         var missingParts = splits.MissingParts.Where(p => requiredSet.Contains(decimal.Truncate(p))).ToList();
 

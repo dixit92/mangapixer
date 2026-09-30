@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Volumes view:** a chapter that the series' volume list places in two volumes (split across the boundary) is no longer marked missing in the second volume when its file is in the first one's stack.
 - **Metadata Manager > Review on a phone:** the covers now sit above each row's text. The series name had been squeezed to one letter per line and the covers ran off the left edge of the screen.
 
 ## [1.29.1] - 2026-09-30
