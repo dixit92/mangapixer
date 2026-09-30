@@ -642,4 +642,51 @@ public sealed class MatchScorerTests
 
         Assert.Equal(o1.Ranked.Select(r => r.Candidate.ExternalId), o2.Ranked.Select(r => r.Candidate.ExternalId));
     }
+
+    private static MatchQuery Planned(string folderName, int chapters)
+    {
+        var shape = new FolderShape(folderName, 2,
+            Enumerable.Range(1, chapters).Select(i => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{folderName} - Chapter {i:000}.cbz")).ToList(), []);
+        return new MatchQueryPlanner().PlanFolder(shape, new WorkDetector().Classify(shape));
+    }
+
+    [Fact]
+    public void AFolderSubtitle_ThatIsASpinOffsSubtitle_OutweighsTheBareMainTitle()
+    {
+        // 1.30.0 (backlog, owner fixture shape "<Series> - <Subtitle> [<Note>]", 58 chapter archives): the main record matched only
+        // the head through the subtitle split (0.97) and stayed a close, related second. It is now capped like a record-side head.
+        var q = Planned("Alpha Garden - Night Chapter", 58);
+        var main = Rec("1", "Alpha Garden", volumes: 30, related: [("2", "Spin-off")]);
+        var spinOff = Rec("2", "Alpha Garden - Night Chapter", volumes: 10, related: [("1", "Main Story")]);
+
+        var o = Score(q, main, spinOff);
+
+        Assert.Equal("2", o.Ranked[0].Candidate.ExternalId);
+        Assert.Equal(MatchScorer.SubtitleHeadCap, o.Ranked[1].TitleScore, 3);
+        Assert.Equal(MatchBand.Auto, o.Band);
+        Assert.Equal(MatchReason.None, o.Ranked[0].Reasons & MatchScorer.VetoReasons);
+    }
+
+    [Fact]
+    public void AFolderSubtitle_NoCandidateHas_LeavesTheHeadMatchAlone()
+    {
+        // "Title Words - Something" where no record carries "Something": the franchise record keeps its derived score.
+        var q = Planned("Alpha Garden - Night Chapter", 20);
+
+        var o = Score(q, Rec("1", "Alpha Garden", volumes: 30));
+
+        Assert.Equal(1.0 - MatchScorer.DerivedVariantDiscount, o.Ranked[0].TitleScore, 3);
+    }
+
+    [Fact]
+    public void AFolderSubtitle_TheMainRecordCarriesItself_IsNotCapped()
+    {
+        // The subtitle is the main record's own English subtitle (its alt "Alpha Garden: Night Chapter"): nothing to outweigh.
+        var q = Planned("Alpha Garden - Night Chapter", 20);
+
+        var o = Score(q, Rec("1", "Arufa Gaaden", alt: ["Alpha Garden: Night Chapter"], volumes: 30), Rec("3", "Alpha Garden Other"));
+
+        Assert.Equal("1", o.Ranked[0].Candidate.ExternalId);
+        Assert.True(o.Ranked[0].TitleScore > 0.95);
+    }
 }

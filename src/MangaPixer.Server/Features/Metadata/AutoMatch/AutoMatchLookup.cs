@@ -28,7 +28,8 @@ public sealed record WorkLookupResult(
 ///   <see cref="AutoMatchPolicy.MaxSearchesPerWork"/>, always with the fixed type
 ///   filter, doujinshi allowed below a "Doujinshi &amp; adult one-shots" folder), each
 ///   followed by a GET of the best hit (and the runner-up when it is close), stopping
-///   at the first confident variant.
+///   at the first confident variant; and at most ONE more GET per work, of the best hit whose matched title carries an
+///   author tag (1.30.0), so the tag can be checked against the record's authors.
 /// - cover comparison (1.28.0, optional <see cref="AutoMatchCoverComparer"/>): when the final score is a tie on
 ///   the title for a volume-shaped work, the covers of the two tied candidates are compared with the work's local
 ///   cover and a matching one gets a small adjusted-score bonus (never the raw title score).
@@ -122,6 +123,9 @@ public sealed class AutoMatchLookup
         public Dictionary<string, ProviderSeriesRecord> Fetched { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, string?> Images { get; } = new(StringComparer.Ordinal);
         public int CoversCompared { get; set; }
+
+        /// <summary>The one extra GET of a work (1.30.0) was spent on a hit whose matched title carries an author tag.</summary>
+        public bool TagFetchUsed { get; set; }
         public string CoverCheck { get; set; } = AutoMatch.CoverCheck.NotConfigured;
     }
 
@@ -230,6 +234,33 @@ public sealed class AutoMatchLookup
                 break;
             await FetchIntoAsync(ranked[i].Candidate.ExternalId, libraryId, candidates, found.Fetched, call, ct);
         }
+
+        // 1.30.0 (owner-confirmed): a hit that matched through a title with a trailing author tag ("Fly Me to the Moon (HATA
+        // Kenjiro)" on "Tonikaku Kawaii") scores only DisambiguatedAliasFactor until its authors are known. The best such hit that
+        // reaches the review floor and was not fetched above gets ONE GET per work, so the tag can be checked against the record's
+        // authors (in full when it names one of them, else it stays at the factor).
+        if (!found.TagFetchUsed
+            && TaggedAliasHit(query, ranked, found.Fetched, thresholds) is { } tagged)
+        {
+            found.TagFetchUsed = true;
+            await FetchIntoAsync(tagged.Candidate.ExternalId, libraryId, candidates, found.Fetched, call, ct);
+        }
+    }
+
+    /// <summary>
+    /// The best-ranked unfetched hit at the review floor whose title score comes from an author-tagged alias (an alternative
+    /// title with a trailing <c>(disambiguator)</c>, scored at <see cref="AutoMatchText.DisambiguatedAliasFactor"/>) - the score that
+    /// would rise if the tag named the record's author (1.30.0). Null when there is none.
+    /// </summary>
+    internal static ScoredCandidate? TaggedAliasHit(MatchQuery query, IReadOnlyList<ScoredCandidate> ranked,
+        IReadOnlyDictionary<string, ProviderSeriesRecord> fetched, MatchThresholds thresholds)
+    {
+        var texts = query.Variants.Select(v => v.Text).Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
+        return ranked.FirstOrDefault(r => r.TitleScore >= thresholds.ReviewFloor
+            && r.TitleScore < 1.0 - 1e-9
+            && !fetched.ContainsKey(r.Candidate.ExternalId)
+            && AutoMatchText.DisambiguatedAliases(r.Candidate.AltTitles ?? [], r.Candidate.Authors)
+                .Any(a => a.Factor < 1.0 && a.Factor * TitleSimilarity.Best(texts, [a.Title]) >= r.TitleScore - 0.02));
     }
 
     /// <summary>Page 1 left the top two tied, or nothing at the review floor (1.27.0).</summary>

@@ -274,6 +274,25 @@ public sealed class TitleNormalizerTests
         Assert.Equal(expected, TitleNormalizer.SubtitleHead(title));
 
     [Theory]
+    [InlineData("Series Name - Side Story", "Side Story")]
+    [InlineData("Series Name: Side Story", "Side Story")]
+    [InlineData("Series Name ~Side Story~", "Side Story")]
+    [InlineData("Word - Side Story", null)]      // one word before the dash: no subtitle split (as DerivedVariants)
+    [InlineData("Series Name", null)]
+    [InlineData("Series-Name Words", null)]      // an unspaced hyphen is part of the name
+    public void NameSubtitle_IsWhatTheSubtitleSplitCutsOff(string name, string? expected) =>
+        Assert.Equal(expected, TitleNormalizer.NameSubtitle(name));
+
+    [Theory]
+    [InlineData("Series Name: Side Story", "Side Story")]
+    [InlineData("Series Name - Side Story", "Side Story")]
+    [InlineData("Series Name ~Side Story~", "Side Story")]
+    [InlineData("Word:Re", "Re")]
+    [InlineData("Series Name", null)]
+    public void SubtitleTail_IsTheTextAfterTheFirstBreak(string title, string? expected) =>
+        Assert.Equal(expected, TitleNormalizer.SubtitleTail(title));
+
+    [Theory]
     [InlineData("Alpha Level 99 ~Sub~", "99", true)]
     [InlineData("Alpha Level 099", "99", true)]
     [InlineData("Alpha 1999", "99", false)]

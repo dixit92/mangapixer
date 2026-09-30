@@ -114,7 +114,7 @@ public sealed class MatchScorer : IMatchScorer
 
         var ctx = query.Context;
         var variants = PrepareVariants(query.Variants);
-        var scored = distinct.Select(c => ScoreOne(c, variants, ctx)).ToList();
+        var scored = SubtitleOutweighsHead(distinct.Select(c => ScoreOne(c, variants, ctx)).ToList(), variants, thresholds);
 
         var ranked = scored
             .OrderByDescending(s => s.AdjustedScore)
@@ -216,7 +216,42 @@ public sealed class MatchScorer : IMatchScorer
     private static bool IsOwnName(QueryVariantKind kind) =>
         kind is QueryVariantKind.Primary or QueryVariantKind.ComicInfoSeries or QueryVariantKind.ArchiveDerivedTitle;
 
-    private static ScoredCandidate ScoreOne(MatchCandidate c, List<PreparedVariant> variants, MatchContext ctx)
+    /// <summary>
+    /// 1.30.0 (backlog: "a folder name's subtitle should favour the spin-off record"): when the work's own name states a subtitle
+    /// (<c>Series - Subtitle</c>) and a candidate at the review floor has that subtitle as its own (<c>Series: Subtitle</c>), a record
+    /// that matched only the bare head (<c>Series</c>, through the retrieval-only subtitle split) is capped at
+    /// <see cref="SubtitleHeadCap"/> like a record-side head: the explicit subtitle outweighs the main-title match.
+    /// </summary>
+    private static List<ScoredCandidate> SubtitleOutweighsHead(List<(ScoredCandidate Scored, bool ViaSubtitleSplit)> scored,
+        List<PreparedVariant> variants, MatchThresholds thresholds)
+    {
+        var subtitles = variants.Where(v => IsOwnName(v.Kind) || v.Kind == QueryVariantKind.EnglishTitle)
+            .Select(v => TitleNormalizer.NameSubtitle(v.Text))
+            .OfType<string>()
+            .Select(TitleNormalizer.ScoringForm)
+            .Where(f => f.Length > 0)
+            .ToHashSet(StringComparer.Ordinal);
+        if (subtitles.Count == 0)
+            return scored.Select(s => s.Scored).ToList();
+        bool Carries(MatchCandidate c) => new[] { c.Title }.Concat(c.AltTitles ?? [])
+            .Select(t => AutoMatchText.WithoutDisambiguator(t) ?? t)
+            .Select(TitleNormalizer.SubtitleTail).OfType<string>()
+            .Any(t => subtitles.Contains(TitleNormalizer.ScoringForm(t)));
+        var carriers = scored.Where(s => s.Scored.TitleScore >= thresholds.ReviewFloor && Carries(s.Scored.Candidate))
+            .Select(s => s.Scored.Candidate.ExternalId).ToHashSet(StringComparer.Ordinal);
+        if (carriers.Count == 0)
+            return scored.Select(s => s.Scored).ToList();
+        return scored.Select(s =>
+        {
+            var x = s.Scored;
+            if (!s.ViaSubtitleSplit || carriers.Contains(x.Candidate.ExternalId) || x.TitleScore <= SubtitleHeadCap)
+                return x;
+            var drop = x.TitleScore - SubtitleHeadCap;
+            return x with { TitleScore = SubtitleHeadCap, AdjustedScore = x.AdjustedScore - drop };
+        }).ToList();
+    }
+
+    private static (ScoredCandidate Scored, bool ViaSubtitleSplit) ScoreOne(MatchCandidate c, List<PreparedVariant> variants, MatchContext ctx)
     {
         var reasons = MatchReason.None;
         var titles = new List<string> { c.Title };
@@ -285,6 +320,7 @@ public sealed class MatchScorer : IMatchScorer
 
         var best = 0.0;
         var bestPenalized = false;
+        var bestViaSubtitleSplit = false;
         foreach (var v in variants)
         {
             var reviewOnly = (v.Kind == QueryVariantKind.CreatorSplit && !hintNamesRecord)
@@ -320,6 +356,7 @@ public sealed class MatchScorer : IMatchScorer
                 {
                     best = s;
                     bestPenalized = penalized;
+                    bestViaSubtitleSplit = v.Kind == QueryVariantKind.SubtitleSplit;
                 }
             }
         }
@@ -427,7 +464,7 @@ public sealed class MatchScorer : IMatchScorer
             reasons |= MatchReason.CoverMatch;
         }
 
-        return new ScoredCandidate(c, title, title + delta, reasons);
+        return (new ScoredCandidate(c, title, title + delta, reasons), bestViaSubtitleSplit);
     }
 
     private static bool IsOneShotRecord(MatchCandidate c) =>
