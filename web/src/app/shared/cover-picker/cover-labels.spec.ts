@@ -5,6 +5,8 @@ describe('cover labels', () => {
   it('says what the automatic layer uses, by reason first', () => {
     expect(automaticLabel({ mode: 'Automatic', autoSource: 'Crop', reason: 'Spread' })).toContain('front half of page 1');
     expect(automaticLabel({ mode: 'Automatic', autoSource: 'WebVolume', reason: 'SeriesVolume1' })).toContain('volume 1');
+    // 1.30.0: a linked series folder shows its own volume 1 as that card shows it (crop, web cover or page 1).
+    expect(automaticLabel({ mode: 'Automatic', autoSource: 'Crop', reason: 'SeriesLocalVolume1' })).toBe('the cover of your volume 1 (as its own card shows it)');
     expect(automaticLabel({ mode: 'Automatic', autoSource: 'Poster' })).toBe('the stored series poster');
     expect(automaticLabel({ mode: 'Automatic' })).toBe("this file's cover");
     expect(automaticLabel(null)).toBe('');
