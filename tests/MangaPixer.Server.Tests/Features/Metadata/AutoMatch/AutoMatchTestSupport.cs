@@ -221,7 +221,9 @@ public sealed class AutoMatchHarness : IDisposable
         new(Db.Db, new AuditService(Db.Db), Time, [Net.Images], Net.LoggerFactory.CreateLogger<MetadataCarryOverService>());
 
     public MetadataRefreshService Refresh() => new(Db.Db, Net.Gateway(), Service(), Net.Identify(), Net.Budget(), Net.State, Time,
-        Net.LoggerFactory.CreateLogger<MetadataRefreshService>());
+        Net.LoggerFactory.CreateLogger<MetadataRefreshService>(),
+        new com.lifepixer.mangapixer.Server.Features.Metadata.Reach.ReachCheckService(Db.Db, Time,
+            Net.LoggerFactory.CreateLogger<com.lifepixer.mangapixer.Server.Features.Metadata.Reach.ReachCheckService>()));
 
     /// <summary>Fetch on (current consent) for the library, and the Automatic matching switch with the current automatic consent.</summary>
     public async Task EnableAutomaticAsync(bool automatic = true, int? autoConsentVersion = null, long? libraryId = null)

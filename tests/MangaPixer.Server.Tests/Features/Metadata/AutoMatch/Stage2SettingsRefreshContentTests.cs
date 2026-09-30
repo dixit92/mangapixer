@@ -196,6 +196,28 @@ public sealed class Stage2SettingsRefreshContentTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Refresh_ThatContradictsAnAutoLinksReach_MovesItToReview()
+    {
+        // 1.30.0 (reach): the refreshed record says 5 volumes; the Auto-linked folder holds volumes 1-30 -> Needs review.
+        var record = await LinkedRecordAsync("841", MetadataOriginStatus.Ongoing, TimeSpan.FromDays(40), state: SeriesLinkState.Auto);
+        var folder = await _db.Db.CatalogNodes.SingleAsync(n => n.DisplayName == "Folder 841");
+        for (var v = 1; v <= 30; v++)
+            await _db.AddArchiveAsync(folder, $"Synthetic v{v:00}.cbz");
+        _h.Records[841] = MuJson.Get(841, "Record 841", status: "5 Volumes (Ongoing)");
+        await _h.EnableAutomaticAsync();
+
+        Assert.Equal(1, await _h.Refresh().RunPassAsync());
+
+        _db.Db.ChangeTracker.Clear();
+        var link = await _db.Db.NodeSeriesLinks.SingleAsync(l => l.NodeId == folder.Id);
+        Assert.Equal((int)SeriesLinkState.NeedsReview, link.State);
+        Assert.Null(link.RecordId);
+        var candidate = await _db.Db.MetadataMatchCandidates.SingleAsync(c => c.NodeId == folder.Id);
+        Assert.Equal(record.ExternalId, candidate.ExternalId);
+        Assert.True(((MatchReason)candidate.Reasons).HasFlag(MatchReason.ReachConflict));
+    }
+
+    [Fact]
     public async Task Refresh_GateClosedOrDailyCapSpent_MakesNoCall()
     {
         await LinkedRecordAsync("821", MetadataOriginStatus.Ongoing, TimeSpan.FromDays(40));
