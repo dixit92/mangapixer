@@ -119,12 +119,30 @@ test('every main page fits a phone and a tablet screen', async ({ page }) => {
         await page.goto(url);
         await check(name, size.width);
       }
+      // Select mode (1.30.0): a whole volume selected in the Volumes view, a chapter selected on the stack page.
+      await page.goto(`${browse}/${folderId}`);
+      await page.locator('button.select-toggle').click();
+      await page.locator('.node-wrap a.node-card').first().click();
+      await check('series - Volumes view, stack selected', size.width);
+      await page.goto(`${browse}/${folderId}/volume/1`);
+      await page.getByTestId('stack-select').click();
+      await page.getByTestId('stack-item').first().click();
+      await check('volume stack - chapter selected', size.width);
       // The same browse pages in list view and the series' Folders view.
       await setPreferences(page, { viewMode: 'list', seriesViewMode: 'Folders' });
       await page.goto(browse);
       await check('library root - list', size.width);
       await page.goto(`${browse}/${folderId}`);
       await check('series - Folders view, list', size.width);
+      // 1.30.0: the Volumes view and the stack page in list view, with a row selected.
+      await setPreferences(page, { viewMode: 'list', seriesViewMode: null });
+      await page.goto(`${browse}/${folderId}`);
+      await page.locator('.node-wrap .row-select').first().click();
+      await check('series - Volumes view, list, stack selected', size.width);
+      await page.goto(`${browse}/${folderId}/volume/1`);
+      await check('volume stack - list', size.width);
+      await page.getByTestId('stack-row').first().locator('.row-select').click();
+      await check('volume stack - list, chapter selected', size.width);
       await setPreferences(page, { viewMode: saved['viewMode'], seriesViewMode: null });
     }
   } finally {
