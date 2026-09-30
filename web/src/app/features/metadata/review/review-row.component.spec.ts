@@ -150,7 +150,8 @@ describe('ReviewRowComponent', () => {
     return reviewItem({
       reasons: ['subtitle_family', 'series_family'],
       candidates: [
-        { ...first, rank: 1, externalId: '902', title: 'Synthetic Saga - Before the Frost', familyGroup: 1, familyRole: 'prequel' },
+        { ...first, rank: 1, externalId: '902', title: 'Synthetic Saga - Before the Frost', familyGroup: 1, familyRole: 'prequel',
+          reasons: ['subtitle_family', 'series_family'] },
         { ...second, rank: 2, externalId: '777', title: 'Unrelated Saga', familyGroup: null, familyRole: null },
         { ...second, rank: 3, externalId: '901', title: 'Synthetic Saga', familyGroup: 1, familyRole: 'main_story', imageToken: 'tok3' },
       ],
@@ -172,6 +173,8 @@ describe('ReviewRowComponent', () => {
       'Synthetic Saga - Before the Frost', 'Synthetic Saga', 'Unrelated Saga']);
     expect(all('[data-testid="review-reason"]').map((c) => c.textContent!.trim())).toEqual(['Spin-off or main story?', 'Series family']);
     expect(el.textContent).not.toContain('subtitle_family');
+    // Inside the block the family chips are not repeated on the candidate (the heading says it).
+    expect(family[0].querySelectorAll('.chip')).toHaveLength(0);
   });
 
   it('a family member keeps its rank: choosing it and accepting sends that rank', () => {

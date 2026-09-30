@@ -20,7 +20,7 @@ import {
 import { MetadataApiService } from '../metadata-api.service';
 import { CoverCompareDirective } from './cover-compare/cover-compare.directive';
 import { QueuedImageDirective, QueuedImageState } from './queued-image.directive';
-import { candidateBlocks, familyRoleLabel, SERIES_FAMILY_NOTE } from './series-family';
+import { candidateBlocks, FAMILY_REASONS, familyRoleLabel, SERIES_FAMILY_NOTE } from './series-family';
 
 /** A row action; `rank` for Accept (the chosen stored candidate). */
 export type ReviewRowAction =
@@ -224,7 +224,7 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
                 }
                 <span class="score" [matTooltip]="overallTip(c)" matTooltipPosition="above" [matTooltipShowDelay]="TOOLTIP_SHOW_DELAY"
                       [matTooltipHideDelay]="0">{{ scoreLabel(c.adjustedScore) }}</span>
-                @for (r of c.reasons ?? []; track r) {
+                @for (r of candidateReasons(c); track r) {
                   <span class="chip small" [matTooltip]="tip(r)" matTooltipPosition="above" [matTooltipShowDelay]="TOOLTIP_SHOW_DELAY"
                         [matTooltipHideDelay]="0">{{ reason(r) }}</span>
                 }
@@ -416,6 +416,12 @@ export class ReviewRowComponent {
   /** True when the candidate is shown in a family block (a role tag without its family would say nothing). */
   familyOf(c: MetadataReviewCandidateDto): boolean {
     return this.blocks().some((b) => b.family && b.candidates.includes(c));
+  }
+
+  /** A candidate's chips; inside a family block the family chips are left out (the block's heading says it, 1.30.0). */
+  candidateReasons(c: MetadataReviewCandidateDto): string[] {
+    const reasons = c.reasons ?? [];
+    return this.familyOf(c) ? reasons.filter((r) => !FAMILY_REASONS.has(r)) : reasons;
   }
 
   disabled(action: ReviewRowAction): boolean {

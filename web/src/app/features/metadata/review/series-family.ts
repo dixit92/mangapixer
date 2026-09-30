@@ -6,6 +6,9 @@ import { MetadataReviewCandidateDto } from '../../../core/api/api-types';
  * when it holds a spin-off, or the other way round.
  */
 
+/** Reason chips a family block's heading already states (left out on its candidates). */
+export const FAMILY_REASONS: ReadonlySet<string> = new Set(['subtitle_family', 'series_family']);
+
 /** The heading of a family block. */
 export const SERIES_FAMILY_NOTE = 'Same series family - check which one';
 
