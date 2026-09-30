@@ -285,11 +285,11 @@ public static class GoldenCases
             WorkClass.Series, MatchBand.Auto, WindBreakerKorea, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), [])),
         new("H09 declared manga, a folder of volumes: the Japanese \"Wind Breaker\"", F("Wind Breaker", Vols("Wind Breaker", 12)),
             WorkClass.Series, MatchBand.Auto, WindBreakerJapan, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manga), [])),
-        // The declaration is a hint among the other evidence: 40 chapter archives agree with the Korean record's 556 chapters
-        // (+0.01) and nothing is compared with the Japanese record's volumes, so the declared manga puts the Japanese record
-        // first by 0.09 - just under the margin: review, the declared type's record on top.
-        new("H10 declared manga, a folder of chapters: the Japanese record first, in review", F("Wind Breaker", Chaps("Wind Breaker", 40)),
-            WorkClass.Series, MatchBand.NeedsReview, WindBreakerJapan, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manga), [])),
+        // The declaration is a hint among the other evidence: 40 chapter archives agree with both records' chapter numbers (the
+        // Korean record's 556, the Japanese record's latest tracked chapter 32 - agreement only), so the declared type alone
+        // separates them by exactly the margin.
+        new("H10 declared manga, a folder of chapters: the Japanese \"Wind Breaker\"", F("Wind Breaker", Chaps("Wind Breaker", 40)),
+            WorkClass.Series, MatchBand.Auto, WindBreakerJapan, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manga), [])),
 
         // --- 1.30.0: a folder subtitle that is a spin-off's subtitle; an author-tagged alias --------------------------------
         // The owner's fixture shape "<Series> - <Subtitle> [<Note>]" with 58 chapter archives: the spin-off record carries the
@@ -300,7 +300,7 @@ public static class GoldenCases
             WorkClass.Series, MatchBand.Auto, AttackOnTitanBeforeTheFall),
         // The right record's main title is the original name; the search matches its English alias with MangaUpdates' author tag,
         // which counts in full only once the record is fetched (one extra GET per work).
-        new("A01 author-tagged alias: the record is fetched and the tag verified", F("Fly Me to the Moon", Vols("Fly Me to the Moon", 20)),
+        new("T01 author-tagged alias: the record is fetched and the tag verified", F("Fly Me to the Moon", Vols("Fly Me to the Moon", 20)),
             WorkClass.Series, MatchBand.NeedsReview, TonikakuKawaii),
 
         // --- 1.27.0: the live automatic-matching run (2026-09-27), as PUBLIC lookalikes ------------

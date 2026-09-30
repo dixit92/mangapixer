@@ -126,9 +126,13 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
     /// purpose, with the per-case reason in <see cref="GoldenCases"/>. 1.27.0: 55 / 11 / 2 (68 cases); 1.28.0 adds the
     /// provider-author cases P01-P04 (+3 auto, +1 review) and the cover cases C01-C05 (+5 review: a cover breaks a tie in
     /// the ranking, never into an automatic link at the default lead) and the declared-facts cases H01-H05 (+4 auto, +1
-    /// review: a declared author settles a three-way one-word tie); no existing case moved.
+    /// review: a declared author settles a three-way one-word tie); no existing case moved. 1.30.0: the declared type is a
+    /// scoring hint, no longer a search filter - H05 (the filter itself) is gone and H06 moves unmatched -> auto (a wrong
+    /// declared type no longer hides the right record); H07-H10 (+3 auto, +1 review: the declared type settles an origin tie),
+    /// S01 / S02 (+2 auto: a folder subtitle picks the spin-off) and T01 (+1 review: the author-tagged alias is fetched and
+    /// verified, the right record first).
     /// </summary>
-    public const int ExpectedAuto = 62, ExpectedReview = 18, ExpectedUnmatched = 3;
+    public const int ExpectedAuto = 67, ExpectedReview = 20, ExpectedUnmatched = 2;
 
     [Fact]
     public async Task Aggregate_BandsAndPrecision_AtTheDefaults()
