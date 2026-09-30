@@ -235,6 +235,8 @@ import { SeriesSelectionActionsComponent } from '../metadata/series-selection-ac
     @media (max-width: 599.98px) {
       .lbl { display: none; }
       .select-toggle mat-icon { margin-right: 0; }
+      /* The selection bar wraps as browse's does: the count, then the action icons, then Done - never a squeezed column. */
+      .bar.selecting { flex-wrap: wrap; }
       .head-cover { width: 88px; }
       h1 { font-size: 20px; }
       .slots { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }

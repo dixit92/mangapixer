@@ -65,7 +65,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
   `,
   styles: [`
     app-selection-bar { display: contents; }
-    app-selection-bar .count { font-weight: 600; }
+    app-selection-bar .count { font-weight: 600; white-space: nowrap; }
     app-selection-bar .actions { flex: 1 1 auto; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
     app-selection-bar .actions mat-icon, app-selection-bar .done mat-icon { margin-right: 4px; }
     @media (max-width: 599.98px) {
