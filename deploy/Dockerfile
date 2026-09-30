@@ -81,6 +81,8 @@ RUN (getent group 1000 > /dev/null 2>&1 || groupadd --gid 1000 mangapixer) && \
 RUN chown -R 1000:1000 /app
 
 ENV ASPNETCORE_URLS=http://+:8080
+# The base image also sets HTTP_PORTS=8080; with URLS set, every start logged "Overriding HTTP_PORTS". URLS decides.
+ENV ASPNETCORE_HTTP_PORTS=
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=true
 # Point the storage roots at the mounted volumes. Without these the roots resolve

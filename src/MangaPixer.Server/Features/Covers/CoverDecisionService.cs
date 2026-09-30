@@ -285,7 +285,7 @@ public sealed class CoverDecisionService
             return false;
         var children = await _db.CatalogNodes.AsNoTracking()
             .Where(n => n.ParentId == parent && n.Availability != (int)CatalogNodeAvailability.Tombstoned)
-            .Select(n => n.Kind).Take(2).ToListAsync(ct);
+            .OrderBy(n => n.Id).Select(n => n.Kind).Take(2).ToListAsync(ct);
         return children.Count == 1 && children[0] == (int)CatalogNodeKind.Archive;
     }
 

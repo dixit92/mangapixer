@@ -471,9 +471,14 @@ public static class VolumeGrouping
         var hasVolumeArchive = volumeArchives.Count > 0;
         var required = resolver.RequiredUnits(volume);
         var requiredSet = required?.ToHashSet() ?? [];
-        // A listed part of a split chapter (4.1 when 4 is not listed) is a chapter, not an extra; without a list a fraction stays an extra.
+        var units = chapterMembers.Select(m => UnitsOf(m.Row)).ToList();
+        var splits = MissingUnits.SplitsOf(units);
+        // A listed part of a split chapter (4.1 when 4 is not listed) is a chapter, not an extra, and so is a part on disk of a
+        // listed whole chapter (4.1 + 4.2 when the list says 4 - 1.29.1); without a list a fraction stays an extra.
         chapterMembers = chapterMembers
-            .Select(m => m.Chapter is { } c && decimal.Truncate(c) != c ? m with { IsExtra = !requiredSet.Contains(c) } : m)
+            .Select(m => m.Chapter is { } c && decimal.Truncate(c) != c
+                ? m with { IsExtra = !requiredSet.Contains(c) && !(splits.Parts.Contains(c) && requiredSet.Contains(decimal.Truncate(c))) }
+                : m)
             .ToList();
         var members = volumeArchives.OrderBy(m => m.Row.SortKey, StringComparer.Ordinal)
             .Concat(chapterMembers.OrderBy(m => m.Chapter).ThenBy(m => m.Row.SortKey, StringComparer.Ordinal))
@@ -482,13 +487,15 @@ public static class VolumeGrouping
         var estimated = resolver.IsEstimated(volume) || members.Any(m => m.Placement == VolumePlacement.Estimated);
         var confidence = estimated ? VolumeStackConfidence.Estimated : VolumeStackConfidence.Exact;
 
-        // Present units: whole chapters (a range covers its range), a part by itself or by its whole chapter's file.
-        var units = chapterMembers.Select(m => UnitsOf(m.Row)).ToList();
-        var wholes = MissingUnits.NumbersOf(units, MissingUnitKind.Chapter);
+        // Present units: whole chapters (a range covers its range) or their parts on disk, a listed part by itself or by its whole
+        // chapter's file.
+        var wholes = MissingUnits.FileNumbersOf(units, MissingUnitKind.Chapter);
         var parts = chapterMembers.Where(m => m.Chapter is { } c && decimal.Truncate(c) != c).Select(m => m.Chapter!.Value).ToHashSet();
         bool Present(decimal u) =>
-            decimal.Truncate(u) == u ? u <= MissingUnits.MaxNumber && wholes.Contains((int)u)
+            decimal.Truncate(u) == u ? u <= MissingUnits.MaxNumber && (wholes.Contains((int)u) || splits.Chapters.Contains((int)u))
                 : parts.Contains(u) || wholes.Contains((int)decimal.Truncate(u));
+        // A part missing between the parts here (4.1 and 4.3: 4.2) of a listed whole chapter; a later part exists, so it is released.
+        var missingParts = splits.MissingParts.Where(p => requiredSet.Contains(decimal.Truncate(p))).ToList();
 
         // A volume archive covers all its chapters: no placeholders, no incomplete mark (7.4). Otherwise a listed unit is missing
         // when a later chapter is here (it exists), or when the list of chapters released in the preferred language names it.
@@ -497,12 +504,15 @@ public static class VolumeGrouping
         {
             missing = required
                 .Where(u => !Present(u) && ((high is { } h && u < h) || map.ReleasedChapters?.Contains(u) == true))
+                .Concat(missingParts)
+                .Order()
                 .ToList();
         }
         var chaptersOf = required?.GroupBy(decimal.Truncate).ToList();
         int? chapterCount = chaptersOf?.Count;
+        var incomplete = missingParts.Select(decimal.Truncate).ToHashSet();
         int? chaptersPresent = chaptersOf is null ? null
-            : hasVolumeArchive ? chapterCount : chaptersOf.Count(g => g.All(Present));
+            : hasVolumeArchive ? chapterCount : chaptersOf.Count(g => g.All(Present) && !incomplete.Contains(g.Key));
 
         var extras = chapterMembers.Count(m => m.IsExtra) + bonusMembers.Count;
         var chapterNumbers = chapterMembers.Where(m => m.Chapter is not null).Select(m => m.Chapter!.Value).Order().ToList();

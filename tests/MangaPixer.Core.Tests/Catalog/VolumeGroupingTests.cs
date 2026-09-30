@@ -217,6 +217,42 @@ public sealed class VolumeGroupingTests
     }
 
     [Fact]
+    public void PartsOnDisk_MakeUpAListedWholeChapter()
+    {
+        // The 1.29.0 soak-test shape: the list says 1-5, the files are split into parts ("3" is the first part of 3 + 3.2).
+        var map = new VolumeMapInput([new VolumeMapVolume(1, [1m, 2m, 3m, 4m, 5m])], null, null, true, VolumeListSource.MangaDex);
+        var rows = new List<GroupingRow>
+        {
+            Archive("0001 [Ch. 0001 - Synthetic]"), Archive("0002 [Ch. 0002.1 - Synthetic]"), Archive("0003 [Ch. 0002.2 - Synthetic]"),
+            Archive("0004 [Ch. 0003 - Synthetic]"), Archive("0005 [Ch. 0003.2 - Synthetic]"), Archive("0006 [Ch. 0004.1 - Synthetic]"),
+            Archive("0007 [Ch. 0004.2 - Synthetic]"), Archive("0008 [Ch. 0004.3 - Synthetic]"), Archive("0009 [Ch. 0005.1 - Synthetic]"),
+            Archive("0010 [Ch. 0005.2 - Synthetic]"),
+        };
+        var r = VolumeGrouping.Group(rows, map);
+        var stack = Assert.Single(Stacks(r)).Stack!;
+
+        Assert.Empty(stack.MissingChapters);
+        Assert.Equal(0, r.MissingChapterCount);
+        Assert.Equal((5, 5, 0), (stack.ChapterCount, stack.ChaptersPresent, stack.ExtraCount));
+        Assert.All(stack.Members, m => Assert.False(m.IsExtra));
+        Assert.Equal(["1", "2.1", "2.2", "3", "3.2", "4.1", "4.2", "4.3", "5.1", "5.2"], VolumeGrouping.Slots(stack).Select(s => s.Chapter));
+        Assert.All(VolumeGrouping.Slots(stack), s => Assert.Equal(VolumeSlotKind.Item, s.Kind));
+    }
+
+    [Fact]
+    public void AGapBetweenPartsOnDisk_IsAMissingPart()
+    {
+        var map = new VolumeMapInput([new VolumeMapVolume(1, [3m, 4m, 5m])], null, null, true, VolumeListSource.MangaDex);
+        var stack = Assert.Single(Stacks(VolumeGrouping.Group(
+            [Archive("Series c003"), Archive("Series c004.1"), Archive("Series c004.3"), Archive("Series c005")], map))).Stack!;
+
+        Assert.Equal([4.2m], stack.MissingChapters);
+        Assert.Equal((3, 2, 0), (stack.ChapterCount, stack.ChaptersPresent, stack.ExtraCount)); // chapter 4 is incomplete
+        Assert.Equal(["3", "4.1", "4.2", "4.3", "5"], VolumeGrouping.Slots(stack).Select(s => s.Chapter));
+        Assert.Equal(VolumeSlotKind.Missing, VolumeGrouping.Slots(stack).Single(s => s.Chapter == "4.2").Kind);
+    }
+
+    [Fact]
     public void WithoutAList_FractionsStayExtras()
     {
         var stack = Assert.Single(Stacks(VolumeGrouping.Group([Archive("Series v01 c004.1"), Archive("Series v01 c004.2"), Archive("Series v01 c005")], null))).Stack!;

@@ -127,6 +127,12 @@ public sealed record MissingUnitsResult(
 /// </summary>
 public sealed record MissingFolder(string? Name, IReadOnlyList<string> ArchiveNames);
 
+/// <summary>
+/// The split chapters on disk (<see cref="MissingUnits.SplitsOf"/>): the part numbers that belong to one (never extras), the
+/// chapters they make up, and the parts missing between the parts here (ascending).
+/// </summary>
+public sealed record SplitChapters(IReadOnlySet<decimal> Parts, IReadOnlySet<int> Chapters, IReadOnlyList<decimal> MissingParts);
+
 public static class MissingUnits
 {
     /// <summary>At most this many missing numbers are listed; <see cref="MissingUnitGap.MissingCount"/> has the rest.</summary>
@@ -210,10 +216,25 @@ public static class MissingUnits
     /// <summary>
     /// The whole numbers of one unit kind the archives cover (1.29.0, public for the virtual-volume stacks): a range covers
     /// every number in it (<c>Vol. 01-05</c> -> 1..5), an extra (<see cref="UnitNumbers.IsExtra"/>, <c>c045.5</c>) covers none.
-    /// Chapters: the <see cref="UnitNumbers.Chapter"/> of every name that states one; volumes: the
-    /// <see cref="UnitNumbers.Volume"/> of names that state no chapter.
+    /// Chapters: the <see cref="UnitNumbers.Chapter"/> of every name that states one, plus each split chapter whose parts are
+    /// here (<see cref="SplitsOf"/>, 1.29.1); volumes: the <see cref="UnitNumbers.Volume"/> of names that state no chapter.
     /// </summary>
     public static SortedSet<int> NumbersOf(IEnumerable<UnitNumbers> units, MissingUnitKind kind)
+    {
+        ArgumentNullException.ThrowIfNull(units);
+        var list = units as IReadOnlyCollection<UnitNumbers> ?? units.ToList();
+        var set = FileNumbersOf(list, kind);
+        // A split chapter's parts on disk (2.1 + 2.2) make up chapter 2 (1.29.1).
+        if (kind == MissingUnitKind.Chapter)
+            set.UnionWith(SplitsOf(list).Chapters);
+        return set;
+    }
+
+    /// <summary>
+    /// The whole numbers the archives cover by their own number (a range covers its range): <see cref="NumbersOf"/> without
+    /// the split chapters. The stacks use it where a listed part is covered only by its whole chapter's file.
+    /// </summary>
+    public static SortedSet<int> FileNumbersOf(IEnumerable<UnitNumbers> units, MissingUnitKind kind)
     {
         ArgumentNullException.ThrowIfNull(units);
         var set = new SortedSet<int>();
@@ -233,6 +254,57 @@ public static class MissingUnits
                 set.Add(high);
         }
         return set;
+    }
+
+    /// <summary>
+    /// The split chapters among chapter archives (1.29.1, owner soak test): files numbered as parts of chapter N (N.1, N.2, ...)
+    /// are chapter N, also where a provider's list names only the plain N. A part is a one-decimal number; N.5 is the usual
+    /// number of an extra (10.5), so it is a part only after N.4. Without a file N, a lone N.1 or two parts or more are a split
+    /// chapter (a lone N.2 stays an extra); with a file N, that file is the first part and N.2 and later are its other parts
+    /// (a file N.1 next to it stays an extra). A part missing below the highest part here is in
+    /// <see cref="SplitChapters.MissingParts"/> (4.1 and 4.3 here: 4.2 is missing).
+    /// </summary>
+    public static SplitChapters SplitsOf(IEnumerable<UnitNumbers> units)
+    {
+        ArgumentNullException.ThrowIfNull(units);
+        var list = units as IReadOnlyCollection<UnitNumbers> ?? units.ToList();
+        var wholes = FileNumbersOf(list, MissingUnitKind.Chapter);
+        var tenthsByChapter = new SortedDictionary<int, SortedSet<int>>();
+        foreach (var u in list)
+        {
+            if (u.Chapter is not { } c || u.ChapterEnd is not null || c <= 0 || c > MaxNumber)
+                continue;
+            var tenths = (c - decimal.Truncate(c)) * 10;
+            if (tenths == 0 || decimal.Truncate(tenths) != tenths)
+                continue; // a whole chapter, or 12.25 / 12.75: never a part
+            var n = (int)decimal.Truncate(c);
+            if (!tenthsByChapter.TryGetValue(n, out var set))
+                tenthsByChapter[n] = set = [];
+            set.Add((int)tenths);
+        }
+
+        var parts = new HashSet<decimal>();
+        var chapters = new SortedSet<int>();
+        var missing = new List<decimal>();
+        foreach (var (n, tenths) in tenthsByChapter)
+        {
+            var hasFile = wholes.Contains(n);
+            var own = tenths.Where(t => (t != 5 || tenths.Contains(4)) && (!hasFile || t >= 2)).ToList();
+            if (hasFile ? own.Count == 0 : !own.Contains(1) && own.Count < 2)
+                continue;
+            chapters.Add(n);
+            var present = own.ToHashSet();
+            if (hasFile)
+                present.Add(1);
+            foreach (var t in own)
+                parts.Add(n + t / 10m);
+            for (var t = 1; t < own.Max(); t++)
+            {
+                if (!present.Contains(t))
+                    missing.Add(n + t / 10m);
+            }
+        }
+        return new SplitChapters(parts, chapters, missing);
     }
 
     /// <summary>

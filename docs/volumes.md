@@ -21,7 +21,7 @@ For every chapter archive, the first rule that applies decides:
 5. **Between two neighbouring volumes.** A chapter the list places in neither of two consecutive volumes (volume 1 ends at chapter 10, volume 2 starts at 12, and you have chapter 11) goes at the end of the first one.
 6. **Otherwise it stays loose**, listed after the volumes as a normal chapter ("not in a volume yet"). That is where the chapters after the newest published volume of a running series end up.
 
-Extras (a fractional chapter such as `c045.5`) follow their whole chapter into its volume. A **split chapter** is different: when the volume list names only parts of a chapter (`4.1`, `4.2`) and not chapter 4 itself, the parts are chapter 4, and it is complete when all its parts are here (a `c004` file also covers them). Without a volume list, a fractional chapter is always an extra.
+Extras (a fractional chapter such as `c045.5`) follow their whole chapter into its volume. A **split chapter** is different: when the volume list names only parts of a chapter (`4.1`, `4.2`) and not chapter 4 itself, the parts are chapter 4, and it is complete when all its parts are here (a `c004` file also covers them). It works the other way round too: when the volume list names chapter 4 but your files are its parts (`4.1`, `4.2`, `4.3`), those files are chapter 4, not extras. A file `c003` next to `c003.2` is chapter 3 in two parts. A lone `.5` (`c010.5`) stays an extra. Without a volume list, a fractional chapter is always an extra.
 
 A fractional **volume** (`Series v02.5`, a bonus book) goes at the end of volume 2's stack; if volume 2 has nothing here, it keeps its own card in its place.
 
@@ -59,7 +59,7 @@ When a folder is linked to a series, its generic unit subfolders are merged into
 - **A gap below your highest chapter** is missing: a later chapter is here, so this one exists.
 - **After your highest chapter**, a chapter is missing only when the series' volume list says it is released in your preferred language. When nothing says so, nothing after your last chapter is marked.
 - **Extras are never missing.** `c045.5` next to a listed chapter 45 is shown between 45 and 46 but never fills chapter 45 and is never counted as missing.
-- **Parts of a split chapter** are: with `5.1` and `5.3` here, `5.2` is missing, and chapter 5 is not complete.
+- **Parts of a split chapter** are: with `5.1` and `5.3` here, `5.2` is missing, and chapter 5 is not complete. The same holds for parts on disk of a chapter the list names whole: with `4.1` and `4.3` here, `4.2` is missing.
 - A volume file covers its whole volume, so a stack with a volume file has no placeholders.
 - Estimated volumes mark missing chapters against their estimated range, so treat those marks as hints.
 

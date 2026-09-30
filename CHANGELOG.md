@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.29.1] - 2026-09-30
+
+### Fixed
+
+- **Volumes view and Missing report:** chapters split into parts on disk (2.1 + 2.2) now count as that chapter when the series' volume list names only the plain number (2). They were shown as extras, with chapter 2 marked missing. A file 3 next to 3.2 is chapter 3 in two parts, and a part missing between two others (4.1 and 4.3 here) is marked. A lone .5 (10.5) is still an extra.
+- Two database query warnings in the log at start-up (volume cover decisions), and a "Overriding HTTP_PORTS" warning on every container start.
+
 ## [1.29.0] - 2026-09-29
 
 ### Added

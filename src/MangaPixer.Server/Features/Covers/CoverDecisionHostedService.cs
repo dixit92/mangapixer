@@ -232,9 +232,9 @@ public sealed class CoverDecisionHostedService : BackgroundService
                 || (r != null && r.FetchedAt > since)
                 || (c != null && c.CheckedAt > since)
                 || (c != null && db.VolumeCovers.Any(v => v.ProviderRecordId == c.CompanionRecordId && (v.ListedAt > since || v.StoredAt > since)))
-            orderby l.NodeId
             select l.NodeId;
-        return await query.Distinct().ToListAsync(ct);
+        // Order after Distinct: an ORDER BY before it is dropped by the query (EF warning 10114).
+        return await query.Distinct().OrderBy(id => id).ToListAsync(ct);
     }
 
     /// <summary>Ready archives whose page 1 is spread-shaped (width / height &gt;= 1.2) and that have no decision.</summary>
