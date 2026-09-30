@@ -11,11 +11,16 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 public sealed record WebCoverCandidate(AutoCoverSource Source, long? VolumeCoverId, ulong? Hash, bool OriginFallback = false);
 
 /// <summary>What the automatic layer decided for one node (a <c>node_auto_covers</c> row).</summary>
+/// <param name="ArchiveNodeId">Source LocalVolume1: the archive whose resolved cover the folder shows.</param>
 public sealed record CoverDecision(AutoCoverSource Source, AutoCoverReason Reason, CoverCropSide? CropSide = null,
-    WebCoverCandidate? Web = null)
+    WebCoverCandidate? Web = null, long? ArchiveNodeId = null)
 {
     /// <summary>Keep the file cover (stored so the node is not re-decided).</summary>
     public static CoverDecision File(AutoCoverReason reason) => new(AutoCoverSource.File, reason);
+
+    /// <summary>A series folder shows its local volume 1 archive's resolved cover.</summary>
+    public static CoverDecision LocalVolume1(long archiveNodeId) =>
+        new(AutoCoverSource.LocalVolume1, AutoCoverReason.SeriesLocalVolume1, ArchiveNodeId: archiveNodeId);
 
     public static CoverDecision Crop(CoverCropSide side, AutoCoverReason reason) => new(AutoCoverSource.Crop, reason, side);
 
@@ -122,28 +127,19 @@ public static class CoverRules
     }
 
     /// <summary>
-    /// A linked series folder (volumes, chapters or mixed). With a local volume 1: its resolved local cover Same as the
-    /// web volume 1 cover -> the file default; no web volume 1 cover -> the file default (integrator default: the main
-    /// cover / poster usually shows the newest volume); a web volume 1 cover only in the original language (the preferred one
-    /// is missing) -> the file default (1.30.0, owner: never a cover in another language over yours); else the web volume 1 cover. Without a local volume 1: web
-    /// volume 1 > web main > stored poster > file.
+    /// A linked series folder (volumes, chapters or mixed). With a local volume 1 archive: THAT archive's resolved cover (1.30.0,
+    /// owner soak test) - its own decision already compared it with the web volume 1 cover (Same / Different / uncertain / a
+    /// cover only in the original language), so the folder shows exactly what volume 1's card shows, never the first file by
+    /// name (chapter 1's page 1 in a <c>Series/Chapters/</c> layout). Without a local volume 1: web volume 1 > web main >
+    /// stored poster > file.
     /// </summary>
-    /// <param name="hasLocalVolume1">A live volume 1 archive exists below the folder.</param>
-    /// <param name="localVolume1Hash">The hash of its resolved local cover (crop or file).</param>
+    /// <param name="localVolume1">The live volume 1 archive below the folder, or null.</param>
     /// <param name="chapterFolder">The folder holds chapters and no volume archive (only the reason differs).</param>
-    public static CoverDecision DecideSeriesFolder(bool hasLocalVolume1, ulong? localVolume1Hash, bool chapterFolder,
+    public static CoverDecision DecideSeriesFolder(long? localVolume1, bool chapterFolder,
         WebCoverCandidate? webVolume1, WebCoverCandidate? webMain, WebCoverCandidate? poster)
     {
-        if (hasLocalVolume1)
-        {
-            if (webVolume1 is null)
-                return CoverDecision.File(AutoCoverReason.NoWebCover);
-            if (Compare(localVolume1Hash, webVolume1.Hash) == CoverVerdict.Same)
-                return CoverDecision.File(AutoCoverReason.FileMatchesWeb);
-            return webVolume1.OriginFallback
-                ? CoverDecision.File(AutoCoverReason.OtherLanguageKept)
-                : CoverDecision.FromWeb(webVolume1, AutoCoverReason.SeriesVolume1);
-        }
+        if (localVolume1 is { } archive)
+            return CoverDecision.LocalVolume1(archive);
 
         var reason = chapterFolder ? AutoCoverReason.ChapterFolderDefault : AutoCoverReason.SeriesVolume1;
         if (webVolume1 is not null)

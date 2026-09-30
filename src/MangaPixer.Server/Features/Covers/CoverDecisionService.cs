@@ -46,7 +46,7 @@ public sealed class CoverDecisionService
     public const int MaxSubtreeArchives = 5000;
 
     /// <summary>Bumped when <see cref="CoverRules"/> changes what it decides for the same inputs (see <c>Key</c>).</summary>
-    internal const int RulesRevision = 2;
+    internal const int RulesRevision = 3;
 
     private const double TallRatio = 2.0;
     private const int MaxMeasuredPages = 400;
@@ -322,26 +322,19 @@ public sealed class CoverDecisionService
             var rows = await ArchiveRowsAsync(archiveIds.Take(MaxSubtreeArchives).ToList(), ct);
             var volume1 = rows.Where(r => r.VolumeNumber == 1).OrderBy(r => r.SortKey, StringComparer.Ordinal).ThenBy(r => r.Id).FirstOrDefault();
             var chapterFolder = !rows.Any(r => r.VolumeNumber is not null);
-            var w1 = WebVolume(series, settings, 1);
-            var volume1Auto = volume1 is null ? null : await _db.NodeAutoCovers.AsNoTracking().FirstOrDefaultAsync(a => a.NodeId == volume1.Id, ct);
-            var seriesKey = Key("series", series.CoversStamp, Describe(series, w1), Describe(series, main), Describe(series, poster), chapterFolder,
-                volume1?.Id, volume1?.ContentVersion, volume1Auto?.Source, volume1Auto?.CropSide, volume1Auto?.LocalHash);
-            return await ApplyAsync(folder.Id, seriesKey, ct, async () =>
+            if (volume1 is not null)
             {
-                ulong? localHash = null;
-                if (volume1 is not null && w1 is not null)
-                {
-                    // Volume 1's resolved LOCAL cover: its crop when its decision crops, else its file.
-                    // (Its decision stored the hash of that local candidate whenever a web cover was compared.)
-                    localHash = volume1Auto?.LocalHash is { } stored
-                        ? unchecked((ulong)stored)
-                        : volume1Auto is { Source: (int)AutoCoverSource.Crop, CropSide: { } side }
-                            ? (await _crops.EnsureAsync(volume1.Id, (CoverCropSide)side, rerender: true, ct))?.Hash
-                            : await FileHashAsync(volume1, ct);
-                }
-                var w = w1 is null ? null : await WithHashAsync(w1, series, ct);
-                return (CoverRules.DecideSeriesFolder(volume1 is not null, localHash, chapterFolder, w, main, poster), null);
-            }, series);
+                // 1.30.0: the series cover IS volume 1's resolved cover (its own decision compared it with the web volume 1
+                // cover), read at serve time - so nothing to compare or hash here, and no key input but the archive.
+                var localKey = Key("series-v1", volume1.Id);
+                return await ApplyAsync(folder.Id, localKey, ct, () => Task.FromResult<(CoverDecision?, ulong?)>(
+                    (CoverRules.DecideSeriesFolder(volume1.Id, chapterFolder, null, null, null), null)), series);
+            }
+
+            var w1 = WebVolume(series, settings, 1);
+            var seriesKey = Key("series", series.CoversStamp, Describe(series, w1), Describe(series, main), Describe(series, poster), chapterFolder);
+            return await ApplyAsync(folder.Id, seriesKey, ct,
+                () => Task.FromResult<(CoverDecision?, ulong?)>((CoverRules.DecideSeriesFolder(null, chapterFolder, w1, main, poster), null)), series);
         }
 
         // A subfolder of a linked series (Season / Part): the volume its first archive belongs to.
@@ -494,13 +487,15 @@ public sealed class CoverDecisionService
             existing = new NodeAutoCoverEntity { NodeId = nodeId, Version = 1 };
             _db.NodeAutoCovers.Add(existing);
         }
-        else if (existing.Source != (int)decision.Source || existing.CropSide != cropSide || existing.VolumeCoverId != target)
+        else if (existing.Source != (int)decision.Source || existing.CropSide != cropSide || existing.VolumeCoverId != target
+            || existing.ArchiveNodeId != decision.ArchiveNodeId)
         {
             existing.Version++;
         }
         existing.Source = (int)decision.Source;
         existing.CropSide = cropSide;
         existing.VolumeCoverId = target;
+        existing.ArchiveNodeId = decision.ArchiveNodeId;
         existing.Reason = (int)decision.Reason;
         existing.LocalHash = localHash is { } h ? unchecked((long)h) : existing.LocalHash;
         existing.InputsKey = inputsKey;
@@ -530,7 +525,7 @@ public sealed class CoverDecisionService
     private static string Key(params object?[] parts)
     {
         // The rules revision is part of every key: a rules change re-decides every node once (1.30.0: rules 2 - a cover in
-        // the original language never replaces a local cover).
+        // the original language never replaces a local cover; rules 3 - a series folder shows its local volume 1's cover).
         var text = RulesRevision + "|" + string.Join('|', parts.Select(p => Convert.ToString(p, CultureInfo.InvariantCulture) ?? "-"));
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)))[..40];
     }

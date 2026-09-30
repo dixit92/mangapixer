@@ -40,6 +40,13 @@ public sealed record CoverResolution
     /// <summary>True when a layer (admin choice or automatic decision) picked the image.</summary>
     public required bool Layered { get; init; }
 
+    /// <summary>
+    /// True when the node's OWN layer picked the image (its admin choice or its automatic decision - for a series folder its
+    /// local volume 1 or a web cover), false for the file default (a folder: its first archive by name). Home's Continue
+    /// reading shows a linked series folder's cover only when it is its own (1.30.0).
+    /// </summary>
+    public bool OwnLayer { get; init; }
+
     /// <summary>The node the layered URL names (the node itself, or a folder's cover archive).</summary>
     public required string UrlNodePublicId { get; init; }
 
@@ -69,7 +76,8 @@ public sealed record CoverResolution
 /// <item>the admin's choice (another archive's file cover, a stored web cover, a half of page 1);</item>
 /// <item>the admin's "use the file's cover" pin (stops: the file);</item>
 /// <item>the automatic decision (<c>node_auto_covers</c>) while its layer is allowed - a crop needs "Crop jacket spreads", a web
-/// source (volume / main cover, poster) needs "Volume covers from the web" AND the library's "Show saved web covers";</item>
+/// source (volume / main cover, poster) needs "Volume covers from the web" AND the library's "Show saved web covers"; a series
+/// folder's "local volume 1" (1.30.0) resolves that archive through its own steps 1-4;</item>
 /// <item>the file default: an archive's own page 1; a folder's cover archive (first live descendant archive by SortKey,
 /// <see cref="FolderCovers"/>), which goes through steps 1-3 itself - so a volume 1 crop reaches its series card for free.</item>
 /// </list>
@@ -113,6 +121,12 @@ public sealed class CoverResolutionService
 
         var ids = targets.Select(t => t.NodeId).Distinct().ToList();
         await LoadLayersAsync(batch, ids, ct);
+
+        // A series folder that shows its local volume 1 (1.30.0): that archive's own layer.
+        var volume1Archives = batch.Autos.Values
+            .Where(a => a.Source == (int)AutoCoverSource.LocalVolume1 && a.ArchiveNodeId is not null)
+            .Select(a => a.ArchiveNodeId!.Value).Where(id => !batch.Nodes.ContainsKey(id)).Distinct().ToList();
+        await LoadLayersAsync(batch, volume1Archives, ct);
 
         // Folders with no own image-picking layer, and folder choices that need the cover archive (pin, crop).
         var needArchive = new List<long>();
@@ -208,8 +222,24 @@ public sealed class CoverResolutionService
 
     private CoverResolution? Resolve(Batch batch, long nodeId, string publicId, bool isFolder)
     {
-        if (!batch.Nodes.TryGetValue(nodeId, out var node))
+        if (!batch.Nodes.ContainsKey(nodeId))
             return null;
+        if (OwnLayer(batch, nodeId, publicId, isFolder) is { } own)
+            return own with { OwnLayer = true };
+
+        // 4. The file default (a folder: its cover archive, through the archive's own layer).
+        if (!isFolder)
+            return FileOf(batch, nodeId, isFolder: false);
+        if (!batch.FolderCoverArchives.TryGetValue(nodeId, out var coverArchive))
+            return null;
+        var inner = Resolve(batch, coverArchive.Id, coverArchive.PublicId, isFolder: false);
+        return inner is null ? null : inner with { NodeId = nodeId, OwnLayer = false };
+    }
+
+    /// <summary>Steps 1-3: the node's own layer (admin choice, pin, automatic decision), or null for the file default.</summary>
+    private CoverResolution? OwnLayer(Batch batch, long nodeId, string publicId, bool isFolder)
+    {
+        var node = batch.Nodes[nodeId];
         var webAllowed = batch.Switches.VolumeCoversEnabled && !batch.WebHiddenLibraries.Contains(node.LibraryId);
 
         // 1-2. The admin's choice.
@@ -272,16 +302,13 @@ public sealed class CoverResolutionService
                         ImageVersion = record.ImageVersion,
                         Version = Token("a", auto.Version, "poster", record.Id, record.ImageVersion),
                     }, nodeId, isFolder);
+                case AutoCoverSource.LocalVolume1 when isFolder && auto.ArchiveNodeId is { } volume1Id
+                    && batch.Nodes.TryGetValue(volume1Id, out var volume1) && IsLiveArchive(volume1):
+                    // Exactly what volume 1's own card shows (its choice, crop, web cover or file); its URL and version.
+                    return Resolve(batch, volume1Id, volume1.PublicId, isFolder: false) is { } shown ? shown with { NodeId = nodeId } : null;
             }
         }
-
-        // 4. The file default (a folder: its cover archive, through the archive's own layer).
-        if (!isFolder)
-            return FileOf(batch, nodeId, isFolder: false);
-        if (!batch.FolderCoverArchives.TryGetValue(nodeId, out var coverArchive))
-            return null;
-        var inner = Resolve(batch, coverArchive.Id, coverArchive.PublicId, isFolder: false);
-        return inner is null ? null : inner with { NodeId = nodeId };
+        return null;
     }
 
     /// <summary>The node's file cover: an archive's own page 1, a folder's cover archive's page 1 (no layer).</summary>

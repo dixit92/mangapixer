@@ -134,7 +134,7 @@ public sealed class CoverRulesTests
     public void OriginLanguageWebCover_AsksForARecheck_WhereItIsUsed()
     {
         // A series folder without a local volume 1 uses the original-language volume 1 cover and re-checks it later.
-        Assert.True(CoverRules.DecideSeriesFolder(false, null, false, Web(Away(40), originFallback: true), null, null).NeedsRecheck);
+        Assert.True(CoverRules.DecideSeriesFolder(null, false, Web(Away(40), originFallback: true), null, null).NeedsRecheck);
         // A volume never uses it over its own cover (1.30.0), so nothing is re-checked.
         Assert.False(CoverRules.DecideVolume(false, CoverCropSide.Right, Base, null, Web(Away(40), originFallback: true)).NeedsRecheck);
         Assert.False(CoverRules.DecideVolume(false, CoverCropSide.Right, Base, null, Web(Away(4), originFallback: true)).NeedsRecheck);
@@ -168,40 +168,32 @@ public sealed class CoverRulesTests
 
     // ----- series folders -------------------------------------------------------------------------------------------
 
-    [Fact]
-    public void SeriesFolder_LocalVolume1MatchesWeb_KeepsTheFileDefault()
-    {
-        var d = CoverRules.DecideSeriesFolder(true, Base, false, Web(Away(3)), null, null);
-        Assert.Equal((AutoCoverSource.File, AutoCoverReason.FileMatchesWeb), (d.Source, d.Reason));
-    }
-
-    [Fact]
-    public void SeriesFolder_LocalVolume1WithoutWebVolume1_KeepsTheFile_NotTheMainCoverOrPoster()
-    {
-        var d = CoverRules.DecideSeriesFolder(true, Base, false, null, Web(Away(40), AutoCoverSource.WebMain), Web(null, AutoCoverSource.Poster));
-        Assert.Equal((AutoCoverSource.File, AutoCoverReason.NoWebCover), (d.Source, d.Reason));
-    }
-
     [Theory]
-    [InlineData(15)]
-    [InlineData(35)]
-    public void SeriesFolder_LocalVolume1NotTheSame_ShowsTheWebVolume1(int bits)
+    [InlineData(3, false)]   // volume 1's page 1 is the web cover
+    [InlineData(15, false)]  // uncertain: volume 1 keeps its own cover, so does the folder (1.30.0)
+    [InlineData(35, false)]  // different: volume 1's own decision takes the web cover - the folder shows volume 1 either way
+    [InlineData(35, true)]   // only an original-language web cover: never over your volume 1 (1.30.0 soak test)
+    public void SeriesFolder_WithALocalVolume1_ShowsThatArchivesResolvedCover(int bits, bool originFallback)
     {
-        var d = CoverRules.DecideSeriesFolder(true, Base, false, Web(Away(bits)), null, null);
-        Assert.Equal((AutoCoverSource.WebVolume, AutoCoverReason.SeriesVolume1), (d.Source, d.Reason));
+        // 1.30.0 (owner soak test): the folder showed chapter 1's page 1 (the first file by name in Series/Chapters/) while it
+        // compared volume 1. Now it names volume 1's archive; the resolver shows that archive's own resolved cover.
+        var d = CoverRules.DecideSeriesFolder(42, false, Web(Away(bits), originFallback: originFallback), Web(Base, AutoCoverSource.WebMain),
+            Web(null, AutoCoverSource.Poster));
+        Assert.Equal(new CoverDecision(AutoCoverSource.LocalVolume1, AutoCoverReason.SeriesLocalVolume1, ArchiveNodeId: 42), d);
+        Assert.False(d.NeedsRecheck);
     }
 
-    [Theory]
-    [InlineData(15)]
-    [InlineData(35)]
-    public void SeriesFolder_WebVolume1OnlyInTheOriginLanguage_KeepsTheFile(int bits)
+    [Fact]
+    public void SeriesFolder_WithALocalVolume1_AndNoWebCoverAtAll_StillNamesVolume1()
     {
-        // 1.30.0 soak test: the folder showed the Japanese volume 1 cover over the local English volume 1.
-        var d = CoverRules.DecideSeriesFolder(true, Base, false, Web(Away(bits), originFallback: true), null, null);
-        Assert.Equal((AutoCoverSource.File, AutoCoverReason.OtherLanguageKept), (d.Source, d.Reason));
-        // Without a local volume 1 the original-language cover still stands in (unchanged).
-        Assert.Equal(AutoCoverSource.WebVolume, CoverRules.DecideSeriesFolder(false, null, false, Web(Away(bits), originFallback: true), null, null).Source);
+        // Not the main cover / poster (they usually show the newest volume) and not the first file by name.
+        var d = CoverRules.DecideSeriesFolder(7, true, null, null, null);
+        Assert.Equal((AutoCoverSource.LocalVolume1, 7L), (d.Source, d.ArchiveNodeId));
     }
+
+    [Fact]
+    public void SeriesFolder_WebVolume1OnlyInTheOriginLanguage_WithoutALocalVolume1_StandsIn() =>
+        Assert.Equal(AutoCoverSource.WebVolume, CoverRules.DecideSeriesFolder(null, false, Web(Away(35), originFallback: true), null, null).Source);
 
     [Fact]
     public void SeriesFolder_NoLocalVolume1_WebVolume1_ThenMain_ThenPoster_ThenFile()
@@ -209,12 +201,12 @@ public sealed class CoverRulesTests
         var w1 = Web(Base, id: 1);
         var main = Web(Base, AutoCoverSource.WebMain, id: 2);
         var poster = Web(null, AutoCoverSource.Poster);
-        Assert.Same(w1, CoverRules.DecideSeriesFolder(false, null, false, w1, main, poster).Web);
-        Assert.Same(main, CoverRules.DecideSeriesFolder(false, null, true, null, main, poster).Web);
-        Assert.Same(poster, CoverRules.DecideSeriesFolder(false, null, true, null, null, poster).Web);
-        Assert.Equal(AutoCoverSource.File, CoverRules.DecideSeriesFolder(false, null, true, null, null, null).Source);
-        Assert.Equal(AutoCoverReason.ChapterFolderDefault, CoverRules.DecideSeriesFolder(false, null, true, w1, null, null).Reason);
-        Assert.Equal(AutoCoverReason.SeriesVolume1, CoverRules.DecideSeriesFolder(false, null, false, w1, null, null).Reason);
+        Assert.Same(w1, CoverRules.DecideSeriesFolder(null, false, w1, main, poster).Web);
+        Assert.Same(main, CoverRules.DecideSeriesFolder(null, true, null, main, poster).Web);
+        Assert.Same(poster, CoverRules.DecideSeriesFolder(null, true, null, null, poster).Web);
+        Assert.Equal(AutoCoverSource.File, CoverRules.DecideSeriesFolder(null, true, null, null, null).Source);
+        Assert.Equal(AutoCoverReason.ChapterFolderDefault, CoverRules.DecideSeriesFolder(null, true, w1, null, null).Reason);
+        Assert.Equal(AutoCoverReason.SeriesVolume1, CoverRules.DecideSeriesFolder(null, false, w1, null, null).Reason);
     }
 
     [Fact]
