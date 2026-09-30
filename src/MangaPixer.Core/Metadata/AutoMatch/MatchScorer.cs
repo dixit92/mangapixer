@@ -12,7 +12,8 @@ namespace com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// small <see cref="DerivedVariantDiscount"/>, so a full-name match always wins a tie.</item>
 /// <item><b>Corroboration</b> re-ranks only: small agreements and conflict penalties change the
 /// ADJUSTED score (ordering and margin), never the raw title score the auto threshold reads.
-/// Format (novel / artbook / audio), origin vs the category folder (agreement only, 1.27.0), tall strips vs a print record,
+/// Format (novel / artbook / audio), origin vs the category folder (agreement only, 1.27.0) or - stronger, both ways, never a
+/// veto - vs the folder's declared type (1.30.0), tall strips vs a print record,
 /// counts (volumes vs volumes, chapters vs chapters - never chapters vs volumes), earliest file year
 /// vs start year, one-shot shape, ComicInfo series, creator tags.</item>
 /// <item><b>Vetoes</b> demote auto to review: any corroboration conflict, a related top pair the
@@ -47,6 +48,17 @@ public sealed class MatchScorer : IMatchScorer
     public const double ComicInfoAgree = 0.05;
     public const double AuthorAgree = 0.05;
 
+    /// <summary>
+    /// The record fits the folder's DECLARED type and its implied origin (1.30.0, owner: a strong hint; adjusted score only).
+    /// With <see cref="DeclaredTypeMismatch"/> it spans exactly the default margin: a declaration can settle a TIE on the title
+    /// between records of different origins, but a record the declaration contradicts is only ever overtaken by one that
+    /// matches the title at least as well - a wrong declaration never beats a better title into an automatic link.
+    /// </summary>
+    public const double DeclaredTypeAgree = 0.05;
+
+    /// <summary>The record contradicts the folder's declared type (1.30.0): lowers the adjusted score, never a veto.</summary>
+    public const double DeclaredTypeMismatch = -0.05;
+
     /// <summary>The candidate's cover is the same as the local cover (<see cref="CoverEvidence"/>, 1.28.0; adjusted score only).</summary>
     public const double CoverAgree = 0.05;
 
@@ -76,6 +88,9 @@ public sealed class MatchScorer : IMatchScorer
     public const double CountFactor = CountEvidence.Factor;
     public const int CountSlack = CountEvidence.Slack;
 
+
+    /// <summary>Rounding tolerance of score comparisons against a threshold.</summary>
+    private const double ScoreTolerance = 1e-9;
 
     public const double PersistWindow = 0.15;
     public const int PersistMax = 5;
@@ -118,8 +133,11 @@ public sealed class MatchScorer : IMatchScorer
 
         // "Close second" only means something for a top that could be reviewed (1.27.0): below the floor the work
         // is unmatched, and a chip about two equally poor candidates only confuses.
+        // Compared with a rounding tolerance (1.30.0): evidence sized to span the margin exactly (a declared type's +0.05 / -0.05)
+        // must not depend on how the adjusted scores' sums happen to round.
         var margin = top.AdjustedScore - (second?.AdjustedScore ?? 0);
-        if (margin < thresholds.Margin && top.TitleScore >= thresholds.ReviewFloor)
+        var leads = margin >= thresholds.Margin - ScoreTolerance;
+        if (!leads && top.TitleScore >= thresholds.ReviewFloor)
             reasons |= MatchReason.CloseSecond;
 
         var autoClass = IsAutoCapable(ctx.Class);
@@ -130,7 +148,7 @@ public sealed class MatchScorer : IMatchScorer
 
         var band = autoClass && oneShotOk
             && top.TitleScore >= thresholds.AutoTitle
-            && margin >= thresholds.Margin
+            && leads
             && (reasons & VetoReasons) == 0
                 ? MatchBand.Auto
                 : top.TitleScore >= thresholds.ReviewFloor ? MatchBand.NeedsReview : MatchBand.Unmatched;
@@ -322,7 +340,22 @@ public sealed class MatchScorer : IMatchScorer
         // "Manga" folder is common, so a mismatch is neutral - no penalty, no veto. Tall strips vs a print record
         // stay a conflict (they measure the pages, not a folder name).
         var origin = AutoMatchText.ParseOrigin(c.Origin);
-        if (origin is { } o && AutoMatchText.OriginsForCategory(ctx.CategoryHint) is { } allowed
+        if (ctx.DeclaredType is { } declared)
+        {
+            // An admin's declaration is a strong hint both ways (1.30.0, owner) and takes the place of the folder word.
+            switch (DeclaredFactsComparer.TypeSignal(declared, origin, c.Format, c.Webtoon))
+            {
+                case DeclaredTypeSignal.Agree:
+                    delta += DeclaredTypeAgree;
+                    reasons |= MatchReason.DeclaredTypeAgree;
+                    break;
+                case DeclaredTypeSignal.Mismatch:
+                    delta += DeclaredTypeMismatch;
+                    reasons |= MatchReason.DeclaredTypeMismatch;
+                    break;
+            }
+        }
+        else if (origin is { } o && AutoMatchText.OriginsForCategory(ctx.CategoryHint) is { } allowed
             && (allowed.Contains(o) || (c.Webtoon == true && allowed.Contains(MetadataOrigin.Korea))))
         {
             delta += OriginAgree;
@@ -411,7 +444,7 @@ public sealed class MatchScorer : IMatchScorer
         if (ranked.Count == 1 || top.AdjustedScore - ranked[1].AdjustedScore >= PersistClearLead)
             return [top];
         return ranked
-            .TakeWhile(s => top.AdjustedScore - s.AdjustedScore <= PersistWindow + 1e-9)
+            .TakeWhile(s => top.AdjustedScore - s.AdjustedScore <= PersistWindow + ScoreTolerance)
             .Take(PersistMax)
             .ToList();
     }

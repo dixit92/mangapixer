@@ -316,7 +316,7 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
         var lookup = new AutoMatchLookup(db.Db, net.Gateway(), s_planner, s_scorer, covers);
         var result = await lookup.SearchAndScoreAsync(
             query, classification, db.LibraryId, MatchThresholds.Default, c.DoujinAllowed, MetadataCallContext.Automatic(), CancellationToken.None,
-            coverArchive, c.DeclaredTypeFilter ? c.Declared?.TypeValue : null);
+            coverArchive);
 
         var seen = net.Handler.Seen;
         var searches = seen.Count(r => r.Method == HttpMethod.Post);

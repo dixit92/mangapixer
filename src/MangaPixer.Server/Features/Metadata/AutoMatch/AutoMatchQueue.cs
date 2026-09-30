@@ -88,6 +88,8 @@ public static class MatchReasonCodes
         (MatchReason.AuthorConflict, "author"),
         (MatchReason.NumberMismatch, "number"),
         (MatchReason.ReviewOnlyClass, "review_only"),
+        (MatchReason.DeclaredTypeAgree, "declared_type"),
+        (MatchReason.DeclaredTypeMismatch, "not_declared_type"),
     ];
 
     public static IReadOnlyList<string> Of(int reasons) => Of((MatchReason)reasons);

@@ -22,6 +22,19 @@ public enum DeclaredType
     Novel = 6,
 }
 
+/// <summary>What a declared type says about one candidate record (<see cref="DeclaredFactsComparer.TypeSignal"/>).</summary>
+public enum DeclaredTypeSignal
+{
+    /// <summary>Nothing: no origin / format to compare, or an origin the type does not name.</summary>
+    None = 0,
+
+    /// <summary>The record's origin is the one the type implies.</summary>
+    Agree = 1,
+
+    /// <summary>The record contradicts the type (<see cref="DeclaredFactsComparer.TypeConflicts"/>).</summary>
+    Mismatch = 2,
+}
+
 /// <summary>Where an effective declared fact comes from, relative to the node asked about.</summary>
 public enum DeclaredFactSource
 {
@@ -141,6 +154,34 @@ public static class DeclaredFactsComparer
                 o is MetadataOrigin.Japan or MetadataOrigin.Korea or MetadataOrigin.ChinaTaiwan,
             _ => false,
         };
+    }
+
+    /// <summary>
+    /// What a declared type says about a candidate record as MATCHING evidence (1.30.0, owner: a strong hint, never a filter
+    /// or a veto). <see cref="DeclaredTypeSignal.Mismatch"/> is exactly <see cref="TypeConflicts"/> (the Info panel's conflict
+    /// badge); <see cref="DeclaredTypeSignal.Agree"/> needs the implied origin: manga -> Japan, manhwa -> Korea, manhua ->
+    /// China / Taiwan, webtoon -> a webtoon record or a Korean / Chinese one, comic and graphic novel -> a Western origin
+    /// (English-original, French, Spanish, German, Nordic). Other origins (Thai, Filipino ...) and unknown values say nothing.
+    /// A declared novel gives no matching evidence: automatic searches leave novels out, so every candidate would get the
+    /// same signal.
+    /// </summary>
+    public static DeclaredTypeSignal TypeSignal(DeclaredType declared, MetadataOrigin? origin, MetadataFormat? format, bool? webtoon)
+    {
+        if (declared == DeclaredType.Novel)
+            return DeclaredTypeSignal.None;
+        if (TypeConflicts(declared, origin, format))
+            return DeclaredTypeSignal.Mismatch;
+        var agrees = declared switch
+        {
+            DeclaredType.Manga => origin == MetadataOrigin.Japan,
+            DeclaredType.Manhwa => origin == MetadataOrigin.Korea,
+            DeclaredType.Manhua => origin == MetadataOrigin.ChinaTaiwan,
+            DeclaredType.Webtoon => webtoon == true || origin is MetadataOrigin.Korea or MetadataOrigin.ChinaTaiwan,
+            DeclaredType.Comic or DeclaredType.GraphicNovel => origin is MetadataOrigin.EnglishOriginal or MetadataOrigin.French
+                or MetadataOrigin.Spanish or MetadataOrigin.German or MetadataOrigin.Nordic,
+            _ => false,
+        };
+        return agrees ? DeclaredTypeSignal.Agree : DeclaredTypeSignal.None;
     }
 
     /// <summary>

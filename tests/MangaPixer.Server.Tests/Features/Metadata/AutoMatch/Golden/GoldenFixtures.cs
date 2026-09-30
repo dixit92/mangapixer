@@ -20,7 +20,10 @@ internal static class GoldenFixtures
 
     private static readonly Lazy<(Dictionary<(string Query, bool Doujin, int Page, string Extra), string> Searches, Dictionary<string, string> Series)> s_all = new(Load);
 
-    /// <summary>The fixed automatic filter; anything else in a recorded <c>filter_types</c> is part of the key (1.28.0: a declared type).</summary>
+    /// <summary>
+    /// The fixed automatic filter; anything else in a <c>filter_types</c> is part of the key (1.28.0 - 1.29.x: a declared type) - since
+    /// 1.30.0 no recording has one, so a search that sends another type fails as a missing fixture.
+    /// </summary>
     private static readonly HashSet<string> s_fixedTypes = new(StringComparer.Ordinal) { "Doujinshi", "Novel", "Artbook", "Drama CD" };
 
     private static string ExtraTypes(JsonElement types) =>
