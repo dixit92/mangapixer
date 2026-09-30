@@ -73,7 +73,19 @@ The numbers agree with the [Missing volumes and chapters](missing-report.md) rep
 
 Tap a stack to open the volume: its cover, "Volume 3", how many chapters you have of how many (and how many extras), where the grouping came from, **Previous** and **Next** volume, and the chapters in reading order with the read state, favorite star and series information button of a normal card. Tapping a chapter opens the reader as usual; the reader's previous / next chapter follow the folder, not the stack.
 
-A stack can't be selected or starred: open it to select or star its chapters. A stack shows a star when any chapter in it is starred.
+The chapters follow your library view: as cards, or - when your library view is **List** (the **View** menu on the folder list) - as the same compact rows the folder list uses, with the columns you chose there. A missing chapter is a compact dashed row in the list.
+
+### Selecting in a volume
+
+Choose **Select** on the volume page to pick chapters, exactly as in the folder list:
+
+- Tap a chapter (on a phone too) to select it instead of opening it. **Shift**-click selects a range; on a touch screen a long press offers **Select to here**. In **List** view the checkbox on any row selects without choosing **Select** first.
+- The bar shows what you picked and offers **Select** (**Select all**, **Select all unread**, **Select all read**), **Mark read**, **Mark unread**, **Favorites** (**Add to favorites** / **Remove from favorites**) and **Done**. Admins also get the **Series** menu and **Cover…** for the archives.
+- A missing chapter can't be selected.
+
+### Selecting a whole volume
+
+In the folder list, **Select** also lets you pick a stack: tap it (or tick its row in **List** view). **Mark read**, **Mark unread** and **Favorites** then apply to **every archive in the volume** - chapters, a volume file and extras - in one step, and the stack's badge and star follow. A stack shows a star when any chapter in it is starred. Actions that belong to a real folder or archive (**Direction**, **Series**, **Cover…**, **View…**) skip stacks; open the volume to use them on its chapters. A missing-volume card can't be selected.
 
 ## Turning it on and off
 
