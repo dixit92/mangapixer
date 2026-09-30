@@ -186,6 +186,19 @@ public sealed class SeriesProgressTests
     }
 
     [Fact]
+    public void FinishedScanlation_WithChaptersReleasedPastTheLatestRelease_IsNotComplete()
+    {
+        // 1.30.0 soak-test shape: MangaUpdates' latest release says 51, the English release list names chapters to 55.
+        var facts = new ProgressFacts("en", MetadataOrigin.Japan, MetadataOriginStatus.Complete, LatestChapter: 51, ScanlationComplete: true,
+            ReleasedChapters: Enumerable.Range(1, 55).Select(c => (decimal)c).ToHashSet());
+        var r = SeriesProgress.Evaluate(ChapterFiles(1, 51).ToList(), null, facts);
+
+        Assert.True(r.MissingChapterCount > 0);
+        Assert.NotEqual(SeriesCompletion.CompleteCollection, r.Completion); // never "Complete collection" next to a missing count
+        Assert.Equal((SeriesCompletion.FinishedNotHeld, 55, 51), (r.Completion, r.CompletionTarget, r.CompletionHeld));
+    }
+
+    [Fact]
     public void OriginOnlyFinished_FullyHeldIsComplete_NotHeldIsNoPrompt()
     {
         var facts = English(MetadataOriginStatus.Complete, 14, 10, MetadataOriginStatus.Ongoing);

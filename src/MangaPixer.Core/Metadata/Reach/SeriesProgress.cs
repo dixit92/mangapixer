@@ -252,8 +252,10 @@ public static class SeriesProgress
         {
             candidates.Add((CompletionBasis.OfficialVolumes, n, HeldVolumes(n), false, true));
         }
+        // The last chapter is the HIGHEST extent anything knows (1.30.0 soak test: the latest release said 51 while chapters to 55
+        // were listed as released - the series read "Complete collection" next to "4 chapters missing").
         if (f.ScanlationComplete == true && f.OriginStatus == MetadataOriginStatus.Complete
-            && (f.LatestChapter ?? f.OriginChapters ?? LastListedChapter(map)) is { } last && last > 0)
+            && new[] { f.LatestChapter, f.OriginChapters, f.ReleasedChapter, LastListedChapter(map) }.Max() is { } last && last > 0)
         {
             candidates.Add((CompletionBasis.AllChapters, last, HeldChapters(last), true, true));
         }
@@ -265,7 +267,9 @@ public static class SeriesProgress
                 candidates.Add((CompletionBasis.OriginRun, oc, HeldChapters(oc), true, false));
         }
 
-        if (candidates.FirstOrDefault(c => c.Held >= c.Target) is { Target: > 0 } done)
+        // Complete means nothing is missing - never a Complete collection next to a missing count.
+        var nothingMissing = r.MissingVolumes.Count == 0 && r.VolumesBehind == 0 && r.MissingChapterCount == 0;
+        if (nothingMissing && candidates.FirstOrDefault(c => c.Held >= c.Target) is { Target: > 0 } done)
         {
             return r with
             {
