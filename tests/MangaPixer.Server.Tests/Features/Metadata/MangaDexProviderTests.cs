@@ -182,6 +182,7 @@ public sealed class MangaDexProviderTests
     [Theory]
     [InlineData("njeqwry", MdFixtures.MuBerserk, true)]
     [InlineData("NJEQWRY", MdFixtures.MuBerserk, true)]
+    [InlineData("0njeqwry", MdFixtures.MuBerserk, true)] // MangaDex sometimes zero-pads the id (1.30.0 lane X finding)
     [InlineData("51239621230", MdFixtures.MuBerserk, true)] // a long all-digit value that equals the decimal id
     [InlineData("12345", "12345", false)] // a short all-digit value is a legacy id: never a match
     [InlineData("ylx5wzn", MdFixtures.MuBerserk, false)]
