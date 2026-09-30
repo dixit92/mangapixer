@@ -321,17 +321,17 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
             new(4, [9m, 10m]),      // volume 3 is not listed: only bounded (chapters 6-8) - never downloaded as chapters
         };
 
-        Assert.Equal([2], VolumeCoverPass.VolumesHeldAsChapters(Rows("S c004", "S c005", exact).Order());
+        Assert.Equal([2], VolumeCoverPass.VolumesHeldAsChapters(Rows("S c004", "S c005"), exact).Order());
         // A split chapter on disk (4.1 + 4.2) counts as chapter 4.
-        Assert.Equal([2], VolumeCoverPass.VolumesHeldAsChapters(Rows("S c004.1", "S c004.2", "S c005", exact).Order());
-        Assert.Empty(VolumeCoverPass.VolumesHeldAsChapters(Rows("S c004", exact));
-        Assert.Empty(VolumeCoverPass.VolumesHeldAsChapters(Rows("S c006", "S c007", "S c008", exact));
+        Assert.Equal([2], VolumeCoverPass.VolumesHeldAsChapters(Rows("S c004.1", "S c004.2", "S c005"), exact).Order());
+        Assert.Empty(VolumeCoverPass.VolumesHeldAsChapters(Rows("S c004"), exact));
+        Assert.Empty(VolumeCoverPass.VolumesHeldAsChapters(Rows("S c006", "S c007", "S c008"), exact));
         // A volume FILE is not "held as chapters" (its cover is fetched as a held volume file).
-        Assert.Empty(VolumeCoverPass.VolumesHeldAsChapters(Rows("S v02", "S c004", "S c005", exact));
+        Assert.Empty(VolumeCoverPass.VolumesHeldAsChapters(Rows("S v02", "S c004", "S c005"), exact));
         Assert.Equal([1, 2, 4], VolumeCoverPass.VolumesHeldAsChapters(
-            Rows("S c001", "S c002", "S c003", "S c004", "S c005", "S c009", "S c010", exact).Order());
+            Rows("S c001", "S c002", "S c003", "S c004", "S c005", "S c009", "S c010"), exact).Order());
         // No exact list: nothing.
-        Assert.Empty(VolumeCoverPass.VolumesHeldAsChapters(Rows("S c004", "S c005", []));
+        Assert.Empty(VolumeCoverPass.VolumesHeldAsChapters(Rows("S c004", "S c005"), []));
     }
 
     [Fact]
