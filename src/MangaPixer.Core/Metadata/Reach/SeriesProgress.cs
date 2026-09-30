@@ -326,8 +326,9 @@ public static class SeriesProgress
         }
 
         MissingUnitGap? chapters = null;
-        var files = reach.ChapterFiles.Where(n => n > 0).Order().ToList();
-        if (files.Count > 0)
+        // A prologue (chapter 0) counts as a file here, as in the 1.29.0 report, once a real chapter is present.
+        var files = reach.ChapterFiles.Where(n => n >= 0).Order().ToList();
+        if (files.Any(n => n > 0))
         {
             var whole = r.ChapterHoles.Where(u => decimal.Truncate(u) == u).Select(u => (int)u).ToList();
             chapters = new MissingUnitGap(

@@ -143,14 +143,21 @@ public sealed class VolumeEntryServiceTests : IDisposable
 
         Assert.True(view.Available);
         Assert.Equal(["archive:Volumes Only v01", "archive:Volumes Only v02", "missing:3", "archive:Volumes Only v04", "missing:5", "missing:6"], Kinds(view));
-        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Ongoing, 3, 0, true, "en") { OriginVolumes = 12, ReleasedVolumes = 6, RecordId = record.Id }, view.Status);
+        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Ongoing, 3, 0, true, "en") { OriginVolumes = 12, ReleasedVolumes = 6, RecordId = record.Id },
+            view.Status! with { Progress = null });
+        // 1.30.0: the same numbers from the progress engine (the Missing report's), plus what the folder holds.
+        var progress = view.Status.Progress!;
+        Assert.Equal((3, 0, 6), (progress.MissingVolumes, progress.MissingChapters, progress.Trackers.OfficialVolumes));
+        Assert.Equal([(1, 2), (4, 4)], progress.Reach!.VolumeFiles.Select(s => (s.From, s.To)));
 
         // French: no volume total is known for it - only the gap below volume 4, never the untranslated origin volumes.
         await VolumeTestData.SetPreferredLanguageAsync(db, "fr");
         var french = (await service.GetEntriesAsync(folder.Id, default))!;
         Assert.Equal(["archive:Volumes Only v01", "archive:Volumes Only v02", "missing:3", "archive:Volumes Only v04"], Kinds(french));
         // The English publishers say nothing about French.
-        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Ongoing, 1, 0, false, "fr") { OriginVolumes = 12, RecordId = record.Id }, french.Status);
+        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Ongoing, 1, 0, false, "fr") { OriginVolumes = 12, RecordId = record.Id },
+            french.Status! with { Progress = null });
+        Assert.Null(french.Status.Progress!.Trackers.OfficialVolumes);
     }
 
     [Fact]
@@ -168,7 +175,9 @@ public sealed class VolumeEntryServiceTests : IDisposable
 
         Assert.True(view.Available);
         Assert.Equal(0, view.StackCount);
-        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Complete, 0, 0, true, "en") { ReleasedVolumes = 3, RecordId = record.Id }, view.Status);
+        Assert.Equal(new SeriesStatusInfo(MetadataOriginStatus.Complete, 0, 0, true, "en") { ReleasedVolumes = 3, RecordId = record.Id },
+            view.Status! with { Progress = null });
+        Assert.Equal(3, view.Status.Progress!.Reach!.ReachVolume);
 
         // The same folder without a link: nothing to show beyond the folder list.
         var plain = await VolumeTestData.AddFolderAsync(db, lib.Id, null, "Unlinked Set");

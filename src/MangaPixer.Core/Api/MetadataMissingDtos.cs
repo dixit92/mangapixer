@@ -102,6 +102,9 @@ public sealed record MissingReportSummaryDto
     public required int UpToDate { get; init; }
     public required int NoTotal { get; init; }
     public required int NoVerdict { get; init; }
+
+    /// <summary>1.30.0: series with official volumes in the preferred language held only as chapters (the Official releases tab).</summary>
+    public int Upgrades { get; init; }
 }
 
 /// <summary>A page of the report: worst first (behind, holes, up to date, no total, no verdict), then by name.</summary>

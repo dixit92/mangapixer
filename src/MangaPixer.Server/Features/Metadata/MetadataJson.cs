@@ -61,6 +61,7 @@ public static class MetadataJson
         };
 
         /// <summary>The parsed <see cref="Status"/>, or null.</summary>
+        [JsonIgnore]
         public MetadataOriginStatus? StatusValue => Status?.Trim().ToLowerInvariant() switch
         {
             "ongoing" => MetadataOriginStatus.Ongoing,
