@@ -73,4 +73,11 @@ public sealed record VolumeViewDto
     /// none, or when the background pass is waiting and nothing is on its way.
     /// </summary>
     public int CoversPending { get; init; }
+
+    /// <summary>
+    /// 1.30.0 (reach): the series' progress - the trackers (origin, the official release and the released chapters in the preferred
+    /// language), what the folder holds with volumes and chapters merged, the upgrades and the completion mark. Set with
+    /// <see cref="HasSeriesStatus"/>; the flat fields above stay filled for older clients.
+    /// </summary>
+    public SeriesProgressDto? Progress { get; init; }
 }

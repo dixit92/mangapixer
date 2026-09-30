@@ -1,13 +1,13 @@
 namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
-using System.Globalization;
-using System.Text.Json;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Metadata.Missing;
+using com.lifepixer.mangapixer.Core.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Missing;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -29,6 +29,12 @@ public sealed record FolderVolumeEntries(
     long? SeriesFolderId,
     SeriesStatusInfo? Status = null)
 {
+    /// <summary>
+    /// 1.30.0 (reach): the volume key of a volume FILE of this series that already holds a chapter archive, by the archive's public
+    /// id - over the whole series scope (the linked folder and its unit subfolders). Set only on a folder with its own link.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> AlsoInVolume { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
     /// <summary>
     /// The Volumes view differs from the folder list: a stack, merged unit subfolders, a missing-volume placeholder, or (1.29.0 RC)
     /// a folder with its own link that holds volumes - its header shows the series status.
@@ -66,6 +72,12 @@ public sealed record SeriesStatusInfo(MetadataOriginStatus? Status, int MissingV
 
     /// <summary>The linked series record (the "covers downloading" note asks the cover pass about it).</summary>
     public long? RecordId { get; init; }
+
+    /// <summary>
+    /// 1.30.0: the series' progress over its whole scope (the linked folder and its unit subfolders) - the trackers, the reach, the
+    /// upgrades and the completion, from the same engine as the Missing report.
+    /// </summary>
+    public SeriesProgressDto? Progress { get; init; }
 }
 
 /// <summary>
@@ -231,74 +243,25 @@ public sealed class VolumeEntryService
     }
 
     /// <summary>
-    /// The stored volume knowledge of a linked record as the pure grouping reads it (P2.3): MangaDex's exact list when its map
-    /// is Ok, the chapters-per-volume ratio (its own average, else the AniList row's), the highest volume the provider knows
-    /// (else the record's volume total) and whether the series still runs. Stored rows only.
+    /// The stored volume knowledge of a linked record as the pure grouping reads it (P2.3) and what is released in the preferred
+    /// language (<see cref="SeriesProgressLoader.MapAndFacts"/>, shared with the Missing report since 1.30.0). Stored rows only.
     /// </summary>
-    private sealed record RecordFacts(MetadataOrigin? Origin, int? OriginVolumes, bool? LicensedEn, bool? TranslationComplete);
-
-    private async Task<(VolumeMapInput? Map, ReleaseInfo? Release, MetadataOriginStatus? Status, RecordFacts? Facts)> LoadMapAsync(
+    private async Task<(VolumeMapInput? Map, ReleaseInfo? Release, MetadataOriginStatus? Status, ProgressFacts? Facts)> LoadMapAsync(
         long? recordId, string language, CancellationToken ct)
     {
         if (recordId is not { } id)
             return (null, null, null, null);
         var maps = await _db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == id).ToListAsync(ct);
         var record = await _db.MetadataRecords.AsNoTracking().Where(r => r.Id == id)
-            .Select(r => new { r.OriginVolumes, r.OriginStatus, r.PublishersJson, r.Origin, r.LicensedEn, r.TranslationComplete }).FirstOrDefaultAsync(ct);
-        var mangadex = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.MangaDexAggregate && m.State == (int)VolumeMapState.Ok);
-        var aniList = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.AniListRatio && m.State == (int)VolumeMapState.Ok);
-        var volumes = ParseVolumes(mangadex?.VolumesJson);
-        var ratio = mangadex?.ChaptersPerVolume ?? aniList?.ChaptersPerVolume;
-        var known = mangadex?.KnownVolumeCount ?? aniList?.KnownVolumeCount ?? record?.OriginVolumes;
-        var status = (MetadataOriginStatus?)record?.OriginStatus;
-        var ongoing = status is not (MetadataOriginStatus.Complete or MetadataOriginStatus.Cancelled);
-        var source = volumes.Count > 0 ? VolumeListSource.MangaDex : ratio is not null ? VolumeListSource.AniList : VolumeListSource.FileNames;
-        // "Missing" = released in the preferred language (1.29.0 RC): the chapters the list names as released in it (read for
-        // this language only) and the volume total (English publishers today).
+            .Select(r => new SeriesProgressLoader.RecordRow(r.Id, r.Origin, r.OriginStatus, r.OriginVolumes, r.StatusText, r.LatestChapter,
+                r.PublishersJson, r.LicensedEn, r.TranslationComplete))
+            .FirstOrDefaultAsync(ct);
+        var (map, facts) = SeriesProgressLoader.MapAndFacts(maps, record, language);
         var releasedMap = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.MangaDexAggregate && m.ReleasedLanguage is not null);
         var release = ReleasedInLanguage.For(language, record?.PublishersJson, releasedMap?.ReleasedLanguage, releasedMap?.ReleasedChaptersJson);
-        var facts = record is null ? null : new RecordFacts((MetadataOrigin?)record.Origin, record.OriginVolumes, record.LicensedEn, record.TranslationComplete);
-        return (new VolumeMapInput(volumes, ratio, known, ongoing, source, release.Chapters, release.Volumes, release.Language), release, status, facts);
+        // An official volume means its chapters are out in that language (1.30.0): the stacks' placeholders follow the progress.
+        return (SeriesProgress.WithOfficialChapters(map), release, (MetadataOriginStatus?)record?.OriginStatus, record is null ? null : facts);
     }
-
-    /// <summary><c>[{"v":"3","c":["17","18","25.5"]}]</c> -> volumes; malformed entries are skipped.</summary>
-    private static List<VolumeMapVolume> ParseVolumes(string? json)
-    {
-        var result = new List<VolumeMapVolume>();
-        if (string.IsNullOrWhiteSpace(json))
-            return result;
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.ValueKind != JsonValueKind.Array)
-                return result;
-            foreach (var item in doc.RootElement.EnumerateArray())
-            {
-                if (item.ValueKind != JsonValueKind.Object
-                    || !item.TryGetProperty("v", out var v) || !TryNumber(v.GetString(), out var volume)
-                    || !item.TryGetProperty("c", out var c) || c.ValueKind != JsonValueKind.Array)
-                {
-                    continue;
-                }
-                var chapters = new List<decimal>();
-                foreach (var chapter in c.EnumerateArray())
-                {
-                    if (chapter.ValueKind == JsonValueKind.String && TryNumber(chapter.GetString(), out var n))
-                        chapters.Add(n);
-                }
-                if (chapters.Count > 0)
-                    result.Add(new VolumeMapVolume(volume, chapters.Order().ToList()));
-            }
-        }
-        catch (JsonException)
-        {
-            return [];
-        }
-        return result;
-    }
-
-    private static bool TryNumber(string? text, out decimal value) =>
-        decimal.TryParse(text, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out value) && value >= 0;
 
     // --- Building ------------------------------------------------------------------------------------------------------
 
@@ -341,6 +304,10 @@ public sealed class VolumeEntryService
         }
 
         var (map, release, status, facts) = await LoadMapAsync(context.RecordId, language, ct);
+        // The series' progress over its whole scope (1.30.0): the same engine and rows as the Missing report.
+        var progress = context.Own && context.RecordId is { } linkedRecord
+            ? (await new SeriesProgressLoader(_db).LoadAsync([new SeriesProgressTarget(folder.Id, linkedRecord)], ct)).GetValueOrDefault(folder.Id)
+            : null;
         // Missing-volume placeholders only at the folder with its own link: a Season / Part subfolder holds part of the run.
         var grouping = VolumeGrouping.Group(rows, map, markMissingVolumes: context.Own);
         var statusInfo = context.Own && release is not null
@@ -352,15 +319,19 @@ public sealed class VolumeEntryService
                 ReleasedVolumes = release.Volumes,
                 ReleasedChapter = release.LastChapter ?? release.EnglishChapters,
                 // MangaUpdates' "licensed" and "completely scanlated" are about English.
-                Licensed = ReleasedInLanguage.IsEnglish(release.Language) ? facts?.LicensedEn : null,
-                ScanlationComplete = ReleasedInLanguage.IsEnglish(release.Language) ? facts?.TranslationComplete : null,
+                Licensed = facts?.Licensed,
+                ScanlationComplete = facts?.ScanlationComplete,
                 RecordId = context.RecordId,
+                Progress = progress?.Dto,
             }
             : null;
         return new FolderVolumeEntries(
             folder.Id, folder.PublicId, folder.LibraryId, folder.LibraryPublicId,
             grouping.Entries, byId, grouping.StackCount, Consolidated: merged.Count > 0, context.SeriesFolderId ?? (context.Own ? folder.Id : null),
-            statusInfo);
+            statusInfo)
+        {
+            AlsoInVolume = progress?.Result.Reach.AlsoInVolume ?? new Dictionary<string, string>(StringComparer.Ordinal),
+        };
     }
 
     private static FolderVolumeEntries Empty(NodeInfo folder, SeriesContext context) =>

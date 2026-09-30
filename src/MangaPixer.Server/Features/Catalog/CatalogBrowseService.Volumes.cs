@@ -40,7 +40,7 @@ public sealed partial class CatalogBrowseService
             {
                 VolumeEntryKind.Stack => stacks[e.Stack!.Key],
                 VolumeEntryKind.MissingVolume => MissingVolumeCard(view, e.Volume!.Value),
-                _ => plainNodes[e.Row!.Id],
+                _ => VolumeStackService.WithAlsoInVolume(plainNodes[e.Row!.Id], view),
             })
             .ToList();
         return new PageResponse<CatalogNodeDto>
@@ -142,6 +142,21 @@ public sealed partial class CatalogBrowseService
         };
     }
 
+    /// <summary>
+    /// The folder list of a linked series folder or one of its unit subfolders (1.30.0, reach): a chapter card whose chapters a
+    /// volume FILE of the same series already holds says so ("Also in Volume 10"). Reads the memoised series entries; stored data only.
+    /// </summary>
+    private async Task<List<CatalogNodeDto>> WithAlsoInVolumeAsync(List<CatalogNodeDto> nodes, long folderId, CancellationToken ct)
+    {
+        var view = await _volumes.GetEntriesAsync(folderId, ct);
+        if (view?.SeriesFolderId is not { } series)
+            return nodes;
+        var seriesView = series == view.FolderId ? view : await _volumes.GetEntriesAsync(series, ct);
+        if (seriesView is null || seriesView.AlsoInVolume.Count == 0)
+            return nodes;
+        return nodes.Select(n => VolumeStackService.WithAlsoInVolume(n, seriesView)).ToList();
+    }
+
     internal static VolumeStackSummaryDto SummaryOf(VolumeStack stack) => new()
     {
         Key = stack.Key,
@@ -155,5 +170,6 @@ public sealed partial class CatalogBrowseService
         FirstChapter = stack.FirstChapter,
         LastChapter = stack.LastChapter,
         ChaptersPresent = stack.ChaptersPresent,
+        OfficialRelease = stack.OfficialRelease,
     };
 }

@@ -2,6 +2,7 @@ namespace com.lifepixer.mangapixer.Server.Features.Metadata.Missing;
 
 using System.Globalization;
 using System.Text.Json;
+using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,9 @@ public sealed record ReleaseInfo(string Language, int? Volumes, int? EnglishChap
     /// <summary>The highest whole chapter the released list names, or null.</summary>
     public int? LastChapter => Chapters is { Count: > 0 } c ? (int)decimal.Floor(c.Max()) : null;
 }
+
+/// <summary>The official publisher in the preferred language, the totals of its language's publishers and its own status.</summary>
+public sealed record OfficialRelease(string Publisher, int? Volumes, int? Chapters, MetadataOriginStatus? Status);
 
 /// <summary>Reads <see cref="ReleaseInfo"/> from stored rows only (the admin's preferred cover language, the record, the volume map).</summary>
 public static class ReleasedInLanguage
@@ -58,6 +62,31 @@ public static class ReleasedInLanguage
             ? ParseChapters(releasedChaptersJson)
             : null;
         return new ReleaseInfo(language, volumes, chapters, released);
+    }
+
+    /// <summary>
+    /// The official release in the preferred language (1.30.0 trackers): English only today - the English publisher with the most
+    /// regular-edition volumes (tie: a known status first, then the name; no volumes: the most chapters, then the name), its own
+    /// status, and the largest volume / chapter totals of all English publishers (as <see cref="For"/> reads them). Null for another
+    /// language or no English publisher.
+    /// </summary>
+    public static OfficialRelease? OfficialOf(string language, string? publishersJson)
+    {
+        if (!IsEnglish(language))
+            return null;
+        var english = MetadataJson.ReadList<MetadataJson.Publisher>(publishersJson)
+            .Where(p => string.Equals(p.Kind, "english", StringComparison.Ordinal)).ToList();
+        if (english.Count == 0)
+            return null;
+        var pick = english
+            .OrderByDescending(p => p.Volumes ?? -1)
+            .ThenByDescending(p => p.Chapters ?? -1)
+            .ThenBy(p => p.StatusValue is null ? 1 : 0)
+            .ThenBy(p => p.Name, StringComparer.Ordinal)
+            .First();
+        var volumes = english.Max(p => p.Volumes) is { } v && v > 0 ? v : (int?)null;
+        var chapters = english.Max(p => p.Chapters) is { } c && c > 0 ? c : (int?)null;
+        return new OfficialRelease(pick.Name, volumes, chapters, pick.StatusValue);
     }
 
     /// <summary><c>["1","2","4.1"]</c> -> the numbers; null for no list or a malformed one.</summary>

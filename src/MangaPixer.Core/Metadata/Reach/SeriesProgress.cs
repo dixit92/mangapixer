@@ -26,7 +26,8 @@ public sealed record ProgressFacts(
     bool? Licensed = null,
     int? LatestChapter = null,
     bool? ScanlationComplete = null,
-    IReadOnlySet<decimal>? ReleasedChapters = null)
+    IReadOnlySet<decimal>? ReleasedChapters = null,
+    double? ChaptersPerVolume = null)
 {
     /// <summary>The highest whole chapter the released list names, or null.</summary>
     public int? ReleasedChapter => ReleasedChapters is { Count: > 0 } r ? (int)decimal.Floor(r.Max()) : null;
@@ -63,6 +64,10 @@ public sealed record ProgressResult
     /// <summary>The released chapter total the chapters were compared with, and where it came from.</summary>
     public int? ChapterTotal { get; init; }
     public MissingTotalSource? ChapterTotalSource { get; init; }
+
+    /// <summary>The released volume total (official volumes, else official chapters converted by a ratio), and its source.</summary>
+    public int? VolumeTotal { get; init; }
+    public MissingTotalSource? VolumeTotalSource { get; init; }
 
     public IReadOnlyList<int> UpgradeVolumes { get; init; } = [];
 
@@ -178,8 +183,11 @@ public static class SeriesProgress
             ? reach.HeldAsChapters.Concat(reach.PartialVolumes).Where(v => v >= 1 && v <= n1 && !reach.VolumeFiles.Contains(v)).Distinct().Order().ToList()
             : [];
 
+        var (volumeTotal, volumeSource) = VolumeTotal(facts);
         return Complete(new ProgressResult
         {
+            VolumeTotal = volumeTotal,
+            VolumeTotalSource = volumeSource,
             Facts = facts,
             Reach = reach,
             MissingVolumes = missingVolumes,
@@ -192,13 +200,27 @@ public static class SeriesProgress
         }, map);
     }
 
-    // The released chapter total: an official chapter total (English), the released list, the latest release (English) - the first
-    // that covers what is here, else the first (as the Missing report picks its total).
+    private static double? Ratio(ProgressFacts facts) => facts.ChaptersPerVolume is { } r && r >= 1 ? r : null;
+
+    // The released volume total: the official volumes, else the official chapters converted by a chapters-per-volume ratio (an estimate).
+    private static (int? Total, MissingTotalSource? Source) VolumeTotal(ProgressFacts facts)
+    {
+        if (facts.OfficialVolumes is { } n && n > 0)
+            return (n, MissingTotalSource.English);
+        if (Ratio(facts) is { } r && facts.OfficialChapters is { } oc && (int)Math.Floor(oc / r) is var cv && cv > 0)
+            return (cv, MissingTotalSource.Converted);
+        return (null, null);
+    }
+
+    // The released chapter total: an official chapter total (English), the official volumes converted, the released list, the latest
+    // release (English) - the first that covers what is here, else the first (as the Missing report picks its total).
     private static (int? Total, MissingTotalSource? Source) ChapterTotal(ProgressFacts facts, int have)
     {
         var list = new List<(int Total, MissingTotalSource Source)>();
         if (facts.OfficialChapters is { } oc && oc > 0)
             list.Add((oc, MissingTotalSource.English));
+        if (Ratio(facts) is { } r && facts.OfficialVolumes is { } ov && (int)Math.Floor(ov * r) is var ec && ec > 0)
+            list.Add((ec, MissingTotalSource.Converted));
         if (facts.ReleasedChapter is { } rc && rc > 0)
             list.Add((rc, MissingTotalSource.Released));
         if (facts.LatestChapter is { } lc && lc > 0)
@@ -273,6 +295,69 @@ public static class SeriesProgress
         var whole = map.Volumes.SelectMany(v => v.Chapters).Where(c => decimal.Truncate(c) == c && c > 0).ToList();
         return whole.Count > 0 ? (int)whole.Max() : null;
     }
+
+    /// <summary>
+    /// The Missing report's verdict and per-kind gaps of a result (1.30.0: the report reads the same engine as the Volumes view).
+    /// Volumes: the highest volume here (files, whole or partial chapter runs) against the released volume total; chapters (only
+    /// with chapter files): the reach against the released chapter total. An upgrade is never behind nor a gap. Verdict
+    /// <see cref="MissingVerdict.Mixed"/> is no longer produced.
+    /// </summary>
+    public static MissingUnitsResult ToMissing(ProgressResult r, int volumeArchives, int chapterArchives)
+    {
+        ArgumentNullException.ThrowIfNull(r);
+        if (r.Restarts)
+            return new MissingUnitsResult(MissingVerdict.Restarts, null, null, 0);
+        var reach = r.Reach;
+        if (!reach.HasNumbers)
+            return new MissingUnitsResult(MissingVerdict.NoUnits, null, null, 0);
+
+        var origin = r.Facts.OriginVolumes;
+        MissingUnitGap? volumes = null;
+        if (reach.VolumeFiles.Count > 0)
+        {
+            var touched = reach.TouchedVolumes.Order().ToList();
+            var have = touched[^1];
+            var holes = r.MissingVolumes.Where(v => v < have).ToList();
+            volumes = new MissingUnitGap(
+                MissingUnitKind.Volume, volumeArchives, touched.Count, touched[0], have, r.VolumeTotal, r.VolumeTotalSource,
+                ConfidenceOf(r.VolumeTotalSource),
+                r.VolumeTotalSource == MissingTotalSource.Converted && r.VolumeTotal is { } estimate ? Math.Max(0, estimate - have) : r.VolumesBehind,
+                holes.Take(MissingUnits.MaxListed).ToList(), holes.Count, origin);
+        }
+
+        MissingUnitGap? chapters = null;
+        var files = reach.ChapterFiles.Where(n => n > 0).Order().ToList();
+        if (files.Count > 0)
+        {
+            var whole = r.ChapterHoles.Where(u => decimal.Truncate(u) == u).Select(u => (int)u).ToList();
+            chapters = new MissingUnitGap(
+                MissingUnitKind.Chapter, chapterArchives, files.Count, files[0], reach.ReachChapter ?? files[^1], r.ChapterTotal, r.ChapterTotalSource,
+                ConfidenceOf(r.ChapterTotalSource), r.ChaptersBehind, whole.Take(MissingUnits.MaxListed).ToList(), r.ChapterHoles.Count,
+                r.Facts.OriginChapters);
+        }
+
+        var gaps = new[] { volumes, chapters }.OfType<MissingUnitGap>().ToList();
+        MissingVerdict verdict;
+        if (gaps.Count == 0)
+            verdict = MissingVerdict.NoUnits;
+        else if (gaps.Any(g => g.BehindBy > 0))
+            verdict = MissingVerdict.Behind;
+        else if (gaps.Any(g => g.MissingCount > 0))
+            verdict = MissingVerdict.Holes;
+        else if (gaps.All(g => g.Available is null) && !r.Facts.ReleaseKnown)
+            verdict = MissingVerdict.NoTotal;
+        else
+            verdict = MissingVerdict.UpToDate;
+        return new MissingUnitsResult(verdict, volumes, chapters, 0);
+    }
+
+    private static MissingConfidence? ConfidenceOf(MissingTotalSource? source) => source switch
+    {
+        MissingTotalSource.English => MissingConfidence.High,
+        MissingTotalSource.Converted or MissingTotalSource.Released or MissingTotalSource.Origin => MissingConfidence.Medium,
+        MissingTotalSource.LatestChapter => MissingConfidence.Low,
+        _ => null,
+    };
 
     /// <summary>The DTO of a result.</summary>
     public static SeriesProgressDto ToDto(ProgressResult r)

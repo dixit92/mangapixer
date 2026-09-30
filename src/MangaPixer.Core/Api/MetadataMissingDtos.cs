@@ -85,6 +85,12 @@ public sealed record MissingSeriesDto
     /// <summary>The stored status text in the country of origin (for example "14 Volumes (Complete)").</summary>
     public string? StatusText { get; init; }
     public DateTimeOffset FetchedAt { get; init; }
+
+    /// <summary>
+    /// 1.30.0 (reach): the series' progress - trackers, what the folder holds (volumes and chapters merged through the stored volume
+    /// list), upgrades and completion; the same engine as the Volumes view.
+    /// </summary>
+    public SeriesProgressDto? Progress { get; init; }
 }
 
 /// <summary>Counts over the whole filtered set (before paging).</summary>
