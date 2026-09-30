@@ -93,6 +93,8 @@ public static class GoldenCases
     private const string Kingdom = "4324727424";
     private const string BerserkOfGluttonyComic = "74072114866";
     private const string Jigokuraku2005 = "10294535868";
+    private const string AttackOnTitanBeforeTheFall = "28267595998";
+    private const string TonikakuKawaii = "TODO-TK";
     private const string WindBreakerKorea = "TODO-KR";
     private const string WindBreakerJapan = "TODO-JP";
 
@@ -283,6 +285,18 @@ public static class GoldenCases
             WorkClass.Series, MatchBand.Auto, WindBreakerKorea, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), [])),
         new("H09 declared manga: the Japanese \"Wind Breaker\"", F("Wind Breaker", Chaps("Wind Breaker", 40)),
             WorkClass.Series, MatchBand.Auto, WindBreakerJapan, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manga), [])),
+
+        // --- 1.30.0: a folder subtitle that is a spin-off's subtitle; an author-tagged alias --------------------------------
+        // The owner's fixture shape "<Series> - <Subtitle> [<Note>]" with 58 chapter archives: the spin-off record carries the
+        // subtitle; the main record matched only the bare head through the subtitle split (0.97, a close related second).
+        new("S01 subtitle: the spin-off, not the main series", F("Shingeki no Kyojin - Before the Fall", Chaps("Shingeki no Kyojin - Before the Fall", 58)),
+            WorkClass.Series, MatchBand.Auto, AttackOnTitanBeforeTheFall),
+        new("S02 subtitle with the English series name", F("Attack on Titan - Before the Fall", Chaps("Attack on Titan - Before the Fall", 58)),
+            WorkClass.Series, MatchBand.Auto, AttackOnTitanBeforeTheFall),
+        // The right record's main title is the original name; the search matches its English alias with MangaUpdates' author tag,
+        // which counts in full only once the record is fetched (one extra GET per work).
+        new("A01 author-tagged alias: the record is fetched and the tag verified", F("Fly Me to the Moon", Vols("Fly Me to the Moon", 20)),
+            WorkClass.Series, MatchBand.NeedsReview, TonikakuKawaii),
 
         // --- 1.27.0: the live automatic-matching run (2026-09-27), as PUBLIC lookalikes ------------
         new("L01 T: season-renumbered webtoon, chapter-token archives (latest chapter 235, status total 652)",
