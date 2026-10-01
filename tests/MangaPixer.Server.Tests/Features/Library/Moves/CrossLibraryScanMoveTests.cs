@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangapixer.Tests.Server.Features.Library.Moves;
 
 using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -207,5 +208,65 @@ public sealed class CrossLibraryScanMoveTests : IDisposable
         var scan = await _h.ScanAsync(dst);
 
         Assert.Equal(0, scan.NodesMoved);
+    }
+
+    [Fact]
+    public async Task SourceFirst_TheFolderRowsFollowAcrossLibraries_ConfirmedLinkFavoritesViewAndCover()
+    {
+        var (src, dst, user) = await SeedAsync();
+        var folder = await _h.NodeAsync(src, "Series");
+        var record = await _h.AddRecordAsync("300", "Synthetic Saga");
+        await _h.LinkAsync(folder.Id, SeriesLinkState.Confirmed, record);
+        await _h.FavoriteAsync(user, folder.Id);
+        await using (var db = _h.NewContext())
+        {
+            db.FolderViewSettings.Add(new FolderViewSettingsEntity { NodeId = folder.Id, VirtualVolumes = 1 });
+            db.NodeCoverChoices.Add(new NodeCoverChoiceEntity { NodeId = folder.Id, Mode = 1, Version = 1, SetAt = DateTimeOffset.UtcNow });
+            db.FolderReaderDefaults.Add(new FolderReaderDefaultEntity { NodeId = folder.Id, ReaderMode = 1 });
+            await db.SaveChangesAsync();
+        }
+        _h.Move(src, "Series", dst, "Series");
+        await _h.ScanAsync(src);
+        var scan = await _h.ScanAsync(dst);
+
+        await using (var db = _h.NewContext())
+            Assert.Equal(1, await MoveTestHarness.CarryOver(db).CarryAsync(dst, scan.Moves));
+
+        var nf = await _h.NodeAsync(dst, "Series");
+        var link = await _h.LinkOfAsync(nf.Id);
+        Assert.Equal((int)SeriesLinkState.Confirmed, link!.State);
+        Assert.Equal(dst, link.LibraryId);
+        await using var check = _h.NewContext();
+        Assert.True(await check.Favorites.AnyAsync(f => f.UserId == user && f.CatalogNodeId == nf.Id));
+        Assert.True(await check.FolderViewSettings.AnyAsync(v => v.NodeId == nf.Id));
+        Assert.True(await check.NodeCoverChoices.AnyAsync(c => c.NodeId == nf.Id && c.Version == 2));
+        Assert.True(await check.FolderReaderDefaults.AnyAsync(r => r.NodeId == nf.Id));
+        Assert.Empty(await MoveTestHarness.CarryOver(check).StrandedFolderIds(src).ToListAsync());
+    }
+
+    [Fact]
+    public async Task InLibrary_AFolderRename_NowKeepsFavoritesViewSettingsAndCoverChoice()
+    {
+        var (src, _, user) = await SeedAsync();
+        var folder = await _h.NodeAsync(src, "Series");
+        await _h.FavoriteAsync(user, folder.Id);
+        await using (var db = _h.NewContext())
+        {
+            db.FolderViewSettings.Add(new FolderViewSettingsEntity { NodeId = folder.Id, VirtualVolumes = 0 });
+            db.NodeCoverChoices.Add(new NodeCoverChoiceEntity { NodeId = folder.Id, Mode = 1, Version = 1, SetAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+        }
+        _h.Move(src, "Series", src, "Series (complete)");
+        var scan = await _h.ScanAsync(src);
+        Assert.Equal(2, scan.NodesMoved);
+
+        await using (var db = _h.NewContext())
+            Assert.Equal(1, await MoveTestHarness.CarryOver(db).CarryAsync(src, scan.Moves));
+
+        var renamed = await _h.NodeAsync(src, "Series (complete)");
+        await using var check = _h.NewContext();
+        Assert.True(await check.Favorites.AnyAsync(f => f.UserId == user && f.CatalogNodeId == renamed.Id));
+        Assert.True(await check.FolderViewSettings.AnyAsync(v => v.NodeId == renamed.Id));
+        Assert.True(await check.NodeCoverChoices.AnyAsync(c => c.NodeId == renamed.Id));
     }
 }
