@@ -49,7 +49,6 @@ public static class HostingServicesExtensions
                 ScratchRoot = config["MangaPixer:Storage:ScratchRoot"],
             };
         });
-        services.AddScoped<IdentityRelinkService>();
 
         // YACReader progress importer (admin-only). The library reader is a
         // stateless singleton; the import service is scoped (depends on DbContext).
