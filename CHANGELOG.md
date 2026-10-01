@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Card / List switch on a volume's page.** It remembers your choice for volume pages (cards show the covers, the list shows the archive names); until you choose, it follows your library view.
 - **List view inside a volume.** A volume's page follows your library view: with **List** chosen it shows the same compact rows as the folder list, with the same column count.
 - **Favorites** in the selection bar of the folder list: add or remove the selected items (a volume through all its archives).
+- The review dashboard shows the candidates that belong to one series family - a main story with its spin-offs, side stories, prequels or sequels - together, under **Same series family - check which one**, each marked with its part (*Main story*, *Spin-off*, *Prequel*, ...), so a folder is not given the main series' details when it holds a spin-off, or the other way round. New chips: **Spin-off or main story?** (only the subtitle tells them apart) and **Series family** (another series of the family also matched - also on the Auto-linked list).
 - Review candidates show whether they fit the folder's declared type (**Fits declared type** / **Not declared type**), and Identify warns when the series you preview is not the declared type.
 
 ### Changed
@@ -28,7 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - An automatically linked folder whose volumes or chapters go far past everything known about its series moves back to **Needs review** (reason "Reach") when the series' volume list arrives or changes, or its record is refreshed; volume numbers that disagree with the list only add the reason.
 - A declared type (manga, manhwa, manhua, webtoon, comic, graphic novel) is now a strong hint for automatic matching instead of a search filter: a series from the country the type names is clearly preferred and one the type contradicts loses the same amount, which settles a tie between two series of the same name - but a wrong declared type no longer keeps the right series from being found or linked. Nothing you declare is sent to MangaUpdates any more.
 - Declared types show the country they stand for - Manga (Japan), Manhwa (Korea), Manhua (China), Comic (Western), ... - in the declared-facts editor, the Declared line and the library list.
-- A folder named `Series - Subtitle` now matches the spin-off that carries that subtitle rather than the main series.
+- A folder named `Series - Subtitle` now ranks the spin-off that carries that subtitle above the main series. When the two are one series family, the folder waits in **Needs review** instead of being linked automatically: the subtitle alone is not enough to tell a spin-off from its main series.
 - A series found only through an English title that MangaUpdates tags with its author (`Fly Me to the Moon (HATA Kenjiro)`) is looked up once more, so the author can be checked and the right series ranks first.
 - **New chapters on Home** is stacked by the series folder instead of the top-level folder. In a library whose top level is categories (Manga, Manhwa, ...) each card is now a series, not a category: the folder with its own series link, or else the folder that holds the new archives (volume folders such as "Vol 3" stay part of their series).
 
