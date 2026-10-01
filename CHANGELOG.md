@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.30.0] - 2026-10-01
+
 ### Added
 
 - **What you have.** A linked series now says, above its Volumes view and on its series page, how each kind of release stands - the original run, the official release in your language (publisher, volumes, its own status) and the released chapters - and what your folder holds, with volume files and chapter files merged into one range: "You have volumes 1-14 + chapters 47-65 · up to date". Chapter files that a volume file already holds are counted once and show **Also in Volume N**.
@@ -32,6 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A folder named `Series - Subtitle` now ranks the spin-off that carries that subtitle above the main series. When the two are one series family, the folder waits in **Needs review** instead of being linked automatically: the subtitle alone is not enough to tell a spin-off from its main series.
 - A series found only through an English title that MangaUpdates tags with its author (`Fly Me to the Moon (HATA Kenjiro)`) is looked up once more, so the author can be checked and the right series ranks first.
 - **New chapters on Home** is stacked by the series folder instead of the top-level folder. In a library whose top level is categories (Manga, Manhwa, ...) each card is now a series, not a category: the folder with its own series link, or else the folder that holds the new archives (volume folders such as "Vol 3" stay part of their series).
+- **Upgrade note:** this version adds three small database migrations (`AddAutoCoverArchive`, `AddStackViewMode`, `AddCandidateSeriesFamily`: new columns only; a snapshot is taken before they run). Every volume and series cover is decided once more after the update under the new cover rules. No new consent is needed, and the media worker protocol is unchanged (5).
 
 ### Removed
 
