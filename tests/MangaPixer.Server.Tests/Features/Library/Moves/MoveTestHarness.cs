@@ -2,11 +2,16 @@ namespace com.lifepixer.mangapixer.Tests.Server.Features.Library.Moves;
 
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Media;
+using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Server.Features.Admin;
+using com.lifepixer.mangapixer.Server.Features.Library.Moves;
+using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using com.lifepixer.mangapixer.Server.Scanning;
 using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 /// <summary>
 /// Two (or more) libraries on writable temp folders over one SQLite file, for cross-library move tests (1.31.0). Scans run on
@@ -242,4 +247,63 @@ public sealed class MoveTestHarness : IDisposable
     }
 
     public static int Tombstoned => (int)CatalogNodeAvailability.Tombstoned;
+
+    public static MetadataCarryOverService CarryOver(MangaPixerDbContext db) =>
+        new(db, new AuditService(db), TimeProvider.System, [], NullLogger<MetadataCarryOverService>.Instance);
+
+    public static MovePairingService Pairing(MangaPixerDbContext db) =>
+        new(db, CarryOver(db), TimeProvider.System, NullLogger<MovePairingService>.Instance);
+
+    public static MoveConflictService Conflicts(MangaPixerDbContext db) =>
+        new(db, CarryOver(db), new AuditService(db), TimeProvider.System, NullLogger<MoveConflictService>.Instance);
+
+    /// <summary>Runs one pairing pass on a fresh context.</summary>
+    public async Task<MovePairingService.PassResult> PairAsync()
+    {
+        await using var db = NewContext();
+        return await Pairing(db).RunAsync();
+    }
+
+    public async Task<long> AddRecordAsync(string externalId, string title)
+    {
+        await using var db = NewContext();
+        var record = new MetadataRecordEntity { PublicId = "r" + externalId, Provider = "mangaupdates", ExternalId = externalId, Title = title, FetchedAt = DateTimeOffset.UtcNow };
+        db.MetadataRecords.Add(record);
+        await db.SaveChangesAsync();
+        return record.Id;
+    }
+
+    public async Task LinkAsync(long nodeId, SeriesLinkState state, long? recordId)
+    {
+        await using var db = NewContext();
+        var libraryId = await db.CatalogNodes.Where(n => n.Id == nodeId).Select(n => n.LibraryId).SingleAsync();
+        db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
+        {
+            NodeId = nodeId,
+            LibraryId = libraryId,
+            State = (int)state,
+            RecordId = recordId,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync();
+    }
+
+    public async Task<NodeSeriesLinkEntity?> LinkOfAsync(long nodeId)
+    {
+        await using var db = NewContext();
+        return await db.NodeSeriesLinks.AsNoTracking().SingleOrDefaultAsync(l => l.NodeId == nodeId);
+    }
+
+    public async Task<ReadingProgressEntity?> ProgressAsync(long userId, long itemId)
+    {
+        await using var db = NewContext();
+        return await db.ReadingProgress.AsNoTracking().SingleOrDefaultAsync(p => p.UserId == userId && p.ItemId == itemId);
+    }
+
+    public async Task<int> CountAsync(Func<MangaPixerDbContext, Task<int>> query)
+    {
+        await using var db = NewContext();
+        return await query(db);
+    }
 }
