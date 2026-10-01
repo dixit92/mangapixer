@@ -39,6 +39,7 @@ import { LibraryScanScheduleComponent } from './library-scan-schedule/library-sc
 import { LibraryDeclaredFactsComponent } from '../metadata/declared/library-declared-facts.component';
 import { ConsentRenewalBannerComponent } from '../metadata/consent-renewal-banner.component';
 import { AnalyticsCardComponent } from './analytics-card/analytics-card.component';
+import { MoveConflictsLinkComponent } from './move-conflicts/move-conflicts-link.component';
 
 /**
  * Admin component. Shows library and user administration.
@@ -55,6 +56,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
     CommonModule,
     DebugLogCardComponent,
     UpdateCheckCardComponent,
+    MoveConflictsLinkComponent,
     AnalyticsCardComponent,
     BackupSettingsCardComponent,
     FormsModule,
@@ -93,6 +95,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
               <mat-icon>{{ scanAllBusy() ? 'hourglass_empty' : 'refresh' }}</mat-icon>
               {{ scanAllBusy() ? 'Starting…' : 'Scan all libraries' }}
             </button>
+            <app-move-conflicts-link />
           </div>
         }
         @if (loadingLibs()) {
