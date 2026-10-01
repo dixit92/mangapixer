@@ -112,7 +112,7 @@ public sealed class CoverCheckService(
     /// </summary>
     public static readonly TimeSpan FullSweepEvery = TimeSpan.FromMinutes(30);
 
-    private sealed record LinkRow(long NodeId, long RecordId, long CompanionId);
+    private sealed record LinkRow(long NodeId, long RecordId, long CompanionId, DateTimeOffset LinkedAt);
 
     private sealed record WebCover(long Id, int Kind, int? Volume, int StoredVersion, ulong Hash);
 
@@ -199,11 +199,11 @@ public sealed class CoverCheckService(
                 && (c.State == companionAuto || c.State == companionConfirmed)
                 && db.VolumeCovers.Any(v => v.ProviderRecordId == c.CompanionRecordId && v.State == stored && v.Hash != null)
             orderby l.UpdatedAt descending, l.NodeId
-            select new { l.NodeId, RecordId = l.RecordId!.Value, CompanionId = c.CompanionRecordId!.Value };
+            select new { l.NodeId, RecordId = l.RecordId!.Value, CompanionId = c.CompanionRecordId!.Value, l.UpdatedAt };
         if (nodeId is { } only)
             query = query.Where(x => x.NodeId == only);
         var rows = await query.ToListAsync(ct);
-        return rows.Select(r => new LinkRow(r.NodeId, r.RecordId, r.CompanionId)).ToList();
+        return rows.Select(r => new LinkRow(r.NodeId, r.RecordId, r.CompanionId, r.UpdatedAt)).ToList();
     }
 
     /// <summary>
@@ -252,7 +252,7 @@ public sealed class CoverCheckService(
         var spreads = new Dictionary<long, bool>();
         foreach (var archive in chosen.SelectMany(v => v.Value))
             spreads[archive.Id] = await VolumeCoverPass.Page1AspectAsync(db, archive, ct) is >= VolumeCoverPass.SpreadAspect;
-        var inputs = InputsKey(web, chosen.SelectMany(v => v.Value), spreads);
+        var inputs = InputsKey(link, web, chosen.SelectMany(v => v.Value), spreads);
         if (!force && state.IsUnchanged(link.NodeId, link.RecordId, inputs))
             return (null, false);
 
@@ -342,10 +342,14 @@ public sealed class CoverCheckService(
         return (hashes, missed);
     }
 
-    /// <summary>The stored web covers and the local images the check would read; a change means a new check.</summary>
-    private string InputsKey(IEnumerable<WebCover> web, IEnumerable<VolumeCoverPass.HeldArchive> archives, IReadOnlyDictionary<long, bool> spreads)
+    /// <summary>
+    /// The link (a new automatic link to the same record is checked again), the stored web covers and the local images the check
+    /// would read; a change means a new check.
+    /// </summary>
+    private string InputsKey(LinkRow link, IEnumerable<WebCover> web, IEnumerable<VolumeCoverPass.HeldArchive> archives, IReadOnlyDictionary<long, bool> spreads)
     {
-        var parts = web.Select(c => string.Create(CultureInfo.InvariantCulture, $"w{c.Id}.{c.StoredVersion}")).ToList();
+        var parts = new List<string> { string.Create(CultureInfo.InvariantCulture, $"l{link.LinkedAt.UtcTicks}") };
+        parts.AddRange(web.Select(c => string.Create(CultureInfo.InvariantCulture, $"w{c.Id}.{c.StoredVersion}")));
         foreach (var a in archives.OrderBy(a => a.Id))
         {
             var thumb = File.Exists(thumbnails.GetThumbnailPath(a.Id, a.ContentVersion)) ? 1 : 0;
