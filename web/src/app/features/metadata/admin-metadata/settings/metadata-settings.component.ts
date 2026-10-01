@@ -276,7 +276,9 @@ export function validateThresholds(
                 Compare covers
               </mat-checkbox>
               <p class="muted small">When two series tie on the title for a folder of volumes or a one-shot, download their
-                two covers and prefer the one that is the same picture as the folder's own cover.</p>
+                two covers and prefer the one that is the same picture as the folder's own cover. After an automatic link, once
+                the series' volume covers are stored, compare them with the folder's own volumes (nothing is downloaded for
+                this): when every compared volume is a different picture, in every language, the folder goes to Needs review.</p>
               @if (s.compareCoversDisabledByConfig) {
                 <p class="note" data-testid="md-compare-covers-config">Switched off in the server configuration.</p>
               }
@@ -307,8 +309,9 @@ export function validateThresholds(
                               data-testid="md-volume-covers-switch">
               Volume covers from the web
             </mat-slide-toggle>
-            <p class="note">For series linked to MangaUpdates: the covers of volume 1 and of the volumes you have, and which
-              chapters make up each volume, from MangaDex. In the background with Automatic matching on; otherwise only when
+            <p class="note">For series linked to MangaUpdates: the covers of volume 1 and of the volumes you have - as volume
+              files, as all of their chapters, or as an estimated "~ Volume N" stack - and which chapters make up each volume,
+              from MangaDex. In the background with Automatic matching on; otherwise only when
               you use Refresh or Change MangaDex match. Covers are stored on this server; the browser never contacts MangaDex.</p>
             @if (s.volumeCoversDisabledByConfig) {
               <p class="note" data-testid="md-volume-covers-config">Switched off in the server configuration (Metadata:AutoMatch:VolumeCovers).</p>
