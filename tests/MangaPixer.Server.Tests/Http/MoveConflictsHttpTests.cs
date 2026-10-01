@@ -64,8 +64,9 @@ public sealed class MoveConflictsHttpTests : IClassFixture<MoveConflictsHttpTest
     }
 
     /// <summary>
-    /// Two libraries; old copy <paramref name="prefix"/>Old (tombstoned in "from") and new copy <paramref name="prefix"/>New
-    /// (live in "to", appeared after the old one was tombstoned), same signature and pages. Returns (old id, new id).
+    /// Two libraries; old copy <paramref name="prefix"/>Old (in "from", still LIVE: the host's own startup pass must not pair
+    /// it before the test has added its rows - <see cref="TombstoneAsync"/> removes it) and new copy <paramref name="prefix"/>New
+    /// (live in "to", created after the old one was last seen), same signature and pages. Returns (old id, new id).
     /// </summary>
     private async Task<(long Old, long New, string FromLib, string ToLib)> SeedPairAsync(string prefix, string signature)
     {
@@ -76,7 +77,7 @@ public sealed class MoveConflictsHttpTests : IClassFixture<MoveConflictsHttpTest
         db.Libraries.AddRange(from, to);
         await db.SaveChangesAsync();
         var t0 = DateTimeOffset.UtcNow.AddHours(-2);
-        var old = Archive(prefix + "Old", from.Id, 5, t0);
+        var old = Archive(prefix + "Old", from.Id, 0, t0);
         var neu = Archive(prefix + "New", to.Id, 0, t0.AddHours(1));
         old.ArchiveItem!.ContentSignature = signature;
         neu.ArchiveItem!.ContentSignature = signature;
@@ -86,6 +87,16 @@ public sealed class MoveConflictsHttpTests : IClassFixture<MoveConflictsHttpTest
         Pages(db, neu.Id);
         await db.SaveChangesAsync();
         return (old.Id, neu.Id, from.PublicId, to.PublicId);
+    }
+
+    /// <summary>What the source scan does when the old copy is gone: tombstone it (after the old copy was last seen).</summary>
+    private async Task TombstoneAsync(long nodeId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+        var at = DateTimeOffset.UtcNow.AddHours(-1).AddMinutes(-30);
+        await db.CatalogNodes.Where(n => n.Id == nodeId)
+            .ExecuteUpdateAsync(u => u.SetProperty(n => n.Availability, 5).SetProperty(n => n.TombstonedAt, at));
     }
 
     private static string Signature(char c) => "v1:4096:" + new string(c, 64);
@@ -145,6 +156,7 @@ public sealed class MoveConflictsHttpTests : IClassFixture<MoveConflictsHttpTest
             await db.SaveChangesAsync();
         }
 
+        await TombstoneAsync(oldId);
         await RunPairingAsync();
 
         Assert.NotEqual(HttpStatusCode.OK, (await reader.GetAsync("/api/v1/reading/progress/mcvNew")).StatusCode);
@@ -188,6 +200,7 @@ public sealed class MoveConflictsHttpTests : IClassFixture<MoveConflictsHttpTest
             await db.SaveChangesAsync();
         }
 
+        await TombstoneAsync(oldId);
         await RunPairingAsync();
 
         var count = await admin.GetFromJsonAsync<MoveConflictCountDto>("/api/v1/admin/move-conflicts/count", TestJson.Web);
