@@ -8,7 +8,9 @@ It works without any network access. Names like `Series v03 c012` group on their
 
 Open a series folder that has something to group. In the top bar a **Volumes | Folders** switch appears next to the series information button. **Volumes** is the grouped view; **Folders** is the real folder list with every file and subfolder as it is on disk. Your choice is remembered for you.
 
-The switch is only shown where a Volumes view exists: a folder whose files group into volumes, or a folder linked to a series that holds volumes (its Volumes view shows the series status, see [Missing volumes and chapters](#missing-volumes-and-chapters)). It is greyed out while another sort (Recently added, Recently read, Recently updated), a read-state filter or **Favorites only** is active: those views are about single items, so they always list them flat. **Hide empty folders** works in both views.
+The switch is only shown where a Volumes view exists: a folder whose files group into volumes, or a folder linked to a series that holds volumes (its Volumes view shows the series status, see [Missing volumes and chapters](#missing-volumes-and-chapters)). Under another sort (Recently added, Recently read, Recently updated) the list is flat and the switch shows **Folders**; *new in 1.31.0:* picking **Volumes** then switches the sort back to **Name** and says so ("Sorted by name for the Volumes view", with **Undo**). The read-state filters, **Favorites only** and **Hide empty folders** work in both views: in the Volumes view a volume follows the same read badge its card shows (**Read** = every chapter read, **Reading** = some read or in progress, **Unread** = none read) and counts as a favorite when any of its chapters is starred; missing-volume cards are hidden while a filter is on.
+
+*New in 1.31.0:* tapping a series on the home page's **New chapters** row opens a linked series in its Volumes view (sorted by name, with the **Continue** row on top showing the chapter to read next), unless you chose **Folders** for it. A series without a link, or without a Volumes view, opens as before, sorted by **Recently updated**.
 
 ## How chapters are placed in a volume
 

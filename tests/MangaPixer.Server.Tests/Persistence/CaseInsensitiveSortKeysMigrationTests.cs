@@ -6,6 +6,7 @@ using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Server.Tests.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -81,15 +82,14 @@ public sealed class CaseInsensitiveSortKeysMigrationTests : IDisposable
         var libraryId = await db.Database.SqlQueryRaw<long>("SELECT Id AS Value FROM libraries WHERE PublicId = {0}", OpaqueId.Encode(1)).SingleAsync();
         var library = (Id: libraryId, PublicId: OpaqueId.Encode(1));
 
+        // Nodes through LegacySchemaSeed too: a later migration (1.31.0 TombstonedAt) added a catalog_nodes column.
         var series = NewNode(library.Id, null, CatalogNodeKind.Folder, "Series", 10);
-        db.CatalogNodes.Add(series);
-        await db.SaveChangesAsync();
+        await LegacySchemaSeed.InsertAsync(db, series);
 
         var publicId = 100L;
         // Insertion order is deliberately not sorted order.
         foreach (var name in new[] { "Zebra.cbz", "banana.cbz", "Cherry 10.cbz", "apple.cbz", "cherry 2.cbz", "Banana.cbz" })
-            db.CatalogNodes.Add(NewNode(library.Id, series.Id, CatalogNodeKind.Archive, name, publicId++));
-        await db.SaveChangesAsync();
+            await LegacySchemaSeed.InsertAsync(db, NewNode(library.Id, series.Id, CatalogNodeKind.Archive, name, publicId++));
 
         return (user.Id, library.Id, series.Id);
     }

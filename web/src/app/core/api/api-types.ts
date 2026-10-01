@@ -38,6 +38,11 @@ export interface PageResponse<T> {
    * by `ContinueRowComponent`, which hides itself when absent/null.
    */
   nextUnread?: CatalogNodeDto | null;
+  /**
+   * The sort the server actually used when it differs from the requested one (1.31.0): 'name' when a browse with
+   * `preferVolumes` (the home "New chapters" tap) opened a linked series' Volumes view. Null otherwise. Optional (additive).
+   */
+  effectiveSort?: string | null;
 }
 
 /** 'VolumeStack' (1.29.0): a virtual volume stack of the Volumes view - a browse entry only, never a stored node. */

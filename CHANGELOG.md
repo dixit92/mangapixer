@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **New chapters opens the Volumes view.** Tapping a series on the home page's **New chapters** row opens a linked series in its Volumes view, sorted by name, with the **Continue** row on top showing the chapter to read next - unless you chose **Folders** for it. A series without a link or without a Volumes view opens as before, sorted by **Recently updated**.
+- **The Volumes switch is never greyed out.** Under another sort the list is flat and the switch shows **Folders**; picking **Volumes** switches back to the **Name** sort and says so, with **Undo**. The sort is saved when it was your own library sort, and only for this visit when it came from the home page.
+- **Filters work in the Volumes view.** The read-state filters and **Favorites only** no longer flatten the list: a volume follows the read badge its card shows (**Read** = every chapter read, **Reading** = some read or in progress, **Unread** = none read) and counts as a favorite when any of its chapters is starred; missing-volume cards are hidden while a filter is on.
+
 ## [1.30.1] - 2026-10-01
 
 ### Changed

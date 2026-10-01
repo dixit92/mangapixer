@@ -173,11 +173,11 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
           <app-series-info-button [nodeId]="folderId" />
         }
         <!-- Volumes | Folders (1.29.0): only where the folder has a Volumes view; the choice is the per-user
-             series view preference. Inert while another sort or a filter makes the list flat. -->
+             series view preference. 1.31.0: never inert - under another sort the list is flat (Folders shows as on) and
+             picking Volumes switches to the Name sort with a snackbar + Undo; the filters work inside the Volumes view. -->
         @if (volumeView()?.available) {
-          <app-volume-view-switch [active]="volumesActive()" [disabled]="volumesSuspended()"
-                                  [disabledHint]="'The Volumes view needs the Name sort and no read-state or favorites filter'"
-                                  (changed)="setSeriesView($event)" />
+          <app-volume-view-switch [active]="volumesActive() && !volumesSuspended()"
+                                  (changed)="pickSeriesView($event)" />
         }
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
                 matTooltip="Change how the library is displayed" aria-label="View options">
@@ -889,9 +889,11 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   readonly seriesView = signal<SeriesViewMode | null>(null);
   readonly volumesActive = computed(() =>
     this.seriesView() !== null ? this.seriesView() === 'Volumes' : (this.volumeView()?.defaultActive ?? this.volumeView()?.active ?? true));
-  /** The list is flat whatever the switch says: only the Name sort without a read-state or favorites filter groups. */
-  readonly volumesSuspended = computed(() =>
-    this.sort() !== 'name' || this.readStateFilter() !== 'all' || this.favoritesOnly());
+  /**
+   * The list is flat whatever the switch says: only the Name sort groups. (1.31.0: the read-state and favorites filters
+   * apply inside the Volumes view - a stack by its read rollup / any starred member - instead of flattening it.)
+   */
+  readonly volumesSuspended = computed(() => this.sort() !== 'name');
 
   /** Measured height of the sticky top bar: the jump rail's sticky offset. */
   readonly barHeight = signal(0);
@@ -992,6 +994,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   // changes the sort explicitly via the menu. persistView() writes THESE, never the
   // (possibly transient) active sort. (1.12.0)
   private storedSort: LibrarySortOrder = 'name';
+  /** The home "New chapters" tap asked to open in the Volumes view (1.31.0); consumed by the first page. */
+  private preferVolumesOnce = false;
   private storedDirection: LibrarySortDirection = 'asc';
   // The user's PERSISTED "New chapters" home window (1.12.0), captured verbatim from
   // library-preferences on load and never mutated by this component (no control here
@@ -1195,6 +1199,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       // Absent the param the filter keeps its session value.
       this.favoritesFromQuery = qpMap?.get('favorites') === '1';
       if (this.favoritesFromQuery) this.favoritesOnly.set(true);
+      // Home "New chapters" tap (1.31.0): `?volumes=prefer` asks the first page for the Volumes view; the server switches to
+      // Name (EffectiveSort) only for a linked series whose Volumes view is available and active for this viewer.
+      this.preferVolumesOnce = qpMap?.get('volumes') === 'prefer' && !!parentId;
       this.resetList();
       this.loadLibraryName(libId);
       // Forget the previous folder's Volumes view before loading the list: its default would otherwise pick the new folder's
@@ -1595,6 +1602,48 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * The switch was clicked (1.31.0). Under a non-Name sort the list is flat, so picking Volumes first switches to the Name sort:
+   * saved when it replaces the user's STORED sort (as choosing Name in the sort menu would), for this visit only when the
+   * sort was the transient home-tap one - with a snackbar and an Undo that restores the previous sort (and switch).
+   */
+  pickSeriesView(volumes: boolean): void {
+    if (!volumes || !this.volumesSuspended()) {
+      this.setSeriesView(volumes);
+      return;
+    }
+    const previous = { sort: this.sort(), direction: this.sortDirection(), seriesView: this.seriesView() };
+    const stored = previous.sort === this.storedSort && previous.direction === this.storedDirection;
+    this.applySort('name', 'asc', stored);
+    if (!this.volumesActive()) this.seriesView.set(this.volumeView()?.defaultActive === true ? null : 'Volumes');
+    this.persistView();
+    this.reloadFromTop();
+    this.snackBar.open('Sorted by name for the Volumes view', 'Undo', { duration: 6000 }).onAction().subscribe(() => {
+      this.applySort(previous.sort, previous.direction, stored);
+      this.seriesView.set(previous.seriesView);
+      this.persistView();
+      this.reloadFromTop();
+    });
+  }
+
+  /** Sets the active sort; `persist` also makes it the stored sort (written by the next persistView). */
+  private applySort(sort: LibrarySortOrder, direction: LibrarySortDirection, persist: boolean): void {
+    this.sort.set(sort);
+    this.sortDirection.set(direction);
+    if (persist) {
+      this.storedSort = sort;
+      this.storedDirection = direction;
+    }
+  }
+
+  private reloadFromTop(): void {
+    this.resetList();
+    this.loadNodes();
+    if (this.shouldShowJumpRail()) this.loadJumpIndex(this.libraryId());
+    else this.jumpBuckets.set([]);
+    this.scrollToTop('auto');
+  }
+
+  /**
    * The Volumes | Folders switch: remember the choice for this user and reload the list from the top. Choosing what this
    * folder shows by default clears the viewer's choice instead (1.29.0 RC), so an admin's later default change reaches them.
    */
@@ -1971,9 +2020,18 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const initial = this.cursor === null;
     const gen = ++this.loadGen;
     this.loadingMore.set(true);
-    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), null, this.favoritesOnly(), this.groupParam()).subscribe({
+    const preferVolumes = initial && this.preferVolumesOnce;
+    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), null, this.favoritesOnly(), this.groupParam(), preferVolumes).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         if (gen !== this.loadGen) return;
+        if (preferVolumes) {
+          this.preferVolumesOnce = false;
+          // The server opened the Volumes view: Name for THIS visit only (the stored sort is untouched, like the home sort).
+          if (response.effectiveSort === 'name') {
+            this.sort.set('name');
+            this.sortDirection.set('asc');
+          }
+        }
         this.nodes.update((current) => isAppend ? [...current, ...response.items] : [...response.items]);
         this.hasMore.set(response.hasMore);
         this.cursor = response.nextCursor;

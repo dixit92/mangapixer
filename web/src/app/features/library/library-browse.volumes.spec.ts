@@ -5,7 +5,7 @@ import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { BehaviorSubject, Observable, of } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, of } from 'rxjs';
 
 import { LibraryBrowseComponent } from './library-browse.component';
 import { ApiService } from '../../core/api/api.service';
@@ -50,9 +50,10 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
   }
 
   function setup(opts: { nodes?: CatalogNodeDto[]; view?: Partial<VolumeViewDto>; prefs?: Record<string, unknown>; admin?: boolean; viewMode?: string;
-    route?: Observable<{ get: (k: string) => string | null }>; viewOf?: (nodeId: string) => VolumeViewDto } = {}) {
+    route?: Observable<{ get: (k: string) => string | null }>; viewOf?: (nodeId: string) => VolumeViewDto;
+    query?: Record<string, string>; page?: Partial<PageResponse<CatalogNodeDto>> } = {}) {
     const nodes = opts.nodes ?? [stackNode('1'), stackNode('2', { missingCount: 0, chapterCount: 8, presentCount: 8 }), archiveNode('loose')];
-    const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
+    const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false, ...opts.page };
     const view: VolumeViewDto = { nodeId: 'f1', available: true, active: true, consolidated: false, stackCount: 2, ...opts.view };
     const apiSpy = {
       getVolumeView: opts.viewOf ? vi.fn().mockImplementation((id: string) => of(opts.viewOf!(id))) : vi.fn().mockReturnValue(of(view)),
@@ -74,7 +75,10 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
         { provide: ApiService, useValue: apiSpy },
         { provide: AuthService, useValue: { isAdmin: () => !!opts.admin, currentUser: () => null } },
         { provide: ReadStateService, useValue: new ReadStateService() },
-        { provide: ActivatedRoute, useValue: { paramMap: opts.route ?? of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : 'f1') }) } },
+        { provide: ActivatedRoute, useValue: {
+          paramMap: opts.route ?? of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : 'f1') }),
+          snapshot: { queryParamMap: { get: (k: string) => opts.query?.[k] ?? null } },
+        } },
       ],
     });
     const fixture = TestBed.createComponent(LibraryBrowseComponent);
@@ -199,21 +203,78 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
     open.mockRestore();
   });
 
-  it('makes the switch inert while another sort or a filter makes the list flat', () => {
+  it('keeps the switch live: filters work inside the Volumes view, another sort shows Folders (1.31.0)', () => {
     const { fixture, comp, el } = setup();
     const volumes = () => el.querySelector('[data-testid="view-volumes"]') as HTMLButtonElement;
     expect(volumes().disabled).toBe(false);
 
     comp.setReadStateFilter('unread');
     fixture.detectChanges();
-    expect(volumes().disabled).toBe(true);
-    comp.setReadStateFilter('all');
-    fixture.detectChanges();
     expect(volumes().disabled).toBe(false);
-
+    expect(volumes().getAttribute('aria-pressed')).toBe('true'); // still the Volumes view, filtered
     comp.toggleFavoritesOnly();
     fixture.detectChanges();
-    expect(volumes().disabled).toBe(true);
+    expect(volumes().getAttribute('aria-pressed')).toBe('true');
+
+    comp.setSort('recentlyAdded');
+    fixture.detectChanges();
+    expect(volumes().disabled).toBe(false);
+    expect(volumes().getAttribute('aria-pressed')).toBe('false'); // the list is flat under another sort
+    expect(el.querySelector('[data-testid="view-folders"]')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('picking Volumes under another stored sort saves Name, says so, and Undo restores the sort (1.31.0)', () => {
+    const action = new Subject<void>();
+    const open = vi.spyOn(MatSnackBar.prototype, 'open').mockReturnValue({ onAction: () => action } as never);
+    const { fixture, comp, el, apiSpy } = setup({ prefs: { sort: 'recentlyAdded', direction: 'desc' } });
+    expect(comp.sort()).toBe('recentlyAdded');
+
+    (el.querySelector('[data-testid="view-volumes"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(comp.sort()).toBe('name');
+    expect(comp.sortDirection()).toBe('asc');
+    expect(apiSpy.setLibraryPreferences.mock.calls.at(-1)![0]).toMatchObject({ sort: 'name', direction: 'asc' });
+    expect(apiSpy.browseLibrary.mock.calls.at(-1)![4]).toBe('name');
+    expect(open).toHaveBeenCalledWith('Sorted by name for the Volumes view', 'Undo', { duration: 6000 });
+
+    action.next();
+    fixture.detectChanges();
+    expect(comp.sort()).toBe('recentlyAdded');
+    expect(apiSpy.setLibraryPreferences.mock.calls.at(-1)![0]).toMatchObject({ sort: 'recentlyAdded', direction: 'desc' });
+    expect(apiSpy.browseLibrary.mock.calls.at(-1)![4]).toBe('recentlyAdded');
+    open.mockRestore();
+  });
+
+  it('a home "New chapters" tap asks for the Volumes view and takes the server\'s Name sort for this visit only (1.31.0)', () => {
+    const { comp, apiSpy } = setup({ query: { sort: 'recentlyUpdated', volumes: 'prefer' }, page: { effectiveSort: 'name' } });
+
+    expect(apiSpy.browseLibrary.mock.calls[0][4]).toBe('recentlyUpdated');
+    expect(apiSpy.browseLibrary.mock.calls[0][11]).toBe(true); // preferVolumes on the first page only
+    expect(comp.sort()).toBe('name');
+    expect(comp.volumesSuspended()).toBe(false);
+    expect(apiSpy.setLibraryPreferences).not.toHaveBeenCalled(); // never persisted
+
+    comp.setReadStateFilter('unread'); // a later reload no longer asks
+    expect(apiSpy.browseLibrary.mock.calls.at(-1)![11]).toBe(false);
+  });
+
+  it('keeps the home sort when the server does not open the Volumes view, and a switch reset then stays transient (1.31.0)', () => {
+    const action = new Subject<void>();
+    const open = vi.spyOn(MatSnackBar.prototype, 'open').mockReturnValue({ onAction: () => action } as never);
+    const { fixture, comp, el, apiSpy } = setup({ query: { sort: 'recentlyUpdated', volumes: 'prefer' } });
+    expect(comp.sort()).toBe('recentlyUpdated');
+
+    (el.querySelector('[data-testid="view-volumes"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(comp.sort()).toBe('name');
+    // The stored sort stays the user's own (Name here) - the transient home sort is never written.
+    expect(apiSpy.setLibraryPreferences.mock.calls.every((c) => c[0].sort === 'name')).toBe(true);
+
+    action.next();
+    expect(comp.sort()).toBe('recentlyUpdated');
+    expect(apiSpy.setLibraryPreferences.mock.calls.every((c) => c[0].sort === 'name')).toBe(true);
+    open.mockRestore();
   });
 
   it('selects a whole stack: a tap, Select all, Select all unread and a range include it (1.30.0)', () => {

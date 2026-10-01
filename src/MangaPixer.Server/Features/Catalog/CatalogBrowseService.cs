@@ -71,6 +71,7 @@ public sealed partial class CatalogBrowseService
         string? before = null,
         bool favoritesOnly = false,
         string? group = null,
+        bool preferVolumes = false,
         CancellationToken ct = default)
     {
         // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
@@ -107,14 +108,25 @@ public sealed partial class CatalogBrowseService
         }
 
         // Volumes view (1.29.0): a folder whose files or stored volume map group into virtual volumes lists volume-ordered
-        // entries (stacks, merged unit subfolders) instead. Name sort, no read-state / favourites filter, and only while the
-        // viewer's switch chain says Volumes; everything else below is the unchanged folder list.
-        if (parentId is { } volumeParent && sort == "name" && readState == BrowseReadStateFilter.All && !favoritesOnly
-            && !string.Equals(group, "flat", StringComparison.OrdinalIgnoreCase))
+        // entries (stacks, merged unit subfolders) instead. Name sort, and only while the viewer's switch chain says Volumes;
+        // everything else below is the unchanged folder list. 1.31.0: the read-state and favourites filters apply INSIDE the
+        // Volumes view (a stack by its members' read rollup / any starred member) instead of flattening the list.
+        // preferVolumes (1.31.0, the home "New chapters" tap): a non-Name sort is replaced by Name when the folder is a LINKED
+        // series whose Volumes view is available and active for the viewer (the viewer's own Folders choice wins); the response
+        // says so in EffectiveSort. Otherwise the requested sort is used, as before.
+        if (parentId is { } volumeParent && !string.Equals(group, "flat", StringComparison.OrdinalIgnoreCase)
+            && (sort == "name" || preferVolumes))
         {
             var view = await _volumes.GetEntriesAsync(volumeParent, ct);
-            if (view is { Available: true } && view.LibraryId == libraryId && await _volumes.IsActiveAsync(userId, view, group, ct))
-                return await BrowseVolumesAsync(view, userId, cursor, before, pageSize, effectiveDirection, hideEmpty, ct);
+            if (view is { Available: true } && view.LibraryId == libraryId
+                && (sort == "name" || view.SeriesFolderId is not null)
+                && await _volumes.IsActiveAsync(userId, view, group, ct))
+            {
+                var preferred = sort != "name";
+                var page = await BrowseVolumesAsync(view, userId, cursor, before, pageSize,
+                    preferred ? SortDirection.Ascending : effectiveDirection, hideEmpty, readState, favoritesOnly, ct);
+                return preferred ? page with { EffectiveSort = "name" } : page;
+            }
         }
 
         // Base query — common filter, no cursor (authorization + library + parent + availability).

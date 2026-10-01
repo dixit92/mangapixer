@@ -13,8 +13,9 @@ using Xunit;
 
 /// <summary>
 /// Service-with-DB tests for the Volumes branch of browse (1.29.0, P2.4): keyset paging with <c>before</c> and an exact
-/// TotalCount over GROUPED pages, stacks never split, the toggle chain and the paths that stay flat (other sorts, read-state
-/// filter, favourites only, the Folders switch), stack cards (cover, rollup, summary), hide-empty and the Continue row.
+/// TotalCount over GROUPED pages, stacks never split, the toggle chain and the paths that stay flat (other sorts, the Folders
+/// switch), stack cards (cover, rollup, summary), hide-empty and the Continue row. 1.31.0: the read-state and favourites filters
+/// apply INSIDE the Volumes view, and <c>preferVolumes</c> (the home "New chapters" tap) opens a linked series in it.
 /// </summary>
 public sealed class CatalogBrowseVolumesTests : IDisposable
 {
@@ -210,7 +211,7 @@ public sealed class CatalogBrowseVolumesTests : IDisposable
     }
 
     [Fact]
-    public async Task TheFoldersSwitch_OtherSorts_ReadStateAndFavouritesFilters_StayFlat()
+    public async Task TheFoldersSwitch_AndOtherSorts_StayFlat()
     {
         var (db, user, lib, series, service) = await SetupAsync();
         using var _ = db;
@@ -226,13 +227,111 @@ public sealed class CatalogBrowseVolumesTests : IDisposable
         // ... and an explicit request for the Volumes view beats the stored switch.
         Assert.Equal(15, (await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 200, group: "volumes")).TotalCount);
 
-        // Other sorts, the read-state filter and Favourites only are about single items.
+        // Other sorts are about single items (the filters are not - see ReadStateAndFavouritesFilters_ApplyInsideTheVolumesView).
         db.ReaderPreferences.Single().SeriesViewMode = (int)SeriesViewMode.Volumes;
         await db.SaveChangesAsync();
         Assert.Equal(15, (await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 200)).TotalCount);
-        Assert.Equal(39, (await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 200, sort: "recentlyAdded")).TotalCount);
-        Assert.Equal(39, (await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 200, readState: BrowseReadStateFilter.Unread)).TotalCount);
-        Assert.Equal(0, (await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 200, favoritesOnly: true)).TotalCount);
+        var recent = await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 200, sort: "recentlyAdded");
+        Assert.Equal(39, recent.TotalCount);
+        Assert.Null(recent.EffectiveSort);
+    }
+
+    [Fact]
+    public async Task ReadStateAndFavouritesFilters_ApplyInsideTheVolumesView()
+    {
+        var (db, user, lib, series, service) = await SetupAsync();
+        using var _ = db;
+        async Task<long> IdOf(string name) => (await db.CatalogNodes.SingleAsync(n => n.DisplayName == name)).Id;
+        // Volume 1 (chapters 1-3) all read; volume 2 (11-13) one read; a star on chapter 21 (volume 3) and on the volume 13 file.
+        foreach (var name in new[] { "Big - Chapter 001", "Big - Chapter 002", "Big - Chapter 003", "Big - Chapter 011" })
+            db.ReadMarks.Add(new ReadMarkEntity { UserId = user.Id, ItemId = await IdOf(name), MarkedAt = DateTimeOffset.UtcNow });
+        foreach (var name in new[] { "Big - Chapter 021", "Big v13" })
+            db.Favorites.Add(new FavoriteEntity { UserId = user.Id, CatalogNodeId = await IdOf(name), CreatedAt = DateTimeOffset.UtcNow });
+        await db.SaveChangesAsync();
+
+        Task<PageResponse<CatalogNodeDto>> Browse(BrowseReadStateFilter state, bool favourites = false) =>
+            service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 200, readState: state, favoritesOnly: favourites);
+
+        // The stack's own rollup decides, as its badge shows it: Read = all read, Reading = some read, Unread = none.
+        var read = await Browse(BrowseReadStateFilter.Read);
+        Assert.Equal(["Volume 1"], Labels(read));
+        Assert.Equal(1, read.TotalCount);
+        Assert.Equal(["Volume 2"], Labels(await Browse(BrowseReadStateFilter.Reading)));
+        var unread = await Browse(BrowseReadStateFilter.Unread);
+        Assert.Equal(13, unread.TotalCount); // volumes 3-12, the volume 13 file, the (empty) subfolder, the loose chapter
+        Assert.DoesNotContain("Volume 1", Labels(unread));
+        Assert.DoesNotContain("Volume 2", Labels(unread));
+        Assert.Contains(unread.Items, n => n.Kind == CatalogNodeKind.VolumeStack);
+
+        // Favourites only: a stack with ANY starred member (its card's star), and a starred plain entry.
+        var starred = await Browse(BrowseReadStateFilter.All, favourites: true);
+        Assert.Equal(["Volume 3", "Big v13"], Labels(starred));
+        Assert.Equal(0, (await Browse(BrowseReadStateFilter.Read, favourites: true)).TotalCount);
+    }
+
+    [Fact]
+    public async Task AFilter_HidesMissingVolumePlaceholders()
+    {
+        var (db, user, lib, series, service) = await SetupAsync();
+        using var _ = db;
+        // Volume 5's chapters leave the folder: the Volumes view shows a missing-volume placeholder in its place.
+        foreach (var node in await db.CatalogNodes.Where(n => n.DisplayName.StartsWith("Big - Chapter 04")).ToListAsync())
+            node.Availability = (int)CatalogNodeAvailability.Tombstoned;
+        await db.SaveChangesAsync();
+        var all = await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 200);
+        var missing = all.Items.Count(n => n.VolumeStack?.Missing == true);
+        Assert.True(missing > 0);
+
+        var unread = await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 200, readState: BrowseReadStateFilter.Unread);
+
+        Assert.Equal(all.TotalCount - missing, unread.TotalCount);
+        Assert.DoesNotContain(unread.Items, n => n.VolumeStack?.Missing == true);
+    }
+
+    [Fact]
+    public async Task PreferVolumes_OpensALinkedSeriesInTheVolumesView_ByName()
+    {
+        var (db, user, lib, series, service) = await SetupAsync();
+        using var _ = db;
+
+        var plain = await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 5, sort: "recentlyUpdated");
+        Assert.Null(plain.EffectiveSort);
+        Assert.Equal(39, plain.TotalCount);
+
+        var preferred = await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 5, sort: "recentlyUpdated", preferVolumes: true);
+        Assert.Equal("name", preferred.EffectiveSort);
+        Assert.Equal(15, preferred.TotalCount);
+        Assert.Equal(["Volume 1", "Volume 2", "Volume 3", "Volume 4", "Volume 5"], Labels(preferred)); // ascending, whatever was asked
+        Assert.NotNull(preferred.NextUnread); // the Continue row leads
+
+        // Already Name: nothing to report.
+        Assert.Null((await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 5, preferVolumes: true)).EffectiveSort);
+    }
+
+    [Fact]
+    public async Task PreferVolumes_KeepsTheRequestedSort_ForTheViewersFoldersChoice_AndAnUnlinkedFolder()
+    {
+        var (db, user, lib, series, service) = await SetupAsync();
+        using var _ = db;
+
+        // The viewer chose Folders: today's behaviour.
+        db.ReaderPreferences.Add(new ReaderPreferencesEntity { UserId = user.Id, SeriesViewMode = (int)SeriesViewMode.Folders });
+        await db.SaveChangesAsync();
+        var folders = await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 200, sort: "recentlyUpdated", preferVolumes: true);
+        Assert.Null(folders.EffectiveSort);
+        Assert.Equal(39, folders.TotalCount);
+        db.ReaderPreferences.Remove(db.ReaderPreferences.Single());
+        await db.SaveChangesAsync();
+
+        // A folder that groups by its file names alone (no link): a Volumes view exists, but it is not a linked series.
+        var unlinked = await VolumeTestData.AddFolderAsync(db, lib.Id, null, "Unlinked");
+        for (var c = 1; c <= 4; c++)
+            await VolumeTestData.AddArchiveAsync(db, lib.Id, unlinked.Id, $"Unlinked v{(c + 1) / 2:00} c{c:000}");
+        var byName = await service.BrowseAsync(user.Id, lib.Id, unlinked.Id, null, pageSize: 200);
+        Assert.Contains(byName.Items, n => n.Kind == CatalogNodeKind.VolumeStack);
+        var preferred = await service.BrowseAsync(user.Id, lib.Id, unlinked.Id, null, pageSize: 200, sort: "recentlyUpdated", preferVolumes: true);
+        Assert.Null(preferred.EffectiveSort);
+        Assert.DoesNotContain(preferred.Items, n => n.Kind == CatalogNodeKind.VolumeStack);
     }
 
     [Fact]

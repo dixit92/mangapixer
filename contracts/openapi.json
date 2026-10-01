@@ -5092,6 +5092,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "preferVolumes",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
