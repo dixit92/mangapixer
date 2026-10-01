@@ -77,6 +77,38 @@ public sealed class TrashServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task EveryAncestorFolderOfAHeldTombstone_Stays_WhileItsOtherEligibleChildrenGo()
+    {
+        // Move recognition holds tombstoned ARCHIVES (lane A); the catalog's parent key is Restrict, so the folders above a held
+        // archive must stay even though they are past the window themselves.
+        await _kit.InitAsync();
+        var lib = await _kit.AddLibraryAsync("lib1");
+        for (var i = 0; i < 8; i++)
+            await _kit.AddNodeAsync(lib, null, 1, null);
+        var top = await _kit.AddNodeAsync(lib, null, 0, 90);
+        var sub = await _kit.AddNodeAsync(lib, top, 0, 90);
+        var held = await _kit.AddNodeAsync(lib, sub, 1, 90);
+        var sibling = await _kit.AddNodeAsync(lib, sub, 1, 90);
+        var otherFolder = await _kit.AddNodeAsync(lib, top, 0, 90);
+        var otherItem = await _kit.AddNodeAsync(lib, otherFolder, 1, 90);
+
+        await using (var db = _kit.NewContext())
+        {
+            var service = _kit.Service(db, new FixedTombstoneHolds(db, held));
+            var row = Assert.Single((await service.GetOverviewAsync(default)).Libraries);
+            Assert.Equal((3, 2, 1, 3), (row.Eligible.Nodes, row.Eligible.Archives, row.Eligible.Folders, row.Waiting));
+            var outcome = await service.EmptyAsync(null, releaseHold: false, automatic: false, null, default);
+            Assert.Equal((3, 2, 1), (outcome.Result!.Removed.Nodes, outcome.Result.Removed.Archives, outcome.Result.Removed.Folders));
+        }
+        Assert.True(await _kit.ExistsAsync(held));
+        Assert.True(await _kit.ExistsAsync(sub));
+        Assert.True(await _kit.ExistsAsync(top));
+        Assert.False(await _kit.ExistsAsync(sibling));
+        Assert.False(await _kit.ExistsAsync(otherFolder));
+        Assert.False(await _kit.ExistsAsync(otherItem));
+    }
+
+    [Fact]
     public async Task APurge_RemovesEverythingTheNodeOwns_ButKeepsRecordsWebCoversAndPosters()
     {
         await _kit.InitAsync();
