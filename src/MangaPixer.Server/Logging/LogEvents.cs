@@ -153,6 +153,10 @@ public static class LogEvents
         public const int MovePairingFailed = 3104;
         public const int MoveConflictsResolved = 3105;
         public const int MovePairingSkipped = 3106;
+
+        // 1.31.1 content-signature backfill (archives analysed before 1.5.0 never got a signature)
+        public const int SignatureBackfillPass = 3120;
+        public const int SignatureBackfillFailed = 3121;
     }
 
     /// <summary>Worker pool, supervisor, scheduler, scratch, persistence, and page delivery.</summary>

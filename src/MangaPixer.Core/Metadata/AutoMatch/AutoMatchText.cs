@@ -478,12 +478,12 @@ public static partial class AutoMatchText
         var outside = Bare(name);
 
         var volume = RangeOf(VolumeUnit().Matches(outside), allowShortToken: true);
-        var chapter = RangeOf(ChapterUnit().Matches(outside), allowShortToken: true);
+        var chapter = RangeOf(ChapterUnits(outside, volume is not null), allowShortToken: true);
         if (volume is null && chapter is null)
         {
             // Only brackets name a unit ("Title (Vol. 3)"); a single letter there is a revision, not a unit.
             volume = RangeOf(VolumeUnit().Matches(name), allowShortToken: false);
-            chapter = RangeOf(ChapterUnit().Matches(name), allowShortToken: false);
+            chapter = RangeOf(ChapterUnits(name, volume is not null), allowShortToken: false);
         }
         if (volume is null && chapter is null && IsChapterLike(archiveName)
             && LeadingUnit().Match(outside) is { Success: true } lead && !YearOnly().IsMatch(lead.Groups["n"].Value))
@@ -495,6 +495,14 @@ public static partial class AutoMatchText
             : volume is { } v && decimal.Truncate(v.Start) != v.Start;
         return new UnitNumbers(volume?.Start, volume?.End, chapter?.Start, chapter?.End, extra);
     }
+
+    /// <summary>
+    /// The chapter tokens of a name (1.31.1): "Episode N" / "Ep N" next to a VOLUME token names a part or arc of the series, not a
+    /// chapter (<c>Title - Episode 1 - Arc Title v01 (2-in-1 Edition)</c>: each arc's volumes restart at 1, like Season / Part
+    /// folders), so it is not read as a chapter there; without a volume token it stays a chapter (webtoons: <c>Episode 45</c>).
+    /// </summary>
+    private static IEnumerable<Match> ChapterUnits(string text, bool statesVolume) =>
+        ChapterUnit().Matches(text).Where(m => !(statesVolume && m.Groups["t"].Value.StartsWith("ep", StringComparison.OrdinalIgnoreCase)));
 
     /// <summary>The lowest start and the highest end over the matches; the end is null when it is not above the start.</summary>
     private static (decimal Start, decimal? End)? RangeOf(IEnumerable<Match> matches, bool allowShortToken)

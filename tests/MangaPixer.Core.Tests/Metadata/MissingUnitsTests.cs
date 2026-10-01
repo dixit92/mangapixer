@@ -154,6 +154,15 @@ public sealed class MissingUnitsTests
         Assert.Equal(MissingVerdict.Restarts, MissingUnits.Evaluate(
             [Folder("Part 1", "Synthetic v01", "Synthetic v02"), Folder("Part 2", "Synthetic v01")], new PublishedTotals(OriginVolumes: 9)).Verdict);
 
+        // 1.31.1: arc folders named "Episode N" whose files are "Episode N - Arc v01 / v02" restart their VOLUMES (the episode
+        // word is a part label next to a volume, not a chapter) - before, they read as chapters 1, 2, 3 and never restarted.
+        Assert.Equal(MissingVerdict.Restarts, MissingUnits.Evaluate(
+        [
+            Folder("Episode 1", "Saga - Episode 1 - First Arc v01 (2-in-1 Edition)", "Saga - Episode 1 - First Arc v02 (2-in-1 Edition)"),
+            Folder("Episode 2", "Saga - Episode 2 - Second Arc v01 (3-in-1 Edition)", "Saga - Episode 2 - Second Arc v02 (2-in-1 Edition)"),
+            Folder("Episode 3", "Saga - Episode 3 - Third Arc v01 (2-in-1 Edition)", "Saga - Episode 3 - Third Arc v02 (2-in-1 Edition)"),
+        ], new PublishedTotals(OriginVolumes: 30)).Verdict);
+
         // One number at a boundary shared by folders that start apart is a duplicate, not a restart.
         Assert.Equal(MissingVerdict.UpToDate, MissingUnits.Evaluate(
             [Folder("Season 1", "Synthetic - Chapter 001", "Synthetic - Chapter 002"), Folder("Season 2", "Synthetic - Chapter 002", "Synthetic - Chapter 003")],

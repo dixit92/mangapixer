@@ -412,11 +412,17 @@ public sealed class MetadataAutoMatchHttpTests
         Assert.Equal(SeriesLinkState.DontMatch, row.Link!.State);
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/v1/admin/metadata/missing/amGone/reattach",
             new MetadataReattachRequest { TargetNodeId = "amArc" })).StatusCode); // not a folder
-        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/v1/admin/metadata/missing/amGone/reattach",
-            new MetadataReattachRequest { TargetNodeId = "amOther" })).StatusCode); // another library
+        // 1.31.1: a folder of ANOTHER library is a valid target (a series moved between libraries); the link follows with its library id.
         var reattached = await OkAsync<MetadataReattachResultDto>(await admin.PostAsJsonAsync("/api/v1/admin/metadata/missing/amGone/reattach",
-            new MetadataReattachRequest { TargetNodeId = "amPlain" }));
+            new MetadataReattachRequest { TargetNodeId = "amOther" }));
         Assert.True(reattached.Link);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            var target = await db.CatalogNodes.SingleAsync(n => n.PublicId == "amOther");
+            var link = await db.NodeSeriesLinks.SingleAsync(l => l.NodeId == target.Id);
+            Assert.Equal(target.LibraryId, link.LibraryId);
+        }
         Assert.Equal(0, (await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=MissingFolders"))).Total);
         Assert.Equal(HttpStatusCode.NotFound, (await admin.DeleteAsync("/api/v1/admin/metadata/missing/amPlain")).StatusCode); // live folder
 

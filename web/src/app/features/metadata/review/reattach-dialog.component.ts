@@ -22,9 +22,10 @@ interface Crumb {
 }
 
 /**
- * Folder picker for "Re-attach to..." on the Missing folders tab (stage 2): browses the
- * SAME library's folders (the ordinary browse API, folders only) and returns the one the
- * admin chose. The library root itself is not a valid target (a link lives on a folder).
+ * Folder picker for "Re-attach to..." on the Missing folders tab (stage 2): browses a library's
+ * folders (the ordinary browse API, folders only, never the Volumes view) and returns the one the
+ * admin chose. It opens on the removed folder's own library; 1.31.1: another library can be chosen
+ * (a series moved to another library). The library root itself is not a valid target (a link lives on a folder).
  */
 @Component({
   selector: 'app-reattach-dialog',
@@ -35,6 +36,16 @@ interface Crumb {
     <h2 mat-dialog-title>Re-attach "{{ data.displayName }}"</h2>
     <mat-dialog-content>
       <p class="hint">Choose the folder it became. Its series link, source precedence, Content setting and reading defaults move there.</p>
+      @if (libraries().length > 1) {
+        <div class="lib">
+          <label for="reattach-library">Library</label>
+          <select id="reattach-library" data-testid="reattach-library" (change)="selectLibrary($any($event.target).value)">
+            @for (l of libraries(); track l.id) {
+              <option [value]="l.id" [selected]="l.id === libraryId()">{{ l.name }}</option>
+            }
+          </select>
+        </div>
+      }
       <nav class="crumbs" aria-label="Folder path">
         @for (c of crumbs(); track $index; let last = $last) {
           @if (last) {
@@ -78,6 +89,9 @@ interface Crumb {
   `,
   styles: [`
     .hint { font-size: 13px; color: #b0b0c0; margin-top: 0; }
+    .lib { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; }
+    .lib select { flex: 1 1 auto; min-width: 0; padding: 4px; background: transparent; color: inherit; border: 1px solid rgba(255, 255, 255, 0.24); border-radius: 4px; }
+    .lib option { color: #000; }
     .crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; font-size: 13px; margin-bottom: 6px; }
     .crumbs .current { font-weight: 600; padding: 0 8px; }
     .sep { opacity: 0.5; }
@@ -96,6 +110,9 @@ export class ReattachDialogComponent implements OnInit {
   private readonly ref = inject<MatDialogRef<ReattachDialogComponent, ReattachDialogResult>>(MatDialogRef);
   private readonly api = inject(ApiService);
 
+  /** The library being browsed: the removed folder's own, until the admin picks another (1.31.1). */
+  readonly libraryId = signal(this.data.libraryId);
+  readonly libraries = signal<{ id: string; name: string }[]>([]);
   readonly crumbs = signal<Crumb[]>([{ id: null, name: this.data.libraryName }]);
   readonly folders = signal<CatalogNodeDto[]>([]);
   readonly cursor = signal<string | null>(null);
@@ -104,6 +121,20 @@ export class ReattachDialogComponent implements OnInit {
   readonly chosen = signal<CatalogNodeDto | null>(null);
 
   ngOnInit(): void {
+    this.load(null, null);
+    this.api.getLibraries().subscribe({
+      next: (libs) => this.libraries.set(libs.map((l) => ({ id: l.id, name: l.name }))),
+      error: () => this.libraries.set([]),
+    });
+  }
+
+  /** Browse another library from its root; the chosen folder is cleared. */
+  selectLibrary(id: string): void {
+    const lib = this.libraries().find((l) => l.id === id);
+    if (!lib || id === this.libraryId()) return;
+    this.libraryId.set(id);
+    this.chosen.set(null);
+    this.crumbs.set([{ id: null, name: lib.name }]);
     this.load(null, null);
   }
 
@@ -131,7 +162,7 @@ export class ReattachDialogComponent implements OnInit {
   private load(parentId: string | null, cursor: string | null): void {
     this.loading.set(cursor === null);
     this.error.set(null);
-    this.api.browseLibrary(this.data.libraryId, parentId, cursor, 100, 'name').subscribe({
+    this.api.browseLibrary(this.libraryId(), parentId, cursor, 100, 'name', null, null, false, null, false, 'flat').subscribe({
       next: (page) => {
         const folders = page.items.filter((n) => n.kind === 'Folder' && n.availability !== 'Tombstoned');
         this.folders.update((prev) => (cursor ? [...prev, ...folders] : folders));

@@ -144,6 +144,9 @@ public static class HostingServicesExtensions
         services.AddHostedService<MediaWorkerHostedService>();
         services.AddHostedService<PendingAnalysisResumeHostedService>();
         services.AddHostedService<ThumbnailBackfillHostedService>();
+        // Content signatures for archives analysed before 1.5.0 (1.31.1): moves of them are recognised once it ran.
+        services.AddScoped<ContentSignatureBackfill>();
+        services.AddHostedService<ContentSignatureBackfillHostedService>();
         // ComicInfo.xml backfill (1.24.0): single-flight singleton pass, kicked at
         // startup (after the worker pool) and after every successful scan.
         services.AddSingleton<com.lifepixer.mangapixer.Server.Features.Metadata.ComicInfoBackfillService>();
