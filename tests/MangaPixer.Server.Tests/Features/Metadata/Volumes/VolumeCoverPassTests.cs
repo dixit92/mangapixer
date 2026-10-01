@@ -354,6 +354,22 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PlannedHeldVolumes_AreWhatATickDownloads_SoTheOnTheirWayCountCanClear()
+    {
+        // 1.30.0 (lane S finding): the view counted covers the pass never fetches as "on their way" forever. The count now reads the
+        // pass's own plan - the held volumes step 3 fetches (the short-circuit's skips excluded by the same code).
+        await _h.Auto.EnableAutomaticAsync();
+        var (folder, record) = await SeriesAsync(MdFixtures.MuBerserk, "Berserk", 43, "Synthetic Shelf v01.cbz", "Synthetic Shelf v02.cbz", "Synthetic Shelf v03.cbz");
+        await _h.TickAsync(); // lists + downloads volume 1, then the planned held volumes
+
+        var planned = await _h.Pass().PlannedHeldVolumesAsync(record.Id, [folder.Id]);
+        Assert.Equal([2, 3], planned);
+        var stored = await _t.Db.VolumeCovers.Where(c => c.State == (int)VolumeCoverState.Stored).Select(c => c.Volume).OrderBy(v => v).ToListAsync();
+        Assert.Equal([1, 2, 3], stored);
+        Assert.Equal(0, await _h.Pass().PendingCoversAsync(record.Id, planned)); // everything planned is stored: nothing on its way
+    }
+
+    [Fact]
     public async Task SecondTick_SendsNothing_UntilTheRefreshCadence()
     {
         await _h.Auto.EnableAutomaticAsync();

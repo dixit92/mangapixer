@@ -336,8 +336,35 @@ public sealed class VolumeCoverPass
                 && c.Variant == 0 && c.State == (int)VolumeCoverState.Listed, ct))
             return 0; // Nothing left to fetch for this series.
 
-        var archives = await ArchivesBelowAsync(s.NodeIds, ct);
-        var map = await _maps.FindAsync(s.RecordId, VolumeMapSource.MangaDexAggregate, ct);
+        var stored = 0;
+        foreach (var volume in await PlanHeldVolumesAsync(md, s.RecordId, s.NodeIds, preferred, ct))
+        {
+            if (call.RequestsSent >= SliceRequests)
+                break;
+            var cover = await PickCoverAsync(md.Id, md.OriginalLanguage, volume, preferred, ct);
+            if (cover is not null && await _fetcher.DownloadAsync(cover, s.LibraryId, call, ct))
+                stored++;
+        }
+        return stored;
+    }
+
+    /// <summary>
+    /// The volumes (besides volume 1) whose covers step 3 fetches for a series now, ascending - the volumes the folder holds as volume
+    /// files or as all of their chapters, minus the volume files the short-circuit skips (volume 1's own cover matches the web one, so
+    /// page 1 of each volume file is its cover). Public for the "covers on their way" count (1.30.0: it counted skipped volumes forever).
+    /// Stored rows and stored thumbnails only; no request.
+    /// </summary>
+    public async Task<IReadOnlyList<int>> PlannedHeldVolumesAsync(long seriesRecordId, IReadOnlyList<long> nodeIds, CancellationToken ct = default)
+    {
+        if (await MangaDexRecordAsync(seriesRecordId, ct) is not { } md)
+            return [];
+        return await PlanHeldVolumesAsync(md, seriesRecordId, nodeIds, (await ReadSettingsAsync(ct)).Language, ct);
+    }
+
+    private async Task<List<int>> PlanHeldVolumesAsync(MangaDexRef md, long recordId, IReadOnlyList<long> nodeIds, string preferred, CancellationToken ct)
+    {
+        var archives = await ArchivesBelowAsync(nodeIds, ct);
+        var map = await _maps.FindAsync(recordId, VolumeMapSource.MangaDexAggregate, ct);
         var exact = map is { State: (int)VolumeMapState.Ok } ? SeriesProgressLoader.ParseVolumes(map.VolumesJson) : [];
 
         // volume -> the archives that ARE that volume (an empty list = held as all of its chapters)
@@ -351,20 +378,18 @@ public sealed class VolumeCoverPass
         foreach (var volume in VolumesHeldAsChapters(archives.Select(a => a.Row).ToList(), exact))
             Add(held, volume);
 
-        var stored = 0;
+        var planned = new List<int>();
         var shortCircuit = await Volume1MatchesAsync(md, held, preferred, ct);
         foreach (var (volume, volumeArchives) in held)
         {
-            if (volume == 1 || call.RequestsSent >= SliceRequests)
+            if (volume == 1)
                 continue;
             if (shortCircuit is { } reference && volumeArchives.Count > 0
                 && !await OddlyShapedAsync(volumeArchives, reference, ct))
                 continue; // Real covers on page 1: this volume's own file cover is the cover.
-            var cover = await PickCoverAsync(md.Id, md.OriginalLanguage, volume, preferred, ct);
-            if (cover is not null && await _fetcher.DownloadAsync(cover, s.LibraryId, call, ct))
-                stored++;
+            planned.Add(volume);
         }
-        return stored;
+        return planned;
 
         static List<HeldArchive> Add(SortedDictionary<int, List<HeldArchive>> held, int volume)
         {

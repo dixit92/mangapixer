@@ -1,6 +1,5 @@
 namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
-using System.Globalization;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Server.Features.Auth;
@@ -23,7 +22,8 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             return null;
         // Covers still on their way for this series (volume 1 and the volumes held here): the view shows a short note.
         var coversPending = view.Status?.RecordId is { } recordId && coverPass is not null
-            ? await coverPass.PendingCoversAsync(recordId, HeldVolumes(view), ct)
+            // The pass's own plan (1.30.0): a volume file it skips (volume 1's own cover matches the web one) is never "on its way".
+            ? await coverPass.PendingCoversAsync(recordId, await coverPass.PlannedHeldVolumesAsync(recordId, [view.FolderId], ct), ct)
             : 0;
         return new VolumeViewDto
         {
@@ -49,31 +49,6 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             Progress = view.Status?.Progress,
         };
     }
-
-    /// <summary>
-    /// The whole volumes whose cover the pass fetches for this view: a volume file, or a stack holding all the chapters the exact
-    /// list gives its volume (1.30.0 - never a stack held in part, a bounded or an estimated one; never a missing-volume placeholder).
-    /// </summary>
-    internal static HashSet<int> HeldVolumes(FolderVolumeEntries view)
-    {
-        var held = new HashSet<int>();
-        foreach (var e in view.Entries)
-        {
-            if (e.Rank != 0 || e.Kind == VolumeEntryKind.MissingVolume
-                || !decimal.TryParse(e.VolumeKey, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var v) || v != decimal.Truncate(v))
-            {
-                continue;
-            }
-            if (e.Kind != VolumeEntryKind.Stack || e.Stack is not { } stack || stack.HasVolumeArchive || HeldAsChapters(stack))
-                held.Add((int)v);
-        }
-        return held;
-    }
-
-    /// <summary>A chapter stack of a volume the exact list names, with every listed chapter here.</summary>
-    private static bool HeldAsChapters(VolumeStack stack) =>
-        stack.Confidence == VolumeStackConfidence.Exact && stack.ChapterCount is > 0 && stack.ChaptersPresent == stack.ChapterCount
-        && stack.Members.All(m => m.Placement is not (VolumePlacement.Bounded or VolumePlacement.Estimated));
 
     /// <summary>One stack of a folder, or null (unknown folder / key, no access, nothing groups here).</summary>
     public async Task<VolumeStackDto?> GetStackAsync(long userId, long folderId, string key, CancellationToken ct)
