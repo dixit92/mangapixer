@@ -49,8 +49,7 @@ public sealed class MetadataReviewService
         MetadataAutoMatchService autoMatch,
         MetadataCarryOverService carryOver,
         AuditService audit,
-        ILogger<MetadataReviewService> logger,
-        ICoverResolver? covers = null)
+        ILogger<MetadataReviewService> logger)
     {
         _db = db;
         _links = links;
@@ -59,7 +58,10 @@ public sealed class MetadataReviewService
         _carryOver = carryOver;
         _audit = audit;
         _logger = logger;
-        _covers = covers ?? new FileCoverResolver(db);
+        // The review shows the admin's OWN cover next to the provider's (1.31.1, owner): always the file cover (an archive's page 1,
+        // a folder's first live archive's page 1), never the cover layer - a linked series' resolved cover can be the very web
+        // cover it is compared with, which made both sides look the same.
+        _covers = new FileCoverResolver(db);
     }
 
     // --- Summary ---
