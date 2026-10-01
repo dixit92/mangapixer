@@ -32,7 +32,7 @@ public sealed class TrashController(TrashService trash) : ControllerBase
     [ProducesResponseType<EmptyTrashResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiError>(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Empty([FromBody] EmptyTrashRequest? request, CancellationToken ct)
+    public async Task<IActionResult> EmptyTrash([FromBody] EmptyTrashRequest? request, CancellationToken ct)
     {
         var outcome = await trash.EmptyAsync(request?.LibraryId, request?.ReleaseHold ?? false, automatic: false, User.Identity?.Name, ct);
         return outcome.Error switch
