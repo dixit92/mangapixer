@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.Server.Features.Library.Moves;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Media;
 using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -17,7 +18,8 @@ public static class MoveEvidence
     /// <summary>The oldest tombstone time still inside the move window (= the trash retention) at <paramref name="now"/>.</summary>
     public static async Task<DateTimeOffset> WindowStartAsync(MangaPixerDbContext db, DateTimeOffset now, CancellationToken ct)
     {
-        var days = await db.AppSettings.AsNoTracking().Select(s => s.TrashRetentionDays).FirstOrDefaultAsync(ct);
+        var days = await db.AppSettings.AsNoTracking().Where(s => s.Id == AppSettingsEntity.SingletonId)
+            .Select(s => s.TrashRetentionDays).FirstOrDefaultAsync(ct);
         return TrashRetention.WindowStart(now, days);
     }
 
