@@ -65,6 +65,9 @@ import {
  *     setting (`GET/PUT /reading/home-libraries`, an excluded set), so it follows
  *     the user across devices. Independent of the Private designation.
  *
+ * Folder-tap Volumes view (1.31.0): the tap also carries `volumes=prefer` - a LINKED series whose Volumes view is available
+ * and active for the viewer opens in it (Name sort, the Continue row leading); anything else keeps the sort below.
+ *
  * Folder-tap sort: a folder card routes with a TRANSIENT `?sort=recentlyUpdated`
  * query param that the browse view honours for that view ONLY (descending, per the
  * 1.10.4 recency rule) - it does NOT persist to the user's library preference, so
@@ -638,7 +641,7 @@ export class HomeComponent implements OnInit {
 
   /** Folder-stack link target: the top-level folder's browse view. */
   folderHref(group: RecentChaptersLibraryGroup, stack: RecentChapterStack): string {
-    return `/libraries/${group.libraryId}/browse/${stack.id}?sort=recentlyUpdated`;
+    return `/libraries/${group.libraryId}/browse/${stack.id}?sort=recentlyUpdated&volumes=prefer`;
   }
 
   /**
@@ -653,7 +656,7 @@ export class HomeComponent implements OnInit {
     if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     void this.router.navigate(['/libraries', group.libraryId, 'browse', stack.id],
-      { queryParams: { sort: 'recentlyUpdated' } });
+      { queryParams: { sort: 'recentlyUpdated', volumes: 'prefer' } });
   }
 
   // --- Card size (1.12.0, shared with the library browse view) ---

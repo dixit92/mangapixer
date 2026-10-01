@@ -132,6 +132,13 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
         </mat-form-field>
       </div>
       <p class="hint">{{ hint() }}</p>
+      @if (tab() === 'NeedsReview' && recheckPending() > 0) {
+        <!-- 1.31.0: after an update changed how matches are scored, the items waiting here are scored once more (in the background). -->
+        <p class="recheck" role="status" data-testid="review-rechecking">
+          <mat-icon inline>autorenew</mat-icon>
+          {{ recheckPending() }} {{ recheckPending() === 1 ? 'item is' : 'items are' }} being checked again under the current rules.
+        </p>
+      }
 
       @if (visible().length > 0 && bulk().length > 0) {
         <div class="select-line">
@@ -225,6 +232,7 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
     .badge.hot { background: #7c4dff; color: #fff; }
     .lib-filter { width: 220px; }
     .hint { font-size: 13px; color: #9a9aa8; margin: 10px 0; }
+    .recheck { font-size: 13px; color: #90caf9; margin: 0 0 10px; display: flex; align-items: center; gap: 6px; }
     .select-line { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
     .keys { font-size: 12px; color: #8a8a99; }
     .rows { display: flex; flex-direction: column; gap: 8px; padding-bottom: 72px; }
@@ -312,6 +320,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     return v.length > 0 && v.every((i) => this.selected().has(i.nodeId));
   });
   readonly hint = computed(() => reviewTabDef(this.tab()).hint);
+  readonly recheckPending = computed(() => this.summary()?.recheckPending ?? 0);
   readonly emptyText = computed(() => {
     switch (this.tab()) {
       case 'NeedsReview': return 'Nothing waits for review.';

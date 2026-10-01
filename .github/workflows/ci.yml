@@ -1,11 +1,13 @@
 # Continuous integration: runs the Full verification tier and the end-to-end
 # (browser) suite on every push to the trunks and on every pull request into dev.
 #
-# steps. Two independent jobs run in parallel:
-#   - verify: `pwsh ./scripts/Verify.ps1 -Configuration Release` (privacy
+# steps. Independent jobs run in parallel:
+#   - verify: `pwsh ./scripts/Verify.ps1 -Configuration Release -SkipWeb` (privacy
 #     preflight, locked restore, dotnet format, Release build, all .NET tests,
-#     npm ci + lint + production build + Vitest unit tests, Compose validation).
-#     Server-free and fast. See that script's header for the full ordered stages.
+#     Compose validation). See that script's header for the full ordered stages.
+#   - web: `pwsh ./scripts/Verify.ps1 -Configuration Release -WebOnly` (npm ci,
+#     OpenAPI drift check, lint, production build, Vitest unit tests). It used to
+#     run after the .NET tests inside `verify`; as its own job it overlaps them.
 #   - e2e: `pwsh ./scripts/Verify-E2E.ps1` (build the image, run it on a free
 #     loopback port with throwaway storage, provision the first admin, install
 #     Chromium, run the Playwright suite). Kept separate so the fast unit tier is
@@ -17,8 +19,8 @@
 #     tests), so it fails fast on a Dependabot bump without lengthening `verify`.
 #
 # Required status check names for branch protection: "Verify (Full tier)"
-# (job id: verify) and "E2E (Playwright)" (job id: e2e); "Notices drift" (job id:
-# notices) may be added once it has run green on dev.
+# (job id: verify), "Web (Angular)" (job id: web) and "E2E (Playwright)" (job id:
+# e2e); "Notices drift" (job id: notices) may be added once it has run green on dev.
 
 name: CI
 
@@ -61,13 +63,6 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Set up Node 24
-        uses: actions/setup-node@v7
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
       # No packages.lock.json is tracked, so setup-dotnet's built-in cache cannot
       # key on it; central package versions live in Directory.Packages.props.
       - name: Cache NuGet packages
@@ -91,18 +86,16 @@ jobs:
       - name: Tool versions
         run: |
           dotnet --version
-          node --version
-          npm --version
           pwsh --version
           docker compose version
 
       # Verify.ps1 does not run Playwright (e2e needs a running instance), so no
-      # browsers are installed here.
-      - name: Verify (Full tier)
+      # browsers are installed here. The npm stages run in the parallel `web` job.
+      - name: Verify (Full tier, .NET half)
         run: |
           # pipefail so a Verify.ps1 failure is not masked by tee's exit code.
           set -o pipefail
-          pwsh ./scripts/Verify.ps1 -Configuration Release 2>&1 | tee "$RUNNER_TEMP/verify-full.log"
+          pwsh ./scripts/Verify.ps1 -Configuration Release -SkipWeb 2>&1 | tee "$RUNNER_TEMP/verify-full.log"
 
       - name: Upload verification log and test output
         if: failure()
@@ -112,8 +105,47 @@ jobs:
           path: |
             ${{ runner.temp }}/verify-full.log
             **/TestResults/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # The npm half of the Full tier (OpenAPI drift check, lint, production build, Vitest). Its own job so it
+  # overlaps the .NET tests instead of running after them.
+  web:
+    name: Web (Angular)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Tool versions
+        run: |
+          node --version
+          npm --version
+          pwsh --version
+
+      - name: Verify (Full tier, web half)
+        run: |
+          set -o pipefail
+          pwsh ./scripts/Verify.ps1 -Configuration Release -WebOnly 2>&1 | tee "$RUNNER_TEMP/verify-web.log"
+
+      - name: Upload web verification log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.PRODUCT_NAME }}-web-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/verify-web.log
             web/test-results/
-            web/playwright-report/
           if-no-files-found: ignore
           retention-days: 14
 

@@ -42,7 +42,7 @@ export class VolumeViewSwitchComponent {
   /** True while the Volumes view is shown. */
   readonly active = input.required<boolean>();
 
-  /** The Volumes view needs the Name sort and no read-state / favourites filter: the switch is inert otherwise. */
+  /** An inert switch (optional). Browse no longer uses it (1.31.0): under another sort, picking Volumes switches to Name. */
   readonly disabled = input(false);
   readonly disabledHint = input('');
 

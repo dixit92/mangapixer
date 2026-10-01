@@ -6,6 +6,7 @@ using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Missing;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Media;
@@ -51,9 +52,10 @@ public sealed record VolumeCoverPassResult(int Requests, int SeriesChecked, int 
 /// volume list - the AniList totals;</item>
 /// <item>breadth first across series: every series' volume 1 cover (preferred language, else the original language; the
 /// record's MAIN cover when MangaDex lists no volume 1 cover at all - webtoons);</item>
-/// <item>then per series the covers of the volumes it holds - as volume files (a volume in an archive's name or ComicInfo) or
-/// as ALL of their chapters (1.30.0, owner: every chapter MangaDex's exact volume list gives the volume is here, the Volumes
-/// view's presence rule - never an estimate, never a volume held only in part). Short-circuit: when the local volume 1 cover already IS the web volume 1 cover, the release has
+/// <item>then per series the covers of the volumes it holds - as volume files (a volume in an archive's name or ComicInfo), as
+/// ALL of their chapters (1.30.0, owner: every chapter MangaDex's exact volume list gives the volume is here, the Volumes view's
+/// presence rule - never a volume the exact list names held only in part), or as an ESTIMATED "~ Volume N" stack of the Volumes
+/// view (1.31.0, owner: the cover follows the label). Short-circuit: when the local volume 1 cover already IS the web volume 1 cover, the release has
 /// real covers on page 1 - a held volume archive is then only fetched when its page 1 is spread-shaped or shaped
 /// unlike volume 1's (chapter-only volumes still are: their stack has no cover of its own).</item>
 /// </list>
@@ -83,13 +85,16 @@ public sealed class VolumeCoverPass
     private readonly TimeProvider _time;
     private readonly ILogger<VolumeCoverPass> _logger;
     private readonly Covers.CoverDecisionQueue? _decisions;
+    private readonly AutoMatch.LinkCoverCheck.CoverCheckService? _coverCheck;
 
     public VolumeCoverPass(
         MangaPixerDbContext db, MetadataAutoMatchService autoMatch, MetadataSettingsService settings, CompanionLinkService companions,
         VolumeMapService maps, VolumeCoverFetcher fetcher, ICoverHasher hasher, ThumbnailStore thumbnails, CoverHashCache hashCache,
-        VolumeCoverPassState state, TimeProvider time, ILogger<VolumeCoverPass> logger, Covers.CoverDecisionQueue? decisions = null)
+        VolumeCoverPassState state, TimeProvider time, ILogger<VolumeCoverPass> logger, Covers.CoverDecisionQueue? decisions = null,
+        AutoMatch.LinkCoverCheck.CoverCheckService? coverCheck = null)
     {
         _decisions = decisions;
+        _coverCheck = coverCheck;
         _db = db;
         _autoMatch = autoMatch;
         _settings = settings;
@@ -128,8 +133,29 @@ public sealed class VolumeCoverPass
         return await _autoMatch.CheckGlobalGateAsync(MetadataProviderAllowlist.MangaDex, ct) is { } wait ? (wait.Code, wait.Until) : null;
     }
 
-    /// <summary>One tick of the pass. Never throws for a provider problem; a refusal stops the tick and is reported.</summary>
+    /// <summary>
+    /// One tick of the pass. Never throws for a provider problem; a refusal stops the tick and is reported. 1.31.0: then the cover
+    /// check after linking looks at the Auto links whose covers are stored (<see cref="AutoMatch.LinkCoverCheck.CoverCheckService"/>) -
+    /// also while the pass waits, as it sends nothing.
+    /// </summary>
     public async Task<VolumeCoverPassResult> RunTickAsync(CancellationToken ct = default)
+    {
+        var result = await RunPassAsync(ct);
+        if (_coverCheck is not null)
+        {
+            try
+            {
+                await _coverCheck.SweepAsync(ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(LogEvents.Metadata.CoverCheckFailed, "Cover check sweep failed: {Error}", ex.GetType().Name);
+            }
+        }
+        return result;
+    }
+
+    private async Task<VolumeCoverPassResult> RunPassAsync(CancellationToken ct)
     {
         var now = _time.GetUtcNow();
         if (await WaitingAsync(ct) is { } wait)
@@ -320,7 +346,8 @@ public sealed class VolumeCoverPass
         return origin is { State: (int)VolumeCoverState.Listed } ? origin : null;
     }
 
-    private sealed record HeldArchive(long Id, string Name, long ContentVersion, int? ComicInfoVolume, string? ComicInfoNumber = null,
+    /// <summary>A live archive in or below a linked node: its ids, name, ComicInfo numbers and unit subfolder (shared with the cover check).</summary>
+    internal sealed record HeldArchive(long Id, string Name, long ContentVersion, int? ComicInfoVolume, string? ComicInfoNumber = null,
         string? ContainerName = null)
     {
         public GroupingRow Row => new(Id.ToString(System.Globalization.CultureInfo.InvariantCulture), GroupingRowKind.Archive, Name,
@@ -350,7 +377,7 @@ public sealed class VolumeCoverPass
 
     /// <summary>
     /// The volumes (besides volume 1) whose covers step 3 fetches for a series now, ascending - the volumes the folder holds as volume
-    /// files or as all of their chapters, minus the volume files the short-circuit skips (volume 1's own cover matches the web one, so
+    /// files, as all of their chapters or as an estimated stack, minus the volume files the short-circuit skips (volume 1's own cover matches the web one, so
     /// page 1 of each volume file is its cover). Public for the "covers on their way" count (1.30.0: it counted skipped volumes forever).
     /// Stored rows and stored thumbnails only; no request.
     /// </summary>
@@ -363,11 +390,11 @@ public sealed class VolumeCoverPass
 
     private async Task<List<int>> PlanHeldVolumesAsync(MangaDexRef md, long recordId, IReadOnlyList<long> nodeIds, string preferred, CancellationToken ct)
     {
-        var archives = await ArchivesBelowAsync(nodeIds, ct);
+        var archives = await ArchivesBelowAsync(_db, nodeIds, ct);
         var map = await _maps.FindAsync(recordId, VolumeMapSource.MangaDexAggregate, ct);
         var exact = map is { State: (int)VolumeMapState.Ok } ? SeriesProgressLoader.ParseVolumes(map.VolumesJson) : [];
 
-        // volume -> the archives that ARE that volume (an empty list = held as all of its chapters)
+        // volume -> the archives that ARE that volume (an empty list = held as all of its chapters, or an estimated stack)
         var held = new SortedDictionary<int, List<HeldArchive>>();
         foreach (var archive in archives)
         {
@@ -376,6 +403,8 @@ public sealed class VolumeCoverPass
                 Add(held, (int)decimal.Truncate(v)).Add(archive);
         }
         foreach (var volume in VolumesHeldAsChapters(archives.Select(a => a.Row).ToList(), exact))
+            Add(held, volume);
+        foreach (var volume in await EstimatedStacksAsync(recordId, archives, ct))
             Add(held, volume);
 
         var planned = new List<int>();
@@ -416,6 +445,37 @@ public sealed class VolumeCoverPass
     }
 
     /// <summary>
+    /// The volumes the Volumes view shows as ESTIMATED chapter-only stacks (1.31.0, owner 2026-10-01: "~ Volume 2" shows its volume's
+    /// cover anyway - the "~" flags the estimate, the cover follows the label, and an exact list arriving later regroups stacks and
+    /// covers). The same grouping and map as the Volumes view (<see cref="SeriesProgressLoader.MapAndFacts"/> with the official
+    /// chapters); stored rows only.
+    /// </summary>
+    private async Task<IReadOnlySet<int>> EstimatedStacksAsync(long recordId, List<HeldArchive> archives, CancellationToken ct)
+    {
+        if (archives.Count == 0)
+            return new HashSet<int>();
+        var maps = await _db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == recordId).ToListAsync(ct);
+        var record = await _db.MetadataRecords.AsNoTracking().Where(r => r.Id == recordId)
+            .Select(r => new SeriesProgressLoader.RecordRow(r.Id, r.Origin, r.OriginStatus, r.OriginVolumes, r.StatusText, r.LatestChapter,
+                r.PublishersJson, r.LicensedEn, r.TranslationComplete))
+            .FirstOrDefaultAsync(ct);
+        var (map, _) = SeriesProgressLoader.MapAndFacts(maps, record, await ReleasedInLanguage.PreferredAsync(_db, ct));
+        return EstimatedStackVolumes(archives.Select(a => a.Row).ToList(), SeriesProgress.WithOfficialChapters(map));
+    }
+
+    /// <summary>
+    /// The whole volumes (>= 1) of the ESTIMATED stacks without a volume archive that <see cref="VolumeGrouping.Group"/> forms from
+    /// the rows and the map ("~ Volume N" in the Volumes view). Pure.
+    /// </summary>
+    internal static IReadOnlySet<int> EstimatedStackVolumes(IReadOnlyList<GroupingRow> rows, VolumeMapInput map) =>
+        VolumeGrouping.Group(rows, map).Entries
+            .Select(e => e.Stack)
+            .OfType<VolumeStack>()
+            .Where(s => !s.HasVolumeArchive && s.Confidence == VolumeStackConfidence.Estimated && s.Volume >= 1 && decimal.Truncate(s.Volume) == s.Volume)
+            .Select(s => (int)s.Volume)
+            .ToHashSet();
+
+    /// <summary>
     /// The short-circuit test: the local volume 1 archive's file cover is the same image as the stored web volume 1
     /// cover (hash distance within <see cref="CoverHash.SameMaxDistance"/>). Returns volume 1's page-1 aspect then, else null.
     /// Reads only stored thumbnails (never makes one) - no evidence, no short-circuit.
@@ -435,7 +495,7 @@ public sealed class VolumeCoverPass
         var local = ones[0];
         if (await LocalHashAsync(local, ct) is not { } hash || CoverHash.Compare(hash, unchecked((ulong)w)) != CoverVerdict.Same)
             return null;
-        return await Page1AspectAsync(local, ct) ?? 0.7;
+        return await Page1AspectAsync(_db, local, ct) ?? 0.7;
     }
 
     private async Task<ulong?> LocalHashAsync(HeldArchive archive, CancellationToken ct)
@@ -451,9 +511,10 @@ public sealed class VolumeCoverPass
         return hash;
     }
 
-    private async Task<double?> Page1AspectAsync(HeldArchive archive, CancellationToken ct)
+    /// <summary>Width / height of an archive's page 1 (stored page entries), or null when unknown.</summary>
+    internal static async Task<double?> Page1AspectAsync(MangaPixerDbContext db, HeldArchive archive, CancellationToken ct)
     {
-        var page = await _db.PageEntries.AsNoTracking()
+        var page = await db.PageEntries.AsNoTracking()
             .Where(p => p.ItemId == archive.Id && p.ContentVersion == archive.ContentVersion && p.Ordinal == 0)
             .Select(p => new { p.Width, p.Height })
             .FirstOrDefaultAsync(ct);
@@ -465,21 +526,21 @@ public sealed class VolumeCoverPass
     {
         foreach (var archive in archives)
         {
-            if (await Page1AspectAsync(archive, ct) is { } aspect && (aspect >= SpreadAspect || Math.Abs(aspect - volume1Aspect) > 0.1))
+            if (await Page1AspectAsync(_db, archive, ct) is { } aspect && (aspect >= SpreadAspect || Math.Abs(aspect - volume1Aspect) > 0.1))
                 return true;
         }
         return false;
     }
 
     /// <summary>Live archives in and below the linked nodes (unit subfolders, up to <see cref="MaxDepth"/> levels).</summary>
-    private async Task<List<HeldArchive>> ArchivesBelowAsync(IReadOnlyList<long> nodeIds, CancellationToken ct)
+    internal static async Task<List<HeldArchive>> ArchivesBelowAsync(MangaPixerDbContext db, IReadOnlyList<long> nodeIds, CancellationToken ct)
     {
         var archive = (int)CatalogNodeKind.Archive;
         var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
         var found = new Dictionary<long, (string Name, long ContentVersion, string? Container)>();
-        var linkedArchives = await _db.CatalogNodes.AsNoTracking()
+        var linkedArchives = await db.CatalogNodes.AsNoTracking()
             .Where(n => nodeIds.Contains(n.Id) && n.Kind == archive && n.Availability != tombstoned)
-            .Join(_db.ArchiveItems, n => n.Id, a => a.NodeId, (n, a) => new { n.Id, n.DisplayName, a.ContentVersion })
+            .Join(db.ArchiveItems, n => n.Id, a => a.NodeId, (n, a) => new { n.Id, n.DisplayName, a.ContentVersion })
             .ToListAsync(ct);
         foreach (var a in linkedArchives)
             found[a.Id] = (a.DisplayName, a.ContentVersion, null);
@@ -489,12 +550,12 @@ public sealed class VolumeCoverPass
         for (var depth = 0; depth < MaxDepth && frontier.Count > 0; depth++)
         {
             var parents = frontier;
-            var children = await _db.CatalogNodes.AsNoTracking()
+            var children = await db.CatalogNodes.AsNoTracking()
                 .Where(n => n.ParentId != null && parents.Contains(n.ParentId.Value) && n.Availability != tombstoned)
                 .Select(n => new { n.Id, ParentId = n.ParentId!.Value, n.Kind, n.DisplayName })
                 .ToListAsync(ct);
             var childArchiveIds = children.Where(c => c.Kind == archive).Select(c => c.Id).ToList();
-            var versions = await _db.ArchiveItems.AsNoTracking()
+            var versions = await db.ArchiveItems.AsNoTracking()
                 .Where(a => childArchiveIds.Contains(a.NodeId))
                 .Select(a => new { a.NodeId, a.ContentVersion })
                 .ToDictionaryAsync(a => a.NodeId, a => a.ContentVersion, ct);
@@ -507,7 +568,7 @@ public sealed class VolumeCoverPass
         }
 
         var ids = found.Keys.ToList();
-        var comicInfo = await _db.EmbeddedMetadata.AsNoTracking()
+        var comicInfo = await db.EmbeddedMetadata.AsNoTracking()
             .Where(e => ids.Contains(e.NodeId) && (e.Volume != null || e.Number != null))
             .Select(e => new { e.NodeId, e.Volume, e.Number })
             .ToDictionaryAsync(e => e.NodeId, e => (e.Volume, e.Number), ct);

@@ -16,7 +16,6 @@ using Xunit;
 /// covers") plus the library Volumes-view override, the per-user series view (library preferences) and the per-folder
 /// view override. Pure settings: nothing here sends a request anywhere.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class VolumeSettingsHttpTests
 {
     private const string LibPub = "vvlib1";

@@ -17,7 +17,6 @@ using Xunit;
 /// Verifies the prefs endpoints, the X-Incognito header behavior on
 /// continue-reading, library list, and search, and non-owner isolation.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class IncognitoHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private readonly MangaPixerWebApplicationFactory _factory;

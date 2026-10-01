@@ -30,7 +30,6 @@ using Xunit;
 /// non-member; budget 429 and backoff 503 through the API; and a sentinel query
 /// never reaching any log line.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class MetadataIdentifyHttpTests
 {
     private const string LibPub = "mdnlib1";
@@ -406,7 +405,6 @@ public sealed class MetadataNetworkWebApplicationFactory : WebApplicationFactory
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "mangapixer-mdnet-" + Guid.NewGuid().ToString("N")[..8]);
     private readonly CollectingSink? _sink;
-    private ILogger? _originalLogger;
     private HttpClient? _admin;
 
     private readonly Action<IServiceCollection>? _configureServices;
@@ -467,12 +465,12 @@ public sealed class MetadataNetworkWebApplicationFactory : WebApplicationFactory
 
             if (_sink is not null)
             {
-                _originalLogger = Log.Logger;
-                Log.Logger = new LoggerConfiguration()
+                // Wrap the host's own logger (not a process-global); see TestHostLogging.
+                TestHostLogging.Wrap(services, inner => new LoggerConfiguration()
                     .MinimumLevel.Verbose()
                     .WriteTo.Sink(_sink)
-                    .WriteTo.Logger(_originalLogger)
-                    .CreateLogger();
+                    .WriteTo.Logger(inner)
+                    .CreateLogger());
             }
         });
     }
@@ -534,8 +532,6 @@ public sealed class MetadataNetworkWebApplicationFactory : WebApplicationFactory
     {
         if (disposing)
         {
-            if (_originalLogger is not null)
-                Log.Logger = _originalLogger;
             try { Directory.Delete(_tempRoot, true); } catch { /* best effort */ }
         }
         base.Dispose(disposing);

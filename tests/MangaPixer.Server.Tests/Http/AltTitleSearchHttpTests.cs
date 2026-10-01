@@ -14,7 +14,6 @@ using Xunit;
 /// HTTP tests for alt-title search (1.26.0): series matches on the (only) HTTP page,
 /// members only, Incognito and "Show series information" hiding.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class AltTitleSearchHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private readonly MangaPixerWebApplicationFactory _factory;

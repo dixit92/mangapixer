@@ -335,6 +335,47 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
     }
 
     [Fact]
+    public void EstimatedStackVolumes_AreTheViewsTildeStacks_NeverAVolumeFileOrAnExactStack()
+    {
+        static List<GroupingRow> Rows(params string[] names) => names.Select((n, i) => new GroupingRow(
+            i.ToString(System.Globalization.CultureInfo.InvariantCulture), GroupingRowKind.Archive, n, n)).ToList();
+        var chapters = Enumerable.Range(1, 25).Select(c => $"S c{c:000}").ToArray();
+        // No exact list, an average of 10 chapters per volume over 10 volumes: "~ Volume 1" .. "~ Volume 3".
+        var ratio = new VolumeMapInput([], 10, 10, true, VolumeListSource.AniList);
+
+        Assert.Equal([1, 2, 3], VolumeCoverPass.EstimatedStackVolumes(Rows(chapters), ratio).Order());
+        // A volume file of volume 2 is a real volume, not an estimated stack.
+        Assert.Equal([1, 3], VolumeCoverPass.EstimatedStackVolumes(Rows([.. chapters, "S v02"]), ratio).Order());
+        // The exact list places every chapter: exact stacks only (the held-as-chapters rule covers them).
+        var exact = new VolumeMapInput([new(1, [.. Enumerable.Range(1, 12).Select(c => (decimal)c)]), new(2, [.. Enumerable.Range(13, 13).Select(c => (decimal)c)])],
+            12.5, 2, false, VolumeListSource.MangaDex);
+        Assert.Empty(VolumeCoverPass.EstimatedStackVolumes(Rows(chapters), exact));
+        // Nothing to place a chapter with: no stack at all.
+        Assert.Empty(VolumeCoverPass.EstimatedStackVolumes(Rows(chapters), VolumeMapInput.Empty));
+    }
+
+    [Fact]
+    public async Task EstimatedStacks_ArePlanned_LikeTheVolumesTheFolderHolds()
+    {
+        // 1.31.0 (owner 2026-10-01): an estimated "~ Volume 2" stack shows its volume's web cover; the pass plans it (stored rows only).
+        var folder = await _t.AddFolderAsync(null, "Synthetic Shelf Estimated");
+        for (var c = 1; c <= 25; c++)
+            await _t.AddArchiveAsync(folder, $"Synthetic Shelf Estimated c{c:000}.cbz");
+        var record = await _t.AddRecordAsync("est1", "Synthetic Estimated");
+        await _t.AddLinkAsync(folder, record, SeriesLinkState.Auto);
+        var md = new MetadataRecordEntity { PublicId = "mdest1", Provider = "mangadex", ExternalId = "00000000-0000-0000-0000-0000000e5701", Title = "Synthetic Estimated", FetchedAt = DateTimeOffset.UtcNow };
+        _t.Db.MetadataRecords.Add(md);
+        await _t.Db.SaveChangesAsync();
+        _t.Db.MetadataCompanions.Add(new MetadataCompanionEntity { RecordId = record.Id, Provider = "mangadex", CompanionRecordId = md.Id, State = (int)CompanionState.Auto, CheckedAt = DateTimeOffset.UtcNow });
+        // MangaDex gives no volume list (foreign numbering); AniList's totals give the average: 10 chapters per volume.
+        _t.Db.SeriesVolumeMaps.Add(new SeriesVolumeMapEntity { RecordId = record.Id, Source = (int)VolumeMapSource.MangaDexAggregate, State = (int)VolumeMapState.Ok, ContentHash = "e", Version = 1, FetchedAt = DateTimeOffset.UtcNow });
+        _t.Db.SeriesVolumeMaps.Add(new SeriesVolumeMapEntity { RecordId = record.Id, Source = (int)VolumeMapSource.AniListRatio, State = (int)VolumeMapState.Ok, ChaptersPerVolume = 10, KnownVolumeCount = 10, ContentHash = "a", Version = 1, FetchedAt = DateTimeOffset.UtcNow });
+        await _t.Db.SaveChangesAsync();
+
+        Assert.Equal([2, 3], await _h.Pass().PlannedHeldVolumesAsync(record.Id, [folder.Id]));
+    }
+
+    [Fact]
     public async Task PendingCovers_CountsWantedCoversNotStoredYet_AndNoneWhileThePassWaits()
     {
         await _h.Auto.EnableAutomaticAsync();

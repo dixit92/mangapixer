@@ -91,6 +91,27 @@ public sealed record MissingSeriesDto
     /// list), upgrades and completion; the same engine as the Volumes view.
     /// </summary>
     public SeriesProgressDto? Progress { get; init; }
+
+    /// <summary>
+    /// 1.31.0: chapter / volume numbers that more than one file of the same folder states ("Chapter 1: 2 files"), volumes first, at
+    /// most <see cref="MissingUnits.MaxListed"/> listed; <see cref="DuplicateCount"/> is the full count. Split chapters (2.1 + 2.2)
+    /// and ranges are not duplicates. Empty when there are none.
+    /// </summary>
+    public IReadOnlyList<DuplicateUnitDto> Duplicates { get; init; } = [];
+
+    /// <summary>1.31.0: how many numbers are duplicated in all (the size of <see cref="Duplicates"/> before its cap).</summary>
+    public int DuplicateCount { get; init; }
+}
+
+/// <summary>1.31.0: a chapter or volume number that <see cref="Files"/> (two or more) files of one folder state.</summary>
+public sealed record DuplicateUnitDto
+{
+    public required MissingUnitKind Kind { get; init; }
+
+    /// <summary>The number as the names state it ("1", "45.5").</summary>
+    public required string Number { get; init; }
+
+    public required int Files { get; init; }
 }
 
 /// <summary>Counts over the whole filtered set (before paging).</summary>

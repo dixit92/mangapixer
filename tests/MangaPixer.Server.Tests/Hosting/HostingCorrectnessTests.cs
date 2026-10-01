@@ -21,21 +21,6 @@ using Xunit;
 /// DateTimeOffset translation, cache eviction without spurious warnings,
 /// and schema validation against the bumped version.
 /// </summary>
-/// <remarks>
-/// In the "HttpSerial" collection alongside every other
-/// WebApplicationFactory-booting Server.Tests class. This is unrelated to
-/// storage isolation (each host already gets its own DataRoot via
-/// TestHostStorageOverride) — it exists because EVERY host boot
-/// unconditionally reassigns the process-global Serilog <c>Log.Logger</c>
-/// static in <c>Program.Main</c>, and this test's factory
-/// (<see cref="C00WebApplicationFactory"/>) wraps whatever logger is
-/// current at boot time with its own collecting sink. A concurrently
-/// booting host from a different collection can clobber that wrapper (or
-/// have its own logger clobbered) mid-test, which is exactly what
-/// surfaced as an intermittent failure here once assembly-level
-/// parallelization was restored (see TestParallelization.cs).
-/// </remarks>
-[Collection("HttpSerial")]
 public sealed class HostingCorrectnessTests
 {
     // (a) WebApplicationFactory test: startup log has no "Startup recovery
@@ -346,7 +331,6 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
 {
     private readonly CollectingSink _sink;
     private readonly string _tempRoot;
-    private Serilog.ILogger? _originalLogger;
 
     public C00WebApplicationFactory(CollectingSink sink)
     {
@@ -398,15 +382,12 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
             if (thumbBackfill is not null)
                 services.Remove(thumbBackfill);
 
-            // Wrap Log.Logger to also write to our collecting sink.
-            // UseSerilog() reads Log.Logger when the SerilogLoggerFactory is
-            // resolved (during host startup, after ConfigureTestServices), so
-            // this wrapper will be the active logger for all hosted services.
-            _originalLogger = Log.Logger;
-            Log.Logger = new LoggerConfiguration()
+            // Wrap the host's own logger (not a process-global) so everything the host logs also reaches our
+            // collecting sink; see TestHostLogging.
+            TestHostLogging.Wrap(services, inner => new LoggerConfiguration()
                 .WriteTo.Sink(_sink)
-                .WriteTo.Logger(_originalLogger)
-                .CreateLogger();
+                .WriteTo.Logger(inner)
+                .CreateLogger());
         });
     }
 
@@ -414,10 +395,6 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
     {
         if (disposing)
         {
-            // Restore the original logger
-            if (_originalLogger is not null)
-                Log.Logger = _originalLogger;
-
             try { Directory.Delete(_tempRoot, true); } catch { }
         }
         base.Dispose(disposing);

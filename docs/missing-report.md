@@ -23,6 +23,19 @@ The report shows **Behind or with gaps** by default. Switch to **All linked seri
 - **An official volume you hold as chapters is an upgrade, never missing.** When the English edition has volume 15 out and you have its chapters as chapter files, the series is not behind; the row says "Volume 15 available in English (an upgrade, not missing)".
 - **Chapters are compared only when you keep chapter files.** A folder of volume files is never "behind" a scanlation.
 
+## Duplicate numbers
+
+*New in 1.31.0.* The same chapter (or volume) number in **more than one file of the same folder** - one chapter uploaded twice, say, or split into two files that are both named `Chapter 1` - used to disappear in the count: a number is either on your shelf or not. Now a series row says it:
+
+> 2 duplicate chapters (Chapter 1: 2 files, Chapter 2: 2 files)
+
+The same line appears under the series on its page (everyone sees it, like the "You have ..." line), on the stack of the [Volumes view](volumes.md#missing-volumes-and-chapters), and on the folder's row in the [Review](series-information.md#review) list.
+
+- **It is a note, not a gap.** Nothing is missing or "behind" because of it, and the totals count each number once. Both files stay where they are and both are listed; MangaPixer never removes or merges anything.
+- **Per folder.** Only files in the same folder are compared, so `Season 1` and `Season 2` that both have a chapter 1 are not duplicates (that is a [restart](#what-counts)).
+- **Not duplicates:** the parts of a split chapter (`2.1` and `2.2`, or a file `2` next to its parts), a range (`Ch. 1-5`) next to a single chapter, and names that state no number.
+- A volume number repeated in two volume files (two editions of volume 3) is listed here too; the [Volumes view](volumes.md) keeps showing them as two cards.
+
 ## Which total it compares with
 
 **Behind means behind what is released in your preferred language** - **Preferred language (covers and releases)** in **Metadata Manager** > **Settings** (English by default). A volume that exists only in the original language is never counted as missing.

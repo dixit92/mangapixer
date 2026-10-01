@@ -6,6 +6,12 @@ import { catchError } from 'rxjs/operators';
 import { BYPASS_INCOGNITO } from '../incognito/incognito.interceptor';
 import {
   ActivateAccountRequest,
+  EmptyTrashRequest,
+  EmptyTrashResultDto,
+  TrashFilesDto,
+  TrashOverviewDto,
+  TrashSettingsDto,
+  UpdateTrashSettingsRequest,
   AddBookmarkRequest,
   AddBookmarkResult,
   AnalyticsOverviewDto,
@@ -154,6 +160,7 @@ export class ApiService {
     before: string | null = null,
     favoritesOnly = false,
     group: 'volumes' | 'flat' | null = null,
+    preferVolumes = false,
   ): Observable<PageResponse<CatalogNodeDto>> {
     let params = new HttpParams().set('pageSize', pageSize.toString());
     if (cursor) params = params.set('cursor', cursor);
@@ -175,6 +182,9 @@ export class ApiService {
     // Volumes view (1.29.0): an explicit `volumes` / `flat` request overrides the stored Volumes | Folders
     // switch for this call; omitted -> the server follows the user's stored switch and the folder / library defaults.
     if (group) params = params.set('group', group);
+    // 1.31.0 (home "New chapters" tap): prefer the Volumes view - the server answers with Name sort (`effectiveSort`) when the
+    // folder is a linked series whose Volumes view is available and active for the viewer, else it keeps the requested sort.
+    if (preferVolumes) params = params.set('preferVolumes', 'true');
     return this.get<PageResponse<CatalogNodeDto>>(
       `/libraries/${libraryId}/browse`,
       params,
@@ -588,6 +598,28 @@ export class ApiService {
     return this.get<AuditTrailPageDto>('/admin/audit', new HttpParams()
       .set('page', String(page))
       .set('pageSize', String(pageSize)));
+  }
+
+  // --- Empty trash + Clean bundles (admin, 1.31.0) ---
+
+  /** The trash card: settings, what Empty trash / Clean bundles would remove (per library, with holds), last runs. */
+  getTrash(): Observable<TrashOverviewDto> {
+    return this.get<TrashOverviewDto>('/admin/trash');
+  }
+
+  /** Automatic cleaning on / off and the move window / trash retention (one of the allowed days). */
+  updateTrashSettings(request: UpdateTrashSettingsRequest): Observable<TrashSettingsDto> {
+    return this.put<TrashSettingsDto>('/admin/trash/settings', request);
+  }
+
+  /** "Empty trash now": every library without a hold, or one library (releaseHold empties it although held). */
+  emptyTrash(request: EmptyTrashRequest): Observable<EmptyTrashResultDto> {
+    return this.post<EmptyTrashResultDto>('/admin/trash/empty', request);
+  }
+
+  /** "Clean bundles now": data-root files no row references. */
+  cleanBundles(): Observable<TrashFilesDto> {
+    return this.post<TrashFilesDto>('/admin/trash/clean-bundles', {});
   }
 
   // --- System info ---

@@ -21,7 +21,6 @@ namespace com.lifepixer.mangapixer.Tests.Server.Http;
 /// rather than being hand-written, so the rail's cursor contract is exercised against
 /// the format actually stored on disk (1.15.0).
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class JumpIndexHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private readonly MangaPixerWebApplicationFactory _factory;

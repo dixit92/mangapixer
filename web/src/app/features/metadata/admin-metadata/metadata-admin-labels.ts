@@ -72,6 +72,8 @@ const REASONS: Record<string, { label: string; tip: string }> = {
   // Series families (1.30.0, owner): a main series and its spin-offs are easy to mix up; never linked on a subtitle alone.
   subtitle_family: { label: 'Spin-off or main story?', tip: 'Only the subtitle in the folder name tells this series apart from another one of the same family (its main story or a spin-off). Check which one the folder holds.' },
   series_family: { label: 'Series family', tip: 'Another series of the same family also matched this name (its main story, a spin-off, side story, prequel or sequel). Check which one the folder holds.' },
+  // The cover check after an automatic link (1.31.0): per volume and per language, never on one series image.
+  cover_differs: { label: 'Cover differs', tip: 'The covers of this folder\'s volumes are different pictures from this series\' volume covers in your preferred language, and none matches in another language. It may be another work with the same title, another edition, or first pages that are not covers.' },
 };
 
 export function reasonLabel(code: string): string {
@@ -186,6 +188,7 @@ export const RUN_TRIGGER_LABELS: Record<MetadataMatchRunTrigger, string> = {
   Bulk: 'Match library now',
   Retry: 'Retry unmatched',
   Rerun: 'Re-run matching',
+  Recheck: 'Check again under new rules',
 };
 
 /** 0-100 progress of a run (processed of queued). */

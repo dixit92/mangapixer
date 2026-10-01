@@ -21,7 +21,6 @@ using Xunit;
 /// (non-admin → 403) and the enable → check flow. The GitHub call is mocked by
 /// replacing the named client's primary handler — no test touches api.github.com.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class UpdateCheckHttpTests : IDisposable
 {
     private readonly UpdateCheckWebApplicationFactory _factory;

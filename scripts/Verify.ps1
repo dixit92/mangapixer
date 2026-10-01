@@ -24,12 +24,20 @@
     the browser suite), run in CI as the separate "E2E (Playwright)" job. The
     Vitest unit suite above needs no server and runs here.
 
-    Usage: pwsh ./scripts/Verify.ps1 -Configuration Release
+    Split runs (CI runs the two halves as parallel jobs; a plain run does both):
+      -SkipWeb   everything except stages 6-9 (the npm stages)
+      -WebOnly   only the npm stages 6-9 (no privacy preflight, no .NET)
+
+    Usage: pwsh ./scripts/Verify.ps1 -Configuration Release [-SkipWeb | -WebOnly]
 #>
 [CmdletBinding()]
 param(
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [switch]$SkipWeb,
+    [switch]$WebOnly
 )
+
+if ($SkipWeb -and $WebOnly) { throw "-SkipWeb and -WebOnly are mutually exclusive" }
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
@@ -61,56 +69,64 @@ function Invoke-Stage {
     }
 }
 
-# Stage 1: Privacy preflight
-Invoke-Stage "Privacy Preflight" {
-    # A remote is expected; fail only if a remote URL embeds a credential.
-    & "$PSScriptRoot/Test-GitRemotes.ps1"
+if (-not $WebOnly) {
+    # Stage 1: Privacy preflight
+    Invoke-Stage "Privacy Preflight" {
+        # A remote is expected; fail only if a remote URL embeds a credential.
+        & "$PSScriptRoot/Test-GitRemotes.ps1"
 
-    $ignored = git check-ignore .devin/config.local.json 2>&1
-    if ($LASTEXITCODE -ne 0) { throw ".devin/config.local.json is not ignored" }
+        $ignored = git check-ignore .devin/config.local.json 2>&1
+        if ($LASTEXITCODE -ne 0) { throw ".devin/config.local.json is not ignored" }
 
-    $status = git status --short 2>&1
-    $diffCheck = git diff --check 2>&1
-    if ($diffCheck) { throw "git diff --check found whitespace errors" }
+        $status = git status --short 2>&1
+        $diffCheck = git diff --check 2>&1
+        if ($diffCheck) { throw "git diff --check found whitespace errors" }
 
-    $mediaExts = @("*.cbz", "*.cbr", "*.cb7", "*.zip", "*.rar", "*.7z")
-    foreach ($ext in $mediaExts) {
-        $tracked = git ls-files $ext 2>&1
-        if ($tracked) { throw "Media file is tracked: $tracked" }
+        $mediaExts = @("*.cbz", "*.cbr", "*.cb7", "*.zip", "*.rar", "*.7z")
+        foreach ($ext in $mediaExts) {
+            $tracked = git ls-files $ext 2>&1
+            if ($tracked) { throw "Media file is tracked: $tracked" }
+        }
     }
-}
 
-# Stage 2: Clean restore
-Invoke-Stage "dotnet restore (locked)" {
-    dotnet restore MangaPixer.slnx --locked-mode 2>&1 | Out-Host
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Locked restore failed, falling back to normal restore..." -ForegroundColor Yellow
-        dotnet restore MangaPixer.slnx 2>&1 | Out-Host
-        if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed" }
+    # Stage 2: Clean restore
+    Invoke-Stage "dotnet restore (locked)" {
+        dotnet restore MangaPixer.slnx --locked-mode 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Locked restore failed, falling back to normal restore..." -ForegroundColor Yellow
+            dotnet restore MangaPixer.slnx 2>&1 | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed" }
+        }
     }
-}
 
-# Stage 3: Format check
-Invoke-Stage "dotnet format verify" {
-    dotnet format MangaPixer.slnx --verify-no-changes --no-restore 2>&1 | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "dotnet format found changes needed" }
-}
+    # Stage 3: Format check
+    Invoke-Stage "dotnet format verify" {
+        dotnet format MangaPixer.slnx --verify-no-changes --no-restore 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "dotnet format found changes needed" }
+    }
 
-# Stage 4: Build
-Invoke-Stage "dotnet build ($Configuration)" {
-    dotnet build MangaPixer.slnx --no-restore -c $Configuration 2>&1 | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
-}
+    # Stage 4: Build
+    Invoke-Stage "dotnet build ($Configuration)" {
+        dotnet build MangaPixer.slnx --no-restore -c $Configuration 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
+    }
 
-# Stage 5: All tests
-Invoke-Stage "dotnet test (all)" {
-    dotnet test MangaPixer.slnx --no-build -c $Configuration --verbosity normal 2>&1 | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "dotnet test failed" }
+    # Stage 5: All tests
+    Invoke-Stage "dotnet test (all)" {
+        dotnet test MangaPixer.slnx --no-build -c $Configuration --verbosity normal 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "dotnet test failed" }
+    }
 }
 
 # Stage 6: Angular restore and lint (if npm is available)
 $npmAvailable = [bool](Get-Command npm -ErrorAction SilentlyContinue)
-if ($npmAvailable) {
+if ($SkipWeb) {
+    Write-Host "Angular stages skipped (-SkipWeb)." -ForegroundColor Yellow
+}
+elseif ($WebOnly -and -not $npmAvailable) {
+    throw "-WebOnly needs npm on PATH"
+}
+elseif ($npmAvailable) {
     Invoke-Stage "npm ci" {
         npm --prefix web ci --no-audit --no-fund 2>&1 | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
@@ -141,7 +157,10 @@ else {
 
 # Stage 7: Docker compose config validation
 $dockerAvailable = [bool](Get-Command docker -ErrorAction SilentlyContinue)
-if ($dockerAvailable) {
+if ($WebOnly) {
+    # Belongs to the non-web half.
+}
+elseif ($dockerAvailable) {
     Invoke-Stage "docker compose config" {
         docker compose -f deploy/compose.yaml config 2>&1 | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "docker compose config validation failed" }

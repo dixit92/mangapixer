@@ -16,7 +16,6 @@ using Xunit;
 /// <see cref="LayeredCoverResolver"/>, and the card covers of browse (folders and archives) and Home "New chapters" come from
 /// WHATEVER resolver the container holds - so the cover layer replaces one registration, not the call sites.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class CoverResolverSeamHttpTests
 {
     private const string LibPub = "seamlib1";

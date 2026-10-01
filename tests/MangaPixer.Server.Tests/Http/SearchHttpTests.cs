@@ -14,7 +14,6 @@ using Xunit;
 /// HTTP tests for search: results return once FTS5 triggers populate
 /// catalog_search, literal query safety, and pagination.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class SearchHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private readonly MangaPixerWebApplicationFactory _factory;

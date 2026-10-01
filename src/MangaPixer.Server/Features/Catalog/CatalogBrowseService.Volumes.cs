@@ -2,6 +2,7 @@ namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Metadata.Missing;
 using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Covers;
 using Microsoft.EntityFrameworkCore;
@@ -17,9 +18,12 @@ public sealed partial class CatalogBrowseService
     /// reader's neighbours are unchanged (they follow the real folders).
     /// </summary>
     private async Task<PageResponse<CatalogNodeDto>> BrowseVolumesAsync(
-        FolderVolumeEntries view, long userId, string? cursor, string? before, int pageSize, SortDirection direction, bool hideEmpty, CancellationToken ct)
+        FolderVolumeEntries view, long userId, string? cursor, string? before, int pageSize, SortDirection direction, bool hideEmpty,
+        BrowseReadStateFilter readState, bool favoritesOnly, CancellationToken ct)
     {
         IReadOnlyList<VolumeEntry> entries = view.Entries;
+        if (readState != BrowseReadStateFilter.All || favoritesOnly)
+            entries = await FilterVolumeEntriesAsync(view, entries, userId, readState, favoritesOnly, ct);
         if (hideEmpty)
         {
             // Same rule as the folder list: a folder whose subtree holds no readable archive is dropped.
@@ -53,6 +57,83 @@ public sealed partial class CatalogBrowseService
             HasPrevious = page.HasPrevious,
             NextUnread = await ResolveNextUnreadAsync(view.LibraryId, view.FolderId, userId, ct),
         };
+    }
+
+    /// <summary>
+    /// The read-state and favourites filters inside the Volumes view (1.31.0; until then a filter flattened the list), with the
+    /// folder list's rules so a filter always agrees with the badges: a STACK by the same read rollup its card shows
+    /// (<see cref="FolderReadRollupRules.Classify"/> over its members - Read = all read, Reading = some read or in progress,
+    /// Unread = none) and starred when any member is (the card's star); an ARCHIVE by its own read mark / progress / star; a
+    /// FOLDER by its descendant rollup (<see cref="MatchesFolderReadState"/>) and its own star. Missing-volume placeholders are
+    /// not items and are hidden while a filter is on. Three batched queries, before paging (so TotalCount and the cursor see
+    /// the filtered list).
+    /// </summary>
+    private async Task<IReadOnlyList<VolumeEntry>> FilterVolumeEntriesAsync(
+        FolderVolumeEntries view, IReadOnlyList<VolumeEntry> entries, long userId, BrowseReadStateFilter readState, bool favoritesOnly,
+        CancellationToken ct)
+    {
+        long IdOf(string publicId) => view.Rows[publicId].InternalId;
+        List<long> MemberIds(VolumeStack stack) => stack.Members.Select(m => IdOf(m.Row.Id)).ToList();
+
+        var archiveIds = entries.Where(e => e.Kind == VolumeEntryKind.Archive).Select(e => IdOf(e.Row!.Id))
+            .Concat(entries.Where(e => e.Kind == VolumeEntryKind.Stack).SelectMany(e => MemberIds(e.Stack!)))
+            .Distinct().ToList();
+        var folderIds = entries.Where(e => e.Kind == VolumeEntryKind.Folder).Select(e => IdOf(e.Row!.Id)).ToList();
+
+        HashSet<long> read = [], inProgress = [], starred = [];
+        Dictionary<long, FolderReadRollup> folderRollups = [];
+        if (readState != BrowseReadStateFilter.All)
+        {
+            if (archiveIds.Count > 0)
+            {
+                read = (await _db.ReadMarks.AsNoTracking().Where(m => m.UserId == userId && archiveIds.Contains(m.ItemId))
+                    .Select(m => m.ItemId).ToListAsync(ct)).ToHashSet();
+                inProgress = (await _db.ReadingProgress.AsNoTracking()
+                    .Where(p => p.UserId == userId && archiveIds.Contains(p.ItemId) && p.State == (int)ReadingState.InProgress)
+                    .Select(p => p.ItemId).ToListAsync(ct)).ToHashSet();
+            }
+            if (folderIds.Count > 0)
+                folderRollups = await ResolveFolderReadRollupsAsync(folderIds, userId, ct);
+        }
+        if (favoritesOnly)
+        {
+            var nodeIds = archiveIds.Concat(folderIds).ToList();
+            starred = (await _db.Favorites.AsNoTracking().Where(f => f.UserId == userId && nodeIds.Contains(f.CatalogNodeId))
+                .Select(f => f.CatalogNodeId).ToListAsync(ct)).ToHashSet();
+        }
+
+        bool ArchiveMatches(long id) => readState switch
+        {
+            BrowseReadStateFilter.Read => read.Contains(id),
+            BrowseReadStateFilter.Reading => !read.Contains(id) && inProgress.Contains(id),
+            BrowseReadStateFilter.Unread => !read.Contains(id) && !inProgress.Contains(id),
+            _ => true,
+        };
+
+        bool StackMatches(VolumeStack stack)
+        {
+            var ids = MemberIds(stack);
+            if (favoritesOnly && !ids.Any(starred.Contains))
+                return false;
+            if (readState == BrowseReadStateFilter.All)
+                return true;
+            var rollup = FolderReadRollupRules.Classify(ids.Count, ids.Count(read.Contains), ids.Count(id => !read.Contains(id) && inProgress.Contains(id)));
+            return readState switch
+            {
+                BrowseReadStateFilter.Read => rollup == FolderReadRollup.Read,
+                BrowseReadStateFilter.Reading => rollup == FolderReadRollup.Reading,
+                _ => rollup is null or FolderReadRollup.Unread,
+            };
+        }
+
+        return entries.Where(e => e.Kind switch
+        {
+            VolumeEntryKind.Stack => StackMatches(e.Stack!),
+            VolumeEntryKind.Archive => ArchiveMatches(IdOf(e.Row!.Id)) && (!favoritesOnly || starred.Contains(IdOf(e.Row!.Id))),
+            VolumeEntryKind.Folder => MatchesFolderReadState(folderRollups, IdOf(e.Row!.Id), readState)
+                && (!favoritesOnly || starred.Contains(IdOf(e.Row!.Id))),
+            _ => false,
+        }).ToList();
     }
 
     /// <summary>
@@ -171,5 +252,6 @@ public sealed partial class CatalogBrowseService
         LastChapter = stack.LastChapter,
         ChaptersPresent = stack.ChaptersPresent,
         OfficialRelease = stack.OfficialRelease,
+        Duplicates = stack.Duplicates.Select(DuplicateUnits.ToDto).ToList(),
     };
 }

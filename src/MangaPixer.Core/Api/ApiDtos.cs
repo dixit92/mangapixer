@@ -73,6 +73,13 @@ public sealed record PageResponse<T>
     /// Additive - older clients that ignore it are unaffected. Never stored.
     /// </summary>
     public CatalogNodeDto? NextUnread { get; init; }
+
+    /// <summary>
+    /// The sort the server actually used when it differs from the requested one (1.31.0): <c>"name"</c> when a browse asked
+    /// to prefer the Volumes view (<c>preferVolumes</c>, the home "New chapters" tap) and the folder is a linked series whose
+    /// Volumes view is available and active for the viewer. Null when the requested sort was used. Additive.
+    /// </summary>
+    public string? EffectiveSort { get; init; }
 }
 
 /// <summary>

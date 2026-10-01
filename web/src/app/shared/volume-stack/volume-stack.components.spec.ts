@@ -119,4 +119,37 @@ describe('volume stack pieces', () => {
       expect(el.querySelector('button, a, [tabindex]')).toBeNull();
     });
   });
+
+  describe('duplicate chip (1.31.0)', () => {
+    function render(s: VolumeStackSummaryDto, moved = false): HTMLElement {
+      const fixture = TestBed.createComponent(VolumeIncompleteBadgeComponent);
+      fixture.componentRef.setInput('summary', s);
+      fixture.componentRef.setInput('moved', moved);
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+    const dup = [{ kind: 'Chapter' as const, number: '1', files: 2 }, { kind: 'Chapter' as const, number: '2', files: 2 }];
+
+    it('shows "2 duplicates" below the incomplete mark, with the chapters in its title', () => {
+      const el = render(summary({ duplicates: dup }));
+      const chip = el.querySelector('[data-testid="stack-duplicates"]')!;
+      expect(chip.textContent!.trim()).toBe('2 duplicates');
+      expect(chip.classList).toContain('below');
+      expect(chip.getAttribute('title')).toContain('Chapter 1: 2 files, Chapter 2: 2 files');
+      expect(el.querySelector('[data-testid="stack-incomplete"]')!.textContent!.trim()).toBe('8/9');
+    });
+
+    it('takes the top-left corner alone when nothing is missing, and moves with the selection check', () => {
+      const alone = render(summary({ missingCount: 0, duplicates: dup.slice(0, 1) }));
+      const chip = alone.querySelector('[data-testid="stack-duplicates"]')!;
+      expect(chip.textContent!.trim()).toBe('1 duplicate');
+      expect(chip.classList).not.toContain('below');
+      expect(render(summary({ duplicates: dup }), true).querySelector('[data-testid="stack-duplicates"]')!.classList).toContain('moved');
+    });
+
+    it('is absent without duplicates', () => {
+      expect(render(summary()).querySelector('[data-testid="stack-duplicates"]')).toBeNull();
+      expect(render(summary({ duplicates: [] })).querySelector('[data-testid="stack-duplicates"]')).toBeNull();
+    });
+  });
 });

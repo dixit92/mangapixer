@@ -45,15 +45,13 @@ public sealed class AddArchiveSpreadLayoutMigrationTests : IDisposable
             Assert.True(index > 0);
             await db.GetService<IMigrator>().MigrateAsync(all[index - 1]);
 
-            // Nodes and items are seeded through the EF model: no later migration
-            // changed those tables, so the current model matches them exactly.
-            // The library row goes in as SQL: later migrations (1.24.0 metadata columns)
-            // added columns to `libraries`, so the current model no longer matches this
-            // pre-migration table.
+            // The library row goes in as SQL and the node through LegacySchemaSeed: later migrations added columns to
+            // `libraries` (1.24.0 metadata) and `catalog_nodes` (1.31.0 TombstonedAt), so the current model no longer matches
+            // these pre-migration tables. archive_items is unchanged since, so it is seeded through the model.
             await db.Database.ExecuteSqlRawAsync(
                 "INSERT INTO libraries (Id, PublicId, DisplayName, RootPath, CaseComparisonPolicy, State, CatalogRevision, CreatedAt) " +
                 "VALUES (1, 'lib1', 'Lib', '/synthetic/lib', 'ordinal', 'active', 0, 0)");
-            db.CatalogNodes.Add(new CatalogNodeEntity
+            await LegacySchemaSeed.InsertAsync(db, new CatalogNodeEntity
             {
                 Id = 7,
                 PublicId = "node7",

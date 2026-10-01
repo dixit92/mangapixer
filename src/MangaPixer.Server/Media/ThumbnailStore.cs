@@ -123,9 +123,35 @@ public sealed class ThumbnailStore
         TryDeleteFile(path);
     }
 
+    /// <summary>
+    /// Every thumbnail file in the store whose name is exactly one this store writes (<c>&lt;shard&gt;/&lt;id36&gt;-&lt;cv&gt;.webp</c>), with
+    /// the key parsed from it (1.31.0, Clean bundles). Other files are not listed.
+    /// </summary>
+    public IEnumerable<StoredThumbnail> EnumerateThumbnails()
+    {
+        foreach (var path in Features.Trash.DataRootFileNames.Enumerate(_thumbnailsRoot, "*.webp", SearchOption.AllDirectories))
+        {
+            var name = Path.GetFileNameWithoutExtension(path.AsSpan());
+            var dash = name.LastIndexOf('-');
+            if (dash <= 0
+                || !Features.Trash.DataRootFileNames.TryParseOpaqueId(name[..dash], out var itemId)
+                || !Features.Trash.DataRootFileNames.TryParseNumber(name[(dash + 1)..], out var contentVersion)
+                || !string.Equals(GetThumbnailPath(itemId, contentVersion), path, StringComparison.Ordinal))
+                continue;
+            yield return new StoredThumbnail(path, itemId, contentVersion);
+        }
+    }
+
+    /// <summary>Leftover temp files of interrupted publishes (<c>*.webp.tmp</c>) - 1.31.0, Clean bundles.</summary>
+    public IEnumerable<string> EnumerateTempFiles() =>
+        Features.Trash.DataRootFileNames.Enumerate(_thumbnailsRoot, "*.webp.tmp", SearchOption.AllDirectories);
+
     private static void TryDeleteFile(string path)
     {
         try { if (File.Exists(path)) File.Delete(path); }
         catch { /* best effort */ }
     }
 }
+
+/// <summary>A thumbnail file in the store and the key its name carries.</summary>
+public readonly record struct StoredThumbnail(string Path, long ItemId, long ContentVersion);

@@ -69,6 +69,13 @@ export const routes: Routes = [
           import('./features/admin/admin.component').then((m) => m.AdminComponent),
       },
       {
+        // Move conflicts (1.31.0): items moved to another library while both copies had their own state.
+        path: 'admin/move-conflicts',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./features/admin/move-conflicts/move-conflicts.component').then((m) => m.MoveConflictsComponent),
+      },
+      {
         // Series metadata admin page (stage 2): Settings / Review / Flags / Runs.
         path: 'admin/metadata',
         canActivate: [adminGuard],

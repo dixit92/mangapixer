@@ -2,6 +2,7 @@ namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Metadata.Missing;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Volumes;
@@ -93,6 +94,7 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             NextKey = index >= 0 && index < keys.Count - 1 ? keys[index + 1] : null,
             Slots = slots,
             OfficialRelease = stack.OfficialRelease,
+            Duplicates = stack.Duplicates.Select(DuplicateUnits.ToDto).ToList(),
         };
     }
 

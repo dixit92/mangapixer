@@ -145,6 +145,14 @@ public static class LogEvents
         public const int ScheduledScanEvaluationFailed = 3029;
         public const int ScheduledScanDisabled = 3030;
         public const int ScheduledScanFinished = 3031;
+
+        // 1.31.0 cross-library moves (3100-3119 reserved for lane A)
+        public const int ScanCrossLibraryMoves = 3101;
+        public const int ScanMoveClaimLost = 3102;
+        public const int MovePairingPass = 3103;
+        public const int MovePairingFailed = 3104;
+        public const int MoveConflictsResolved = 3105;
+        public const int MovePairingSkipped = 3106;
     }
 
     /// <summary>Worker pool, supervisor, scheduler, scratch, persistence, and page delivery.</summary>
@@ -331,6 +339,14 @@ public static class LogEvents
         public const int ActivationFailedConsumedToken = 7024;
         public const int UserDeleted = 7025;
         public const int ActivationReissued = 7026;
+
+        // 1.31.0 Empty trash + Clean bundles: ids and counts only.
+        public const int TrashEmptied = 7030;
+        public const int TrashEmptyHeld = 7031;
+        public const int BundlesCleaned = 7032;
+        public const int TrashSettingsChanged = 7033;
+        public const int TrashRunFailed = 7034;
+        public const int TrashHoldReleased = 7035;
     }
 
     /// <summary>App-level request pipeline errors (unhandled 500s).</summary>
@@ -407,6 +423,10 @@ public static class LogEvents
         // Reach (1.30.0, 9350-9359). Node / record ids, counts and the conflict kind only - never names or titles.
         public const int ReachConflict = 9350;
         public const int ReachCheckFailed = 9351;
+
+        // Cover check after linking (1.31.0, 9360-9369). Node / record ids, counts, the verdict and distances (numbers) only.
+        public const int CoverCheckDecided = 9360;
+        public const int CoverCheckFailed = 9361;
 
         // Cover layer (1.29.0, 9380-9389). Node ids, counts, sources and codes only - never paths or names.
         public const int CoverDecided = 9380;

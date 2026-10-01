@@ -19,11 +19,7 @@ using Xunit;
 /// via <see cref="WebApplicationFactory{TEntryPoint}"/> — forwarded-headers
 /// resolution, <c>AuthController</c>, and <c>LoginRateLimiter</c> together,
 /// not the limiter in isolation (see LoginRateLimiterTests for that).
-///
-/// In the "HttpSerial" collection because every host boot reassigns the
-/// process-global Serilog <c>Log.Logger</c> (see HttpTestCollection).
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class LoginRateLimitHttpTests
 {
     private const string TrustedProxyIp = "10.0.0.5"; // RFC1918 -> trusted by default

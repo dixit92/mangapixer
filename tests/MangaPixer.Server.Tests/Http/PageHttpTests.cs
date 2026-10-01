@@ -16,7 +16,6 @@ using Xunit;
 /// HTTP integration tests for page and cover delivery endpoints.
 /// Uses synthetic CBZ archives with real PNG pages.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class PageHttpTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

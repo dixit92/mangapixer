@@ -30,7 +30,7 @@ Only if an admin turns something on; everything is off by default. The **Update 
 
 ### If I rename or move a series folder, do I lose my progress?
 
-Not for archives that were already analyzed. On the next scan, MangaPixer recognizes moved archives by their content and keeps their progress. See [Library layout](library-layout.md#rescans-moves-and-deletions). A renamed or moved folder also keeps its series link, default reading mode and other folder settings (see [Renamed and moved folders](series-information.md#renamed-and-moved-folders)).
+Not for archives that were already analyzed, also when you move a series to another library. On the next scans, MangaPixer recognizes moved archives by their content and keeps their progress. See [Library layout](library-layout.md#rescans-moves-and-deletions) and [Moving series between libraries](library-layout.md#moving-series-between-libraries). A renamed or moved folder also keeps its series link, default reading mode and other folder settings (see [Renamed and moved folders](series-information.md#renamed-and-moved-folders)).
 
 ### Does each person have their own progress?
 

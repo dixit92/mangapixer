@@ -91,9 +91,21 @@ public sealed class AnalyticsPerformanceTests : IDisposable
         await db.DisposeAsync();
     }
 
+    /// <summary>
+    /// Saves a seed batch and forgets the entities: the seed never touches them again, and a tracker that keeps
+    /// every inserted row makes each later SaveChanges rescan all of them (the seed took minutes under load).
+    /// </summary>
+    private static async Task SaveBatchAsync(MangaPixerDbContext db)
+    {
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+    }
+
     private static async Task SeedAsync(MangaPixerDbContext db)
     {
         var random = new Random(42);
+        // One transaction for the whole seed: a commit per batch costs a disk sync each.
+        await using var transaction = await db.Database.BeginTransactionAsync();
 
         for (var i = 1; i <= LibraryCount; i++)
         {
@@ -106,7 +118,7 @@ public sealed class AnalyticsPerformanceTests : IDisposable
                 CreatedAt = DateTimeOffset.UtcNow,
             });
         }
-        await db.SaveChangesAsync();
+        await SaveBatchAsync(db);
 
         for (var i = 1; i <= UserCount; i++)
         {
@@ -124,7 +136,7 @@ public sealed class AnalyticsPerformanceTests : IDisposable
                 LastLoginAt = DateTimeOffset.UtcNow,
             });
         }
-        await db.SaveChangesAsync();
+        await SaveBatchAsync(db);
 
         var nodeId = 1L;
         var nodeIdsByLibrary = new Dictionary<long, List<long>>();
@@ -151,9 +163,9 @@ public sealed class AnalyticsPerformanceTests : IDisposable
             }
             nodeIdsByLibrary[libId] = ids;
             if (libId % 5 == 0)
-                await db.SaveChangesAsync();
+                await SaveBatchAsync(db);
         }
-        await db.SaveChangesAsync();
+        await SaveBatchAsync(db);
 
         var allNodeIds = nodeIdsByLibrary.Values.SelectMany(v => v).ToList();
 
@@ -176,9 +188,9 @@ public sealed class AnalyticsPerformanceTests : IDisposable
                 UpdatedAt = DateTimeOffset.UtcNow.AddMinutes(-random.Next(0, 100_000)),
             });
             if (++progressIndex % 2000 == 0)
-                await db.SaveChangesAsync();
+                await SaveBatchAsync(db);
         }
-        await db.SaveChangesAsync();
+        await SaveBatchAsync(db);
 
         for (var i = 0; i < BookmarkRowCount; i++)
         {
@@ -192,9 +204,9 @@ public sealed class AnalyticsPerformanceTests : IDisposable
                 CreatedAt = DateTimeOffset.UtcNow,
             });
             if (i % 2000 == 0)
-                await db.SaveChangesAsync();
+                await SaveBatchAsync(db);
         }
-        await db.SaveChangesAsync();
+        await SaveBatchAsync(db);
 
         // (UserId, CatalogNodeId) is unique on favorites — dedupe.
         var favoritePairs = new HashSet<(long UserId, long NodeId)>();
@@ -211,9 +223,9 @@ public sealed class AnalyticsPerformanceTests : IDisposable
                 CreatedAt = DateTimeOffset.UtcNow,
             });
             if (++favoriteIndex % 2000 == 0)
-                await db.SaveChangesAsync();
+                await SaveBatchAsync(db);
         }
-        await db.SaveChangesAsync();
+        await SaveBatchAsync(db);
 
         // (UserId, LibraryId) is unique — dedupe rather than let a random
         // collision throw partway through the seed.
@@ -230,6 +242,7 @@ public sealed class AnalyticsPerformanceTests : IDisposable
                 MarkedAt = DateTimeOffset.UtcNow,
             });
         }
-        await db.SaveChangesAsync();
+        await SaveBatchAsync(db);
+        await transaction.CommitAsync();
     }
 }

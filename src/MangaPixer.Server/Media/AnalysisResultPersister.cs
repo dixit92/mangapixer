@@ -26,10 +26,14 @@ using Microsoft.EntityFrameworkCore;
 public sealed class AnalysisResultPersister
 {
     private readonly ILogger<AnalysisResultPersister>? _logger;
+    private readonly com.lifepixer.mangapixer.Server.Features.Library.Moves.IMovePairingTrigger? _movePairing;
 
-    public AnalysisResultPersister(ILogger<AnalysisResultPersister>? logger = null)
+    public AnalysisResultPersister(
+        ILogger<AnalysisResultPersister>? logger = null,
+        com.lifepixer.mangapixer.Server.Features.Library.Moves.IMovePairingTrigger? movePairing = null)
     {
         _logger = logger;
+        _movePairing = movePairing;
     }
 
     /// <param name="db">Scoped catalog context.</param>
@@ -134,6 +138,10 @@ public sealed class AnalysisResultPersister
 
         await db.SaveChangesAsync(ct);
         _logger?.LogDebug(LogEvents.Worker.PersistCompleted, "Analysis persisted for item {ItemId}: {PageCount} pages", nodeId, analyzeResult.Pages.Count);
+
+        // 1.31.0: a new signature may complete a move whose destination was scanned first (coalesced, never blocks).
+        if (!string.IsNullOrEmpty(contentSignature))
+            _ = _movePairing?.RequestRun();
     }
 
     /// <summary>

@@ -39,6 +39,8 @@ import { LibraryScanScheduleComponent } from './library-scan-schedule/library-sc
 import { LibraryDeclaredFactsComponent } from '../metadata/declared/library-declared-facts.component';
 import { ConsentRenewalBannerComponent } from '../metadata/consent-renewal-banner.component';
 import { AnalyticsCardComponent } from './analytics-card/analytics-card.component';
+import { MoveConflictsLinkComponent } from './move-conflicts/move-conflicts-link.component';
+import { TrashCardComponent } from './trash-card/trash-card.component';
 
 /**
  * Admin component. Shows library and user administration.
@@ -55,6 +57,8 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
     CommonModule,
     DebugLogCardComponent,
     UpdateCheckCardComponent,
+    MoveConflictsLinkComponent,
+    TrashCardComponent,
     AnalyticsCardComponent,
     BackupSettingsCardComponent,
     FormsModule,
@@ -93,6 +97,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
               <mat-icon>{{ scanAllBusy() ? 'hourglass_empty' : 'refresh' }}</mat-icon>
               {{ scanAllBusy() ? 'Starting…' : 'Scan all libraries' }}
             </button>
+            <app-move-conflicts-link />
           </div>
         }
         @if (loadingLibs()) {
@@ -551,6 +556,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
     </mat-card>
 
     <!-- Update Checker (opt-in, off by default) -->
+    <app-trash-card />
     <app-update-check-card />
 
     <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->

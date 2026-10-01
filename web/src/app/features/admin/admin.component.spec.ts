@@ -4,7 +4,7 @@ import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of } from 'rxjs';
+import { NEVER, of } from 'rxjs';
 
 import { AdminComponent } from './admin.component';
 import { ApiService } from '../../core/api/api.service';
@@ -76,6 +76,8 @@ describe('AdminComponent directory browser row', () => {
       browseLibraryPaths: vi.fn().mockReturnValue(of(listing)),
       getLoggingLevel: vi.fn().mockReturnValue(of(logLevel)),
       getUpdateCheck: vi.fn().mockReturnValue(of(updateStatus)),
+      // The Trash card (1.31.0) loads its own overview; these tests are about other cards, so it just stays loading.
+      getTrash: vi.fn().mockReturnValue(NEVER),
       getAnalyticsOverview: vi.fn().mockReturnValue(of(analyticsOverview)),
       getAnalyticsUsers: vi.fn().mockReturnValue(of([])),
       getBackupSettings: vi.fn().mockReturnValue(of(backupSettings)),

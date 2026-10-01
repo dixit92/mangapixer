@@ -30,7 +30,6 @@ using Xunit;
 /// covers; "Delete stored volume covers". No title, folder name or image address reaches a log line.
 /// </summary>
 [Trait("Category", "Http")]
-[Collection("HttpSerial")]
 public sealed class VolumeCoversHttpTests
 {
     private const string LibPub = "vclib1";

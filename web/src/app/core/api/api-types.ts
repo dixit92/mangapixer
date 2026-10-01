@@ -38,6 +38,11 @@ export interface PageResponse<T> {
    * by `ContinueRowComponent`, which hides itself when absent/null.
    */
   nextUnread?: CatalogNodeDto | null;
+  /**
+   * The sort the server actually used when it differs from the requested one (1.31.0): 'name' when a browse with
+   * `preferVolumes` (the home "New chapters" tap) opened a linked series' Volumes view. Null otherwise. Optional (additive).
+   */
+  effectiveSort?: string | null;
 }
 
 /** 'VolumeStack' (1.29.0): a virtual volume stack of the Volumes view - a browse entry only, never a stored node. */
@@ -1390,7 +1395,7 @@ export type MatchLevel = 'None' | 'Folder' | 'Archive' | 'ReviewOnly';
 export type MetadataReviewTab =
   | 'NeedsReview' | 'AutoLinked' | 'Unmatched' | 'Flags' | 'DontMatch' | 'Confirmed' | 'MissingFolders';
 export type MetadataFolderContent = 'Auto' | 'DoujinshiAndAdultOneShots' | 'NotDoujinshi';
-export type MetadataMatchRunTrigger = 'Scan' | 'Bulk' | 'Retry' | 'Rerun';
+export type MetadataMatchRunTrigger = 'Scan' | 'Bulk' | 'Retry' | 'Rerun' | 'Recheck';
 export type MetadataMatchRunStatus = 'Running' | 'Completed' | 'Cancelled';
 export type MetadataReviewBulkAction = 'AcceptTop' | 'DontMatch' | 'RerunMatching' | 'Confirm' | 'Unlink';
 export type MetadataFlagReason = 'WrongSeries' | 'WrongDetails' | 'NotOneSeries' | 'Other';
@@ -1424,6 +1429,8 @@ export interface MetadataReviewSummaryDto {
   confirmed: number;
   missingFolders: number;
   pending: number;
+  /** 1.31.0: works in review being checked again under the matcher's current rules (part of `pending`). */
+  recheckPending: number;
 }
 
 export interface MetadataReviewLinkDto {
@@ -1453,7 +1460,7 @@ export interface MetadataReviewCandidateDto {
   adjustedScore: number;
   /**
    * close_second, count, year, type, related_pair, one_shot, author, number, review_only; declared_type, not_declared_type, reach,
-   * subtitle_family, series_family (1.30.0).
+   * subtitle_family, series_family (1.30.0); cover_differs (1.31.0).
    */
   reasons?: string[];
   /** For GET /admin/metadata/candidates/{token}/image (fetched only when loaded). */
@@ -1494,6 +1501,12 @@ export interface MetadataReviewItemDto {
   matchedAt?: string | null;
   nextRetryAt?: string | null;
   runId?: string | null;
+  /** 1.31.0: queued to be scored again under the matcher's current rules; the reasons and candidates are the earlier result until then. */
+  checkingAgain?: boolean;
+  /** 1.31.0 (folder works): chapter numbers that more than one file of the same folder states. */
+  duplicateChapters?: number;
+  /** 1.31.0 (folder works): the same for volume numbers. */
+  duplicateVolumes?: number;
   openFlagCount: number;
   /** Flags tab only. */
   flags?: MetadataFlagDto[];
@@ -1795,6 +1808,17 @@ export interface MissingSeriesDto {
   fetchedAt?: string;
   /** 1.30.0 (reach): trackers, what the folder holds, upgrades and completion (the same engine as the Volumes view). */
   progress?: SeriesProgressDto | null;
+  /** 1.31.0: chapter / volume numbers that more than one file of the same folder states, capped; `duplicateCount` is the full count. */
+  duplicates?: DuplicateUnitDto[];
+  duplicateCount?: number;
+}
+
+/** 1.31.0: a chapter or volume number that `files` (two or more) files of one folder state. */
+export interface DuplicateUnitDto {
+  kind: MissingUnitKind;
+  /** As the names state it ("1", "45.5"). */
+  number: string;
+  files: number;
 }
 
 export interface MissingReportSummaryDto {
@@ -1899,6 +1923,8 @@ export interface VolumeStackSummaryDto {
   missing?: boolean;
   /** 1.30.0: the language code when this volume (no volume file here) is released officially in the preferred language. */
   officialRelease?: string | null;
+  /** 1.31.0: chapters of this volume that more than one file states; `presentCount` / `extraCount` count each once. */
+  duplicates?: DuplicateUnitDto[];
 }
 
 export type VolumeSlotKind = 'Item' | 'Missing';
@@ -1930,6 +1956,8 @@ export interface VolumeStackDto {
   slots: VolumeSlotDto[];
   /** 1.30.0: see `VolumeStackSummaryDto.officialRelease`. */
   officialRelease?: string | null;
+  /** 1.31.0: see `VolumeStackSummaryDto.duplicates`; each such chapter has one item slot per file. */
+  duplicates?: DuplicateUnitDto[];
 }
 
 /** GET /nodes/{nodeId}/volume-view (lane S): whether a folder has a Volumes view and whether it is on for the viewer. */
@@ -2138,4 +2166,167 @@ export interface CoverPassStatusDto {
   coversListed: number;
   coversStored: number;
   waiting?: string | null;
+}
+
+// --- Move conflicts (1.31.0, admin): an item moved to another library while both copies had their own state ---
+
+/** What differs between the old and the new copy. */
+export type MoveConflictKind = 'Progress' | 'ReaderSettings' | 'SeriesLink';
+
+export type MoveConflictState = 'Open' | 'Overwritten' | 'Kept';
+
+/** Overwrite the new state with the old one, or keep the new one. */
+export type MoveConflictResolution = 'Overwrite' | 'Keep';
+
+export type MoveProgressState = 'Unread' | 'InProgress' | 'Completed';
+
+/** One side (old or new) of a move conflict; only the fields of the conflict's kind are set. */
+export interface MoveConflictSideDto {
+  present: boolean;
+  progress?: MoveProgressState | null;
+  /** 1-based page. */
+  page?: number | null;
+  pageCount?: number | null;
+  readerMode?: ReaderMode | null;
+  otherReaderSettings?: boolean | null;
+  linkState?: SeriesLinkState | null;
+  recordTitle?: string | null;
+  provider?: string | null;
+  updatedAt?: string | null;
+}
+
+/** GET /admin/move-conflicts items. */
+export interface MoveConflictDto {
+  id: string;
+  kind: MoveConflictKind;
+  state: MoveConflictState;
+  /** Null for a series link (an admin row). */
+  userId?: string | null;
+  userName?: string | null;
+  /** The new copy (live). */
+  nodeId: string;
+  title: string;
+  isFolder: boolean;
+  parentTitle?: string | null;
+  libraryId: string;
+  libraryName: string;
+  /** Where the old copy was. */
+  fromTitle: string;
+  fromLibraryName: string;
+  old: MoveConflictSideDto;
+  new: MoveConflictSideDto;
+  createdAt: string;
+  resolvedAt?: string | null;
+}
+
+export interface MoveConflictPageDto {
+  items: MoveConflictDto[];
+  openCount: number;
+  nextCursor?: string | null;
+}
+
+/** GET /admin/move-conflicts/count (the admin link badge). */
+export interface MoveConflictCountDto {
+  open: number;
+}
+
+/** POST /admin/move-conflicts/resolve: the listed ids, or every open conflict (`all`, optionally of one `kind`). */
+export interface MoveConflictResolveRequest {
+  ids?: string[] | null;
+  all?: boolean;
+  kind?: MoveConflictKind | null;
+  resolution: MoveConflictResolution;
+}
+
+export interface MoveConflictResolveResultDto {
+  resolved: number;
+  skipped: number;
+}
+
+// --- Empty trash + Clean bundles (1.31.0): /admin/trash ---
+
+/** GET /admin/trash: settings, what "Empty trash now" removes per library (with holds), what "Clean bundles" removes, last runs. */
+export interface TrashOverviewDto {
+  settings: TrashSettingsDto;
+  /** Tombstones from before this time are past the window. */
+  windowStart: string;
+  libraries: TrashLibraryDto[];
+  /** What "Empty trash now" for all libraries removes (libraries without a hold). */
+  total: TrashCountsDto;
+  bundles: TrashFilesDto;
+  lastEmpty?: TrashRunDto | null;
+  lastBundleClean?: TrashRunDto | null;
+}
+
+export interface TrashSettingsDto {
+  /** "Turn automatic cleaning on": once a day at automaticHour (server time). Off by default. */
+  automaticCleaning: boolean;
+  /** The move window, which is also the trash retention, in days. */
+  retentionDays: number;
+  /** Daily, Weekly, Monthly, Quarterly, Yearly as days. */
+  allowedRetentionDays: number[];
+  automaticHour: number;
+}
+
+/** PUT /admin/trash/settings: a missing field keeps its value. */
+export interface UpdateTrashSettingsRequest {
+  automaticCleaning?: boolean | null;
+  retentionDays?: number | null;
+  /** The server-local hour (0-23) of the daily automatic run (1.31.0). */
+  automaticHour?: number | null;
+}
+
+/** Why a library keeps its trash this pass. */
+export type TrashHold = 'scan_running' | 'root_unavailable' | 'burst';
+
+export interface TrashLibraryDto {
+  libraryId: string;
+  name: string;
+  /** What emptying this library removes now (when held: what releasing the hold would remove). */
+  eligible: TrashCountsDto;
+  /** Removed items still inside the window, or kept by move recognition. */
+  waiting: number;
+  libraryNodes: number;
+  hold?: TrashHold | null;
+  holdReleasable: boolean;
+}
+
+export interface TrashCountsDto {
+  nodes: number;
+  archives: number;
+  folders: number;
+  /** Reading progress, read marks, bookmarks, reader overrides and favorites, all users. */
+  userStateRows: number;
+  files: number;
+  bytes: number;
+}
+
+export interface TrashFilesDto {
+  files: number;
+  bytes: number;
+}
+
+export interface TrashRunDto {
+  at: string;
+  automatic: boolean;
+  /** Nodes removed (Empty trash) or files removed (Clean bundles). */
+  count: number;
+  bytes: number;
+  heldLibraries: number;
+}
+
+/** POST /admin/trash/empty: every library without a hold, or one library (releaseHold empties it although held). */
+export interface EmptyTrashRequest {
+  libraryId?: string | null;
+  releaseHold?: boolean;
+}
+
+export interface EmptyTrashResultDto {
+  removed: TrashCountsDto;
+  held: TrashHeldLibraryDto[];
+}
+
+export interface TrashHeldLibraryDto {
+  libraryId: string;
+  hold: TrashHold;
 }

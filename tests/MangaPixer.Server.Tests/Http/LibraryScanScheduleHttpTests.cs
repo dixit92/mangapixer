@@ -11,7 +11,6 @@ using Xunit;
 /// <c>scanSchedule</c> / <c>nextScheduledScanAt</c> DTO fields, and the
 /// hosted scheduler starting a scan on its own in a running app.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class LibraryScanScheduleHttpTests : IDisposable
 {
     private readonly string _libRoot;

@@ -17,7 +17,6 @@ using Xunit;
 /// view state, the stack view with its placeholders, the Volumes | Folders switch through the existing library-preferences
 /// endpoint, and access control. Stored rows only, synthetic names.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class VolumeStackHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private const string LibPubId = "vsLib1";
@@ -90,6 +89,31 @@ public sealed class VolumeStackHttpTests : IClassFixture<MangaPixerWebApplicatio
         using var anon = _factory.CreateClient();
         Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync($"/api/v1/nodes/{SeriesPubId}/volume-view")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync($"/api/v1/nodes/{SeriesPubId}/volumes/1")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Browse_PreferVolumes_OpensTheLinkedSeriesByName_AndFiltersWorkInsideTheVolumesView()
+    {
+        var admin = await AdminAsync();
+        await SetSwitchAsync(admin, null); // the class shares one host: start from the default switch
+
+        // The home "New chapters" tap: a recency sort plus preferVolumes -> Name and the Volumes view for a linked series.
+        var preferred = await BrowseAsync(admin, "sort=recentlyUpdated&preferVolumes=true");
+        Assert.Equal("name", preferred.EffectiveSort);
+        Assert.Equal(["Volume 1", "Volume 2"], preferred.Items.Select(n => n.DisplayName).ToArray());
+
+        // Without the flag (or for a folder without a Volumes view) the requested sort stays, as before.
+        var recent = await BrowseAsync(admin, "sort=recentlyUpdated");
+        Assert.Null(recent.EffectiveSort);
+        Assert.DoesNotContain(recent.Items, n => n.Kind == CatalogNodeKind.VolumeStack);
+        var plain = await OkAsync<PageResponse<CatalogNodeDto>>(
+            await admin.GetAsync($"/api/v1/libraries/{LibPubId}/browse?parentId={PlainPubId}&sort=recentlyUpdated&preferVolumes=true"));
+        Assert.Null(plain.EffectiveSort);
+
+        // A read-state filter no longer flattens the Volumes view (1.31.0): nothing is read, so both stacks are Unread.
+        var unread = await BrowseAsync(admin, "readState=unread");
+        Assert.Equal(["Volume 1", "Volume 2"], unread.Items.Select(n => n.DisplayName).ToArray());
+        Assert.Empty((await BrowseAsync(admin, "readState=read")).Items);
     }
 
     [Fact]

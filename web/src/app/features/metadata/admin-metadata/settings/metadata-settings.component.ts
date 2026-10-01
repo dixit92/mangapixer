@@ -231,7 +231,9 @@ export function validateThresholds(
                 "Series Title" from "Series Title [English Title]" - which <strong>nobody reviews before it is sent</strong>,
                 with a fixed list of types to leave out (doujinshi, novels, artbooks, drama CDs; doujinshi are searched below a
                 folder whose Content is "Doujinshi &amp; adult one-shots"), and MangaUpdates record numbers to refresh linked
-                series. Each site also sees your server's IP address.</p>
+                series. Each site also sees your server's IP address. The same names may be sent again for folders that are
+                still waiting: a folder left unmatched is tried again after 30, 90 and 180 days, and when a MangaPixer update
+                changes how matches are scored, folders waiting under Needs review are checked once more under the new rules.</p>
               <p><strong>Cover comparison:</strong> when two series tie on the title for a folder of volumes or a one-shot,
                 MangaPixer may also download the cover images of those two series from MangaUpdates' image server
                 (cdn.mangaupdates.com), by the address MangaUpdates gave, to compare them with the folder's own cover. These
@@ -276,7 +278,10 @@ export function validateThresholds(
                 Compare covers
               </mat-checkbox>
               <p class="muted small">When two series tie on the title for a folder of volumes or a one-shot, download their
-                two covers and prefer the one that is the same picture as the folder's own cover.</p>
+                two covers and prefer the one that is the same picture as the folder's own cover. After an automatic link, once
+                the series' volume covers are stored, compare them with the folder's own volumes (nothing is downloaded for
+                this): when every compared volume is a different picture from its cover in your preferred language, and none matches
+                in another language, the folder goes to Needs review.</p>
               @if (s.compareCoversDisabledByConfig) {
                 <p class="note" data-testid="md-compare-covers-config">Switched off in the server configuration.</p>
               }
@@ -307,8 +312,9 @@ export function validateThresholds(
                               data-testid="md-volume-covers-switch">
               Volume covers from the web
             </mat-slide-toggle>
-            <p class="note">For series linked to MangaUpdates: the covers of volume 1 and of the volumes you have, and which
-              chapters make up each volume, from MangaDex. In the background with Automatic matching on; otherwise only when
+            <p class="note">For series linked to MangaUpdates: the covers of volume 1 and of the volumes you have - as volume
+              files, as all of their chapters, or as an estimated "~ Volume N" stack - and which chapters make up each volume,
+              from MangaDex. In the background with Automatic matching on; otherwise only when
               you use Refresh or Change MangaDex match. Covers are stored on this server; the browser never contacts MangaDex.</p>
             @if (s.volumeCoversDisabledByConfig) {
               <p class="note" data-testid="md-volume-covers-config">Switched off in the server configuration (Metadata:AutoMatch:VolumeCovers).</p>

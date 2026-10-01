@@ -89,6 +89,8 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<NodeAutoCoverEntity> NodeAutoCovers => Set<NodeAutoCoverEntity>();
     public DbSet<MetadataProviderStateEntity> MetadataProviderStates => Set<MetadataProviderStateEntity>();
     public DbSet<FolderViewSettingsEntity> FolderViewSettings => Set<FolderViewSettingsEntity>();
+    public DbSet<NodeMoveEntity> NodeMoves => Set<NodeMoveEntity>();
+    public DbSet<MoveConflictEntity> MoveConflicts => Set<MoveConflictEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -117,6 +119,7 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureMetadataAutoMatch(modelBuilder);
         ConfigureDeclaredFacts(modelBuilder);
         ConfigureVolumesAndCovers(modelBuilder);
+        ConfigureNodeMoves(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
@@ -457,6 +460,9 @@ public sealed class MangaPixerDbContext : DbContext
             e.HasIndex(x => x.PublicId).IsUnique();
             e.HasIndex(x => x.LibraryId);
 
+            // Tombstone lifecycle (1.31.0): move candidates inside the retention window, trash purge after it.
+            e.HasIndex(x => new { x.Availability, x.TombstonedAt });
+
             // Self-referencing parent
             e.HasOne(x => x.Parent)
                 .WithMany()
@@ -488,6 +494,9 @@ public sealed class MangaPixerDbContext : DbContext
             e.HasIndex(x => x.AnalysisState);
             e.HasIndex(x => x.ContentVersion);
             e.HasIndex(x => x.ThumbnailState);
+
+            // Move recognition across libraries (1.31.0): size first, then the content signature.
+            e.HasIndex(x => new { x.ByteLength, x.ContentSignature });
         });
     }
 
@@ -855,6 +864,48 @@ public sealed class MangaPixerDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.NodeId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    /// <summary>Cross-library moves (1.31.0): moves recognised after the fact and the conflicts they left.</summary>
+    private static void ConfigureNodeMoves(ModelBuilder mb)
+    {
+        mb.Entity<NodeMoveEntity>(e =>
+        {
+            e.ToTable("node_moves");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.HasIndex(x => x.FromNodeId).IsUnique();
+            e.HasIndex(x => x.ToNodeId);
+            e.HasOne(x => x.FromNode)
+                .WithMany()
+                .HasForeignKey(x => x.FromNodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.ToNode)
+                .WithMany()
+                .HasForeignKey(x => x.ToNodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<MoveConflictEntity>(e =>
+        {
+            e.ToTable("move_conflicts");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.HasIndex(x => new { x.MoveId, x.UserId, x.Kind }).IsUnique();
+            e.HasIndex(x => new { x.State, x.CreatedAt });
+            e.HasOne(x => x.Move)
+                .WithMany()
+                .HasForeignKey(x => x.MoveId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<UserEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<UserEntity>()
+                .WithMany()
+                .HasForeignKey(x => x.ResolvedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

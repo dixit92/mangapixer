@@ -7,7 +7,6 @@ using Xunit;
 /// Smoke test: health endpoints respond. Uses MangaPixerWebApplicationFactory
 /// for consistent configuration with other HTTP tests.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class HealthEndpointTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

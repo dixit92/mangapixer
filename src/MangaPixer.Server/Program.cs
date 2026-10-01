@@ -160,11 +160,18 @@ public sealed partial class Program
             rollOnFileSizeLimit: true,
             outputTemplate: "{Timestamp:O} [{Level:u}] {SourceContext} ({EventId}) {Message:lj}{NewLine}{Exception}");
 
-        Log.Logger = logConfig.CreateLogger();
+        // The logger is a local of this host, never the process-global Log.Logger: two hosts booted in one
+        // process (the test suite boots hundreds, concurrently) each own their pipeline, switches and sinks.
+        var serilogLogger = logConfig.CreateLogger();
 
         try
         {
-            builder.Host.UseSerilog();
+            // Not disposed by the host: the finally block below disposes it exactly once, also when the host
+            // never started (a failed Build()).
+            builder.Host.UseSerilog(serilogLogger, dispose: false);
+            // Also resolvable as Serilog.ILogger, so code that runs after the host is built (and a test that
+            // wraps the pipeline with a capturing sink) reads the SAME logger the host's ILoggerFactory writes to.
+            builder.Services.AddSingleton<Serilog.ILogger>(serilogLogger);
 
             // Health checks. "/health" is liveness (cheap, in-process only,
             // tagged "live"); "/health/ready" is readiness (tagged "ready") —
@@ -210,12 +217,12 @@ public sealed partial class Program
 
             // Startup configuration logging. Logs existence and
             // budgets only — never absolute paths, per the privacy invariant.
-            Log.Logger.ForContext("EventId", LogEvents.Database.StartupStorageRoots).Information("Storage roots initialized: data={DataExists}, cache={CacheExists}, scratch={ScratchExists}",
+            serilogLogger.ForContext("EventId", LogEvents.Database.StartupStorageRoots).Information("Storage roots initialized: data={DataExists}, cache={CacheExists}, scratch={ScratchExists}",
                 Directory.Exists(dataRoot), Directory.Exists(cacheRoot), Directory.Exists(scratchRoot));
-            Log.Logger.ForContext("EventId", LogEvents.Database.StartupStorageBudgets).Information("Storage budgets: cache={CacheBudget}, scratch={ScratchBudget}",
+            serilogLogger.ForContext("EventId", LogEvents.Database.StartupStorageBudgets).Information("Storage budgets: cache={CacheBudget}, scratch={ScratchBudget}",
                 cacheBudget is > 0 ? cacheBudget.Value.ToString() : "default",
                 scratchBudget is > 0 ? scratchBudget.Value.ToString() : "default");
-            Log.Logger.ForContext("EventId", LogEvents.Database.StartupWorkerExecutable).Information("Worker executable: {Status}",
+            serilogLogger.ForContext("EventId", LogEvents.Database.StartupWorkerExecutable).Information("Worker executable: {Status}",
                 string.IsNullOrWhiteSpace(workerExe) ? "auto-discovery" : "configured");
 
             // Hosted lifecycle services + storage/scanning/page-delivery registrations
@@ -296,11 +303,11 @@ public sealed partial class Program
             if (OperatingSystem.IsWindows())
             {
                 dataProtection.ProtectKeysWithDpapi();
-                Log.Logger.ForContext("EventId", LogEvents.Database.DataProtectionKeys).Information("Data Protection keys encrypted at rest with DPAPI");
+                serilogLogger.ForContext("EventId", LogEvents.Database.DataProtectionKeys).Information("Data Protection keys encrypted at rest with DPAPI");
             }
             else
             {
-                Log.Logger.ForContext("EventId", LogEvents.Database.DataProtectionKeys).Information(
+                serilogLogger.ForContext("EventId", LogEvents.Database.DataProtectionKeys).Information(
                     "Data Protection keys stored unencrypted inside the private data root " +
                     "with owner-only permissions (Linux has no DPAPI; entrypoint.sh chmod 700)");
             }
@@ -358,6 +365,8 @@ public sealed partial class Program
                 options => ForwardedHeadersSetup.Configure(options, networkOptions));
 
             var app = builder.Build();
+            // After Build() so a test that replaced the host's logger in DI is honoured by the sites below.
+            var hostLogger = app.Services.GetRequiredService<Serilog.ILogger>();
 
             // Forwarded-headers middleware — FIRST in the pipeline so every
             // downstream component (auth cookie SecurePolicy, activation-URL
@@ -388,7 +397,7 @@ public sealed partial class Program
                 {
                     var error = context.Features
                         .Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>()?.Error;
-                    Log.Logger.ForContext("EventId", LogEvents.Http.UnhandledRequestError).Error(error,
+                    hostLogger.ForContext("EventId", LogEvents.Http.UnhandledRequestError).Error(error,
                         "Unhandled request error: {ErrorType}", error?.GetType().Name ?? "unknown");
                     context.Response.StatusCode = 500;
                     context.Response.ContentType = "application/json";
@@ -455,7 +464,7 @@ public sealed partial class Program
                     }
                     else if (restoreOutcome.Failed)
                     {
-                        Log.Logger.ForContext("EventId", LogEvents.Backup.RestoreRolledBack)
+                        hostLogger.ForContext("EventId", LogEvents.Backup.RestoreRolledBack)
                             .Warning("Pending DB restore did not apply: {Error}", restoreOutcome.Error ?? "unknown");
                     }
 
@@ -464,11 +473,11 @@ public sealed partial class Program
                     // POST /api/v1/auth/setup; just log that setup is pending.
                     var setup = scope.ServiceProvider.GetRequiredService<FirstRunSetupService>();
                     if (setup.IsSetupRequiredAsync().GetAwaiter().GetResult())
-                        Log.Logger.ForContext("EventId", LogEvents.Database.FirstRunSetupPending).Information("First-run setup required: no users exist. Create the admin via the setup screen.");
+                        hostLogger.ForContext("EventId", LogEvents.Database.FirstRunSetupPending).Information("First-run setup required: no users exist. Create the admin via the setup screen.");
                 }
                 catch (Exception ex)
                 {
-                    Log.Logger.ForContext("EventId", LogEvents.Database.DatabaseInitDegraded).Warning(ex, "Database initialization failed; health checks will still respond");
+                    hostLogger.ForContext("EventId", LogEvents.Database.DatabaseInitDegraded).Warning(ex, "Database initialization failed; health checks will still respond");
                 }
             }
 
@@ -535,12 +544,13 @@ public sealed partial class Program
         }
         catch (Exception ex)
         {
-            Log.Logger.ForContext("EventId", LogEvents.Database.FatalShutdown).Fatal(ex, "MangaPixer server terminated unexpectedly");
+            serilogLogger.ForContext("EventId", LogEvents.Database.FatalShutdown).Fatal(ex, "MangaPixer server terminated unexpectedly");
             throw;
         }
         finally
         {
-            Log.CloseAndFlush();
+            // Flushes the file sink; the former Log.CloseAndFlush() also swapped the global for a silent logger.
+            serilogLogger.Dispose();
         }
     }
 
@@ -640,6 +650,9 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.Reach.OfficialReleasesService>();
         // Reach check (1.30.0): an Auto link whose folder contradicts its record's new data drops to review.
         services.AddScoped<Features.Metadata.Reach.ReachCheckService>();
+        // Cover check after linking (1.31.0): run by the volume-cover pass; stored covers only, no request.
+        services.AddSingleton<Features.Metadata.AutoMatch.LinkCoverCheck.CoverCheckState>();
+        services.AddScoped<Features.Metadata.AutoMatch.LinkCoverCheck.CoverCheckService>();
         // AniList (1.28.0): ONLY the Missing report's chapters-per-volume lookup (admin action); not an
         // IMetadataProvider, so Identify / auto-match / refresh never see it.
         services.AddSingleton<Features.Metadata.Providers.AniList.IUnitConversionProvider, Features.Metadata.Providers.AniList.AniListProvider>();

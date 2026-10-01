@@ -8,7 +8,6 @@ using Xunit;
 /// <c>X-Robots-Tag: noindex, nofollow</c> and <c>/robots.txt</c> disallows crawling (it used to
 /// fall through to the SPA fallback); <c>MangaPixer:Network:AllowSearchIndexing=true</c> turns both off.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class SearchIndexingHttpTests
 {
     [Fact]

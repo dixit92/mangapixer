@@ -4,7 +4,9 @@ using com.lifepixer.mangapixer.Server.Media;
 using com.lifepixer.mangapixer.Server.Operations;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Features.Import.YacReader;
+using com.lifepixer.mangapixer.Server.Features.Library.Moves;
 using com.lifepixer.mangapixer.Server.Features.Reading;
+using com.lifepixer.mangapixer.Server.Features.Trash;
 using com.lifepixer.mangapixer.Server.Scanning;
 using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,6 +36,11 @@ public static class HostingServicesExtensions
         // Scan launch path shared by the admin scan endpoints and the scan
         // scheduler (1.23.0); the scheduler evaluates per-library schedules.
         services.AddScoped<LibraryScanLauncher>();
+        // Cross-library move recognition (1.31.0): the pairing pass and its runner, the move conflicts, and the tombstones
+        // the trash must keep (MoveTombstoneHolds replaces the step-0 no-op).
+        services.AddLibraryMoves();
+        // Empty trash + Clean bundles (1.31.0): the admin card's API and the daily automatic run.
+        services.AddTrash();
         services.AddSingleton(sp => LibraryScanSchedulerOptions.FromConfiguration(
             sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()));
         services.AddSingleton<LibraryScanScheduler>();
@@ -47,7 +54,6 @@ public static class HostingServicesExtensions
                 ScratchRoot = config["MangaPixer:Storage:ScratchRoot"],
             };
         });
-        services.AddScoped<IdentityRelinkService>();
 
         // YACReader progress importer (admin-only). The library reader is a
         // stateless singleton; the import service is scoped (depends on DbContext).

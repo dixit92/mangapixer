@@ -15,7 +15,6 @@ using Xunit;
 ///   snapshot file appears under the private data root's backups folder.
 /// - Non-admin users get 403 on both endpoints.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class RotatingBackupsHttpTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

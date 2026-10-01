@@ -232,7 +232,7 @@ describe('HomeComponent', () => {
     expect(cards[0].querySelector('.badge.new')!.textContent!.trim()).toBe('+3');
     expect(cards[0].querySelector('.stack.stacked')).not.toBeNull();
     expect(cards[0].querySelector('img')!.getAttribute('src')).toBe('/api/v1/items/c3/cover');
-    expect(cards[0].getAttribute('href')).toBe('/libraries/L1/browse/f1?sort=recentlyUpdated');
+    expect(cards[0].getAttribute('href')).toBe('/libraries/L1/browse/f1?sort=recentlyUpdated&volumes=prefer');
 
     // Loose archive: no badge, no stacked edges, folder-less fallback icon, and a
     // RouterLink straight into the reader on the archive itself.
@@ -309,13 +309,13 @@ describe('HomeComponent', () => {
     // writing the user's persisted library sort.
     httpMock.expectNone({ method: 'PUT', url: '/api/v1/reading/library-preferences' });
     expect(navigate).toHaveBeenCalledWith(
-      ['/libraries', 'L1', 'browse', 'f1'], { queryParams: { sort: 'recentlyUpdated' } });
+      ['/libraries', 'L1', 'browse', 'f1'], { queryParams: { sort: 'recentlyUpdated', volumes: 'prefer' } });
   });
 
   it('folder stack href carries the transient recentlyUpdated sort (open-in-new-tab is consistent)', () => {
     const fixture = createComponent();
     const folderCard = fixture.nativeElement.querySelector('.stack-card') as HTMLAnchorElement;
-    expect(folderCard.getAttribute('href')).toBe('/libraries/L1/browse/f1?sort=recentlyUpdated');
+    expect(folderCard.getAttribute('href')).toBe('/libraries/L1/browse/f1?sort=recentlyUpdated&volumes=prefer');
   });
 
   it('leaves modified clicks on a folder stack to the browser (open in new tab)', () => {

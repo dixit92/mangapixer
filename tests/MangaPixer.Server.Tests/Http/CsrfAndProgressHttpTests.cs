@@ -14,7 +14,6 @@ using Xunit;
 /// <summary>
 /// HTTP tests for CSRF enforcement and reading-progress contract repair.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class CsrfAndProgressHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private readonly MangaPixerWebApplicationFactory _factory;

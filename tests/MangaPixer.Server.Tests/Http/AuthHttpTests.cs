@@ -10,7 +10,6 @@ using Xunit;
 /// Each test creates its own factory to avoid cross-test state interference
 /// (password changes, rate limiter state, etc.).
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class AuthHttpTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

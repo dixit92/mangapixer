@@ -27,7 +27,8 @@ public sealed record AutomaticWait(string Code, DateTimeOffset? Until);
 /// automatic work waits for the next UTC day; there is no separate cap or reserve.
 ///
 /// Re-match rules (section 3): Confirmed, Don't match and Auto links are never
-/// matched again automatically; Needs review only when an admin asks (re-run);
+/// matched again automatically; Needs review when an admin asks (re-run) and - once per
+/// <see cref="MatcherRules.Revision"/> - in the background (<see cref="QueueOutdatedReviewsAsync"/>, 1.31.0);
 /// Unmatched after 30 / 90 / 180 days, then never. The matcher-core
 /// implementations (<see cref="IWorkDetector"/>, <see cref="IMatchQueryPlanner"/>,
 /// <see cref="IMatchScorer"/>) come from DI; while they are not registered the
@@ -506,6 +507,81 @@ public sealed class MetadataAutoMatchService
         return due.Count;
     }
 
+    /// <summary>
+    /// The works waiting in Needs review that the CURRENT <see cref="MatcherRules.Revision"/> has not scored yet (1.31.0): a decided
+    /// queue row whose last scoring was the automatic matcher's and older than the revision (a row scored before the stamp existed
+    /// has none), on a live node of a library whose Fetch switch is on.
+    /// <para>
+    /// "Last scoring was automatic" is read from stored state, not guessed: an admin's decision changes the link state
+    /// (Confirmed / Don't match) or removes the row, so a link still in Needs review with <see cref="MetadataMatchMethod.Auto"/> was
+    /// written by the matcher (or by the reach check, which only ever demotes an Auto link). A hand-made Identify search stores
+    /// nothing on the review row, so it cannot be told apart and is not special: re-scoring only refreshes the stored candidates.
+    /// A row the reach check demoted (<see cref="MatchReason.ReachConflict"/>) is left alone - that evidence is not part of the
+    /// scorer, so a re-score would only undo the demotion until the next reach check. A row still waiting, failed or skipped is not
+    /// selected, so a revision is applied once per work.
+    /// </para>
+    /// </summary>
+    private IQueryable<MetadataMatchQueueEntity> OutdatedReviews()
+    {
+        var needsReview = (int)SeriesLinkState.NeedsReview;
+        var auto = (int)MetadataMatchMethod.Auto;
+        var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
+        var band = (int)MatchBand.NeedsReview;
+        var reach = (int)MatchReason.ReachConflict;
+        return _db.MetadataMatchQueue.Where(q =>
+            q.State == QueueState.Done && q.Outcome == band
+            && (q.RulesRevision == null || q.RulesRevision < MatcherRules.Revision)
+            && (q.OutcomeReasons & reach) == 0
+            && _db.NodeSeriesLinks.Any(l => l.NodeId == q.NodeId && l.State == needsReview && l.MatchMethod == auto)
+            && _db.CatalogNodes.Any(n => n.Id == q.NodeId && n.Availability != tombstoned)
+            && _db.Libraries.Any(l => l.Id == q.LibraryId && l.MetadataEnabled));
+    }
+
+    /// <summary>
+    /// Queues, ONCE per <see cref="MatcherRules.Revision"/>, every work <see cref="OutdatedReviews"/> finds (one
+    /// <see cref="MetadataMatchRunTrigger.Recheck"/> run per library, <see cref="QueueReason.Recheck"/>, picked after everything else).
+    /// Only while Automatic matching is on with its current consent; the queued rows then wait for the gate, the pacing and the daily
+    /// budget like every automatic request. The row keeps its decided outcome, reasons, candidates and <c>ReviewFirst</c> flag until
+    /// it is scored again (also its <c>CompletedAt</c>, the "matched at" the review row shows), so the row shows what it showed before. Returns how many were queued.
+    /// </summary>
+    public async Task<int> QueueOutdatedReviewsAsync(CancellationToken ct = default)
+    {
+        if (!MatcherAvailable || !await IsAutomaticEnabledAsync(ct))
+            return 0;
+        var due = await OutdatedReviews().ToListAsync(ct);
+        if (due.Count == 0)
+            return 0;
+        var now = _time.GetUtcNow();
+        foreach (var group in due.GroupBy(q => q.LibraryId))
+        {
+            var runId = await CreateRunAsync(group.Key, MetadataMatchRunTrigger.Recheck, reviewFirst: false, group.Count(), ct);
+            foreach (var row in group)
+            {
+                row.State = QueueState.Pending;
+                row.Reason = QueueReason.Recheck;
+                row.Attempts = 0;
+                row.NotBefore = null;
+                row.LeaseUntil = null;
+                row.LeaseOwner = null;
+                row.LastErrorCode = null;
+                row.RunId = runId;
+                row.EnqueuedAt = now;
+            }
+            await _db.MetadataMatchRuns.Where(r => r.Id == runId).ExecuteUpdateAsync(s => s.SetProperty(r => r.Queued, group.Count()), ct);
+            _logger.LogInformation(LogEvents.Metadata.AutoMatchQueued,
+                "Automatic matching: {Count} works in review queued to be checked again under rules revision {Revision} for library {LibraryId} (run {RunId})",
+                group.Count(), MatcherRules.Revision, group.Key, runId);
+        }
+        await _db.SaveChangesAsync(ct);
+        _state.Signal();
+        return due.Count;
+    }
+
+    /// <summary>Works in review that are waiting to be checked again right now (queued or being scored), for one library or all.</summary>
+    public Task<int> RecheckPendingAsync(long? libraryId, CancellationToken ct = default) =>
+        _db.MetadataMatchQueue.CountAsync(q => q.Reason == QueueReason.Recheck
+            && (q.State == QueueState.Pending || q.State == QueueState.Leased) && (libraryId == null || q.LibraryId == libraryId), ct);
+
     private async Task<long> CreateRunAsync(long libraryId, MetadataMatchRunTrigger trigger, bool reviewFirst, int candidates, CancellationToken ct)
     {
         var run = new MetadataMatchRunEntity
@@ -671,19 +747,19 @@ public sealed class MetadataAutoMatchService
         if (node is null)
             return null; // Removed (tombstoned) since it was queued.
 
-        // Own link: only a re-run of a Needs review row may proceed.
+        // Own link: only a re-run or a re-check (1.31.0) of a Needs review row may proceed.
         var chain = tree.Ancestors(row.NodeId).Select(a => a.Id).Prepend(row.NodeId).ToList();
         var links = await _db.NodeSeriesLinks.AsNoTracking()
             .Where(l => chain.Contains(l.NodeId))
             .Select(l => new { l.NodeId, l.State })
             .ToListAsync(ct);
+        var rerun = row.Reason is QueueReason.Rerun or QueueReason.Recheck;
         if (links.FirstOrDefault(l => l.NodeId == row.NodeId) is { } own
-            && !(row.Reason == QueueReason.Rerun && own.State == (int)SeriesLinkState.NeedsReview))
+            && !(rerun && own.State == (int)SeriesLinkState.NeedsReview))
             return null;
         if (links.Any(l => l.NodeId != row.NodeId))
             return null; // Inherits from a linked / Don't match / in-review ancestor.
 
-        var rerun = row.Reason == QueueReason.Rerun;
         if (node.IsFolder)
         {
             var classification = _detector!.Classify(tree.ShapeOf(node.Id));
@@ -824,6 +900,7 @@ public sealed class MetadataAutoMatchService
             queue.LeaseUntil = null;
             queue.LeaseOwner = null;
             queue.LastErrorCode = null;
+            queue.RulesRevision = MatcherRules.Revision;
             if (band == MatchBand.Unmatched)
             {
                 queue.NotBefore = queue.RetryStep < AutoMatchPolicy.UnmatchedRetry.Length ? now + AutoMatchPolicy.UnmatchedRetry[queue.RetryStep] : null;

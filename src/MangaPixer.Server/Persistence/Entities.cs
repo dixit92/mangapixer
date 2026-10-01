@@ -217,6 +217,14 @@ public sealed class CatalogNodeEntity
     /// </summary>
     public DateTimeOffset? LatestDescendantAddedAt { get; set; }
 
+    /// <summary>
+    /// When a scan tombstoned this node (1.31.0), or null while it is not tombstoned. Cleared when the node is seen again or
+    /// recognised as moved. The trash retention window (<see cref="AppSettingsEntity.TrashRetentionDays"/>) counts from here:
+    /// inside it a tombstone is a move candidate (also across libraries), after it the trash may purge it. The migration
+    /// back-fills existing tombstones from <see cref="UpdatedAt"/>, which the scan set when it tombstoned them.
+    /// </summary>
+    public DateTimeOffset? TombstonedAt { get; set; }
+
     public LibraryEntity? Library { get; set; }
     public CatalogNodeEntity? Parent { get; set; }
     public ArchiveItemEntity? ArchiveItem { get; set; }
@@ -973,6 +981,51 @@ public sealed class AppSettingsEntity
 
     /// <summary>Global default of the Volumes view (virtual volume stacks). ON by default; the migration gives the existing row true.</summary>
     public bool VirtualVolumesEnabled { get; set; } = true;
+
+    // 1.31.0 (cross-library moves and trash; created by the step-0 migration AddTombstoneLifecycle).
+
+    /// <summary>
+    /// The move window, which is also the trash retention, in days: one of <see cref="com.lifepixer.mangapixer.Core.Catalog.TrashRetention.AllowedDays"/>
+    /// (Daily, Weekly, Monthly, Quarterly, Yearly). Null = Monthly (30 days).
+    /// </summary>
+    public int? TrashRetentionDays { get; set; }
+
+    // 1.31.0 Empty trash + Clean bundles (created by the migration AddTrashSchedule).
+
+    /// <summary>
+    /// "Turn automatic cleaning on": empty the trash and clean bundles once a day. OFF by default (the migration gives the
+    /// existing row false) - turning it on is the admin's approval of automatic purging.
+    /// </summary>
+    public bool TrashAutoCleanEnabled { get; set; }
+
+    /// <summary>When automatic cleaning was last turned on; the schedule never catches up on a day before it.</summary>
+    public DateTimeOffset? TrashAutoCleanEnabledAt { get; set; }
+
+    /// <summary>The scheduler's last automatic run (attempted), so a restart does not run it twice in a day.</summary>
+    public DateTimeOffset? TrashLastAutoRunAt { get; set; }
+
+    /// <summary>The last "Empty trash" (automatic or an admin's "now"): when, which, nodes removed, bytes of their files, libraries held.</summary>
+    public DateTimeOffset? TrashLastEmptiedAt { get; set; }
+
+    public bool TrashLastEmptiedAutomatic { get; set; }
+
+    public int TrashLastEmptiedNodes { get; set; }
+
+    public long TrashLastEmptiedBytes { get; set; }
+
+    public int TrashLastEmptiedHeldLibraries { get; set; }
+
+    /// <summary>The last "Clean bundles": when, which, files removed and their size.</summary>
+    public DateTimeOffset? BundlesLastCleanedAt { get; set; }
+
+    public bool BundlesLastCleanedAutomatic { get; set; }
+
+    public int BundlesLastCleanedFiles { get; set; }
+
+    public long BundlesLastCleanedBytes { get; set; }
+
+    /// <summary>The server-local hour (0-23) of the daily automatic trash run (owner, 1.31.0: scheduled job times are admin-chosen). Null = 04:00.</summary>
+    public int? TrashAutomaticHour { get; set; }
 }
 
 /// <summary>
@@ -1236,7 +1289,7 @@ public sealed class MetadataMatchQueueEntity
     public long NodeId { get; set; }
     public long LibraryId { get; set; }
 
-    /// <summary>0 new folder (scan), 1 bulk, 2 retry, 3 rerun, 4 carry check.</summary>
+    /// <summary>0 new folder (scan), 1 bulk, 2 retry, 3 rerun, 4 carry check, 5 recheck (a work in review checked again under new rules).</summary>
     public int Reason { get; set; }
 
     /// <summary>0 pending, 1 leased, 2 done, 3 failed, 4 skipped, 5 cancelled.</summary>
@@ -1272,6 +1325,12 @@ public sealed class MetadataMatchQueueEntity
 
     /// <summary>Automatic retries of an unmatched work so far (30 / 90 / 180 days, then never).</summary>
     public int RetryStep { get; set; }
+
+    /// <summary>
+    /// <c>MatcherRules.Revision</c> the work was last scored under (1.31.0); null = scored before the stamp existed, so older
+    /// than every revision. A work waiting in Needs review whose revision is older is checked once more in the background.
+    /// </summary>
+    public int? RulesRevision { get; set; }
 
     public CatalogNodeEntity? Node { get; set; }
 }
@@ -1647,4 +1706,57 @@ public sealed class FolderViewSettingsEntity
     public int? VirtualVolumes { get; set; }
 
     public CatalogNodeEntity? Node { get; set; }
+}
+
+/// <summary>
+/// A move recognised after the fact (1.31.0, cross-library moves): the state of the tombstoned node <see cref="FromNodeId"/>
+/// was copied onto the live node <see cref="ToNodeId"/> (an archive whose destination library was scanned before its source
+/// library), or a removed folder's rows were carried to the folder its archives went to. One row per old node: it marks the
+/// tombstone as handled (no second pairing) and anchors the conflicts an admin still has to resolve. A scan-time move
+/// re-points the node itself and needs no row.
+/// </summary>
+public sealed class NodeMoveEntity
+{
+    public long Id { get; set; }
+
+    /// <summary>The old (tombstoned) node. Unique.</summary>
+    public long FromNodeId { get; set; }
+
+    /// <summary>The live node that received the state.</summary>
+    public long ToNodeId { get; set; }
+
+    /// <summary>0 = folder, 1 = archive (as <see cref="CatalogNodeEntity.Kind"/>).</summary>
+    public int Kind { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public CatalogNodeEntity? FromNode { get; set; }
+    public CatalogNodeEntity? ToNode { get; set; }
+}
+
+/// <summary>
+/// Old and new state that differ after a move recognised after the fact (1.31.0): both copies of an item have their own
+/// reading position or reader settings for one user, or the two folders have different series links. The new copy keeps its
+/// own state until an admin resolves the conflict: Overwrite copies the old state (kept on the held tombstone) onto the new
+/// copy, Keep leaves it. Resolved rows stay until the tombstone is purged.
+/// </summary>
+public sealed class MoveConflictEntity
+{
+    public long Id { get; set; }
+    public long MoveId { get; set; }
+
+    /// <summary>The user whose state differs; null for the series link (an admin row).</summary>
+    public long? UserId { get; set; }
+
+    /// <summary><c>MoveConflictKind</c>: 1 progress, 2 reader settings, 3 series link.</summary>
+    public int Kind { get; set; }
+
+    /// <summary><c>MoveConflictState</c>: 0 open, 1 overwritten (old state used), 2 kept (new state kept).</summary>
+    public int State { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? ResolvedAt { get; set; }
+    public long? ResolvedByUserId { get; set; }
+
+    public NodeMoveEntity? Move { get; set; }
 }

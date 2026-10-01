@@ -383,4 +383,25 @@ describe('VolumeStackViewComponent', () => {
     expect([...comp.selection.selected()]).toEqual(['c38']);
     expect(el.querySelectorAll('[data-testid="stack-row"]')[1].querySelector('.node-wrap')!.classList).toContain('selected');
   });
+
+  it('1.31.0: counts a chapter in two files once, names the duplicates and marks each of the two cards', () => {
+    const dupSlots: VolumeSlotDto[] = [
+      { kind: 'Item', chapter: '1', item: item('a1', 'Series c001') },
+      { kind: 'Item', chapter: '1', item: item('a1b', 'Series c001 [2]') },
+      { kind: 'Item', chapter: '2', item: item('a2', 'Series c002') },
+    ];
+    const { el } = setup(stack({ slots: dupSlots, chapterCount: null, chaptersPresent: null, presentCount: 2, missingCount: 0, extraCount: 0,
+      duplicates: [{ kind: 'Chapter', number: '1', files: 2 }] }));
+
+    // Two chapters (1 and 2), not three files.
+    expect(el.querySelector('[data-testid="stack-counts"]')!.textContent).toBe('2 chapters');
+    expect(el.querySelector('[data-testid="stack-duplicates"]')!.textContent).toBe('1 duplicate chapter: Chapter 1: 2 files');
+    const subs = Array.from(el.querySelectorAll('.slot .sub')).map((s) => s.textContent!.trim());
+    expect(subs).toEqual(['Ch. 1 · 2 files · 20 pages', 'Ch. 1 · 2 files · 20 pages', 'Ch. 2 · 20 pages']);
+    expect(el.querySelectorAll('[data-testid="stack-item"]')).toHaveLength(3); // every file keeps its card
+  });
+
+  it('1.31.0: shows no duplicate line without duplicates', () => {
+    expect(setup(stack()).el.querySelector('[data-testid="stack-duplicates"]')).toBeNull();
+  });
 });

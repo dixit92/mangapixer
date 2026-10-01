@@ -89,6 +89,12 @@ public sealed record VolumeStackSummaryDto
     /// language - "Volume 15 available in English"; null otherwise.
     /// </summary>
     public string? OfficialRelease { get; init; }
+
+    /// <summary>
+    /// 1.31.0: chapters of this volume that more than one file states ("Chapter 1: 2 files"); empty when none. <see cref="PresentCount"/> and
+    /// <see cref="ExtraCount"/> count each such chapter once.
+    /// </summary>
+    public IReadOnlyList<DuplicateUnitDto> Duplicates { get; init; } = [];
 }
 
 /// <summary>The stack view (<c>GET /nodes/{folderId}/volumes/{key}</c>).</summary>
@@ -117,6 +123,9 @@ public sealed record VolumeStackDto
 
     /// <summary>1.30.0: see <see cref="VolumeStackSummaryDto.OfficialRelease"/>.</summary>
     public string? OfficialRelease { get; init; }
+
+    /// <summary>1.31.0: see <see cref="VolumeStackSummaryDto.Duplicates"/>. Each such chapter has one item slot per file.</summary>
+    public IReadOnlyList<DuplicateUnitDto> Duplicates { get; init; } = [];
 }
 
 /// <summary>One slot of a stack view: a present item, or a missing chapter's placeholder.</summary>

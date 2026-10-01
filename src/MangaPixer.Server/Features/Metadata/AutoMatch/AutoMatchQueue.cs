@@ -24,14 +24,19 @@ public static class QueueReason
     public const int Rerun = 3;
     public const int CarryCheck = 4;
 
+    /// <summary>A work waiting in Needs review, checked once more after the matcher's rules changed (1.31.0).</summary>
+    public const int Recheck = 5;
+
     /// <summary>
-    /// Pick order: an admin's re-run first, then new folders, bulk, retries. An expression so the
-    /// lease orders in SQL (a row limit without ORDER BY returns an arbitrary set of rows).
+    /// Pick order: an admin's re-run first, then new folders, bulk, retries, and last the background re-checks of
+    /// works already waiting. An expression so the lease orders in SQL (a row limit without ORDER BY returns an
+    /// arbitrary set of rows).
     /// </summary>
     public static readonly Expression<Func<MetadataMatchQueueEntity, int>> Priority = q =>
         q.Reason == Rerun ? 0
         : q.Reason == NewFolder || q.Reason == CarryCheck ? 1
         : q.Reason == Bulk ? 2
+        : q.Reason == Recheck ? 4
         : 3;
 }
 
@@ -93,6 +98,7 @@ public static class MatchReasonCodes
         (MatchReason.ReachConflict, "reach"),
         (MatchReason.SubtitleFamily, "subtitle_family"),
         (MatchReason.SeriesFamily, "series_family"),
+        (MatchReason.CoverDiffers, "cover_differs"),
     ];
 
     public static IReadOnlyList<string> Of(int reasons) => Of((MatchReason)reasons);

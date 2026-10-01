@@ -63,6 +63,9 @@ public enum MetadataMatchRunTrigger
 
     /// <summary>"Re-run matching" on selected review rows.</summary>
     Rerun = 3,
+
+    /// <summary>Works waiting in Needs review, checked once more after the matcher's rules changed (1.31.0).</summary>
+    Recheck = 4,
 }
 
 public enum MetadataMatchRunStatus
@@ -152,6 +155,12 @@ public sealed record MetadataReviewSummaryDto
 
     /// <summary>Queue rows still waiting to be matched.</summary>
     public required int Pending { get; init; }
+
+    /// <summary>
+    /// 1.31.0: works in review that are being checked again under the matcher's current rules (queued or being scored). Included in
+    /// <see cref="Pending"/>; the dashboard says so while it is above zero.
+    /// </summary>
+    public int RecheckPending { get; init; }
 }
 
 /// <summary>The link a review row currently has (own row only).</summary>
@@ -196,7 +205,8 @@ public sealed record MetadataReviewCandidateDto
     /// Reason chips: <c>close_second</c>, <c>count</c>, <c>year</c>, <c>type</c>, <c>related_pair</c>, <c>one_shot</c>, <c>author</c>,
     /// <c>number</c>, <c>review_only</c>; the declared-type evidence (1.30.0) <c>declared_type</c> (fits) and <c>not_declared_type</c>;
     /// <c>reach</c>; the series family (1.30.0) <c>subtitle_family</c> (only the folder's subtitle separates the top from a record of
-    /// its family) and <c>series_family</c> (another candidate is the same series family).
+    /// its family) and <c>series_family</c> (another candidate is the same series family); <c>cover_differs</c> (1.31.0: after an
+    /// automatic link, the folder's volume covers are clearly different pictures from the record's stored volume covers).
     /// </summary>
     public IReadOnlyList<string> Reasons { get; init; } = [];
 
@@ -275,6 +285,21 @@ public sealed record MetadataReviewItemDto
 
     /// <summary>The run that decided this work.</summary>
     public string? RunId { get; init; }
+
+    /// <summary>
+    /// 1.31.0: the work is queued to be scored again under the matcher's current rules (a background re-check after an update
+    /// changed how matches are scored). The reasons and candidates shown are the earlier result until it is done.
+    /// </summary>
+    public bool CheckingAgain { get; init; }
+
+    /// <summary>
+    /// 1.31.0 (folder works): how many chapter numbers more than one file of the same folder below it states ("2 duplicate chapters").
+    /// Split chapters and ranges are not duplicates.
+    /// </summary>
+    public int DuplicateChapters { get; init; }
+
+    /// <summary>1.31.0 (folder works): the same for volume numbers.</summary>
+    public int DuplicateVolumes { get; init; }
 
     public required int OpenFlagCount { get; init; }
 

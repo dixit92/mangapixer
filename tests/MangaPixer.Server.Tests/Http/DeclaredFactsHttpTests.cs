@@ -17,7 +17,6 @@ using Xunit;
 /// reads (404 for a non-member, direct access in Incognito, inheritance from the library, a conflict with a
 /// linked record) and the DI wiring of <see cref="IDeclaredFactsReader"/>. Synthetic names only.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class DeclaredFactsHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private const string LibPubId = "dflib1";
