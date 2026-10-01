@@ -20,6 +20,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **The series cover.** A linked series folder shows your **volume 1's** cover - exactly what volume 1's own card shows (its page 1, the front half of its jacket, or the web volume 1 cover when that is clearly a different picture) - wherever volume 1 sits, so a `Chapters` subfolder no longer puts chapter 1's first page (often a credit page) on the series card. Without a volume 1 of your own the series still shows the volume 1 cover from the web.
+- **Home shows the series cover.** A New chapters card of a linked series, and a Continue reading card of one of its chapters, show the series cover instead of a chapter's first page (the chapter is named under the card). Volumes keep their own cover.
+- **Volume covers for chapter stacks.** The cover of a volume is also downloaded when you have all of its chapters (by MangaDex's volume list), so a complete chapter stack in the Volumes view shows its real volume cover. A volume you have only part of no longer triggers a download.
 - The Missing report reads volumes and chapters the same way as the Volumes view: through the series' volume list, so a folder that mixes volume and chapter files gets numbers ("Mixed folder" is gone), chapters inside your volume files count as held, and an official volume you have as chapters is never "behind".
 - MangaUpdates' English publisher notes are read per edition: omnibus, 2-in-1 / 3-in-1 and perfect editions no longer count as the English volume total, and the publisher's own status (ongoing, complete, dropped) is stored with it (records pick it up on their next refresh).
 - An automatically linked folder whose volumes or chapters go far past everything known about its series moves back to **Needs review** (reason "Reach") when the series' volume list arrives or changes, or its record is refreshed; volume numbers that disagree with the list only add the reason.
@@ -35,6 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A series folder whose own volume 1 was close to, but not the same as, the web volume 1 cover (another edition) showed the web cover; it now shows your volume 1 like volume 1's own card.
 - A series opened from a folder that has no Volumes view (for example a category folder) now shows its Volumes view with the missing-volume cards; they only appeared after a reload.
 - A series is never marked **Complete collection** while chapters or volumes released in your language are missing; the last chapter of a finished scanlation is the highest one anything lists.
 - **Covers:** a volume cover from the web in the series' original language (used when MangaDex has none in your preferred language) no longer replaces your own volume's cover or its series folder's cover - an English edition's cover differs from the Japanese one by design. Covers already chosen are decided again once after the update.
