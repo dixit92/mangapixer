@@ -61,8 +61,13 @@ public sealed class MoveConflictService
         var nodes = await _db.CatalogNodes.AsNoTracking().Where(n => nodeIds.Contains(n.Id))
             .Select(n => new
             {
-                n.Id, n.PublicId, n.DisplayName, n.Kind, n.LibraryId,
-                LibraryPublicId = n.Library!.PublicId, LibraryName = n.Library.DisplayName,
+                n.Id,
+                n.PublicId,
+                n.DisplayName,
+                n.Kind,
+                n.LibraryId,
+                LibraryPublicId = n.Library!.PublicId,
+                LibraryName = n.Library.DisplayName,
                 ParentTitle = n.Parent == null ? null : n.Parent.DisplayName,
                 PageCount = n.ArchiveItem == null ? null : n.ArchiveItem.PageCount,
             })

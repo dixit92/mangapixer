@@ -46,13 +46,31 @@ public sealed class AddCrossLibraryMovesMigrationTests : IDisposable
             await LegacySchemaSeed.InsertAsync(db, new LibraryEntity { Id = 2, PublicId = "lib2", DisplayName = "B", RootPath = "/synthetic/b", CreatedAt = now });
             await LegacySchemaSeed.InsertAsync(db, new CatalogNodeEntity
             {
-                Id = 10, PublicId = "n10", LibraryId = 1, Kind = 1, DisplayName = "v1", RelativePath = "v1.cbz", PathKey = "v1.cbz",
-                SortKey = "1v1", Availability = 5, CreatedAt = now, UpdatedAt = now, TombstonedAt = now,
+                Id = 10,
+                PublicId = "n10",
+                LibraryId = 1,
+                Kind = 1,
+                DisplayName = "v1",
+                RelativePath = "v1.cbz",
+                PathKey = "v1.cbz",
+                SortKey = "1v1",
+                Availability = 5,
+                CreatedAt = now,
+                UpdatedAt = now,
+                TombstonedAt = now,
             });
             await LegacySchemaSeed.InsertAsync(db, new CatalogNodeEntity
             {
-                Id = 20, PublicId = "n20", LibraryId = 2, Kind = 1, DisplayName = "v1", RelativePath = "v1.cbz", PathKey = "v1.cbz",
-                SortKey = "1v1", Availability = 0, CreatedAt = now,
+                Id = 20,
+                PublicId = "n20",
+                LibraryId = 2,
+                Kind = 1,
+                DisplayName = "v1",
+                RelativePath = "v1.cbz",
+                PathKey = "v1.cbz",
+                SortKey = "1v1",
+                Availability = 0,
+                CreatedAt = now,
             });
             await LegacySchemaSeed.InsertAsync(db, new UserEntity { Id = 5, PublicId = "u5", UserName = "u", NormalizedUserName = "U", PasswordHash = "x", SecurityStamp = "s" });
         }
