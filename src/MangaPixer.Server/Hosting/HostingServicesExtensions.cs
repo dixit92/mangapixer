@@ -5,6 +5,7 @@ using com.lifepixer.mangapixer.Server.Operations;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Features.Import.YacReader;
 using com.lifepixer.mangapixer.Server.Features.Reading;
+using com.lifepixer.mangapixer.Server.Features.Trash;
 using com.lifepixer.mangapixer.Server.Scanning;
 using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,6 +37,8 @@ public static class HostingServicesExtensions
         services.AddScoped<LibraryScanLauncher>();
         // Tombstones the trash must keep (1.31.0); cross-library move recognition replaces the no-op.
         services.AddScoped<ITombstoneHolds, NoTombstoneHolds>();
+        // Empty trash + Clean bundles (1.31.0): the admin card's API and the daily automatic run.
+        services.AddTrash();
         services.AddSingleton(sp => LibraryScanSchedulerOptions.FromConfiguration(
             sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()));
         services.AddSingleton<LibraryScanScheduler>();

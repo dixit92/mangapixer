@@ -63,6 +63,42 @@ public sealed class CoverFiles
         }
     }
 
+    /// <summary>Every crop file of an archive, at any content version (1.31.0: the trash measures and deletes them).</summary>
+    public IReadOnlyList<string> CropFilesOf(long archiveNodeId)
+    {
+        var id = OpaqueId.Encode(archiveNodeId);
+        return ParseCrops(Trash.DataRootFileNames.Enumerate(Path.Combine(CropsRoot, Shard(id)), id + "-*.webp", SearchOption.TopDirectoryOnly))
+            .Where(c => c.ArchiveNodeId == archiveNodeId)
+            .Select(c => c.Path)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Every crop file whose name is exactly one <see cref="CropPath"/> writes, with the key parsed from it (1.31.0, Clean
+    /// bundles). Other files are not listed.
+    /// </summary>
+    public IEnumerable<StoredCrop> EnumerateCrops() =>
+        ParseCrops(Trash.DataRootFileNames.Enumerate(CropsRoot, "*.webp", SearchOption.AllDirectories));
+
+    private IEnumerable<StoredCrop> ParseCrops(IEnumerable<string> paths)
+    {
+        foreach (var path in paths)
+        {
+            var name = Path.GetFileNameWithoutExtension(path.AsSpan());
+            if (name.Length < 5 || name[^2] != '-' || name[^1] is not ('l' or 'r'))
+                continue;
+            var side = name[^1] == 'l' ? CoverCropSide.Left : CoverCropSide.Right;
+            var rest = name[..^2];
+            var dash = rest.LastIndexOf('-');
+            if (dash <= 0
+                || !Trash.DataRootFileNames.TryParseOpaqueId(rest[..dash], out var archiveNodeId)
+                || !Trash.DataRootFileNames.TryParseNumber(rest[(dash + 1)..], out var contentVersion)
+                || !string.Equals(CropPath(archiveNodeId, contentVersion, side), path, StringComparison.Ordinal))
+                continue;
+            yield return new StoredCrop(path, archiveNodeId, contentVersion);
+        }
+    }
+
     /// <summary>Opens a file for reading, or null when it does not exist.</summary>
     public static Stream? OpenRead(string path)
     {
@@ -96,3 +132,6 @@ public sealed class CoverFiles
 
     private static string Shard(string idBase36) => idBase36.Length >= 2 ? idBase36[..2] : "00";
 }
+
+/// <summary>A cover crop file and the archive / content version its name carries.</summary>
+public readonly record struct StoredCrop(string Path, long ArchiveNodeId, long ContentVersion);
