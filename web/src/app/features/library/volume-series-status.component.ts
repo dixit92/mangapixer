@@ -11,7 +11,7 @@ export { languageName };
 /**
  * What is out in the preferred language, when known: the official release ("English: 12 of 14 volumes", "English: complete"),
  * else the released chapters ("French: up to chapter 87"), else - English only, from MangaUpdates - the scanlation
- * ("English scanlation: ongoing") or "English: not licensed".
+ * ("English chapters: ongoing") or "English: not licensed".
  */
 export function releasePart(view: VolumeViewDto): string | null {
   const name = languageName(view.language);
@@ -24,7 +24,7 @@ export function releasePart(view: VolumeViewDto): string | null {
     return `${name}: ${released} volume${released === 1 ? '' : 's'}`;
   }
   if (view.scanlationComplete === true || view.scanlationComplete === false) {
-    return `${name} scanlation: ${view.scanlationComplete ? 'complete' : 'ongoing'}`;
+    return `${name} chapters: ${view.scanlationComplete ? 'complete' : 'ongoing'}`;
   }
   if (view.releasedChapter) return `${name}: up to chapter ${view.releasedChapter}`;
   if (view.licensed === false) return `${name}: not licensed`;
@@ -33,7 +33,7 @@ export function releasePart(view: VolumeViewDto): string | null {
 
 /**
  * The series status line of the Volumes view (1.29.0 RC): "Complete (Japan) · English: 12 of 14 volumes · 2 volumes missing",
- * "Ongoing (Korea) · English scanlation: ongoing · up to date". The status word is the country of origin's; "missing" means
+ * "Ongoing (Korea) · English chapters: ongoing · up to date". The status word is the country of origin's; "missing" means
  * released in the preferred language, and "up to date" is said only when that is known. Null when the folder has no own link.
  */
 export function seriesStatusLine(view: VolumeViewDto | null | undefined): string | null {
@@ -53,7 +53,7 @@ export function seriesStatusLine(view: VolumeViewDto | null | undefined): string
 
 /**
  * The status lines under the browse bar while the Volumes view of a linked series is shown. 1.30.0 (reach): two lines from the
- * series' progress - the trackers ("Ongoing (Japan): 22 volumes · English (Yen Press): 14 volumes, ongoing · English scanlation:
+ * series' progress - the trackers ("Ongoing (Japan): 22 volumes · English (Yen Press): 14 volumes, ongoing · English chapters:
  * to chapter 65") and what the folder holds ("You have volumes 1-14 + chapters 47-65 · up to date · Volume 15 available in
  * English"), with the completion mark; the 1.29.0 one-line form when the server sends no progress.
  */

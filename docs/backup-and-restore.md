@@ -81,6 +81,8 @@ It does **not** contain:
 | Sign-in keys | `<data root>/keys` | Everyone has to sign in again. Nothing else is lost. |
 | Cover thumbnails | `<data root>/thumbnails` | Regenerated automatically at start-up, or with **Regenerate thumbnails**. |
 | Series cover art fetched from MangaUpdates | `<data root>/metadata-images` | Series information shows no cover image. |
+| Volume covers fetched from MangaDex | `<data root>/volume-covers` | Volumes that used a web cover show no image there; **Delete stored volume covers** ([Covers](covers.md)) clears them so they show their own covers again. |
+| Cover crops (the front half of a jacket spread) | `<data root>/cover-crops` | Made again from the archive when needed. |
 | Page cache | cache root | Rebuilt as people read. |
 | Scratch files | scratch root | Temporary; not needed. |
 | Logs | `<data root>/logs` | Only needed for troubleshooting. |

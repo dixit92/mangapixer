@@ -39,7 +39,7 @@ describe('series status line', () => {
     expect(seriesStatusLine(view({ origin: 'Korea', releasedVolumes: 3 }))).toBe('Ongoing (Korea) · English: 3 volumes · up to date');
     // Not licensed: MangaUpdates' scanlation status, else "not licensed".
     expect(seriesStatusLine(view({ seriesStatus: 'Complete', origin: 'Japan', licensed: false, scanlationComplete: false, missingChapters: 1 })))
-      .toBe('Complete (Japan) · English scanlation: ongoing · 1 chapter missing');
+      .toBe('Complete (Japan) · English chapters: ongoing · 1 chapter missing');
     expect(seriesStatusLine(view({ origin: 'Japan', licensed: false, releaseKnown: false }))).toBe('Ongoing (Japan) · English: not licensed');
     // Another language: the chapters MangaDex lists as released in it; an "other" origin names no place.
     expect(seriesStatusLine(view({ language: 'fr', origin: 'Other', releasedChapter: 87 }))).toBe('Ongoing · French: up to chapter 87 · up to date');

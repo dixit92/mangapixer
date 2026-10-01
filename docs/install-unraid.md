@@ -54,7 +54,7 @@ Copy `deploy/compose.unraid.yaml` from the repository to a folder on the server,
 Set `MANGAPIXER_VERSION` to the release you want (see the [Releases page](https://github.com/dixit92/mangapixer/releases)). If it is unset, the file falls back to `latest`, which moves with every release.
 
 ```sh
-export MANGAPIXER_VERSION=1.30.0
+export MANGAPIXER_VERSION=1.30.1
 ```
 
 To run an unreleased build instead, clone the repository on the server and add `deploy/compose.build.yaml` to the `-f` list in step 4; Compose then builds the image from the clone. `pwsh ./scripts/Package-Release.ps1` on another machine still produces a loadable `.tar` if you prefer to build elsewhere and `docker load` it.
@@ -124,7 +124,9 @@ Port 6266 is published on every interface, but the server itself only speaks pla
 │   ├── logs/                 daily log files, 7 kept
 │   ├── backups/              rotating-*, pre-migration-*, pre-restore-* snapshots
 │   ├── thumbnails/           cover thumbnails
-│   └── metadata-images/      series cover art fetched from MangaUpdates (if enabled)
+│   ├── cover-crops/          the front half of a jacket spread used as a cover
+│   ├── metadata-images/      series cover art fetched from MangaUpdates (if enabled)
+│   └── volume-covers/        volume covers fetched from MangaDex (if enabled)
 ├── cache/                    page image cache (1 GiB budget, disposable)
 └── scratch/                  temporary work folders (disposable)
 ```

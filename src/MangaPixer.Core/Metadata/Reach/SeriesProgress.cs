@@ -241,35 +241,44 @@ public static class SeriesProgress
     {
         var f = r.Facts;
         var reach = r.Reach;
-        var wholeVolumes = reach.VolumeFiles.Concat(reach.HeldAsChapters).ToHashSet();
+        // A volume held as chapters counts only by an exact list (1.30.1, owner live check: a 4-volume series with chapters 1-36 was
+        // "complete" from a chapters-per-volume estimate while the provider knew chapters past 100).
+        var wholeVolumes = reach.VolumeFiles.Concat(reach.HeldAsChapters.Except(reach.HeldByEstimate)).ToHashSet();
         int HeldVolumes(int n) => Enumerable.Range(1, Math.Min(n, MissingUnits.MaxNumber)).Count(wholeVolumes.Contains);
         int HeldChapters(int n) => Enumerable.Range(1, Math.Min(n, MissingUnits.MaxNumber)).Count(reach.Covered.Contains);
 
-        var candidates = new List<(CompletionBasis Basis, int Target, int Held, bool Chapters, bool InLanguage)>();
+        // The last chapter anything knows. A volume list built from translations names only the translated chapters of the last
+        // volume (1.30.1, owner live check: volume 8 listed as chapters 36-38 while the origin run has 40), so volumes held as
+        // chapters are whole only when the chapters here reach it. Volume FILES are whole by themselves.
+        var knownLast = new[] { f.OriginChapters, f.LatestChapter, f.ReleasedChapter, f.OfficialChapters, LastListedChapter(map) }.Max();
+        bool ReachesKnownLast() => knownLast is not { } k || k <= 0 || reach.ReachChapter is { } h && h >= k;
+        bool WholeByVolumes(int n) => Enumerable.Range(1, Math.Min(n, MissingUnits.MaxNumber)).All(reach.VolumeFiles.Contains) || ReachesKnownLast();
+
+        var candidates = new List<(CompletionBasis Basis, int Target, int Held, bool Chapters, bool InLanguage, bool Whole)>();
         if (f.OfficialVolumes is { } n && n > 0
             && (f.OfficialStatus == MetadataOriginStatus.Complete
                 || (f.OfficialStatus is null && f.OriginStatus == MetadataOriginStatus.Complete && f.OriginVolumes is { } originTotal && n >= originTotal)))
         {
-            candidates.Add((CompletionBasis.OfficialVolumes, n, HeldVolumes(n), false, true));
+            candidates.Add((CompletionBasis.OfficialVolumes, n, HeldVolumes(n), false, true, WholeByVolumes(n)));
         }
         // The last chapter is the HIGHEST extent anything knows (1.30.0 soak test: the latest release said 51 while chapters to 55
         // were listed as released - the series read "Complete collection" next to "4 chapters missing").
         if (f.ScanlationComplete == true && f.OriginStatus == MetadataOriginStatus.Complete
             && new[] { f.LatestChapter, f.OriginChapters, f.ReleasedChapter, LastListedChapter(map) }.Max() is { } last && last > 0)
         {
-            candidates.Add((CompletionBasis.AllChapters, last, HeldChapters(last), true, true));
+            candidates.Add((CompletionBasis.AllChapters, last, HeldChapters(last), true, true, true));
         }
         if (f.OriginEnded)
         {
             if (f.OriginVolumes is { } ov && ov > 0)
-                candidates.Add((CompletionBasis.OriginRun, ov, HeldVolumes(ov), false, false));
-            else if (f.OriginChapters is { } oc && oc > 0)
-                candidates.Add((CompletionBasis.OriginRun, oc, HeldChapters(oc), true, false));
+                candidates.Add((CompletionBasis.OriginRun, ov, HeldVolumes(ov), false, false, WholeByVolumes(ov)));
+            else if (f.OriginChapters is { } oc && oc > 0 && Math.Max(oc, knownLast ?? 0) is var lastOrigin)
+                candidates.Add((CompletionBasis.OriginRun, lastOrigin, HeldChapters(lastOrigin), true, false, true));
         }
 
         // Complete means nothing is missing - never a Complete collection next to a missing count.
         var nothingMissing = r.MissingVolumes.Count == 0 && r.VolumesBehind == 0 && r.MissingChapterCount == 0;
-        if (nothingMissing && candidates.FirstOrDefault(c => c.Held >= c.Target) is { Target: > 0 } done)
+        if (nothingMissing && candidates.FirstOrDefault(c => c.Held >= c.Target && c.Whole) is { Target: > 0 } done)
         {
             return r with
             {

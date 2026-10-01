@@ -26,7 +26,7 @@ export const OFFICIAL_FILTERS: readonly { value: OfficialReleasesFilter; label: 
 export const OFFICIAL_BASES: readonly { value: CompletionBasis | ''; label: string }[] = [
   { value: '', label: 'Any' },
   { value: 'OfficialVolumes', label: 'Official' },
-  { value: 'AllChapters', label: 'Fan translation' },
+  { value: 'AllChapters', label: 'Chapter-based' },
   { value: 'OriginRun', label: 'Original run' },
 ];
 

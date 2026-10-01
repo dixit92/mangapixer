@@ -8,8 +8,9 @@ using com.lifepixer.mangapixer.Core.Metadata;
 /// Reads MangaUpdates' free-text <c>status</c> ("43 Volumes (Ongoing)", "200
 /// Chapters + Prologue (Complete)  \n15 Volumes (Complete)", often followed by a
 /// Markdown note) into the volume count, the chapter total (1.27.0: the first line
-/// that STARTS with "N Chapters" - season lines such as "S1: 110 Chapters" are parts
-/// of it, never the total) and the publication status in the country of origin.
+/// that STARTS with "N Chapters", or names it after a volume total on the same line:
+/// "8 Volumes | 40 Chapters", 1.30.1 - season lines such as "S1: 110 Chapters" are
+/// parts of it, never the total) and the publication status in the country of origin.
 /// Tolerant: anything it cannot read stays null / Unknown, and the flattened text is
 /// kept for display.
 /// </summary>
@@ -23,7 +24,7 @@ public static partial class MangaUpdatesStatusParser
     [GeneratedRegex(@"\(([^()\n]{1,40})\)", RegexOptions.CultureInvariant)]
     private static partial Regex AnyParenthesis();
 
-    [GeneratedRegex(@"^[ \t]*(\d{1,5})[ \t]*Chapters?\b", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?:^|[|/])[ \t]*(\d{1,5})[ \t]*Chapters?\b", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.CultureInvariant)]
     private static partial Regex ChapterTotalLine();
 
     /// <summary>

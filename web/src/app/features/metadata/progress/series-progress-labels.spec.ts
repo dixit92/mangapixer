@@ -29,7 +29,7 @@ describe('series progress labels', () => {
 
   it('the owner example: origin, the English publisher and the scanlation; volumes + chapters up to date', () => {
     const p = progress(owner, { reach: reach([[1, 14]], [[47, 65]]) });
-    expect(trackersLine(p)).toBe('Ongoing (Japan): 22 volumes · English (Yen Press): 14 volumes, ongoing · English scanlation: to chapter 65');
+    expect(trackersLine(p)).toBe('Ongoing (Japan): 22 volumes · English (Yen Press): 14 volumes, ongoing · English chapters: to chapter 65');
     expect(folderLine(p)).toBe('You have volumes 1-14 + chapters 47-65 · up to date');
     expect(progressIcon(p)).toBe('check_circle_outline');
   });
@@ -56,7 +56,7 @@ describe('series progress labels', () => {
   it('a chapters-only webtoon: holes and chapters released after the last one here', () => {
     const p = progress({ origin: 'Korea', originStatus: 'Ongoing', originChapters: 150, latestChapter: 150, scanlationComplete: false },
       { reach: reach([], [[1, 99], [101, 148]]), missingChapters: 3 });
-    expect(trackersLine(p)).toBe('Ongoing (Korea): 150 chapters · English scanlation: to chapter 150');
+    expect(trackersLine(p)).toBe('Ongoing (Korea): 150 chapters · English chapters: to chapter 150');
     expect(folderLine(p)).toBe('You have chapters 1-99, 101-148 · 3 chapters missing');
     expect(reachSentence(p)).toBe('You have chapters 1-99, 101-148 · 3 chapters missing');
   });
@@ -78,21 +78,21 @@ describe('series progress labels', () => {
     expect(progressIcon(p)).toBe('workspace_premium');
   });
 
-  it('says which release finished: the official edition or the fan translation (owner, 1.30.0 RC)', () => {
+  it('says which release finished: the official edition or the chapters (owner, 1.30.0 RC; 1.30.1 Chapter-based)', () => {
     const fan = progress({ origin: 'Korea', originStatus: 'Complete', originChapters: 172, latestChapter: 172, scanlationComplete: true, licensed: false },
       { reach: reach([], [[1, 6]]), completion: 'FinishedNotHeld', completionBasis: 'AllChapters', completionTarget: 172, completionHeld: 6,
         completionInChapters: true });
-    expect(completionSentence(fan)).toBe('Finished - Fan translation, English (172 chapters) - you have 6');
-    expect(folderLine(fan)).toContain('finished - fan translation, English');
+    expect(completionSentence(fan)).toBe('Finished - Chapter-based, English (172 chapters) - you have 6');
+    expect(folderLine(fan)).toContain('finished - chapter-based, English');
   });
 
   it('a finished scanlation held whole, and the origin run', () => {
     const scan = progress({ origin: 'Korea', originStatus: 'Complete', latestChapter: 120, scanlationComplete: true },
       { reach: reach([], [[1, 120]]), completion: 'CompleteCollection', completionBasis: 'AllChapters', completionTarget: 120, completionHeld: 120,
         completionInChapters: true });
-    expect(trackersLine(scan)).toBe('Complete (Korea) · English scanlation: to chapter 120, complete');
-    expect(folderLine(scan)).toBe('You have chapters 1-120 · Complete collection - Fan translation');
-    expect(completionSentence(scan)).toBe('Complete collection: all 120 chapters of the finished English fan translation');
+    expect(trackersLine(scan)).toBe('Complete (Korea) · English chapters: to chapter 120, complete');
+    expect(folderLine(scan)).toBe('You have chapters 1-120 · Complete collection - Chapter-based');
+    expect(completionSentence(scan)).toBe('Complete collection: all 120 chapters of the finished English chapter release');
     const origin = progress({ originStatus: 'Complete', originVolumes: 14 }, { completion: 'CompleteCollection', completionBasis: 'OriginRun', completionTarget: 14 });
     expect(completionSentence(origin)).toBe('Complete collection: the whole original run (14 volumes)');
     // Finished in the origin only and not held: no prompt.

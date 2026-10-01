@@ -77,7 +77,7 @@ function unitsText(word: string, spans: readonly UnitSpanDto[]): string | null {
 }
 
 /**
- * Line 1, the trackers: "Ongoing (Japan): 22 volumes · English (Yen Press): 14 volumes, ongoing · English scanlation: to chapter 65".
+ * Line 1, the trackers: "Ongoing (Japan): 22 volumes · English (Yen Press): 14 volumes, ongoing · English chapters: to chapter 65".
  * Each segment only when known; the language is named from its code, never assumed.
  */
 export function trackersLine(progress: SeriesProgressDto | null | undefined): string | null {
@@ -104,10 +104,11 @@ export function trackersLine(progress: SeriesProgressDto | null | undefined): st
 
   const latest = Math.max(t.latestChapter ?? 0, t.releasedChapter ?? 0) || null;
   if (t.latestChapter != null || t.scanlationComplete != null) {
-    // MangaUpdates' scanlation facts (English only; the server sends them only for English).
+    // MangaUpdates' chapter facts (English only; the server sends them only for English). "Chapters", not "scanlation" (1.30.1,
+    // owner): MangaUpdates' "Completely Scanlated?" also covers official chapter-by-chapter releases (MANGA Plus).
     const done = t.scanlationComplete === true ? 'complete' : t.scanlationComplete === false && !latest ? 'ongoing' : null;
     const tail = [latest ? `to chapter ${latest}` : null, done].filter((x): x is string => !!x).join(', ');
-    parts.push(`${lang} scanlation: ${tail}`);
+    parts.push(`${lang} chapters: ${tail}`);
   } else if (t.releasedChapter) {
     parts.push(`${lang}: to chapter ${t.releasedChapter}`);
   }
@@ -138,25 +139,28 @@ export function missingText(progress: SeriesProgressDto): string | null {
   return parts.length > 0 ? `${parts.join(', ')} missing` : null;
 }
 
-/** True for a series finished in the preferred language (the official edition or the scanlation), not the origin only. */
+/** True for a series finished in the preferred language (the official edition or every chapter), not the origin only. */
 function finishedInLanguage(progress: SeriesProgressDto): boolean {
   return progress.completionBasis === 'OfficialVolumes' || progress.completionBasis === 'AllChapters';
 }
 
-/** The completion basis in words (owner, 1.30.0 RC): the official edition, the fan translation or the original run. */
+/**
+ * The completion basis in words (owner, 1.30.0 RC): the official edition, the chapters or the original run. "Chapter-based", not
+ * "Fan translation" (1.30.1, owner): a finished chapter release can be official (MANGA Plus); who translated it is not known.
+ */
 export function completionBasisLabel(basis: CompletionBasis | null | undefined): string {
-  return basis === 'AllChapters' ? 'Fan translation' : basis === 'OriginRun' ? 'Original run' : 'Official';
+  return basis === 'AllChapters' ? 'Chapter-based' : basis === 'OriginRun' ? 'Original run' : 'Official';
 }
 
-/** The completion mark: "Complete collection - Official" / "- Fan translation" / "- Original run" (owner, 1.30.0 RC). */
+/** The completion mark: "Complete collection - Official" / "- Chapter-based" / "- Original run" (owner, 1.30.0 RC; 1.30.1). */
 export function completeCollectionLabel(progress: SeriesProgressDto): string {
   return `Complete collection - ${completionBasisLabel(progress.completionBasis)}`;
 }
 
-/** Which release finished (owner, 1.30.0 RC): "Official, English" or "Fan translation, English". */
+/** Which release finished (owner, 1.30.0 RC): "Official, English" or "Chapter-based, English". */
 function finishedKind(progress: SeriesProgressDto): string {
   const lang = languageName(progress.trackers.language);
-  return progress.completionBasis === 'AllChapters' ? `Fan translation, ${lang}` : `Official, ${lang}`;
+  return progress.completionBasis === 'AllChapters' ? `Chapter-based, ${lang}` : `Official, ${lang}`;
 }
 
 /**
@@ -202,7 +206,7 @@ function targetText(progress: SeriesProgressDto, n: number | null | undefined): 
 
 /**
  * The completion in one sentence (the tab and the tooltip): "Complete collection: every one of the 14 English volumes",
- * "Finished - Official, English (14 volumes) - you have 12", "Finished - Fan translation, English (172 chapters) - you have 6", or null.
+ * "Finished - Official, English (14 volumes) - you have 12", "Finished - Chapter-based, English (172 chapters) - you have 6", or null.
  */
 export function completionSentence(progress: SeriesProgressDto): string | null {
   const lang = languageName(progress.trackers.language);
@@ -212,7 +216,7 @@ export function completionSentence(progress: SeriesProgressDto): string | null {
       case 'OfficialVolumes':
         return `Complete collection: all ${targetText(progress, target)} of the ${lang} edition`;
       case 'AllChapters':
-        return `Complete collection: all ${targetText(progress, target)} of the finished ${lang} fan translation`;
+        return `Complete collection: all ${targetText(progress, target)} of the finished ${lang} chapter release`;
       default:
         return `Complete collection: the whole original run (${targetText(progress, target)})`;
     }

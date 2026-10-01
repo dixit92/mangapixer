@@ -52,7 +52,7 @@ describe('OfficialReleasesComponent', () => {
 
     expect(text(el, 'official-summary')).toBe('3 linked series · 1 with official volumes to get · 1 finished, not complete · 1 complete collections');
     expect(text(el, 'official-upgrade')).toBe('Volume 15 available in English - you hold it as chapters');
-    expect(text(el, 'official-trackers')).toBe('Ongoing (Japan): 22 volumes · English (Synthetic Press): 15 volumes, ongoing · English scanlation: to chapter 57');
+    expect(text(el, 'official-trackers')).toBe('Ongoing (Japan): 22 volumes · English (Synthetic Press): 15 volumes, ongoing · English chapters: to chapter 57');
     expect(text(el, 'official-folder')).toBe('You have volumes 1-14 + chapters 43-57');
     expect(el.querySelector('[data-testid="official-series-link"]')!.getAttribute('href')).toBe('/series/series-1');
     expect(el.querySelector('.auto')).not.toBeNull();
@@ -71,7 +71,7 @@ describe('OfficialReleasesComponent', () => {
       completionBasis: 'AllChapters', completionTarget: 120, completionHeld: 120, completionInChapters: true }) });
     fan.flush(page([done]));
     fixture.detectChanges();
-    expect(text(el, 'completion-mark')).toContain('Complete collection - Fan translation');
+    expect(text(el, 'completion-mark')).toContain('Complete collection - Chapter-based');
 
     (el.querySelector('[data-testid="official-filter-Upgrades"] button') as HTMLButtonElement).click();
     const upgrades = http.expectOne((r) => r.url === '/api/v1/admin/metadata/official-releases');

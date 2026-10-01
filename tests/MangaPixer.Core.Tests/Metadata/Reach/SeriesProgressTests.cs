@@ -211,6 +211,49 @@ public sealed class SeriesProgressTests
     }
 
     [Fact]
+    public void OriginRun_LastVolumeListedOnlyByItsTranslatedChapters_IsNotComplete()
+    {
+        // 1.30.1 owner live check: the volume list (built from translations) names volume 8 as chapters 36-38; the origin run has 40
+        // chapters. Volumes 1-7 as files + chapters 36-38 hold the list, not the run.
+        var volumes = Enumerable.Range(1, 7).Select(k => new VolumeMapVolume(k, Range(5 * (k - 1) + 1, 5 * k)))
+            .Append(new VolumeMapVolume(8, Range(36, 38))).ToList();
+        var map = new VolumeMapInput(volumes, 4.75, 8, false, VolumeListSource.MangaDex);
+        var rows = VolumeFiles(1, 7).Concat(ChapterFiles(36, 38)).ToList();
+
+        var r = SeriesProgress.Evaluate(rows, map, English(MetadataOriginStatus.Complete, 8, latest: 38, scanComplete: false, originChapters: 40));
+        Assert.Contains(8, r.Reach.HeldAsChapters); // still shown as held by the list
+        Assert.Equal(SeriesCompletion.None, r.Completion);
+
+        // Once the chapters here reach the origin's last chapter, the run is held whole.
+        var whole = SeriesProgress.Evaluate(VolumeFiles(1, 7).Concat(ChapterFiles(36, 40)).ToList(), map,
+            English(MetadataOriginStatus.Complete, 8, latest: 40, scanComplete: true, originChapters: 40));
+        Assert.Equal(SeriesCompletion.CompleteCollection, whole.Completion);
+    }
+
+    [Fact]
+    public void VolumesHeldByAnEstimate_NeverMakeACompleteCollection()
+    {
+        // 1.30.1 owner live check: only volume 1 is listed (chapters 1-4); volumes 2-4 come from the chapters-per-volume ratio.
+        // Chapters 1-36 "hold" all four estimated volumes, but that is no proof the folder holds the run.
+        var map = new VolumeMapInput([new VolumeMapVolume(1, Range(1, 4))], 4, 4, false, VolumeListSource.MangaDex);
+        var r = SeriesProgress.Evaluate(ChapterFiles(1, 36).ToList(), map, English(MetadataOriginStatus.Complete, 4, scanComplete: false));
+
+        Assert.NotEmpty(r.Reach.HeldByEstimate);
+        Assert.NotEqual(SeriesCompletion.CompleteCollection, r.Completion);
+    }
+
+    [Fact]
+    public void VolumeFiles_AreWholeByThemselves_WhateverTheChapterExtent()
+    {
+        // A volume list that stops early never blocks volume FILES: volumes 1-14 on disk are the whole official edition.
+        var map = EvenMap(10, 5, ongoing: false);
+        var r = SeriesProgress.Evaluate(VolumeFiles(1, 14).ToList(), map,
+            English(MetadataOriginStatus.Complete, 14, 14, MetadataOriginStatus.Complete, latest: 120, originChapters: 130));
+
+        Assert.Equal((SeriesCompletion.CompleteCollection, CompletionBasis.OfficialVolumes), (r.Completion, r.CompletionBasis));
+    }
+
+    [Fact]
     public void Hiatus_IsNeverFinished()
     {
         var r = SeriesProgress.Evaluate(VolumeFiles(1, 14).ToList(), null, English(MetadataOriginStatus.Hiatus, 14, 14, MetadataOriginStatus.Hiatus));
