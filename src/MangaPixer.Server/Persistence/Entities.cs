@@ -217,6 +217,14 @@ public sealed class CatalogNodeEntity
     /// </summary>
     public DateTimeOffset? LatestDescendantAddedAt { get; set; }
 
+    /// <summary>
+    /// When a scan tombstoned this node (1.31.0), or null while it is not tombstoned. Cleared when the node is seen again or
+    /// recognised as moved. The trash retention window (<see cref="AppSettingsEntity.TrashRetentionDays"/>) counts from here:
+    /// inside it a tombstone is a move candidate (also across libraries), after it the trash may purge it. The migration
+    /// back-fills existing tombstones from <see cref="UpdatedAt"/>, which the scan set when it tombstoned them.
+    /// </summary>
+    public DateTimeOffset? TombstonedAt { get; set; }
+
     public LibraryEntity? Library { get; set; }
     public CatalogNodeEntity? Parent { get; set; }
     public ArchiveItemEntity? ArchiveItem { get; set; }
@@ -973,6 +981,14 @@ public sealed class AppSettingsEntity
 
     /// <summary>Global default of the Volumes view (virtual volume stacks). ON by default; the migration gives the existing row true.</summary>
     public bool VirtualVolumesEnabled { get; set; } = true;
+
+    // 1.31.0 (cross-library moves and trash; created by the step-0 migration AddTombstoneLifecycle).
+
+    /// <summary>
+    /// The move window, which is also the trash retention, in days: one of <see cref="com.lifepixer.mangapixer.Core.Catalog.TrashRetention.AllowedDays"/>
+    /// (Daily, Weekly, Monthly, Quarterly, Yearly). Null = Monthly (30 days).
+    /// </summary>
+    public int? TrashRetentionDays { get; set; }
 }
 
 /// <summary>

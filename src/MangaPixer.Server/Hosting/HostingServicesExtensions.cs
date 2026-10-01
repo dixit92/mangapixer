@@ -34,6 +34,8 @@ public static class HostingServicesExtensions
         // Scan launch path shared by the admin scan endpoints and the scan
         // scheduler (1.23.0); the scheduler evaluates per-library schedules.
         services.AddScoped<LibraryScanLauncher>();
+        // Tombstones the trash must keep (1.31.0); cross-library move recognition replaces the no-op.
+        services.AddScoped<ITombstoneHolds, NoTombstoneHolds>();
         services.AddSingleton(sp => LibraryScanSchedulerOptions.FromConfiguration(
             sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()));
         services.AddSingleton<LibraryScanScheduler>();

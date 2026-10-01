@@ -306,6 +306,7 @@ public sealed class LibraryScanCoordinator
                 if (existing.Availability == 5) // was tombstoned
                 {
                     existing.Availability = 0; // available again
+                    existing.TombstonedAt = null;
                     needsUpdate = true;
                     // A resurrected archive re-enters its ancestors' descendant set.
                     if (existing.Kind == 1)
@@ -374,6 +375,7 @@ public sealed class LibraryScanCoordinator
                 moved.SortKey = BuildSortKey(obs.Kind, obs.DisplayName);
                 SetParent(moved, parent);
                 moved.Availability = 0;
+                moved.TombstonedAt = null;
                 moved.LastSeenScanRevision = _scanRevision;
                 moved.UpdatedAt = now;
 
@@ -602,11 +604,13 @@ public sealed class LibraryScanCoordinator
             return 0;
         }
 
-        // Tombstone the missing nodes
+        // Tombstone the missing nodes. TombstonedAt (1.31.0) starts the retention window: a move candidate inside it, trash after it.
+        var tombstonedAt = DateTimeOffset.UtcNow;
         foreach (var node in missingNodes)
         {
             node.Availability = 5; // tombstoned
-            node.UpdatedAt = DateTimeOffset.UtcNow;
+            node.UpdatedAt = tombstonedAt;
+            node.TombstonedAt = tombstonedAt;
             // A tombstoned node leaves its ancestors' descendant-archive set (directly, for
             // an archive; via its own tombstoned descendants, for a folder). Recompute those
             // ancestors from the parent up.

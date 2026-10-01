@@ -457,6 +457,9 @@ public sealed class MangaPixerDbContext : DbContext
             e.HasIndex(x => x.PublicId).IsUnique();
             e.HasIndex(x => x.LibraryId);
 
+            // Tombstone lifecycle (1.31.0): move candidates inside the retention window, trash purge after it.
+            e.HasIndex(x => new { x.Availability, x.TombstonedAt });
+
             // Self-referencing parent
             e.HasOne(x => x.Parent)
                 .WithMany()
@@ -488,6 +491,9 @@ public sealed class MangaPixerDbContext : DbContext
             e.HasIndex(x => x.AnalysisState);
             e.HasIndex(x => x.ContentVersion);
             e.HasIndex(x => x.ThumbnailState);
+
+            // Move recognition across libraries (1.31.0): size first, then the content signature.
+            e.HasIndex(x => new { x.ByteLength, x.ContentSignature });
         });
     }
 
