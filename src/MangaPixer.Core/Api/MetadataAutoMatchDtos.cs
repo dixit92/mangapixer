@@ -63,6 +63,9 @@ public enum MetadataMatchRunTrigger
 
     /// <summary>"Re-run matching" on selected review rows.</summary>
     Rerun = 3,
+
+    /// <summary>Works waiting in Needs review, checked once more after the matcher's rules changed (1.31.0).</summary>
+    Recheck = 4,
 }
 
 public enum MetadataMatchRunStatus
@@ -152,6 +155,12 @@ public sealed record MetadataReviewSummaryDto
 
     /// <summary>Queue rows still waiting to be matched.</summary>
     public required int Pending { get; init; }
+
+    /// <summary>
+    /// 1.31.0: works in review that are being checked again under the matcher's current rules (queued or being scored). Included in
+    /// <see cref="Pending"/>; the dashboard says so while it is above zero.
+    /// </summary>
+    public int RecheckPending { get; init; }
 }
 
 /// <summary>The link a review row currently has (own row only).</summary>
@@ -275,6 +284,12 @@ public sealed record MetadataReviewItemDto
 
     /// <summary>The run that decided this work.</summary>
     public string? RunId { get; init; }
+
+    /// <summary>
+    /// 1.31.0: the work is queued to be scored again under the matcher's current rules (a background re-check after an update
+    /// changed how matches are scored). The reasons and candidates shown are the earlier result until it is done.
+    /// </summary>
+    public bool CheckingAgain { get; init; }
 
     public required int OpenFlagCount { get; init; }
 

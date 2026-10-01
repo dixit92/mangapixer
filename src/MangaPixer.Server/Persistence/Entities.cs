@@ -1286,7 +1286,7 @@ public sealed class MetadataMatchQueueEntity
     public long NodeId { get; set; }
     public long LibraryId { get; set; }
 
-    /// <summary>0 new folder (scan), 1 bulk, 2 retry, 3 rerun, 4 carry check.</summary>
+    /// <summary>0 new folder (scan), 1 bulk, 2 retry, 3 rerun, 4 carry check, 5 recheck (a work in review checked again under new rules).</summary>
     public int Reason { get; set; }
 
     /// <summary>0 pending, 1 leased, 2 done, 3 failed, 4 skipped, 5 cancelled.</summary>
@@ -1322,6 +1322,12 @@ public sealed class MetadataMatchQueueEntity
 
     /// <summary>Automatic retries of an unmatched work so far (30 / 90 / 180 days, then never).</summary>
     public int RetryStep { get; set; }
+
+    /// <summary>
+    /// <c>MatcherRules.Revision</c> the work was last scored under (1.31.0); null = scored before the stamp existed, so older
+    /// than every revision. A work waiting in Needs review whose revision is older is checked once more in the background.
+    /// </summary>
+    public int? RulesRevision { get; set; }
 
     public CatalogNodeEntity? Node { get; set; }
 }

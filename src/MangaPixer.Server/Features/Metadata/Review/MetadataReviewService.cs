@@ -80,6 +80,7 @@ public sealed class MetadataReviewService
             Pending = await _db.MetadataMatchQueue
                 .Where(q => (q.State == QueueState.Pending || q.State == QueueState.Leased) && (libraryId == null || q.LibraryId == libraryId))
                 .CountAsync(ct),
+            RecheckPending = await _autoMatch.RecheckPendingAsync(libraryId, ct),
         };
     }
 
@@ -275,6 +276,7 @@ public sealed class MetadataReviewService
                 MatchedAt = q?.CompletedAt,
                 NextRetryAt = q is { Outcome: (int)MatchBand.Unmatched } ? q.NotBefore : null,
                 RunId = q?.RunId is { } run ? runs.GetValueOrDefault(run) : null,
+                CheckingAgain = q is { Reason: QueueReason.Recheck, State: QueueState.Pending or QueueState.Leased },
                 OpenFlagCount = flagCounts.GetValueOrDefault(id),
                 Flags = flags.TryGetValue(node.PublicId, out var nodeFlags) ? nodeFlags : [],
             });
