@@ -20,7 +20,6 @@ using Xunit;
 /// - Admin regenerate endpoint enqueues backfill and reports a count
 /// - Thumbnails persist across a simulated restart (cache clear)
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class ThumbnailHttpTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

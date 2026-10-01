@@ -16,7 +16,6 @@ using Xunit;
 ///   snapshot file name (202) and rejects any path/traversal or missing file.
 /// - Non-admin users get 403 on both.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class BackupRestoreFromFileHttpTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

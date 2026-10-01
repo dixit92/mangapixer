@@ -15,7 +15,6 @@ using Xunit;
 /// HTTP tests for catalog browsing: public IDs, breadcrumbs, neighbor navigation,
 /// and the library list with real counts.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class CatalogHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private readonly MangaPixerWebApplicationFactory _factory;

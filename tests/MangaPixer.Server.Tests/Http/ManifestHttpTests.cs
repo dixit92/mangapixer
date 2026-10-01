@@ -15,7 +15,6 @@ using Xunit;
 /// Uses synthetic CBZ archives and direct DB setup to test the API surface
 /// without spawning real worker processes.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class ManifestHttpTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

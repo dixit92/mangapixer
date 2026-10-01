@@ -16,7 +16,6 @@ using Xunit;
 /// library and "only missing" filters, the per-node row, 404s, admin-only access, and the DI wiring. The report
 /// reads stored rows only. Synthetic names only.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class MissingReportHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private const string LibPubId = "mrlib1";

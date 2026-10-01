@@ -10,7 +10,6 @@ using Xunit;
 /// HTTP integration tests for admin endpoints: library registration,
 /// user management, grants, and scan triggering.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class AdminHttpTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

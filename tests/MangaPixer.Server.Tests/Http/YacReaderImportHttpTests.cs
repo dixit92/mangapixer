@@ -17,7 +17,6 @@ using Xunit;
 /// serialization — through WebApplicationFactory, with a synthetic YACReader
 /// library.ydb fixture and a directly-seeded MangaPixer catalog.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class YacReaderImportHttpTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

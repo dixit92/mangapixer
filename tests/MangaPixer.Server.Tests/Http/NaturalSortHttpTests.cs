@@ -27,7 +27,6 @@ namespace com.lifepixer.mangapixer.Tests.Server.Http;
 /// Sort keys are produced with <see cref="SortKey.ForNode"/>, the same call the scanner
 /// makes, so the fixture cannot drift from what production persists.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class NaturalSortHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private readonly MangaPixerWebApplicationFactory _factory;

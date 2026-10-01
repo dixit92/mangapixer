@@ -20,7 +20,6 @@ namespace com.lifepixer.mangapixer.Tests.Server.Http;
 /// archive without ComicInfo inside a linked series folder gets it). "Show series information"
 /// off clears the flag; starring through the API sets the star.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class HomeCardControlsHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private const string LibPubId = "hcclib";

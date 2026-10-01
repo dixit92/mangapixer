@@ -17,7 +17,6 @@ using Xunit;
 /// view state, the stack view with its placeholders, the Volumes | Folders switch through the existing library-preferences
 /// endpoint, and access control. Stored rows only, synthetic names.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class VolumeStackHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private const string LibPubId = "vsLib1";

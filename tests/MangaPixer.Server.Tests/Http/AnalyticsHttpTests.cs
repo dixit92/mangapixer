@@ -15,7 +15,6 @@ using Xunit;
 /// respect — that no title, item name, or path string ever appears in the
 /// response body.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class AnalyticsHttpTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

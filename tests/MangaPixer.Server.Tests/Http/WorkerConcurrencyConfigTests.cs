@@ -14,20 +14,13 @@ using Xunit;
 /// Uses the static <see cref="MangaPixerWebApplicationFactory.WithExtraConfiguration"/>
 /// factory instead of <c>Environment.SetEnvironmentVariable</c>
 /// — a process-global env var here would race with every other
-/// concurrently-booting factory once assembly parallelization is restored
-/// (see TestParallelization.cs). The extra-configuration constructor is
+/// concurrently-booting factory (host-booting classes run in parallel, see
+/// TestParallelization.cs). The extra-configuration constructor is
 /// private (reached only through that static method) so
 /// <see cref="MangaPixerWebApplicationFactory"/> still exposes exactly one
 /// PUBLIC constructor, which xUnit's <c>IClassFixture&lt;T&gt;</c> requires
 /// in other test classes.
-///
-/// In the "HttpSerial" collection alongside every other
-/// WebApplicationFactory-booting Server.Tests class — not for storage
-/// isolation, but because every host boot unconditionally reassigns the
-/// process-global Serilog <c>Log.Logger</c> static in <c>Program.Main</c>
-/// (see the remarks on HostingCorrectnessTests).
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class WorkerConcurrencyConfigTests
 {
     [Fact]

@@ -22,7 +22,6 @@ using Xunit;
 /// outbound request ends in the scripted handler.
 /// </summary>
 [Trait("Category", "Http")]
-[Collection("HttpSerial")]
 public sealed class MetadataSeriesFamilyHttpTests
 {
     private const string LibPub = "sflib1";

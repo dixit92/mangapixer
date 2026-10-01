@@ -20,10 +20,7 @@ using Xunit;
 /// custom folder, fail-loud readiness (Degraded), privacy (no location / data
 /// root in status, list, restore bodies or in the log file), and the removal
 /// of the orphan <c>POST /api/v1/operations/backup {path}</c>.
-///
-/// "HttpSerial" because every host boot reassigns the process-global Serilog logger.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class BackupSettingsHttpTests : IDisposable
 {
     private const string AdminPassword = "TestPassword123!";
@@ -312,7 +309,6 @@ public sealed class BackupSettingsHttpTests : IDisposable
 /// pinned fields are read-only (409) and a configured location is initialized
 /// and used at startup; and the location password gate is rate-limited.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class BackupSettingsConfigurationHttpTests
 {
     private const string SettingsUrl = "/api/v1/operations/backups/settings";

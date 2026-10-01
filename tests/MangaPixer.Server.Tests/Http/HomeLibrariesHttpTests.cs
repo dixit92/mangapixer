@@ -15,7 +15,6 @@ namespace com.lifepixer.mangapixer.Tests.Server.Http;
 /// GET /api/v1/home/recent-chapters. Verifies replacement semantics, validation
 /// (unknown/inaccessible ids skipped), exclusion from the home surface, and auth.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class HomeLibrariesHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private readonly MangaPixerWebApplicationFactory _factory;

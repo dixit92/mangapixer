@@ -20,11 +20,7 @@ using Xunit;
 /// public behavior — whether the auth / CSRF <c>Set-Cookie</c> is emitted
 /// <c>Secure</c> — as a function of (a) whether the immediate peer is a trusted
 /// proxy and (b) whether it sent <c>X-Forwarded-Proto: https</c>.
-///
-/// In the "HttpSerial" collection because every host boot reassigns the
-/// process-global Serilog <c>Log.Logger</c> (see HttpTestCollection).
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class ForwardedHeadersHttpTests
 {
     private const string TrustedProxyIp = "10.0.0.5";     // RFC1918 → trusted by default

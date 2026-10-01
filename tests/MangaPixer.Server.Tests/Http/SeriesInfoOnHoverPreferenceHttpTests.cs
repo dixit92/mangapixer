@@ -10,7 +10,6 @@ using Xunit;
 /// through the existing <c>reading/library-preferences</c> endpoint: ON by default,
 /// OFF persists, and a PUT from a client that predates the field keeps it ON.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class SeriesInfoOnHoverPreferenceHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private const string Url = "/api/v1/reading/library-preferences";

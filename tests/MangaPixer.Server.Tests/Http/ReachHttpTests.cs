@@ -17,7 +17,6 @@ using Xunit;
 /// slots), the Missing report's progress and upgrade count, and the Official releases tab (filters, order, admin-only, 404). All
 /// from stored rows; synthetic names only.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class ReachHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private const string LibPubId = "rclib1";
