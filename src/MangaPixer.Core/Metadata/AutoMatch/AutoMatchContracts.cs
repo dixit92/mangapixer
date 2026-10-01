@@ -299,6 +299,14 @@ public enum MatchReason
     /// prequel or sequel - <see cref="SeriesFamilies"/>). Informational, never a veto: shown as a chip on review and Auto-linked rows.
     /// </summary>
     SeriesFamily = 1 << 14,
+
+    /// <summary>
+    /// 1.31.0 (cover check after linking): the covers of the folder's own volumes are clearly different pictures from the linked
+    /// record's stored volume covers in the preferred language, and none matches in any language (<see cref="CoverCheckRule"/>) - the
+    /// Auto link dropped to Needs review.
+    /// Never raised by the scorer; never touches a Confirmed link.
+    /// </summary>
+    CoverDiffers = 1 << 15,
 }
 
 public sealed record ScoredCandidate(MatchCandidate Candidate, double TitleScore, double AdjustedScore, MatchReason Reasons);

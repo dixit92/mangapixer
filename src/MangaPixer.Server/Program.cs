@@ -650,6 +650,9 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.Reach.OfficialReleasesService>();
         // Reach check (1.30.0): an Auto link whose folder contradicts its record's new data drops to review.
         services.AddScoped<Features.Metadata.Reach.ReachCheckService>();
+        // Cover check after linking (1.31.0): run by the volume-cover pass; stored covers only, no request.
+        services.AddSingleton<Features.Metadata.AutoMatch.LinkCoverCheck.CoverCheckState>();
+        services.AddScoped<Features.Metadata.AutoMatch.LinkCoverCheck.CoverCheckService>();
         // AniList (1.28.0): ONLY the Missing report's chapters-per-volume lookup (admin action); not an
         // IMetadataProvider, so Identify / auto-match / refresh never see it.
         services.AddSingleton<Features.Metadata.Providers.AniList.IUnitConversionProvider, Features.Metadata.Providers.AniList.AniListProvider>();

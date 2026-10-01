@@ -424,6 +424,10 @@ public static class LogEvents
         public const int ReachConflict = 9350;
         public const int ReachCheckFailed = 9351;
 
+        // Cover check after linking (1.31.0, 9360-9369). Node / record ids, counts, the verdict and distances (numbers) only.
+        public const int CoverCheckDecided = 9360;
+        public const int CoverCheckFailed = 9361;
+
         // Cover layer (1.29.0, 9380-9389). Node ids, counts, sources and codes only - never paths or names.
         public const int CoverDecided = 9380;
         public const int CoverDecisionFailed = 9381;

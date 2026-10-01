@@ -196,7 +196,8 @@ public sealed record MetadataReviewCandidateDto
     /// Reason chips: <c>close_second</c>, <c>count</c>, <c>year</c>, <c>type</c>, <c>related_pair</c>, <c>one_shot</c>, <c>author</c>,
     /// <c>number</c>, <c>review_only</c>; the declared-type evidence (1.30.0) <c>declared_type</c> (fits) and <c>not_declared_type</c>;
     /// <c>reach</c>; the series family (1.30.0) <c>subtitle_family</c> (only the folder's subtitle separates the top from a record of
-    /// its family) and <c>series_family</c> (another candidate is the same series family).
+    /// its family) and <c>series_family</c> (another candidate is the same series family); <c>cover_differs</c> (1.31.0: after an
+    /// automatic link, the folder's volume covers are clearly different pictures from the record's stored volume covers).
     /// </summary>
     public IReadOnlyList<string> Reasons { get; init; } = [];
 

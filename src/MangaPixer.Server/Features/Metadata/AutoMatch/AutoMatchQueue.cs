@@ -93,6 +93,7 @@ public static class MatchReasonCodes
         (MatchReason.ReachConflict, "reach"),
         (MatchReason.SubtitleFamily, "subtitle_family"),
         (MatchReason.SeriesFamily, "series_family"),
+        (MatchReason.CoverDiffers, "cover_differs"),
     ];
 
     public static IReadOnlyList<string> Of(int reasons) => Of((MatchReason)reasons);
