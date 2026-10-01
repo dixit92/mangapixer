@@ -22,9 +22,9 @@ Choose **Daily** (1 day), **Weekly** (7 days), **Monthly** (30 days, the default
 
 ## Automatic cleaning
 
-**Turn automatic cleaning on** runs **Empty trash** and then **Clean bundles** once a day at 04:00 (server time). It is **off** by default, also after an upgrade: nothing is removed automatically until an admin turns it on. When you turn it on, MangaPixer first shows what the first run will remove.
+**Turn automatic cleaning on** runs **Empty trash** and then **Clean bundles** once a day at the hour chosen in **Run automatic cleaning at** - 04:00 (server time) unless you pick another. It is **off** by default, also after an upgrade: nothing is removed automatically until an admin turns it on. When you turn it on, MangaPixer first shows what the first run will remove.
 
-If the server was off at 04:00, the run is made up shortly after it starts again (but never for a day before the switch was turned on).
+If the server was off at that hour, the run is made up shortly after it starts again (but never for a day before the switch was turned on).
 
 ## Empty trash now
 

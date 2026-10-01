@@ -1023,6 +1023,9 @@ public sealed class AppSettingsEntity
     public int BundlesLastCleanedFiles { get; set; }
 
     public long BundlesLastCleanedBytes { get; set; }
+
+    /// <summary>The server-local hour (0-23) of the daily automatic trash run (owner, 1.31.0: scheduled job times are admin-chosen). Null = 04:00.</summary>
+    public int? TrashAutomaticHour { get; set; }
 }
 
 /// <summary>

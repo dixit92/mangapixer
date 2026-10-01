@@ -87,6 +87,20 @@ describe('TrashCardComponent', () => {
     expect(el.querySelector<HTMLButtonElement>('[data-testid="trash-clean"]')!.disabled).toBe(true);
   });
 
+  it('the automatic run hour is chosen from 24 hours and saved (owner, 1.31.0)', () => {
+    const fixture = createLoaded();
+    const select = (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>('[data-testid="trash-hour"]')!;
+    expect(select.options.length).toBe(24);
+    expect(select.options[select.selectedIndex].textContent?.trim()).toBe('04:00');
+    fixture.componentInstance.setHour(22);
+    const put = httpMock.expectOne(`${URL}/settings`);
+    expect(put.request.body).toEqual({ automaticHour: 22 });
+    put.flush({ ...overview().settings, automaticHour: 22 });
+    httpMock.expectOne((r) => r.method === 'GET' && r.url === URL).flush(overview({ settings: { ...overview().settings, automaticHour: 22 } }));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.message()).toContain('22:00');
+  });
+
   it('a new retention is saved and the preview reloads', () => {
     const fixture = createLoaded();
     fixture.componentInstance.setRetention(7);

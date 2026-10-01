@@ -83,6 +83,15 @@ type Pending =
                             (change)="onAutomaticToggle($event.checked, $event.source)">
             Turn automatic cleaning on
           </mat-slide-toggle>
+          <div class="row">
+            <label for="trash-hour">Run automatic cleaning at</label>
+            <select id="trash-hour" data-testid="trash-hour" [disabled]="busy()"
+                    (change)="setHour(+$any($event.target).value)">
+              @for (h of hours; track h) {
+                <option [value]="h" [selected]="h === o.settings.automaticHour">{{ hour(h) }}</option>
+              }
+            </select>
+          </div>
           <p class="hint">
             @if (o.settings.automaticCleaning) {
               Once a day at {{ hour(o.settings.automaticHour) }} (server time) the trash is emptied and bundles are cleaned.
@@ -259,6 +268,13 @@ export class TrashCardComponent implements OnInit {
     if (c.userStateRows > 0) parts.push(`${c.userStateRows} reading-state ${c.userStateRows === 1 ? 'entry' : 'entries'}`);
     parts.push(formatBytes(c.bytes));
     return parts.join(' · ');
+  }
+
+  /** The 24 hours an admin can choose for the daily automatic run (server time). */
+  readonly hours = Array.from({ length: 24 }, (_, h) => h);
+
+  setHour(h: number): void {
+    this.saveSettings({ automaticHour: h }, `Automatic cleaning runs at ${this.hour(h)} (server time).`);
   }
 
   setRetention(days: number): void {

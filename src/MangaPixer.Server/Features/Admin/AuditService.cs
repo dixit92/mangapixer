@@ -236,6 +236,7 @@ public static class AuditActions
     public const string TrashRetentionChange = "trash.retention.change";
     public const string TrashAutoEnable = "trash.auto.enable";
     public const string TrashAutoDisable = "trash.auto.disable";
+    public const string TrashAutoHourChange = "trash.auto.hour";
     public const string TrashEmpty = "trash.empty";
     public const string TrashEmptyAuto = "trash.empty.auto";
     public const string TrashBundlesClean = "trash.bundles.clean";

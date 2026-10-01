@@ -7,26 +7,38 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 
 /// <summary>
-/// When the daily automatic trash run is due (1.31.0). Pure. The run is at <see cref="RunHour"/>:00 server local time - a
-/// quiet hour for readers; a library that is being scanned at that moment is skipped until the next day. A run missed while
+/// When the daily automatic trash run is due (1.31.0). Pure. The run is at the admin's hour (default <see cref="RunHour"/>:00)
+/// server local time - by default a quiet hour for readers; a library that is being scanned at that moment is skipped until the next day. A run missed while
 /// the server was down is caught up once at start-up, but never one from before automatic cleaning was turned on (turning it
 /// on is the admin's approval).
 /// </summary>
 public static class TrashSchedule
 {
-    /// <summary>The local hour of the automatic run.</summary>
+    /// <summary>The default local hour of the automatic run (the admin can choose another, <see cref="HourOf"/>).</summary>
     public const int RunHour = 4;
+
+    /// <summary>The effective hour: the stored one when it is 0-23, else <see cref="RunHour"/>.</summary>
+    public static int HourOf(int? stored) => stored is >= 0 and <= 23 ? stored.Value : RunHour;
+
+    public static bool IsValidHour(int hour) => hour is >= 0 and <= 23;
 
     /// <summary>
     /// The next due time: now when the latest daily slot passed after both the last run and the moment automatic cleaning was
     /// turned on (a missed run); otherwise the next slot after now.
     /// </summary>
-    public static DateTimeOffset NextDue(DateTimeOffset nowUtc, TimeZoneInfo zone, DateTimeOffset? lastRunUtc, DateTimeOffset? enabledAtUtc)
+    public static DateTimeOffset NextDue(DateTimeOffset nowUtc, TimeZoneInfo zone, DateTimeOffset? lastRunUtc, DateTimeOffset? enabledAtUtc) =>
+        NextDue(nowUtc, zone, lastRunUtc, enabledAtUtc, RunHour);
+
+    /// <summary>
+    /// <see cref="NextDue(DateTimeOffset, TimeZoneInfo, DateTimeOffset?, DateTimeOffset?)"/> at the admin's <paramref name="hour"/>.
+    /// Changing the hour never triggers a run for a slot the previous run or the switch-on already covers.
+    /// </summary>
+    public static DateTimeOffset NextDue(DateTimeOffset nowUtc, TimeZoneInfo zone, DateTimeOffset? lastRunUtc, DateTimeOffset? enabledAtUtc, int hour)
     {
-        var latestSlot = SlotOn(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(nowUtc, zone).DateTime), zone);
+        var latestSlot = SlotOn(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(nowUtc, zone).DateTime), zone, hour);
         if (latestSlot > nowUtc)
-            latestSlot = SlotOn(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(nowUtc, zone).DateTime).AddDays(-1), zone);
-        var nextSlot = SlotOn(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(latestSlot, zone).DateTime).AddDays(1), zone);
+            latestSlot = SlotOn(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(nowUtc, zone).DateTime).AddDays(-1), zone, hour);
+        var nextSlot = SlotOn(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(latestSlot, zone).DateTime).AddDays(1), zone, hour);
 
         DateTimeOffset? floor = (lastRunUtc, enabledAtUtc) switch
         {
@@ -39,9 +51,9 @@ public static class TrashSchedule
     }
 
     /// <summary>The run time on a local date, in UTC (an hour later when a clock change skips it).</summary>
-    private static DateTimeOffset SlotOn(DateOnly localDate, TimeZoneInfo zone)
+    private static DateTimeOffset SlotOn(DateOnly localDate, TimeZoneInfo zone, int hour)
     {
-        var local = localDate.ToDateTime(new TimeOnly(RunHour, 0), DateTimeKind.Unspecified);
+        var local = localDate.ToDateTime(new TimeOnly(hour, 0), DateTimeKind.Unspecified);
         if (zone.IsInvalidTime(local))
             local = local.AddHours(1);
         return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(local, zone), TimeSpan.Zero);
@@ -83,7 +95,8 @@ public sealed class TrashHostedService : BackgroundService
                 var settings = await ReadSettingsAsync(stoppingToken);
                 if (settings is { TrashAutoCleanEnabled: true })
                 {
-                    var due = TrashSchedule.NextDue(now, _time.LocalTimeZone, settings.TrashLastAutoRunAt, settings.TrashAutoCleanEnabledAt);
+                    var due = TrashSchedule.NextDue(now, _time.LocalTimeZone, settings.TrashLastAutoRunAt, settings.TrashAutoCleanEnabledAt,
+                        TrashSchedule.HourOf(settings.TrashAutomaticHour));
                     if (due < earliest)
                         due = earliest;
                     if (due <= now)

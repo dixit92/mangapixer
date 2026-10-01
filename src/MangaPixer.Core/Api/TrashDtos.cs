@@ -48,6 +48,9 @@ public sealed record UpdateTrashSettingsRequest
     public bool? AutomaticCleaning { get; init; }
 
     public int? RetentionDays { get; init; }
+
+    /// <summary>The server-local hour (0-23) of the daily automatic run.</summary>
+    public int? AutomaticHour { get; init; }
 }
 
 /// <summary>One library's trash.</summary>

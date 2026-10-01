@@ -2272,6 +2272,8 @@ export interface TrashSettingsDto {
 export interface UpdateTrashSettingsRequest {
   automaticCleaning?: boolean | null;
   retentionDays?: number | null;
+  /** The server-local hour (0-23) of the daily automatic run (1.31.0). */
+  automaticHour?: number | null;
 }
 
 /** Why a library keeps its trash this pass. */

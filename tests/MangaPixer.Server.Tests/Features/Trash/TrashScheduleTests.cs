@@ -12,6 +12,16 @@ public sealed class TrashScheduleTests
     private static DateTimeOffset At(int day, int hour, int minute = 0) => new(2026, 10, day, hour, minute, 0, TimeSpan.Zero);
 
     [Fact]
+    public void TheAdminsHour_MovesTheSlot_AndAChangeNeverCatchesUpACoveredSlot()
+    {
+        Assert.Equal(At(1, 22), TrashSchedule.NextDue(At(1, 15), Utc, null, At(1, 14), hour: 22));
+        Assert.Equal(At(2, 0), TrashSchedule.NextDue(At(1, 15), Utc, null, At(1, 14), hour: 0));
+        // Ran at 04:00 today; the hour moves to 02:00 at 10:00 - today's 02:00 is covered by that run, the next is tomorrow.
+        Assert.Equal(At(2, 2), TrashSchedule.NextDue(At(1, 10), Utc, lastRunUtc: At(1, 4), enabledAtUtc: At(1, 1), hour: 2));
+        Assert.Equal((4, 0, 23, 4, 4), (TrashSchedule.HourOf(null), TrashSchedule.HourOf(0), TrashSchedule.HourOf(23), TrashSchedule.HourOf(24), TrashSchedule.HourOf(-1)));
+    }
+
+    [Fact]
     public void JustTurnedOn_WaitsForTheNextSlot_NeverRunsAtOnce()
     {
         Assert.Equal(At(2, 4), TrashSchedule.NextDue(At(1, 15), Utc, lastRunUtc: null, enabledAtUtc: At(1, 14)));

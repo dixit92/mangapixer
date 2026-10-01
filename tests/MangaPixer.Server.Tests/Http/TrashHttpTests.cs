@@ -125,6 +125,15 @@ public sealed class TrashHttpTests : IDisposable
         Assert.Equal(0, (await OkAsync<TrashOverviewDto>(await admin.GetAsync("/api/v1/admin/trash"))).Total.Nodes); // 40 days < a year
         await OkAsync<TrashSettingsDto>(await admin.PutAsJsonAsync("/api/v1/admin/trash/settings", new UpdateTrashSettingsRequest { RetentionDays = 30 }));
 
+        // The automatic run's hour (owner, 1.31.0: scheduled job times are the admin's): 0-23, default 4.
+        var badHour = await admin.PutAsJsonAsync("/api/v1/admin/trash/settings", new UpdateTrashSettingsRequest { AutomaticHour = 24 });
+        Assert.Equal(HttpStatusCode.BadRequest, badHour.StatusCode);
+        Assert.Equal("invalid_hour", (await badHour.Content.ReadFromJsonAsync<ApiError>(TestJson.Web))!.Error);
+        var hour = await OkAsync<TrashSettingsDto>(await admin.PutAsJsonAsync("/api/v1/admin/trash/settings", new UpdateTrashSettingsRequest { AutomaticHour = 22 }));
+        Assert.Equal((22, 30), (hour.AutomaticHour, hour.RetentionDays)); // a null field keeps its value
+        Assert.Equal(22, (await OkAsync<TrashOverviewDto>(await admin.GetAsync("/api/v1/admin/trash"))).Settings.AutomaticHour);
+        await OkAsync<TrashSettingsDto>(await admin.PutAsJsonAsync("/api/v1/admin/trash/settings", new UpdateTrashSettingsRequest { AutomaticHour = 4 }));
+
         // Empty all: the held library stays.
         var emptied = await OkAsync<EmptyTrashResultDto>(await admin.PostAsJsonAsync("/api/v1/admin/trash/empty", new EmptyTrashRequest()));
         Assert.Equal(2, emptied.Removed.Nodes);

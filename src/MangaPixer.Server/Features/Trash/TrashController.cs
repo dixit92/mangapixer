@@ -25,7 +25,7 @@ public sealed class TrashController(TrashService trash) : ControllerBase
         var (settings, error) = await trash.UpdateSettingsAsync(request, User.Identity?.Name, ct);
         return error is null
             ? Ok(settings)
-            : BadRequest(new ApiError { Error = error, Message = "Choose Daily, Weekly, Monthly, Quarterly or Yearly." });
+            : BadRequest(new ApiError { Error = error, Message = error == "invalid_hour" ? "Choose an hour from 0 to 23." : "Choose Daily, Weekly, Monthly, Quarterly or Yearly." });
     }
 
     [HttpPost("empty")]

@@ -116,6 +116,8 @@ public sealed class TrashService
     {
         if (request.RetentionDays is { } days && !TrashRetention.IsAllowed(days))
             return (null, "invalid_retention");
+        if (request.AutomaticHour is { } wanted && !TrashSchedule.IsValidHour(wanted))
+            return (null, "invalid_hour");
 
         var row = await _db.AppSettings.FirstOrDefaultAsync(s => s.Id == AppSettingsEntity.SingletonId, ct);
         if (row is null)
@@ -129,6 +131,11 @@ public sealed class TrashService
         {
             row.TrashRetentionDays = retention;
             audits.Add((AuditActions.TrashRetentionChange, string.Create(CultureInfo.InvariantCulture, $"days_{retention}")));
+        }
+        if (request.AutomaticHour is { } hour && hour != TrashSchedule.HourOf(row.TrashAutomaticHour))
+        {
+            row.TrashAutomaticHour = hour;
+            audits.Add((AuditActions.TrashAutoHourChange, string.Create(CultureInfo.InvariantCulture, $"hour_{hour}")));
         }
         if (request.AutomaticCleaning is { } automatic && automatic != row.TrashAutoCleanEnabled)
         {
@@ -382,7 +389,7 @@ public sealed class TrashService
         AutomaticCleaning = row?.TrashAutoCleanEnabled ?? false,
         RetentionDays = TrashRetention.DaysOf(row?.TrashRetentionDays),
         AllowedRetentionDays = TrashRetention.AllowedDays,
-        AutomaticHour = TrashSchedule.RunHour,
+        AutomaticHour = TrashSchedule.HourOf(row?.TrashAutomaticHour),
     };
 
     private static readonly TrashCountsDto Zero = new() { Nodes = 0, Archives = 0, Folders = 0, UserStateRows = 0, Files = 0, Bytes = 0 };
