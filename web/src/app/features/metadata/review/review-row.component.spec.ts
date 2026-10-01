@@ -209,4 +209,20 @@ describe('ReviewRowComponent', () => {
     expect(rowActions('MissingFolders', it).map((a) => a.action)).toEqual(['reattach', 'deleteMissing']);
     expect(rowActions('Confirmed', it).map((a) => a.action)).toEqual(['identify', 'unlink']);
   });
+
+  it('1.31.0: marks a row being checked again and the duplicate numbers below a folder', () => {
+    const plain = create(reviewItem());
+    expect(plain.el.querySelector('[data-testid="review-checking-again"]')).toBeNull();
+    expect(plain.el.querySelector('[data-testid="review-duplicates"]')).toBeNull();
+    TestBed.resetTestingModule();
+
+    const marked = create(reviewItem({ checkingAgain: true, duplicateChapters: 2, duplicateVolumes: 1 }));
+    expect(marked.el.querySelector('[data-testid="review-checking-again"]')!.textContent).toContain('Checking again');
+    expect(marked.el.querySelector('[data-testid="review-duplicates"]')!.textContent).toBe('2 duplicate chapters, 1 duplicate volume');
+    // The earlier result is still what the row shows while it waits.
+    expect(marked.all('[data-testid="review-candidate"]')).toHaveLength(2);
+    TestBed.resetTestingModule();
+
+    expect(create(reviewItem({ duplicateChapters: 1 })).el.querySelector('[data-testid="review-duplicates"]')!.textContent).toBe('1 duplicate chapter');
+  });
 });

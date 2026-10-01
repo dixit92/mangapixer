@@ -65,14 +65,18 @@ public sealed class MetadataAutoMatchHostedService : BackgroundService
         }
     }
 
-    /// <summary>One pass: promote due retries, then process works until the queue is empty or the gate closes.</summary>
+    /// <summary>One pass: promote due retries, queue the works in review the matcher's current rules have not scored (once per revision), then process works until the queue is empty or the gate closes.</summary>
     public async Task<int> RunPassAsync(CancellationToken ct)
     {
         var processed = 0;
         try
         {
             using (var scope = _scopeFactory.CreateScope())
-                await scope.ServiceProvider.GetRequiredService<MetadataAutoMatchService>().PromoteDueRetriesAsync(ct);
+            {
+                var queue = scope.ServiceProvider.GetRequiredService<MetadataAutoMatchService>();
+                await queue.PromoteDueRetriesAsync(ct);
+                await queue.QueueOutdatedReviewsAsync(ct);
+            }
 
             while (!ct.IsCancellationRequested)
             {

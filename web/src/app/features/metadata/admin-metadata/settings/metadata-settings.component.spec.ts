@@ -238,6 +238,10 @@ describe('MetadataSettingsComponent', () => {
     expect(text).toContain('in every library whose Fetch switch is on');
     expect(text).toContain('What is sent automatically:');
     expect(text).toContain('nobody reviews before it is sent');
+    // 1.31.0: the same names are sent again for folders that are still waiting (no consent version bump).
+    expect(text).toContain('The same names may be sent again for folders that are still waiting: a folder left unmatched is tried again '
+      + 'after 30, 90 and 180 days, and when a MangaPixer update changes how matches are scored, folders waiting under Needs review are '
+      + 'checked once more under the new rules.');
     // 1.30.0: a declared type is no longer sent as a search filter, so the consent text no longer names it.
     expect(text).not.toContain('declared manga');
     expect(text).toContain('Cover comparison:');

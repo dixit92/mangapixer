@@ -1395,7 +1395,7 @@ export type MatchLevel = 'None' | 'Folder' | 'Archive' | 'ReviewOnly';
 export type MetadataReviewTab =
   | 'NeedsReview' | 'AutoLinked' | 'Unmatched' | 'Flags' | 'DontMatch' | 'Confirmed' | 'MissingFolders';
 export type MetadataFolderContent = 'Auto' | 'DoujinshiAndAdultOneShots' | 'NotDoujinshi';
-export type MetadataMatchRunTrigger = 'Scan' | 'Bulk' | 'Retry' | 'Rerun';
+export type MetadataMatchRunTrigger = 'Scan' | 'Bulk' | 'Retry' | 'Rerun' | 'Recheck';
 export type MetadataMatchRunStatus = 'Running' | 'Completed' | 'Cancelled';
 export type MetadataReviewBulkAction = 'AcceptTop' | 'DontMatch' | 'RerunMatching' | 'Confirm' | 'Unlink';
 export type MetadataFlagReason = 'WrongSeries' | 'WrongDetails' | 'NotOneSeries' | 'Other';
@@ -1429,6 +1429,8 @@ export interface MetadataReviewSummaryDto {
   confirmed: number;
   missingFolders: number;
   pending: number;
+  /** 1.31.0: works in review being checked again under the matcher's current rules (part of `pending`). */
+  recheckPending: number;
 }
 
 export interface MetadataReviewLinkDto {
@@ -1499,6 +1501,12 @@ export interface MetadataReviewItemDto {
   matchedAt?: string | null;
   nextRetryAt?: string | null;
   runId?: string | null;
+  /** 1.31.0: queued to be scored again under the matcher's current rules; the reasons and candidates are the earlier result until then. */
+  checkingAgain?: boolean;
+  /** 1.31.0 (folder works): chapter numbers that more than one file of the same folder states. */
+  duplicateChapters?: number;
+  /** 1.31.0 (folder works): the same for volume numbers. */
+  duplicateVolumes?: number;
   openFlagCount: number;
   /** Flags tab only. */
   flags?: MetadataFlagDto[];
@@ -1800,6 +1808,17 @@ export interface MissingSeriesDto {
   fetchedAt?: string;
   /** 1.30.0 (reach): trackers, what the folder holds, upgrades and completion (the same engine as the Volumes view). */
   progress?: SeriesProgressDto | null;
+  /** 1.31.0: chapter / volume numbers that more than one file of the same folder states, capped; `duplicateCount` is the full count. */
+  duplicates?: DuplicateUnitDto[];
+  duplicateCount?: number;
+}
+
+/** 1.31.0: a chapter or volume number that `files` (two or more) files of one folder state. */
+export interface DuplicateUnitDto {
+  kind: MissingUnitKind;
+  /** As the names state it ("1", "45.5"). */
+  number: string;
+  files: number;
 }
 
 export interface MissingReportSummaryDto {
@@ -1904,6 +1923,8 @@ export interface VolumeStackSummaryDto {
   missing?: boolean;
   /** 1.30.0: the language code when this volume (no volume file here) is released officially in the preferred language. */
   officialRelease?: string | null;
+  /** 1.31.0: chapters of this volume that more than one file states; `presentCount` / `extraCount` count each once. */
+  duplicates?: DuplicateUnitDto[];
 }
 
 export type VolumeSlotKind = 'Item' | 'Missing';
@@ -1935,6 +1956,8 @@ export interface VolumeStackDto {
   slots: VolumeSlotDto[];
   /** 1.30.0: see `VolumeStackSummaryDto.officialRelease`. */
   officialRelease?: string | null;
+  /** 1.31.0: see `VolumeStackSummaryDto.duplicates`; each such chapter has one item slot per file. */
+  duplicates?: DuplicateUnitDto[];
 }
 
 /** GET /nodes/{nodeId}/volume-view (lane S): whether a folder has a Volumes view and whether it is on for the viewer. */

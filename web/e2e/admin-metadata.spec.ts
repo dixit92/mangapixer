@@ -153,6 +153,7 @@ test('Automatic matching is consent-gated: no automatic-matching call before con
   if (await auto.getByTestId('md-auto-consented').count()) await auto.getByTestId('md-auto-consent-toggle').click();
   await expect(auto.getByTestId('md-auto-consent-text')).toContainText('What is sent automatically:');
   await expect(auto.getByTestId('md-auto-consent-text')).toContainText('nobody reviews before it is sent');
+  await expect(auto.getByTestId('md-auto-consent-text')).toContainText('checked once more under the new rules');
   if (!(await auto.getByTestId('md-auto-consented').count())) {
     await expect(autoSwitch).toBeDisabled();
     await shot(page, 'c-03-auto-consent-required');

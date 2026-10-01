@@ -9,6 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { ApiError, MissingReportSummaryDto, MissingSeriesDto } from '../../../core/api/api-types';
+import { DUPLICATE_TIP, duplicateCountLabel, duplicateListText, duplicateTotals } from '../../../shared/duplicate-units';
 import { MetadataReviewStateService } from '../metadata-review-state.service';
 import { ReviewLibraryOption } from '../review/review-dashboard.component';
 import { MissingReportApiService } from './missing-report-api.service';
@@ -110,6 +111,12 @@ type Filter = 'missing' | 'all';
                     }
                   </p>
                 }
+                @if (dupLabel(row); as label) {
+                  <!-- 1.31.0: the same number in more than one file of one folder (a chapter uploaded twice). Not a hole, not "behind". -->
+                  <p class="note dup" [matTooltip]="dupTip" data-testid="missing-duplicates">
+                    <mat-icon inline>content_copy</mat-icon> {{ label }} ({{ dupList(row) }})
+                  </p>
+                }
                 @if (row.conversion; as conv) {
                   <p class="note conv" data-testid="missing-conversion">
                     @if (conv.siteUrl) {
@@ -154,6 +161,7 @@ type Filter = 'missing' | 'all';
     .link { background: none; border: 0; padding: 0; font: inherit; color: #b39dff; cursor: pointer; text-decoration: underline; }
     .reach { margin: 2px 0; font-size: 13px; overflow-wrap: anywhere; }
     .note.upgrade { color: #b39dff; }
+    .note.dup { color: #ffcc80; overflow-wrap: anywhere; }
     .list { display: flex; flex-direction: column; gap: 8px; }
     .row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: #1c1c26;
       border: 1px solid rgba(255, 255, 255, 0.06); border-left: 3px solid #555; }
@@ -242,6 +250,7 @@ export class MissingReportComponent implements OnInit {
 
   readonly verdictLabels = MISSING_VERDICT_LABELS;
   readonly confidenceLabels = MISSING_CONFIDENCE_LABELS;
+  readonly dupTip = DUPLICATE_TIP;
   readonly haveSentence = haveSentence;
   readonly totalTooltip = totalTooltip;
   readonly gapDetail = gapDetail;
@@ -250,6 +259,20 @@ export class MissingReportComponent implements OnInit {
   readonly conversionLine = conversionLine;
   readonly reachSentence = reachSentence;
   readonly upgradeText = upgradeText;
+
+  /** 1.31.0: "2 duplicate chapters" (or "N duplicate numbers" when the server capped the list); '' when none. */
+  dupLabel(row: MissingSeriesDto): string {
+    const list = row.duplicates ?? [];
+    const total = row.duplicateCount ?? list.length;
+    if (total === 0) return '';
+    if (total > list.length) return `${total} duplicate numbers`;
+    const t = duplicateTotals(list);
+    return duplicateCountLabel(t.chapters, t.volumes);
+  }
+
+  dupList(row: MissingSeriesDto): string {
+    return duplicateListText(row.duplicates, row.duplicateCount);
+  }
 
   ngOnInit(): void {
     this.library.set(this.initialLibrary());

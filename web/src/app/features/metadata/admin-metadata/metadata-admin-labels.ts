@@ -188,6 +188,7 @@ export const RUN_TRIGGER_LABELS: Record<MetadataMatchRunTrigger, string> = {
   Bulk: 'Match library now',
   Retry: 'Retry unmatched',
   Rerun: 'Re-run matching',
+  Recheck: 'Check again under new rules',
 };
 
 /** 0-100 progress of a run (processed of queued). */

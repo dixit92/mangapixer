@@ -231,7 +231,9 @@ export function validateThresholds(
                 "Series Title" from "Series Title [English Title]" - which <strong>nobody reviews before it is sent</strong>,
                 with a fixed list of types to leave out (doujinshi, novels, artbooks, drama CDs; doujinshi are searched below a
                 folder whose Content is "Doujinshi &amp; adult one-shots"), and MangaUpdates record numbers to refresh linked
-                series. Each site also sees your server's IP address.</p>
+                series. Each site also sees your server's IP address. The same names may be sent again for folders that are
+                still waiting: a folder left unmatched is tried again after 30, 90 and 180 days, and when a MangaPixer update
+                changes how matches are scored, folders waiting under Needs review are checked once more under the new rules.</p>
               <p><strong>Cover comparison:</strong> when two series tie on the title for a folder of volumes or a one-shot,
                 MangaPixer may also download the cover images of those two series from MangaUpdates' image server
                 (cdn.mangaupdates.com), by the address MangaUpdates gave, to compare them with the folder's own cover. These

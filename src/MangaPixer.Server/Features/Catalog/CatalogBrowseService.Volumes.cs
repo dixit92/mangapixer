@@ -2,6 +2,7 @@ namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Metadata.Missing;
 using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Covers;
 using Microsoft.EntityFrameworkCore;
@@ -251,5 +252,6 @@ public sealed partial class CatalogBrowseService
         LastChapter = stack.LastChapter,
         ChaptersPresent = stack.ChaptersPresent,
         OfficialRelease = stack.OfficialRelease,
+        Duplicates = stack.Duplicates.Select(DuplicateUnits.ToDto).ToList(),
     };
 }

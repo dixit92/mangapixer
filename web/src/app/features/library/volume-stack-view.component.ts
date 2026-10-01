@@ -12,6 +12,7 @@ import { FavoritesStateService } from '../../core/favorites/favorites-state.serv
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { CatalogNodeDto, LibraryViewMode, LibraryViewPreferencesDto, VolumeSlotDto, VolumeStackDto } from '../../core/api/api-types';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
+import { DUPLICATE_TIP, duplicateListText, duplicatesLabel } from '../../shared/duplicate-units';
 import { CoverSelectionActionComponent } from '../../shared/cover-picker/cover-selection-action.component';
 import { CoverStateService } from '../../shared/cover-picker/cover-state.service';
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
@@ -109,6 +110,10 @@ import { AlsoInVolumeBadgeComponent } from '../../shared/volume-stack/also-in-vo
           <h1 data-testid="stack-title">{{ s.label }}</h1>
           <app-official-release-badge [language]="s.officialRelease" [overlay]="false" />
           <p class="counts" data-testid="stack-counts">{{ counts() }}</p>
+          @if (duplicateText(); as dup) {
+            <!-- 1.31.0: the same chapter in more than one file (uploaded twice); every file keeps its own card. -->
+            <p class="dups" [title]="dupTip" data-testid="stack-duplicates">{{ dup }}</p>
+          }
           <p class="source" data-testid="stack-source">{{ sourceText() }}</p>
         </div>
         <!-- 1.30.0 (owner): this page's own Card / List choice - cards to see the covers, a list to read the archive names. -->
@@ -206,6 +211,7 @@ import { AlsoInVolumeBadgeComponent } from '../../shared/volume-stack/also-in-vo
     .view-switch [aria-pressed='true'] { color: #b39dff; background: rgba(124, 77, 255, 0.16); }
     .counts { margin: 0 0 4px; color: #e6e6ee; }
     .source { margin: 0; color: #8a8a99; font-size: 13px; }
+    .dups { margin: 4px 0 0; color: #ffcc80; font-size: 13px; overflow-wrap: anywhere; }
     .slots { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
     /* List view: the shared row, one column on a phone and the viewer's list-column count from 960px (as in browse). */
     .slots.list { grid-template-columns: minmax(0, 1fr); gap: 8px; }
@@ -295,7 +301,8 @@ export class VolumeStackViewComponent implements OnInit {
     if (!s) return '';
     const items = s.slots.filter((x) => x.kind === 'Item');
     const hasVolumeFile = s.hasVolumeArchive ?? (items.length > 0 && !items[0].chapter);
-    const files = items.filter((x) => !!x.chapter && !x.chapter.includes('.')).length;
+    // Whole-chapter numbers once each: a chapter in two files (1.31.0) is one chapter here.
+    const files = new Set(items.filter((x) => !!x.chapter && !x.chapter.includes('.')).map((x) => x.chapter)).size;
     // Complete chapters: the server's count (a split chapter counts once, when all its listed parts are here).
     const whole = hasVolumeFile ? files : s.chaptersPresent ?? files;
     const parts: string[] = [];
@@ -311,6 +318,15 @@ export class VolumeStackViewComponent implements OnInit {
     if (s.extraCount > 0) text += ` - ${s.extraCount} extra${s.extraCount === 1 ? '' : 's'}`;
     return text;
   });
+
+  /** 1.31.0: "2 duplicate chapters: Chapter 1: 2 files, Chapter 2: 2 files" under the counts; '' when no chapter sits in two files. */
+  readonly duplicateText = computed(() => {
+    const list = this.stack()?.duplicates ?? [];
+    return list.length === 0 ? '' : `${duplicatesLabel(list)}: ${duplicateListText(list)}`;
+  });
+  readonly dupTip = DUPLICATE_TIP;
+  private readonly duplicateFiles = computed(() =>
+    new Map((this.stack()?.duplicates ?? []).filter((d) => d.kind === 'Chapter').map((d): [string, number] => [d.number, d.files])));
 
   /** Where the grouping came from, without naming a provider (the credit lives in Metadata Manager and the docs). */
   readonly sourceText = computed(() => {
@@ -396,7 +412,9 @@ export class VolumeStackViewComponent implements OnInit {
 
   /** "Ch. 12 - 20 pages": the chapter number the volume list gives the slot, then the page count. */
   subtitle(slot: VolumeSlotDto, item: CatalogNodeDto): string {
-    const chapter = slot.chapter ? `Ch. ${slot.chapter}` : '';
+    // 1.31.0: a chapter that more than one file holds says so on each of its cards ("Ch. 1 · 2 files").
+    const files = slot.chapter ? this.duplicateFiles().get(slot.chapter) : undefined;
+    const chapter = slot.chapter ? `Ch. ${slot.chapter}${files ? ` · ${files} files` : ''}` : '';
     const pages = item.pageCount !== null && item.pageCount !== undefined ? `${item.pageCount} pages` : '';
     return [chapter, pages].filter((part) => part !== '').join(' · ');
   }

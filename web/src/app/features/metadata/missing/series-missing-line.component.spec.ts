@@ -49,4 +49,17 @@ describe('SeriesMissingLineComponent', () => {
       .toBe('You have volumes 1-14 + chapters 43-57 · 1 volume missing · finished - official, English');
     expect(el.querySelector('[data-testid="completion-mark"]')!.textContent).toContain('Finished - Official, English (15 volumes) - you have 14');
   });
+
+  it('1.31.0: names duplicated chapter numbers under the progress or gap lines, and shows them alone', () => {
+    const dup = [{ kind: 'Chapter' as const, number: '1', files: 2 }, { kind: 'Volume' as const, number: '3', files: 2 }];
+    const withGap = create(missingRow({ duplicates: dup, duplicateCount: 2 })).el;
+    expect(withGap.querySelector('[data-testid="series-line-duplicates"]')!.textContent)
+      .toBe('1 duplicate chapter, 1 duplicate volume: Chapter 1: 2 files, Volume 3: 2 files');
+    TestBed.resetTestingModule();
+    // No gap to report (no volumes, no chapters) but a duplicate: the line still shows.
+    const alone = create(missingRow({ verdict: 'UpToDate', volumes: null, chapters: null, duplicates: dup.slice(0, 1), duplicateCount: 1 })).el;
+    expect(alone.querySelector('[data-testid="series-line-duplicates"]')!.textContent).toBe('1 duplicate chapter: Chapter 1: 2 files');
+    TestBed.resetTestingModule();
+    expect(create(missingRow({ duplicates: [], duplicateCount: 0 })).el.querySelector('[data-testid="series-line-duplicates"]')).toBeNull();
+  });
 });

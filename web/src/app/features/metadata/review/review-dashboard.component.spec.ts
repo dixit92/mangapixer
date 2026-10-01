@@ -280,4 +280,23 @@ describe('ReviewDashboardComponent', () => {
     expect(api.getReview).toHaveBeenCalledWith('Confirmed', null);
     expect(el.querySelectorAll('[data-testid="review-name"]')[0].textContent).toContain('Confirmed Saga');
   });
+
+  it('1.31.0: says how many items are being checked again under the current rules, on Needs review only', () => {
+    const idle = create();
+    expect(idle.el.querySelector('[data-testid="review-rechecking"]')).toBeNull();
+    TestBed.resetTestingModule();
+
+    const some = create({ apiOverrides: { getReviewSummary: vi.fn(() => of(summary({ needsReview: 3, pending: 2, recheckPending: 2 }))) } });
+    expect(some.el.querySelector('[data-testid="review-rechecking"]')!.textContent!.replace(/\s+/g, ' ').trim())
+      .toBe('autorenew 2 items are being checked again under the current rules.');
+    TestBed.resetTestingModule();
+
+    const one = create({ apiOverrides: { getReviewSummary: vi.fn(() => of(summary({ recheckPending: 1 }))) } });
+    expect(one.el.querySelector('[data-testid="review-rechecking"]')!.textContent).toContain('1 item is being checked again under the current rules.');
+    TestBed.resetTestingModule();
+
+    // Another tab does not show it.
+    const other = create({ tab: 'Unmatched', apiOverrides: { getReviewSummary: vi.fn(() => of(summary({ recheckPending: 2 }))) } });
+    expect(other.el.querySelector('[data-testid="review-rechecking"]')).toBeNull();
+  });
 });

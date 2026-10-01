@@ -89,6 +89,8 @@ public sealed record StackMember(
 /// A virtual volume: its members present and the chapter units it should hold but does not (<see cref="MissingChapters"/>:
 /// whole chapters and parts of split chapters, "5.2"). <see cref="ChapterCount"/> counts the volume's chapters (a split chapter
 /// once), <see cref="ChaptersPresent"/> the complete ones (every listed part here); both null when no list says.
+/// 1.31.0: <see cref="PresentCount"/> and <see cref="ExtraCount"/> count distinct units - a chapter uploaded twice is one chapter
+/// present, with the surplus file named in <see cref="Duplicates"/> (the same chapter number in more than one file of this volume).
 /// </summary>
 public sealed record VolumeStack(
     string Key,
@@ -105,7 +107,11 @@ public sealed record VolumeStack(
     string? FirstChapter,
     string? LastChapter,
     int? ChaptersPresent = null,
-    string? OfficialRelease = null);
+    string? OfficialRelease = null)
+{
+    /// <summary>The chapter numbers more than one member file states (never a split chapter's parts or a range); empty when none.</summary>
+    public IReadOnlyList<DuplicateUnit> Duplicates { get; init; } = [];
+}
 
 public enum VolumeEntryKind
 {
@@ -539,7 +545,11 @@ public static class VolumeGrouping
         int? chaptersPresent = chaptersOf is null ? null
             : hasVolumeArchive ? chapterCount : chaptersOf.Count(g => g.All(Present) && !incomplete.Contains(g.Key));
 
-        var extras = chapterMembers.Count(m => m.IsExtra) + bonusMembers.Count;
+        // 1.31.0: the same chapter number in two files is one chapter present (not two), and a duplicated extra one extra.
+        var duplicates = DuplicateUnits.Find(units).Where(d => d.Kind == MissingUnitKind.Chapter).ToList();
+        var surplus = duplicates.Sum(d => d.Files - 1);
+        var extraSurplus = duplicates.Where(d => chapterMembers.Any(m => m.IsExtra && m.Chapter == d.Number)).Sum(d => d.Files - 1);
+        var extras = chapterMembers.Count(m => m.IsExtra) + bonusMembers.Count - extraSurplus;
         var chapterNumbers = chapterMembers.Where(m => m.Chapter is not null).Select(m => m.Chapter!.Value).Order().ToList();
         var usesMap = required is not null || chapterMembers.Any(m => m.Placement != VolumePlacement.Local);
         var usesLocal = hasVolumeArchive || bonusMembers.Count > 0 || chapterMembers.Any(m => m.Placement == VolumePlacement.Local);
@@ -552,14 +562,17 @@ public static class VolumeGrouping
             Source: source,
             Members: members,
             MissingChapters: missing,
-            PresentCount: members.Count,
+            PresentCount: members.Count - surplus,
             ChapterCount: chapterCount,
             ExtraCount: extras,
             HasVolumeArchive: hasVolumeArchive,
             FirstChapter: chapterNumbers.Count > 0 ? Canonical(chapterNumbers[0]) : null,
             LastChapter: chapterNumbers.Count > 0 ? Canonical(chapterNumbers[^1]) : null,
             ChaptersPresent: chaptersPresent,
-            OfficialRelease: OfficialReleaseOf(volume, hasVolumeArchive, map));
+            OfficialRelease: OfficialReleaseOf(volume, hasVolumeArchive, map))
+        {
+            Duplicates = duplicates,
+        };
     }
 
     /// <summary>

@@ -199,6 +199,7 @@ public sealed class MissingReportService
         return page.Select(p =>
         {
             var library = libraries.GetValueOrDefault(p.Row.LibraryId);
+            var duplicates = DuplicateUnits.FindIn(p.Progress.Rows);
             var english = MetadataJson.ReadList<MetadataJson.Publisher>(p.Row.PublishersJson)
                 .Where(x => string.Equals(x.Kind, "english", StringComparison.Ordinal)).ToList();
             return new MissingSeriesDto
@@ -221,6 +222,8 @@ public sealed class MissingReportService
                 StatusText = p.Row.StatusText,
                 FetchedAt = p.Row.FetchedAt,
                 Progress = p.Progress.Dto,
+                Duplicates = duplicates.Take(MissingUnits.MaxListed).Select(DuplicateUnits.ToDto).ToList(),
+                DuplicateCount = duplicates.Count,
             };
         }).ToList();
     }

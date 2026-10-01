@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, effect, inject, input, signal } fro
 import { RouterLink } from '@angular/router';
 
 import { MissingSeriesDto } from '../../../core/api/api-types';
+import { DUPLICATE_TIP, duplicateCountLabel, duplicateListText, duplicateTotals } from '../../../shared/duplicate-units';
 import { MissingReportApiService } from './missing-report-api.service';
 import { gapDetail, gapsOf, haveSentence } from './missing-labels';
 import { folderLine, trackersLine } from '../progress/series-progress-labels';
@@ -25,15 +26,17 @@ import { CompletionMarkComponent } from '../official/completion-mark.component';
           @if (trackersLine(r.progress); as t) { <span class="trackers" data-testid="series-line-trackers">{{ t }}</span><br /> }
           <span data-testid="series-line-folder">{{ folder }}</span>
           <app-completion-mark class="mark" [progress]="r.progress" />
+          @if (dupText(r); as dup) { <br /><span class="dup" data-testid="series-line-duplicates" [title]="dupTip">{{ dup }}</span> }
           @if (showReportLink()) {
             <a class="more" routerLink="/admin/metadata" [queryParams]="{ tab: 'missing' }">Missing report</a>
           }
         </div>
-      } @else if (gapsOf(r).length > 0) {
+      } @else if (gapsOf(r).length > 0 || dupText(r)) {
         <p class="missing-line" data-testid="series-missing-line">
           @for (gap of gapsOf(r); track gap.kind; let last = $last) {
             <span>{{ haveSentence(gap) }}@if (gapDetail(gap); as d) { <span class="detail"> · {{ d }}</span> }</span>@if (!last) { <br /> }
           }
+          @if (dupText(r); as dup) { @if (gapsOf(r).length > 0) { <br /> }<span class="dup" data-testid="series-line-duplicates" [title]="dupTip">{{ dup }}</span> }
           @if (showReportLink()) {
             <a class="more" routerLink="/admin/metadata" [queryParams]="{ tab: 'missing' }">Missing report</a>
           }
@@ -44,6 +47,7 @@ import { CompletionMarkComponent } from '../official/completion-mark.component';
   styles: [`
     .missing-line { margin: 8px 0 0; font-size: 13px; color: #c8c8d4; }
     .detail { color: #ffcc80; }
+    .dup { color: #ffcc80; font-size: 12px; overflow-wrap: anywhere; }
     .more { margin-left: 10px; font-size: 12px; color: #b39dff; }
     .trackers { color: #9a9aa8; font-size: 12px; }
     .mark { margin-left: 8px; }
@@ -62,7 +66,16 @@ export class SeriesMissingLineComponent {
   readonly gapDetail = gapDetail;
   readonly gapsOf = gapsOf;
   readonly trackersLine = trackersLine;
+  readonly dupTip = DUPLICATE_TIP;
   readonly folderLine = folderLine;
+
+  /** 1.31.0: "2 duplicate chapters: Chapter 1: 2 files, Chapter 2: 2 files"; '' when the same number sits in only one file. */
+  dupText(r: MissingSeriesDto): string {
+    const list = r.duplicates ?? [];
+    if (list.length === 0) return '';
+    const t = duplicateTotals(list);
+    return `${duplicateCountLabel(t.chapters, t.volumes)}: ${duplicateListText(list, r.duplicateCount)}`;
+  }
 
   constructor() {
     effect(() => {
