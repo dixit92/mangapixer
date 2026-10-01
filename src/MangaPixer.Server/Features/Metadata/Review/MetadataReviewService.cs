@@ -61,7 +61,7 @@ public sealed class MetadataReviewService
         // The review shows the admin's OWN cover next to the provider's (1.31.1, owner): always the file cover (an archive's page 1,
         // a folder's first live archive's page 1), never the cover layer - a linked series' resolved cover can be the very web
         // cover it is compared with, which made both sides look the same.
-        _covers = new FileCoverResolver(db);
+        _covers = new FileCoverResolver(db, versioned: true);
     }
 
     // --- Summary ---

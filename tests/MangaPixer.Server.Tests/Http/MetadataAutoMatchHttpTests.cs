@@ -432,7 +432,7 @@ public sealed class MetadataAutoMatchHttpTests
         var row = (await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=AutoLinked")))
             .Items.Single(i => i.NodeId == "amAuto");
 
-        Assert.Equal("/api/v1/items/amAutoA/cover", row.CoverUrl); // the first archive's page 1, unversioned - not amAutoB's
+        Assert.Equal("/api/v1/items/amAutoA/cover?v=1", row.CoverUrl); // the first archive's page 1 (versioned as browse) - not amAutoB's
     }
 
     [Fact]
