@@ -6,6 +6,7 @@ using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Media;
 using com.lifepixer.mangapixer.Core.Ordering;
+using com.lifepixer.mangapixer.Server.Features.Library.Moves;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using com.lifepixer.mangapixer.Server.Storage;
@@ -25,7 +26,8 @@ using Microsoft.EntityFrameworkCore;
 ///    two commits per node)
 /// 5. Recognise moved/renamed archives by content signature and re-point the
 ///    existing node instead of tombstone + create (1.5.0), preserving analysis,
-///    thumbnail and per-user reading state
+///    thumbnail and per-user reading state - since 1.31.0 also an archive tombstoned
+///    in ANY library inside the move window (a move between libraries)
 /// 6. Tombstone missing items (only after complete enumeration)
 /// 7. Queue analysis for changed items
 /// 8. Bump catalog revision, release maintenance
@@ -65,6 +67,13 @@ public sealed class LibraryScanCoordinator
     /// </summary>
     private readonly List<ScanMove> _moveLedger = [];
     private bool _moveLedgerTruncated;
+
+    /// <summary>
+    /// Cross-library moves (1.31.0): libraries an archive was re-pointed away from this scan. Their recency is recomputed and
+    /// their catalog revision bumped along with this library's.
+    /// </summary>
+    private readonly HashSet<long> _sourceLibraryIds = [];
+    private readonly List<long> _foreignMovedNodeIds = [];
 
     public const int MoveLedgerCap = 100_000;
 
@@ -145,6 +154,13 @@ public sealed class LibraryScanCoordinator
         library.CatalogRevision++;
         library.LastScanCompleted = DateTimeOffset.UtcNow;
         await _db.SaveChangesAsync(ct);
+        // An archive moved in from another library changed that library's catalog too (1.31.0).
+        if (_sourceLibraryIds.Count > 0)
+        {
+            var sources = _sourceLibraryIds.ToList();
+            await _db.Libraries.Where(l => sources.Contains(l.Id))
+                .ExecuteUpdateAsync(u => u.SetProperty(l => l.CatalogRevision, l => l.CatalogRevision + 1), ct);
+        }
 
         _logger?.LogDebug(LogEvents.Scanning.ScanPhaseTimings, "Scan {LibraryId} timings: observe {ObserveMs} ms, reconcile {ReconcileMs} ms, tombstone {TombstoneMs} ms, total {TotalMs} ms",
             _libraryId, observeMs, reconcileMs, tombstoneMs, total.ElapsedMilliseconds);
@@ -158,6 +174,7 @@ public sealed class LibraryScanCoordinator
             NodesAdded = reconciliation.NodesAdded,
             NodesUpdated = reconciliation.NodesUpdated,
             NodesMoved = reconciliation.NodesMoved,
+            NodesMovedFromOtherLibraries = _foreignMovedNodeIds.Count,
             NodesTombstoned = reconciliation.NodesTombstoned,
             Moves = _moveLedgerTruncated ? [] : _moveLedger,
             MoveLedgerTruncated = _moveLedgerTruncated,
@@ -257,7 +274,9 @@ public sealed class LibraryScanCoordinator
 
         // 1.5.0: archives that vanished from their old path but reappear elsewhere
         // with the same size + content signature are moves, not remove+add.
-        var moves = DetectMoves(sorted, existingNodes, archiveItems, observedPathKeys);
+        // 1.31.0: the pool also holds archives tombstoned in any library inside the move window.
+        var pool = await LoadMovePoolAsync(existingNodes, archiveItems, observedPathKeys, ct);
+        var moves = await DetectMovesAsync(sorted, existingNodes, archiveItems, pool, ct);
 
         // pathKey→node map (existing or newly added, possibly not yet saved).
         // Parentage is expressed through the `Parent` navigation so EF resolves
@@ -435,6 +454,9 @@ public sealed class LibraryScanCoordinator
 
         await _db.SaveChangesAsync(ct);
 
+        // Cross-library moves (1.31.0): the denormalised library of the moved archives' own rows follows them.
+        await UpdateDenormalisedLibraryAsync(ct);
+
         // Now that every add is persisted (parent ids assigned), record the affected
         // parent folders for recency-primitive maintenance.
         foreach (var archive in recencyAffectedArchives)
@@ -445,6 +467,9 @@ public sealed class LibraryScanCoordinator
 
         if (result.NodesMoved > 0)
             _logger?.LogInformation(LogEvents.Scanning.ScanMovesApplied, "Scan {LibraryId}: {Count} archives recognised as moved (analysis and reading state preserved)", _libraryId, result.NodesMoved);
+        if (_foreignMovedNodeIds.Count > 0)
+            _logger?.LogInformation(LogEvents.Scanning.ScanCrossLibraryMoves, "Scan {LibraryId}: {Count} archives moved in from {Libraries} other libraries",
+                _libraryId, _foreignMovedNodeIds.Count, _sourceLibraryIds.Count);
 
         result.Success = true;
         return result;
@@ -471,51 +496,97 @@ public sealed class LibraryScanCoordinator
             node.ParentId = parent.Id;
     }
 
+    /// <summary>One archive the scan may recognise at a new path (1.31.0 pool).</summary>
+    private sealed record MoveCandidate(
+        long NodeId, long LibraryId, long ByteLength, string Signature, bool IsTombstone,
+        long LastSeenScanRevision, DateTimeOffset? TombstonedAt, CatalogNodeEntity? Tracked);
+
     /// <summary>
-    /// Pairs archives missing from their old path with new observations that have
-    /// the same byte length and content signature. Returns new-PathKey → node.
+    /// The move pool: this library's archives missing from their path (1.5.0), plus archives tombstoned in ANY library -
+    /// this one included - inside the move window (1.31.0), with a usable signature, not already handled by a move
+    /// recognised after the fact, and (for another library) not while that library is being scanned. One projection query
+    /// for the other libraries; this library's rows are already tracked.
+    /// </summary>
+    private async Task<List<MoveCandidate>> LoadMovePoolAsync(
+        Dictionary<string, CatalogNodeEntity> existingNodes,
+        Dictionary<long, ArchiveItemEntity> archiveItems,
+        HashSet<string> observedPathKeys,
+        CancellationToken ct)
+    {
+        var pool = new List<MoveCandidate>();
+        var now = DateTimeOffset.UtcNow;
+        var windowStart = await MoveEvidence.WindowStartAsync(_db, now, ct);
+        var handled = (await _db.NodeMoves.AsNoTracking()
+                .Where(m => m.FromNode!.LibraryId == _libraryId)
+                .Select(m => m.FromNodeId)
+                .ToListAsync(ct))
+            .ToHashSet();
+
+        foreach (var node in existingNodes.Values)
+        {
+            if (node.Kind != 1 || observedPathKeys.Contains(node.PathKey))
+                continue;
+            if (!archiveItems.TryGetValue(node.Id, out var item) || !MoveEvidence.IsUsable(item.ContentSignature, item.ByteLength))
+                continue;
+            var tombstone = node.Availability == MoveEvidence.Tombstoned;
+            if (tombstone && (node.TombstonedAt is not { } at || at < windowStart || handled.Contains(node.Id)))
+                continue;
+            pool.Add(new MoveCandidate(node.Id, _libraryId, item.ByteLength, item.ContentSignature!, tombstone,
+                node.LastSeenScanRevision, node.TombstonedAt, node));
+        }
+
+        var tombstoned = MoveEvidence.Tombstoned;
+        var running = MoveEvidence.RunningScanLibraryIds(_db, now);
+        var foreign = await _db.CatalogNodes.AsNoTracking()
+            .Where(n => n.Kind == 1 && n.Availability == tombstoned && n.LibraryId != _libraryId
+                && n.TombstonedAt != null && n.TombstonedAt >= windowStart
+                && !_db.NodeMoves.Any(m => m.FromNodeId == n.Id)
+                && !running.Contains(n.LibraryId))
+            .Join(_db.ArchiveItems.Where(a => a.ContentSignature != null), n => n.Id, a => a.NodeId,
+                (n, a) => new { n.Id, n.LibraryId, a.ByteLength, a.ContentSignature, n.LastSeenScanRevision, n.TombstonedAt })
+            .ToListAsync(ct);
+        foreach (var f in foreign)
+            if (MoveEvidence.IsUsable(f.ContentSignature, f.ByteLength))
+                pool.Add(new MoveCandidate(f.Id, f.LibraryId, f.ByteLength, f.ContentSignature!, true,
+                    f.LastSeenScanRevision, f.TombstonedAt, null));
+        return pool;
+    }
+
+    /// <summary>
+    /// Pairs pool archives with new observations that have the same byte length and content signature. Returns
+    /// new-PathKey -> node.
     ///
     /// Guards (a wrong match corrupts the catalog and destroys reading state):
     /// - the old row must carry a signature (legacy / never-analysed rows never match);
     /// - byte length must agree both via the observation and the stored row;
     /// - the new file's signature is computed from the bytes on disk and its
     ///   stamp re-checked afterwards, so a file still being written never matches;
-    /// - the pairing must be unambiguous: exactly one missing row and exactly one
-    ///   new file share the signature. Duplicates fall back to remove + add.
-    /// Cost: one 128 KiB read per new archive whose size equals a missing one;
-    /// nothing is read when there are no missing archives.
+    /// - the pairing must be unambiguous: exactly one pool row (missing here or tombstoned
+    ///   anywhere inside the window) and exactly one new file share the signature;
+    /// - for a tombstone, no live archive elsewhere that appeared after the tombstone was last
+    ///   seen carries the signature (a second copy makes it ambiguous);
+    /// - an archive of another library is claimed with one conditional update before it is
+    ///   re-pointed; a lost claim leaves the observation a new node.
+    /// Duplicates fall back to remove + add.
+    /// Cost: one 128 KiB read per new archive whose size equals a pool row's;
+    /// nothing is read when the pool is empty.
     /// </summary>
-    private Dictionary<string, CatalogNodeEntity> DetectMoves(
+    private async Task<Dictionary<string, CatalogNodeEntity>> DetectMovesAsync(
         List<ScanObservationEntity> sorted,
         Dictionary<string, CatalogNodeEntity> existingNodes,
         Dictionary<long, ArchiveItemEntity> archiveItems,
-        HashSet<string> observedPathKeys)
+        List<MoveCandidate> pool,
+        CancellationToken ct)
     {
         var moves = new Dictionary<string, CatalogNodeEntity>(StringComparer.Ordinal);
-
-        var missingBySize = new Dictionary<long, List<(CatalogNodeEntity Node, ArchiveItemEntity Item)>>();
-        foreach (var node in existingNodes.Values)
-        {
-            if (node.Kind != 1 || node.Availability == 5 || observedPathKeys.Contains(node.PathKey))
-                continue;
-            if (!archiveItems.TryGetValue(node.Id, out var item) || string.IsNullOrEmpty(item.ContentSignature))
-                continue;
-            // Defensive: a stored signature must describe the stored length.
-            if (ContentSignature.TryGetByteLength(item.ContentSignature) != item.ByteLength)
-                continue;
-
-            if (!missingBySize.TryGetValue(item.ByteLength, out var list))
-                missingBySize[item.ByteLength] = list = [];
-            list.Add((node, item));
-        }
-
-        if (missingBySize.Count == 0)
+        if (pool.Count == 0)
             return moves;
+        var poolBySize = pool.GroupBy(p => p.ByteLength).ToDictionary(g => g.Key, g => g.ToList());
 
         var candidatesBySignature = new Dictionary<string, List<ScanObservationEntity>>(StringComparer.Ordinal);
         foreach (var obs in sorted)
         {
-            if (obs.Kind != 1 || existingNodes.ContainsKey(obs.PathKey) || !missingBySize.ContainsKey(obs.ByteLength))
+            if (obs.Kind != 1 || existingNodes.ContainsKey(obs.PathKey) || !poolBySize.ContainsKey(obs.ByteLength))
                 continue;
 
             var signature = ComputeObservedSignature(obs);
@@ -527,11 +598,12 @@ public sealed class LibraryScanCoordinator
             list.Add(obs);
         }
 
+        var pairs = new List<(ScanObservationEntity Obs, MoveCandidate Old)>();
         foreach (var (signature, candidates) in candidatesBySignature)
         {
             var size = candidates[0].ByteLength;
-            var matchingRows = missingBySize[size]
-                .Where(m => m.Item.ByteLength == size && string.Equals(m.Item.ContentSignature, signature, StringComparison.Ordinal))
+            var matchingRows = poolBySize[size]
+                .Where(m => string.Equals(m.Signature, signature, StringComparison.Ordinal))
                 .ToList();
 
             if (matchingRows.Count == 0)
@@ -542,11 +614,90 @@ public sealed class LibraryScanCoordinator
                 _logger?.LogDebug(LogEvents.Scanning.ScanMoveAmbiguous, "Scan {LibraryId}: {Missing} missing and {New} new archives share one signature; not treated as a move", _libraryId, matchingRows.Count, candidates.Count);
                 continue;
             }
+            pairs.Add((candidates[0], matchingRows[0]));
+        }
 
-            moves[candidates[0].PathKey] = matchingRows[0].Node;
+        var tombstonePairs = pairs.Where(p => p.Old.IsTombstone).ToList();
+        var copiedElsewhere = await CopiedElsewhereAsync(tombstonePairs.Select(p => p.Old).ToList(), ct);
+        foreach (var (obs, old) in pairs)
+        {
+            if (copiedElsewhere.Contains(old.NodeId))
+            {
+                _logger?.LogDebug(LogEvents.Scanning.ScanMoveAmbiguous, "Scan {LibraryId}: node {NodeId} has another live copy; not treated as a move", _libraryId, old.NodeId);
+                continue;
+            }
+            if (old.Tracked is { } tracked)
+            {
+                moves[obs.PathKey] = tracked;
+                continue;
+            }
+
+            // Another library's tombstone: claim it (still a hidden tombstone, now at its new path here). A scan that fails
+            // after this point leaves it where the next scan of this library resurrects it by path.
+            var claimed = await _db.CatalogNodes
+                .Where(n => n.Id == old.NodeId && n.Availability == MoveEvidence.Tombstoned && n.LibraryId == old.LibraryId)
+                .ExecuteUpdateAsync(u => u
+                    .SetProperty(n => n.LibraryId, _libraryId)
+                    .SetProperty(n => n.PathKey, obs.PathKey)
+                    .SetProperty(n => n.RelativePath, obs.RelativePath), ct);
+            if (claimed != 1)
+            {
+                _logger?.LogDebug(LogEvents.Scanning.ScanMoveClaimLost, "Scan {LibraryId}: node {NodeId} was taken before it could be moved here", _libraryId, old.NodeId);
+                continue;
+            }
+            var node = await _db.CatalogNodes.FirstAsync(n => n.Id == old.NodeId, ct);
+            var item = await _db.ArchiveItems.FirstAsync(a => a.NodeId == old.NodeId, ct);
+            archiveItems[node.Id] = item;
+            moves[obs.PathKey] = node;
+            _sourceLibraryIds.Add(old.LibraryId);
+            _foreignMovedNodeIds.Add(node.Id);
         }
 
         return moves;
+    }
+
+    /// <summary>
+    /// Tombstones of the pool for which a LIVE archive with the same signature already appeared after the tombstone was last
+    /// seen - in this or another library. Such a second copy makes the move ambiguous (copies stay separate items).
+    /// </summary>
+    private async Task<HashSet<long>> CopiedElsewhereAsync(List<MoveCandidate> tombstones, CancellationToken ct)
+    {
+        var result = new HashSet<long>();
+        if (tombstones.Count == 0)
+            return result;
+        var lastSeen = await MoveEvidence.LastSeenAtAsync(_db,
+            tombstones.Select(t => new MoveEvidence.Sighting(t.NodeId, t.LibraryId, t.LastSeenScanRevision, t.TombstonedAt)).ToList(), ct);
+        var tombstoned = MoveEvidence.Tombstoned;
+        foreach (var chunk in tombstones.Chunk(500))
+        {
+            var signatures = chunk.Select(t => t.Signature).Distinct().ToList();
+            var live = await _db.ArchiveItems.AsNoTracking()
+                .Where(a => signatures.Contains(a.ContentSignature!))
+                .Join(_db.CatalogNodes.Where(n => n.Availability != tombstoned), a => a.NodeId, n => n.Id,
+                    (a, n) => new { a.ContentSignature, n.CreatedAt })
+                .ToListAsync(ct);
+            foreach (var t in chunk)
+                if (live.Any(l => l.ContentSignature == t.Signature && l.CreatedAt > lastSeen[t.NodeId]))
+                    result.Add(t.NodeId);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// The rows that carry an archive's library besides the node itself (series link, declared facts, match queue, flags)
+    /// follow an archive moved in from another library. History (jobs, scan runs, audit, match runs) keeps where it happened.
+    /// The search index follows by its own trigger on <c>catalog_nodes.LibraryId</c>.
+    /// </summary>
+    private async Task UpdateDenormalisedLibraryAsync(CancellationToken ct)
+    {
+        foreach (var chunk in _foreignMovedNodeIds.Chunk(500))
+        {
+            var ids = chunk.ToList();
+            await _db.NodeSeriesLinks.Where(l => ids.Contains(l.NodeId)).ExecuteUpdateAsync(u => u.SetProperty(l => l.LibraryId, _libraryId), ct);
+            await _db.DeclaredFacts.Where(f => f.NodeId != null && ids.Contains(f.NodeId.Value)).ExecuteUpdateAsync(u => u.SetProperty(f => f.LibraryId, _libraryId), ct);
+            await _db.MetadataMatchQueue.Where(q => ids.Contains(q.NodeId)).ExecuteUpdateAsync(u => u.SetProperty(q => q.LibraryId, _libraryId), ct);
+            await _db.MetadataFlags.Where(f => ids.Contains(f.NodeId)).ExecuteUpdateAsync(u => u.SetProperty(f => f.LibraryId, _libraryId), ct);
+        }
     }
 
     private string? ComputeObservedSignature(ScanObservationEntity obs)
@@ -639,8 +790,10 @@ public sealed class LibraryScanCoordinator
 
         // Parent map for this library (one projection). Walking up from each seed collects the
         // affected folder + all of its ancestors, bounded to the touched paths.
+        // A move from another library (1.31.0) also seeds the old parent in that library: walk its tree too.
+        var libraries = _sourceLibraryIds.Append(_libraryId).ToList();
         var parentMap = await _db.CatalogNodes
-            .Where(n => n.LibraryId == _libraryId)
+            .Where(n => libraries.Contains(n.LibraryId))
             .Select(n => new { n.Id, n.ParentId })
             .ToDictionaryAsync(x => x.Id, x => x.ParentId, ct);
 
@@ -697,6 +850,9 @@ public sealed class ScanResult
     /// place (1.5.0). Not counted in <see cref="NodesAdded"/> or tombstoned.
     /// </summary>
     public int NodesMoved { get; init; }
+
+    /// <summary>Of <see cref="NodesMoved"/>, archives that were tombstoned in another library (1.31.0).</summary>
+    public int NodesMovedFromOtherLibraries { get; init; }
     public int NodesTombstoned { get; init; }
 
     /// <summary>Metadata carry-over ledger: moved archives with their old parent folder (empty when none, or truncated).</summary>
