@@ -1,4 +1,4 @@
-namespace com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch.CoverCheck;
+namespace com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch.LinkCoverCheck;
 
 using System.Globalization;
 using com.lifepixer.mangapixer.Core.Catalog;
@@ -60,7 +60,7 @@ public sealed class CoverCheckState
     }
 }
 
-/// <summary>What one sweep did (counts only).</summary>
+/// <summary>What one sweep did (counts only): links that got a verdict (agrees, unsure or differs) and links moved to review.</summary>
 public sealed record CoverCheckSweepResult(int Checked, int Demoted);
 
 /// <summary>
@@ -98,7 +98,7 @@ public sealed class CoverCheckService(
         if (!await setting.IsEnabledAsync(ct))
             return new CoverCheckSweepResult(0, 0);
         var links = await AutoLinksWithCoversAsync(null, ct);
-        int evaluated = 0, demoted = 0;
+        int evaluated = 0, decided = 0, demoted = 0;
         foreach (var link in links)
         {
             if (evaluated >= MaxLinksPerSweep)
@@ -109,6 +109,8 @@ public sealed class CoverCheckService(
                 if (outcome is null)
                     continue;
                 evaluated++;
+                if (outcome.Verdict != CoverCheckVerdict.NotEnough)
+                    decided++;
                 if (outcome.Demotes)
                     demoted++;
             }
@@ -117,7 +119,7 @@ public sealed class CoverCheckService(
                 logger.LogWarning(LogEvents.Metadata.CoverCheckFailed, "Cover check of node {NodeId} failed: {Error}", link.NodeId, ex.GetType().Name);
             }
         }
-        return new CoverCheckSweepResult(evaluated, demoted);
+        return new CoverCheckSweepResult(decided, demoted);
     }
 
     /// <summary>

@@ -83,13 +83,13 @@ public sealed class VolumeCoverPass
     private readonly TimeProvider _time;
     private readonly ILogger<VolumeCoverPass> _logger;
     private readonly Covers.CoverDecisionQueue? _decisions;
-    private readonly AutoMatch.CoverCheck.CoverCheckService? _coverCheck;
+    private readonly AutoMatch.LinkCoverCheck.CoverCheckService? _coverCheck;
 
     public VolumeCoverPass(
         MangaPixerDbContext db, MetadataAutoMatchService autoMatch, MetadataSettingsService settings, CompanionLinkService companions,
         VolumeMapService maps, VolumeCoverFetcher fetcher, ICoverHasher hasher, ThumbnailStore thumbnails, CoverHashCache hashCache,
         VolumeCoverPassState state, TimeProvider time, ILogger<VolumeCoverPass> logger, Covers.CoverDecisionQueue? decisions = null,
-        AutoMatch.CoverCheck.CoverCheckService? coverCheck = null)
+        AutoMatch.LinkCoverCheck.CoverCheckService? coverCheck = null)
     {
         _decisions = decisions;
         _coverCheck = coverCheck;
@@ -133,7 +133,7 @@ public sealed class VolumeCoverPass
 
     /// <summary>
     /// One tick of the pass. Never throws for a provider problem; a refusal stops the tick and is reported. 1.31.0: then the cover
-    /// check after linking looks at the Auto links whose covers are stored (<see cref="AutoMatch.CoverCheck.CoverCheckService"/>) -
+    /// check after linking looks at the Auto links whose covers are stored (<see cref="AutoMatch.LinkCoverCheck.CoverCheckService"/>) -
     /// also while the pass waits, as it sends nothing.
     /// </summary>
     public async Task<VolumeCoverPassResult> RunTickAsync(CancellationToken ct = default)
