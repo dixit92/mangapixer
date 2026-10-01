@@ -486,6 +486,9 @@ public sealed class MetadataAutoMatchHttpTests
         {
             var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var libId = await db.Libraries.Where(l => l.PublicId == LibPub).Select(l => l.Id).SingleAsync();
+            // The seeded review row predates the rules revision stamp and would be checked again by this pass (1.31.0, tested on its
+            // own below); this test is about the new folder only.
+            await db.MetadataMatchQueue.ExecuteUpdateAsync(s => s.SetProperty(q => q.RulesRevision, MatcherRules.Revision));
             var folder = Node("amSentinel", libId, null, CatalogNodeKind.Folder, $"{sentinel} Saga");
             db.CatalogNodes.Add(folder);
             await db.SaveChangesAsync();
