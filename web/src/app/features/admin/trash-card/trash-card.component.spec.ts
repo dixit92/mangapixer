@@ -60,7 +60,7 @@ describe('TrashCardComponent', () => {
     return fixture;
   }
 
-  const text = (fixture: { nativeElement: HTMLElement }) => fixture.nativeElement.textContent ?? '';
+  const text = (fixture: { nativeElement: HTMLElement }) => (fixture.nativeElement.textContent ?? '').replace(/\s+/g, ' ');
 
   afterEach(() => httpMock?.verify());
 
