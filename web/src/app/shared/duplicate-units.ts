@@ -31,6 +31,14 @@ export function duplicatesLabel(duplicates: readonly DuplicateUnitDto[] | null |
   return duplicateCountLabel(chapters, volumes);
 }
 
+/** "Chapter 1: 2 files, Chapter 2: 2 files" - and " and 3 more" when the server capped the list below `total`. */
+export function duplicateListText(duplicates: readonly DuplicateUnitDto[] | null | undefined, total?: number | null): string {
+  const list = duplicates ?? [];
+  const text = list.map(duplicateLine).join(', ');
+  const more = (total ?? list.length) - list.length;
+  return more > 0 ? `${text} and ${more} more` : text;
+}
+
 /** The explanation shown as a tooltip. */
 export const DUPLICATE_TIP =
   'More than one file in the same folder has this number - the same chapter uploaded twice, for example. Every file is still listed; '
