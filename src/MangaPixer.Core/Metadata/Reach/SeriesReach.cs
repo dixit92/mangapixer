@@ -29,6 +29,12 @@ public sealed record ReachResult
     /// <summary>Volumes without a volume file whose every listed chapter is here as chapter files.</summary>
     public IReadOnlySet<int> HeldAsChapters { get; init; } = new HashSet<int>();
 
+    /// <summary>
+    /// The volumes of <see cref="HeldAsChapters"/> whose chapters come from an ESTIMATE (a ratio, no exact list): shown as held,
+    /// never proof that the folder holds the volume whole (1.30.1: a completion mark counts only volumes known exactly).
+    /// </summary>
+    public IReadOnlySet<int> HeldByEstimate { get; init; } = new HashSet<int>();
+
     /// <summary>Volumes without a volume file that some chapter file here belongs to, but not all of their chapters.</summary>
     public IReadOnlySet<int> PartialVolumes { get; init; } = new HashSet<int>();
 
@@ -149,6 +155,7 @@ public static class SeriesReach
 
         // Volumes held as chapters (every listed unit here) or in part.
         var held = new HashSet<int>();
+        var byEstimate = new HashSet<int>();
         var partial = new HashSet<int>();
         var touched = new HashSet<int>();
         foreach (var (_, u) in chapterRows)
@@ -167,7 +174,11 @@ public static class SeriesReach
         foreach (var v in touched.Where(v => !volumeFiles.Contains(v)))
         {
             if (resolver.RequiredUnits(v) is { Count: > 0 } required && required.All(Present))
+            {
                 held.Add(v);
+                if (resolver.IsEstimated(v))
+                    byEstimate.Add(v);
+            }
             else
                 partial.Add(v);
         }
@@ -179,6 +190,7 @@ public static class SeriesReach
             Covered = covered,
             Overlap = overlap,
             HeldAsChapters = held,
+            HeldByEstimate = byEstimate,
             PartialVolumes = partial,
             AlsoInVolume = alsoIn,
             Resolution = resolution,

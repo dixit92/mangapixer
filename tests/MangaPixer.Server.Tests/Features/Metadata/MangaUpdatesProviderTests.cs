@@ -370,10 +370,12 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
     [InlineData("200 Chapters + Prologue (Complete)  \n15 Volumes (Complete)", 200)]
     [InlineData("18 Volumes (Ongoing)\n652 Chapters (Ongoing)", 652)]
     [InlineData("1 Chapter (Complete)", 1)]
+    [InlineData("8 Volumes | 40 Chapters (Complete)", 40)] // 1.30.1: both totals on one line
+    [InlineData("10 Volumes / 60 Chapters (Complete)", 60)]
     [InlineData("43 Volumes (Ongoing)", null)]
     [InlineData("24 Volumes (Complete)\n\nS1: 110 Chapters (1-110)", null)] // a season line is a part, never the total
     [InlineData("Part 1: 60 Chapters", null)]
-    public void StatusParser_ReadsTheChapterTotal_OnlyFromALineThatStartsWithIt(string status, int? chapters) =>
+    public void StatusParser_ReadsTheChapterTotal_FromALineThatStartsWithIt_OrAfterAVolumeTotal(string status, int? chapters) =>
         Assert.Equal(chapters, MangaUpdatesStatusParser.Parse(status).Chapters);
 
     [Fact]
