@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - API (admin): `GET /api/v1/admin/move-conflicts` (`state=open|resolved`, `cursor`, `limit`), `GET /api/v1/admin/move-conflicts/count`, `POST /api/v1/admin/move-conflicts/resolve` (`ids` or `all` + optional `kind`, `resolution` `Overwrite` / `Keep`).
 - Deleting a library now also removes its cover crops from the data folder.
 - API (admin): `GET /api/v1/admin/trash` (overview and preview), `PUT /api/v1/admin/trash/settings` (`automaticCleaning`, `retentionDays` - one of 1, 7, 30, 90, 365), `POST /api/v1/admin/trash/empty` (`libraryId`, `releaseHold`), `POST /api/v1/admin/trash/clean-bundles`.
+- Developer: the test suite is about five times faster (the server tests went from 24 minutes to under 5 on the maintainer's box). Test hosts no longer share a process-wide logger, so host-booting test classes run in parallel; `Verify-Quick.ps1` runs a real fast tier; `Verify.ps1` has `-SkipWeb` / `-WebOnly` halves that CI runs as two parallel jobs. The server's own logging is unchanged.
 
 ### Removed
 
