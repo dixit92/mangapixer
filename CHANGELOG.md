@@ -6,11 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Move series between libraries without losing anything.** Moving a series folder (or archives) from one library's folder to another's on disk now keeps every user's reading progress, read marks, bookmarks, favorites and reader settings, and the folder's series link, settings, cover choice and Volumes view setting - whichever library is scanned first. When the old library is scanned first, the new library's scan moves the existing items (nothing is analyzed again, a **Confirmed** link stays confirmed and no new automatic match is made). When the new library is scanned first, MangaPixer pairs each removed archive with its new copy once both are scanned and analyzed, and copies the state over wherever the new copy has none; an automatic link to the same series becomes **Confirmed**, and the moved copies keep their original **Added** date, so they do not show up as new chapters. State also moves for users who cannot open the new library right now; they see it as soon as they get access. Identical files that were in your libraries at the same time are never merged.
+- **Move conflicts** (admins): when the new copy already had its own reading position or reader settings, or the new folder got a different series link, nothing is overwritten - the cases wait on the new **Move conflicts** page (linked from the Libraries card in Administration while any is open), where you choose **Use old** (the state from before the move) or **Keep new**, one by one, for a selection or for all.
+- **Moves recognized during the trash retention window.** A removed archive is recognized at its new place - in any library, and also when it comes back to the same library at another path - for as long as the trash keeps it (Daily, Weekly, Monthly, Quarterly or Yearly; Monthly by default). Moves made before the upgrade, inside the window, are recognized on the first start.
+
 ### Changed
 
 - **New chapters opens the Volumes view.** Tapping a series on the home page's **New chapters** row opens a linked series in its Volumes view, sorted by name, with the **Continue** row on top showing the chapter to read next - unless you chose **Folders** for it. A series without a link or without a Volumes view opens as before, sorted by **Recently updated**.
 - **The Volumes switch is never greyed out.** Under another sort the list is flat and the switch shows **Folders**; picking **Volumes** switches back to the **Name** sort and says so, with **Undo**. The sort is saved when it was your own library sort, and only for this visit when it came from the home page.
 - **Filters work in the Volumes view.** The read-state filters and **Favorites only** no longer flatten the list: a volume follows the read badge its card shows (**Read** = every chapter read, **Reading** = some read or in progress, **Unread** = none read) and counts as a favorite when any of its chapters is starred; missing-volume cards are hidden while a filter is on.
+- **Renamed or moved folders also keep their Volumes view setting, cover choice and every user's star** (until now only the link, precedence, reading mode, Content and declared facts moved with them).
+- API (admin): `GET /api/v1/admin/move-conflicts` (`state=open|resolved`, `cursor`, `limit`), `GET /api/v1/admin/move-conflicts/count`, `POST /api/v1/admin/move-conflicts/resolve` (`ids` or `all` + optional `kind`, `resolution` `Overwrite` / `Keep`).
+
+### Removed
+
+- An unused internal relink service (never called; no behaviour change).
 
 ## [1.30.1] - 2026-10-01
 
