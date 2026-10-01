@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Holds.** A library keeps its trash when emptying it could be a mistake - more than half of it would go (often an offline disk), its folder was unreachable at the last scan, or a scan is running. Held libraries are skipped by **Empty trash now** and the automatic run; **Empty this library's trash** empties one anyway after you confirm.
 - **Cover check after an automatic link.** Once a linked series' volume covers are stored, MangaPixer compares them with the folder's own volumes - page 1 of each volume file, both halves of a jacket scan - volume by volume. When every compared volume is clearly a different picture from that volume's cover in your preferred language (at least two volumes; the volume 1 cover for a one-shot), and none matches in any language, the automatic link goes back to **Needs review** with the new reason **Cover differs**. Nothing is downloaded for this, confirmed links are never checked, and **Compare covers** switches it off.
 - **Covers for estimated volumes.** A `~ Volume N` stack in the Volumes view now shows the web cover of volume N too: the `~` marks the estimate, and when an exact volume list arrives the stacks and their covers regroup.
+- **Waiting matches are checked again after an update.** When a MangaPixer update changes how automatic matching scores a folder, the folders still waiting under **Needs review** are looked up once more under the new rules, in the background (only with Automatic matching on, inside the daily request budget, behind everything else). Anything an admin linked, confirmed or marked **Don't match** is never touched; a work whose new score is clear enough is linked automatically, as **Re-run matching** would. **Needs review** says how many items are being checked again, and each of them is marked *Checking again*. The automatic-matching consent text and the privacy page now say that the same folder names can be sent again for folders that are still waiting (unmatched ones after 30, 90 and 180 days, as before; waiting ones once after such an update).
+- **Duplicate chapter and volume numbers are shown.** When more than one file of the same folder has the same chapter number (a chapter uploaded twice, or split into two files), the Volumes view marks the stack ("2 duplicates") and the stack page lists them ("Chapter 1: 2 files"), the Missing report and the series page line name them, and the Review row says "2 duplicate chapters". Split chapters (`2.1` + `2.2`) and numbering that starts again in another folder are not duplicates.
 
 ### Changed
 
@@ -28,6 +30,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Deleting a library now also removes its cover crops from the data folder.
 - API (admin): `GET /api/v1/admin/trash` (overview and preview), `PUT /api/v1/admin/trash/settings` (`automaticCleaning`, `retentionDays` - one of 1, 7, 30, 90, 365), `POST /api/v1/admin/trash/empty` (`libraryId`, `releaseHold`), `POST /api/v1/admin/trash/clean-bundles`.
 - Developer: the test suite is about five times faster (the server tests went from 24 minutes to under 5 on the maintainer's box). Test hosts no longer share a process-wide logger, so host-booting test classes run in parallel; `Verify-Quick.ps1` runs a real fast tier; `Verify.ps1` has `-SkipWeb` / `-WebOnly` halves that CI runs as two parallel jobs. The server's own logging is unchanged.
+
+### Fixed
+
+- A volume stack counted every file toward its "8/9" mark, so a chapter present twice could make a volume look complete; each chapter is now counted once.
 
 ### Removed
 
