@@ -565,6 +565,66 @@ public sealed class MetadataAutoMatchHttpTests
         }
     }
 
+    // --- Re-check of works in review under the current rules (1.31.0) ---
+
+    private static void RespondWithTheReviewSaga(MetadataNetworkWebApplicationFactory factory) =>
+        factory.Handler.Respond = request => request.Method == HttpMethod.Post
+            ? ScriptedHandler.Json(MuJson.Search(new MuJson.Hit(9902, "Review Saga")))
+            : ScriptedHandler.Json(MuJson.Get(9902, "Review Saga"));
+
+    [Fact]
+    public async Task WorkerPass_ChecksAnOlderReviewRowAgain_StampsTheRevision_AndDoesNotRepeatIt()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(configureServices: Fakes);
+        await SeedAsync(factory); // the seeded Needs review row was scored before the revision stamp existed
+        RespondWithTheReviewSaga(factory);
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+        await EnableAsync(admin, automatic: true);
+        var worker = factory.Services.GetServices<IHostedService>().OfType<MetadataAutoMatchHostedService>().Single();
+
+        Assert.Equal(1, await worker.RunPassAsync(CancellationToken.None)); // queues the stale row by itself, then scores it
+        Assert.True(factory.Handler.CallCount > 0);
+        var calls = factory.Handler.CallCount;
+        Assert.Equal(0, await worker.RunPassAsync(CancellationToken.None)); // once per revision
+
+        Assert.Equal(calls, factory.Handler.CallCount);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+        var row = await db.MetadataMatchQueue.AsNoTracking().SingleAsync(q => q.Reason == QueueReason.Recheck);
+        Assert.Equal((QueueState.Done, MatcherRules.Revision), (row.State, row.RulesRevision));
+        Assert.Equal((int)MetadataMatchRunTrigger.Recheck, (await db.MetadataMatchRuns.AsNoTracking().SingleAsync(r => r.Id == row.RunId)).Trigger);
+        var summary = await OkAsync<MetadataReviewSummaryDto>(await admin.GetAsync($"/api/v1/admin/metadata/review/summary?library={LibPub}"));
+        Assert.Equal(0, summary.RecheckPending);
+    }
+
+    [Fact]
+    public async Task Review_SaysWhichRowsAreBeingCheckedAgain_WhileTheyWait()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(configureServices: Fakes);
+        await SeedAsync(factory);
+        RespondWithTheReviewSaga(factory);
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+        await EnableAsync(admin, automatic: true);
+        var summaryUrl = $"/api/v1/admin/metadata/review/summary?library={LibPub}";
+        Assert.Equal(0, (await OkAsync<MetadataReviewSummaryDto>(await admin.GetAsync(summaryUrl))).RecheckPending);
+
+        using (var scope = factory.Services.CreateScope())
+            Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<MetadataAutoMatchService>().QueueOutdatedReviewsAsync());
+
+        var waiting = await OkAsync<MetadataReviewSummaryDto>(await admin.GetAsync(summaryUrl));
+        Assert.Equal((1, 1), (waiting.RecheckPending, waiting.Pending));
+        var item = Assert.Single((await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=NeedsReview"))).Items);
+        Assert.True(item.CheckingAgain);
+        Assert.Equal(2, item.Candidates.Count); // the earlier result is still what the row shows
+        var auto = Assert.Single((await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=AutoLinked"))).Items);
+        Assert.False(auto.CheckingAgain);
+
+        var worker = factory.Services.GetServices<IHostedService>().OfType<MetadataAutoMatchHostedService>().Single();
+        Assert.Equal(1, await worker.RunPassAsync(CancellationToken.None));
+        Assert.Equal(0, (await OkAsync<MetadataReviewSummaryDto>(await admin.GetAsync(summaryUrl))).RecheckPending);
+        Assert.False(Assert.Single((await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=NeedsReview"))).Items).CheckingAgain);
+    }
+
     private static async Task ScanAndWaitAsync(MetadataNetworkWebApplicationFactory factory, HttpClient admin, string libraryPublicId)
     {
         long before;
