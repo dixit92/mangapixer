@@ -113,7 +113,7 @@ describe('CompletionMarkComponent', () => {
     } satisfies SeriesProgressDto);
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('[data-testid="completion-mark"]')!.textContent).toContain('Finished in English (14 volumes) - you have 12');
+    expect(el.querySelector('[data-testid="completion-mark"]')!.textContent).toContain('Finished - Official, English (14 volumes) - you have 12');
     expect(el.querySelector('.prompt')).not.toBeNull();
     fixture.componentRef.setInput('progress', null);
     fixture.detectChanges();

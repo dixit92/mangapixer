@@ -7,8 +7,8 @@ import { completionSentence } from '../progress/series-progress-labels';
 
 /**
  * The completion mark of a linked series (1.30.0; owner, like Manga-list's Completed column cross-checked with the library):
- * "Complete collection" when the folder holds a finished series whole, or the prompt "Finished in English (14 volumes) - you have
- * 12" when a series finished in the preferred language is not held whole. Renders nothing otherwise.
+ * "Complete collection" when the folder holds a finished series whole, or the prompt "Finished - Official, English (14 volumes) -
+ * you have 12" (or "Finished - Fan translation, English ...") when a series finished in the preferred language is not held whole. Renders nothing otherwise.
  */
 @Component({
   selector: 'app-completion-mark',

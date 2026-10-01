@@ -11,7 +11,7 @@ It is built from what MangaPixer has already stored: your archive names, the ser
 ## What it lists
 
 - **Upgrades**: volumes released officially in your preferred language that your folder holds only as chapter files (scanlations), for example "Volumes 15-19 available in English - you hold them as chapters". These are never counted as missing: you can already read them; the official volume is an upgrade. The same volumes show **Available in English** on their stacks in the [Volumes view](volumes.md#what-you-have).
-- **Finished, not complete**: series finished in your language - the official edition is complete, or the English scanlation is complete - that your folder does not hold whole, for example "Finished in English (14 volumes) - you have 12".
+- **Finished, not complete**: series finished in your language - the official edition is complete, or the English scanlation is complete - that your folder does not hold whole, for example "Finished - Official, English (14 volumes) - you have 12" or, for a finished fan translation, "Finished - Fan translation, English (172 chapters) - you have 6".
 - **Complete collections**: finished series your folder holds whole. A volume you have as a complete run of chapters counts as held; the series still appears under Upgrades while an official volume is available for it.
 
 The filter at the top shows **To act on** (upgrades and finished series not held whole) by default; switch to **Upgrades**, **Finished, not complete**, **Complete collections** or **All**, and use **Library** to narrow it. The line above the list counts every linked series. Upgrades come first (the most volumes to get first), then finished series you don't hold whole, then complete collections.

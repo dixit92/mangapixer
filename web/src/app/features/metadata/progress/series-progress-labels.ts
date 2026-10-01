@@ -143,9 +143,15 @@ function finishedInLanguage(progress: SeriesProgressDto): boolean {
   return progress.completionBasis === 'OfficialVolumes' || progress.completionBasis === 'AllChapters';
 }
 
+/** Which release finished (owner, 1.30.0 RC): "Official, English" or "Fan translation, English". */
+function finishedKind(progress: SeriesProgressDto): string {
+  const lang = languageName(progress.trackers.language);
+  return progress.completionBasis === 'AllChapters' ? `Fan translation, ${lang}` : `Official, ${lang}`;
+}
+
 /**
  * Line 2, the folder: "You have volumes 1-14 + chapters 47-65 · up to date · Volume 15 available in English",
- * "You have volumes 1-12 · 2 volumes missing · finished in English", "You have volumes 1-14 · Complete collection".
+ * "You have volumes 1-12 · 2 volumes missing · finished - official, English", "You have volumes 1-14 · Complete collection".
  */
 export function folderLine(progress: SeriesProgressDto | null | undefined): string | null {
   if (!progress) return null;
@@ -160,7 +166,7 @@ export function folderLine(progress: SeriesProgressDto | null | undefined): stri
   if (upgrade) parts.push(upgrade);
   if (missing && progress.completion === 'CompleteCollection') parts.push('Complete collection');
   if (progress.completion === 'FinishedNotHeld' && finishedInLanguage(progress)) {
-    parts.push(`finished in ${languageName(progress.trackers.language)}`);
+    parts.push(`finished - ${finishedKind(progress).replace(/^./, (c) => c.toLowerCase())}`);
   }
   return parts.join(' · ');
 }
@@ -186,7 +192,7 @@ function targetText(progress: SeriesProgressDto, n: number | null | undefined): 
 
 /**
  * The completion in one sentence (the tab and the tooltip): "Complete collection: every one of the 14 English volumes",
- * "Finished in English (14 volumes) - you have 12", or null.
+ * "Finished - Official, English (14 volumes) - you have 12", "Finished - Fan translation, English (172 chapters) - you have 6", or null.
  */
 export function completionSentence(progress: SeriesProgressDto): string | null {
   const lang = languageName(progress.trackers.language);
@@ -196,13 +202,13 @@ export function completionSentence(progress: SeriesProgressDto): string | null {
       case 'OfficialVolumes':
         return `Complete collection: all ${targetText(progress, target)} of the ${lang} edition`;
       case 'AllChapters':
-        return `Complete collection: all ${targetText(progress, target)} of the finished ${lang} scanlation`;
+        return `Complete collection: all ${targetText(progress, target)} of the finished ${lang} fan translation`;
       default:
         return `Complete collection: the whole original run (${targetText(progress, target)})`;
     }
   }
   if (progress.completion === 'FinishedNotHeld' && finishedInLanguage(progress)) {
-    return `Finished in ${lang} (${targetText(progress, target)}) - you have ${progress.completionHeld ?? 0}`;
+    return `Finished - ${finishedKind(progress)} (${targetText(progress, target)}) - you have ${progress.completionHeld ?? 0}`;
   }
   return null;
 }

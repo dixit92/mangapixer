@@ -46,7 +46,7 @@ describe('SeriesMissingLineComponent', () => {
       completionBasis: 'OfficialVolumes', completionTarget: 15, completionHeld: 14 }) }));
     expect(el.querySelector('[data-testid="series-line-trackers"]')!.textContent).toContain('English (Synthetic Press): 15 volumes, ongoing');
     expect(el.querySelector('[data-testid="series-line-folder"]')!.textContent)
-      .toBe('You have volumes 1-14 + chapters 43-57 · 1 volume missing · finished in English');
-    expect(el.querySelector('[data-testid="completion-mark"]')!.textContent).toContain('Finished in English (15 volumes) - you have 14');
+      .toBe('You have volumes 1-14 + chapters 43-57 · 1 volume missing · finished - official, English');
+    expect(el.querySelector('[data-testid="completion-mark"]')!.textContent).toContain('Finished - Official, English (15 volumes) - you have 14');
   });
 });
