@@ -346,7 +346,6 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
 {
     private readonly CollectingSink _sink;
     private readonly string _tempRoot;
-    private Serilog.ILogger? _originalLogger;
 
     public C00WebApplicationFactory(CollectingSink sink)
     {
@@ -398,15 +397,12 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
             if (thumbBackfill is not null)
                 services.Remove(thumbBackfill);
 
-            // Wrap Log.Logger to also write to our collecting sink.
-            // UseSerilog() reads Log.Logger when the SerilogLoggerFactory is
-            // resolved (during host startup, after ConfigureTestServices), so
-            // this wrapper will be the active logger for all hosted services.
-            _originalLogger = Log.Logger;
-            Log.Logger = new LoggerConfiguration()
+            // Wrap the host's own logger (not a process-global) so everything the host logs also reaches our
+            // collecting sink; see TestHostLogging.
+            TestHostLogging.Wrap(services, inner => new LoggerConfiguration()
                 .WriteTo.Sink(_sink)
-                .WriteTo.Logger(_originalLogger)
-                .CreateLogger();
+                .WriteTo.Logger(inner)
+                .CreateLogger());
         });
     }
 
@@ -414,10 +410,6 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
     {
         if (disposing)
         {
-            // Restore the original logger
-            if (_originalLogger is not null)
-                Log.Logger = _originalLogger;
-
             try { Directory.Delete(_tempRoot, true); } catch { }
         }
         base.Dispose(disposing);

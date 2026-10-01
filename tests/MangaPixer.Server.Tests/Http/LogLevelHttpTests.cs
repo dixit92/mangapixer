@@ -370,11 +370,12 @@ public sealed class LogLevelHttpTests : IDisposable
         _factory.Sink.Clear();
 
         // Emit a Debug event with SourceContext in the Scanning namespace
-        var scanningLogger = Log.Logger.ForContext("SourceContext", "com.lifepixer.mangapixer.Server.Scanning.LibraryScanCoordinator");
+        var hostLogger = _factory.Services.GetRequiredService<Serilog.ILogger>();
+        var scanningLogger = hostLogger.ForContext("SourceContext", "com.lifepixer.mangapixer.Server.Scanning.LibraryScanCoordinator");
         scanningLogger.Debug("Scanning debug test message");
 
         // Emit a Debug event with SourceContext in the Media namespace
-        var mediaLogger = Log.Logger.ForContext("SourceContext", "com.lifepixer.mangapixer.Server.Media.MediaWorkerPool");
+        var mediaLogger = hostLogger.ForContext("SourceContext", "com.lifepixer.mangapixer.Server.Media.MediaWorkerPool");
         mediaLogger.Debug("Media debug test message");
 
         // Only the Scanning Debug event should be captured
@@ -416,7 +417,6 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
     private readonly string _tempRoot;
     private readonly LoggingLevelSwitch _levelSwitch = new(LogEventLevel.Information);
     private readonly Dictionary<string, LoggingLevelSwitch> _categorySwitches = new();
-    private Serilog.ILogger? _originalLogger;
     private HttpClient? _cachedAdminClient;
 
     public CollectingSink Sink => _sink;
@@ -484,15 +484,18 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
                 services.Remove(existingCatDict);
             services.AddSingleton<IReadOnlyDictionary<string, LoggingLevelSwitch>>(_categorySwitches);
 
-            _originalLogger = Log.Logger;
-            var testLoggerConfig = new LoggerConfiguration()
-                .MinimumLevel.ControlledBy(_levelSwitch);
-            foreach (var (name, prefix) in com.lifepixer.mangapixer.Server.Logging.DebugCategories.All)
-                testLoggerConfig.MinimumLevel.Override(prefix, _categorySwitches[name]);
-            Log.Logger = testLoggerConfig
-                .WriteTo.Sink(_sink)
-                .WriteTo.Logger(_originalLogger)
-                .CreateLogger();
+            // Wrap the host's own logger with one controlled by the test's switches; see TestHostLogging.
+            TestHostLogging.Wrap(services, inner =>
+            {
+                var testLoggerConfig = new LoggerConfiguration()
+                    .MinimumLevel.ControlledBy(_levelSwitch);
+                foreach (var (name, prefix) in com.lifepixer.mangapixer.Server.Logging.DebugCategories.All)
+                    testLoggerConfig.MinimumLevel.Override(prefix, _categorySwitches[name]);
+                return testLoggerConfig
+                    .WriteTo.Sink(_sink)
+                    .WriteTo.Logger(inner)
+                    .CreateLogger();
+            });
         });
     }
 
@@ -567,9 +570,6 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
     {
         if (disposing)
         {
-            if (_originalLogger is not null)
-                Log.Logger = _originalLogger;
-
             try { Directory.Delete(_tempRoot, true); } catch { }
         }
         base.Dispose(disposing);
