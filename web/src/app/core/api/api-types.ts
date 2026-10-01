@@ -2144,3 +2144,78 @@ export interface CoverPassStatusDto {
   coversStored: number;
   waiting?: string | null;
 }
+
+// --- Move conflicts (1.31.0, admin): an item moved to another library while both copies had their own state ---
+
+/** What differs between the old and the new copy. */
+export type MoveConflictKind = 'Progress' | 'ReaderSettings' | 'SeriesLink';
+
+export type MoveConflictState = 'Open' | 'Overwritten' | 'Kept';
+
+/** Overwrite the new state with the old one, or keep the new one. */
+export type MoveConflictResolution = 'Overwrite' | 'Keep';
+
+export type MoveProgressState = 'Unread' | 'InProgress' | 'Completed';
+
+/** One side (old or new) of a move conflict; only the fields of the conflict's kind are set. */
+export interface MoveConflictSideDto {
+  present: boolean;
+  progress?: MoveProgressState | null;
+  /** 1-based page. */
+  page?: number | null;
+  pageCount?: number | null;
+  readerMode?: ReaderMode | null;
+  otherReaderSettings?: boolean | null;
+  linkState?: SeriesLinkState | null;
+  recordTitle?: string | null;
+  provider?: string | null;
+  updatedAt?: string | null;
+}
+
+/** GET /admin/move-conflicts items. */
+export interface MoveConflictDto {
+  id: string;
+  kind: MoveConflictKind;
+  state: MoveConflictState;
+  /** Null for a series link (an admin row). */
+  userId?: string | null;
+  userName?: string | null;
+  /** The new copy (live). */
+  nodeId: string;
+  title: string;
+  isFolder: boolean;
+  parentTitle?: string | null;
+  libraryId: string;
+  libraryName: string;
+  /** Where the old copy was. */
+  fromTitle: string;
+  fromLibraryName: string;
+  old: MoveConflictSideDto;
+  new: MoveConflictSideDto;
+  createdAt: string;
+  resolvedAt?: string | null;
+}
+
+export interface MoveConflictPageDto {
+  items: MoveConflictDto[];
+  openCount: number;
+  nextCursor?: string | null;
+}
+
+/** GET /admin/move-conflicts/count (the admin link badge). */
+export interface MoveConflictCountDto {
+  open: number;
+}
+
+/** POST /admin/move-conflicts/resolve: the listed ids, or every open conflict (`all`, optionally of one `kind`). */
+export interface MoveConflictResolveRequest {
+  ids?: string[] | null;
+  all?: boolean;
+  kind?: MoveConflictKind | null;
+  resolution: MoveConflictResolution;
+}
+
+export interface MoveConflictResolveResultDto {
+  resolved: number;
+  skipped: number;
+}
