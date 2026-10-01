@@ -348,7 +348,7 @@ public sealed class MetadataCarryOverService
         }
     }
 
-    /// <summary>Manual re-attach of a Missing folders row onto a live folder of the same library.</summary>
+    /// <summary>Manual re-attach of a Missing folders row onto a live folder - of any library since 1.31.1.</summary>
     public async Task<(string? Error, MetadataReattachResultDto? Result)> ReattachAsync(
         string fromPublicId, string toPublicId, string? actor, CancellationToken ct = default)
     {
@@ -360,8 +360,8 @@ public sealed class MetadataCarryOverService
             return ("target_not_found", null);
         if (to.Kind != (int)CatalogNodeKind.Folder)
             return ("not_a_folder", null);
-        if (to.LibraryId != from.LibraryId)
-            return ("other_library", null);
+        // 1.31.1: another library is allowed (a series moved between libraries whose archives were not recognised as moved);
+        // MoveRowsAsync rewrites the denormalised library ids.
 
         var moved = await MoveRowsAsync(from.Id, to.Id, ct);
         await _audit.RecordAsync(AuditActions.MetadataReattach, moved.Any ? AuditResults.Success : "nothing_moved", actor, ct: ct,

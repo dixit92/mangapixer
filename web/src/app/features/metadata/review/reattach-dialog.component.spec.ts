@@ -7,7 +7,7 @@ import { ApiService } from '../../../core/api/api.service';
 import { CatalogNodeDto } from '../../../core/api/api-types';
 import { ReattachDialogComponent } from './reattach-dialog.component';
 
-/** Folder picker for "Re-attach to..." (stage 2): the same library's folders only, via the browse API. */
+/** Folder picker for "Re-attach to..." (stage 2): a library's folders via the browse API; 1.31.1: any library can be picked. */
 describe('ReattachDialogComponent', () => {
   const node = (id: string, kind: 'Folder' | 'Archive', children = 0, availability = 'Available') =>
     ({ id, kind, displayName: `Name ${id}`, parentId: '', libraryId: 'lib1', availability, childFolderCount: children }) as CatalogNodeDto;
@@ -16,10 +16,12 @@ describe('ReattachDialogComponent', () => {
     const pages: Record<string, CatalogNodeDto[]> = {
       root: [node('f1', 'Folder', 2), node('a1', 'Archive'), node('gone', 'Folder', 0, 'Tombstoned')],
       f1: [node('f2', 'Folder')],
+      'lib2:root': [node('g1', 'Folder')],
     };
     const api = {
-      browseLibrary: vi.fn((_lib: string, parent: string | null) =>
-        of({ items: pages[parent ?? 'root'] ?? [], totalCount: 0, nextCursor: null, hasMore: false })),
+      browseLibrary: vi.fn((lib: string, parent: string | null) =>
+        of({ items: pages[lib === 'lib2' ? 'lib2:root' : parent ?? 'root'] ?? [], totalCount: 0, nextCursor: null, hasMore: false })),
+      getLibraries: vi.fn(() => of([{ id: 'lib1', name: 'Library One' }, { id: 'lib2', name: 'Library Two' }])),
     };
     const ref = { close: vi.fn() };
     TestBed.configureTestingModule({
@@ -40,13 +42,28 @@ describe('ReattachDialogComponent', () => {
 
   it('lists live folders of the library (no archives, no removed folders) and browses into one', () => {
     const { c, api, folders } = create();
-    expect(api.browseLibrary).toHaveBeenCalledWith('lib1', null, null, 100, 'name');
+    expect(api.browseLibrary).toHaveBeenCalledWith('lib1', null, null, 100, 'name', null, null, false, null, false, 'flat');
     expect(folders()).toEqual(['folder Name f1']);
     c.open(c.folders()[0]);
     expect(folders()).toEqual(['folder Name f2']);
     expect(c.crumbs().map((x) => x.name)).toEqual(['Library One', 'Name f1']);
     c.goTo(0);
     expect(folders()).toEqual(['folder Name f1']);
+  });
+
+  it('browses another library from its root and clears the choice (a series moved to another library, 1.31.1)', () => {
+    const { fixture, c, api, folders } = create();
+    c.chosen.set(c.folders()[0]);
+    const select = (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>('[data-testid="reattach-library"]')!;
+    expect(Array.from(select.options).map((o) => o.textContent?.trim())).toEqual(['Library One', 'Library Two']);
+    expect(select.value).toBe('lib1');
+
+    c.selectLibrary('lib2');
+
+    expect(api.browseLibrary).toHaveBeenLastCalledWith('lib2', null, null, 100, 'name', null, null, false, null, false, 'flat');
+    expect(folders()).toEqual(['folder Name g1']);
+    expect(c.crumbs().map((x) => x.name)).toEqual(['Library Two']);
+    expect(c.chosen()).toBeNull();
   });
 
   it('returns the chosen folder', () => {

@@ -400,6 +400,42 @@ public sealed class MetadataAutoMatchHttpTests
     }
 
     [Fact]
+    public async Task ReviewRows_ShowTheFilesOwnCover_NeverTheCoverLayers()
+    {
+        // 1.31.1 (owner): "Yours" next to the provider's cover must be the folder's own page 1 - the cover layer's choice (here an
+        // admin-chosen other archive; for linked series often the very web cover being compared) made both sides look the same.
+        using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true, configureServices: Fakes);
+        await SeedAsync(factory);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            var auto = await db.CatalogNodes.SingleAsync(n => n.PublicId == "amAuto");
+            var first = Node("amAutoA", auto.LibraryId, auto.Id, CatalogNodeKind.Archive, "Auto Saga v01");
+            var second = Node("amAutoB", auto.LibraryId, auto.Id, CatalogNodeKind.Archive, "Auto Saga v02");
+            db.CatalogNodes.AddRange(first, second);
+            await db.SaveChangesAsync();
+            db.ArchiveItems.AddRange(
+                new ArchiveItemEntity { NodeId = first.Id, ContentVersion = 1, PageCount = 2 },
+                new ArchiveItemEntity { NodeId = second.Id, ContentVersion = 1, PageCount = 2 });
+            db.NodeCoverChoices.Add(new NodeCoverChoiceEntity
+            {
+                NodeId = auto.Id,
+                Mode = (int)CoverChoiceMode.Archive,
+                ArchiveNodeId = second.Id,
+                Version = 1,
+                SetAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var row = (await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=AutoLinked")))
+            .Items.Single(i => i.NodeId == "amAuto");
+
+        Assert.Equal("/api/v1/items/amAutoA/cover?v=1", row.CoverUrl); // the first archive's page 1 (versioned as browse) - not amAutoB's
+    }
+
+    [Fact]
     public async Task MissingFolders_ListedAndReattached_FolderContentRoundTrip()
     {
         using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true, configureServices: Fakes);
@@ -412,11 +448,17 @@ public sealed class MetadataAutoMatchHttpTests
         Assert.Equal(SeriesLinkState.DontMatch, row.Link!.State);
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/v1/admin/metadata/missing/amGone/reattach",
             new MetadataReattachRequest { TargetNodeId = "amArc" })).StatusCode); // not a folder
-        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/v1/admin/metadata/missing/amGone/reattach",
-            new MetadataReattachRequest { TargetNodeId = "amOther" })).StatusCode); // another library
+        // 1.31.1: a folder of ANOTHER library is a valid target (a series moved between libraries); the link follows with its library id.
         var reattached = await OkAsync<MetadataReattachResultDto>(await admin.PostAsJsonAsync("/api/v1/admin/metadata/missing/amGone/reattach",
-            new MetadataReattachRequest { TargetNodeId = "amPlain" }));
+            new MetadataReattachRequest { TargetNodeId = "amOther" }));
         Assert.True(reattached.Link);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            var target = await db.CatalogNodes.SingleAsync(n => n.PublicId == "amOther");
+            var link = await db.NodeSeriesLinks.SingleAsync(l => l.NodeId == target.Id);
+            Assert.Equal(target.LibraryId, link.LibraryId);
+        }
         Assert.Equal(0, (await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=MissingFolders"))).Total);
         Assert.Equal(HttpStatusCode.NotFound, (await admin.DeleteAsync("/api/v1/admin/metadata/missing/amPlain")).StatusCode); // live folder
 

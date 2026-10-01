@@ -1,8 +1,10 @@
 namespace com.lifepixer.mangapixer.Server.Features.Covers;
 
+using System.Globalization;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Server.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 /// <summary>A node whose card needs a cover: its internal id, public id and whether it is a folder.</summary>
 public readonly record struct CoverTarget(long NodeId, string PublicId, bool IsFolder);
@@ -59,9 +61,11 @@ public sealed class LayeredCoverResolver(CoverResolutionService resolutions) : I
 /// <summary>
 /// Pass-through <see cref="ICoverResolver"/> (1.29.0 contract): exactly the pre-1.29.0 covers - an archive's file cover, a
 /// folder's first live descendant archive by SortKey (<see cref="FolderCovers"/>), unversioned. The fallback of services
-/// built without DI (service tests); the container holds the <see cref="LayeredCoverResolver"/>.
+/// built without DI (service tests); the container holds the <see cref="LayeredCoverResolver"/>. With
+/// <paramref name="versioned"/> (1.31.1, the review list) the URLs carry the archive's content version (<c>?v=</c>), exactly
+/// as the layer writes a plain file cover, so browsers cache them like browse covers.
 /// </summary>
-public sealed class FileCoverResolver(MangaPixerDbContext db) : ICoverResolver
+public sealed class FileCoverResolver(MangaPixerDbContext db, bool versioned = false) : ICoverResolver
 {
     public async Task<IReadOnlyDictionary<long, string>> ResolveUrlsAsync(IReadOnlyCollection<CoverTarget> targets, CancellationToken ct)
     {
@@ -81,6 +85,20 @@ public sealed class FileCoverResolver(MangaPixerDbContext db) : ICoverResolver
             foreach (var (folderId, coverPublicId) in covers)
                 result[folderId] = FolderCovers.ArchiveCoverUrl(coverPublicId);
         }
-        return result;
+        if (!versioned || result.Count == 0)
+            return result;
+
+        // "/api/v1/items/{publicId}/cover" -> + "?v={ContentVersion}" of that archive.
+        var byUrl = result.Values.Distinct(StringComparer.Ordinal).ToList();
+        var publicIds = targets.Where(t => !t.IsFolder).Select(t => t.PublicId)
+            .Concat(byUrl.Select(u => u["/api/v1/items/".Length..^"/cover".Length])).Distinct(StringComparer.Ordinal).ToList();
+        var versions = await db.CatalogNodes.AsNoTracking().Where(n => publicIds.Contains(n.PublicId))
+            .Join(db.ArchiveItems.AsNoTracking(), n => n.Id, a => a.NodeId, (n, a) => new { n.PublicId, a.ContentVersion })
+            .ToDictionaryAsync(x => x.PublicId, x => x.ContentVersion, StringComparer.Ordinal, ct);
+        return result.ToDictionary(kv => kv.Key, kv =>
+        {
+            var id = kv.Value["/api/v1/items/".Length..^"/cover".Length];
+            return versions.TryGetValue(id, out var cv) ? string.Create(CultureInfo.InvariantCulture, $"{kv.Value}?v={cv}") : kv.Value;
+        });
     }
 }

@@ -211,7 +211,7 @@ The **Review** tab lists what the matcher did, with a count on each list and a l
 - **Auto-linked**: links made automatically, newest first. A *Series family* chip means another series of the same family (for example a spin-off of the linked series) also matched the name - worth a look before you confirm. **Confirm** keeps one (automatic matching never changes a confirmed link), **Change…** opens Identify, **Unlink** and **Don't match**.
 - **Unmatched**: works the matcher found no good candidate for, with the date of the next automatic try.
 - **Don't match**, **Confirmed**: what is marked or linked by hand.
-- **Missing folders**: links or **Don't match** marks, source precedence, reading defaults, **Content** and declared facts left on a folder that was renamed or moved where MangaPixer could not follow it. **Re-attach to…** opens a folder picker for the same library; **Delete** removes what was left.
+- **Missing folders**: links or **Don't match** marks, source precedence, reading defaults, **Content** and declared facts left on a folder that was renamed or moved where MangaPixer could not follow it. **Re-attach to…** opens a folder picker - on the removed folder's library, with a **Library** choice for a series that moved to another library (*new in 1.31.1*); **Delete** removes what was left.
 
 Archives matched on their own are marked **Archive**; several archives matched together as one work are marked **Archive group**. The other candidates' covers are not shown until you expand a row (the arrow on the right, or `e`), because each cover is a request to MangaUpdates.
 

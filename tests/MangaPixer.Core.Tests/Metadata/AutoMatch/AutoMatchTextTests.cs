@@ -63,6 +63,11 @@ public sealed class AutoMatchTextTests
     [InlineData("Some Title Ch. 001-010.cbz", "", "", "1", "10", false)]
     [InlineData("Some Title - Chapter 012.cbz", "", "", "12", "", false)]
     [InlineData("Some Title - Episode 7.cbz", "", "", "7", "", false)]
+    // 1.31.1: "Episode N" next to a volume is a part / arc, not a chapter (each arc's volumes restart at 1).
+    [InlineData("Saga of Tides - Episode 1 - The First Storm v01 (2-in-1 Edition) (2012) (Digital).cbz", "1", "", "", "", false)]
+    [InlineData("Saga of Tides - Episode 3 - The Third Storm v02 (3-in-1 Edition).cbz", "2", "", "", "", false)]
+    [InlineData("Some Title v02 Ep. 5.cbz", "2", "", "", "", false)]
+    [InlineData("Some Title v02 Chapter 5.cbz", "2", "", "5", "", false)] // a real chapter word still counts
     [InlineData("Some Title #4.cbz", "", "", "4", "", false)]
     [InlineData("001 [Chapter Title].cbz", "", "", "1", "", false)]
     [InlineData("000.cbz", "", "", "0", "", false)]

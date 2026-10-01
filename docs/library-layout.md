@@ -160,7 +160,7 @@ After a scan, new archives are analyzed in the background. Their page counts and
 - **Changed files** (different size or modification time) are re-analyzed and get a new cover. Reading progress is kept.
 - **Deleted files and folders** disappear from the library once the scan completes. If a file comes back at the same path, it reappears with its progress intact. *New in 1.31.0:* they go to the [trash](trash.md), where their reading state is kept for the retention time (Monthly by default) before an admin, or automatic cleaning, empties it.
 - **Moved or renamed archives** keep their identity: reading progress, read marks, bookmarks and thumbnail follow the file to its new location, also in **another library** (see [Moving series between libraries](#moving-series-between-libraries)). MangaPixer recognizes a moved file by a content signature: its size plus a hash of its first and last 64 KiB. A move is recognized only when:
-  - the archive had been analyzed before it moved,
+  - the archive had been analyzed before it moved (*1.31.1:* archives analyzed by versions before 1.5.0 get their signature from a slow background pass after the update - until it has reached them, a move of those is not recognized),
   - exactly one removed file matches exactly one new file, and
   - the new file is not still being written.
 

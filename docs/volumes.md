@@ -49,7 +49,7 @@ When a folder is linked to a series, its generic unit subfolders are merged into
 
 - `Season 2`, `Part 3` and other named parts are **not** merged: they stay folders, and each groups inside itself using the series' volume list.
 - A subfolder linked to a series of its own, side material (`Extras`, `Specials`, `Colored`...) and a subfolder that holds another folder stay folders.
-- If the numbering restarts, for example two folders that both start at chapter 1, nothing is merged, and a `Season` folder whose numbering restarts is never grouped.
+- If the numbering restarts, for example two folders that both start at chapter 1, nothing is merged, and a `Season` folder whose numbering restarts is never grouped. *1.31.1:* `Episode 3` (or `Ep 3`) in a file name that also states a volume - `Title - Episode 3 - Arc Title v01` - names a part of the series like `Part 3`, not a chapter, so arc folders whose volumes start again at 1 count as a restart too.
 - A folder that is not linked (or is marked **Don't match**) never merges its subfolders; it only groups its own files by their names.
 
 ## Missing volumes and chapters

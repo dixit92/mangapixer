@@ -175,10 +175,10 @@ public sealed class CoverCheckService(
         var auto = (int)SeriesLinkState.Auto;
         var covers = await db.VolumeCovers.AsNoTracking().Where(c => c.State == stored && c.Hash != null)
             .GroupBy(_ => 1).Select(g => new { Count = g.Count(), Ids = g.Sum(c => c.Id), Versions = g.Sum(c => c.StoredVersion) })
-            .FirstOrDefaultAsync(ct);
+            .SingleOrDefaultAsync(ct); // one group at most (EF warns on an unordered First)
         var links = await db.NodeSeriesLinks.AsNoTracking().Where(l => l.State == auto && l.RecordId != null)
             .GroupBy(_ => 1).Select(g => new { Count = g.Count(), Nodes = g.Sum(l => l.NodeId), Records = g.Sum(l => l.RecordId!.Value) })
-            .FirstOrDefaultAsync(ct);
+            .SingleOrDefaultAsync(ct); // one group at most (EF warns on an unordered First)
         return string.Create(CultureInfo.InvariantCulture,
             $"{covers?.Count}.{covers?.Ids}.{covers?.Versions}|{links?.Count}.{links?.Nodes}.{links?.Records}");
     }
