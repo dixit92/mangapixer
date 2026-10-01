@@ -391,7 +391,11 @@
          AddCandidateSeriesFamily (additive). Consents unchanged (v3). Worker protocol unchanged (5). Bugfixes ship as
          1.30.x. -->
     <MangaPixerVersionMinor>30</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <!-- 1.30.1 - PATCH (2026-10-01, integrator-direct, owner live check): Complete collection only when the folder holds the run
+         (volumes held as chapters count only by an exact list and when the chapters reach the last known chapter; MangaUpdates
+         "N Volumes | M Chapters" status read for M); "Chapter-based" instead of "Fan translation", "English chapters" instead of
+         "English scanlation". No migration, API or dependency change. -->
+    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

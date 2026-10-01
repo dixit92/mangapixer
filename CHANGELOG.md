@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.30.1] - 2026-10-01
+
 ### Changed
 
 - **Chapter-based instead of Fan translation.** A series that MangaUpdates lists as completely released in English, chapter by chapter, is now **Complete collection - Chapter-based** / **Finished - Chapter-based, English**, and the status line says **English chapters** instead of "English scanlation". Such a release can be official (MANGA Plus, for example), so MangaPixer no longer calls it a fan translation. The Official releases filter reads **Any / Official / Chapter-based / Original run**.
