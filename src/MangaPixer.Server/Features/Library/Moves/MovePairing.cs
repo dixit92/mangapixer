@@ -2,26 +2,6 @@ namespace com.lifepixer.mangapixer.Server.Features.Library.Moves;
 
 using com.lifepixer.mangapixer.Core.Metadata;
 
-/// <summary>What differs between the old and the new copy of a moved item (1.31.0).</summary>
-public enum MoveConflictKind
-{
-    Progress = 1,
-    ReaderSettings = 2,
-    SeriesLink = 3,
-}
-
-/// <summary>Where a move conflict stands: open, or resolved by an admin.</summary>
-public enum MoveConflictState
-{
-    Open = 0,
-
-    /// <summary>The old state was copied onto the new copy.</summary>
-    Overwritten = 1,
-
-    /// <summary>The new copy kept its own state.</summary>
-    Kept = 2,
-}
-
 /// <summary>A tombstoned archive that may have moved: its content signature and when its library last saw it present.</summary>
 public sealed record MoveOldCandidate(long NodeId, long LibraryId, long ByteLength, string Signature, DateTimeOffset LastSeenAt);
 

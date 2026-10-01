@@ -358,7 +358,12 @@ public sealed class ScanMoveDetectionTests : IDisposable
         Assert.Equal(3, result.NodesAdded);       // folder + 2 archives
         Assert.Equal(2, result.NodesTombstoned);
 
-        // Now a clean 1:1 case: analyse one of the new copies, then move only it.
+        // Now a clean 1:1 case: analyse one of the new copies, then move only it. Since 1.31.0 the two tombstones of the
+        // ambiguous step stay move candidates for the move window and would make this ambiguous too (three old rows share
+        // the signature); age them past the window so only the moved copy remains.
+        await using (var aging = NewContext())
+            await aging.CatalogNodes.Where(n => n.Id == idA || n.Id == idB)
+                .ExecuteUpdateAsync(u => u.SetProperty(n => n.TombstonedAt, DateTimeOffset.UtcNow.AddDays(-31)));
         var relB2 = Rel("Series B", "b.cbz");
         var idB2 = await SimulateAnalyzedWithReadingStateAsync(relB2);
         File.Move(Path.Combine(_libRoot, relB2), Path.Combine(_libRoot, "Series B", "b-final.cbz"));

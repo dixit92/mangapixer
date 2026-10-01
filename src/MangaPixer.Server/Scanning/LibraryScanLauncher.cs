@@ -150,6 +150,12 @@ public sealed class LibraryScanLauncher
                         comicInfoScope.ServiceProvider
                             .GetService<com.lifepixer.mangapixer.Server.Features.Metadata.ComicInfoBackfillService>()?.RequestRun();
 
+                    // 1.31.0: archives this scan tombstoned may already have a new copy in another library (its
+                    // destination was scanned first). Coalesced and single-flight; it never blocks the scan.
+                    using (var movesScope = _scopeFactory.CreateScope())
+                        _ = movesScope.ServiceProvider
+                            .GetService<com.lifepixer.mangapixer.Server.Features.Library.Moves.IMovePairingTrigger>()?.RequestRun();
+
                     // Metadata stage 2: folder-rename carry-over along the move ledger,
                     // then (one boolean read when automatic matching is off) queueing of
                     // this scan's new folders. Lease and maintenance are already released;
