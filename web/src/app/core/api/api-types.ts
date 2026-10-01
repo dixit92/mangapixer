@@ -2144,3 +2144,89 @@ export interface CoverPassStatusDto {
   coversStored: number;
   waiting?: string | null;
 }
+
+// --- Empty trash + Clean bundles (1.31.0): /admin/trash ---
+
+/** GET /admin/trash: settings, what "Empty trash now" removes per library (with holds), what "Clean bundles" removes, last runs. */
+export interface TrashOverviewDto {
+  settings: TrashSettingsDto;
+  /** Tombstones from before this time are past the window. */
+  windowStart: string;
+  libraries: TrashLibraryDto[];
+  /** What "Empty trash now" for all libraries removes (libraries without a hold). */
+  total: TrashCountsDto;
+  bundles: TrashFilesDto;
+  lastEmpty?: TrashRunDto | null;
+  lastBundleClean?: TrashRunDto | null;
+}
+
+export interface TrashSettingsDto {
+  /** "Turn automatic cleaning on": once a day at automaticHour (server time). Off by default. */
+  automaticCleaning: boolean;
+  /** The move window, which is also the trash retention, in days. */
+  retentionDays: number;
+  /** Daily, Weekly, Monthly, Quarterly, Yearly as days. */
+  allowedRetentionDays: number[];
+  automaticHour: number;
+}
+
+/** PUT /admin/trash/settings: a missing field keeps its value. */
+export interface UpdateTrashSettingsRequest {
+  automaticCleaning?: boolean | null;
+  retentionDays?: number | null;
+}
+
+/** Why a library keeps its trash this pass. */
+export type TrashHold = 'scan_running' | 'root_unavailable' | 'burst';
+
+export interface TrashLibraryDto {
+  libraryId: string;
+  name: string;
+  /** What emptying this library removes now (when held: what releasing the hold would remove). */
+  eligible: TrashCountsDto;
+  /** Removed items still inside the window, or kept by move recognition. */
+  waiting: number;
+  libraryNodes: number;
+  hold?: TrashHold | null;
+  holdReleasable: boolean;
+}
+
+export interface TrashCountsDto {
+  nodes: number;
+  archives: number;
+  folders: number;
+  /** Reading progress, read marks, bookmarks, reader overrides and favorites, all users. */
+  userStateRows: number;
+  files: number;
+  bytes: number;
+}
+
+export interface TrashFilesDto {
+  files: number;
+  bytes: number;
+}
+
+export interface TrashRunDto {
+  at: string;
+  automatic: boolean;
+  /** Nodes removed (Empty trash) or files removed (Clean bundles). */
+  count: number;
+  bytes: number;
+  heldLibraries: number;
+}
+
+/** POST /admin/trash/empty: every library without a hold, or one library (releaseHold empties it although held). */
+export interface EmptyTrashRequest {
+  libraryId?: string | null;
+  releaseHold?: boolean;
+}
+
+export interface EmptyTrashResultDto {
+  removed: TrashCountsDto;
+  held: TrashHeldLibraryDto[];
+}
+
+export interface TrashHeldLibraryDto {
+  libraryId: string;
+  hold: TrashHold;
+}

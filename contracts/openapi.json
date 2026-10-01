@@ -358,6 +358,242 @@
         }
       }
     },
+    "/api/v1/admin/trash": {
+      "get": {
+        "tags": [
+          "Trash"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashOverviewDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashOverviewDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashOverviewDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/trash/settings": {
+      "put": {
+        "tags": [
+          "Trash"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTrashSettingsRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTrashSettingsRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTrashSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashSettingsDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashSettingsDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashSettingsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/trash/empty": {
+      "post": {
+        "tags": [
+          "Trash"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/EmptyTrashRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/EmptyTrashRequest"
+                  }
+                ]
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/EmptyTrashRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyTrashResultDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyTrashResultDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyTrashResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/trash/clean-bundles": {
+      "post": {
+        "tags": [
+          "Trash"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashFilesDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashFilesDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashFilesDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/system/info": {
       "get": {
         "tags": [
@@ -7240,6 +7476,38 @@
           }
         }
       },
+      "EmptyTrashRequest": {
+        "type": "object",
+        "properties": {
+          "libraryId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "releaseHold": {
+            "type": "boolean"
+          }
+        }
+      },
+      "EmptyTrashResultDto": {
+        "required": [
+          "removed",
+          "held"
+        ],
+        "type": "object",
+        "properties": {
+          "removed": {
+            "$ref": "#/components/schemas/TrashCountsDto"
+          },
+          "held": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrashHeldLibraryDto"
+            }
+          }
+        }
+      },
       "FolderMetadataContentDto": {
         "required": [
           "nodeId",
@@ -11364,6 +11632,289 @@
           }
         }
       },
+      "TrashCountsDto": {
+        "required": [
+          "nodes",
+          "archives",
+          "folders",
+          "userStateRows",
+          "files",
+          "bytes"
+        ],
+        "type": "object",
+        "properties": {
+          "nodes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "archives": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "folders": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "userStateRows": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "files": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "bytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "TrashFilesDto": {
+        "required": [
+          "files",
+          "bytes"
+        ],
+        "type": "object",
+        "properties": {
+          "files": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "bytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "TrashHeldLibraryDto": {
+        "required": [
+          "libraryId",
+          "hold"
+        ],
+        "type": "object",
+        "properties": {
+          "libraryId": {
+            "type": "string"
+          },
+          "hold": {
+            "type": "string"
+          }
+        }
+      },
+      "TrashLibraryDto": {
+        "required": [
+          "libraryId",
+          "name",
+          "eligible",
+          "waiting",
+          "libraryNodes",
+          "holdReleasable"
+        ],
+        "type": "object",
+        "properties": {
+          "libraryId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "eligible": {
+            "$ref": "#/components/schemas/TrashCountsDto"
+          },
+          "waiting": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "libraryNodes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "hold": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "holdReleasable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TrashOverviewDto": {
+        "required": [
+          "settings",
+          "windowStart",
+          "libraries",
+          "total",
+          "bundles"
+        ],
+        "type": "object",
+        "properties": {
+          "settings": {
+            "$ref": "#/components/schemas/TrashSettingsDto"
+          },
+          "windowStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "libraries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrashLibraryDto"
+            }
+          },
+          "total": {
+            "$ref": "#/components/schemas/TrashCountsDto"
+          },
+          "bundles": {
+            "$ref": "#/components/schemas/TrashFilesDto"
+          },
+          "lastEmpty": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TrashRunDto"
+              }
+            ]
+          },
+          "lastBundleClean": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TrashRunDto"
+              }
+            ]
+          }
+        }
+      },
+      "TrashRunDto": {
+        "required": [
+          "at",
+          "automatic",
+          "count",
+          "bytes",
+          "heldLibraries"
+        ],
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "automatic": {
+            "type": "boolean"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "bytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "heldLibraries": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "TrashSettingsDto": {
+        "required": [
+          "automaticCleaning",
+          "retentionDays",
+          "allowedRetentionDays",
+          "automaticHour"
+        ],
+        "type": "object",
+        "properties": {
+          "automaticCleaning": {
+            "type": "boolean"
+          },
+          "retentionDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "allowedRetentionDays": {
+            "type": "array",
+            "items": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          "automaticHour": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "UnitSpanDto": {
         "required": [
           "from",
@@ -11681,6 +12232,26 @@
               "string"
             ],
             "format": "double"
+          }
+        }
+      },
+      "UpdateTrashSettingsRequest": {
+        "type": "object",
+        "properties": {
+          "automaticCleaning": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "retentionDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -12208,6 +12779,9 @@
   "tags": [
     {
       "name": "Operations"
+    },
+    {
+      "name": "Trash"
     },
     {
       "name": "System"

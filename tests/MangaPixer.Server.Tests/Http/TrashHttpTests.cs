@@ -73,16 +73,26 @@ public sealed class TrashHttpTests : IDisposable
         return await scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>().CatalogNodes.AnyAsync(n => n.Id == id);
     }
 
+    private async Task<HttpClient> SignInAsync(string username, string password)
+    {
+        var client = _factory.CreateClient();
+        (await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest { Username = username, Password = password })).EnsureSuccessStatusCode();
+        var csrf = await (await client.GetAsync("/api/v1/auth/csrf")).Content.ReadFromJsonAsync<CsrfTokenDto>();
+        client.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
+        return client;
+    }
+
     [Fact]
     public async Task TheTrash_IsAdminOnly()
     {
         var admin = await _factory.LoginAsAdminWithChangedPasswordAsync();
         (await admin.PostAsJsonAsync("/api/v1/admin/users", new CreateUserRequest { Username = "trashreader", Password = "TargetPass123!", IsAdmin = false }))
             .EnsureSuccessStatusCode();
-        var reader = _factory.CreateClient();
-        (await reader.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest { Username = "trashreader", Password = "TargetPass123!" })).EnsureSuccessStatusCode();
-        var csrf = await (await reader.GetAsync("/api/v1/auth/csrf")).Content.ReadFromJsonAsync<CsrfTokenDto>();
-        reader.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
+        // A new user signs in, changes the temporary password, and signs in again (as every reader does).
+        var first = await SignInAsync("trashreader", "TargetPass123!");
+        (await first.PostAsJsonAsync("/api/v1/auth/change-password", new ChangePasswordRequest { CurrentPassword = "TargetPass123!", NewPassword = "TargetPassNew123!" }))
+            .EnsureSuccessStatusCode();
+        var reader = await SignInAsync("trashreader", "TargetPassNew123!");
 
         Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync("/api/v1/admin/trash")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await reader.PostAsJsonAsync("/api/v1/admin/trash/empty", new EmptyTrashRequest())).StatusCode);
