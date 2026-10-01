@@ -228,6 +228,9 @@ public static class AuditActions
     public const string MetadataVolumeCoversDelete = "metadata.volume_covers.delete";
     // 1.29.0 cover layer: an admin's cover choice (node id only).
     public const string CoverChoiceChange = "cover.choice.change";
+
+    /// <summary>An admin resolved move conflicts (1.31.0, cross-library moves).</summary>
+    public const string MoveConflictsResolve = "move.conflicts.resolve";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>

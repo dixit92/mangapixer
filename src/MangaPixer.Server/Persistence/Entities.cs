@@ -1664,3 +1664,56 @@ public sealed class FolderViewSettingsEntity
 
     public CatalogNodeEntity? Node { get; set; }
 }
+
+/// <summary>
+/// A move recognised after the fact (1.31.0, cross-library moves): the state of the tombstoned node <see cref="FromNodeId"/>
+/// was copied onto the live node <see cref="ToNodeId"/> (an archive whose destination library was scanned before its source
+/// library), or a removed folder's rows were carried to the folder its archives went to. One row per old node: it marks the
+/// tombstone as handled (no second pairing) and anchors the conflicts an admin still has to resolve. A scan-time move
+/// re-points the node itself and needs no row.
+/// </summary>
+public sealed class NodeMoveEntity
+{
+    public long Id { get; set; }
+
+    /// <summary>The old (tombstoned) node. Unique.</summary>
+    public long FromNodeId { get; set; }
+
+    /// <summary>The live node that received the state.</summary>
+    public long ToNodeId { get; set; }
+
+    /// <summary>0 = folder, 1 = archive (as <see cref="CatalogNodeEntity.Kind"/>).</summary>
+    public int Kind { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public CatalogNodeEntity? FromNode { get; set; }
+    public CatalogNodeEntity? ToNode { get; set; }
+}
+
+/// <summary>
+/// Old and new state that differ after a move recognised after the fact (1.31.0): both copies of an item have their own
+/// reading position or reader settings for one user, or the two folders have different series links. The new copy keeps its
+/// own state until an admin resolves the conflict: Overwrite copies the old state (kept on the held tombstone) onto the new
+/// copy, Keep leaves it. Resolved rows stay until the tombstone is purged.
+/// </summary>
+public sealed class MoveConflictEntity
+{
+    public long Id { get; set; }
+    public long MoveId { get; set; }
+
+    /// <summary>The user whose state differs; null for the series link (an admin row).</summary>
+    public long? UserId { get; set; }
+
+    /// <summary><c>MoveConflictKind</c>: 1 progress, 2 reader settings, 3 series link.</summary>
+    public int Kind { get; set; }
+
+    /// <summary><c>MoveConflictState</c>: 0 open, 1 overwritten (old state used), 2 kept (new state kept).</summary>
+    public int State { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? ResolvedAt { get; set; }
+    public long? ResolvedByUserId { get; set; }
+
+    public NodeMoveEntity? Move { get; set; }
+}

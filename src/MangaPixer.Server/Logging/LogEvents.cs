@@ -145,6 +145,14 @@ public static class LogEvents
         public const int ScheduledScanEvaluationFailed = 3029;
         public const int ScheduledScanDisabled = 3030;
         public const int ScheduledScanFinished = 3031;
+
+        // 1.31.0 cross-library moves (3100-3119 reserved for lane A)
+        public const int ScanCrossLibraryMoves = 3101;
+        public const int ScanMoveClaimLost = 3102;
+        public const int MovePairingPass = 3103;
+        public const int MovePairingFailed = 3104;
+        public const int MoveConflictsResolved = 3105;
+        public const int MovePairingSkipped = 3106;
     }
 
     /// <summary>Worker pool, supervisor, scheduler, scratch, persistence, and page delivery.</summary>

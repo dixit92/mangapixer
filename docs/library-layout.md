@@ -159,14 +159,29 @@ After a scan, new archives are analyzed in the background. Their page counts and
 - **New files and folders** are added.
 - **Changed files** (different size or modification time) are re-analyzed and get a new cover. Reading progress is kept.
 - **Deleted files and folders** disappear from the library once the scan completes. If a file comes back at the same path, it reappears with its progress intact.
-- **Moved or renamed archives** keep their identity: reading progress, read marks, bookmarks and thumbnail follow the file to its new location. MangaPixer recognizes a moved file by a content signature: its size plus a hash of its first and last 64 KiB. A move is recognized only when:
+- **Moved or renamed archives** keep their identity: reading progress, read marks, bookmarks and thumbnail follow the file to its new location, also in **another library** (see [Moving series between libraries](#moving-series-between-libraries)). MangaPixer recognizes a moved file by a content signature: its size plus a hash of its first and last 64 KiB. A move is recognized only when:
   - the archive had been analyzed before it moved,
-  - exactly one missing file matches exactly one new file, and
+  - exactly one removed file matches exactly one new file, and
   - the new file is not still being written.
 
-  Otherwise the moved file is treated as a new item.
-- **Moved or renamed folders** keep the settings an admin gave them (reading direction, series link or **Don't match**, source precedence and **Content**) when at least 80% of their archives moved to the same new folder. Otherwise the settings wait under **Missing folders** on the Metadata Manager page. See [Renamed and moved folders](series-information.md#renamed-and-moved-folders).
+  Otherwise the moved file is treated as a new item. A file that was removed and comes back later at another path is recognized the same way while it is inside the move window (below).
+- **Moved or renamed folders** keep the settings an admin gave them (reading direction, series link or **Don't match**, source precedence, **Content**, the Volumes view setting and the cover choice) and every user's star when at least 80% of their archives moved to the same new folder. Otherwise the settings wait under **Missing folders** on the Metadata Manager page. See [Renamed and moved folders](series-information.md#renamed-and-moved-folders).
 - **Safety net:** if a scan finds that almost everything has vanished (for example an unmounted share), it deletes nothing. The same applies if the library folder itself is unreachable; the scan fails with "Library root is not accessible."
+
+### Moving series between libraries
+
+You can move a series folder (or single archives) from one library's folder to another's on disk, for example from "Ongoing" to "Concluded". Reading progress, read marks, bookmarks, favorites and reader settings move with it, together with the folder's series link and admin settings. This works whichever library is scanned first:
+
+- **The old library is scanned first.** The scan removes the series from the old library. When the new library is scanned, MangaPixer recognizes the files and moves the existing items: nothing is analyzed again, covers and thumbnails stay, and a **Confirmed** series link stays confirmed (no new automatic match).
+- **The new library is scanned first.** The new library first shows the series as new items. When the old library is scanned and the new items have been analyzed, MangaPixer pairs each removed archive with its new copy. Besides the content signature, both copies must list the same pages (entry names and sizes). It then copies each user's state to the new copy wherever the new copy has none. A series link that the automatic matching set on the new folder to the same series becomes **Confirmed**. The new copies keep their original **Added** date, so a moved series does not show up as new chapters.
+  - If someone already read the new copy and their position differs from the old one, or the new folder got a different series link, nothing is overwritten. These cases wait on the **Move conflicts** page (in **MangaPixer Administration**), where an admin chooses for each one, for a selection or for all: **Use old** puts the state from before the move on the new copy, **Keep new** leaves the new copy as it is. Read marks, bookmarks and favorites never conflict: the new copy gets those it does not have yet.
+
+Good to know:
+
+- **The move window.** A removed item can be recognized at its new place for as long as the trash keeps it: the trash retention setting (**Daily**, **Weekly**, **Monthly**, **Quarterly** or **Yearly**; **Monthly**, 30 days, by default). After that, a file that reappears is a new item.
+- **Access.** State moves even for users who cannot open the new library right now. They see it again as soon as an admin gives them access. Nothing becomes visible to anyone who could not see it before.
+- **Copies stay separate.** Two identical files that were both in your libraries at the same time are never merged. If one series was copied to two places, neither copy takes the state over automatically.
+- Old links to the removed items (a bookmarked browser address, for example) do not redirect to the new copies.
 
 **What is skipped during a scan:**
 
