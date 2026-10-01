@@ -2218,6 +2218,7 @@ export interface MoveConflictResolveRequest {
 export interface MoveConflictResolveResultDto {
   resolved: number;
   skipped: number;
+}
 
 // --- Empty trash + Clean bundles (1.31.0): /admin/trash ---
 
