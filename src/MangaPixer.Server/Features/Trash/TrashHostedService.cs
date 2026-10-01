@@ -8,8 +8,9 @@ using Microsoft.Extensions.Hosting;
 
 /// <summary>
 /// When the daily automatic trash run is due (1.31.0). Pure. The run is at <see cref="RunHour"/>:00 server local time - a
-/// quiet hour, after the night's scheduled scans. A run missed while the server was down is caught up once at start-up, but
-/// never one from before automatic cleaning was turned on (turning it on is the admin's approval).
+/// quiet hour for readers; a library that is being scanned at that moment is skipped until the next day. A run missed while
+/// the server was down is caught up once at start-up, but never one from before automatic cleaning was turned on (turning it
+/// on is the admin's approval).
 /// </summary>
 public static class TrashSchedule
 {

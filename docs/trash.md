@@ -47,7 +47,7 @@ A library keeps its trash, and is listed as **Held** with the reason, when empty
 
 | Hold | Why | What to do |
 |---|---|---|
-| A scan is running | The scan is changing the library right now. | Nothing: the library is emptied after the scan. |
+| A scan is running | The scan is changing the library right now. | Nothing: empty it after the scan, or the next automatic run does. |
 | The folder was not reachable | The last scan could not reach the library's folder (a disk or share was offline). | Check the disk or share and scan the library. |
 | More than half would go | More than half of the library is in the trash at once - often an offline disk or a subfolder that was not mounted during a scan. | Check the disk and scan again; the items come back with their reading state. |
 
