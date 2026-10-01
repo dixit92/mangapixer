@@ -1,4 +1,4 @@
-[assembly: Xunit.TestCollectionOrderer(typeof(com.lifepixer.mangapixer.Tests.Server.LargestCollectionFirstOrderer))]
+[assembly: Xunit.TestCollectionOrderer("com.lifepixer.mangapixer.Tests.Server.LargestCollectionFirstOrderer", "MangaPixer.Server.Tests")]
 
 namespace com.lifepixer.mangapixer.Tests.Server;
 
