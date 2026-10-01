@@ -8,6 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 
 import { MetadataReviewCandidateDto, MetadataReviewItemDto, MetadataReviewTab } from '../../../core/api/api-types';
+import { DUPLICATE_TIP, duplicateCountLabel } from '../../../shared/duplicate-units';
 import {
   MATCH_LEVEL_LABELS,
   overallScoreTip,
@@ -158,6 +159,13 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
             @if (workClass()) { <span class="tag">{{ workClass() }}</span> }
             @if (it.matchLevel && it.matchLevel !== 'None' && it.matchLevel !== 'Folder') { <span class="tag">{{ matchLevel() }}</span> }
             <span class="count">{{ it.itemCount }} item{{ it.itemCount === 1 ? '' : 's' }}</span>
+            @if (duplicates(); as dup) {
+              <span class="tag dup" [matTooltip]="dupTip" data-testid="review-duplicates">{{ dup }}</span>
+            }
+            @if (it.checkingAgain) {
+              <span class="tag checking" matTooltip="The matcher's rules changed with an update; this item is being scored again. What is shown is the earlier result until then."
+                    data-testid="review-checking-again"><mat-icon inline>autorenew</mat-icon> Checking again</span>
+            }
             @if (it.openFlagCount > 0) {
               <span class="tag flag" matTooltip="A reader reported this series as wrong"><mat-icon inline>flag</mat-icon> {{ it.openFlagCount }}</span>
             }
@@ -301,6 +309,8 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
     .tag.kind { background: rgba(100, 181, 246, 0.18); color: #90caf9; }
     .tag.group { background: rgba(255, 183, 77, 0.16); color: #ffcc80; }
     .tag.flag { background: rgba(244, 67, 54, 0.18); color: #ff8a80; }
+    .tag.dup { background: rgba(255, 183, 77, 0.16); color: #ffcc80; }
+    .tag.checking { background: rgba(100, 181, 246, 0.18); color: #90caf9; }
     .tag.role { background: rgba(128, 203, 196, 0.16); color: #a7ffeb; font-size: 11px; line-height: 18px; white-space: nowrap; }
     .family { margin: 4px 0 4px 8px; padding: 2px 8px 4px 0; border-left: 3px solid rgba(128, 203, 196, 0.55); border-radius: 0 8px 8px 0;
       background: rgba(128, 203, 196, 0.06); min-width: 0; }
@@ -354,6 +364,10 @@ export class ReviewRowComponent {
   readonly blocks = computed(() => candidateBlocks(this.item().candidates));
   readonly familyNote = SERIES_FAMILY_NOTE;
   readonly roleLabel = familyRoleLabel;
+  /** 1.31.0: "2 duplicate chapters" when the same number sits in more than one file of a folder below this work; '' otherwise. */
+  readonly duplicates = computed(() => duplicateCountLabel(this.item().duplicateChapters ?? 0, this.item().duplicateVolumes ?? 0));
+  readonly dupTip = DUPLICATE_TIP;
+
   readonly groupSize = computed(() => {
     const members = this.item().memberNodeIds ?? [];
     return members.length > 0 ? members.length + 1 : 0;
