@@ -17,8 +17,6 @@ using Xunit;
 /// progress / result at <c>GET backups/move</c> (default to custom and back),
 /// safety snapshots never moved, the audit row, no folder in any body, the
 /// 409 while a move runs, and admin-only access.
-///
-/// "HttpSerial" because every host boot reassigns the process-global Serilog logger.
 /// </summary>
 public sealed class BackupSnapshotMoveHttpTests : IDisposable
 {

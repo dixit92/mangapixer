@@ -44,8 +44,8 @@ All verification is **script-driven**. Local runs and CI call the same scripts i
 
 | Tier | Command | What it runs | When to use it |
 |---|---|---|---|
-| Quick | `pwsh ./scripts/Verify-Quick.ps1` | Privacy preflight, `dotnet format` check, Debug build, all .NET tests | Your normal edit-build-test loop |
-| Full | `pwsh ./scripts/Verify.ps1 -Configuration Release` | Privacy preflight, locked restore, `dotnet format` check, Release build, all .NET tests, `npm ci`, OpenAPI drift check, lint, production build and Vitest unit tests of the web app, Compose file validation | Before opening or updating a pull request (this is what CI runs) |
+| Quick | `pwsh ./scripts/Verify-Quick.ps1` | Privacy preflight, `dotnet format` check, Debug build, the fast .NET tier (Core, MediaWorker, Tray and the Server tests that do not boot an application host), Vitest unit tests when npm is on `PATH` | Your normal edit-build-test loop (`-IncludeHttp` adds the host-booting tests, `-Filter` takes your own `dotnet test --filter`, `-SkipWeb` leaves Vitest out) |
+| Full | `pwsh ./scripts/Verify.ps1 -Configuration Release` | Privacy preflight, locked restore, `dotnet format` check, Release build, all .NET tests, `npm ci`, OpenAPI drift check, lint, production build and Vitest unit tests of the web app, Compose file validation | Before opening or updating a pull request (this is what CI runs, as two parallel jobs: `-SkipWeb` for the .NET half and `-WebOnly` for the npm half) |
 | Contracts | `pwsh ./scripts/Verify-Contracts.ps1` | `Version.props` / `web/package.json` version match, contract/ordering/protocol tests, OpenAPI drift check (needs `web/node_modules`, so run it after the Full tier or `npm --prefix web ci`) | Any change to API routes, DTOs, EF migrations, the worker protocol, or versions |
 | Smoke | `pwsh ./scripts/Smoke-Container.ps1` | Builds the image, runs it against a synthetic library with a read-only media mount, and exercises the full HTTP flow, restart persistence, source-media immutability, and log hygiene | Changes to hosting, Docker, storage, or anything the HTTP flow touches |
 | E2E | `pwsh ./scripts/Verify-E2E.ps1` | Builds the image, runs it on a free loopback port with throwaway storage, provisions the first admin via first-run setup, installs Chromium, and runs the Playwright browser suite (`web/e2e`) against it; always tears the container down | Changes to the web reader, auth/login flow, or anything a browser exercises end to end |
@@ -55,6 +55,8 @@ All verification is **script-driven**. Local runs and CI call the same scripts i
 The scripts never modify code to make a check pass. Fix the reported issue instead. If `dotnet format` complains, run `dotnet format MangaPixer.slnx` and commit the result.
 
 The privacy preflight accepts a normal clone with its `origin` remote. It fails only if a remote URL embeds a credential, such as `https://user:token@host/...` or a token-looking string; use a credential helper or SSH instead, and rotate any secret that ended up in a URL.
+
+The Server tests that boot an application host (everything under `Server.Http`, `Server.Hosting` and `Server.Contracts`) run in parallel, one xUnit collection per class: logging is per host (tests that need the log events wrap the host's own logger through `TestHostLogging`, never the global `Log.Logger`), storage and configuration are per host, and nothing may set an environment variable or the current directory. Every host creates and migrates its own SQLite database, so when the temp folder sits on a slow disk (a container overlay, a network share) point `TMPDIR` at a RAM disk for the test run; a host boot costs about half a second there and several seconds on a disk with expensive syncs.
 
 The Full tier runs the web app's Vitest unit suite. To run only that suite while you change anything under `web/`:
 

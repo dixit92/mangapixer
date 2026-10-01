@@ -21,20 +21,6 @@ using Xunit;
 /// DateTimeOffset translation, cache eviction without spurious warnings,
 /// and schema validation against the bumped version.
 /// </summary>
-/// <remarks>
-/// In the "HttpSerial" collection alongside every other
-/// WebApplicationFactory-booting Server.Tests class. This is unrelated to
-/// storage isolation (each host already gets its own DataRoot via
-/// TestHostStorageOverride) — it exists because EVERY host boot
-/// unconditionally reassigns the process-global Serilog <c>Log.Logger</c>
-/// static in <c>Program.Main</c>, and this test's factory
-/// (<see cref="C00WebApplicationFactory"/>) wraps whatever logger is
-/// current at boot time with its own collecting sink. A concurrently
-/// booting host from a different collection can clobber that wrapper (or
-/// have its own logger clobbered) mid-test, which is exactly what
-/// surfaced as an intermittent failure here once assembly-level
-/// parallelization was restored (see TestParallelization.cs).
-/// </remarks>
 public sealed class HostingCorrectnessTests
 {
     // (a) WebApplicationFactory test: startup log has no "Startup recovery

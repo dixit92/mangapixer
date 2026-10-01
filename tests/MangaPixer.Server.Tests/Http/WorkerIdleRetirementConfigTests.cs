@@ -17,7 +17,7 @@ using Xunit;
 /// The test factory removes the hosted service so ordinary HTTP tests do not
 /// spawn workers; the wiring test constructs it explicitly from the host's
 /// own services, which is exactly what the host would do.
-/// In the "HttpSerial" collection with every other host-booting class (see
+/// Like every host-booting class it runs in parallel with the others (see
 /// <see cref="WorkerConcurrencyConfigTests"/>).
 /// </summary>
 public sealed class WorkerIdleRetirementConfigTests

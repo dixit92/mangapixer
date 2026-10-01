@@ -20,8 +20,6 @@ using Xunit;
 /// custom folder, fail-loud readiness (Degraded), privacy (no location / data
 /// root in status, list, restore bodies or in the log file), and the removal
 /// of the orphan <c>POST /api/v1/operations/backup {path}</c>.
-///
-/// "HttpSerial" because every host boot reassigns the process-global Serilog logger.
 /// </summary>
 public sealed class BackupSettingsHttpTests : IDisposable
 {

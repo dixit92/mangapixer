@@ -17,11 +17,25 @@
 // hosts).
 //
 // Assembly-level parallelization is therefore enabled (no
-// [assembly: CollectionBehavior(DisableTestParallelization = true)]).
-// Classes that boot a WebApplicationFactory still share the "HttpSerial"
-// collection (see HttpTestCollection.cs) so that no two of them boot a host
-// at the same time — this exists only because every host boot reassigns the
-// process-global Serilog Log.Logger, not because of storage. Non-host-booting
-// Server.Tests classes, and the separate MangaPixer.Core.Tests /
-// MangaPixer.MediaWorker.Tests projects, run fully in parallel with this
-// collection.
+// [assembly: CollectionBehavior(DisableTestParallelization = true)]), and every
+// host-booting class is its own xUnit collection, so up to one test per core runs at
+// once and host-booting classes boot hosts concurrently.
+//
+// What makes that safe (each point is a rule for new tests):
+//   * Logging is per host. Program.Main builds its Serilog logger as a local and
+//     registers it in DI; nothing reads or writes the process-global Serilog.Log.Logger.
+//     A test that wants to see log events wraps the HOST's logger through
+//     TestHostLogging.Wrap (Hosting/TestHostLogging.cs); it never assigns Log.Logger.
+//   * Storage is per host (TestHostStorageOverride, see above).
+//   * Configuration is per host (MangaPixerWebApplicationFactory.WithExtraConfiguration);
+//     a test never sets an environment variable or the current directory.
+//   * Hosts use the in-memory TestServer, so there are no ports to collide on.
+//
+// The "HttpSerial" collection (Http/HttpTestCollection.cs) is kept only so that a class
+// carrying [Collection("HttpSerial")] still compiles: the members of one collection run
+// one after another, so such a class is merely scheduled behind its collection mates. New
+// test classes do not need it.
+//
+// Run the tests with TMPDIR on a RAM disk when the temp folder is on a slow or network
+// disk: every host creates and migrates its own SQLite database, so a boot costs ~0.5 s
+// on tmpfs and 3-9 s on a btrfs/overlay disk with expensive fsyncs.
