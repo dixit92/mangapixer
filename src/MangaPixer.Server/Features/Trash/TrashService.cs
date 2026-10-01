@@ -231,7 +231,7 @@ public sealed class TrashService
             actor, ct: ct, targetLibraryId: onlyLibrary);
         _logger.LogInformation(LogEvents.Administration.TrashEmptied,
             "Trash emptied ({Trigger}, library {LibraryId}): {Nodes} nodes ({Archives} archives, {Folders} folders), {StateRows} user state rows, {Files} files, {Bytes} bytes; {Held} libraries held",
-            automatic ? "automatic" : "admin", onlyLibrary, removed.Nodes, removed.Archives, removed.Folders, removed.UserStateRows,
+            automatic ? "automatic" : "admin", onlyLibrary?.ToString(CultureInfo.InvariantCulture) ?? "all", removed.Nodes, removed.Archives, removed.Folders, removed.UserStateRows,
             removed.Files, removed.Bytes, held.Count);
         if (held.Count > 0)
             _logger.LogInformation(LogEvents.Administration.TrashEmptyHeld, "Trash held for libraries {LibraryIds}",
