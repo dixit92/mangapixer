@@ -75,7 +75,7 @@ What the matcher did - links it made, close calls, works without a match and fol
 
 ### Renamed and moved folders
 
-When a folder is renamed or moved, MangaPixer recognizes its archives at the new place and moves the folder's link or **Don't match**, its source precedence, its default reading mode, its **Content** setting and its declared facts to the new folder, as long as at least 80% of its archives went to the same new folder. Otherwise (a folder split in two, for example) the settings wait under **Missing folders**, where you can **Re-attach** them to a folder of the same library or delete them. Archives keep their links and reading progress when they move anyway.
+When a folder is renamed or moved - also to another library - MangaPixer recognizes its archives at the new place and moves the folder's link or **Don't match**, its source precedence, its default reading mode, its **Content** setting, its declared facts, its Volumes view setting, its cover choice and every user's star to the new folder, as long as at least 80% of its archives went to the same new folder. A setting the new folder already has is kept. A link the automatic matching gave the new folder to the same series becomes **Confirmed**; a different link waits on the **Move conflicts** page for an admin to choose (see [Moving series between libraries](library-layout.md#moving-series-between-libraries)). Otherwise (a folder split in two, for example) the settings wait under **Missing folders**, where you can **Re-attach** them to a folder of the same library or delete them. Archives keep their links and reading progress when they move anyway.
 
 ### Background refresh
 
