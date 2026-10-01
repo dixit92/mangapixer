@@ -100,8 +100,16 @@ public sealed class TrashServiceTests : IDisposable
             db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity { NodeId = series, LibraryId = lib, State = 1, RecordId = record.Id, CreatedAt = TrashTestKit.Now, UpdatedAt = TrashTestKit.Now });
             var cover = new VolumeCoverEntity
             {
-                PublicId = "vc00112233445566aa", ProviderRecordId = record.Id, Kind = 0, Volume = 1, Locale = "en", RemoteId = "x", RemoteFile = "x.jpg",
-                State = 1, StoredVersion = 1, ListedAt = TrashTestKit.Now,
+                PublicId = "vc00112233445566aa",
+                ProviderRecordId = record.Id,
+                Kind = 0,
+                Volume = 1,
+                Locale = "en",
+                RemoteId = "x",
+                RemoteFile = "x.jpg",
+                State = 1,
+                StoredVersion = 1,
+                ListedAt = TrashTestKit.Now,
             };
             db.VolumeCovers.Add(cover);
             await db.SaveChangesAsync();

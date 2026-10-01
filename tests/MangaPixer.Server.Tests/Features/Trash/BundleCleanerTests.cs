@@ -35,8 +35,16 @@ public sealed class BundleCleanerTests : IDisposable
             recordId = record.Id;
             db.VolumeCovers.Add(new VolumeCoverEntity
             {
-                PublicId = coverId, ProviderRecordId = record.Id, Kind = 0, Volume = 1, Locale = "en", RemoteId = "x", RemoteFile = "x.jpg",
-                State = 1, StoredVersion = 3, ListedAt = TrashTestKit.Now,
+                PublicId = coverId,
+                ProviderRecordId = record.Id,
+                Kind = 0,
+                Volume = 1,
+                Locale = "en",
+                RemoteId = "x",
+                RemoteFile = "x.jpg",
+                State = 1,
+                StoredVersion = 3,
+                ListedAt = TrashTestKit.Now,
             });
             await db.SaveChangesAsync();
         }

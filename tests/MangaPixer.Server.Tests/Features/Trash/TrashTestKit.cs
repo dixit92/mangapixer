@@ -135,12 +135,25 @@ public sealed class TrashTestKit : IDisposable
         await using var db = NewContext();
         db.ReadingProgress.Add(new ReadingProgressEntity
         {
-            UserId = UserId, ItemId = itemId, ContentVersion = 2, EntryKey = "p0", Ordinal = 0, State = 1, Revision = 1, UpdatedAt = Now,
+            UserId = UserId,
+            ItemId = itemId,
+            ContentVersion = 2,
+            EntryKey = "p0",
+            Ordinal = 0,
+            State = 1,
+            Revision = 1,
+            UpdatedAt = Now,
         });
         db.ReadMarks.Add(new ReadMarkEntity { UserId = UserId, ItemId = itemId, MarkedAt = Now, Source = "manual" });
         db.Bookmarks.Add(new BookmarkEntity
         {
-            UserId = UserId, ItemId = itemId, ContentVersion = 2, EntryKey = "p0", Ordinal = 0, NormalizedAnchor = 0.5, CreatedAt = Now,
+            UserId = UserId,
+            ItemId = itemId,
+            ContentVersion = 2,
+            EntryKey = "p0",
+            Ordinal = 0,
+            NormalizedAnchor = 0.5,
+            CreatedAt = Now,
         });
         db.ItemReaderOverrides.Add(new ItemReaderOverridesEntity { UserId = UserId, ItemId = itemId, ReaderMode = 2 });
         db.Favorites.Add(new FavoriteEntity { UserId = UserId, CatalogNodeId = itemId, CreatedAt = Now });
