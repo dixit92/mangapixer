@@ -156,9 +156,10 @@ type View = 'open' | 'resolved';
     .more { display: flex; justify-content: center; margin-top: 12px; }
     @media (max-width: 599.98px) {
       h1 { font-size: 20px; }
-      .row { flex-wrap: wrap; }
-      .body { flex-basis: calc(100% - 48px); }
-      .actions { flex-direction: row; width: 100%; justify-content: flex-end; }
+      /* Phone: the checkbox stays beside the title; the actions take their own line under both. */
+      .row { display: grid; grid-template-columns: auto minmax(0, 1fr); }
+      .row.resolved { grid-template-columns: minmax(0, 1fr); }
+      .actions { grid-column: 1 / -1; flex-direction: row; justify-content: flex-end; }
     }
   `],
 })
