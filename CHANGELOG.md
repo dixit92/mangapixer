@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.31.1] - 2026-10-01
+
+### Fixed
+
+- **Moves of older archives are recognised again.** Archives first analyzed by a version before 1.5.0 had no content signature, so moving or renaming them - inside a library or to another one - lost their reading state. After the update a slow background pass reads 128 KiB of each such archive (source files are only read) and records its signature; from then on their moves are recognised like any other.
+- **Re-attach to a folder in another library.** On the **Missing folders** tab, **Re-attach to…** now has a **Library** choice, so the settings of a series moved to another library can be re-attached there.
+- **"Episode N" next to a volume is a part, not a chapter.** A file such as `Title - Episode 3 - Arc Title v01` is volume 1 of part 3; series split into arc folders whose volumes start again at 1 no longer borrow the series' chapter list (false "missing" chapters). `Episode 45` without a volume is still chapter 45.
+- **The review shows your own cover.** In Metadata Manager's review rows, **Yours** is always the file's own page 1 (a folder: its first archive's), never the cover chosen or downloaded for the series - which could make both sides of the comparison the same picture.
+- Two "First without OrderBy" warnings in the server log after each volume-cover pass.
+- **Upgrade note:** no migration, no API change; the signature pass starts a few minutes after the update and logs how many archives it signed.
+
 ## [1.31.0] - 2026-10-01
 
 ### Added

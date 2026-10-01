@@ -405,7 +405,11 @@
          logger). Migrations AddTombstoneLifecycle + AddCrossLibraryMoves + AddTrashSchedule + AddMatcherRulesRevision +
          AddTrashRunHour (additive). Worker protocol unchanged (5). Bugfixes ship as 1.31.x. -->
     <MangaPixerVersionMinor>31</MangaPixerVersionMinor>
-    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
+         analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
+         to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
+         two EF warnings. No migration, API shape or dependency change. -->
+    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
