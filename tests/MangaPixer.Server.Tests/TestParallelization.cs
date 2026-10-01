@@ -25,23 +25,3 @@
 // Server.Tests classes, and the separate MangaPixer.Core.Tests /
 // MangaPixer.MediaWorker.Tests projects, run fully in parallel with this
 // collection.
-
-namespace com.lifepixer.mangapixer.Tests.Server;
-
-/// <summary>
-/// Thread-pool floor for the test assembly. xUnit runs up to one test per core at once, and every host-booting
-/// test blocks its worker thread synchronously while the host boots (the factory constructors call
-/// <c>CreateClient()</c>). With the pool at its default minimum (one thread per core) those blocked workers
-/// starve the async continuations of the other tests, and the pool only adds a thread every ~0.5 s, so
-/// long-running async tests slowed several-fold under full parallelism. A higher floor makes the pool create
-/// threads on demand.
-/// </summary>
-internal static class TestThreadPool
-{
-    [System.Runtime.CompilerServices.ModuleInitializer]
-    internal static void Configure()
-    {
-        ThreadPool.GetMinThreads(out var worker, out var io);
-        ThreadPool.SetMinThreads(Math.Max(worker, 256), Math.Max(io, 256));
-    }
-}
