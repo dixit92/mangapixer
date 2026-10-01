@@ -85,7 +85,8 @@ public sealed record CoverCheckSweepResult(int Checked, int Demoted);
 /// The cover check AFTER an automatic link (1.31.0; owner 2026-09-30: covers are a positive tie-break before linking, a veto only
 /// with per-volume, per-language covers after it). For each AUTO link whose record's MangaDex companion has volume covers stored
 /// (by the approved volume-cover work), the folder's own volume covers - page 1 of each volume archive, both halves of a spread
-/// page 1 - are compared with the stored covers of the SAME volume in every language (<see cref="CoverCheckRule"/>). When every
+/// page 1 - are compared with the stored covers of the SAME volume (<see cref="CoverCheckRule"/>): a cover in any language can agree,
+/// only one in the preferred language (the language the folder's releases are read in) can count against the link. When every
 /// compared volume is clearly a different picture, the link moves back to Needs review with the record as its only candidate and
 /// the <see cref="MatchReason.CoverDiffers"/> chip (the <see cref="Reach.ReachCheckService"/> shape). Confirmed links are never
 /// touched. Never sends a request: stored covers, stored thumbnails and stored crops only, hashed by the media worker. Off with
@@ -114,7 +115,7 @@ public sealed class CoverCheckService(
 
     private sealed record LinkRow(long NodeId, long RecordId, long CompanionId, DateTimeOffset LinkedAt);
 
-    private sealed record WebCover(long Id, int Kind, int? Volume, int StoredVersion, ulong Hash);
+    private sealed record WebCover(long Id, int Kind, int? Volume, string Locale, int StoredVersion, ulong Hash);
 
     /// <summary>One sweep over the Auto links with stored covers (newest link first). Never throws for a single link's failure.</summary>
     public async Task<CoverCheckSweepResult> SweepAsync(CancellationToken ct = default)
@@ -214,12 +215,12 @@ public sealed class CoverCheckService(
     {
         var archives = await VolumeCoverPass.ArchivesBelowAsync(db, [link.NodeId], ct);
         var shaped = archives.Select(a => (Archive: a, Units: VolumeGrouping.UnitsOf(a.Row))).ToList();
-        var oneShot = shaped.Count == 1 && shaped[0].Units.Chapter is null;
+        // A one-shot is a single archive that states no number at all; a single "v01" is one volume of a series (it needs a second).
+        var oneShot = shaped.Count == 1 && shaped[0].Units is { Chapter: null, Volume: null };
         var byVolume = new SortedDictionary<int, List<VolumeCoverPass.HeldArchive>>();
         foreach (var (archive, units) in shaped)
         {
-            int? volume = oneShot
-                ? units.Volume is { } v && decimal.Truncate(v) == v && v >= 1 && units.VolumeEnd is null ? (int)v : units.Volume is null ? 1 : null
+            int? volume = oneShot ? 1
                 : units.Chapter is null && units.VolumeEnd is null && units.Volume is { } w && decimal.Truncate(w) == w && w >= 1 ? (int)w : null;
             if (volume is not { } key)
                 continue;
@@ -232,27 +233,33 @@ public sealed class CoverCheckService(
 
         var web = (await db.VolumeCovers.AsNoTracking()
                 .Where(c => c.ProviderRecordId == link.CompanionId && c.State == (int)VolumeCoverState.Stored && c.Hash != null)
-                .Select(c => new { c.Id, c.Kind, c.Volume, c.StoredVersion, c.Hash })
+                .Select(c => new { c.Id, c.Kind, c.Volume, c.Locale, c.StoredVersion, c.Hash })
                 .ToListAsync(ct))
-            .Select(c => new WebCover(c.Id, c.Kind, c.Volume, c.StoredVersion, unchecked((ulong)c.Hash!.Value)))
+            .Select(c => new WebCover(c.Id, c.Kind, c.Volume, c.Locale, c.StoredVersion, unchecked((ulong)c.Hash!.Value)))
             .OrderBy(c => c.Id)
             .ToList();
-        List<ulong> WebOf(int volume)
+        var preferred = await PreferredLanguageAsync(ct);
+        // The covers of a volume in any language (they can only AGREE); the main cover stands in for a one-shot's volume 1 (as the
+        // volume-cover work stores it).
+        List<WebCover> CoversOf(int volume)
         {
-            var own = web.Where(c => c.Kind == (int)VolumeCoverKind.Volume && c.Volume == volume).Select(c => c.Hash).ToList();
-            // A one-shot's volume 1 with no volume cover stored: the main cover stands in (as the volume-cover work stores it).
-            return own.Count == 0 && oneShot && volume == 1
-                ? web.Where(c => c.Kind == (int)VolumeCoverKind.Main).Select(c => c.Hash).ToList()
-                : own;
+            var own = web.Where(c => c.Kind == (int)VolumeCoverKind.Volume && c.Volume == volume).ToList();
+            return own.Count == 0 && oneShot && volume == 1 ? web.Where(c => c.Kind == (int)VolumeCoverKind.Main).ToList() : own;
         }
-        var chosen = byVolume.Where(v => WebOf(v.Key).Count > 0).Take(CoverCheckRule.MaxVolumes).ToList();
+        // Only a cover in the PREFERRED language - the language the folder's own releases are read in - can count against the link:
+        // the same art under another language's title and logo lands 20-30 bits away (fixture check, 2026-10-01).
+        List<ulong> VetoOf(int volume) =>
+            CoversOf(volume).Where(c => string.Equals(c.Locale, preferred, StringComparison.OrdinalIgnoreCase)).Select(c => c.Hash).ToList();
+        var chosen = byVolume.Where(v => CoversOf(v.Key).Count > 0)
+            .OrderByDescending(v => VetoOf(v.Key).Count > 0).ThenBy(v => v.Key)
+            .Take(CoverCheckRule.MaxVolumes).OrderBy(v => v.Key).ToList();
         if (chosen.Count == 0)
             return (null, false);
 
         var spreads = new Dictionary<long, bool>();
         foreach (var archive in chosen.SelectMany(v => v.Value))
             spreads[archive.Id] = await VolumeCoverPass.Page1AspectAsync(db, archive, ct) is >= VolumeCoverPass.SpreadAspect;
-        var inputs = InputsKey(link, web, chosen.SelectMany(v => v.Value), spreads);
+        var inputs = InputsKey(link, preferred, web, chosen.SelectMany(v => v.Value), spreads);
         if (!force && state.IsUnchanged(link.NodeId, link.RecordId, inputs))
             return (null, false);
 
@@ -267,7 +274,7 @@ public sealed class CoverCheckService(
                 local.AddRange(hashes);
                 incomplete |= missed;
             }
-            volumes.Add(new CoverCheckVolume(volume, local, WebOf(volume)));
+            volumes.Add(new CoverCheckVolume(volume, local, VetoOf(volume)));
         }
         var result = CoverCheckRule.Decide(volumes, web.Select(c => c.Hash).ToList(), oneShot);
         if (!incomplete)
@@ -342,13 +349,20 @@ public sealed class CoverCheckService(
         return (hashes, missed);
     }
 
-    /// <summary>
-    /// The link (a new automatic link to the same record is checked again), the stored web covers and the local images the check
-    /// would read; a change means a new check.
-    /// </summary>
-    private string InputsKey(LinkRow link, IEnumerable<WebCover> web, IEnumerable<VolumeCoverPass.HeldArchive> archives, IReadOnlyDictionary<long, bool> spreads)
+    private async Task<string> PreferredLanguageAsync(CancellationToken ct)
     {
-        var parts = new List<string> { string.Create(CultureInfo.InvariantCulture, $"l{link.LinkedAt.UtcTicks}") };
+        var language = await db.AppSettings.AsNoTracking().Where(s => s.Id == AppSettingsEntity.SingletonId)
+            .Select(s => s.MetadataCoverLanguage).FirstOrDefaultAsync(ct);
+        return string.IsNullOrWhiteSpace(language) ? "en" : language;
+    }
+
+    /// <summary>
+    /// The link (a new automatic link to the same record is checked again), the preferred language, the stored web covers and the
+    /// local images the check would read; a change means a new check.
+    /// </summary>
+    private string InputsKey(LinkRow link, string preferred, IEnumerable<WebCover> web, IEnumerable<VolumeCoverPass.HeldArchive> archives, IReadOnlyDictionary<long, bool> spreads)
+    {
+        var parts = new List<string> { string.Create(CultureInfo.InvariantCulture, $"l{link.LinkedAt.UtcTicks}"), "p" + preferred };
         parts.AddRange(web.Select(c => string.Create(CultureInfo.InvariantCulture, $"w{c.Id}.{c.StoredVersion}")));
         foreach (var a in archives.OrderBy(a => a.Id))
         {

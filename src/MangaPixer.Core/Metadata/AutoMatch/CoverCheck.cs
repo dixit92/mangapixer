@@ -21,7 +21,9 @@ public enum CoverCheckVerdict
 
 /// <summary>
 /// One volume of the folder to compare: the hashes of its LOCAL cover images (page 1 of each archive that is this volume, and the
-/// two halves of a spread page 1) and the hashes of the linked record's stored covers of the SAME volume in every language.
+/// two halves of a spread page 1) and the hashes of the linked record's stored covers of the SAME volume in the PREFERRED language
+/// (the language the folder's own releases are read in) - the only covers that can count against the link: the same art under
+/// another language's title and logo lands 20-30 bits away. Covers in every language can still agree (<c>allWeb</c>).
 /// </summary>
 public sealed record CoverCheckVolume(int Volume, IReadOnlyList<ulong> Local, IReadOnlyList<ulong> Web);
 
@@ -37,7 +39,7 @@ public sealed record CoverCheckResult(CoverCheckVerdict Verdict, int Compared, I
 /// <summary>
 /// The rule of the post-link cover check (1.31.0). Covers are NEGATIVE evidence only per volume and per language: 1.28.0's check
 /// compared MangaUpdates' one series image (often the latest volume, often Japanese) with a local volume and held back right links.
-/// Here the local volume N is compared with the record's stored volume N covers in ANY language.
+/// Here the local volume N is compared with the record's stored volume N cover in the preferred language.
 /// <list type="number">
 /// <item><b>Agrees</b> when any local image is the same picture (<see cref="CoverHash.SameMaxDistance"/>) as ANY stored cover of
 /// the record - its own volume, another volume (a numbering offset), another language, the main cover.</item>
@@ -60,7 +62,7 @@ public static class CoverCheckRule
     /// <summary>At most this many volumes are compared per check (the server picks them; bounds the worker hashing).</summary>
     public const int MaxVolumes = 6;
 
-    /// <param name="volumes">The volumes to compare (a volume without a local image or without a stored web cover is ignored).</param>
+    /// <param name="volumes">The volumes to compare (a volume without a local image or without a preferred-language cover is not compared).</param>
     /// <param name="allWeb">Every stored cover hash of the record (all volumes, all languages, the main cover).</param>
     /// <param name="oneShot">The work is a single archive.</param>
     public static CoverCheckResult Decide(IReadOnlyList<CoverCheckVolume> volumes, IReadOnlyCollection<ulong> allWeb, bool oneShot)

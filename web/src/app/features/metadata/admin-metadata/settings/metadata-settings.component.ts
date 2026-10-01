@@ -278,7 +278,8 @@ export function validateThresholds(
               <p class="muted small">When two series tie on the title for a folder of volumes or a one-shot, download their
                 two covers and prefer the one that is the same picture as the folder's own cover. After an automatic link, once
                 the series' volume covers are stored, compare them with the folder's own volumes (nothing is downloaded for
-                this): when every compared volume is a different picture, in every language, the folder goes to Needs review.</p>
+                this): when every compared volume is a different picture from its cover in your preferred language, and none matches
+                in another language, the folder goes to Needs review.</p>
               @if (s.compareCoversDisabledByConfig) {
                 <p class="note" data-testid="md-compare-covers-config">Switched off in the server configuration.</p>
               }

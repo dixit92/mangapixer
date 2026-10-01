@@ -5,6 +5,7 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch.LinkCoverCheck;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Tests.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Tests.Server.Features.Covers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -77,12 +78,12 @@ public sealed class CoverCheckServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task EveryVolumeClearlyDifferent_InEveryLanguage_DropsTheAutoLinkToReview()
+    public async Task EveryVolumeClearlyDifferent_InThePreferredLanguage_DropsTheAutoLinkToReview()
     {
         var (folder, record, md) = await SeriesAsync(SeriesLinkState.Auto, L1, L2);
         await _kit.AddStoredCoverAsync(md, 1, "en", W1);
         await _kit.AddStoredCoverAsync(md, 1, "ja", Near(W1, 3));
-        await _kit.AddStoredCoverAsync(md, 2, "ja", W2);
+        await _kit.AddStoredCoverAsync(md, 2, "en", W2);
 
         var result = await Service().SweepAsync();
 
@@ -98,9 +99,43 @@ public sealed class CoverCheckServiceTests : IAsyncLifetime
 
         // The log line: ids, verdict, counts and distances (numbers) - never a title.
         var line = Assert.Single(_logs.Lines, l => l.Contains("Cover check: node", StringComparison.Ordinal));
-        Assert.Contains("Differs, 2 volumes compared (distances 29 32)", line, StringComparison.Ordinal);
+        Assert.Contains("Differs, 2 volumes compared (distances 32 32)", line, StringComparison.Ordinal);
         Assert.Contains("moved to review", line, StringComparison.Ordinal);
         Assert.DoesNotContain("Synthetic", line, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CoversInAnotherLanguageOnly_NeverCountAgainstTheLink()
+    {
+        // The same art under the original edition's title and logo is 20-30 bits from an English release: only English covers
+        // (the preferred language) can veto.
+        var (folder, _, md) = await SeriesAsync(SeriesLinkState.Auto, L1, L2);
+        await _kit.AddStoredCoverAsync(md, 1, "ja", W1);
+        await _kit.AddStoredCoverAsync(md, 2, "ja", W2);
+
+        await Service().SweepAsync();
+
+        Assert.Equal((int)SeriesLinkState.Auto, (await LinkOfAsync(folder.Id)).State);
+        Assert.DoesNotContain(_logs.Lines, l => l.Contains("moved to review", StringComparison.Ordinal));
+
+        // With another preferred language, those covers count.
+        await VolumeTestData.SetPreferredLanguageAsync(_kit.Db.Db, "ja");
+        _time.Advance(CoverCheckService.FullSweepEvery);
+        Assert.Equal(new CoverCheckSweepResult(1, 1), await Service().SweepAsync());
+    }
+
+    [Fact]
+    public async Task ASingleVolumeArchive_IsOneVolumeOfASeries_NotAOneShot()
+    {
+        var record = await _kit.Db.AddRecordAsync("ccsv", "Synthetic Single");
+        var folder = await _kit.Db.AddFolderAsync(null, "Synthetic Single");
+        await _kit.AddBookAsync(folder, "Synthetic Single v01", 800, 1200, L1);
+        await LinkAsync(folder, record, SeriesLinkState.Auto);
+        var md = await _kit.AddCompanionAsync(record);
+        await _kit.AddStoredCoverAsync(md, 1, "en", W1);
+
+        Assert.Equal(new CoverCheckSweepResult(0, 0), await Service().SweepAsync());
+        Assert.Equal((int)SeriesLinkState.Auto, (await LinkOfAsync(folder.Id)).State);
     }
 
     [Fact]
@@ -150,7 +185,7 @@ public sealed class CoverCheckServiceTests : IAsyncLifetime
         var wrong = await _kit.AddBookAsync(null, "Synthetic One-shot", 800, 1200, L1);
         await LinkAsync(wrong, wrongRecord, SeriesLinkState.Auto);
         var wrongMd = await _kit.AddCompanionAsync(wrongRecord);
-        await _kit.AddStoredCoverAsync(wrongMd, 1, "ja", W1);
+        await _kit.AddStoredCoverAsync(wrongMd, 1, "en", W1);
 
         var rightRecord = await _kit.Db.AddRecordAsync("ccos2", "Synthetic Other One-shot");
         var right = await _kit.AddBookAsync(null, "Synthetic Other One-shot", 800, 1200, L2);

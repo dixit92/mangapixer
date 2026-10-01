@@ -68,7 +68,7 @@ public sealed class CoverCheckHttpTests
         db.MetadataRecords.Add(companion);
         await db.SaveChangesAsync();
         db.MetadataCompanions.Add(new MetadataCompanionEntity { RecordId = record.Id, Provider = "mangadex", CompanionRecordId = companion.Id, State = (int)CompanionState.Auto });
-        foreach (var (volume, locale, hash) in new[] { (1, "en", Web1), (1, "ja", Web1 ^ 0x7), (2, "ja", Web2) })
+        foreach (var (volume, locale, hash) in new[] { (1, "en", Web1), (1, "ja", Web1 ^ 0x7), (2, "en", Web2) })
         {
             db.VolumeCovers.Add(new VolumeCoverEntity
             {

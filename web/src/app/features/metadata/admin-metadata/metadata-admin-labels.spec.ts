@@ -31,7 +31,7 @@ describe('metadata admin labels', () => {
     expect(reasonLabel('not_declared_type')).toBe('Not declared type');
     expect(reasonTip('not_declared_type')).toContain('never blocks');
     expect(reasonLabel('cover_differs')).toBe('Cover differs');
-    expect(reasonTip('cover_differs')).toContain('every language');
+    expect(reasonTip('cover_differs')).toContain('preferred language');
     expect(reasonLabel('some_new_code')).toBe('some new code');
     expect(reasonTip('some_new_code')).toBe('');
   });
