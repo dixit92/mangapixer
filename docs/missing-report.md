@@ -29,7 +29,7 @@ The report shows **Behind or with gaps** by default. Switch to **All linked seri
 
 > 2 duplicate chapters (Chapter 1: 2 files, Chapter 2: 2 files)
 
-The same line appears under the series on its page (everyone sees it, like the "You have ..." line), on the stack of the [Volumes view](volumes.md#duplicate-chapters), and on the folder's row in the [Review](series-information.md#review) list.
+The same line appears under the series on its page (everyone sees it, like the "You have ..." line), on the stack of the [Volumes view](volumes.md#missing-volumes-and-chapters), and on the folder's row in the [Review](series-information.md#review) list.
 
 - **It is a note, not a gap.** Nothing is missing or "behind" because of it, and the totals count each number once. Both files stay where they are and both are listed; MangaPixer never removes or merges anything.
 - **Per folder.** Only files in the same folder are compared, so `Season 1` and `Season 2` that both have a chapter 1 are not duplicates (that is a [restart](#what-counts)).
