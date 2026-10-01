@@ -326,7 +326,7 @@ export class VolumeStackViewComponent implements OnInit {
   });
   readonly dupTip = DUPLICATE_TIP;
   private readonly duplicateFiles = computed(() =>
-    new Map((this.stack()?.duplicates ?? []).filter((d) => d.kind === 'Chapter').map((d) => [d.number, d.files])));
+    new Map((this.stack()?.duplicates ?? []).filter((d) => d.kind === 'Chapter').map((d): [string, number] => [d.number, d.files])));
 
   /** Where the grouping came from, without naming a provider (the credit lives in Metadata Manager and the docs). */
   readonly sourceText = computed(() => {
