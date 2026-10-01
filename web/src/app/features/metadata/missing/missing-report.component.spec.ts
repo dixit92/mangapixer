@@ -172,4 +172,22 @@ describe('MissingReportComponent', () => {
     (el.querySelector('[data-testid="missing-upgrades-link"]') as HTMLButtonElement).click();
     expect(opened).toHaveBeenCalled();
   });
+
+  it('1.31.0: says which numbers sit in more than one file of a folder, and nothing for a clean series', () => {
+    const { fixture, http, el } = create();
+    http.expectOne((r) => r.url === '/api/v1/admin/metadata/missing').flush(missingPage([
+      missingRow({ nodeId: 'series-1', duplicateCount: 2, duplicates: [
+        { kind: 'Chapter', number: '1', files: 2 }, { kind: 'Chapter', number: '2', files: 3 }] }),
+      missingRow({ nodeId: 'series-2', displayName: 'Clean Series', duplicates: [], duplicateCount: 0 }),
+      missingRow({ nodeId: 'series-3', displayName: 'Capped Series', duplicateCount: 60, duplicates: [{ kind: 'Chapter', number: '1', files: 2 }] }),
+    ]));
+    fixture.detectChanges();
+
+    const lines = Array.from(el.querySelectorAll('[data-testid="missing-duplicates"]')).map((p) => p.textContent!.replace(/\s+/g, ' ').trim());
+    expect(lines).toEqual([
+      'content_copy 2 duplicate chapters (Chapter 1: 2 files, Chapter 2: 3 files)',
+      'content_copy 60 duplicate numbers (Chapter 1: 2 files and 59 more)',
+    ]);
+    expect(el.querySelectorAll('[data-testid="missing-row"]')).toHaveLength(3);
+  });
 });
