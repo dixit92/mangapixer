@@ -115,7 +115,7 @@ public sealed class FakeMatchScorer : IMatchScorer
 /// <summary>Synthetic MangaUpdates JSON (the fields the provider reads).</summary>
 public static class MuJson
 {
-    public sealed record Hit(long Id, string Title, string Type = "Manga", int Year = 2001, string? Image = null);
+    public sealed record Hit(long Id, string Title, string Type = "Manga", int Year = 2001, string? Image = null, string? HitTitle = null);
 
     public static string Search(params Hit[] hits) => JsonSerializer.Serialize(new
     {
@@ -130,11 +130,12 @@ public static class MuJson
                 year = h.Year.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 image = h.Image is null ? null : new { url = new { original = h.Image, thumb = h.Image } },
             },
+            hit_title = h.HitTitle ?? h.Title,
         }),
     });
 
     public static string Get(long id, string title, string[]? alt = null, string type = "Manga", string status = "5 Volumes (Ongoing)",
-        string? image = null, long? relatedId = null) => JsonSerializer.Serialize(new
+        string? image = null, long? relatedId = null, (long Id, string Type)[]? related = null) => JsonSerializer.Serialize(new
         {
             series_id = id,
             title,
@@ -147,7 +148,8 @@ public static class MuJson
             latest_chapter = 40,
             authors = new[] { new { name = "Synthetic Author", type = "Author", author_id = 7001L } },
             publications = new[] { new { publication_name = "Synthetic Weekly", publisher_name = "Synthetic House" } },
-            related_series = relatedId is { } r ? new object[] { new { relation_type = "Sequel", related_series_id = r } } : Array.Empty<object>(),
+            related_series = relatedId is { } r ? new object[] { new { relation_type = "Sequel", related_series_id = r } }
+                : (related ?? []).Select(x => (object)new { relation_type = x.Type, related_series_id = x.Id }).ToArray(),
             image = image is null ? null : new { url = new { original = image, thumb = image } },
         });
 }
@@ -220,7 +222,9 @@ public sealed class AutoMatchHarness : IDisposable
         new(Db.Db, new AuditService(Db.Db), Time, [Net.Images], Net.LoggerFactory.CreateLogger<MetadataCarryOverService>());
 
     public MetadataRefreshService Refresh() => new(Db.Db, Net.Gateway(), Service(), Net.Identify(), Net.Budget(), Net.State, Time,
-        Net.LoggerFactory.CreateLogger<MetadataRefreshService>());
+        Net.LoggerFactory.CreateLogger<MetadataRefreshService>(),
+        new com.lifepixer.mangapixer.Server.Features.Metadata.Reach.ReachCheckService(Db.Db, Time,
+            Net.LoggerFactory.CreateLogger<com.lifepixer.mangapixer.Server.Features.Metadata.Reach.ReachCheckService>()));
 
     /// <summary>Fetch on (current consent) for the library, and the Automatic matching switch with the current automatic consent.</summary>
     public async Task EnableAutomaticAsync(bool automatic = true, int? autoConsentVersion = null, long? libraryId = null)

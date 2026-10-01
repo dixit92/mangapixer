@@ -253,6 +253,48 @@ public sealed class VolumeGroupingTests
     }
 
     [Fact]
+    public void AChapterListedInTwoVolumes_IsShownOnce_AndMissingInNeither()
+    {
+        // The soak-test shape: the list splits chapter 15 across volumes 3 and 4; its parts sit in volume 3's stack.
+        var map = new VolumeMapInput(
+            [new VolumeMapVolume(3, [11m, 12m, 13m, 14m, 15m]), new VolumeMapVolume(4, [15m, 16m, 17m])], null, null, true, VolumeListSource.MangaDex);
+        var rows = new List<GroupingRow>
+        {
+            Archive("Series c011"), Archive("Series c012"), Archive("Series c013"), Archive("Series c014"),
+            Archive("Series c015.1"), Archive("Series c015.2"), Archive("Series c015.3"), Archive("Series c016"), Archive("Series c017"),
+        };
+        var r = VolumeGrouping.Group(rows, map);
+        var stacks = Stacks(r).Select(e => e.Stack!).ToList();
+
+        Assert.Equal(["3", "4"], stacks.Select(s => s.Key));
+        Assert.Equal(["11", "12", "13", "14", "15.1", "15.2", "15.3"], VolumeGrouping.Slots(stacks[0]).Select(s => s.Chapter));
+        Assert.Equal(["16", "17"], VolumeGrouping.Slots(stacks[1]).Select(s => s.Chapter));
+        Assert.All(stacks, s => Assert.Empty(s.MissingChapters));
+        Assert.Equal((5, 5), (stacks[0].ChapterCount, stacks[0].ChaptersPresent));
+        Assert.Equal((3, 3), (stacks[1].ChapterCount, stacks[1].ChaptersPresent));
+        Assert.Equal(0, r.MissingChapterCount);
+
+        // Without the chapter anywhere, the second volume still says it is missing.
+        var without = Stacks(VolumeGrouping.Group(rows.Where(x => !x.Name.Contains("c015")).ToList(), map)).Select(e => e.Stack!).ToList();
+        Assert.Equal([15m], without[1].MissingChapters);
+    }
+
+    [Fact]
+    public void AnExtrasSubfolder_StaysAFolderNextToTheVolumeStacks()
+    {
+        // Owner (1.30.0, folder-native): Series/c001..c020 + Series/Extras/special.cbz, 10 chapters a volume -> two stacks AND the
+        // "Extras" folder card; nothing inside Extras is grouped or counted.
+        var map = Map(false, null, null, (1, 1, 10), (2, 11, 20));
+        var rows = Chapters(1, 20).Append(Folder("Extras")).ToList();
+        var r = VolumeGrouping.Group(rows, map, markMissingVolumes: true);
+
+        Assert.Equal(["1", "2"], Stacks(r).Select(e => e.Stack!.Key));
+        var folder = Assert.Single(r.Entries, e => e.Kind == VolumeEntryKind.Folder);
+        Assert.Equal("Extras", folder.Row!.Name);
+        Assert.Equal(0, r.MissingVolumeCount);
+    }
+
+    [Fact]
     public void WithoutAList_FractionsStayExtras()
     {
         var stack = Assert.Single(Stacks(VolumeGrouping.Group([Archive("Series v01 c004.1"), Archive("Series v01 c004.2"), Archive("Series v01 c005")], null))).Stack!;

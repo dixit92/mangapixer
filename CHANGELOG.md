@@ -6,6 +6,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.30.0] - 2026-10-01
+
+### Added
+
+- **What you have.** A linked series now says, above its Volumes view and on its series page, how each kind of release stands - the original run, the official release in your language (publisher, volumes, its own status) and the released chapters - and what your folder holds, with volume files and chapter files merged into one range: "You have volumes 1-14 + chapters 47-65 · up to date". Chapter files that a volume file already holds are counted once and show **Also in Volume N**.
+- **Official releases.** A volume released officially in your language that you hold only as chapters is an upgrade, not a gap: its stack says **Available in English**, and the new **Official releases** tab in Metadata Manager lists these series, finished series you don't hold whole, and your complete collections.
+- **Complete collection.** A finished series your folder holds whole is marked **Complete collection**; a series finished in your language that you don't hold whole says so, and which release finished: **Finished - Official** (the publisher's edition) or **Finished - Fan translation**. A complete collection says what it is complete by (**Complete collection - Official**, **- Fan translation** or **- Original run**), and the Official releases tab can be filtered the same way.
+- **Select inside a volume.** A volume's page now has **Select**, like the folder list: tap chapters (on a phone too), Shift-click or long-press for a range, then **Mark read**, **Mark unread**, **Favorites** or - for admins - the **Series** menu and **Cover...**.
+- **Select a whole volume.** In the Volumes view a volume can be selected like a folder or an archive; **Mark read**, **Mark unread** and **Favorites** apply to every archive in it in one step. A missing volume or chapter can't be selected.
+- **Card / List switch on a volume's page.** It remembers your choice for volume pages (cards show the covers, the list shows the archive names); until you choose, it follows your library view.
+- **List view inside a volume.** A volume's page follows your library view: with **List** chosen it shows the same compact rows as the folder list, with the same column count.
+- **Favorites** in the selection bar of the folder list: add or remove the selected items (a volume through all its archives).
+- The review dashboard shows the candidates that belong to one series family - a main story with its spin-offs, side stories, prequels or sequels - together, under **Same series family - check which one**, each marked with its part (*Main story*, *Spin-off*, *Prequel*, ...), so a folder is not given the main series' details when it holds a spin-off, or the other way round. New chips: **Spin-off or main story?** (only the subtitle tells them apart) and **Series family** (another series of the family also matched - also on the Auto-linked list).
+- Review candidates show whether they fit the folder's declared type (**Fits declared type** / **Not declared type**), and Identify warns when the series you preview is not the declared type.
+
+### Changed
+
+- **The series cover.** A linked series folder shows your **volume 1's** cover - exactly what volume 1's own card shows (its page 1, the front half of its jacket, or the web volume 1 cover when that is clearly a different picture) - wherever volume 1 sits, so a `Chapters` subfolder no longer puts chapter 1's first page (often a credit page) on the series card. Without a volume 1 of your own the series still shows the volume 1 cover from the web.
+- **Home shows the series cover.** A New chapters card of a linked series, and a Continue reading card of one of its chapters, show the series cover instead of a chapter's first page (the chapter is named under the card). Volumes keep their own cover.
+- **Volume covers for chapter stacks.** The cover of a volume is also downloaded when you have all of its chapters (by MangaDex's volume list), so a complete chapter stack in the Volumes view shows its real volume cover. A volume you have only part of no longer triggers a download.
+- The Missing report reads volumes and chapters the same way as the Volumes view: through the series' volume list, so a folder that mixes volume and chapter files gets numbers ("Mixed folder" is gone), chapters inside your volume files count as held, and an official volume you have as chapters is never "behind".
+- MangaUpdates' English publisher notes are read per edition: omnibus, 2-in-1 / 3-in-1 and perfect editions no longer count as the English volume total, and the publisher's own status (ongoing, complete, dropped) is stored with it (records pick it up on their next refresh).
+- An automatically linked folder whose volumes or chapters go far past everything known about its series moves back to **Needs review** (reason "Reach") when the series' volume list arrives or changes, or its record is refreshed; volume numbers that disagree with the list only add the reason.
+- A declared type (manga, manhwa, manhua, webtoon, comic, graphic novel) is now a strong hint for automatic matching instead of a search filter: a series from the country the type names is clearly preferred and one the type contradicts loses the same amount, which settles a tie between two series of the same name - but a wrong declared type no longer keeps the right series from being found or linked. Nothing you declare is sent to MangaUpdates any more.
+- Declared types show the country they stand for - Manga (Japan), Manhwa (Korea), Manhua (China), Comic (Western), ... - in the declared-facts editor, the Declared line and the library list.
+- A folder named `Series - Subtitle` now ranks the spin-off that carries that subtitle above the main series. When the two are one series family, the folder waits in **Needs review** instead of being linked automatically: the subtitle alone is not enough to tell a spin-off from its main series.
+- A series found only through an English title that MangaUpdates tags with its author (`Fly Me to the Moon (HATA Kenjiro)`) is looked up once more, so the author can be checked and the right series ranks first.
+- **New chapters on Home** is stacked by the series folder instead of the top-level folder. In a library whose top level is categories (Manga, Manhwa, ...) each card is now a series, not a category: the folder with its own series link, or else the folder that holds the new archives (volume folders such as "Vol 3" stay part of their series).
+- **Upgrade note:** this version adds three small database migrations (`AddAutoCoverArchive`, `AddStackViewMode`, `AddCandidateSeriesFamily`: new columns only; a snapshot is taken before they run). Every volume and series cover is decided once more after the update under the new cover rules. No new consent is needed, and the media worker protocol is unchanged (5).
+
+### Removed
+
+- The `Metadata:AutoMatch:DeclaredTypeFilter` setting (the declared-type search filter is gone; an old value is ignored).
+
+### Fixed
+
+- A series folder whose own volume 1 was close to, but not the same as, the web volume 1 cover (another edition) showed the web cover; it now shows your volume 1 like volume 1's own card.
+- A series opened from a folder that has no Volumes view (for example a category folder) now shows its Volumes view with the missing-volume cards; they only appeared after a reload.
+- A series is never marked **Complete collection** while chapters or volumes released in your language are missing; the last chapter of a finished scanlation is the highest one anything lists.
+- **Covers:** a volume cover from the web in the series' original language (used when MangaDex has none in your preferred language) no longer replaces your own volume's cover or its series folder's cover - an English edition's cover differs from the Japanese one by design. Covers already chosen are decided again once after the update.
+- Metadata Manager > Volume covers: the progress line no longer counts covers MangaPixer never downloads as waiting - it reads "nothing waiting" when the background pass is done, and the covers MangaDex lists for volumes you don't have (or in another language) are shown as not needed.
+- A volume's card in the folder list showed a stale read state and star after you changed its chapters on the volume page or in the reader; it now refreshes.
+
+- **Volumes view:** a chapter that the series' volume list places in two volumes (split across the boundary) is no longer marked missing in the second volume when its file is in the first one's stack.
+- **Metadata Manager > Review on a phone:** the covers now sit above each row's text. The series name had been squeezed to one letter per line and the covers ran off the left edge of the screen.
+
 ## [1.29.1] - 2026-09-30
 
 ### Fixed

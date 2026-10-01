@@ -642,4 +642,108 @@ public sealed class MatchScorerTests
 
         Assert.Equal(o1.Ranked.Select(r => r.Candidate.ExternalId), o2.Ranked.Select(r => r.Candidate.ExternalId));
     }
+
+    private static MatchQuery Planned(string folderName, int chapters)
+    {
+        var shape = new FolderShape(folderName, 2,
+            Enumerable.Range(1, chapters).Select(i => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{folderName} - Chapter {i:000}.cbz")).ToList(), []);
+        return new MatchQueryPlanner().PlanFolder(shape, new WorkDetector().Classify(shape));
+    }
+
+    [Fact]
+    public void AFolderSubtitle_ThatIsASpinOffsSubtitle_RanksTheSpinOffFirst_ButOnlyForReview()
+    {
+        // 1.30.0 (backlog, owner fixture shape "<Series> - <Subtitle> [<Note>]", 58 chapter archives): the main record matched only
+        // the head through the subtitle split (0.97). It is capped like a record-side head, so the spin-off ranks first - but only
+        // the subtitle tells the two records of one series family apart: owner, "not automatic - keep it in review".
+        var q = Planned("Alpha Garden - Before the Frost", 58);
+        var main = Rec("1", "Alpha Garden", volumes: 30, related: [("2", "Spin-off")]);
+        var spinOff = Rec("2", "Alpha Garden - Before the Frost", volumes: 10, related: [("1", "Main Story")]);
+
+        var o = Score(q, main, spinOff);
+
+        Assert.Equal("2", o.Ranked[0].Candidate.ExternalId);
+        Assert.Equal(MatchScorer.SubtitleHeadCap, o.Ranked[1].TitleScore, 3);
+        Assert.Equal(MatchBand.NeedsReview, o.Band);
+        Assert.Equal(MatchReason.SubtitleFamily | MatchReason.SeriesFamily,
+            o.Ranked[0].Reasons & (MatchReason.SubtitleFamily | MatchReason.SeriesFamily | MatchReason.RelatedPair));
+        Assert.Equal(["1", "2"], o.ToPersist.Select(p => p.Candidate.ExternalId).Order());
+    }
+
+    [Fact]
+    public void AFolderSubtitle_AgainstAPrequelPair_GoesToReview()
+    {
+        // The recorded MangaUpdates shape: neither record says "Main Story" / "Spin-Off" - the main series lists the subtitled one as
+        // its Prequel, which lists the main series as its Sequel. Either relation alone makes them one family.
+        var q = Planned("Alpha Garden - Before the Frost", 58);
+
+        var both = Score(q, Rec("1", "Alpha Garden", related: [("2", "prequel")]), Rec("2", "Alpha Garden - Before the Frost", related: [("1", "sequel")]));
+        var oneWay = Score(q, Rec("1", "Alpha Garden"), Rec("2", "Alpha Garden - Before the Frost", related: [("1", "sequel")]));
+
+        Assert.Equal(("2", MatchBand.NeedsReview), (both.Ranked[0].Candidate.ExternalId, both.Band));
+        Assert.Equal(("2", MatchBand.NeedsReview), (oneWay.Ranked[0].Candidate.ExternalId, oneWay.Band));
+        Assert.True(oneWay.Ranked[0].Reasons.HasFlag(MatchReason.SubtitleFamily));
+    }
+
+    [Fact]
+    public void AFolderSubtitle_AgainstAnUnrelatedHeadRecord_StaysAutomatic()
+    {
+        // Lane M's rule is kept where the two records are NOT one family: different authors, no relation either way.
+        var q = Planned("Alpha Garden - Before the Frost", 58);
+
+        var o = Score(q, Rec("1", "Alpha Garden", authors: ["SMITH Anna"]),
+            Rec("2", "Alpha Garden - Before the Frost", authors: ["JONES Bert"]));
+
+        Assert.Equal(("2", MatchBand.Auto), (o.Ranked[0].Candidate.ExternalId, o.Band));
+        Assert.Equal(MatchReason.None, o.Ranked[0].Reasons & (MatchReason.SubtitleFamily | MatchReason.SeriesFamily));
+    }
+
+    [Fact]
+    public void AFolderSubtitle_NoRelationButTheSameAuthor_IsOneFamily_Review()
+    {
+        // The fallback when relations are missing: a shared title head AND the same author.
+        var q = Planned("Alpha Garden - Before the Frost", 58);
+
+        var o = Score(q, Rec("1", "Alpha Garden", authors: ["SMITH Anna"]),
+            Rec("2", "Alpha Garden - Before the Frost", authors: ["Smith Anna"]));
+
+        Assert.Equal(("2", MatchBand.NeedsReview), (o.Ranked[0].Candidate.ExternalId, o.Band));
+        Assert.True(o.Ranked[0].Reasons.HasFlag(MatchReason.SubtitleFamily));
+    }
+
+    [Fact]
+    public void TheMainSeriesFolder_AutoLinksTheMainRecord_WithAFamilyChip()
+    {
+        // "Alpha Garden" itself: the spin-off is only reached through its head (0.80) - an automatic link to the main record, and
+        // the chip tells the Auto-linked tab that a record of the same family also matched.
+        var o = Score(Query(["Alpha Garden"]), Rec("1", "Alpha Garden", related: [("2", "spin-off")]),
+            Rec("2", "Alpha Garden - Before the Frost", related: [("1", "main story")]));
+
+        Assert.Equal(("1", MatchBand.Auto), (o.Ranked[0].Candidate.ExternalId, o.Band));
+        Assert.True(o.Ranked[0].Reasons.HasFlag(MatchReason.SeriesFamily));
+        Assert.False(o.Ranked[0].Reasons.HasFlag(MatchReason.SubtitleFamily));
+    }
+
+    [Fact]
+    public void AFolderSubtitle_NoCandidateHas_LeavesTheHeadMatchAlone()
+    {
+        // "Title Words - Something" where no record carries "Something": the franchise record keeps its derived score.
+        var q = Planned("Alpha Garden - Before the Frost", 20);
+
+        var o = Score(q, Rec("1", "Alpha Garden", volumes: 30));
+
+        Assert.Equal(1.0 - MatchScorer.DerivedVariantDiscount, o.Ranked[0].TitleScore, 3);
+    }
+
+    [Fact]
+    public void AFolderSubtitle_TheMainRecordCarriesItself_IsNotCapped()
+    {
+        // The subtitle is the main record's own English subtitle (its alt "Alpha Garden: Before the Frost"): nothing to outweigh.
+        var q = Planned("Alpha Garden - Before the Frost", 20);
+
+        var o = Score(q, Rec("1", "Arufa Gaaden", alt: ["Alpha Garden: Before the Frost"], volumes: 30), Rec("3", "Alpha Garden Other"));
+
+        Assert.Equal("1", o.Ranked[0].Candidate.ExternalId);
+        Assert.True(o.Ranked[0].TitleScore > 0.95);
+    }
 }

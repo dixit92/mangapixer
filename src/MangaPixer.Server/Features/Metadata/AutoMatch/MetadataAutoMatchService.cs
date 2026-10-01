@@ -50,7 +50,6 @@ public sealed class MetadataAutoMatchService
     private readonly IMatchQueryPlanner? _planner;
     private readonly IMatchScorer? _scorer;
     private readonly bool _providerAuthorFolders;
-    private readonly bool _declaredTypeFilter;
     private readonly AutoMatchCoverComparer? _covers;
     private readonly Declared.IDeclaredFactsReader? _declared;
 
@@ -86,7 +85,6 @@ public sealed class MetadataAutoMatchService
         _planner = planners.LastOrDefault();
         _scorer = scorers.LastOrDefault();
         _providerAuthorFolders = (options ?? new MetadataAutoMatchOptions()).ProviderAuthorFolders;
-        _declaredTypeFilter = (options ?? new MetadataAutoMatchOptions()).DeclaredTypeFilter;
         _covers = covers;
         _declared = declared;
     }
@@ -602,7 +600,7 @@ public sealed class MetadataAutoMatchService
             var allowDoujinshi = await EffectiveContentAsync(work.Work.FolderId, ct) == MetadataFolderContent.DoujinshiAndAdultOneShots;
             var declared = _declared is null ? null
                 : (await _declared.EffectiveForLibraryAsync(row.LibraryId, ct)).GetValueOrDefault(work.Work.FolderId);
-            var lookupEngine = new AutoMatchLookup(_db, _gateway, _planner, _scorer, _covers, _declaredTypeFilter);
+            var lookupEngine = new AutoMatchLookup(_db, _gateway, _planner, _scorer, _covers);
             lookup = await lookupEngine.LookupAsync(tree, work.Work, work.Classification, await ThresholdsAsync(ct), allowDoujinshi, call, ct,
                 declared);
         }
@@ -862,9 +860,13 @@ public sealed class MetadataAutoMatchService
 
     private void AddCandidates(long nodeId, IReadOnlyList<ScoredCandidate> candidates, WorkLookupResult lookup, DateTimeOffset now)
     {
+        var stored = candidates.Take(5).ToList();
+        // 1.30.0: records of one series family among the stored candidates are shown together on the review row, with their roles.
+        var families = SeriesFamilies.Of(stored.Select(c => c.Candidate).ToList());
         var rank = 1;
-        foreach (var c in candidates.Take(5))
+        foreach (var c in stored)
         {
+            var family = families[rank - 1];
             lookup.Fetched.TryGetValue(c.Candidate.ExternalId, out var full);
             lookup.HitImages.TryGetValue(c.Candidate.ExternalId, out var hitImage);
             _db.MetadataMatchCandidates.Add(new MetadataMatchCandidateEntity
@@ -884,6 +886,8 @@ public sealed class MetadataAutoMatchService
                 Reasons = (int)c.Reasons,
                 ImageRemoteUrl = full?.ImageRemoteUrl ?? hitImage,
                 CreatedAt = now,
+                FamilyGroup = family is null ? null : family.Group + 1,
+                FamilyRole = family?.Role,
             });
         }
     }

@@ -2,7 +2,7 @@ namespace com.lifepixer.mangapixer.Core.Api;
 
 /// <summary>
 /// Home "New chapters" response (1.12.0). Recently-added archives STACKED by their
-/// top-level unit (the direct library child they descend from) for each library the
+/// series folder (see <see cref="RecentChapterStack"/>) for each library the
 /// caller can see, grouped by library. Respects Incognito/Private visibility exactly
 /// like the other discovery surfaces, and additionally drops libraries the caller has
 /// hidden from home (see <see cref="HomeLibraryVisibilityDto"/>). No source paths.
@@ -40,20 +40,20 @@ public sealed record RecentChaptersLibraryGroup
 }
 
 /// <summary>
-/// A single "New chapters" stack: a top-level unit (whatever the user's layout puts at
-/// the library root) that has recently-added descendant archives. A loose archive at the
-/// library root is its own standalone stack. Convention-agnostic: not assumed to be a
-/// "series". No source paths.
+/// A single "New chapters" stack: the series folder (1.30.0: the nearest ancestor with its own
+/// series link, else the folder holding the archives, climbing out of "Vol 3" unit folders;
+/// before 1.30.0 the top-level folder) that has recently-added descendant archives. A loose
+/// archive at the library root is its own standalone stack. No source paths.
 /// </summary>
 public sealed record RecentChapterStack
 {
     /// <summary>
-    /// Top-level folder public id, OR the archive public id for a loose top-level archive.
+    /// Series folder public id, OR the archive public id for a loose archive in the library root.
     /// </summary>
     public required string Id { get; init; }
 
     /// <summary>
-    /// Top-level folder name, OR the archive name for a loose archive.
+    /// Series folder name, OR the archive name for a loose archive.
     /// </summary>
     public required string DisplayName { get; init; }
 
@@ -90,7 +90,7 @@ public sealed record RecentChapterStack
     public required int NewCount { get; init; }
 
     /// <summary>
-    /// Derived read state of the stack's TOP-LEVEL node (1.20.0), one of
+    /// Derived read state of the stack's node (1.20.0), one of
     /// <c>"read"</c> / <c>"reading"</c> / <c>"unread"</c> — the same rollup the read-state
     /// filter already uses (<c>FolderReadRollupRules</c>), so the tag on a card and the
     /// filter that would keep or drop it never disagree. A folder stack rolls up over its
@@ -102,7 +102,7 @@ public sealed record RecentChapterStack
     public required string ReadState { get; init; }
 
     /// <summary>
-    /// True when the caller has starred the stack's node (<see cref="Id"/>: the top-level
+    /// True when the caller has starred the stack's node (<see cref="Id"/>: the series
     /// folder, or the loose archive) - the card's favorites star (1.28.0).
     /// </summary>
     public bool IsFavorite { get; init; }

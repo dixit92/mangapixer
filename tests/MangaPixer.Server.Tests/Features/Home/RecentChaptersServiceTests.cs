@@ -1,4 +1,5 @@
 using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Home;
@@ -151,6 +152,167 @@ public sealed class RecentChaptersServiceTests : IDisposable
             var stackB = alpha.Stacks[1];
             Assert.Equal("seriesB", stackB.Id);
             Assert.Equal(1, stackB.NewCount);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    private static async Task<long> AddRecordAsync(MangaPixerDbContext db, string externalId)
+    {
+        var record = new MetadataRecordEntity
+        {
+            PublicId = "rec" + externalId,
+            Provider = "mangaupdates",
+            ExternalId = externalId,
+            Title = "Synthetic " + externalId,
+            FetchedAt = Now,
+        };
+        db.MetadataRecords.Add(record);
+        await db.SaveChangesAsync();
+        return record.Id;
+    }
+
+    private static async Task LinkAsync(MangaPixerDbContext db, CatalogNodeEntity folder, long? recordId, SeriesLinkState state)
+    {
+        db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
+        {
+            NodeId = folder.Id,
+            LibraryId = folder.LibraryId,
+            State = (int)state,
+            RecordId = recordId,
+            CreatedAt = Now,
+            UpdatedAt = Now,
+        });
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task CategoryLibrary_StacksBySeriesFolder_NotByCategory()
+    {
+        var (db, userId, libAId, _) = await SetupAsync();
+        try
+        {
+            // Manga (a category at the top level) holds two series folders; Manhwa holds one. 1.30.0: a card per SERIES.
+            var manga = await AddFolderAsync(db, libAId, "catManga", "Manga");
+            var manhwa = await AddFolderAsync(db, libAId, "catManhwa", "Manhwa");
+            var alpha = await AddFolderAsync(db, libAId, "serAlpha", "Alpha Series", parentId: manga.Id);
+            var beta = await AddFolderAsync(db, libAId, "serBeta", "Beta Series", parentId: manga.Id);
+            var gamma = await AddFolderAsync(db, libAId, "serGamma", "Gamma Series", parentId: manhwa.Id);
+            await AddArchiveAsync(db, libAId, "al1", "Alpha 1.cbz", Now.AddHours(-1), parentId: alpha.Id);
+            await AddArchiveAsync(db, libAId, "al2", "Alpha 2.cbz", Now.AddHours(-2), parentId: alpha.Id);
+            await AddArchiveAsync(db, libAId, "be1", "Beta 1.cbz", Now.AddHours(-3), parentId: beta.Id);
+            await AddArchiveAsync(db, libAId, "ga1", "Gamma 1.cbz", Now.AddHours(-4), parentId: gamma.Id);
+
+            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
+            var result = await service.GetRecentChaptersAsync(userId);
+
+            var group = result.Libraries.First(g => g.LibraryId == "recLibA");
+            Assert.Equal(new[] { "serAlpha", "serBeta", "serGamma" }, group.Stacks.Select(s => s.Id).ToArray());
+            Assert.All(group.Stacks, s => Assert.True(s.IsFolder));
+            Assert.Equal(2, group.Stacks[0].NewCount);
+            Assert.Equal("al1", group.Stacks[0].LatestItemId);
+            Assert.Equal("Alpha Series", group.Stacks[0].DisplayName);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task LinkedFolder_IsTheStack_HoweverDeepTheArchiveIs()
+    {
+        var (db, userId, libAId, _) = await SetupAsync();
+        try
+        {
+            // Manga / Linked Series (own link) / Season 1 (not a generic unit name) / chapters: the link names the series.
+            var manga = await AddFolderAsync(db, libAId, "lkManga", "Manga");
+            var series = await AddFolderAsync(db, libAId, "lkSeries", "Linked Series", parentId: manga.Id);
+            var season = await AddFolderAsync(db, libAId, "lkSeason", "Season 1", parentId: series.Id);
+            await LinkAsync(db, series, await AddRecordAsync(db, "9001"), SeriesLinkState.Confirmed);
+            await AddArchiveAsync(db, libAId, "lk1", "Ch 1.cbz", Now.AddHours(-1), parentId: season.Id);
+            await AddArchiveAsync(db, libAId, "lk2", "Ch 2.cbz", Now.AddHours(-2), parentId: series.Id);
+
+            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
+            var result = await service.GetRecentChaptersAsync(userId);
+
+            var stack = Assert.Single(result.Libraries.First(g => g.LibraryId == "recLibA").Stacks);
+            Assert.Equal("lkSeries", stack.Id);
+            Assert.Equal(2, stack.NewCount);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task UnlinkedFolder_HoldingTheArchives_IsTheStack_AndClimbsOutOfUnitFolders()
+    {
+        var (db, userId, libAId, _) = await SetupAsync();
+        try
+        {
+            var manga = await AddFolderAsync(db, libAId, "ulManga", "Manga");
+            // No link anywhere: the folder that holds the archives is the stack ...
+            var plain = await AddFolderAsync(db, libAId, "ulPlain", "Plain Series", parentId: manga.Id);
+            await AddArchiveAsync(db, libAId, "ul1", "Ch 1.cbz", Now.AddHours(-1), parentId: plain.Id);
+            // ... except generic unit folders (Vol N / Chapters), which are part of the series above them.
+            var vols = await AddFolderAsync(db, libAId, "ulVols", "Volumed Series", parentId: manga.Id);
+            var vol1 = await AddFolderAsync(db, libAId, "ulVol1", "Vol 1", parentId: vols.Id);
+            var vol2 = await AddFolderAsync(db, libAId, "ulVol2", "Volume 2", parentId: vols.Id);
+            await AddArchiveAsync(db, libAId, "ul2", "V1 Ch 1.cbz", Now.AddHours(-2), parentId: vol1.Id);
+            await AddArchiveAsync(db, libAId, "ul3", "V2 Ch 1.cbz", Now.AddHours(-3), parentId: vol2.Id);
+
+            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
+            var result = await service.GetRecentChaptersAsync(userId);
+
+            var stacks = result.Libraries.First(g => g.LibraryId == "recLibA").Stacks;
+            Assert.Equal(new[] { "ulPlain", "ulVols" }, stacks.Select(s => s.Id).ToArray());
+            Assert.Equal(2, stacks[1].NewCount);              // Vol 1 and Volume 2 stay ONE stack
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Theory]
+    [InlineData(SeriesLinkState.NeedsReview)]
+    [InlineData(SeriesLinkState.DontMatch)]
+    public async Task OnlyAConfirmedOrAutoLinkWithARecord_MakesASeriesFolder(SeriesLinkState state)
+    {
+        var (db, userId, libAId, _) = await SetupAsync();
+        try
+        {
+            // A review-pending / "Don't match" link on the ancestor is not a series: the holding folder is the stack.
+            var shelf = await AddFolderAsync(db, libAId, "lnShelf", "Shelf");
+            var series = await AddFolderAsync(db, libAId, "lnSeries", "Series", parentId: shelf.Id);
+            var extras = await AddFolderAsync(db, libAId, "lnExtras", "Extras", parentId: series.Id);
+            await LinkAsync(db, shelf, state == SeriesLinkState.DontMatch ? null : await AddRecordAsync(db, "9002"), state);
+            await AddArchiveAsync(db, libAId, "ln1", "Extra 1.cbz", Now.AddHours(-1), parentId: extras.Id);
+
+            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
+            var result = await service.GetRecentChaptersAsync(userId);
+
+            var stack = Assert.Single(result.Libraries.First(g => g.LibraryId == "recLibA").Stacks);
+            Assert.Equal("lnExtras", stack.Id);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task SeriesFolderStack_ReadState_IsThatOfTheSeriesNotTheCategory()
+    {
+        var (db, userId, libAId, _) = await SetupAsync();
+        try
+        {
+            // A read series next to an unread one in the same category: each card carries its OWN rollup.
+            var manga = await AddFolderAsync(db, libAId, "rsManga", "Manga");
+            var doneSeries = await AddFolderAsync(db, libAId, "rsDone", "Done Series", parentId: manga.Id);
+            var freshSeries = await AddFolderAsync(db, libAId, "rsFresh", "Fresh Series", parentId: manga.Id);
+            var done = await AddArchiveAsync(db, libAId, "rs1", "Done 1.cbz", Now.AddHours(-1), parentId: doneSeries.Id);
+            await AddArchiveAsync(db, libAId, "rs2", "Fresh 1.cbz", Now.AddHours(-2), parentId: freshSeries.Id);
+            db.ReadMarks.Add(new ReadMarkEntity { UserId = userId, ItemId = done.Id, MarkedAt = Now });
+            await db.SaveChangesAsync();
+
+            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
+            var all = await service.GetRecentChaptersAsync(userId);
+            var stacks = all.Libraries.First(g => g.LibraryId == "recLibA").Stacks;
+            Assert.Equal("read", stacks.Single(s => s.Id == "rsDone").ReadState);
+            Assert.Equal("unread", stacks.Single(s => s.Id == "rsFresh").ReadState);
+
+            var unreadOnly = await service.GetRecentChaptersAsync(userId, readState: HomeReadStateFilter.Unread);
+            Assert.Equal(new[] { "rsFresh" }, unreadOnly.Libraries.First(g => g.LibraryId == "recLibA").Stacks.Select(s => s.Id).ToArray());
         }
         finally { await db.DisposeAsync(); }
     }

@@ -12,11 +12,13 @@ namespace com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// small <see cref="DerivedVariantDiscount"/>, so a full-name match always wins a tie.</item>
 /// <item><b>Corroboration</b> re-ranks only: small agreements and conflict penalties change the
 /// ADJUSTED score (ordering and margin), never the raw title score the auto threshold reads.
-/// Format (novel / artbook / audio), origin vs the category folder (agreement only, 1.27.0), tall strips vs a print record,
+/// Format (novel / artbook / audio), origin vs the category folder (agreement only, 1.27.0) or - stronger, both ways, never a
+/// veto - vs the folder's declared type (1.30.0), tall strips vs a print record,
 /// counts (volumes vs volumes, chapters vs chapters - never chapters vs volumes), earliest file year
 /// vs start year, one-shot shape, ComicInfo series, creator tags.</item>
 /// <item><b>Vetoes</b> demote auto to review: any corroboration conflict, a related top pair the
-/// number-aware title does not separate, and - mandatory for archive-level works - an author
+/// number-aware title does not separate, a top that only the folder's subtitle separates from a record of its own series
+/// family (1.30.0, <see cref="MatchReason.SubtitleFamily"/>), and - mandatory for archive-level works - an author
 /// conflict (the archive's creator tags name none of the record's authors).</item>
 /// <item><b>Bands</b> from <see cref="MatchThresholds"/>: auto = raw title &gt;= AutoTitle, adjusted lead
 /// &gt;= Margin over the next distinct record, no veto, and an auto-capable class; a
@@ -24,7 +26,8 @@ namespace com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// constant, owner decision 13). A single archive may hold a one-shot, one volume or a whole multi-volume series
 /// (owner, 2026-09-26), so the record's volume count never blocks auto; a one-shot record only breaks ties. Review = raw &gt;= ReviewFloor.</item>
 /// <item><b>ToPersist</b> (decision 8): candidates within <see cref="PersistWindow"/> of the top, at most
-/// <see cref="PersistMax"/>; only the top when it leads the next by <see cref="PersistClearLead"/> or more.</item>
+/// <see cref="PersistMax"/>; only the top when it leads the next by <see cref="PersistClearLead"/> or more - plus, always, a
+/// record of the top's series family that only the folder's subtitle set apart (1.30.0), so the review shows both.</item>
 /// </list>
 /// </summary>
 public sealed class MatchScorer : IMatchScorer
@@ -46,6 +49,17 @@ public sealed class MatchScorer : IMatchScorer
     public const double OneShotAgree = 0.02;
     public const double ComicInfoAgree = 0.05;
     public const double AuthorAgree = 0.05;
+
+    /// <summary>
+    /// The record fits the folder's DECLARED type and its implied origin (1.30.0, owner: a strong hint; adjusted score only).
+    /// With <see cref="DeclaredTypeMismatch"/> it spans exactly the default margin: a declaration can settle a TIE on the title
+    /// between records of different origins, but a record the declaration contradicts is only ever overtaken by one that
+    /// matches the title at least as well - a wrong declaration never beats a better title into an automatic link.
+    /// </summary>
+    public const double DeclaredTypeAgree = 0.05;
+
+    /// <summary>The record contradicts the folder's declared type (1.30.0): lowers the adjusted score, never a veto.</summary>
+    public const double DeclaredTypeMismatch = -0.05;
 
     /// <summary>The candidate's cover is the same as the local cover (<see cref="CoverEvidence"/>, 1.28.0; adjusted score only).</summary>
     public const double CoverAgree = 0.05;
@@ -77,13 +91,16 @@ public sealed class MatchScorer : IMatchScorer
     public const int CountSlack = CountEvidence.Slack;
 
 
+    /// <summary>Rounding tolerance of score comparisons against a threshold.</summary>
+    private const double ScoreTolerance = 1e-9;
+
     public const double PersistWindow = 0.15;
     public const int PersistMax = 5;
     public const double PersistClearLead = 0.30;
 
     /// <summary>Reasons that veto auto (a conflict between local evidence and the record).</summary>
     public const MatchReason VetoReasons = MatchReason.CountConflict | MatchReason.YearConflict | MatchReason.TypeConflict
-        | MatchReason.RelatedPair | MatchReason.AuthorConflict;
+        | MatchReason.RelatedPair | MatchReason.AuthorConflict | MatchReason.SubtitleFamily;
 
     public MatchOutcome Score(MatchQuery query, IReadOnlyList<MatchCandidate> candidates, MatchThresholds thresholds)
     {
@@ -99,7 +116,7 @@ public sealed class MatchScorer : IMatchScorer
 
         var ctx = query.Context;
         var variants = PrepareVariants(query.Variants);
-        var scored = distinct.Select(c => ScoreOne(c, variants, ctx)).ToList();
+        var (scored, capped) = SubtitleOutweighsHead(distinct.Select(c => ScoreOne(c, variants, ctx)).ToList(), variants, thresholds);
 
         var ranked = scored
             .OrderByDescending(s => s.AdjustedScore)
@@ -116,10 +133,28 @@ public sealed class MatchScorer : IMatchScorer
             && top.TitleScore - second.TitleScore < RelatedSeparation)
             reasons |= MatchReason.RelatedPair;
 
+        // 1.30.0 (owner: "not automatic - keep it in review"): the subtitle cap decided between the top and a record of its own
+        // series family that matched the name's head and would otherwise have been a close second (a main series vs its spin-off).
+        // The rival is stored with the review candidates even outside the persist window, so the admin sees both records.
+        var subtitleRivals = capped.Count == 0 ? [] : ranked.Skip(1)
+            .Where(s => capped.TryGetValue(s.Candidate.ExternalId, out var uncapped)
+                && uncapped >= top.TitleScore - RelatedSeparation - ScoreTolerance
+                && SeriesFamilies.AreFamily(top.Candidate, s.Candidate))
+            .ToList();
+        if (subtitleRivals.Count > 0)
+            reasons |= MatchReason.SubtitleFamily;
+
+        // 1.30.0: another candidate worth reviewing is the top's series family - a chip on review and Auto-linked rows, never a veto.
+        if (ranked.Skip(1).Any(s => s.TitleScore >= thresholds.ReviewFloor - ScoreTolerance && SeriesFamilies.AreFamily(top.Candidate, s.Candidate)))
+            reasons |= MatchReason.SeriesFamily;
+
         // "Close second" only means something for a top that could be reviewed (1.27.0): below the floor the work
         // is unmatched, and a chip about two equally poor candidates only confuses.
+        // Compared with a rounding tolerance (1.30.0): evidence sized to span the margin exactly (a declared type's +0.05 / -0.05)
+        // must not depend on how the adjusted scores' sums happen to round.
         var margin = top.AdjustedScore - (second?.AdjustedScore ?? 0);
-        if (margin < thresholds.Margin && top.TitleScore >= thresholds.ReviewFloor)
+        var leads = margin >= thresholds.Margin - ScoreTolerance;
+        if (!leads && top.TitleScore >= thresholds.ReviewFloor)
             reasons |= MatchReason.CloseSecond;
 
         var autoClass = IsAutoCapable(ctx.Class);
@@ -130,7 +165,7 @@ public sealed class MatchScorer : IMatchScorer
 
         var band = autoClass && oneShotOk
             && top.TitleScore >= thresholds.AutoTitle
-            && margin >= thresholds.Margin
+            && leads
             && (reasons & VetoReasons) == 0
                 ? MatchBand.Auto
                 : top.TitleScore >= thresholds.ReviewFloor ? MatchBand.NeedsReview : MatchBand.Unmatched;
@@ -138,7 +173,7 @@ public sealed class MatchScorer : IMatchScorer
         top = top with { Reasons = reasons };
         ranked[0] = top;
 
-        return new MatchOutcome(band, ranked, band == MatchBand.Unmatched ? [] : ChoosePersisted(ranked));
+        return new MatchOutcome(band, ranked, band == MatchBand.Unmatched ? [] : ChoosePersisted(ranked, subtitleRivals));
     }
 
     /// <summary>Classes whose works may be auto-linked (folder-level series and archive-level collections).</summary>
@@ -198,7 +233,47 @@ public sealed class MatchScorer : IMatchScorer
     private static bool IsOwnName(QueryVariantKind kind) =>
         kind is QueryVariantKind.Primary or QueryVariantKind.ComicInfoSeries or QueryVariantKind.ArchiveDerivedTitle;
 
-    private static ScoredCandidate ScoreOne(MatchCandidate c, List<PreparedVariant> variants, MatchContext ctx)
+    /// <summary>
+    /// 1.30.0 (backlog: "a folder name's subtitle should favour the spin-off record"): when the work's own name states a subtitle
+    /// (<c>Series - Subtitle</c>) and a candidate at the review floor has that subtitle as its own (<c>Series: Subtitle</c>), a record
+    /// that matched only the bare head (<c>Series</c>, through the retrieval-only subtitle split) is capped at
+    /// <see cref="SubtitleHeadCap"/> like a record-side head: the explicit subtitle outweighs the main-title match. Also returns the
+    /// capped records with their title score before the cap: when one of them is the top's series family, the subtitle alone
+    /// decided and the work goes to review (<see cref="MatchReason.SubtitleFamily"/>).
+    /// </summary>
+    private static (List<ScoredCandidate> Scored, Dictionary<string, double> Capped) SubtitleOutweighsHead(List<(ScoredCandidate Scored, bool ViaSubtitleSplit)> scored,
+        List<PreparedVariant> variants, MatchThresholds thresholds)
+    {
+        var subtitles = variants.Where(v => IsOwnName(v.Kind) || v.Kind == QueryVariantKind.EnglishTitle)
+            .Select(v => TitleNormalizer.NameSubtitle(v.Text))
+            .OfType<string>()
+            .Select(TitleNormalizer.ScoringForm)
+            .Where(f => f.Length > 0)
+            .ToHashSet(StringComparer.Ordinal);
+        var capped = new Dictionary<string, double>(StringComparer.Ordinal);
+        if (subtitles.Count == 0)
+            return (scored.Select(s => s.Scored).ToList(), capped);
+        bool Carries(MatchCandidate c) => new[] { c.Title }.Concat(c.AltTitles ?? [])
+            .Select(t => AutoMatchText.WithoutDisambiguator(t) ?? t)
+            .Select(TitleNormalizer.SubtitleTail).OfType<string>()
+            .Any(t => subtitles.Contains(TitleNormalizer.ScoringForm(t)));
+        var carriers = scored.Where(s => s.Scored.TitleScore >= thresholds.ReviewFloor && Carries(s.Scored.Candidate))
+            .Select(s => s.Scored.Candidate.ExternalId).ToHashSet(StringComparer.Ordinal);
+        if (carriers.Count == 0)
+            return (scored.Select(s => s.Scored).ToList(), capped);
+        var result = scored.Select(s =>
+        {
+            var x = s.Scored;
+            if (!s.ViaSubtitleSplit || carriers.Contains(x.Candidate.ExternalId) || x.TitleScore <= SubtitleHeadCap)
+                return x;
+            capped[x.Candidate.ExternalId] = x.TitleScore;
+            var drop = x.TitleScore - SubtitleHeadCap;
+            return x with { TitleScore = SubtitleHeadCap, AdjustedScore = x.AdjustedScore - drop };
+        }).ToList();
+        return (result, capped);
+    }
+
+    private static (ScoredCandidate Scored, bool ViaSubtitleSplit) ScoreOne(MatchCandidate c, List<PreparedVariant> variants, MatchContext ctx)
     {
         var reasons = MatchReason.None;
         var titles = new List<string> { c.Title };
@@ -267,6 +342,7 @@ public sealed class MatchScorer : IMatchScorer
 
         var best = 0.0;
         var bestPenalized = false;
+        var bestViaSubtitleSplit = false;
         foreach (var v in variants)
         {
             var reviewOnly = (v.Kind == QueryVariantKind.CreatorSplit && !hintNamesRecord)
@@ -302,6 +378,7 @@ public sealed class MatchScorer : IMatchScorer
                 {
                     best = s;
                     bestPenalized = penalized;
+                    bestViaSubtitleSplit = v.Kind == QueryVariantKind.SubtitleSplit;
                 }
             }
         }
@@ -322,7 +399,22 @@ public sealed class MatchScorer : IMatchScorer
         // "Manga" folder is common, so a mismatch is neutral - no penalty, no veto. Tall strips vs a print record
         // stay a conflict (they measure the pages, not a folder name).
         var origin = AutoMatchText.ParseOrigin(c.Origin);
-        if (origin is { } o && AutoMatchText.OriginsForCategory(ctx.CategoryHint) is { } allowed
+        if (ctx.DeclaredType is { } declared)
+        {
+            // An admin's declaration is a strong hint both ways (1.30.0, owner) and takes the place of the folder word.
+            switch (DeclaredFactsComparer.TypeSignal(declared, origin, c.Format, c.Webtoon))
+            {
+                case DeclaredTypeSignal.Agree:
+                    delta += DeclaredTypeAgree;
+                    reasons |= MatchReason.DeclaredTypeAgree;
+                    break;
+                case DeclaredTypeSignal.Mismatch:
+                    delta += DeclaredTypeMismatch;
+                    reasons |= MatchReason.DeclaredTypeMismatch;
+                    break;
+            }
+        }
+        else if (origin is { } o && AutoMatchText.OriginsForCategory(ctx.CategoryHint) is { } allowed
             && (allowed.Contains(o) || (c.Webtoon == true && allowed.Contains(MetadataOrigin.Korea))))
         {
             delta += OriginAgree;
@@ -394,7 +486,7 @@ public sealed class MatchScorer : IMatchScorer
             reasons |= MatchReason.CoverMatch;
         }
 
-        return new ScoredCandidate(c, title, title + delta, reasons);
+        return (new ScoredCandidate(c, title, title + delta, reasons), bestViaSubtitleSplit);
     }
 
     private static bool IsOneShotRecord(MatchCandidate c) =>
@@ -405,15 +497,19 @@ public sealed class MatchScorer : IMatchScorer
         && ((a.Relations ?? []).Any(r => string.Equals(r.ExternalId, b.ExternalId, StringComparison.Ordinal))
             || (b.Relations ?? []).Any(r => string.Equals(r.ExternalId, a.ExternalId, StringComparison.Ordinal)));
 
-    private static List<ScoredCandidate> ChoosePersisted(List<ScoredCandidate> ranked)
+    /// <summary>The adaptive review set (decision 8), plus the records <paramref name="alsoKeep"/> names (1.30.0), in rank order.</summary>
+    private static List<ScoredCandidate> ChoosePersisted(List<ScoredCandidate> ranked, IReadOnlyList<ScoredCandidate> alsoKeep)
     {
         var top = ranked[0];
-        if (ranked.Count == 1 || top.AdjustedScore - ranked[1].AdjustedScore >= PersistClearLead)
-            return [top];
-        return ranked
-            .TakeWhile(s => top.AdjustedScore - s.AdjustedScore <= PersistWindow + 1e-9)
-            .Take(PersistMax)
-            .ToList();
+        List<ScoredCandidate> chosen = ranked.Count == 1 || top.AdjustedScore - ranked[1].AdjustedScore >= PersistClearLead
+            ? [top]
+            : ranked.TakeWhile(s => top.AdjustedScore - s.AdjustedScore <= PersistWindow + ScoreTolerance).Take(PersistMax).ToList();
+        var extra = alsoKeep.Where(a => !chosen.Contains(a)).ToList();
+        if (extra.Count == 0)
+            return chosen;
+        var keep = chosen.Take(Math.Max(1, PersistMax - extra.Count)).Concat(extra)
+            .Select(s => s.Candidate.ExternalId).ToHashSet(StringComparer.Ordinal);
+        return ranked.Where(s => keep.Contains(s.Candidate.ExternalId)).Take(PersistMax).ToList();
     }
 
     /// <summary>One entry per (provider, external id); a duplicate keeps the entry with more data.</summary>

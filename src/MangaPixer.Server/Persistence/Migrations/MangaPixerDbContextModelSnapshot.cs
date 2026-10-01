@@ -1016,6 +1016,13 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("FamilyGroup")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FamilyRole")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("Format")
                         .HasColumnType("INTEGER");
 
@@ -1388,6 +1395,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<long>("NodeId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("ArchiveNodeId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("CropSide")
                         .HasColumnType("INTEGER");
 
@@ -1685,6 +1695,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
 
                     b.Property<bool>("ShowFavoritesHomeRow")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("StackViewMode")
+                        .HasColumnType("TEXT");
 
                     b.Property<long>("UserId")
                         .HasColumnType("INTEGER");

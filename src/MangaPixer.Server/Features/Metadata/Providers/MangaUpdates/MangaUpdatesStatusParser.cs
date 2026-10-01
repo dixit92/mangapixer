@@ -83,10 +83,82 @@ public static partial class MangaUpdatesStatusParser
     /// </summary>
     public static (int? Volumes, int? Chapters) ParsePublisherNotes(string? notes)
     {
+        var parsed = ParsePublisherEdition(notes);
+        return (parsed.Volumes, parsed.Chapters);
+    }
+
+    /// <summary>
+    /// What a publisher's <c>notes</c> say about its regular edition (1.30.0): the volume / chapter totals and the publisher's own
+    /// status. A note may list several editions split by <c>|</c> or a line break ("42 Volumes - Ongoing | 14 Omnibus; print,
+    /// 3-in-1 - Ongoing"); an omnibus, N-in-1, perfect or deluxe edition numbers its volumes differently from the original, so its
+    /// counts never feed <see cref="PublisherEdition.Volumes"/> - <see cref="PublisherEdition.Omnibus"/> is true when such an edition
+    /// is the only one that states a volume count. The status comes from the segment that gave the volume total (else the chapter
+    /// total, else the first regular segment that states one; never an omnibus segment's); "Defunct" / "Dropped" read as cancelled.
+    /// </summary>
+    public static PublisherEdition ParsePublisherEdition(string? notes)
+    {
         var text = MetadataText.Flatten(notes, MaxStatusTextLength);
         if (text is null)
-            return (null, null);
-        return (Largest(NotesVolumes().Matches(text)), Largest(NotesChapters().Matches(text)));
+            return PublisherEdition.Empty;
+
+        int? volumes = null, chapters = null;
+        MetadataOriginStatus? volumeStatus = null, chapterStatus = null, anyStatus = null;
+        var omnibusVolumes = false;
+        foreach (var segment in text.Split(['|', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        {
+            var segmentVolumes = Largest(NotesVolumes().Matches(segment));
+            var segmentChapters = Largest(NotesChapters().Matches(segment));
+            if (OmnibusEdition().IsMatch(segment))
+            {
+                omnibusVolumes |= segmentVolumes is not null || OmnibusCount().IsMatch(segment);
+                continue;
+            }
+            var status = PublisherStatusWord(segment);
+            anyStatus ??= status;
+            if (segmentVolumes is { } v && (volumes is null || v > volumes))
+            {
+                volumes = v;
+                volumeStatus = status;
+            }
+            if (segmentChapters is { } c && (chapters is null || c > chapters))
+            {
+                chapters = c;
+                chapterStatus = status;
+            }
+        }
+        var edition = volumeStatus ?? (volumes is null ? chapterStatus : null) ?? (volumes is null && chapters is null ? anyStatus : null);
+        return new PublisherEdition(volumes, chapters, edition, omnibusVolumes && volumes is null);
+    }
+
+    /// <summary>A publisher's regular edition as its notes state it (<see cref="ParsePublisherEdition"/>).</summary>
+    public sealed record PublisherEdition(int? Volumes, int? Chapters, MetadataOriginStatus? Status, bool Omnibus)
+    {
+        public static PublisherEdition Empty { get; } = new(null, null, null, false);
+    }
+
+    // An edition whose volume numbering is not the original's.
+    [GeneratedRegex(@"omnibus|\b\d\s*-?\s*in\s*-?\s*1\b|perfect\s+edition|deluxe|big\s+edition", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex OmnibusEdition();
+
+    // "14 Omnibus", "9 Physical Perfect Edition Omnibuses": an omnibus count the volume pattern does not read.
+    [GeneratedRegex(@"\d{1,5}\s*(?:[\p{L}-]+\s+){0,3}omnibus", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex OmnibusCount();
+
+    [GeneratedRegex(@"\p{L}+", RegexOptions.CultureInvariant)]
+    private static partial Regex Word();
+
+    // The first status word of a notes segment ("Ongoing", "Complete(d)", "Hiatus", "Cancelled", "Defunct", "Dropped").
+    private static MetadataOriginStatus? PublisherStatusWord(string segment)
+    {
+        foreach (Match m in Word().Matches(segment))
+        {
+            var w = m.Value.ToLowerInvariant();
+            if (w is "defunct" or "dropped")
+                return MetadataOriginStatus.Cancelled;
+            if (MapStatusWord(w) is { } status)
+                return status;
+        }
+        return null;
     }
 
     private static int? Largest(MatchCollection matches)

@@ -69,6 +69,28 @@ public sealed class DeclaredFactsTests
     public void TypeConflicts(DeclaredType declared, MetadataOrigin? origin, MetadataFormat? format, bool expected) =>
         Assert.Equal(expected, DeclaredFactsComparer.TypeConflicts(declared, origin, format));
 
+    [Theory]
+    // The implied country of origin agrees (1.30.0).
+    [InlineData(DeclaredType.Manga, MetadataOrigin.Japan, null, null, DeclaredTypeSignal.Agree)]
+    [InlineData(DeclaredType.Manhwa, MetadataOrigin.Korea, null, null, DeclaredTypeSignal.Agree)]
+    [InlineData(DeclaredType.Manhua, MetadataOrigin.ChinaTaiwan, null, null, DeclaredTypeSignal.Agree)]
+    [InlineData(DeclaredType.Webtoon, MetadataOrigin.Korea, null, null, DeclaredTypeSignal.Agree)]
+    [InlineData(DeclaredType.Webtoon, MetadataOrigin.Japan, null, true, DeclaredTypeSignal.Agree)]
+    [InlineData(DeclaredType.Comic, MetadataOrigin.EnglishOriginal, null, null, DeclaredTypeSignal.Agree)]
+    [InlineData(DeclaredType.GraphicNovel, MetadataOrigin.German, null, null, DeclaredTypeSignal.Agree)]
+    // A mismatch is exactly the Info panel's conflict.
+    [InlineData(DeclaredType.Manga, MetadataOrigin.Korea, null, null, DeclaredTypeSignal.Mismatch)]
+    [InlineData(DeclaredType.Manhua, MetadataOrigin.Japan, null, null, DeclaredTypeSignal.Mismatch)]
+    [InlineData(DeclaredType.Comic, MetadataOrigin.Japan, null, null, DeclaredTypeSignal.Mismatch)]
+    [InlineData(DeclaredType.Manga, MetadataOrigin.Japan, MetadataFormat.Novel, null, DeclaredTypeSignal.Mismatch)]
+    // Nothing to say: other origins, unknown values, a webtoon from Japan without the flag, a declared novel.
+    [InlineData(DeclaredType.Comic, MetadataOrigin.Thailand, null, null, DeclaredTypeSignal.None)]
+    [InlineData(DeclaredType.Manga, null, null, null, DeclaredTypeSignal.None)]
+    [InlineData(DeclaredType.Webtoon, MetadataOrigin.Japan, null, false, DeclaredTypeSignal.None)]
+    [InlineData(DeclaredType.Novel, MetadataOrigin.Japan, MetadataFormat.Comic, null, DeclaredTypeSignal.None)]
+    public void TypeSignal(DeclaredType declared, MetadataOrigin? origin, MetadataFormat? format, bool? webtoon, DeclaredTypeSignal expected) =>
+        Assert.Equal(expected, DeclaredFactsComparer.TypeSignal(declared, origin, format, webtoon));
+
     [Fact]
     public void CreatorsConflict_OnlyWhenBothSidesNameCreators_AndNoneMatch()
     {

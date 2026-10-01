@@ -259,9 +259,10 @@ public static class MissingUnits
     /// <summary>
     /// The split chapters among chapter archives (1.29.1, owner soak test): files numbered as parts of chapter N (N.1, N.2, ...)
     /// are chapter N, also where a provider's list names only the plain N. A part is a one-decimal number; N.5 is the usual
-    /// number of an extra (10.5), so it is a part only after N.4. Without a file N, a lone N.1 or two parts or more are a split
-    /// chapter (a lone N.2 stays an extra); with a file N, that file is the first part and N.2 and later are its other parts
-    /// (a file N.1 next to it stays an extra). A part missing below the highest part here is in
+    /// number of an extra (10.5), so it is a part only after N.4. The parts must start at the beginning (1.30.0): at N.1, or at N.2
+    /// when a file N is here (that file is the first part; a file N.1 next to it stays an extra) - a run that starts later (N.6
+    /// next to N and N.5, listed extras) is extras, never a split with its first parts missing. A part missing below the highest
+    /// part here is in
     /// <see cref="SplitChapters.MissingParts"/> (4.1 and 4.3 here: 4.2 is missing).
     /// </summary>
     public static SplitChapters SplitsOf(IEnumerable<UnitNumbers> units)
@@ -290,7 +291,7 @@ public static class MissingUnits
         {
             var hasFile = wholes.Contains(n);
             var own = tenths.Where(t => (t != 5 || tenths.Contains(4)) && (!hasFile || t >= 2)).ToList();
-            if (hasFile ? own.Count == 0 : !own.Contains(1) && own.Count < 2)
+            if (own.Count == 0 || own.Min() != (hasFile ? 2 : 1))
                 continue;
             chapters.Add(n);
             var present = own.ToHashSet();

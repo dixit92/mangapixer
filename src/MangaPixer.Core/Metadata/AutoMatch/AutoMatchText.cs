@@ -294,6 +294,14 @@ public static partial class AutoMatchText
     }
 
     /// <summary>
+    /// A disambiguator that names a person the MangaUpdates way (1.30.0): at least two words, one of them an upper-case family name
+    /// (<c>HATA Kenjiro</c>, <c>JO Yongseok</c>) - not a format or edition note (<c>Webtoon</c>, <c>Pre-serialization</c>, <c>Novel</c>).
+    /// </summary>
+    public static bool IsPersonTag(string? tag) =>
+        IsAuthorLike(tag, requireTwoTokens: true)
+        && tag!.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(w => w.Length >= 2 && w.All(char.IsLetter) && w.All(char.IsUpper));
+
+    /// <summary>
     /// Score factor of a title that matches only once its trailing <c>(disambiguator)</c> is removed and the tag is not known to
     /// name the record's own author (1.29.0, owner): MangaUpdates adds the author to every same-named title
     /// (<c>Fly Me to the Moon (HATA Kenjiro)</c>), so the stripped alias is real evidence - but several works share the name, so

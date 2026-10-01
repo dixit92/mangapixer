@@ -1,12 +1,12 @@
 namespace com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 
 /// <summary>
-/// Declared facts as matching evidence (1.28.0): what an admin stated about a folder or library (lane D's
-/// <see cref="DeclaredFacts"/>), folded into a planned query. Positive only, like the evidence it reuses:
+/// Declared facts as matching evidence (1.28.0), folded into a planned query:
 /// <list type="bullet">
-/// <item>a declared type manga / manhwa / manhua / webtoon is the query's category hint (the record of that origin
-/// gets <see cref="MatchScorer.OriginAgree"/>; nothing counts against another origin). An explicit declaration wins
-/// over a category folder name. Comic, graphic novel and novel give no hint (no origin to agree with);</item>
+/// <item>a declared type is a STRONG HINT (1.30.0, owner: it replaced the 1.28.0 search filter): the scorer raises a record
+/// whose type and origin fit it and lowers one that contradicts it (<see cref="DeclaredFactsComparer.TypeSignal"/>,
+/// <see cref="MatchScorer.DeclaredTypeAgree"/> / <see cref="MatchScorer.DeclaredTypeMismatch"/>), never vetoes. It takes the
+/// place of a category folder word (an explicit declaration wins);</item>
 /// <item>declared creators join the creator hints (a record by one of them gets <see cref="MatchScorer.CreatorHintAgree"/>,
 /// and its title part of an <c>Author - Title</c> name is no longer capped); they never become author TAGS, so they
 /// never veto a record.</item>
@@ -21,8 +21,8 @@ public static class DeclaredHints
         if (declared is null || declared.IsEmpty)
             return query;
         var context = query.Context;
-        if (CategoryOf(declared.TypeValue) is { } category)
-            context = context with { CategoryHint = category };
+        if (declared.TypeValue is { } type)
+            context = context with { DeclaredType = type };
         var names = declared.Creators.Select(c => c.Name).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
         if (names.Count > 0)
         {
@@ -34,14 +34,4 @@ public static class DeclaredHints
         }
         return ReferenceEquals(context, query.Context) ? query : query with { Context = context };
     }
-
-    /// <summary>The category hint word of a declared type, or null when the type names no origin.</summary>
-    public static string? CategoryOf(DeclaredType? type) => type switch
-    {
-        DeclaredType.Manga => "manga",
-        DeclaredType.Manhwa => "manhwa",
-        DeclaredType.Manhua => "manhua",
-        DeclaredType.Webtoon => "webtoon",
-        _ => null,
-    };
 }

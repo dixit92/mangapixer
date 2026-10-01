@@ -125,6 +125,16 @@ public sealed class AutoMatchTextTests
     public void CreatorSplitTitles_AreTheTitlePart(string name, string[] expected) =>
         Assert.Equal(expected, AutoMatchText.CreatorSplitTitles(name));
 
+    [Theory]
+    [InlineData("HATA Kenjiro", true)]
+    [InlineData("JO Yongseok", true)]
+    [InlineData("Webtoon", false)]
+    [InlineData("Pre-serialization", false)]
+    [InlineData("Some Studio", false)]
+    [InlineData(null, false)]
+    public void IsPersonTag_IsAMangaUpdatesStyleName(string? tag, bool expected) =>
+        Assert.Equal(expected, AutoMatchText.IsPersonTag(tag));
+
     [Fact]
     public void DisambiguatedAliases_CountInFull_OnlyWhenTheTagNamesTheRecordsAuthor()
     {

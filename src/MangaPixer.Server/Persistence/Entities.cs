@@ -529,6 +529,11 @@ public sealed class ReaderPreferencesEntity
     /// </summary>
     public int? SeriesViewMode { get; set; }
 
+    /// <summary>
+    /// Per-user view of a volume's page (1.30.0): "card" or "list"; null = follow the library view (<c>LibraryViewMode</c>).
+    /// </summary>
+    public string? StackViewMode { get; set; }
+
     public UserEntity? User { get; set; }
 }
 
@@ -1339,6 +1344,15 @@ public sealed class MetadataMatchCandidateEntity
     public string? ImageRemoteUrl { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
+    /// <summary>
+    /// 1.30.0: the <see cref="Rank"/> of the first candidate of this one's series family among the work's stored candidates
+    /// (<c>SeriesFamilies</c>); null when no other stored candidate is its family.
+    /// </summary>
+    public int? FamilyGroup { get; set; }
+
+    /// <summary>1.30.0: this candidate's role in its series family (<c>SeriesFamilyRole</c> code: <c>main_story</c>, <c>spin_off</c>, ...).</summary>
+    public string? FamilyRole { get; set; }
+
     public CatalogNodeEntity? Node { get; set; }
 }
 
@@ -1578,6 +1592,12 @@ public sealed class NodeAutoCoverEntity
 
     /// <summary>Source WebVolume / WebMain: the web cover.</summary>
     public long? VolumeCoverId { get; set; }
+
+    /// <summary>
+    /// Source LocalVolume1 (1.30.0): the series' volume 1 archive whose resolved cover the folder shows. No foreign key - the
+    /// resolver checks that it is still a live archive, and the folder is decided again when its volume 1 changes.
+    /// </summary>
+    public long? ArchiveNodeId { get; set; }
 
     /// <summary><c>AutoCoverReason</c> int value.</summary>
     public int Reason { get; set; }

@@ -131,6 +131,19 @@ describe('MetadataSettingsComponent', () => {
     expect(c.message()).toBe('Stored volume covers deleted');
   });
 
+  it('volume covers: an idle pass reads "nothing waiting" and the listed covers read as not needed (1.30.0)', () => {
+    const { fixture, q } = create();
+    q('[data-testid="md-volume-covers-progress"]')!.click();
+    http.expectOne({ method: 'GET', url: '/api/v1/admin/metadata/volume-covers/status' })
+      .flush({ seriesPending: 0, coversListed: 5947, coversStored: 3054, waiting: null });
+    fixture.detectChanges();
+    const status = q('[data-testid="md-volume-covers-status"]')!.textContent!.replace(/\s+/g, ' ');
+    expect(status).toContain('3054 covers stored');
+    expect(status).toContain('nothing waiting');
+    expect(status).not.toContain('series to check');
+    expect(status).toContain('5947 more listed on MangaDex, not needed');
+  });
+
   it('re-prompts on a stale consent version and honours the config kill', () => {
     const stale = create(settings({ acceptedConsentVersion: 0 }));
     expect(stale.c.consentCurrent()).toBe(false);
@@ -225,7 +238,8 @@ describe('MetadataSettingsComponent', () => {
     expect(text).toContain('in every library whose Fetch switch is on');
     expect(text).toContain('What is sent automatically:');
     expect(text).toContain('nobody reviews before it is sent');
-    expect(text).toContain('For a folder declared manga, manhwa or manhua, automatic searches leave the other two types out.');
+    // 1.30.0: a declared type is no longer sent as a search filter, so the consent text no longer names it.
+    expect(text).not.toContain('declared manga');
     expect(text).toContain('Cover comparison:');
     expect(text).toContain('download the cover images of those two series from MangaUpdates\' image server (cdn.mangaupdates.com)');
     expect(text).toContain('These downloads carry nothing from your library.');

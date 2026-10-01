@@ -9,7 +9,7 @@ import { of } from 'rxjs';
 import { ApiService } from '../../../core/api/api.service';
 import { MetadataReviewSummaryDto, MetadataSettingsDto } from '../../../core/api/api-types';
 import { MetadataReviewStateService } from '../metadata-review-state.service';
-import { AdminMetadataComponent } from './admin-metadata.component';
+import { ADMIN_METADATA_TABS, AdminMetadataComponent } from './admin-metadata.component';
 import { summary } from './metadata-admin.testing';
 
 /**
@@ -45,12 +45,12 @@ describe('AdminMetadataComponent', () => {
     return { fixture, el, c: fixture.componentInstance, state, navigate, http };
   }
 
-  it('opens on Settings by default, shows the five tabs, the counts and the summary tile', () => {
+  it('opens on Settings by default, shows the six tabs, the counts and the summary tile', () => {
     const { el, c, state, http } = create();
     expect(c.tab()).toBe('settings');
     expect(state.refresh).toHaveBeenCalled();
     const labels = Array.from(el.querySelectorAll('[role="tab"]')).map((t) => t.textContent!.replace(/\s+/g, ' ').trim());
-    expect(labels).toEqual(['Settings', 'Review 7', 'Flags 2', 'Runs', 'Missing']);
+    expect(labels).toEqual(['Settings', 'Review 7', 'Flags 2', 'Runs', 'Missing', 'Official releases']);
     // The summary tile (owner decision 2, 1.27.0) sits above the tabs and replaces the old one-line summary.
     expect(el.querySelector('[data-testid="metadata-summary-tile"]')).not.toBeNull();
     expect(el.querySelector('[data-testid="tile-review"]')!.textContent).toContain('7');
@@ -68,6 +68,17 @@ describe('AdminMetadataComponent', () => {
     const req = http.expectOne((r) => r.url === '/api/v1/admin/metadata/review');
     expect(req.request.params.get('tab')).toBe('AutoLinked');
     expect(req.request.params.get('library')).toBe('lib1');
+  });
+
+  it('opens the Official releases tab from the query string and keeps its library (1.30.0)', () => {
+    const { c, http, navigate } = create({ tab: 'official', library: 'lib1' });
+    expect(c.tab()).toBe('official');
+    const req = http.expectOne((r) => r.url === '/api/v1/admin/metadata/official-releases');
+    expect(req.request.params.get('library')).toBe('lib1');
+    expect(req.request.params.get('filter')).toBe('ToAct');
+    c.select(ADMIN_METADATA_TABS.indexOf('missing'));
+    c.select(ADMIN_METADATA_TABS.indexOf('official'));
+    expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { tab: 'official', list: null, library: 'lib1' } }));
   });
 
   it('ignores unknown query values', () => {

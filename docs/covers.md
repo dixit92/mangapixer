@@ -13,7 +13,7 @@ The first of these that applies wins:
 3. **The automatic cover**, described below.
 4. **The file cover**: page 1 of the archive, or of a folder's first archive.
 
-A folder that has no cover of its own shows the cover of its first archive, including that archive's automatic cover. So when volume 1's jacket is cropped, the series card shows the cropped front too.
+A folder that has no cover of its own shows the cover of its first archive, including that archive's automatic cover. So when volume 1's jacket is cropped, the series card shows the cropped front too. A folder linked to a series shows **its volume 1** instead of its first archive by name (see the table below), so a `Chapters` subfolder that sorts first does not put chapter 1's page on the series card.
 
 ## Automatic covers
 
@@ -38,10 +38,10 @@ For a folder linked to a series, MangaPixer can also use covers it downloaded fr
 |---|---|
 | A volume archive | Its own page 1 (or the front half of a spread) - unless the web cover of that volume is **clearly a different picture**. Close but not the same (another edition's logo) keeps your own cover. No web cover for that volume: your own cover, never another volume's. |
 | A one-shot (a work of one archive) | The web cover of the work by default, because scanlated one-shots often start with a credit page. Your page 1 is kept when it is already the same picture. No crop. |
-| A series folder | The **volume 1** cover from the web - also when the folder holds chapters or does not have volume 1. If your own volume 1 already has that cover, nothing changes. If you have volume 1 but the web has no volume 1 cover, your own cover stays. |
+| A series folder | *Changed in 1.30.0.* When you have **volume 1** (a volume 1 archive anywhere in the series folder, also next to a `Chapters` subfolder): exactly the cover volume 1's own card shows - its page 1, the front half of its jacket, or the web volume 1 cover when that is clearly a different picture (see the volume row above). Without a volume 1 of your own: the **volume 1** cover from the web, else the series cover from the web, else the stored series poster, else the first archive's cover. |
 | A webtoon folder | The series cover from the web, else the stored series poster. |
 | A `Season` / `Part` subfolder | The cover of the volume its first chapter belongs to, when that is known. |
-| A volume stack of chapters (the [Volumes view](volumes.md)) | The cover of that volume from the web. A stack that holds the volume archive itself shows that archive's cover. No web cover for the volume: its first chapter's cover. |
+| A volume stack of chapters (the [Volumes view](volumes.md)) | The cover of that volume from the web. A stack that holds the volume archive itself shows that archive's cover. No web cover for the volume: its first chapter's cover. *New in 1.30.0:* the cover of a volume is also downloaded when you have **all of its chapters** (every chapter MangaDex's volume list gives that volume), so complete chapter stacks get their real volume cover. A volume you have only part of, or whose chapters MangaDex does not list (a `~ Volume` stack), keeps its first chapter's cover. |
 
 The preferred language (**Preferred language (covers and releases)**) is set in **Metadata Manager** > **Settings**. When a volume has no cover in that language yet, the cover from the country of origin is used and MangaPixer looks again later.
 
@@ -51,6 +51,10 @@ Two switches hide the stored web covers without deleting them:
 - **Show saved web covers** per library (Metadata Manager > Settings > **Covers**). This is separate from **Show series information**: you can hide descriptions and keep the covers, or the other way round.
 
 **Delete stored volume covers** (Metadata Manager > Settings > **Covers**) removes the downloaded covers and every automatic or chosen cover that used them. Those items show their own covers again.
+
+### On the home page
+
+*New in 1.30.0.* A **New chapters** card of a linked series shows the series cover described above, not the newest chapter's page 1. A **Continue reading** card of a chapter in a linked series shows that series cover too (the chapter's name is under the card), when the series has a cover of its own - your volume 1, or a cover from the web. A volume keeps its own cover, and so does everything in a series that is not linked, or linked series without either.
 
 ### Nothing automatic
 

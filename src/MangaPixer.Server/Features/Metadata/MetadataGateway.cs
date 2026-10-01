@@ -205,12 +205,12 @@ public sealed class MetadataGateway
     /// </summary>
     public Task<ProviderSearchPage> SearchAutomaticAsync(
         string providerId, long libraryId, string query, bool allowDoujinshi, MetadataCallContext call, CancellationToken ct = default,
-        int page = 1, Core.Metadata.DeclaredType? declaredType = null) =>
-        SearchCoreAsync(providerId, libraryId, query, Math.Clamp(page, 1, 2), hideDoujinshiAndNovels: true, allowDoujinshi, call, ct, declaredType);
+        int page = 1) =>
+        SearchCoreAsync(providerId, libraryId, query, Math.Clamp(page, 1, 2), hideDoujinshiAndNovels: true, allowDoujinshi, call, ct);
 
     private async Task<ProviderSearchPage> SearchCoreAsync(
         string providerId, long libraryId, string query, int page, bool hideDoujinshiAndNovels, bool allowDoujinshi,
-        MetadataCallContext? call, CancellationToken ct, Core.Metadata.DeclaredType? declaredType = null)
+        MetadataCallContext? call, CancellationToken ct)
     {
         var provider = Provider(providerId);
         var text = NormalizeQuery(query);
@@ -221,14 +221,13 @@ public sealed class MetadataGateway
 
         var origin = call?.Origin ?? MetadataCallOrigin.Interactive;
         await ThrowIfSwitchedOffAsync(libraryId, origin, provider.Id, ct);
-        var key = SearchCacheKey(provider.Id, text, page, hideDoujinshiAndNovels, allowDoujinshi, declaredType);
+        var key = SearchCacheKey(provider.Id, text, page, hideDoujinshiAndNovels, allowDoujinshi);
         if (_cache.TryGetValue<ProviderSearchPage>(key, out var cached) && cached is not null)
             return cached;
 
         var result = await CallAsync(provider.Id, "search", libraryId, _state.ApiLimiterOf(provider.Id),
             c => provider.SearchSeriesAsync(
-                new ProviderSearchQuery(text, libraryId, page, SearchPageSize, hideDoujinshiAndNovels, hideDoujinshiAndNovels && allowDoujinshi,
-                    declaredType), c),
+                new ProviderSearchQuery(text, libraryId, page, SearchPageSize, hideDoujinshiAndNovels, hideDoujinshiAndNovels && allowDoujinshi), c),
             call, ct);
         _cache.Set(key, result, SearchCacheTtl);
         return result;
@@ -463,12 +462,10 @@ public sealed class MetadataGateway
     public static string NormalizeQuery(string? query) =>
         string.Join(' ', (query ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
-    private static string SearchCacheKey(string providerId, string text, int page, bool hideDoujinshiAndNovels, bool allowDoujinshi,
-        Core.Metadata.DeclaredType? declaredType = null)
+    private static string SearchCacheKey(string providerId, string text, int page, bool hideDoujinshiAndNovels, bool allowDoujinshi)
     {
         var filter = !hideDoujinshiAndNovels ? 0 : allowDoujinshi ? 2 : 1;
-        var declared = declaredType is { } t ? "\n" + ((int)t).ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty;
-        var material = Encoding.UTF8.GetBytes($"{providerId}\n{text.ToLowerInvariant()}\n{page}\n{filter}{declared}");
+        var material = Encoding.UTF8.GetBytes($"{providerId}\n{text.ToLowerInvariant()}\n{page}\n{filter}");
         return "metadata-search:" + Convert.ToHexString(SHA256.HashData(material));
     }
 }

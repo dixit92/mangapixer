@@ -143,6 +143,65 @@ describe('ReviewRowComponent', () => {
     expect(create(item, 'AutoLinked', { compact: true }).el.querySelector('[data-testid="review-confirm"]')).toBeNull();
   });
 
+  // 1.30.0 (owner): a series and its spin-off are shown together, flagged as one family, each with its role.
+  function familyItem(): MetadataReviewItemDto {
+    const base = reviewItem();
+    const [first, second] = base.candidates!;
+    return reviewItem({
+      reasons: ['subtitle_family', 'series_family'],
+      candidates: [
+        { ...first, rank: 1, externalId: '902', title: 'Synthetic Saga - Before the Frost', familyGroup: 1, familyRole: 'prequel',
+          reasons: ['subtitle_family', 'series_family'] },
+        { ...second, rank: 2, externalId: '777', title: 'Unrelated Saga', familyGroup: null, familyRole: null },
+        { ...second, rank: 3, externalId: '901', title: 'Synthetic Saga', familyGroup: 1, familyRole: 'main_story', imageToken: 'tok3' },
+      ],
+    });
+  }
+
+  it('groups a series family in one block with the note and each role, at the place of its best-ranked member', () => {
+    const { all, el } = create(familyItem());
+    const family = all('[data-testid="review-family"]');
+    expect(family).toHaveLength(1);
+    expect(family[0].textContent).toContain('Same series family - check which one');
+    const inFamily = Array.from(family[0].querySelectorAll('[data-testid="review-candidate"]')).map((c) => c.textContent!);
+    expect(inFamily).toHaveLength(2);
+    expect(inFamily[0]).toContain('Before the Frost');
+    expect(inFamily[1]).toContain('Synthetic Saga');
+    expect(all('[data-testid="review-family-role"]').map((r) => r.textContent!.trim())).toEqual(['Prequel', 'Main story']);
+    // The family first, then the candidate of its own (ranks unchanged).
+    expect(all('[data-testid="review-candidate"]').map((c) => c.querySelector('.cand-title')!.textContent)).toEqual([
+      'Synthetic Saga - Before the Frost', 'Synthetic Saga', 'Unrelated Saga']);
+    expect(all('[data-testid="review-reason"]').map((c) => c.textContent!.trim())).toEqual(['Spin-off or main story?', 'Series family']);
+    expect(el.textContent).not.toContain('subtitle_family');
+    // Inside the block the family chips are not repeated on the candidate (the heading says it).
+    expect(family[0].querySelectorAll('.chip')).toHaveLength(0);
+  });
+
+  it('a family member keeps its rank: choosing it and accepting sends that rank', () => {
+    const { fixture, el, events } = create(familyItem());
+    const chosen: number[] = [];
+    fixture.componentInstance.choose.subscribe((r) => chosen.push(r));
+    const main = Array.from(el.querySelectorAll('[data-testid="review-family"] input[type="radio"]'))[1] as HTMLInputElement;
+    main.click();
+    fixture.detectChanges();
+    expect(chosen).toEqual([3]);
+    fixture.componentRef.setInput('rank', 3);
+    fixture.detectChanges();
+    (el.querySelector('[data-testid="review-accept"]') as HTMLButtonElement).click();
+    expect(events.map((e) => [e.action, e.rank])).toEqual([['accept', 3]]);
+    // The selected series' cover follows the family member.
+    expect(el.querySelector('[data-testid="review-series-cover"]')!.getAttribute('src')).toBe('/api/v1/admin/metadata/candidates/tok3/image');
+  });
+
+  it('shows no family block or role when no other stored candidate is its family', () => {
+    const lone = familyItem();
+    lone.candidates = lone.candidates!.filter((c) => c.externalId !== '901');
+    const { all } = create(lone);
+    expect(all('[data-testid="review-family"]')).toHaveLength(0);
+    expect(all('[data-testid="review-family-role"]')).toHaveLength(0);
+    expect(all('[data-testid="review-candidate"]')).toHaveLength(2);
+  });
+
   it('offers per-tab actions', () => {
     const it = reviewItem();
     expect(rowActions('Unmatched', it).map((a) => a.action)).toEqual(['identify', 'dontMatch']);

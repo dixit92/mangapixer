@@ -13,9 +13,8 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// <see cref="LocalCover"/> (1.28.0) is the series id whose stored local cover hash stands for the work's thumbnail: the
 /// case then runs the cover comparison, and <see cref="CoverImages"/> is the exact number of candidate images it must
 /// download, <see cref="CoverMatchOnTop"/> whether the top candidate carries the cover evidence. <see cref="Declared"/>
-/// (1.28.0) is what an admin declared for the folder (lane D's facts), applied as the lookup applies it;
-/// <see cref="DeclaredTypeFilter"/> (on by default, as in production) also sends its type as the search filter. The recorded
-/// answers are keyed by query, doujinshi and page, so the replay shows the request, not a narrower provider answer.
+/// (1.28.0) is what an admin declared for the folder (lane D's facts), applied as the lookup applies it - scoring evidence only
+/// (1.30.0: the declared-type search filter is retired; a search that sends any type beyond the fixed filter finds no recording).
 /// </summary>
 public sealed record GoldenCase(
     string Id,
@@ -31,8 +30,7 @@ public sealed record GoldenCase(
     string? LocalCover = null,
     int? CoverImages = null,
     bool? CoverMatchOnTop = null,
-    DeclaredFacts? Declared = null,
-    bool DeclaredTypeFilter = true)
+    DeclaredFacts? Declared = null)
 {
     public override string ToString() => Id;
 }
@@ -95,6 +93,10 @@ public static class GoldenCases
     private const string Kingdom = "4324727424";
     private const string BerserkOfGluttonyComic = "74072114866";
     private const string Jigokuraku2005 = "10294535868";
+    private const string AttackOnTitanBeforeTheFall = "28267595998";
+    private const string TonikakuKawaii = "37088343287";
+    private const string WindBreakerKorea = "18602075756";
+    private const string WindBreakerJapan = "25370933222";
 
     private static readonly string[] s_artistFolder =
     [
@@ -259,28 +261,48 @@ public static class GoldenCases
             Chaps("Re Zero kara Hajimeru Isekai Seikatsu", 50)), WorkClass.Series, MatchBand.NeedsReview,
             LocalCover: "46692009496", CoverImages: 0, CoverMatchOnTop: false),
 
-        // --- 1.28.0: declared facts as positive-only evidence ---------------------------------------
-        // A declared type is the category hint, declared creators are creator hints; neither ever counts against a record.
-        // H01 / H02 score the declared type as evidence alone (the search filter switched off, Metadata:AutoMatch:DeclaredTypeFilter=false).
-        new("H01 declared manhwa (no category folder, filter off): the Korean record agrees", F("Solo Leveling", Units(200)),
-            WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), []),
-            DeclaredTypeFilter: false),
-        new("H02 a wrong declared type (manga for a manhwa, filter off) costs nothing as evidence: still auto", F("Solo Leveling", Units(200)),
-            WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manga), []),
-            DeclaredTypeFilter: false),
-        // With the filter on (the default), a WRONG declared type narrows the search past the right record: MangaUpdates
-        // returns only manhwa for a Japanese series declared manhwa - nothing close, no link. The declaration is the admin's.
-        new("H06 a wrong declared type with the filter on (manhwa for a manga) keeps the right record out of the search",
-            F("Chainsaw Man", Vols("Chainsaw Man", 20)), WorkClass.Series, MatchBand.Unmatched,
-            Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), [])),
+        // --- 1.28.0: declared facts as evidence; 1.30.0: the declared type a strong hint, never a search filter --------------
+        // Declared creators are creator hints (positive only). The declared type raises a record of its implied origin and
+        // lowers one that contradicts it (+0.05 / -0.05, never a veto); nothing declared is sent.
+        new("H01 declared manhwa (no category folder): the Korean record agrees", F("Solo Leveling", Units(200)),
+            WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), [])),
+        new("H02 a wrong declared type (manga for a manhwa) is no veto: still auto", F("Solo Leveling", Units(200)),
+            WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manga), [])),
+        // 1.30.0 band change (intended, owner): with the search filter (1.28.0) a WRONG declared type kept the right record out of
+        // the search - unmatched. Now the search is the fixed filter and the mismatch only lowers the record: still auto.
+        new("H06 a wrong declared type (manhwa for a manga) no longer hides the right record", F("Chainsaw Man", Vols("Chainsaw Man", 20)),
+            WorkClass.Series, MatchBand.Auto, ChainsawMan, Vetoes: MatchReason.None, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), [])),
         // Three records titled "Jigokuraku" tie at 1.00 (C02 / C05); the declared author names one of them.
         new("H03 declared creator: an undisambiguated one-word title, the declared author picks the record", F("Jigokuraku", Vols("Jigokuraku", 2)),
             WorkClass.Series, MatchBand.Auto, JigokurakuKaku, Declared: new(null, [new DeclaredCreator("Kaku Yuuji", "author")])),
-        new("H05 declared manhwa as the search filter: the other origins are left out, still auto",
-            F("Solo Leveling", Units(200)), WorkClass.Series, MatchBand.Auto, SoloLeveling, Vetoes: MatchReason.None,
-            Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), [])),
         new("H04 a declared creator no candidate has changes nothing (the order stays)", F("Jigokuraku", Vols("Jigokuraku", 2)),
             WorkClass.Series, MatchBand.NeedsReview, Jigokuraku2005, Declared: new(null, [new DeclaredCreator("Nobody Synthetic", null)])),
+        // A Japanese manga and a Korean webtoon share the exact title "Wind Breaker" (1.30.0): undeclared, a tie for review; the
+        // declared type settles it either way.
+        new("H07 an origin tie on the title stays in review without a declaration", F("Wind Breaker", Chaps("Wind Breaker", 40)),
+            WorkClass.Series, MatchBand.NeedsReview),
+        new("H08 declared manhwa: the Korean \"Wind Breaker\"", F("Wind Breaker", Chaps("Wind Breaker", 40)),
+            WorkClass.Series, MatchBand.Auto, WindBreakerKorea, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manhwa), [])),
+        new("H09 declared manga, a folder of volumes: the Japanese \"Wind Breaker\"", F("Wind Breaker", Vols("Wind Breaker", 12)),
+            WorkClass.Series, MatchBand.Auto, WindBreakerJapan, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manga), [])),
+        // The declaration is a hint among the other evidence: 40 chapter archives agree with both records' chapter numbers (the
+        // Korean record's 556, the Japanese record's latest tracked chapter 32 - agreement only), so the declared type alone
+        // separates them by exactly the margin.
+        new("H10 declared manga, a folder of chapters: the Japanese \"Wind Breaker\"", F("Wind Breaker", Chaps("Wind Breaker", 40)),
+            WorkClass.Series, MatchBand.Auto, WindBreakerJapan, Declared: new(DeclaredFactKeys.TypeSlug(DeclaredType.Manga), [])),
+
+        // --- 1.30.0: a folder subtitle that is a spin-off's subtitle; an author-tagged alias --------------------------------
+        // The owner's fixture shape "<Series> - <Subtitle> [<Note>]" with 58 chapter archives: the spin-off record carries the
+        // subtitle; the main record matched only the bare head through the subtitle split (0.97, a close related second). The
+        // spin-off ranks first, but only the subtitle separates the two records of one series family: review (owner, 1.30.0).
+        new("S01 subtitle: the spin-off first, not the main series - for review", F("Shingeki no Kyojin - Before the Fall", Chaps("Shingeki no Kyojin - Before the Fall", 58)),
+            WorkClass.Series, MatchBand.NeedsReview, AttackOnTitanBeforeTheFall),
+        new("S02 subtitle with the English series name - for review", F("Attack on Titan - Before the Fall", Chaps("Attack on Titan - Before the Fall", 58)),
+            WorkClass.Series, MatchBand.NeedsReview, AttackOnTitanBeforeTheFall),
+        // The right record's main title is the original name; the search matches its English alias with MangaUpdates' author tag,
+        // which counts in full only once the record is fetched (one extra GET per work).
+        new("T01 author-tagged alias: the record is fetched and the tag verified", F("Fly Me to the Moon", Vols("Fly Me to the Moon", 20)),
+            WorkClass.Series, MatchBand.NeedsReview, TonikakuKawaii),
 
         // --- 1.27.0: the live automatic-matching run (2026-09-27), as PUBLIC lookalikes ------------
         new("L01 T: season-renumbered webtoon, chapter-token archives (latest chapter 235, status total 652)",

@@ -10,7 +10,7 @@ import { settings } from '../admin-metadata/metadata-admin.testing';
 import { MetadataReviewStateService } from '../metadata-review-state.service';
 
 import { MissingReportComponent } from './missing-report.component';
-import { gap, missingPage, missingRow } from './missing.testing';
+import { gap, missingPage, missingRow, ownerProgress } from './missing.testing';
 import { CONSENT_TEXT_VERSION } from '../admin-metadata/settings/metadata-settings.component';
 
 /**
@@ -158,5 +158,18 @@ describe('MissingReportComponent', () => {
     off.http.expectOne((r) => r.url === '/api/v1/admin/metadata/missing').flush(missingPage([]));
     off.fixture.detectChanges();
     expect(off.el.querySelector('[data-testid="missing-convert-off"]')!.textContent).toContain('Fetch from the web');
+  });
+
+  it('1.30.0: shows what the folder holds and the upgrades, and the summary opens the Official releases tab', () => {
+    const { fixture, http, el, c } = create();
+    const opened = vi.fn();
+    c.openOfficial.subscribe(opened);
+    const pageDto = missingPage([missingRow({ verdict: 'UpToDate', progress: ownerProgress() })]);
+    http.expectOne((r) => r.url === '/api/v1/admin/metadata/missing').flush({ ...pageDto, summary: { ...pageDto.summary, upgrades: 1 } });
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="missing-reach"]')!.textContent).toBe('You have volumes 1-14 + chapters 43-57');
+    expect(el.querySelector('[data-testid="missing-upgrade"]')!.textContent).toBe('Volume 15 available in English (an upgrade, not missing)');
+    (el.querySelector('[data-testid="missing-upgrades-link"]') as HTMLButtonElement).click();
+    expect(opened).toHaveBeenCalled();
   });
 });

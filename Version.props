@@ -322,6 +322,14 @@
          tap turn on WebKit (iPad). Browse: the list-view favorite star moves off the thumbnail
          into the row markers. Unraid: install from Community Applications; the duplicate
          deploy/unraid/mangapixer.xml is removed (dixit92/unraid-templates is its only home). -->
+    <!-- 1.29.1 - PATCH (2026-09-30, integrator-direct): split chapters on disk (2.1 + 2.2) count as a listed whole chapter
+         instead of extras with the chapter marked missing; start-up log warnings (EF 10114 / 10102, HTTP_PORTS override). -->
+    <!-- 1.29.0 - MINOR over 1.28.0 ("Virtual Volumes and MangaDex" cycle, 2026-09-29). Volumes view: chapters grouped into
+         virtual volume stacks from file names, ComicInfo or a stored volume list, with the series status line, missing-volume
+         cards and "missing" counted against what is released in the preferred language; volume covers and volume lists from
+         MangaDex (a companion of the MangaUpdates link; AniList totals as the automatic fallback), Choose cover, spread crop,
+         versioned private cover URLs. Migrations AddVolumeCoversAndVirtualVolumes + AddVolumeMapReleases; both metadata consents
+         v3. Worker protocol 5 (cover_render). Bugfixes ship as 1.29.x. -->
     <!-- 1.28.0 - MINOR over 1.27.0 ("Matcher and Metadata Polish" cycle, 2026-09-28). Home cards get the favorites star,
          the (i) and the hover summary; the star sits bottom-right on every card. Declared facts (admin type / creators on folders
          and libraries, migration AddDeclaredFacts) as matcher evidence and a declared-type search filter; provider-author
@@ -372,16 +380,18 @@
          iPhone/iPad add-to-home-screen hint; analytics totals caption; a real OpenAPI drift check.
          Worker protocol unchanged (2). Bugfixes ship as 1.23.x. -->
     <MangaPixerVersionMajor>1</MangaPixerVersionMajor>
-    <!-- 1.29.0 - MINOR over 1.28.0 ("Virtual Volumes and MangaDex" cycle, 2026-09-29). Volumes view: chapters grouped into
-         virtual volume stacks from file names, ComicInfo or a stored volume list, with the series status line, missing-volume
-         cards and "missing" counted against what is released in the preferred language; volume covers and volume lists from
-         MangaDex (a companion of the MangaUpdates link; AniList totals as the automatic fallback), Choose cover, spread crop,
-         versioned private cover URLs. Migrations AddVolumeCoversAndVirtualVolumes + AddVolumeMapReleases; both metadata consents
-         v3. Worker protocol 5 (cover_render). Bugfixes ship as 1.29.x. -->
-    <MangaPixerVersionMinor>29</MangaPixerVersionMinor>
-    <!-- 1.29.1 - PATCH (2026-09-30, integrator-direct): split chapters on disk (2.1 + 2.2) count as a listed whole chapter
-         instead of extras with the chapter marked missing; start-up log warnings (EF 10114 / 10102, HTTP_PORTS override). -->
-    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
+    <!-- 1.30.0 - MINOR over 1.29.1 ("Reach, Matcher Hints and Volumes Selection" cycle, 2026-10-01; 1.29.2 rolled in).
+         Reach: what a linked folder holds per release (origin run, official release in the preferred language,
+         scanlation), the Official releases tab (upgrades, Complete collection by Official / Fan translation / Original
+         run, with a basis filter); an auto-link whose reach contradicts its record goes back to review. Matcher: declared
+         type is a strong hint with country labels, subtitle -> spin-off, series families grouped in review, author-tag
+         alias lookup. Covers: series cover = local volume 1, an origin-language web cover never replaces a local one,
+         covers for volumes held as all their chapters. Volumes view: select inside a stack and whole volumes, Card/List
+         switch on the stack page; Home stacked by series folder. Migrations AddAutoCoverArchive + AddStackViewMode +
+         AddCandidateSeriesFamily (additive). Consents unchanged (v3). Worker protocol unchanged (5). Bugfixes ship as
+         1.30.x. -->
+    <MangaPixerVersionMinor>30</MangaPixerVersionMinor>
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

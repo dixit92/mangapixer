@@ -1,4 +1,5 @@
 import { test, expect, Page, APIRequestContext, Request, Route } from '@playwright/test';
+import { expectFitsScreen } from './layout';
 
 /**
  * The Metadata Manager admin page (metadata stage 2, lane C; renamed from "Series
@@ -97,9 +98,10 @@ test('account menu opens Metadata Manager (/admin/metadata) with its own summary
   await shot(page, 'c-01-metadata-manager-tile');
 
   const tabs = page.locator('.mat-mdc-tab-header').getByRole('tab');
-  // Settings, Review, Flags, Runs + Missing (1.28.0, the missing volumes / chapters report).
-  await expect(tabs).toHaveCount(5);
+  // Settings, Review, Flags, Runs + Missing (1.28.0, the missing volumes / chapters report) + Official releases (1.30.0).
+  await expect(tabs).toHaveCount(6);
   await expect(tabs.filter({ hasText: 'Missing' })).toHaveCount(1);
+  await expect(tabs.filter({ hasText: 'Official releases' })).toHaveCount(1);
   await expect(page.getByTestId('metadata-settings-card')).toBeVisible();
   await shot(page, 'c-02-settings-tab', true);
 
@@ -185,9 +187,11 @@ const cand = (rank: number, title: string, score: number, reasons: string[] = []
 });
 
 const REVIEW_ITEMS = [
+  // 1.30.0: the first two candidates are one series family (a main story and its sequel) - shown together with their roles.
   { nodeId: 'r1', nodeKind: 'Folder', displayName: 'Synthetic Saga', libraryId: 'lib-x', libraryName: 'Sample Library',
-    trail: ['Manga'], workClass: 'Series', matchLevel: 'Folder', itemCount: 24, openFlagCount: 0, reasons: ['close_second'],
-    candidates: [cand(1, 'Synthetic Saga', 0.94, ['close_second']), cand(2, 'Synthetic Saga Returns', 0.91), cand(3, 'Synthetic Saga (Novel)', 0.9, ['type'])] },
+    trail: ['Manga'], workClass: 'Series', matchLevel: 'Folder', itemCount: 24, openFlagCount: 0, reasons: ['close_second', 'series_family'],
+    candidates: [{ ...cand(1, 'Synthetic Saga', 0.94, ['close_second']), familyGroup: 1, familyRole: 'main_story' },
+      { ...cand(2, 'Synthetic Saga Returns', 0.91), familyGroup: 1, familyRole: 'sequel' }, cand(3, 'Synthetic Saga (Novel)', 0.9, ['type'])] },
   { nodeId: 'r2', nodeKind: 'Folder', displayName: 'Example Chronicle', libraryId: 'lib-x', libraryName: 'Sample Library',
     trail: ['Manga', 'E'], workClass: 'SeriesWithUnits', matchLevel: 'Folder', itemCount: 11, openFlagCount: 1, reasons: ['count', 'year'],
     candidates: [cand(1, 'Example Chronicle', 0.88, ['count']), cand(2, 'Example Chronicles Zero', 0.8, ['year'])] },
@@ -264,6 +268,12 @@ test('review dashboard with synthetic contract-shaped data: keyboard, deferred U
   // every other candidate's poster still costs nothing until its row is expanded.
   const tokens = () => [...new Set(seen.images.map((u) => u.split('/candidates/')[1].split('/')[0]))].sort();
   await expect.poll(tokens).toEqual(['tok-14-1', 'tok-17-1', 'tok-20-1']);
+  // 1.30.0 (owner): a series family is shown together, flagged, each candidate with its role.
+  const family = rows.first().getByTestId('review-family');
+  await expect(family).toContainText('Same series family - check which one');
+  await expect(family.getByTestId('review-candidate')).toHaveCount(2);
+  await expect(family.getByTestId('review-family-role')).toHaveText(['Main story', 'Sequel']);
+  await expect(rows.first().getByTestId('review-reason')).toHaveText(['Close second', 'Series family']);
   await shot(page, 'c-05-review-desktop', true);
 
   await page.keyboard.press('e'); // expand the focused row: its other candidates' posters load now
@@ -303,6 +313,21 @@ test('phone: review cards with a bottom action bar, no inline actions', async ({
   await expect(bar).toBeVisible();
   await expect(bar.getByTestId('bar-accept')).toBeVisible();
   await expect(page.getByTestId('review-accept')).toHaveCount(0); // no inline actions on phone
+  // The rows fit the screen: covers above the text, the title one line wide (1.28.0 - 1.29.1 squeezed it to one letter per line).
+  await expectFitsScreen(page, 'review tab (phone)');
+  // 1.30.0: the series family block on a phone card: the note and both roles visible, nothing past the screen edge.
+  const family = page.getByTestId('review-row').first().getByTestId('review-family');
+  await expect(family).toContainText('Same series family - check which one');
+  await expect(family.getByTestId('review-family-role')).toHaveText(['Main story', 'Sequel']);
+  await family.scrollIntoViewIfNeeded();
+  await expectFitsScreen(page, 'review tab, series family (phone)');
+  await page.getByTestId('review-name').first().click();
+  await expectFitsScreen(page, 'review tab, focused row (phone)');
+  // The text column has room and the name is one line (it was ~10 px wide and 200+ px tall).
+  const column = await page.getByTestId('review-row').first().locator('.main').boundingBox();
+  const name = await page.getByTestId('review-name').first().boundingBox();
+  expect(column!.width).toBeGreaterThan(200);
+  expect(name!.height).toBeLessThan(40);
   await shot(page, 'c-09-review-phone');
   await pageTab(page, 'Settings').click();
   await expect(page.getByTestId('metadata-settings-card')).toBeVisible();

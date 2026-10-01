@@ -155,6 +155,9 @@ public sealed record QueryVariant(string Text, QueryVariantKind Kind);
 /// folder and its unit subfolders; when null the rule reads the fields above (<see cref="CountEvidence.FromContext"/>).
 /// <c>CoverMatches</c> (optional, 1.28.0): external ids of candidates whose cover image is the same as the work's
 /// local cover (<see cref="CoverEvidence"/>); positive evidence only, set by the caller after comparing covers.
+/// <c>DeclaredType</c> (optional, 1.30.0): the type an admin declared for the work's folder (<see cref="DeclaredHints"/>) - a
+/// strong hint (<see cref="MatchScorer.DeclaredTypeAgree"/> / <see cref="MatchScorer.DeclaredTypeMismatch"/>), never a veto;
+/// while set, the folder's <c>CategoryHint</c> is not read (the declaration wins).
 /// </summary>
 public sealed record MatchContext(
     WorkClass Class,
@@ -170,7 +173,8 @@ public sealed record MatchContext(
     int? LocalVolumes = null,
     int? LocalChapters = null,
     IReadOnlySet<string>? CoverMatches = null,
-    LocalUnitCounts? Units = null);
+    LocalUnitCounts? Units = null,
+    DeclaredType? DeclaredType = null);
 
 /// <summary>
 /// What to look up for one work: ordered, de-duplicated variants (the caller sends at most the
@@ -263,6 +267,38 @@ public enum MatchReason
     /// cover. No reason chip (it never demotes); kept so the stored reasons show why a tie was broken.
     /// </summary>
     CoverMatch = 1 << 9,
+
+    /// <summary>
+    /// Positive evidence (1.30.0): the record's type and origin are the ones the folder's declared type implies
+    /// (<see cref="DeclaredFactsComparer.TypeSignal"/>). Shown as a chip; never demotes.
+    /// </summary>
+    DeclaredTypeAgree = 1 << 10,
+
+    /// <summary>
+    /// The record contradicts the folder's declared type (1.30.0). Lowers the adjusted score; NEVER a veto (owner: a declared
+    /// type is a strong hint - users are often unsure between manga, manhwa and manhua).
+    /// </summary>
+    DeclaredTypeMismatch = 1 << 11,
+
+    /// <summary>
+    /// 1.30.0 (lane R, reach): after linking, the folder's reach contradicts the record - a volume or chapter file far past every
+    /// total known for it (the Auto link dropped to Needs review), or chapter files whose stated volumes disagree with the record's
+    /// volume list (flagged on the Auto-linked list only). Never raised by the scorer.
+    /// </summary>
+    ReachConflict = 1 << 12,
+
+    /// <summary>
+    /// 1.30.0 (owner: a spin-off decision is not automatic): only the folder name's subtitle decides between the top record and
+    /// one of its SERIES FAMILY (<see cref="SeriesFamilies"/>) - the other matched the name's head and, without the subtitle cap
+    /// (<see cref="MatchScorer.SubtitleHeadCap"/>), would have been a close second. A veto: the work goes to Needs review.
+    /// </summary>
+    SubtitleFamily = 1 << 13,
+
+    /// <summary>
+    /// 1.30.0: another candidate at the review floor is the same series family as the top (a main story, spin-off, side story,
+    /// prequel or sequel - <see cref="SeriesFamilies"/>). Informational, never a veto: shown as a chip on review and Auto-linked rows.
+    /// </summary>
+    SeriesFamily = 1 << 14,
 }
 
 public sealed record ScoredCandidate(MatchCandidate Candidate, double TitleScore, double AdjustedScore, MatchReason Reasons);

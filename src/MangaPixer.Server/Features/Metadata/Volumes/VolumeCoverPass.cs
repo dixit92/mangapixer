@@ -4,7 +4,9 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Core.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Media;
 using com.lifepixer.mangapixer.Server.Persistence;
@@ -49,8 +51,9 @@ public sealed record VolumeCoverPassResult(int Requests, int SeriesChecked, int 
 /// volume list - the AniList totals;</item>
 /// <item>breadth first across series: every series' volume 1 cover (preferred language, else the original language; the
 /// record's MAIN cover when MangaDex lists no volume 1 cover at all - webtoons);</item>
-/// <item>then per series the covers of the volumes it holds (a volume in an archive's name or ComicInfo, or a chapter the
-/// exact list places). Short-circuit: when the local volume 1 cover already IS the web volume 1 cover, the release has
+/// <item>then per series the covers of the volumes it holds - as volume files (a volume in an archive's name or ComicInfo) or
+/// as ALL of their chapters (1.30.0, owner: every chapter MangaDex's exact volume list gives the volume is here, the Volumes
+/// view's presence rule - never an estimate, never a volume held only in part). Short-circuit: when the local volume 1 cover already IS the web volume 1 cover, the release has
 /// real covers on page 1 - a held volume archive is then only fetched when its page 1 is spread-shaped or shaped
 /// unlike volume 1's (chapter-only volumes still are: their stack has no cover of its own).</item>
 /// </list>
@@ -317,7 +320,12 @@ public sealed class VolumeCoverPass
         return origin is { State: (int)VolumeCoverState.Listed } ? origin : null;
     }
 
-    private sealed record HeldArchive(long Id, string Name, long ContentVersion, int? ComicInfoVolume);
+    private sealed record HeldArchive(long Id, string Name, long ContentVersion, int? ComicInfoVolume, string? ComicInfoNumber = null,
+        string? ContainerName = null)
+    {
+        public GroupingRow Row => new(Id.ToString(System.Globalization.CultureInfo.InvariantCulture), GroupingRowKind.Archive, Name,
+            string.Empty, ContainerName, ComicInfoVolume, ComicInfoNumber);
+    }
 
     /// <summary>Step 3 for one series: the covers of the volumes it holds, ascending (with the short-circuit).</summary>
     private async Task<int> DownloadHeldVolumesAsync(VolumeSeries s, string preferred, MetadataCallContext call, CancellationToken ct)
@@ -328,54 +336,60 @@ public sealed class VolumeCoverPass
                 && c.Variant == 0 && c.State == (int)VolumeCoverState.Listed, ct))
             return 0; // Nothing left to fetch for this series.
 
-        var archives = await ArchivesBelowAsync(s.NodeIds, ct);
-        var map = await _maps.FindAsync(s.RecordId, VolumeMapSource.MangaDexAggregate, ct);
-        var chapterToVolume = new Dictionary<string, int>(StringComparer.Ordinal);
-        if (map is { State: (int)VolumeMapState.Ok })
-        {
-            foreach (var entry in VolumeMapJson.Read(map.VolumesJson))
-            {
-                if (VolumeMapJson.Parse(entry.Volume) is not { } v)
-                    continue;
-                foreach (var c in entry.Chapters)
-                    chapterToVolume.TryAdd(c, (int)decimal.Truncate(v));
-            }
-        }
-
-        // volume -> the archives that ARE that volume (null list entry = held only through chapters)
-        var held = new SortedDictionary<int, List<HeldArchive>>();
-        foreach (var archive in archives)
-        {
-            var units = AutoMatchText.UnitsOf(archive.Name);
-            int? volume = units.Volume is { } v ? (int)decimal.Truncate(v) : archive.ComicInfoVolume;
-            if (volume is { } asVolume && units.Chapter is null)
-            {
-                Add(held, asVolume).Add(archive);
-            }
-            else if (volume is { } named)
-            {
-                Add(held, named); // a chapter archive that names its volume
-            }
-            else if (units.Chapter is { } chapter && chapterToVolume.TryGetValue(VolumeMapJson.Canonical(decimal.Truncate(chapter)), out var mapped))
-            {
-                Add(held, mapped);
-            }
-        }
-
         var stored = 0;
-        var shortCircuit = await Volume1MatchesAsync(md, held, preferred, ct);
-        foreach (var (volume, volumeArchives) in held)
+        foreach (var volume in await PlanHeldVolumesAsync(md, s.RecordId, s.NodeIds, preferred, ct))
         {
-            if (volume == 1 || call.RequestsSent >= SliceRequests)
-                continue;
-            if (shortCircuit is { } reference && volumeArchives.Count > 0
-                && !await OddlyShapedAsync(volumeArchives, reference, ct))
-                continue; // Real covers on page 1: this volume's own file cover is the cover.
+            if (call.RequestsSent >= SliceRequests)
+                break;
             var cover = await PickCoverAsync(md.Id, md.OriginalLanguage, volume, preferred, ct);
             if (cover is not null && await _fetcher.DownloadAsync(cover, s.LibraryId, call, ct))
                 stored++;
         }
         return stored;
+    }
+
+    /// <summary>
+    /// The volumes (besides volume 1) whose covers step 3 fetches for a series now, ascending - the volumes the folder holds as volume
+    /// files or as all of their chapters, minus the volume files the short-circuit skips (volume 1's own cover matches the web one, so
+    /// page 1 of each volume file is its cover). Public for the "covers on their way" count (1.30.0: it counted skipped volumes forever).
+    /// Stored rows and stored thumbnails only; no request.
+    /// </summary>
+    public async Task<IReadOnlyList<int>> PlannedHeldVolumesAsync(long seriesRecordId, IReadOnlyList<long> nodeIds, CancellationToken ct = default)
+    {
+        if (await MangaDexRecordAsync(seriesRecordId, ct) is not { } md)
+            return [];
+        return await PlanHeldVolumesAsync(md, seriesRecordId, nodeIds, (await ReadSettingsAsync(ct)).Language, ct);
+    }
+
+    private async Task<List<int>> PlanHeldVolumesAsync(MangaDexRef md, long recordId, IReadOnlyList<long> nodeIds, string preferred, CancellationToken ct)
+    {
+        var archives = await ArchivesBelowAsync(nodeIds, ct);
+        var map = await _maps.FindAsync(recordId, VolumeMapSource.MangaDexAggregate, ct);
+        var exact = map is { State: (int)VolumeMapState.Ok } ? SeriesProgressLoader.ParseVolumes(map.VolumesJson) : [];
+
+        // volume -> the archives that ARE that volume (an empty list = held as all of its chapters)
+        var held = new SortedDictionary<int, List<HeldArchive>>();
+        foreach (var archive in archives)
+        {
+            var units = VolumeGrouping.UnitsOf(archive.Row);
+            if (units.Chapter is null && units.Volume is { } v)
+                Add(held, (int)decimal.Truncate(v)).Add(archive);
+        }
+        foreach (var volume in VolumesHeldAsChapters(archives.Select(a => a.Row).ToList(), exact))
+            Add(held, volume);
+
+        var planned = new List<int>();
+        var shortCircuit = await Volume1MatchesAsync(md, held, preferred, ct);
+        foreach (var (volume, volumeArchives) in held)
+        {
+            if (volume == 1)
+                continue;
+            if (shortCircuit is { } reference && volumeArchives.Count > 0
+                && !await OddlyShapedAsync(volumeArchives, reference, ct))
+                continue; // Real covers on page 1: this volume's own file cover is the cover.
+            planned.Add(volume);
+        }
+        return planned;
 
         static List<HeldArchive> Add(SortedDictionary<int, List<HeldArchive>> held, int volume)
         {
@@ -383,6 +397,22 @@ public sealed class VolumeCoverPass
                 held[volume] = list = [];
             return list;
         }
+    }
+
+    /// <summary>
+    /// The volumes held as ALL of their chapters (1.30.0, owner): no volume file, and every chapter the EXACT MangaDex list gives
+    /// the volume is here as a chapter file (a split chapter's parts count as their chapter; a chapter anywhere in the series
+    /// counts) - <see cref="SeriesReach"/>'s held-as-chapters, restricted to volumes the list itself names (a volume the list does
+    /// not name is only bounded or estimated). Pure.
+    /// </summary>
+    internal static IReadOnlySet<int> VolumesHeldAsChapters(IReadOnlyList<GroupingRow> rows, IReadOnlyList<VolumeMapVolume> exact)
+    {
+        var listed = exact.Where(v => v.Chapters.Count > 0 && v.Volume >= 1 && decimal.Truncate(v.Volume) == v.Volume)
+            .Select(v => (int)v.Volume).ToHashSet();
+        if (listed.Count == 0)
+            return new HashSet<int>();
+        var reach = SeriesReach.Of(rows, new VolumeMapInput(exact, null, null, false, VolumeListSource.MangaDex));
+        return reach.HeldAsChapters.Where(listed.Contains).ToHashSet();
     }
 
     /// <summary>
@@ -446,21 +476,22 @@ public sealed class VolumeCoverPass
     {
         var archive = (int)CatalogNodeKind.Archive;
         var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
-        var found = new Dictionary<long, (string Name, long ContentVersion)>();
+        var found = new Dictionary<long, (string Name, long ContentVersion, string? Container)>();
         var linkedArchives = await _db.CatalogNodes.AsNoTracking()
             .Where(n => nodeIds.Contains(n.Id) && n.Kind == archive && n.Availability != tombstoned)
             .Join(_db.ArchiveItems, n => n.Id, a => a.NodeId, (n, a) => new { n.Id, n.DisplayName, a.ContentVersion })
             .ToListAsync(ct);
         foreach (var a in linkedArchives)
-            found[a.Id] = (a.DisplayName, a.ContentVersion);
+            found[a.Id] = (a.DisplayName, a.ContentVersion, null);
 
         var frontier = nodeIds.ToList();
+        var folderNames = new Dictionary<long, string>();
         for (var depth = 0; depth < MaxDepth && frontier.Count > 0; depth++)
         {
             var parents = frontier;
             var children = await _db.CatalogNodes.AsNoTracking()
                 .Where(n => n.ParentId != null && parents.Contains(n.ParentId.Value) && n.Availability != tombstoned)
-                .Select(n => new { n.Id, n.Kind, n.DisplayName })
+                .Select(n => new { n.Id, ParentId = n.ParentId!.Value, n.Kind, n.DisplayName })
                 .ToListAsync(ct);
             var childArchiveIds = children.Where(c => c.Kind == archive).Select(c => c.Id).ToList();
             var versions = await _db.ArchiveItems.AsNoTracking()
@@ -468,16 +499,23 @@ public sealed class VolumeCoverPass
                 .Select(a => new { a.NodeId, a.ContentVersion })
                 .ToDictionaryAsync(a => a.NodeId, a => a.ContentVersion, ct);
             foreach (var c in children.Where(c => c.Kind == archive && versions.ContainsKey(c.Id)))
-                found[c.Id] = (c.DisplayName, versions[c.Id]);
-            frontier = children.Where(c => c.Kind == (int)CatalogNodeKind.Folder).Select(c => c.Id).ToList();
+                found[c.Id] = (c.DisplayName, versions[c.Id], folderNames.GetValueOrDefault(c.ParentId));
+            var folders = children.Where(c => c.Kind == (int)CatalogNodeKind.Folder).ToList();
+            foreach (var f in folders)
+                folderNames[f.Id] = f.DisplayName;
+            frontier = folders.Select(c => c.Id).ToList();
         }
 
         var ids = found.Keys.ToList();
         var comicInfo = await _db.EmbeddedMetadata.AsNoTracking()
-            .Where(e => ids.Contains(e.NodeId) && e.Volume != null)
-            .Select(e => new { e.NodeId, e.Volume })
-            .ToDictionaryAsync(e => e.NodeId, e => e.Volume, ct);
-        return found.Select(f => new HeldArchive(f.Key, f.Value.Name, f.Value.ContentVersion, comicInfo.GetValueOrDefault(f.Key))).ToList();
+            .Where(e => ids.Contains(e.NodeId) && (e.Volume != null || e.Number != null))
+            .Select(e => new { e.NodeId, e.Volume, e.Number })
+            .ToDictionaryAsync(e => e.NodeId, e => (e.Volume, e.Number), ct);
+        return found.Select(f =>
+        {
+            var ci = comicInfo.GetValueOrDefault(f.Key);
+            return new HeldArchive(f.Key, f.Value.Name, f.Value.ContentVersion, ci.Volume, ci.Number, f.Value.Container);
+        }).ToList();
     }
 
     /// <summary>

@@ -231,8 +231,7 @@ export function validateThresholds(
                 "Series Title" from "Series Title [English Title]" - which <strong>nobody reviews before it is sent</strong>,
                 with a fixed list of types to leave out (doujinshi, novels, artbooks, drama CDs; doujinshi are searched below a
                 folder whose Content is "Doujinshi &amp; adult one-shots"), and MangaUpdates record numbers to refresh linked
-                series. For a folder declared manga, manhwa or manhua, automatic searches leave the other two types out.
-                Each site also sees your server's IP address.</p>
+                series. Each site also sees your server's IP address.</p>
               <p><strong>Cover comparison:</strong> when two series tie on the title for a folder of volumes or a one-shot,
                 MangaPixer may also download the cover images of those two series from MangaUpdates' image server
                 (cdn.mangaupdates.com), by the address MangaUpdates gave, to compare them with the folder's own cover. These
@@ -328,8 +327,10 @@ export function validateThresholds(
               series' original language is used, and MangaPixer checks again on the refresh schedule.</p>
             <p class="status" data-testid="md-volume-covers-status">
               @if (coverStatus(); as cs) {
-                {{ cs.coversStored }} cover{{ cs.coversStored === 1 ? '' : 's' }} stored · {{ cs.coversListed }} known, not
-                downloaded · {{ cs.seriesPending }} series to check
+                {{ cs.coversStored }} cover{{ cs.coversStored === 1 ? '' : 's' }} stored ·
+                @if (cs.seriesPending > 0) { {{ cs.seriesPending }} series to check } @else { nothing waiting }
+                · {{ cs.coversListed }} more listed on MangaDex, not needed (other volumes and languages - only volume 1 and the
+                volumes you have are downloaded)
                 @if (waitingLabel(); as w) { <br><span class="warn">{{ w }}</span> }
               }
               <button type="button" class="link" (click)="loadCoverStatus()" data-testid="md-volume-covers-progress">

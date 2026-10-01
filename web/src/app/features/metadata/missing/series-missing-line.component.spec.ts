@@ -4,7 +4,7 @@ import { of, throwError } from 'rxjs';
 
 import { MissingReportApiService } from './missing-report-api.service';
 import { SeriesMissingLineComponent } from './series-missing-line.component';
-import { gap, missingRow } from './missing.testing';
+import { gap, missingRow, ownerProgress } from './missing.testing';
 
 describe('SeriesMissingLineComponent', () => {
   function create(response: ReturnType<typeof missingRow> | 'error', admin = false) {
@@ -39,5 +39,14 @@ describe('SeriesMissingLineComponent', () => {
     expect(create('error').el.querySelector('[data-testid="series-missing-line"]')).toBeNull();
     TestBed.resetTestingModule();
     expect(create(missingRow({ verdict: 'NoUnits', volumes: null })).el.querySelector('[data-testid="series-missing-line"]')).toBeNull();
+  });
+
+  it('1.30.0: shows the progress lines and the completion mark when the row carries the progress', () => {
+    const { el } = create(missingRow({ progress: ownerProgress({ upgradeVolumes: [], upgradeCount: 0, missingVolumes: 1, completion: 'FinishedNotHeld',
+      completionBasis: 'OfficialVolumes', completionTarget: 15, completionHeld: 14 }) }));
+    expect(el.querySelector('[data-testid="series-line-trackers"]')!.textContent).toContain('English (Synthetic Press): 15 volumes, ongoing');
+    expect(el.querySelector('[data-testid="series-line-folder"]')!.textContent)
+      .toBe('You have volumes 1-14 + chapters 43-57 · 1 volume missing · finished - official, English');
+    expect(el.querySelector('[data-testid="completion-mark"]')!.textContent).toContain('Finished - Official, English (15 volumes) - you have 14');
   });
 });

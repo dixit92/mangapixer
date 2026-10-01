@@ -31,6 +31,16 @@ describe('volume stack pieces', () => {
       expect(badge.textContent?.trim()).toBe('8/10');
     });
 
+    it('moves to the bottom-left corner while its card is being selected (the check owns the top-left one)', () => {
+      const fixture = TestBed.createComponent(VolumeIncompleteBadgeComponent);
+      fixture.componentRef.setInput('summary', summary());
+      fixture.componentRef.setInput('moved', true);
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('[data-testid="stack-incomplete"]').classList).toContain('moved');
+      expect(render(summary()).querySelector('[data-testid="stack-incomplete"]')!.classList).not.toContain('moved');
+    });
+
     it('is absent when nothing is missing', () => {
       expect(render(summary({ missingCount: 0 })).querySelector('[data-testid="stack-incomplete"]')).toBeNull();
     });

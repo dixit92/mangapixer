@@ -176,6 +176,12 @@ public sealed record CatalogNodeDto
 
     /// <summary>Where <see cref="CoverUrl"/> comes from (1.29.0 cover layer); null = the file cover (and older servers).</summary>
     public CardCoverSource? CoverSource { get; init; }
+
+    /// <summary>
+    /// 1.30.0 (reach): on a chapter archive of a linked series, the volume key ("10") of a volume FILE of the same series that
+    /// already holds its chapters - "Also in Volume 10". Null everywhere else.
+    /// </summary>
+    public string? AlsoInVolume { get; init; }
 }
 
 /// <summary>
@@ -448,6 +454,12 @@ public sealed record LibraryViewPreferencesDto
     /// (default, and a PUT from an older client) = follow the folder / library / global default.
     /// </summary>
     public com.lifepixer.mangapixer.Core.Metadata.SeriesViewMode? SeriesViewMode { get; init; }
+
+    /// <summary>
+    /// Per-user view of a volume's page (1.30.0): <c>card</c> or <c>list</c>, remembered for the user; null (default, and a PUT
+    /// from an older client) = follow <see cref="ViewMode"/>.
+    /// </summary>
+    public string? StackViewMode { get; init; }
 }
 
 /// <summary>

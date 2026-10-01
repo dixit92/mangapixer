@@ -97,6 +97,8 @@ export interface CatalogNodeDto {
   volumeStack?: VolumeStackSummaryDto | null;
   /** 1.29.0: where coverUrl comes from (the cover layer); null/absent = the file cover. */
   coverSource?: CardCoverSource | null;
+  /** 1.30.0 (reach): on a chapter archive, the volume key of a volume FILE of the same series that already holds it ("Also in Volume 10"). */
+  alsoInVolume?: string | null;
 }
 
 export interface BreadcrumbEntry {
@@ -375,6 +377,8 @@ export interface LibraryViewPreferencesDto {
    * Null/absent = follow the folder / library / global default.
    */
   seriesViewMode?: SeriesViewMode | null;
+  /** 1.30.0: the viewer's view of a volume's page ('card' | 'list'); null = follow `viewMode`. */
+  stackViewMode?: string | null;
 }
 
 // --- YACReader progress import (1.2.0, admin-only) ---
@@ -1447,10 +1451,23 @@ export interface MetadataReviewCandidateDto {
   volumes?: number | null;
   titleScore: number;
   adjustedScore: number;
-  /** close_second, count, year, type, related_pair, one_shot, author, number, review_only. */
+  /**
+   * close_second, count, year, type, related_pair, one_shot, author, number, review_only; declared_type, not_declared_type, reach,
+   * subtitle_family, series_family (1.30.0).
+   */
   reasons?: string[];
   /** For GET /admin/metadata/candidates/{token}/image (fetched only when loaded). */
   imageToken?: string | null;
+  /**
+   * 1.30.0: candidates of one series family (a main story with its spin-offs, side stories, prequels, sequels) share this value -
+   * the rank of the family's first candidate. Null when no other candidate of the row is its family.
+   */
+  familyGroup?: number | null;
+  /**
+   * 1.30.0: the candidate's role in its family (main_story, spin_off, side_story, prequel, sequel, alternate, alternate_story,
+   * adaptation, source, related).
+   */
+  familyRole?: string | null;
 }
 
 export interface MetadataReviewItemDto {
@@ -1776,6 +1793,8 @@ export interface MissingSeriesDto {
   conversion?: MissingConversionDto | null;
   statusText?: string | null;
   fetchedAt?: string;
+  /** 1.30.0 (reach): trackers, what the folder holds, upgrades and completion (the same engine as the Volumes view). */
+  progress?: SeriesProgressDto | null;
 }
 
 export interface MissingReportSummaryDto {
@@ -1785,6 +1804,8 @@ export interface MissingReportSummaryDto {
   upToDate: number;
   noTotal: number;
   noVerdict: number;
+  /** 1.30.0: series with official volumes held only as chapters (the Official releases tab). */
+  upgrades?: number;
 }
 
 /** GET /admin/metadata/missing?library=&onlyMissing=&cursor=&limit= */
@@ -1876,6 +1897,8 @@ export interface VolumeStackSummaryDto {
   chaptersPresent?: number | null;
   /** 1.29.0 RC: a missing volume - a placeholder card (presentCount 0), never opened. */
   missing?: boolean;
+  /** 1.30.0: the language code when this volume (no volume file here) is released officially in the preferred language. */
+  officialRelease?: string | null;
 }
 
 export type VolumeSlotKind = 'Item' | 'Missing';
@@ -1905,6 +1928,8 @@ export interface VolumeStackDto {
   previousKey?: string | null;
   nextKey?: string | null;
   slots: VolumeSlotDto[];
+  /** 1.30.0: see `VolumeStackSummaryDto.officialRelease`. */
+  officialRelease?: string | null;
 }
 
 /** GET /nodes/{nodeId}/volume-view (lane S): whether a folder has a Volumes view and whether it is on for the viewer. */
@@ -1938,6 +1963,97 @@ export interface VolumeViewDto {
   scanlationComplete?: boolean | null;
   /** 1.29.0 RC: covers of this series still being downloaded in the background (0 when none or the pass waits). */
   coversPending?: number;
+  /** 1.30.0 (reach): trackers, what the folder holds, upgrades and completion; set with `hasSeriesStatus`. */
+  progress?: SeriesProgressDto | null;
+}
+
+// --- Series progress (1.30.0, reach) ---
+
+export interface UnitSpanDto {
+  from: number;
+  to: number;
+}
+
+export type ReachResolution = 'FileNames' | 'VolumeList' | 'Estimated';
+
+/** What the folder holds, volume files and chapter files merged through the stored volume list. */
+export interface SeriesReachDto {
+  volumeFiles: UnitSpanDto[];
+  /** Chapter files that no volume file here already holds (at most 20 spans). */
+  chapters: UnitSpanDto[];
+  reachChapter?: number | null;
+  reachVolume?: number | null;
+  overlapChapters: number;
+  resolution: ReachResolution;
+}
+
+/** The per-kind trackers of the stored record (origin, the official release and released chapters in `language`). */
+export interface SeriesTrackersDto {
+  language: string;
+  origin?: MetadataOrigin | null;
+  originStatus?: MetadataOriginStatus | null;
+  originVolumes?: number | null;
+  originChapters?: number | null;
+  officialPublisher?: string | null;
+  officialVolumes?: number | null;
+  officialChapters?: number | null;
+  /** The official publisher's own status (Cancelled = dropped). */
+  officialStatus?: MetadataOriginStatus | null;
+  licensed?: boolean | null;
+  /** English only: the latest released chapter (scanlation). */
+  latestChapter?: number | null;
+  scanlationComplete?: boolean | null;
+  releasedChapter?: number | null;
+}
+
+export type SeriesCompletion = 'None' | 'FinishedNotHeld' | 'CompleteCollection';
+export type CompletionBasis = 'OfficialVolumes' | 'AllChapters' | 'OriginRun';
+
+export interface SeriesProgressDto {
+  trackers: SeriesTrackersDto;
+  reach?: SeriesReachDto | null;
+  missingVolumes: number;
+  missingChapters: number;
+  releaseKnown: boolean;
+  /** Official volumes in the preferred language held only as chapters (an upgrade, never missing; the first 50). */
+  upgradeVolumes: number[];
+  upgradeCount: number;
+  completion: SeriesCompletion;
+  completionBasis?: CompletionBasis | null;
+  completionTarget?: number | null;
+  completionHeld?: number | null;
+  completionInChapters?: boolean;
+}
+
+// --- Official releases tab (1.30.0) ---
+
+export type OfficialReleasesFilter = 'ToAct' | 'Upgrades' | 'Finished' | 'Complete' | 'All';
+
+export interface OfficialReleaseRowDto {
+  nodeId: string;
+  displayName: string;
+  libraryId: string;
+  libraryName: string;
+  coverUrl?: string | null;
+  recordTitle: string;
+  linkState: SeriesLinkState;
+  progress: SeriesProgressDto;
+}
+
+export interface OfficialReleasesSummaryDto {
+  series: number;
+  upgrades: number;
+  finishedNotHeld: number;
+  completeCollections: number;
+}
+
+/** GET /admin/metadata/official-releases?library=&filter=&cursor=&limit= */
+export interface OfficialReleasesPageDto {
+  items: OfficialReleaseRowDto[];
+  summary: OfficialReleasesSummaryDto;
+  total: number;
+  nextCursor?: string | null;
+  language: string;
 }
 
 export type CoverMode = 'Automatic' | 'FilePinned' | 'Archive' | 'VolumeCover' | 'Crop';

@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.Server.Features.Home;
 using System.Data;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
@@ -13,9 +14,9 @@ using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
-/// Home "New chapters" service (1.12.0 rewrite). Returns recently-added archives STACKED by
-/// their TOP-LEVEL unit — the direct library child they descend from — for each library the
-/// caller can see, grouped by library, newest activity first, capped per library.
+/// Home "New chapters" service (1.12.0 rewrite; grouped by the series folder in 1.30.0). Returns recently-added
+/// archives STACKED by the series folder they belong to for each library the caller can see, grouped by library,
+/// newest activity first, capped per library.
 ///
 /// <para>Design:</para>
 /// <list type="bullet">
@@ -29,15 +30,17 @@ using Microsoft.EntityFrameworkCore;
 /// <item><description>
 /// "Recently-added" is bounded by a recency WINDOW (<see cref="RecentWindow"/>): the candidate
 /// set per library is the non-tombstoned archives whose CreatedAt is within the window. Each
-/// candidate is attributed to its TOP-LEVEL ancestor (the node with <c>ParentId == null</c>) via
-/// one bounded recursive-CTE upward walk. A candidate that is itself a direct library child is
-/// its own standalone stack (<see cref="RecentChapterStack.IsFolder"/> = false).
+/// candidate is attributed to its SERIES FOLDER (see <see cref="ResolveSeriesFoldersAsync"/>) via
+/// one bounded recursive-CTE upward walk: the nearest ancestor with its own series link; else the
+/// folder that holds the archive, climbing out of generic unit folders ("Vol 3", "Chapters"). In a
+/// library whose top level is categories (Manga, Manhwa, ...) that is the series, not the category.
+/// A candidate that is itself a direct library child is its own standalone stack
+/// (<see cref="RecentChapterStack.IsFolder"/> = false).
 /// </description></item>
 /// <item><description>
 /// Within a library, stacks are ordered by <see cref="RecentChapterStack.LatestAddedAt"/>
 /// descending; <c>perLibrary</c> (default 12, max 50) caps STACKS. <c>NewCount</c> is the number
-/// of candidate archives attributed to the stack (always ≥ 1). Convention-agnostic: a stack is
-/// never assumed to be a "series" — the top level is whatever unit the user's layout chose.
+/// of candidate archives attributed to the stack (always ≥ 1).
 /// </description></item>
 /// <item><description>
 /// Every stack carries a derived <see cref="RecentChapterStack.ReadState"/> (1.20.0), the same
@@ -192,7 +195,7 @@ public sealed class RecentChaptersService
 
     /// <summary>
     /// Builds one library's stacks: window-filter the candidate archives, attribute each to its
-    /// top-level ancestor, aggregate per stack, order by newest activity, cap.
+    /// series folder, aggregate per stack, order by newest activity, cap.
     /// </summary>
     private async Task<IReadOnlyList<RecentChapterStack>> BuildStacksAsync(
         long libraryId,
@@ -220,36 +223,36 @@ public sealed class RecentChaptersService
         if (candidates.Count == 0)
             return [];
 
-        // Map each candidate archive to its top-level ancestor (ParentId == null), one bounded
-        // recursive upward walk. A loose archive maps to itself.
-        var topLevelByArchive = await ResolveTopLevelAncestorsAsync(
+        // Map each candidate archive to its series folder, one bounded recursive upward walk.
+        // An archive directly in the library root maps to itself.
+        var seriesByArchive = await ResolveSeriesFoldersAsync(
             candidates.Select(c => c.Id).ToList(), ct);
 
-        // Group candidates by their top-level ancestor.
-        var byTopLevel = new Dictionary<long, List<CandidateArchive>>();
+        // Group candidates by their series folder.
+        var bySeries = new Dictionary<long, List<CandidateArchive>>();
         foreach (var c in candidates)
         {
-            if (!topLevelByArchive.TryGetValue(c.Id, out var topId))
+            if (!seriesByArchive.TryGetValue(c.Id, out var topId))
                 continue; // defensive: every node has a root
-            if (!byTopLevel.TryGetValue(topId, out var list))
-                byTopLevel[topId] = list = [];
+            if (!bySeries.TryGetValue(topId, out var list))
+                bySeries[topId] = list = [];
             list.Add(c);
         }
 
-        if (byTopLevel.Count == 0)
+        if (bySeries.Count == 0)
             return [];
 
-        // Top-level node details for the stacks.
-        var topLevelIds = byTopLevel.Keys.ToList();
-        var topLevelNodes = await _db.CatalogNodes
-            .Where(n => topLevelIds.Contains(n.Id))
+        // Series-folder node details for the stacks.
+        var seriesIds = bySeries.Keys.ToList();
+        var seriesNodes = await _db.CatalogNodes
+            .Where(n => seriesIds.Contains(n.Id))
             .Select(n => new { n.Id, n.PublicId, n.DisplayName, n.Kind })
             .ToDictionaryAsync(x => x.Id, ct);
 
-        var stacks = new List<(RecentChapterStack Stack, long TopId)>(byTopLevel.Count);
-        foreach (var (topId, list) in byTopLevel)
+        var stacks = new List<(RecentChapterStack Stack, long TopId)>(bySeries.Count);
+        foreach (var (topId, list) in bySeries)
         {
-            if (!topLevelNodes.TryGetValue(topId, out var top))
+            if (!seriesNodes.TryGetValue(topId, out var top))
                 continue;
 
             // Newest candidate in the stack (CreatedAt desc, Id desc as a stable tiebreak).
@@ -275,7 +278,7 @@ public sealed class RecentChaptersService
         // Read-state rollup (1.20.0 tag + 1.17.0 filter, unified): resolved for EVERY stack —
         // one bounded rollup query per library group, same as the folder-cover resolution below
         // — so the per-card tag and the read-state filter are always derived from the same
-        // rollup and never disagree. Rollup is over each stack's TOP-LEVEL node's readable
+        // rollup and never disagree. Rollup is over each stack node's readable
         // descendants (its whole subtree for a folder stack, or just itself for a standalone
         // archive stack) — NOT limited to the recency-window candidates — so a stack's read
         // state matches what the folder rollup badge / archive card would show if the user
@@ -309,11 +312,20 @@ public sealed class RecentChaptersService
     }
 
     /// <summary>
-    /// Maps each given archive node id to its top-level ancestor node id (the ancestor with
-    /// <c>ParentId == null</c>), via a single bounded recursive upward walk. An archive that is
-    /// itself a direct library child maps to itself.
+    /// Maps each given archive node id to the node its stack is built on (1.30.0), via a single bounded recursive
+    /// upward walk. The rule, in order:
+    /// <list type="number">
+    /// <item><description>the nearest ancestor FOLDER with its own series link (confirmed or auto, with a record) -
+    /// the series folder the link names, however deep;</description></item>
+    /// <item><description>else the folder that holds the archive (the nearest folder that directly holds archives),
+    /// climbing out of generic unit folders (<c>Vol 3</c>, <c>Chapters</c> - the names the Volumes view merges) so
+    /// <c>Series/Vol 1</c> and <c>Series/Vol 2</c> stay one stack;</description></item>
+    /// <item><description>an archive directly in the library root has no folder: it maps to itself (a standalone stack).</description></item>
+    /// </list>
+    /// In a library whose top level is categories (<c>Manga/Series/ch.cbz</c>) the stack is therefore the series, not
+    /// the category; in a flat library (<c>Series/ch.cbz</c>) it is the same folder as before.
     /// </summary>
-    private async Task<Dictionary<long, long>> ResolveTopLevelAncestorsAsync(
+    private async Task<Dictionary<long, long>> ResolveSeriesFoldersAsync(
         List<long> archiveIds,
         CancellationToken ct)
     {
@@ -321,6 +333,8 @@ public sealed class RecentChaptersService
         if (archiveIds.Count == 0)
             return result;
 
+        // ancestors[archive] = the folders above it, nearest first.
+        var ancestors = new Dictionary<long, List<(int Depth, long NodeId, string Name, bool Linked)>>();
         var ids = string.Join(",", archiveIds);
         var connection = _db.Database.GetDbConnection();
         var wasOpen = connection.State == ConnectionState.Open;
@@ -328,31 +342,67 @@ public sealed class RecentChaptersService
         try
         {
             using var command = connection.CreateCommand();
+            // State: 0 Confirmed, 1 Auto (a series link with a record); Kind 0 is a folder.
             command.CommandText = $"""
-                WITH RECURSIVE up(ArchiveId, NodeId, ParentId) AS (
-                    SELECT Id, Id, ParentId FROM catalog_nodes WHERE Id IN ({ids})
+                WITH RECURSIVE up(ArchiveId, NodeId, ParentId, Depth) AS (
+                    SELECT Id, Id, ParentId, 0 FROM catalog_nodes WHERE Id IN ({ids})
                     UNION ALL
-                    SELECT u.ArchiveId, p.Id, p.ParentId
+                    SELECT u.ArchiveId, p.Id, p.ParentId, u.Depth + 1
                     FROM up u
                     JOIN catalog_nodes p ON p.Id = u.ParentId
+                    WHERE u.Depth < {SeriesInfoResolver.MaxWalkDepth}
                 )
-                SELECT ArchiveId, NodeId FROM up WHERE ParentId IS NULL;
+                SELECT u.ArchiveId, u.Depth, u.NodeId, n.DisplayName,
+                       EXISTS (SELECT 1 FROM node_series_links l
+                               WHERE l.NodeId = u.NodeId AND l.RecordId IS NOT NULL AND l.State IN (0, 1)) AS Linked
+                FROM up u
+                JOIN catalog_nodes n ON n.Id = u.NodeId
+                WHERE u.Depth > 0 AND n.Kind = {(int)CatalogNodeKind.Folder}
+                ORDER BY u.ArchiveId, u.Depth;
                 """;
 
             using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
-                result[reader.GetInt64(0)] = reader.GetInt64(1);
+            {
+                var archiveId = reader.GetInt64(0);
+                if (!ancestors.TryGetValue(archiveId, out var list))
+                    ancestors[archiveId] = list = [];
+                list.Add((reader.GetInt32(1), reader.GetInt64(2), reader.GetString(3), reader.GetInt32(4) != 0));
+            }
         }
         finally
         {
             if (!wasOpen) await connection.CloseAsync();
         }
+
+        foreach (var archiveId in archiveIds)
+        {
+            if (!ancestors.TryGetValue(archiveId, out var chain) || chain.Count == 0)
+            {
+                result[archiveId] = archiveId; // loose in the library root: its own stack
+                continue;
+            }
+
+            var linked = chain.FindIndex(a => a.Linked);
+            var pick = linked;
+            if (pick < 0)
+            {
+                pick = 0;
+                while (pick + 1 < chain.Count && IsUnitFolderName(chain[pick].Name))
+                    pick++;
+            }
+            result[archiveId] = chain[pick].NodeId;
+        }
         return result;
     }
 
+    /// <summary>A generic unit folder name ("Vol 3", "Volumes", "Chapters", "Ch 1-50"): part of a series, never one.</summary>
+    private static bool IsUnitFolderName(string name) =>
+        AutoMatchText.IsVolumeFolderName(name) || AutoMatchText.IsChapterFolderName(name);
+
     /// <summary>
     /// Resolves the derived read rollup (<see cref="FolderReadRollupRules"/>, same rule the
-    /// browse view's folder badge uses) for each given TOP-LEVEL stack node, via a single
+    /// browse view's folder badge uses) for each given stack node, via a single
     /// recursive CTE. Works uniformly whether the root is a folder (rolled up over every
     /// descendant archive) or a standalone archive (the root itself is the sole readable
     /// descendant, since the base case of the recursive walk includes the root row): the
@@ -361,15 +411,15 @@ public sealed class RecentChaptersService
     /// as <c>CatalogBrowseService.ResolveFolderReadRollupsAsync</c>, which this mirrors.
     /// </summary>
     private async Task<Dictionary<long, FolderReadRollup>> ResolveReadRollupsAsync(
-        List<long> topLevelIds,
+        List<long> seriesIds,
         long userId,
         CancellationToken ct)
     {
         var result = new Dictionary<long, FolderReadRollup>();
-        if (topLevelIds.Count == 0)
+        if (seriesIds.Count == 0)
             return result;
 
-        var ids = string.Join(",", topLevelIds);
+        var ids = string.Join(",", seriesIds);
         var connection = _db.Database.GetDbConnection();
         var wasOpen = connection.State == ConnectionState.Open;
         if (!wasOpen) await connection.OpenAsync(ct);
@@ -419,7 +469,7 @@ public sealed class RecentChaptersService
     }
 
     /// <summary>
-    /// Whether a stack matches the read-state filter by its top-level node's read rollup.
+    /// Whether a stack matches the read-state filter by its stack node's read rollup.
     /// A MISSING <paramref name="rollups"/> entry means no readable descendant archive
     /// (cannot occur in practice — every stack has &gt;= 1 in-window candidate archive — but
     /// handled defensively the same way the browse view's folder filter does): Unread also
@@ -440,7 +490,7 @@ public sealed class RecentChaptersService
         };
     }
 
-    /// <summary>Looks up a stack's rollup by its top-level node id, or null when absent (same "no readable descendant" case <see cref="MatchesReadState"/> treats as Unread).</summary>
+    /// <summary>Looks up a stack's rollup by its stack node id, or null when absent (same "no readable descendant" case <see cref="MatchesReadState"/> treats as Unread).</summary>
     private static FolderReadRollup? ResolveRollup(Dictionary<long, FolderReadRollup> rollups, long topId) =>
         rollups.TryGetValue(topId, out var rollup) ? rollup : null;
 
@@ -471,7 +521,7 @@ public sealed class RecentChaptersService
 /// <summary>
 /// Home "New chapters" read-state filter (1.17.0), mirroring
 /// <c>CatalogBrowseService.BrowseReadStateFilter</c> but scoped to the New chapters view: a
-/// stack is kept when its TOP-LEVEL node's read rollup matches (<see cref="FolderReadRollupRules"/>
+/// stack is kept when its stack node's read rollup matches (<see cref="FolderReadRollupRules"/>
 /// over the node's readable descendant archives — the whole subtree for a folder stack, just
 /// itself for a standalone archive stack). <see cref="All"/> disables the filter (server
 /// default — no breaking change for existing callers).

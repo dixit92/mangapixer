@@ -271,6 +271,37 @@ public static partial class TitleNormalizer
     }
 
     /// <summary>
+    /// The subtitle a NAME states after the separator its <see cref="DerivedTitleKind.SubtitleSplit"/> variant cuts at
+    /// (<c>Title Words - Subtitle</c> -> <c>Subtitle</c>, 1.30.0); null when <see cref="DerivedVariants"/> derives no subtitle split.
+    /// </summary>
+    public static string? NameSubtitle(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return null;
+        var t = Whitespace().Replace(name.Normalize(NormalizationForm.FormKC), " ").Trim();
+        var sep = SubtitleSeparator().Match(t);
+        if (!sep.Success || sep.Index == 0)
+            return null;
+        var head = TrimEdges(t[..sep.Index]);
+        var tail = TrimEdges(t[(sep.Index + sep.Length)..]);
+        return CountWords(head) >= 2 && tail.Any(char.IsLetterOrDigit) ? tail : null;
+    }
+
+    /// <summary>
+    /// The subtitle of a RECORD title after its <see cref="SubtitleHead"/> break (<c>Title: Sub</c>, <c>Title ~Sub~</c>,
+    /// <c>Title - Sub</c> -> <c>Sub</c>, 1.30.0); null when the title has no break.
+    /// </summary>
+    public static string? SubtitleTail(string? title)
+    {
+        if (SubtitleHead(title) is null)
+            return null;
+        var t = title!.Normalize(NormalizationForm.FormKC);
+        var m = SubtitleBreak().Match(t);
+        var tail = TrimEdges(t[(m.Index + m.Length)..]).TrimEnd('~', '\u301C', ' ');
+        return tail.Length > 0 ? tail : null;
+    }
+
+    /// <summary>
     /// True when <paramref name="number"/> (a normalized <see cref="NumberTokens"/> value such as <c>99</c>) stands
     /// as a whole number anywhere in <paramref name="text"/> (<c>Title Level 99 ~Sub~</c>, <c>Level 099</c>).
     /// </summary>

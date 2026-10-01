@@ -296,7 +296,7 @@ There is no mark-read button inside the reader. To mark archives or whole folder
 2. Pick items. Shift-click selects a range, and on touch screens a long press offers **Select to here**. The **Select** menu also offers **Select all**, **Select all unread** and **Select all read**.
 3. Choose **Mark read** or **Mark unread**, then **Done**.
 
-- Selecting a folder applies to every archive below it, at any depth.
+- Selecting a folder applies to every archive below it, at any depth. Selecting a volume in the [Volumes view](volumes.md#selecting-a-whole-volume) applies to every archive in that volume, and a volume's own page has the same **Select** mode for its chapters.
 - **Mark unread** fully resets an archive: it clears both the read mark and your position, so it opens on page 1 next time.
 - Cards show **✓ Read** or **Reading** badges. Folders show **✓ Read** when everything inside is read and **Reading** when it is partly read.
 - On the home page, the **×** on a **Continue reading** card (**Remove from Continue reading**) hides it from that row without marking it read.

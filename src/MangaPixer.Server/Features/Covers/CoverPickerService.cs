@@ -183,6 +183,10 @@ public sealed class CoverPickerService
             // A folder without its own automatic cover shows its cover archive's: report that one.
             auto = await _db.NodeAutoCovers.AsNoTracking().FirstOrDefaultAsync(a => a.NodeId == coverArchive.Id, ct) ?? auto;
         }
+        // A series folder that shows its local volume 1 (1.30.0): what that archive shows, for the reason "your volume 1".
+        var shown = auto;
+        if (auto is { Source: (int)AutoCoverSource.LocalVolume1, ArchiveNodeId: { } volume1Id })
+            shown = await _db.NodeAutoCovers.AsNoTracking().FirstOrDefaultAsync(a => a.NodeId == volume1Id, ct);
         var resolved = await _resolutions.ResolveOneAsync(node, ct);
         return new CoverStateDto
         {
@@ -194,7 +198,7 @@ public sealed class CoverPickerService
                 CoverChoiceMode.Crop => CoverMode.Crop,
                 _ => CoverMode.Automatic,
             },
-            AutoSource = auto is null ? null : (AutoCoverSource)auto.Source switch
+            AutoSource = auto is null ? null : (AutoCoverSource)(shown?.Source ?? (int)AutoCoverSource.File) switch
             {
                 AutoCoverSource.Crop => CardCoverSource.Crop,
                 AutoCoverSource.WebVolume => CardCoverSource.WebVolume,

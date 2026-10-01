@@ -174,6 +174,36 @@ public sealed class MetadataIdentifyHttpTests
     // --- The round trip ---
 
     [Fact]
+    public async Task Preview_WarnsWhenTheRecordContradictsTheDeclaredType_AsAHintOnly()
+    {
+        // 1.30.0: the declared type is a hint in Identify too - a warning on the preview, never a refusal to link.
+        using var factory = new MetadataNetworkWebApplicationFactory();
+        await SeedAsync(factory);
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+        await EnableAsync(admin);
+
+        async Task<IdentifyPreviewDto> PreviewAsync(DeclaredType type)
+        {
+            (await admin.PutAsJsonAsync("/api/v1/admin/metadata/folders/mdnSeries/declared", new SetDeclaredFactsRequest { Type = type }))
+                .EnsureSuccessStatusCode();
+            var response = await admin.PostAsJsonAsync("/api/v1/admin/metadata/nodes/mdnArc/preview",
+                new IdentifyPreviewRequest { Provider = "mangaupdates", ExternalId = BerserkId });
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<IdentifyPreviewDto>(TestJson.Web))!;
+        }
+
+        var wrong = await PreviewAsync(DeclaredType.Manhwa); // the archive reads its folder's declaration
+        var warning = Assert.Single(wrong.Warnings, w => w.Code == "declared_type");
+        Assert.Contains("Manhwa (Korea)", warning.Message, StringComparison.Ordinal);
+        var right = await PreviewAsync(DeclaredType.Manga);
+        Assert.DoesNotContain(right.Warnings, w => w.Code == "declared_type");
+
+        var link = await admin.PutAsJsonAsync("/api/v1/admin/metadata/nodes/mdnSeries/link",
+            new LinkSeriesRequest { Provider = "mangaupdates", ExternalId = BerserkId });
+        link.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
     public async Task Identify_Search_Preview_Link_Poster_Unlink_RoundTrip()
     {
         using var factory = new MetadataNetworkWebApplicationFactory();

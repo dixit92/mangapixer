@@ -63,6 +63,10 @@ export type DeclaredFactsDialogResult = DeclaredFactsScopeDto | undefined;
             }
           </mat-select>
         </mat-form-field>
+        <p class="small" data-testid="declared-type-hint">
+          Pick by the country the works come from. Automatic matching prefers series from that country; a wrong type never
+          blocks the right series. Not sure? Leave it unset.
+        </p>
 
         <h3 class="section">Creators</h3>
         @if (creators().length > 0) {
@@ -154,10 +158,10 @@ export class DeclaredFactsDialogComponent {
     return name.length > 0 && name.length <= DECLARED_MAX_NAME && this.creators().length < DECLARED_MAX_CREATORS;
   });
 
-  /** "Inherit: Manhwa (from Shelf)" for the empty type option; '' when nothing applies from above. */
+  /** "Inherit: Manhwa (Korea), from Shelf" for the empty type option; '' when nothing applies from above. */
   readonly inheritedTypeText = computed(() => {
     const inh = this.scope()?.inherited;
-    return inh?.type ? `Inherit: ${declaredTypeLabel(inh.type)} (${sourceText(inh.typeSource, inh.typeFrom)})` : '';
+    return inh?.type ? `Inherit: ${declaredTypeLabel(inh.type)}, ${sourceText(inh.typeSource, inh.typeFrom)}` : '';
   });
 
   readonly inheritedCreatorsText = computed(() => {

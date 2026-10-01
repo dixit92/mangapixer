@@ -1,6 +1,5 @@
 namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
-using System.Globalization;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Server.Features.Auth;
@@ -23,7 +22,8 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             return null;
         // Covers still on their way for this series (volume 1 and the volumes held here): the view shows a short note.
         var coversPending = view.Status?.RecordId is { } recordId && coverPass is not null
-            ? await coverPass.PendingCoversAsync(recordId, HeldVolumes(view), ct)
+            // The pass's own plan (1.30.0): a volume file it skips (volume 1's own cover matches the web one) is never "on its way".
+            ? await coverPass.PendingCoversAsync(recordId, await coverPass.PlannedHeldVolumesAsync(recordId, [view.FolderId], ct), ct)
             : 0;
         return new VolumeViewDto
         {
@@ -46,22 +46,8 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             Licensed = view.Status?.Licensed,
             ScanlationComplete = view.Status?.ScanlationComplete,
             CoversPending = coversPending,
+            Progress = view.Status?.Progress,
         };
-    }
-
-    /// <summary>The whole volumes present in the view (volume files and stacks; never a missing-volume placeholder).</summary>
-    private static HashSet<int> HeldVolumes(FolderVolumeEntries view)
-    {
-        var held = new HashSet<int>();
-        foreach (var e in view.Entries)
-        {
-            if (e.Rank == 0 && e.Kind != VolumeEntryKind.MissingVolume
-                && decimal.TryParse(e.VolumeKey, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var v) && v == decimal.Truncate(v))
-            {
-                held.Add((int)v);
-            }
-        }
-        return held;
     }
 
     /// <summary>One stack of a folder, or null (unknown folder / key, no access, nothing groups here).</summary>
@@ -81,7 +67,7 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             {
                 Kind = s.Kind,
                 Chapter = s.Chapter,
-                Item = s.Member is { } member ? cards[member.Row.Id] : null,
+                Item = s.Member is { } member ? WithAlsoInVolume(cards[member.Row.Id], view) : null,
             })
             .ToList();
 
@@ -106,8 +92,13 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             PreviousKey = index > 0 ? keys[index - 1] : null,
             NextKey = index >= 0 && index < keys.Count - 1 ? keys[index + 1] : null,
             Slots = slots,
+            OfficialRelease = stack.OfficialRelease,
         };
     }
+
+    /// <summary>A chapter card that a volume file of the series already holds says so (1.30.0, "Also in Volume 10").</summary>
+    internal static CatalogNodeDto WithAlsoInVolume(CatalogNodeDto card, FolderVolumeEntries view) =>
+        view.AlsoInVolume.TryGetValue(card.Id, out var volume) ? card with { AlsoInVolume = volume } : card;
 
     private async Task<bool> CanSeeAsync(long userId, long libraryId, CancellationToken ct) =>
         (await auth.GetVisibleLibraryIdsAsync(userId, incognito: false, ct)).Contains(libraryId);

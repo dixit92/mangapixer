@@ -313,6 +313,8 @@ public sealed class MetadataReviewService
         AdjustedScore = c.AdjustedScore,
         Reasons = MatchReasonCodes.Of(c.Reasons),
         ImageToken = c.ImageRemoteUrl is { } url ? _identify.IssueImageToken(c.Provider, libraryId, url) : null,
+        FamilyGroup = c.FamilyGroup,
+        FamilyRole = c.FamilyRole,
     };
 
     /// <summary>Up to 3 ancestor names per node, outermost first (3 batched queries).</summary>

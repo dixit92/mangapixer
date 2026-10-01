@@ -186,3 +186,187 @@ test('a stack shows a star when one of its chapters is starred', async ({ page }
     await page.request.delete(`/api/v1/nodes/${chapter.id}/favorite`, { headers });
   }
 });
+
+// --- Selection and List view (1.30.0) ---
+
+/** Puts the fixture library back as the tests found it: every chapter unread and unstarred. */
+async function resetChapters(page: Page, libraryId: string, folderId: string): Promise<void> {
+  const headers = await csrf(page.request);
+  const flat = await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?parentId=${folderId}&pageSize=50&group=flat`)).json();
+  for (const n of flat.items as Node[]) {
+    await page.request.delete(`/api/v1/reading/${n.id}/read`, { headers });
+    await page.request.delete(`/api/v1/nodes/${n.id}/favorite`, { headers });
+  }
+}
+
+/** Writes the viewer's browse preferences and returns the previous ones. */
+async function setPreferences(page: Page, change: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const headers = await csrf(page.request);
+  const current = await (await page.request.get('/api/v1/reading/library-preferences')).json();
+  const res = await page.request.put('/api/v1/reading/library-preferences', { headers, data: { ...current, ...change } });
+  expect(res.ok(), await res.text()).toBeTruthy();
+  return current;
+}
+
+test('a stack page selects chapters (tap, Shift-click range) and marks them read, then unread', async ({ page }) => {
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  await setSwitch(page, null);
+  try {
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}/volume/1`);
+    await page.getByTestId('stack-select').click();
+    await expect(page.getByTestId('selection-count')).toHaveText('0 selected');
+
+    const chapters = page.getByTestId('stack-item');
+    await chapters.nth(0).click();
+    // The tap selected the chapter; it did not open the reader.
+    await expect(page).toHaveURL(/\/volume\/1$/);
+    await expect(page.getByTestId('selection-count')).toHaveText('1 selected');
+    await chapters.nth(2).click({ modifiers: ['Shift'] });
+    await expect(page.getByTestId('selection-count')).toHaveText('3 selected');
+    await shot(page, 'volumes-06-stack-select');
+
+    await page.getByTestId('selection-mark-read').click();
+    await expect(page.getByText('Marked read: 3 items')).toBeVisible();
+    await expect(page.locator('.badge.read')).toHaveCount(3);
+
+    // Saved for real: still read after a reload.
+    await page.reload();
+    await expect(page.locator('.badge.read')).toHaveCount(3);
+
+    await page.getByTestId('stack-select').click();
+    await page.getByTestId('selection-select-menu').click();
+    await page.getByRole('menuitem', { name: 'Select all read' }).click();
+    await expect(page.getByTestId('selection-count')).toHaveText('3 selected');
+    await page.getByTestId('selection-mark-unread').click();
+    await expect(page.getByText('Marked unread: 3 items')).toBeVisible();
+    await expect(page.locator('.badge.read')).toHaveCount(0);
+
+    // Done leaves select mode: a tap opens the reader again.
+    await page.getByTestId('selection-done').click();
+    await expect(page.getByTestId('stack-select')).toBeVisible();
+    await chapters.nth(0).click();
+    await expect(page).toHaveURL(/\/reader\//);
+  } finally {
+    await resetChapters(page, libraryId, folderId);
+  }
+});
+
+test('a stack page stars the selected chapters', async ({ page }) => {
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  await setSwitch(page, null);
+  try {
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}/volume/1`);
+    await page.getByTestId('stack-select').click();
+    await page.getByTestId('stack-item').nth(0).click();
+    await page.getByTestId('stack-item').nth(1).click();
+    await page.getByTestId('selection-favorites').click();
+    await page.getByTestId('selection-add-favorite').click();
+    await expect(page.getByText('Added to favorites: 2 items')).toBeVisible();
+
+    // Leaving select mode shows the stars (the two starred chapters are filled).
+    await page.getByTestId('selection-done').click();
+    await expect(page.locator('app-star-toggle .star-btn.active')).toHaveCount(2);
+  } finally {
+    await resetChapters(page, libraryId, folderId);
+  }
+});
+
+test('a whole volume is selected in the Volumes view and marked read in one step', async ({ page }) => {
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  await setSwitch(page, null);
+  try {
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    const cards = page.locator('.node-wrap');
+    await expect(cards).toHaveCount(3);
+
+    await page.locator('button.select-toggle').click();
+    await cards.nth(0).locator('a.node-card').click();
+    // The tap selected the stack (it did not open it); its incomplete mark, if any, makes room for the check.
+    await expect(page).toHaveURL(new RegExp(`/browse/${folderId}$`));
+    await expect(page.getByTestId('selection-count')).toHaveText('1 selected');
+    await expect(cards.nth(0)).toHaveClass(/selected/);
+    await shot(page, 'volumes-07-stack-selected');
+
+    await page.getByTestId('selection-mark-read').click();
+    await expect(page.getByText('Marked read: 3 items')).toBeVisible();
+    await expect(cards.nth(0).locator('.badge.read')).toBeVisible();
+    await expect(cards.nth(1).locator('.badge.read')).toHaveCount(0);
+
+    // Every chapter of the volume is read - and only those.
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}/volume/1`);
+    await expect(page.locator('.badge.read')).toHaveCount(3);
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}/volume/2`);
+    await expect(page.locator('.badge.read')).toHaveCount(0);
+
+    // And back to unread in one step.
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    await page.locator('button.select-toggle').click();
+    await cards.nth(0).locator('a.node-card').click();
+    await page.getByTestId('selection-mark-unread').click();
+    await expect(page.getByText('Marked unread: 3 items')).toBeVisible();
+    await expect(cards.nth(0).locator('.badge.read')).toHaveCount(0);
+  } finally {
+    await resetChapters(page, libraryId, folderId);
+  }
+});
+
+test('the folder list shows the fresh state of a volume after chapters change on its page', async ({ page }) => {
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  await setSwitch(page, null);
+  try {
+    // The browse page is retained while the stack page is open: mark a whole volume read there and step back.
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    await expect(page.locator('.node-wrap')).toHaveCount(3);
+    await page.locator('.node-wrap', { hasText: 'Volume 1' }).locator('a.node-card').click();
+    await expect(page.getByTestId('stack-title')).toHaveText('Volume 1');
+    await page.getByTestId('stack-select').click();
+    await page.getByTestId('selection-select-menu').click();
+    await page.getByRole('menuitem', { name: 'Select all', exact: true }).click();
+    await page.getByTestId('selection-mark-read').click();
+    await expect(page.getByText('Marked read: 3 items')).toBeVisible();
+
+    await page.goBack();
+    await expect(page.locator('.node-wrap').nth(0).locator('.badge.read')).toBeVisible();
+    await expect(page.locator('.node-wrap').nth(1).locator('.badge.read')).toHaveCount(0);
+  } finally {
+    await resetChapters(page, libraryId, folderId);
+  }
+});
+
+test('a stack page follows the List view: shared rows, select through the checkbox', async ({ page }) => {
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  await setSwitch(page, null);
+  const saved = await setPreferences(page, { viewMode: 'list' });
+  try {
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}/volume/1`);
+    const rows = page.getByTestId('stack-row');
+    await expect(rows).toHaveCount(3);
+    await expect(page.getByTestId('stack-item')).toHaveCount(0);
+    await expect(rows.nth(0).locator('.node-title')).toContainText('Stacked Saga v01 c001');
+    await expect(rows.nth(0).locator('.node-sub')).toContainText('Ch. 1');
+    await shot(page, 'volumes-08-stack-list');
+
+    // The leading checkbox selects without entering select mode first, and the bar appears.
+    await rows.nth(0).locator('.row-select').click();
+    await expect(page.getByTestId('selection-count')).toHaveText('1 selected');
+    await rows.nth(2).locator('a.node-card').click({ modifiers: ['Shift'] });
+    await expect(page.getByTestId('selection-count')).toHaveText('3 selected');
+    await expect(page).toHaveURL(/\/volume\/1$/);
+    await shot(page, 'volumes-09-stack-list-select');
+
+    // The Volumes view itself in List view: a stack is a row that can be selected too.
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    await expect(page.locator('.node-wrap').first().locator('.row-select')).toBeVisible();
+    await page.locator('.node-wrap').first().locator('.row-select').click();
+    await expect(page.getByTestId('selection-count')).toHaveText('1 selected');
+    await shot(page, 'volumes-10-volumes-list-select');
+  } finally {
+    await setPreferences(page, { viewMode: saved['viewMode'] });
+    await resetChapters(page, libraryId, folderId);
+  }
+});

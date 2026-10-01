@@ -211,14 +211,17 @@ public sealed class MissingUnitsTests
     [Fact]
     public void SplitsOf_TellsPartsFromExtras()
     {
-        // 2.1 + 2.2: parts; 3 + 3.2: the file 3 is the first part; 5.4 + 5.5: .5 continues .4; 6.1 + 6.3: 6.2 is missing.
-        var s = MissingUnits.SplitsOf([Ch(2.1m), Ch(2.2m), Ch(3m), Ch(3.2m), Ch(5.4m), Ch(5.5m), Ch(6.1m), Ch(6.3m)]);
+        // 2.1 + 2.2: parts; 3 + 3.2: the file 3 is the first part; 5.1-5.5: .5 continues .4; 6.1 + 6.3: 6.2 is missing.
+        var s = MissingUnits.SplitsOf([Ch(2.1m), Ch(2.2m), Ch(3m), Ch(3.2m), Ch(5.1m), Ch(5.2m), Ch(5.3m), Ch(5.4m), Ch(5.5m), Ch(6.1m), Ch(6.3m)]);
         Assert.Equal([2, 3, 5, 6], s.Chapters.Order());
-        Assert.Equal([2.1m, 2.2m, 3.2m, 5.4m, 5.5m, 6.1m, 6.3m], s.Parts.Order());
-        Assert.Equal([5.1m, 5.2m, 5.3m, 6.2m], s.MissingParts);
+        Assert.Equal([2.1m, 2.2m, 3.2m, 5.1m, 5.2m, 5.3m, 5.4m, 5.5m, 6.1m, 6.3m], s.Parts.Order());
+        Assert.Equal([6.2m], s.MissingParts);
 
         // Extras stay extras: a lone .5 (with or without its whole), a lone .2, a .1 next to its whole file, 12.25.
-        var extras = MissingUnits.SplitsOf([Ch(10m), Ch(10.5m), Ch(11.5m), Ch(12.2m), Ch(13m), Ch(13.1m), Ch(14.25m), Ch(14.75m)]);
+        // 1.30.0 (lane S finding): 31 + the listed extras 31.5 and 31.6 are extras, not a split 31 missing 31.2-31.5; a run that
+        // starts late (15.4 + 15.5 without 15 or 15.1) is extras too.
+        var extras = MissingUnits.SplitsOf([Ch(10m), Ch(10.5m), Ch(11.5m), Ch(12.2m), Ch(13m), Ch(13.1m), Ch(14.25m), Ch(14.75m),
+            Ch(31m), Ch(31.5m), Ch(31.6m), Ch(15.4m), Ch(15.5m)]);
         Assert.Empty(extras.Chapters);
         Assert.Empty(extras.Parts);
         Assert.Empty(extras.MissingParts);

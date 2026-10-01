@@ -117,6 +117,12 @@ public enum AutoCoverSource
 
     /// <summary>The stored MangaUpdates image of the linked record.</summary>
     Poster = 4,
+
+    /// <summary>
+    /// A linked series folder shows its local volume 1 archive's RESOLVED cover (that archive's own choice, crop, web cover or
+    /// file - 1.30.0, owner soak test); the archive is <c>node_auto_covers.ArchiveNodeId</c>.
+    /// </summary>
+    LocalVolume1 = 5,
 }
 
 /// <summary>Why the automatic layer decided what it did (shown in the picker).</summary>
@@ -156,6 +162,15 @@ public enum AutoCoverReason
 
     /// <summary>A Season / Part subfolder shows the cover of the volume its first chapter belongs to.</summary>
     SubfolderFirstVolume = 11,
+
+    /// <summary>
+    /// The only web cover is in the series' original language (the preferred one has none): a cover in another language is no
+    /// evidence that page 1 is not the cover, so the local cover is kept (1.30.0, owner soak test).
+    /// </summary>
+    OtherLanguageKept = 12,
+
+    /// <summary>A linked series folder shows the cover of its own volume 1 archive, as that archive decided it (1.30.0).</summary>
+    SeriesLocalVolume1 = 13,
 }
 
 /// <summary>Which half of a spread page.</summary>

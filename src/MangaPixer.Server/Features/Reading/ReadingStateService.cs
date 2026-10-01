@@ -727,8 +727,12 @@ public sealed class ReadingStateService
         // 1.29.0: the card cover comes from the cover layer (one resolver call), not a client-built URL.
         var internalIds = await _db.CatalogNodes.AsNoTracking().Where(n => ids.Contains(n.PublicId))
             .Select(n => new { n.Id, n.PublicId }).ToListAsync(ct);
-        var covers = await _covers.ResolveUrlsAsync(internalIds.Select(n => new Covers.CoverTarget(n.Id, n.PublicId, false)).ToList(), ct);
-        var coverByPublicId = internalIds.Where(n => covers.ContainsKey(n.Id)).ToDictionary(n => n.PublicId, n => covers[n.Id], StringComparer.Ordinal);
+        var targets = internalIds.Select(n => new Covers.CoverTarget(n.Id, n.PublicId, false)).ToList();
+        var covers = await _covers.ResolveUrlsAsync(targets, ct);
+        // 1.30.0: a chapter of a linked series shows the series cover when the series has one of its own (the name is below).
+        var seriesCovers = await _covers.SeriesCoverUrlsAsync(targets, ct);
+        var coverByPublicId = internalIds.Where(n => seriesCovers.ContainsKey(n.Id) || covers.ContainsKey(n.Id))
+            .ToDictionary(n => n.PublicId, n => seriesCovers.TryGetValue(n.Id, out var series) ? series : covers[n.Id], StringComparer.Ordinal);
         return entries
             .Select(e => e with
             {
@@ -901,6 +905,7 @@ public sealed class ReadingStateService
             FavoritesSearchProminence = prefs.FavoritesSearchProminence,
             SeriesInfoOnHover = prefs.SeriesInfoOnHover,
             SeriesViewMode = (Core.Metadata.SeriesViewMode?)prefs.SeriesViewMode,
+            StackViewMode = prefs.StackViewMode,
         };
     }
 
@@ -934,6 +939,7 @@ public sealed class ReadingStateService
         prefs.FavoritesSearchProminence = preferences.FavoritesSearchProminence;
         prefs.SeriesInfoOnHover = preferences.SeriesInfoOnHover;
         prefs.SeriesViewMode = preferences.SeriesViewMode is { } seriesView && Enum.IsDefined(seriesView) ? (int)seriesView : null;
+        prefs.StackViewMode = preferences.StackViewMode is "card" or "list" ? preferences.StackViewMode : null;
 
         await _db.SaveChangesAsync(ct);
     }

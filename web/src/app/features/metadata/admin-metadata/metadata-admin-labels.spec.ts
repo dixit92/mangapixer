@@ -27,6 +27,9 @@ describe('metadata admin labels', () => {
   it('names known reason codes and shows unknown ones readably', () => {
     expect(reasonLabel('close_second')).toBe('Close second');
     expect(reasonTip('count')).toContain('item count');
+    expect(reasonLabel('declared_type')).toBe('Fits declared type');
+    expect(reasonLabel('not_declared_type')).toBe('Not declared type');
+    expect(reasonTip('not_declared_type')).toContain('never blocks');
     expect(reasonLabel('some_new_code')).toBe('some new code');
     expect(reasonTip('some_new_code')).toBe('');
   });

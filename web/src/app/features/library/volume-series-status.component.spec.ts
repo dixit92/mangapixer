@@ -56,4 +56,23 @@ describe('series status line', () => {
     expect(line.getAttribute('title')).toBe('Missing means released in French, your preferred language.');
     expect(line.classList.contains('missing')).toBe(true);
   });
+
+  it('1.30.0: shows the two progress lines and the completion icon when the server sends the progress', () => {
+    const fixture = TestBed.createComponent(VolumeSeriesStatusComponent);
+    fixture.componentRef.setInput('view', view({
+      progress: {
+        trackers: { language: 'en', origin: 'Japan', originStatus: 'Complete', originVolumes: 14, officialPublisher: 'Viz Media', officialVolumes: 14,
+          officialStatus: 'Complete' },
+        reach: { volumeFiles: [{ from: 1, to: 14 }], chapters: [], overlapChapters: 0, resolution: 'FileNames' },
+        missingVolumes: 0, missingChapters: 0, releaseKnown: true, upgradeVolumes: [], upgradeCount: 0,
+        completion: 'CompleteCollection', completionBasis: 'OfficialVolumes', completionTarget: 14, completionHeld: 14,
+      },
+    }));
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="series-trackers"]')!.textContent).toBe('Complete (Japan): 14 volumes · English (Viz Media): 14 volumes, complete');
+    expect(el.querySelector('[data-testid="series-folder"]')!.textContent).toBe('You have volumes 1-14 · Complete collection - Official');
+    expect(el.querySelector('mat-icon')!.textContent).toBe('workspace_premium');
+    expect(el.querySelector('.complete')).not.toBeNull();
+  });
 });

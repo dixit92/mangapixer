@@ -26,6 +26,12 @@ mapping and automatic retrieval loop; no test ever contacts the real network.
 - 2026-09-28 (1.28.0, part 3): 1 more request, recorded the same way: page 1 of `Solo Leveling` with the fixed filter
   plus `Manga`, `Manhua` (a declared manhwa as the search filter) - `search.solo-leveling.manhwa.json`. The harness keys
   searches by any `filter_types` beyond the fixed four.
+- 2026-09-30 (1.30.0, matcher-hints lane): 17 more requests, recorded the same way (at least 1.1 s apart, public titles
+  only): page 1 of `Wind Breaker` (a Korean webtoon and a Japanese manga share the title), `Fly Me to the Moon` (the right
+  record is found through its author-tagged English alias), `Shingeki no Kyojin - Before the Fall` and `Attack on Titan -
+  Before the Fall` (a folder subtitle that is a spin-off's), page 2 of the first two, and 10 GETs (one of them,
+  `8947479390`, not kept). The three declared-type filter recordings of 1.28.0 (`*.manhwa*.json`) were removed: the
+  declared type is no longer sent as a search filter.
 - `covers.json`: stored 64-bit cover hashes for the cover comparison cases (1.28.0). `covers` are the hashes of the
   MangaUpdates cover THUMBNAILS recorded above, keyed by the image file name in the thumbnail URL; `local` are the hashes
   of local cover thumbnails made from a series' full cover (3% cropped per side, 96 px, WebP), keyed by series id - the

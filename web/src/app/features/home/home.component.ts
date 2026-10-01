@@ -44,14 +44,15 @@ import {
  * library. Home shows three sections:
  *   1. the consolidated **Continue reading** row across all (non-Private, while
  *      incognito) libraries,
- *   2. the **New chapters** row - one STACKED card per top-level unit (a
- *      top-level folder with recently-added descendant archives, or a loose
- *      top-level archive), grouped by library, newest activity first, and
+ *   2. the **New chapters** row - one STACKED card per series folder (1.30.0: the
+ *      nearest folder with its own series link, else the folder holding the new
+ *      archives - so a category-style library shows series, not "Manga"; or a
+ *      loose archive in the library root), grouped by library, newest first, and
  *   3. the **library grid**, each card showing a reading-direction indicator
  *      derived from `LibraryDto.defaultReaderMode`.
  *
  * Additional details:
- *   - Stacked cards (`RecentChapterStack`): the cover, the unit's name, the newest
+ *   - Stacked cards (`RecentChapterStack`): the cover, the series' name, the newest
  *     chapter's name, and a "+N" badge when the stack holds more than one new
  *     chapter. Tapping a FOLDER stack opens that folder's browse with the
  *     "Recently updated" sort so the freshest chapter leads; tapping a loose
