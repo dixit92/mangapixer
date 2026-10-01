@@ -15,9 +15,9 @@ public sealed class OfficialReleasesController(OfficialReleasesService service) 
     [HttpGet]
     [ProducesResponseType<OfficialReleasesPageDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> List([FromQuery] string? library = null, [FromQuery] OfficialReleasesFilter filter = OfficialReleasesFilter.ToAct,
-        [FromQuery] string? cursor = null, [FromQuery] int limit = 50, CancellationToken ct = default)
+        [FromQuery] string? cursor = null, [FromQuery] int limit = 50, [FromQuery] CompletionBasis? basis = null, CancellationToken ct = default)
     {
-        var (error, page) = await service.ListAsync(library, filter, cursor, limit, ct);
+        var (error, page) = await service.ListAsync(library, filter, cursor, limit, ct, basis);
         return error is null ? Ok(page) : NotFound();
     }
 }

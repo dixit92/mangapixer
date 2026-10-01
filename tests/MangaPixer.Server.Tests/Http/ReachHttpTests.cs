@@ -214,6 +214,13 @@ public sealed class ReachHttpTests : IClassFixture<MangaPixerWebApplicationFacto
         Assert.Equal((3, 2, "2"), (all.Total, all.Items.Count, all.NextCursor));
         Assert.Equal(["rcOwner", "rcDone"], all.Items.Select(i => i.NodeId)); // upgrades first, then complete collections
 
+        // The basis filter (owner, 1.30.0 RC): only finished / complete series of that basis.
+        var official = await OkAsync<OfficialReleasesPageDto>(await admin.GetAsync($"/api/v1/admin/metadata/official-releases?library={LibPubId}&filter=All&basis=OfficialVolumes"));
+        Assert.Equal(["rcDone"], official.Items.Select(i => i.NodeId));
+        var fan = await OkAsync<OfficialReleasesPageDto>(await admin.GetAsync($"/api/v1/admin/metadata/official-releases?library={LibPubId}&filter=All&basis=AllChapters"));
+        Assert.Empty(fan.Items);
+        Assert.Equal(3, fan.Summary.Series); // the summary counts every linked series, whatever the filter
+
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/v1/admin/metadata/official-releases?library=no-such-lib")).StatusCode);
     }
 

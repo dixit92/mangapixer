@@ -3353,6 +3353,13 @@
               "format": "int32",
               "default": 50
             }
+          },
+          {
+            "name": "basis",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CompletionBasis"
+            }
           }
         ],
         "responses": {

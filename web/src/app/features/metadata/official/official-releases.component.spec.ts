@@ -60,13 +60,35 @@ describe('OfficialReleasesComponent', () => {
     http.verify();
   });
 
+  it('filters by what a series is finished by, and hides that filter for upgrades (owner, 1.30.0 RC)', () => {
+    const { fixture, http, el } = create();
+    http.expectOne((r) => r.url === '/api/v1/admin/metadata/official-releases').flush(page([row()]));
+    fixture.detectChanges();
+    (el.querySelector('[data-testid="official-basis-AllChapters"] button') as HTMLButtonElement).click();
+    const fan = http.expectOne((r) => r.url === '/api/v1/admin/metadata/official-releases');
+    expect(fan.request.params.get('basis')).toBe('AllChapters');
+    const done = row({ nodeId: 'series-3', progress: progress({ upgradeVolumes: [], upgradeCount: 0, completion: 'CompleteCollection',
+      completionBasis: 'AllChapters', completionTarget: 120, completionHeld: 120, completionInChapters: true }) });
+    fan.flush(page([done]));
+    fixture.detectChanges();
+    expect(text(el, 'completion-mark')).toContain('Complete collection - Fan translation');
+
+    (el.querySelector('[data-testid="official-filter-Upgrades"] button') as HTMLButtonElement).click();
+    const upgrades = http.expectOne((r) => r.url === '/api/v1/admin/metadata/official-releases');
+    expect(upgrades.request.params.has('basis')).toBe(false); // the basis does not apply to upgrades
+    upgrades.flush(page([]));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="official-basis-Any"]')).toBeNull();
+    http.verify();
+  });
+
   it('shows the completion mark and pages with Load more', () => {
     const { fixture, http, el, c } = create();
     const complete = row({ nodeId: 'series-2', progress: progress({ upgradeVolumes: [], upgradeCount: 0, completion: 'CompleteCollection',
       completionBasis: 'OfficialVolumes', completionTarget: 14, completionHeld: 14 }) });
     http.expectOne((r) => r.url === '/api/v1/admin/metadata/official-releases').flush(page([complete], '1'));
     fixture.detectChanges();
-    expect(text(el, 'completion-mark')).toContain('Complete collection');
+    expect(text(el, 'completion-mark')).toContain('Complete collection - Official');
 
     (el.querySelector('[data-testid="official-more"]') as HTMLButtonElement).click();
     const more = http.expectOne((r) => r.url === '/api/v1/admin/metadata/official-releases');

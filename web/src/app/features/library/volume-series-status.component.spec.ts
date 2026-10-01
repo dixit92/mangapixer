@@ -71,7 +71,7 @@ describe('series status line', () => {
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('[data-testid="series-trackers"]')!.textContent).toBe('Complete (Japan): 14 volumes · English (Viz Media): 14 volumes, complete');
-    expect(el.querySelector('[data-testid="series-folder"]')!.textContent).toBe('You have volumes 1-14 · Complete collection');
+    expect(el.querySelector('[data-testid="series-folder"]')!.textContent).toBe('You have volumes 1-14 · Complete collection - Official');
     expect(el.querySelector('mat-icon')!.textContent).toBe('workspace_premium');
     expect(el.querySelector('.complete')).not.toBeNull();
   });

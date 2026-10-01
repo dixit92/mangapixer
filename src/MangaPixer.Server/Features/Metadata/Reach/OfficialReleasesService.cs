@@ -24,9 +24,13 @@ public sealed class OfficialReleasesService(MangaPixerDbContext db, ILogger<Offi
 
     private sealed record LinkedRow(long NodeId, string PublicId, string DisplayName, long LibraryId, int State, long RecordId, string Title);
 
-    /// <summary>A page of the tab. Error <c>library_not_found</c> for an unknown library filter.</summary>
+    /// <summary>
+    /// A page of the tab. Error <c>library_not_found</c> for an unknown library filter. <paramref name="basis"/> (owner, 1.30.0 RC)
+    /// keeps only finished / complete series of that basis - the official edition, the fan translation or the original run.
+    /// </summary>
     public async Task<(string? Error, OfficialReleasesPageDto? Page)> ListAsync(
-        string? libraryPublicId, OfficialReleasesFilter filter, string? cursor, int limit, CancellationToken ct = default)
+        string? libraryPublicId, OfficialReleasesFilter filter, string? cursor, int limit, CancellationToken ct = default,
+        CompletionBasis? basis = null)
     {
         long? libraryId = null;
         if (!string.IsNullOrEmpty(libraryPublicId))
@@ -57,7 +61,8 @@ public sealed class OfficialReleasesService(MangaPixerDbContext db, ILogger<Offi
             FinishedNotHeld = ordered.Count(x => x.Entry.Result.Completion == SeriesCompletion.FinishedNotHeld),
             CompleteCollections = ordered.Count(x => x.Entry.Result.Completion == SeriesCompletion.CompleteCollection),
         };
-        var filtered = ordered.Where(x => Matches(x.Entry, filter)).ToList();
+        var filtered = ordered.Where(x => Matches(x.Entry, filter)
+            && (basis is null || (x.Entry.Result.Completion != SeriesCompletion.None && x.Entry.Result.CompletionBasis == basis))).ToList();
         var page = filtered.Skip(offset).Take(limit).ToList();
 
         var libraryIds = page.Select(p => p.Row.LibraryId).Distinct().ToList();

@@ -73,7 +73,7 @@ describe('series progress labels', () => {
     const p = progress(
       { origin: 'Japan', originStatus: 'Complete', originVolumes: 14, officialPublisher: 'Viz Media', officialVolumes: 14, officialStatus: 'Complete' },
       { reach: reach([[1, 14]], []), completion: 'CompleteCollection', completionBasis: 'OfficialVolumes', completionTarget: 14, completionHeld: 14 });
-    expect(folderLine(p)).toBe('You have volumes 1-14 · Complete collection');
+    expect(folderLine(p)).toBe('You have volumes 1-14 · Complete collection - Official');
     expect(completionSentence(p)).toBe('Complete collection: all 14 volumes of the English edition');
     expect(progressIcon(p)).toBe('workspace_premium');
   });
@@ -91,7 +91,7 @@ describe('series progress labels', () => {
       { reach: reach([], [[1, 120]]), completion: 'CompleteCollection', completionBasis: 'AllChapters', completionTarget: 120, completionHeld: 120,
         completionInChapters: true });
     expect(trackersLine(scan)).toBe('Complete (Korea) · English scanlation: to chapter 120, complete');
-    expect(folderLine(scan)).toBe('You have chapters 1-120 · Complete collection');
+    expect(folderLine(scan)).toBe('You have chapters 1-120 · Complete collection - Fan translation');
     expect(completionSentence(scan)).toBe('Complete collection: all 120 chapters of the finished English fan translation');
     const origin = progress({ originStatus: 'Complete', originVolumes: 14 }, { completion: 'CompleteCollection', completionBasis: 'OriginRun', completionTarget: 14 });
     expect(completionSentence(origin)).toBe('Complete collection: the whole original run (14 volumes)');

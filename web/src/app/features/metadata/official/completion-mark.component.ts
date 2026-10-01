@@ -3,7 +3,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { SeriesProgressDto } from '../../../core/api/api-types';
-import { completionSentence } from '../progress/series-progress-labels';
+import { completeCollectionLabel, completionSentence } from '../progress/series-progress-labels';
 
 /**
  * The completion mark of a linked series (1.30.0; owner, like Manga-list's Completed column cross-checked with the library):
@@ -19,7 +19,7 @@ import { completionSentence } from '../progress/series-progress-labels';
     @if (text(); as t) {
       <span class="mark" [class.complete]="complete()" [class.prompt]="!complete()" data-testid="completion-mark" [matTooltip]="t">
         <mat-icon aria-hidden="true">{{ complete() ? 'workspace_premium' : 'flag' }}</mat-icon>
-        <span>{{ complete() ? 'Complete collection' : t }}</span>
+        <span>{{ complete() ? completeLabel() : t }}</span>
       </span>
     }
   `,
@@ -41,4 +41,5 @@ export class CompletionMarkComponent {
     return p ? completionSentence(p) : null;
   });
   readonly complete = computed(() => this.progress()?.completion === 'CompleteCollection');
+  readonly completeLabel = computed(() => { const p = this.progress(); return p ? completeCollectionLabel(p) : 'Complete collection'; });
 }

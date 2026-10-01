@@ -7,7 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 
-import { OfficialReleaseRowDto, OfficialReleasesFilter, OfficialReleasesSummaryDto } from '../../../core/api/api-types';
+import { OfficialReleaseRowDto, OfficialReleasesFilter, OfficialReleasesSummaryDto, CompletionBasis } from '../../../core/api/api-types';
 import { ReviewLibraryOption } from '../review/review-dashboard.component';
 import { languageName, reachSentence, trackersLine, upgradeSentence } from '../progress/series-progress-labels';
 import { CompletionMarkComponent } from './completion-mark.component';
@@ -20,6 +20,14 @@ export const OFFICIAL_FILTERS: readonly { value: OfficialReleasesFilter; label: 
   { value: 'Finished', label: 'Finished, not complete' },
   { value: 'Complete', label: 'Complete collections' },
   { value: 'All', label: 'All' },
+];
+
+/** The basis toggle (owner, 1.30.0 RC): which release a finished / complete series is finished by. '' = any. */
+export const OFFICIAL_BASES: readonly { value: CompletionBasis | ''; label: string }[] = [
+  { value: '', label: 'Any' },
+  { value: 'OfficialVolumes', label: 'Official' },
+  { value: 'AllChapters', label: 'Fan translation' },
+  { value: 'OriginRun', label: 'Original run' },
 ];
 
 /** The empty-state sentence of a filter; a language without official volume totals says why. */
@@ -75,6 +83,15 @@ export function officialEmptyText(filter: OfficialReleasesFilter, language: stri
           </mat-select>
         </mat-form-field>
       </div>
+      @if (filter() !== 'Upgrades') {
+        <div class="filters bases">
+          <mat-button-toggle-group [value]="basis()" (change)="setBasis($event.value)" aria-label="Finished by" hideSingleSelectionIndicator>
+            @for (b of bases; track b.value) {
+              <mat-button-toggle [value]="b.value" [attr.data-testid]="'official-basis-' + (b.value || 'Any')">{{ b.label }}</mat-button-toggle>
+            }
+          </mat-button-toggle-group>
+        </div>
+      }
 
       @if (summary(); as s) {
         <p class="summary" data-testid="official-summary">
@@ -130,6 +147,8 @@ export function officialEmptyText(filter: OfficialReleasesFilter, language: stri
     .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
     /* The toggles scroll sideways inside their own box on a phone rather than widening the page. */
     .filters { max-width: 100%; overflow-x: auto; }
+    .bases { margin: 8px 0 0; }
+    .bases mat-button-toggle-group { font-size: 13px; }
     .lib-filter { width: 220px; }
     .summary { margin: 4px 0 12px; font-size: 13px; color: #c8c8d4; }
     .summary .up { color: #b39dff; }
@@ -170,6 +189,8 @@ export class OfficialReleasesComponent implements OnInit {
 
   readonly filters = OFFICIAL_FILTERS;
   readonly filter = signal<OfficialReleasesFilter>('ToAct');
+  readonly bases = OFFICIAL_BASES;
+  readonly basis = signal<CompletionBasis | ''>('');
   readonly library = signal<string | null>(null);
   readonly items = signal<OfficialReleaseRowDto[]>([]);
   readonly summary = signal<OfficialReleasesSummaryDto | null>(null);
@@ -179,7 +200,11 @@ export class OfficialReleasesComponent implements OnInit {
   readonly error = signal<string | null>(null);
 
   readonly languageLabel = computed(() => languageName(this.language()) || this.language());
-  readonly emptyText = computed(() => officialEmptyText(this.filter(), this.language()));
+  readonly emptyText = computed(() => {
+    const basis = this.filter() === 'Upgrades' ? '' : this.basis();
+    return basis ? `Nothing here finished by the ${OFFICIAL_BASES.find((b) => b.value === basis)!.label.toLowerCase()}.`
+      : officialEmptyText(this.filter(), this.language());
+  });
 
   readonly trackersLine = trackersLine;
   readonly reachSentence = reachSentence;
@@ -195,6 +220,11 @@ export class OfficialReleasesComponent implements OnInit {
     this.load(false);
   }
 
+  setBasis(basis: CompletionBasis | ''): void {
+    this.basis.set(basis);
+    this.load(false);
+  }
+
   setLibrary(id: string | null): void {
     this.library.set(id);
     this.load(false);
@@ -206,7 +236,8 @@ export class OfficialReleasesComponent implements OnInit {
       this.cursor.set(null);
     }
     this.error.set(null);
-    this.api.list(this.library(), this.filter(), more ? this.cursor() : null).subscribe({
+    const basis = this.filter() === 'Upgrades' ? null : this.basis() || null;
+    this.api.list(this.library(), this.filter(), more ? this.cursor() : null, 50, basis).subscribe({
       next: (page) => {
         this.items.set(more ? [...this.items(), ...page.items] : page.items);
         this.summary.set(page.summary);

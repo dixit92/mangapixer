@@ -1,4 +1,4 @@
-import { MetadataOrigin, MetadataOriginStatus, SeriesProgressDto, SeriesReachDto, UnitSpanDto } from '../../../core/api/api-types';
+import { MetadataOrigin, MetadataOriginStatus, SeriesProgressDto, SeriesReachDto, UnitSpanDto, CompletionBasis } from '../../../core/api/api-types';
 
 // Wording of a linked series' progress (1.30.0, reach): the per-kind trackers (origin, the official release and the released
 // chapters in the preferred language) and what the folder holds, with the missing count, the upgrades and the completion mark.
@@ -143,6 +143,16 @@ function finishedInLanguage(progress: SeriesProgressDto): boolean {
   return progress.completionBasis === 'OfficialVolumes' || progress.completionBasis === 'AllChapters';
 }
 
+/** The completion basis in words (owner, 1.30.0 RC): the official edition, the fan translation or the original run. */
+export function completionBasisLabel(basis: CompletionBasis | null | undefined): string {
+  return basis === 'AllChapters' ? 'Fan translation' : basis === 'OriginRun' ? 'Original run' : 'Official';
+}
+
+/** The completion mark: "Complete collection - Official" / "- Fan translation" / "- Original run" (owner, 1.30.0 RC). */
+export function completeCollectionLabel(progress: SeriesProgressDto): string {
+  return `Complete collection - ${completionBasisLabel(progress.completionBasis)}`;
+}
+
 /** Which release finished (owner, 1.30.0 RC): "Official, English" or "Fan translation, English". */
 function finishedKind(progress: SeriesProgressDto): string {
   const lang = languageName(progress.trackers.language);
@@ -160,11 +170,11 @@ export function folderLine(progress: SeriesProgressDto | null | undefined): stri
   const parts = [`You have ${reach}`];
   const missing = missingText(progress);
   if (missing) parts.push(missing);
-  else if (progress.completion === 'CompleteCollection') parts.push('Complete collection');
+  else if (progress.completion === 'CompleteCollection') parts.push(completeCollectionLabel(progress));
   else if (progress.releaseKnown) parts.push('up to date');
   const upgrade = upgradeText(progress);
   if (upgrade) parts.push(upgrade);
-  if (missing && progress.completion === 'CompleteCollection') parts.push('Complete collection');
+  if (missing && progress.completion === 'CompleteCollection') parts.push(completeCollectionLabel(progress));
   if (progress.completion === 'FinishedNotHeld' && finishedInLanguage(progress)) {
     parts.push(`finished - ${finishedKind(progress).replace(/^./, (c) => c.toLowerCase())}`);
   }
