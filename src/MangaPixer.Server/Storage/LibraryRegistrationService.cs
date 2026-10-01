@@ -1,6 +1,8 @@
 namespace com.lifepixer.mangapixer.Server.Storage;
 
 using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Server.Features.Covers;
+using com.lifepixer.mangapixer.Server.Features.Trash;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Media;
 using com.lifepixer.mangapixer.Server.Persistence;
@@ -22,17 +24,20 @@ public sealed class LibraryRegistrationService
     private readonly MangaPixerDbContext _db;
     private readonly AppRootOptions _appRootOptions;
     private readonly ThumbnailStore? _thumbnailStore;
+    private readonly NodePurger _purger;
     private readonly ILogger<LibraryRegistrationService>? _logger;
 
     public LibraryRegistrationService(
         MangaPixerDbContext db,
         AppRootOptions? appRootOptions = null,
         ThumbnailStore? thumbnailStore = null,
-        ILogger<LibraryRegistrationService>? logger = null)
+        ILogger<LibraryRegistrationService>? logger = null,
+        CoverFiles? coverFiles = null)
     {
         _db = db;
         _appRootOptions = appRootOptions ?? new AppRootOptions();
         _thumbnailStore = thumbnailStore;
+        _purger = new NodePurger(db, thumbnailStore, coverFiles);
         _logger = logger;
     }
 
@@ -121,8 +126,10 @@ public sealed class LibraryRegistrationService
     /// 1. Resolve the library's archive-item node ids + thumbnail content
     ///    versions BEFORE any rows are removed (needed afterwards).
     /// 2. Delete the durable thumbnail files for those items from
-    ///    <c>DataRoot/thumbnails</c> (filesystem I/O — done OUTSIDE the write
-    ///    transaction per the DbContext concurrency rules).
+    ///    <c>DataRoot/thumbnails</c>, and their cover crops (1.31.0) (filesystem
+    ///    I/O — done OUTSIDE the write transaction per the DbContext concurrency
+    ///    rules). Steps 2 and 3's per-user rows go through the shared
+    ///    <see cref="NodePurger"/>, which the trash uses too.
     /// 3. Inside a single transaction, delete loose-reference rows that have NO
     ///    FK cascade (keyed by ItemId or LibraryId), the FTS <c>catalog_search</c>
     ///    rows for the library (cascade deletes do not fire FTS triggers because
@@ -145,23 +152,12 @@ public sealed class LibraryRegistrationService
             .Select(n => n.Id)
             .ToListAsync(ct);
 
-        var thumbnailKeys = itemIds.Count == 0
-            ? []
-            : await _db.ArchiveItems
-                .Where(a => itemIds.Contains(a.NodeId) && a.ThumbnailContentVersion != null)
-                .Select(a => new { a.NodeId, ContentVersion = a.ThumbnailContentVersion!.Value })
-                .ToListAsync(ct);
+        var files = await _purger.CollectFilesAsync(itemIds, ct);
 
-        // 2. Delete durable thumbnail files (filesystem I/O, outside the tx).
-        var thumbnailsDeleted = 0;
-        if (_thumbnailStore is not null)
-        {
-            foreach (var key in thumbnailKeys)
-            {
-                _thumbnailStore.Delete(key.NodeId, key.ContentVersion);
-                thumbnailsDeleted++;
-            }
-        }
+        // 2. Delete durable thumbnail files and cover crops (filesystem I/O, outside the tx) - the
+        //    shared node purger (1.31.0), which the trash uses too.
+        var thumbnailsDeleted = _thumbnailStore is null ? 0 : files.Thumbnails.Count;
+        _purger.DeleteFiles(files);
 
         // 3. Transactional metadata cleanup. ExecuteDeleteAsync participates in
         //    the ambient transaction. The library-row removal at the end relies on
@@ -185,21 +181,7 @@ public sealed class LibraryRegistrationService
             $"DELETE FROM catalog_search WHERE library_id = {libraryId}", ct);
 
         // Loose references keyed by ItemId (no FK to catalog_nodes).
-        var progressDeleted = 0;
-        var readMarksDeleted = 0;
-        var bookmarksDeleted = 0;
-        var overridesDeleted = 0;
-        if (itemIds.Count > 0)
-        {
-            progressDeleted = await _db.ReadingProgress
-                .Where(p => itemIds.Contains(p.ItemId)).ExecuteDeleteAsync(ct);
-            readMarksDeleted = await _db.ReadMarks
-                .Where(m => itemIds.Contains(m.ItemId)).ExecuteDeleteAsync(ct);
-            bookmarksDeleted = await _db.Bookmarks
-                .Where(b => itemIds.Contains(b.ItemId)).ExecuteDeleteAsync(ct);
-            overridesDeleted = await _db.ItemReaderOverrides
-                .Where(o => itemIds.Contains(o.ItemId)).ExecuteDeleteAsync(ct);
-        }
+        var userState = await _purger.DeleteUserStateAsync(itemIds, ct);
 
         // Loose references keyed by LibraryId (no FK to libraries).
         var scanRunsDeleted = await _db.ScanRuns
@@ -224,7 +206,7 @@ public sealed class LibraryRegistrationService
             "{Overrides} overrides, {ScanRuns} scan runs, {ScanObservations} scan observations, " +
             "{Grants} grants, {Jobs} jobs",
             libraryId, itemIds.Count, thumbnailsDeleted,
-            progressDeleted, readMarksDeleted, bookmarksDeleted, overridesDeleted,
+            userState.Progress, userState.ReadMarks, userState.Bookmarks, userState.ReaderOverrides,
             scanRunsDeleted, scanObservationsDeleted, grantsDeleted, jobsDeleted);
 
         return true;

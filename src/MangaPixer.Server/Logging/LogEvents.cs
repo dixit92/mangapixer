@@ -339,6 +339,14 @@ public static class LogEvents
         public const int ActivationFailedConsumedToken = 7024;
         public const int UserDeleted = 7025;
         public const int ActivationReissued = 7026;
+
+        // 1.31.0 Empty trash + Clean bundles: ids and counts only.
+        public const int TrashEmptied = 7030;
+        public const int TrashEmptyHeld = 7031;
+        public const int BundlesCleaned = 7032;
+        public const int TrashSettingsChanged = 7033;
+        public const int TrashRunFailed = 7034;
+        public const int TrashHoldReleased = 7035;
     }
 
     /// <summary>App-level request pipeline errors (unhandled 500s).</summary>

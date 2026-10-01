@@ -231,6 +231,15 @@ public static class AuditActions
 
     /// <summary>An admin resolved move conflicts (1.31.0, cross-library moves).</summary>
     public const string MoveConflictsResolve = "move.conflicts.resolve";
+
+    // 1.31.0 Empty trash + Clean bundles: counts in the result verb, the library id when one library was emptied.
+    public const string TrashRetentionChange = "trash.retention.change";
+    public const string TrashAutoEnable = "trash.auto.enable";
+    public const string TrashAutoDisable = "trash.auto.disable";
+    public const string TrashEmpty = "trash.empty";
+    public const string TrashEmptyAuto = "trash.empty.auto";
+    public const string TrashBundlesClean = "trash.bundles.clean";
+    public const string TrashBundlesCleanAuto = "trash.bundles.clean.auto";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>

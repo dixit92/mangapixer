@@ -127,6 +127,33 @@ public sealed class MetadataImageStore : IMetadataRecordRemovedHandler
         }
     }
 
+    /// <summary>
+    /// Every stored image whose name is exactly one this store writes (<c>&lt;recordId&gt;-&lt;version&gt;.&lt;ext&gt;</c>), with the key
+    /// parsed from it (1.31.0, Clean bundles). Other files are not listed.
+    /// </summary>
+    public IEnumerable<StoredMetadataImage> EnumerateStored()
+    {
+        foreach (var path in Trash.DataRootFileNames.Enumerate(_root, "*-*.*", SearchOption.TopDirectoryOnly))
+        {
+            var extension = Path.GetExtension(path).TrimStart('.');
+            if (!s_extensions.Contains(extension, StringComparer.Ordinal))
+                continue;
+            var name = Path.GetFileNameWithoutExtension(path.AsSpan());
+            var dash = name.IndexOf('-');
+            if (dash <= 0
+                || !Trash.DataRootFileNames.TryParseNumber(name[..dash], out var recordId)
+                || !Trash.DataRootFileNames.TryParseNumber(name[(dash + 1)..], out var version)
+                || recordId < 1 || version > int.MaxValue
+                || !string.Equals(Path.Combine(_root, FileName(recordId, (int)version, extension)), path, StringComparison.Ordinal))
+                continue;
+            yield return new StoredMetadataImage(path, recordId, (int)version);
+        }
+    }
+
+    /// <summary>Leftover temp files of interrupted publishes (<c>&lt;guid&gt;.tmp</c>) - 1.31.0, Clean bundles.</summary>
+    public IEnumerable<string> EnumerateTempFiles() =>
+        Trash.DataRootFileNames.Enumerate(_root, "*.tmp", SearchOption.TopDirectoryOnly);
+
     public Task OnRecordsRemovedAsync(IReadOnlyList<long> recordIds, CancellationToken ct)
     {
         DeleteRecords(recordIds);
@@ -143,3 +170,6 @@ public sealed class MetadataImageStore : IMetadataRecordRemovedHandler
         catch (UnauthorizedAccessException) { /* best effort */ }
     }
 }
+
+/// <summary>A stored series image and the record / image version its name carries.</summary>
+public readonly record struct StoredMetadataImage(string Path, long RecordId, int Version);

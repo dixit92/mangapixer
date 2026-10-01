@@ -182,3 +182,52 @@ test('the declared-facts dialog and its type list fit a phone and a tablet scree
   }
   expect(failures, `declared-facts dialog does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });
+
+test('the admin trash card with held libraries and a confirm step fits a phone and a tablet screen', async ({ page }) => {
+  // 1.31.0: Empty trash + Clean bundles. Contract-shaped data (the synthetic library has no removed items): a held library
+  // with a long name, the counts line, and the confirm step that names the hold. Nothing is posted.
+  test.setTimeout(120_000);
+  const overview = {
+    settings: { automaticCleaning: false, retentionDays: 30, allowedRetentionDays: [1, 7, 30, 90, 365], automaticHour: 4 },
+    windowStart: '2026-09-01T12:00:00Z',
+    libraries: [
+      {
+        libraryId: 'trash-held', name: 'A synthetic library with a rather long name that has to wrap on a phone',
+        eligible: { nodes: 1234, archives: 1200, folders: 34, userStateRows: 5678, files: 3600, bytes: 987654321 },
+        waiting: 12, libraryNodes: 2000, hold: 'burst', holdReleasable: true,
+      },
+      {
+        libraryId: 'trash-ok', name: 'Synthetic',
+        eligible: { nodes: 3, archives: 3, folders: 0, userStateRows: 4, files: 9, bytes: 2048 },
+        waiting: 0, libraryNodes: 100, hold: null, holdReleasable: false,
+      },
+    ],
+    total: { nodes: 3, archives: 3, folders: 0, userStateRows: 4, files: 9, bytes: 2048 },
+    bundles: { files: 2, bytes: 4096 },
+    lastEmpty: { at: '2026-09-30T04:00:00Z', automatic: true, count: 17, bytes: 123456, heldLibraries: 1 },
+    lastBundleClean: null,
+  };
+  await page.route(/\/api\/v1\/admin\/trash$/, (r) =>
+    r.request().method() === 'GET'
+      ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(overview) })
+      : r.abort());
+  await login(page);
+  const failures: string[] = [];
+  for (const size of SIZES) {
+    await page.setViewportSize(size);
+    await page.goto('/admin');
+    const card = page.getByTestId('trash-card');
+    await card.scrollIntoViewIfNeeded();
+    await expect(card.getByTestId('trash-lib-trash-held')).toContainText('Held');
+    await settle(page);
+    if (SHOTS) await card.screenshot({ path: `${SHOTS}/layout-${size.width}-trash-card.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px trash card: ${p.kind}: ${p.what} - ${p.detail}`);
+
+    await card.getByTestId('trash-empty-lib-trash-held').click();
+    await expect(card.getByTestId('trash-confirm')).toContainText('Empty it anyway?');
+    await settle(page);
+    if (SHOTS) await card.screenshot({ path: `${SHOTS}/layout-${size.width}-trash-confirm.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px trash confirm: ${p.kind}: ${p.what} - ${p.detail}`);
+  }
+  expect(failures, `the trash card does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+});

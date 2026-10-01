@@ -77,6 +77,28 @@ public sealed partial class VolumeCoverStore
         return removed;
     }
 
+    /// <summary>
+    /// Every stored cover file whose name is exactly one <see cref="PathFor"/> writes, with the public id and version parsed
+    /// from it (1.31.0, Clean bundles). Other files are not listed.
+    /// </summary>
+    public IEnumerable<StoredVolumeCover> EnumerateStored()
+    {
+        foreach (var path in Trash.DataRootFileNames.Enumerate(Root, "vc*.webp", SearchOption.AllDirectories))
+        {
+            var name = Path.GetFileNameWithoutExtension(path);
+            var dash = name.LastIndexOf('-');
+            if (dash <= 0)
+                continue;
+            var publicId = name[..dash];
+            if (!IsValidPublicId(publicId)
+                || !Trash.DataRootFileNames.TryParseNumber(name.AsSpan(dash + 1), out var version)
+                || version is < 1 or > int.MaxValue
+                || !string.Equals(PathFor(publicId, (int)version), path, StringComparison.Ordinal))
+                continue;
+            yield return new StoredVolumeCover(path, publicId, (int)version);
+        }
+    }
+
     /// <summary>Deletes every stored cover file; returns how many files were removed.</summary>
     public int DeleteAll()
     {
@@ -100,3 +122,6 @@ public sealed partial class VolumeCoverStore
         return removed;
     }
 }
+
+/// <summary>A stored web cover file and the public id / version its name carries.</summary>
+public readonly record struct StoredVolumeCover(string Path, string PublicId, int Version);

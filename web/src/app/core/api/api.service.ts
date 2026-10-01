@@ -6,6 +6,12 @@ import { catchError } from 'rxjs/operators';
 import { BYPASS_INCOGNITO } from '../incognito/incognito.interceptor';
 import {
   ActivateAccountRequest,
+  EmptyTrashRequest,
+  EmptyTrashResultDto,
+  TrashFilesDto,
+  TrashOverviewDto,
+  TrashSettingsDto,
+  UpdateTrashSettingsRequest,
   AddBookmarkRequest,
   AddBookmarkResult,
   AnalyticsOverviewDto,
@@ -592,6 +598,28 @@ export class ApiService {
     return this.get<AuditTrailPageDto>('/admin/audit', new HttpParams()
       .set('page', String(page))
       .set('pageSize', String(pageSize)));
+  }
+
+  // --- Empty trash + Clean bundles (admin, 1.31.0) ---
+
+  /** The trash card: settings, what Empty trash / Clean bundles would remove (per library, with holds), last runs. */
+  getTrash(): Observable<TrashOverviewDto> {
+    return this.get<TrashOverviewDto>('/admin/trash');
+  }
+
+  /** Automatic cleaning on / off and the move window / trash retention (one of the allowed days). */
+  updateTrashSettings(request: UpdateTrashSettingsRequest): Observable<TrashSettingsDto> {
+    return this.put<TrashSettingsDto>('/admin/trash/settings', request);
+  }
+
+  /** "Empty trash now": every library without a hold, or one library (releaseHold empties it although held). */
+  emptyTrash(request: EmptyTrashRequest): Observable<EmptyTrashResultDto> {
+    return this.post<EmptyTrashResultDto>('/admin/trash/empty', request);
+  }
+
+  /** "Clean bundles now": data-root files no row references. */
+  cleanBundles(): Observable<TrashFilesDto> {
+    return this.post<TrashFilesDto>('/admin/trash/clean-bundles', {});
   }
 
   // --- System info ---

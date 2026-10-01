@@ -87,6 +87,8 @@ It does **not** contain:
 | Scratch files | scratch root | Temporary; not needed. |
 | Logs | `<data root>/logs` | Only needed for troubleshooting. |
 
+*New in 1.31.0:* items emptied from the [trash](trash.md) are removed from the database with their reading state. A backup taken before that brings them back when restored; take one with **Back up now** before **Empty trash now** if you want to be sure. **Clean bundles** only removes data-folder files that nothing references, which a backup does not contain anyway.
+
 For a complete copy of a server, back up the whole data root (`/data`, or `/config/data` on Unraid). Its `backups` folder always holds a recent consistent database snapshot, even if the live `mangapixer.db` was copied while the server was writing to it.
 
 To copy the backups out of a Docker volume:

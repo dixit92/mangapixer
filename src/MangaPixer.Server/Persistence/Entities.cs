@@ -989,6 +989,40 @@ public sealed class AppSettingsEntity
     /// (Daily, Weekly, Monthly, Quarterly, Yearly). Null = Monthly (30 days).
     /// </summary>
     public int? TrashRetentionDays { get; set; }
+
+    // 1.31.0 Empty trash + Clean bundles (created by the migration AddTrashSchedule).
+
+    /// <summary>
+    /// "Turn automatic cleaning on": empty the trash and clean bundles once a day. OFF by default (the migration gives the
+    /// existing row false) - turning it on is the admin's approval of automatic purging.
+    /// </summary>
+    public bool TrashAutoCleanEnabled { get; set; }
+
+    /// <summary>When automatic cleaning was last turned on; the schedule never catches up on a day before it.</summary>
+    public DateTimeOffset? TrashAutoCleanEnabledAt { get; set; }
+
+    /// <summary>The scheduler's last automatic run (attempted), so a restart does not run it twice in a day.</summary>
+    public DateTimeOffset? TrashLastAutoRunAt { get; set; }
+
+    /// <summary>The last "Empty trash" (automatic or an admin's "now"): when, which, nodes removed, bytes of their files, libraries held.</summary>
+    public DateTimeOffset? TrashLastEmptiedAt { get; set; }
+
+    public bool TrashLastEmptiedAutomatic { get; set; }
+
+    public int TrashLastEmptiedNodes { get; set; }
+
+    public long TrashLastEmptiedBytes { get; set; }
+
+    public int TrashLastEmptiedHeldLibraries { get; set; }
+
+    /// <summary>The last "Clean bundles": when, which, files removed and their size.</summary>
+    public DateTimeOffset? BundlesLastCleanedAt { get; set; }
+
+    public bool BundlesLastCleanedAutomatic { get; set; }
+
+    public int BundlesLastCleanedFiles { get; set; }
+
+    public long BundlesLastCleanedBytes { get; set; }
 }
 
 /// <summary>

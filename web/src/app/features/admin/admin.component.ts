@@ -40,6 +40,7 @@ import { LibraryDeclaredFactsComponent } from '../metadata/declared/library-decl
 import { ConsentRenewalBannerComponent } from '../metadata/consent-renewal-banner.component';
 import { AnalyticsCardComponent } from './analytics-card/analytics-card.component';
 import { MoveConflictsLinkComponent } from './move-conflicts/move-conflicts-link.component';
+import { TrashCardComponent } from './trash-card/trash-card.component';
 
 /**
  * Admin component. Shows library and user administration.
@@ -57,6 +58,7 @@ import { MoveConflictsLinkComponent } from './move-conflicts/move-conflicts-link
     DebugLogCardComponent,
     UpdateCheckCardComponent,
     MoveConflictsLinkComponent,
+    TrashCardComponent,
     AnalyticsCardComponent,
     BackupSettingsCardComponent,
     FormsModule,
@@ -554,6 +556,7 @@ import { MoveConflictsLinkComponent } from './move-conflicts/move-conflicts-link
     </mat-card>
 
     <!-- Update Checker (opt-in, off by default) -->
+    <app-trash-card />
     <app-update-check-card />
 
     <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->
