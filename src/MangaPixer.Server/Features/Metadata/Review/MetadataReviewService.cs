@@ -6,6 +6,7 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Core.Metadata.Missing;
 using com.lifepixer.mangapixer.Server.Features.Admin;
 using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
@@ -232,7 +233,9 @@ public sealed class MetadataReviewService
                 .GroupBy(f => f.NodeId).ToDictionary(g => g.Key, g => g.ToList())
             : [];
         var trails = await TrailsAsync(nodes.Values.ToList(), ct);
-        var archiveCounts = await ArchiveCountsAsync(nodes.Values.Where(n => n.Kind == (int)CatalogNodeKind.Folder).Select(n => n.Id).ToList(), ct);
+        var folderIds = nodes.Values.Where(n => n.Kind == (int)CatalogNodeKind.Folder).Select(n => n.Id).ToList();
+        var archiveCounts = await ArchiveCountsAsync(folderIds, ct);
+        var duplicates = await DuplicatesAsync(folderIds, ct);
         // Folders, and archives that still exist (a tombstoned archive shows no cover).
         var covers = await _covers.ResolveUrlsAsync(nodes.Values
             .Where(n => n.Kind == (int)CatalogNodeKind.Folder || n.Availability != (int)CatalogNodeAvailability.Tombstoned)
@@ -276,6 +279,8 @@ public sealed class MetadataReviewService
                 MatchedAt = q?.CompletedAt,
                 NextRetryAt = q is { Outcome: (int)MatchBand.Unmatched } ? q.NotBefore : null,
                 RunId = q?.RunId is { } run ? runs.GetValueOrDefault(run) : null,
+                DuplicateChapters = duplicates.GetValueOrDefault(id).Chapters,
+                DuplicateVolumes = duplicates.GetValueOrDefault(id).Volumes,
                 CheckingAgain = q is { Reason: QueueReason.Recheck, State: QueueState.Pending or QueueState.Leased },
                 OpenFlagCount = flagCounts.GetValueOrDefault(id),
                 Flags = flags.TryGetValue(node.PublicId, out var nodeFlags) ? nodeFlags : [],
@@ -369,6 +374,48 @@ public sealed class MetadataReviewService
     }
 
     private sealed record ArchiveCountRow(long Root, int Count);
+
+    private sealed record ArchiveNameRow(long Root, long ParentId, string ParentName, string Name);
+
+    /// <summary>
+    /// Duplicate chapter and volume numbers below each folder (1.31.0): the live archives are compared per directory (a number in two
+    /// different folders is not a duplicate - seasons restart), as the Volumes view and the Missing report read the names. Names
+    /// only, one recursive query for the page; nothing is stored.
+    /// </summary>
+    private async Task<Dictionary<long, (int Chapters, int Volumes)>> DuplicatesAsync(IReadOnlyList<long> folderIds, CancellationToken ct)
+    {
+        if (folderIds.Count == 0)
+            return [];
+        var ids = string.Join(',', folderIds.Select(i => i.ToString(CultureInfo.InvariantCulture)));
+#pragma warning disable EF1002
+        var rows = await _db.Database.SqlQueryRaw<ArchiveNameRow>($"""
+            WITH RECURSIVE sub(root, id) AS (
+                SELECT n."Id", n."Id" FROM catalog_nodes n WHERE n."Id" IN ({ids})
+                UNION ALL
+                SELECT sub.root, c."Id" FROM catalog_nodes c JOIN sub ON c."ParentId" = sub.id WHERE c."Availability" != 5
+            )
+            SELECT sub.root AS "Root", c."ParentId" AS "ParentId", p."DisplayName" AS "ParentName", c."DisplayName" AS "Name"
+            FROM sub JOIN catalog_nodes c ON c."Id" = sub.id JOIN catalog_nodes p ON p."Id" = c."ParentId"
+            WHERE c."Kind" = 1
+            """).ToListAsync(ct);
+#pragma warning restore EF1002
+        var result = new Dictionary<long, (int Chapters, int Volumes)>();
+        foreach (var byRoot in rows.GroupBy(r => r.Root))
+        {
+            var chapters = 0;
+            var volumes = 0;
+            foreach (var directory in byRoot.GroupBy(r => r.ParentId))
+            {
+                var found = DuplicateUnits.Find(directory.Select(r =>
+                    VolumeGrouping.UnitsOf(new GroupingRow(r.Name, GroupingRowKind.Archive, r.Name, string.Empty, r.ParentName))));
+                chapters += found.Count(d => d.Kind == MissingUnitKind.Chapter);
+                volumes += found.Count(d => d.Kind == MissingUnitKind.Volume);
+            }
+            if (chapters + volumes > 0)
+                result[byRoot.Key] = (chapters, volumes);
+        }
+        return result;
+    }
 
     // --- Accept ---
 

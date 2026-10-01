@@ -291,6 +291,15 @@ public sealed record MetadataReviewItemDto
     /// </summary>
     public bool CheckingAgain { get; init; }
 
+    /// <summary>
+    /// 1.31.0 (folder works): how many chapter numbers more than one file of the same folder below it states ("2 duplicate chapters").
+    /// Split chapters and ranges are not duplicates.
+    /// </summary>
+    public int DuplicateChapters { get; init; }
+
+    /// <summary>1.31.0 (folder works): the same for volume numbers.</summary>
+    public int DuplicateVolumes { get; init; }
+
     public required int OpenFlagCount { get; init; }
 
     /// <summary>Flags tab only: the open flags on this anchor.</summary>
