@@ -7599,6 +7599,30 @@
       "DeclaredType": {
         "type": "integer"
       },
+      "DuplicateUnitDto": {
+        "required": [
+          "kind",
+          "number",
+          "files"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/MissingUnitKind"
+          },
+          "number": {
+            "type": "string"
+          },
+          "files": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "EffectiveDeclaredFactsDto": {
         "type": "object",
         "properties": {
@@ -9662,6 +9686,25 @@
               "string"
             ]
           },
+          "checkingAgain": {
+            "type": "boolean"
+          },
+          "duplicateChapters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "duplicateVolumes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
           "openFlagCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
@@ -9849,6 +9892,14 @@
             "format": "int32"
           },
           "pending": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "recheckPending": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -10434,6 +10485,20 @@
                 "$ref": "#/components/schemas/SeriesProgressDto"
               }
             ]
+          },
+          "duplicates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DuplicateUnitDto"
+            }
+          },
+          "duplicateCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -12903,6 +12968,12 @@
               "null",
               "string"
             ]
+          },
+          "duplicates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DuplicateUnitDto"
+            }
           }
         }
       },
@@ -12992,6 +13063,12 @@
               "null",
               "string"
             ]
+          },
+          "duplicates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DuplicateUnitDto"
+            }
           }
         }
       },
