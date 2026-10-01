@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Keep removed items for** Daily, Weekly, Monthly (the default), Quarterly or Yearly: one setting for how long a moved or renamed series is recognised (keeping its reading state) and how long removed items stay in the trash.
 - **Turn automatic cleaning on** (off by default, also after the upgrade): empties the trash and cleans bundles once a day at 04:00 server time. Turning it on first shows what the first run will remove.
 - **Holds.** A library keeps its trash when emptying it could be a mistake - more than half of it would go (often an offline disk), its folder was unreachable at the last scan, or a scan is running. Held libraries are skipped by **Empty trash now** and the automatic run; **Empty this library's trash** empties one anyway after you confirm.
+- **Cover check after an automatic link.** Once a linked series' volume covers are stored, MangaPixer compares them with the folder's own volumes - page 1 of each volume file, both halves of a jacket scan - volume by volume. When every compared volume is clearly a different picture from that volume's cover in your preferred language (at least two volumes; the volume 1 cover for a one-shot), and none matches in any language, the automatic link goes back to **Needs review** with the new reason **Cover differs**. Nothing is downloaded for this, confirmed links are never checked, and **Compare covers** switches it off.
+- **Covers for estimated volumes.** A `~ Volume N` stack in the Volumes view now shows the web cover of volume N too: the `~` marks the estimate, and when an exact volume list arrives the stacks and their covers regroup.
 
 ### Changed
 
