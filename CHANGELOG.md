@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.31.0] - 2026-10-01
+
 ### Added
 
 - **Move series between libraries without losing anything.** Moving a series folder (or archives) from one library's folder to another's on disk now keeps every user's reading progress, read marks, bookmarks, favorites and reader settings, and the folder's series link, settings, cover choice and Volumes view setting - whichever library is scanned first. When the old library is scanned first, the new library's scan moves the existing items (nothing is analyzed again, a **Confirmed** link stays confirmed and no new automatic match is made). When the new library is scanned first, MangaPixer pairs each removed archive with its new copy once both are scanned and analyzed, and copies the state over wherever the new copy has none; an automatic link to the same series becomes **Confirmed**, and the moved copies keep their original **Added** date, so they do not show up as new chapters. State also moves for users who cannot open the new library right now; they see it as soon as they get access. Identical files that were in your libraries at the same time are never merged.
@@ -30,6 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Deleting a library now also removes its cover crops from the data folder.
 - API (admin): `GET /api/v1/admin/trash` (overview and preview), `PUT /api/v1/admin/trash/settings` (`automaticCleaning`, `retentionDays` - one of 1, 7, 30, 90, 365), `POST /api/v1/admin/trash/empty` (`libraryId`, `releaseHold`), `POST /api/v1/admin/trash/clean-bundles`.
 - Developer: the test suite is about five times faster (the server tests went from 24 minutes to under 5 on the maintainer's box). Test hosts no longer share a process-wide logger, so host-booting test classes run in parallel; `Verify-Quick.ps1` runs a real fast tier; `Verify.ps1` has `-SkipWeb` / `-WebOnly` halves that CI runs as two parallel jobs. The server's own logging is unchanged.
+- **Upgrade note:** this version adds five small database migrations (`AddTombstoneLifecycle`, `AddCrossLibraryMoves`, `AddTrashSchedule`, `AddMatcherRulesRevision`, `AddTrashRunHour`: new columns and two new tables only; a snapshot is taken before they run). On the first start: series you moved to another library before the update - inside the move window (Monthly by default) - are recognized and their reading state is copied to the new copies; with Automatic matching on, the works waiting in **Needs review** are checked once more under the current rules (about two or three MangaUpdates requests each, inside the daily budget, at one per second); automatic trash cleaning stays off until an admin turns it on. No new consent is needed, and the media worker protocol is unchanged (5).
 
 ### Fixed
 
