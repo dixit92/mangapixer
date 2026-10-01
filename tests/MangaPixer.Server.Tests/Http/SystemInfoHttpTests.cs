@@ -11,7 +11,6 @@ using Xunit;
 /// before login) and returns a non-empty product version from the assembly
 /// InformationalVersion attribute (sourced from Version.props at build time).
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class SystemInfoHttpTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

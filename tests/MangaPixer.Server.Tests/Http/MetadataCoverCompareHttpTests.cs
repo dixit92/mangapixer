@@ -26,7 +26,6 @@ using Xunit;
 /// reaches a log line. <c>Metadata:AutoMatch:CompareCovers=false</c> downloads nothing.
 /// </summary>
 [Trait("Category", "Http")]
-[Collection("HttpSerial")]
 public sealed class MetadataCoverCompareHttpTests
 {
     private const string LibPub = "cclib1";

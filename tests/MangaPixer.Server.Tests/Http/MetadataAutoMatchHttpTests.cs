@@ -31,7 +31,6 @@ using Xunit;
 /// in the scripted handler; the fake matcher core stands in for lane A's.
 /// </summary>
 [Trait("Category", "Http")]
-[Collection("HttpSerial")]
 public sealed class MetadataAutoMatchHttpTests
 {
     private const string LibPub = "amlib1";

@@ -18,7 +18,6 @@ using Xunit;
 ///   acting admin's user name resolved and no paths/secrets.
 /// - Non-admin users get 403.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class AuditTrailHttpTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

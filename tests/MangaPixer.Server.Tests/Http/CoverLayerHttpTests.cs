@@ -23,7 +23,6 @@ using Xunit;
 /// request time; stored web covers are admin-only by id and can be deleted; Continue reading carries the server's cover
 /// URL. Synthetic rows and files only (no worker, zero network).
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class CoverLayerHttpTests
 {
     private const string LibPub = "cvlib1";

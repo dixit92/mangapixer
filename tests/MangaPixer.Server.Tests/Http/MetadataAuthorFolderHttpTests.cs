@@ -20,7 +20,6 @@ using Xunit;
 /// <c>Metadata:AutoMatch:ProviderAuthorFolders</c> switch (options) restores the 1.27.0 count. No request is sent.
 /// </summary>
 [Trait("Category", "Http")]
-[Collection("HttpSerial")]
 public sealed class MetadataAuthorFolderHttpTests
 {
     private const string LibPub = "palib1";

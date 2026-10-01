@@ -17,7 +17,6 @@ using Xunit;
 /// <c>ReadingProgressDto.OpenPageIndex</c> and toggles with the preference (rule 2), and
 /// the <c>AlwaysOpenReadFromStart</c> preference round-trips.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class ReadConsistencyHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private readonly MangaPixerWebApplicationFactory _factory;

@@ -18,7 +18,6 @@ using Xunit;
 ///   file field, non-SQLite, and a corrupt upload that fails before the swap
 ///   (rollback leaves the original DB intact).
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class DbRestoreHttpTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

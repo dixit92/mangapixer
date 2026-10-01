@@ -20,7 +20,6 @@ using Xunit;
 ///
 /// "HttpSerial" because every host boot reassigns the process-global Serilog logger.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class BackupSnapshotMoveHttpTests : IDisposable
 {
     private const string AdminPassword = "TestPassword123!";

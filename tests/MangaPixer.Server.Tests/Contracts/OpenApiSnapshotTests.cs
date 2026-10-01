@@ -23,7 +23,6 @@ using Xunit;
 /// test elsewhere (see the remarks on HostingCorrectnessTests).
 /// </remarks>
 [Trait("Category", "Http")]
-[Collection("HttpSerial")]
 public sealed class OpenApiSnapshotTests
 {
     private static readonly string SnapshotPath = Path.Combine(

@@ -17,7 +17,6 @@ using Xunit;
 /// visibility, and persistence of the two new opt-in preferences through the existing
 /// library-preferences endpoint.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class FavoritesHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private readonly MangaPixerWebApplicationFactory _factory;

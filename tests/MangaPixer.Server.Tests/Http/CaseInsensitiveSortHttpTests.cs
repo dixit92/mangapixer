@@ -20,7 +20,6 @@ namespace com.lifepixer.mangapixer.Tests.Server.Http;
 /// Under the old case-sensitive key every capitalised name listed before every lower-case
 /// one, so each assertion below fails on the old behaviour at its first element.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class CaseInsensitiveSortHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private readonly MangaPixerWebApplicationFactory _factory;

@@ -20,7 +20,6 @@ using Xunit;
 /// the "Show series information" toggle across series-info and browse, links /
 /// Don't match / precedence / purge through the API, and the DI wiring.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class MetadataHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private const string LibPubId = "mdlib1";

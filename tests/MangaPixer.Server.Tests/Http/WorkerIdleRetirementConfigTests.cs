@@ -20,7 +20,6 @@ using Xunit;
 /// In the "HttpSerial" collection with every other host-booting class (see
 /// <see cref="WorkerConcurrencyConfigTests"/>).
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class WorkerIdleRetirementConfigTests
 {
     [Fact]

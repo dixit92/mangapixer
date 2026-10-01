@@ -15,7 +15,6 @@ namespace com.lifepixer.mangapixer.Tests.Server.Http;
 /// surface — top-level stacking, standalone loose archives, NewCount, newest-first ordering,
 /// tombstone exclusion, the empty state, authentication, and Incognito/Private exclusion.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class RecentChaptersHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private readonly MangaPixerWebApplicationFactory _factory;

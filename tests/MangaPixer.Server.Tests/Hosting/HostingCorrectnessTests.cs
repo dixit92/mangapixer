@@ -35,7 +35,6 @@ using Xunit;
 /// surfaced as an intermittent failure here once assembly-level
 /// parallelization was restored (see TestParallelization.cs).
 /// </remarks>
-[Collection("HttpSerial")]
 public sealed class HostingCorrectnessTests
 {
     // (a) WebApplicationFactory test: startup log has no "Startup recovery

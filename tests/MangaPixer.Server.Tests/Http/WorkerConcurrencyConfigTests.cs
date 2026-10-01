@@ -27,7 +27,6 @@ using Xunit;
 /// process-global Serilog <c>Log.Logger</c> static in <c>Program.Main</c>
 /// (see the remarks on HostingCorrectnessTests).
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class WorkerConcurrencyConfigTests
 {
     [Fact]

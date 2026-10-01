@@ -10,7 +10,6 @@ using Xunit;
 /// header on unsafe methods, and that [IgnoreAntiforgeryToken] endpoints
 /// (csrf, login) are exempt. Each test creates its own factory.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class CsrfEnforcementTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

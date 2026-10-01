@@ -30,7 +30,6 @@ using Xunit;
 /// non-member; budget 429 and backoff 503 through the API; and a sentinel query
 /// never reaching any log line.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class MetadataIdentifyHttpTests
 {
     private const string LibPub = "mdnlib1";

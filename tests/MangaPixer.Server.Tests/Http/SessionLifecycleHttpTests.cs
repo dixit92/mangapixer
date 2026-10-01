@@ -18,7 +18,6 @@ using Xunit;
 /// the server session row via <see cref="SessionService"/>. Every test uses its
 /// own factory so session/rate-limiter state never leaks between cases.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class SessionLifecycleHttpTests : IDisposable
 {
     private readonly MangaPixerWebApplicationFactory _factory;

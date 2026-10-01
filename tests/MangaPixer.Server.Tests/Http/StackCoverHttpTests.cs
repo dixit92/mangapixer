@@ -21,7 +21,6 @@ using Xunit;
 /// image (never the admin-only stored-cover URL), a user without access gets 404; a stale version revalidates; with "Show
 /// saved web covers" off the card shows its first chapter again and the old URL redirects there. Synthetic rows and files.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class StackCoverHttpTests
 {
     private const string LibPub = "scLib1";

@@ -19,7 +19,6 @@ using Xunit;
 /// without a grant (no existence leak) and for unknown ids, sharing between users, and
 /// the reset once the file changes.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class SpreadLayoutHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private readonly MangaPixerWebApplicationFactory _factory;

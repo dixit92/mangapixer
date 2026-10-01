@@ -19,7 +19,6 @@ namespace com.lifepixer.mangapixer.Tests.Server.Http;
 /// on its Home "New chapters" stack, and on the Continue-reading card of one of its chapters. The decision is made by the
 /// registered <see cref="CoverDecisionService"/> (the sweep is off in tests); an unlinked series keeps the folder-native rule.
 /// </summary>
-[Collection("HttpSerial")]
 public sealed class SeriesCoverHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
     private const string LibPubId = "sclib";
