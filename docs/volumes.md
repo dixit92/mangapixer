@@ -62,10 +62,11 @@ When a folder is linked to a series, its generic unit subfolders are merged into
 - **After your highest chapter**, a chapter is missing only when the series' volume list says it is released in your preferred language. When nothing says so, nothing after your last chapter is marked.
 - **Extras are never missing.** `c045.5` next to a listed chapter 45 is shown between 45 and 46 but never fills chapter 45 and is never counted as missing.
 - **Parts of a split chapter** are: with `5.1` and `5.3` here, `5.2` is missing, and chapter 5 is not complete. The same holds for parts on disk of a chapter the list names whole: with `4.1` and `4.3` here, `4.2` is missing.
-
-**Duplicate chapters** (*new in 1.31.0*). When two files of a volume state the same chapter - the same chapter uploaded twice - the stack counts it once ("8/9" is eight different chapters, never eight files) and says so: a small **2 duplicates** mark on the card, and under the counts on the stack page, for example "2 duplicate chapters: Chapter 1: 2 files, Chapter 2: 2 files". Each file keeps its own card, marked "Ch. 1 · 2 files". Nothing is hidden, merged or removed. The parts of a split chapter (`5.1` and `5.2`) are not duplicates. See [Duplicate numbers](missing-report.md#duplicate-numbers).
 - A volume file covers its whole volume, so a stack with a volume file has no placeholders.
 - Estimated volumes mark missing chapters against their estimated range, so treat those marks as hints.
+
+
+**Duplicate chapters** (*new in 1.31.0*). When two files of a volume state the same chapter - the same chapter uploaded twice - the stack counts it once ("8/9" is eight different chapters, never eight files) and says so: a small **2 duplicates** mark on the card, and under the counts on the stack page, for example "2 duplicate chapters: Chapter 1: 2 files, Chapter 2: 2 files". Each file keeps its own card, marked "Ch. 1 · 2 files". Nothing is hidden, merged or removed. The parts of a split chapter (`5.1` and `5.2`) are not duplicates. See [Duplicate numbers](missing-report.md#duplicate-numbers).
 
 **Volumes.** In a folder linked to a series, a whole volume with neither a volume file nor any chapter here shows as a dashed **Volume N - Missing** card in its place: the gaps below your highest volume, and the volumes after it that are released in your preferred language. Today MangaPixer knows the volume total only for English (the English publisher's total on the series record), so in another language only the gaps are shown. A `Season` or `Part` subfolder never shows missing volumes (the rest of the run is elsewhere).
 
