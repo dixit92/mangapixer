@@ -94,7 +94,9 @@ Program files and your data are kept apart. Uninstalling or upgrading never touc
 │   ├── logs\                                  server logs, mangapixer-<date>.log, 7 kept
 │   ├── backups\                               rotating-*, pre-migration-*, pre-restore-* snapshots
 │   ├── thumbnails\                            cover thumbnails
-│   └── metadata-images\                       series cover art fetched from MangaUpdates (if enabled)
+│   ├── cover-crops\                           the front half of a jacket spread used as a cover
+│   ├── metadata-images\                       series cover art fetched from MangaUpdates (if enabled)
+│   └── volume-covers\                         volume covers fetched from MangaDex (if enabled)
 ├── cache\                                     page image cache (1 GiB budget, disposable)
 ├── scratch\                                   temporary work folders (disposable)
 ├── logs\server-output.log                     the server's console output, captured by the tray app (5 MB, one older copy kept)

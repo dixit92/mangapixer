@@ -124,7 +124,9 @@ Port 6266 is published on every interface, but the server itself only speaks pla
 │   ├── logs/                 daily log files, 7 kept
 │   ├── backups/              rotating-*, pre-migration-*, pre-restore-* snapshots
 │   ├── thumbnails/           cover thumbnails
-│   └── metadata-images/      series cover art fetched from MangaUpdates (if enabled)
+│   ├── cover-crops/          the front half of a jacket spread used as a cover
+│   ├── metadata-images/      series cover art fetched from MangaUpdates (if enabled)
+│   └── volume-covers/        volume covers fetched from MangaDex (if enabled)
 ├── cache/                    page image cache (1 GiB budget, disposable)
 └── scratch/                  temporary work folders (disposable)
 ```

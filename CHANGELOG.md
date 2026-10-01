@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Complete collection** was shown for some series the folder does not hold whole: a volume counted as held because its chapters were only estimated, or because the volume list (built from translations) named only the translated chapters of the last volume while the original run has more. A volume you have as chapters now counts only when the volume list names its chapters exactly and your chapters reach the last chapter anything knows about. Volume files still count by themselves.
 - A MangaUpdates status that gives both totals on one line ("8 Volumes | 40 Chapters (Complete)") is now read for its chapter total too.
+- Docs: the Unraid, Windows and backup pages list the `volume-covers` and `cover-crops` folders in the data root, and the README names MangaDex and AniList next to MangaUpdates. The Unraid template's description (in the `dixit92/unraid-templates` repository) now says what leaves your server.
 
 ## [1.30.0] - 2026-10-01
 
