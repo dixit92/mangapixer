@@ -130,9 +130,10 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
     /// scoring hint, no longer a search filter - H05 (the filter itself) is gone and H06 moves unmatched -> auto (a wrong
     /// declared type no longer hides the right record); H07-H10 (+3 auto, +1 review: the declared type settles an origin tie),
     /// S01 / S02 (+2 auto: a folder subtitle picks the spin-off) and T01 (+1 review: the author-tagged alias is fetched and
-    /// verified, the right record first).
+    /// verified, the right record first). 1.30.0 round 2 (owner: a spin-off decision is not automatic): S01 / S02 move auto ->
+    /// review (the spin-off stays first; only the folder's subtitle separates it from the main series of its own family).
     /// </summary>
-    public const int ExpectedAuto = 67, ExpectedReview = 20, ExpectedUnmatched = 2;
+    public const int ExpectedAuto = 65, ExpectedReview = 22, ExpectedUnmatched = 2;
 
     [Fact]
     public async Task Aggregate_BandsAndPrecision_AtTheDefaults()

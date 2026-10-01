@@ -69,6 +69,9 @@ const REASONS: Record<string, { label: string; tip: string }> = {
   declared_type: { label: 'Fits declared type', tip: 'The record comes from the country the declared type names (for example Manhwa: Korea). Counts in its favour.' },
   not_declared_type: { label: 'Not declared type', tip: 'The record is not the type declared for this folder. Counts against it, but never blocks a link.' },
   reach: { label: 'Reach', tip: 'What the folder holds does not fit this series: its volumes or chapters go far past the record, or its volume numbers disagree with the series\' volume list.' },
+  // Series families (1.30.0, owner): a main series and its spin-offs are easy to mix up; never linked on a subtitle alone.
+  subtitle_family: { label: 'Spin-off or main story?', tip: 'Only the subtitle in the folder name tells this series apart from another one of the same family (its main story or a spin-off). Check which one the folder holds.' },
+  series_family: { label: 'Series family', tip: 'Another series of the same family also matched this name (its main story, a spin-off, side story, prequel or sequel). Check which one the folder holds.' },
 };
 
 export function reasonLabel(code: string): string {

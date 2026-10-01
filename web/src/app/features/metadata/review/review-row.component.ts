@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -7,7 +7,7 @@ import { MatRadioModule } from '@angular/material/radio';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 
-import { MetadataReviewItemDto, MetadataReviewTab } from '../../../core/api/api-types';
+import { MetadataReviewCandidateDto, MetadataReviewItemDto, MetadataReviewTab } from '../../../core/api/api-types';
 import {
   MATCH_LEVEL_LABELS,
   overallScoreTip,
@@ -20,6 +20,7 @@ import {
 import { MetadataApiService } from '../metadata-api.service';
 import { CoverCompareDirective } from './cover-compare/cover-compare.directive';
 import { QueuedImageDirective, QueuedImageState } from './queued-image.directive';
+import { candidateBlocks, FAMILY_REASONS, familyRoleLabel, SERIES_FAMILY_NOTE } from './series-family';
 
 /** A row action; `rank` for Accept (the chosen stored candidate). */
 export type ReviewRowAction =
@@ -92,7 +93,7 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
 @Component({
   selector: 'app-review-row',
   standalone: true,
-  imports: [DatePipe, MatButtonModule, MatCheckboxModule, MatIconModule, MatRadioModule, MatTooltipModule, RouterLink,
+  imports: [DatePipe, NgTemplateOutlet, MatButtonModule, MatCheckboxModule, MatIconModule, MatRadioModule, MatTooltipModule, RouterLink,
     CoverCompareDirective, QueuedImageDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -203,9 +204,12 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
       }
 
       @if (hasCandidates()) {
+        <!-- 1.30.0 (owner): candidates of one series family are shown together, each with its role, so a folder is not paired
+             with the main series when it holds a spin-off (or the other way round). Ranks never change. -->
         <mat-radio-group class="cands" [value]="rank()" (change)="choose.emit($event.value)"
                          [attr.aria-label]="'Candidates for ' + it.displayName">
-          @for (c of it.candidates; track c.rank) {
+          <!-- Declared inside the group so its radio buttons belong to it. -->
+          <ng-template #candidate let-c>
             <mat-radio-button [value]="c.rank" class="cand" data-testid="review-candidate">
               <span class="cand-body">
                 @if (expanded() && c.imageToken) {
@@ -215,14 +219,29 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
                   <span class="cand-title">{{ c.title }}</span>
                   <span class="muted">{{ line(c) }}</span>
                 </span>
+                @if (c.familyRole && familyOf(c)) {
+                  <span class="tag role" data-testid="review-family-role">{{ roleLabel(c.familyRole) }}</span>
+                }
                 <span class="score" [matTooltip]="overallTip(c)" matTooltipPosition="above" [matTooltipShowDelay]="TOOLTIP_SHOW_DELAY"
                       [matTooltipHideDelay]="0">{{ scoreLabel(c.adjustedScore) }}</span>
-                @for (r of c.reasons ?? []; track r) {
+                @for (r of candidateReasons(c); track r) {
                   <span class="chip small" [matTooltip]="tip(r)" matTooltipPosition="above" [matTooltipShowDelay]="TOOLTIP_SHOW_DELAY"
                         [matTooltipHideDelay]="0">{{ reason(r) }}</span>
                 }
               </span>
             </mat-radio-button>
+          </ng-template>
+          @for (b of blocks(); track b.candidates[0].rank) {
+            @if (b.family) {
+              <div class="family" role="group" [attr.aria-label]="familyNote" data-testid="review-family">
+                <p class="family-note"><mat-icon inline>account_tree</mat-icon> {{ familyNote }}</p>
+                @for (c of b.candidates; track c.rank) {
+                  <ng-container *ngTemplateOutlet="candidate; context: { $implicit: c }" />
+                }
+              </div>
+            } @else {
+              <ng-container *ngTemplateOutlet="candidate; context: { $implicit: b.candidates[0] }" />
+            }
           }
         </mat-radio-group>
       }
@@ -282,6 +301,10 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
     .tag.kind { background: rgba(100, 181, 246, 0.18); color: #90caf9; }
     .tag.group { background: rgba(255, 183, 77, 0.16); color: #ffcc80; }
     .tag.flag { background: rgba(244, 67, 54, 0.18); color: #ff8a80; }
+    .tag.role { background: rgba(128, 203, 196, 0.16); color: #a7ffeb; font-size: 11px; line-height: 18px; white-space: nowrap; }
+    .family { margin: 4px 0 4px 8px; padding: 2px 8px 4px 0; border-left: 3px solid rgba(128, 203, 196, 0.55); border-radius: 0 8px 8px 0;
+      background: rgba(128, 203, 196, 0.06); min-width: 0; }
+    .family-note { margin: 2px 0 0 8px; font-size: 12px; color: #a7ffeb; }
     .chip { padding: 0 8px; border-radius: 10px; background: rgba(179, 157, 255, 0.16); color: #d8ccff; line-height: 20px; }
     .chip.small { font-size: 11px; line-height: 18px; }
     .expand, .open { flex: none; }
@@ -327,6 +350,10 @@ export class ReviewRowComponent {
 
   readonly actions = computed(() => rowActions(this.tab(), this.item()));
   readonly hasCandidates = computed(() => (this.item().candidates ?? []).length > 0);
+  /** The candidates in display order, a series family in one block (1.30.0). */
+  readonly blocks = computed(() => candidateBlocks(this.item().candidates));
+  readonly familyNote = SERIES_FAMILY_NOTE;
+  readonly roleLabel = familyRoleLabel;
   readonly groupSize = computed(() => {
     const members = this.item().memberNodeIds ?? [];
     return members.length > 0 ? members.length + 1 : 0;
@@ -384,6 +411,17 @@ export class ReviewRowComponent {
 
   posterUrl(token: string): string {
     return this.api.candidateImageUrl(token);
+  }
+
+  /** True when the candidate is shown in a family block (a role tag without its family would say nothing). */
+  familyOf(c: MetadataReviewCandidateDto): boolean {
+    return this.blocks().some((b) => b.family && b.candidates.includes(c));
+  }
+
+  /** A candidate's chips; inside a family block the family chips are left out (the block's heading says it, 1.30.0). */
+  candidateReasons(c: MetadataReviewCandidateDto): string[] {
+    const reasons = c.reasons ?? [];
+    return this.familyOf(c) ? reasons.filter((r) => !FAMILY_REASONS.has(r)) : reasons;
   }
 
   disabled(action: ReviewRowAction): boolean {
