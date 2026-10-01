@@ -1,5 +1,7 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 
+import { expectFitsScreen } from './layout';
+
 /**
  * The Volumes view, OFFLINE (1.29.0): a synthetic library whose archives state their volume in the name
  * (`Stacked Saga v01 c001` ...) groups into volume stacks with no series record and no network; the Volumes | Folders
@@ -369,4 +371,42 @@ test('a stack page follows the List view: shared rows, select through the checkb
     await setPreferences(page, { viewMode: saved['viewMode'] });
     await resetChapters(page, libraryId, folderId);
   }
+});
+
+test('1.31.0: the same chapter in two files is counted once and marked as a duplicate, at desktop and phone width', async ({ page }) => {
+  await login(page);
+  const [libraryId] = await ensureLibrary(page);
+  let folderId = '';
+  await expect.poll(async () => {
+    const root = await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?pageSize=50`)).json();
+    folderId = ((root.items as Node[]).find((n) => n.displayName === 'Doubled Saga')?.id) ?? '';
+    return folderId;
+  }, { timeout: 120_000, intervals: [1000, 2000, 5000] }).not.toBe('');
+  await setSwitch(page, null);
+
+  // The card: one stack of three different chapters, marked "2 duplicates".
+  await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+  const card = page.locator('.node-wrap', { hasText: 'Volume 1' });
+  await expect(page.locator('app-stack-card')).toHaveCount(1);
+  await expect(card.getByTestId('stack-duplicates')).toHaveText('2 duplicates');
+  await shot(page, 'duplicates-01-card');
+
+  // The stack page counts the chapters once, says which repeat, and keeps all five files.
+  await card.locator('a.node-card').click();
+  await expect(page.getByTestId('stack-title')).toHaveText('Volume 1');
+  await expect(page.getByTestId('stack-counts')).toHaveText('3 chapters');
+  await expect(page.getByTestId('stack-duplicates')).toHaveText('2 duplicate chapters: Chapter 1: 2 files, Chapter 2: 2 files');
+  await expect(page.getByTestId('stack-item')).toHaveCount(5);
+  await expect(page.locator('.slot .sub', { hasText: '2 files' })).toHaveCount(4);
+  await expectFitsScreen(page, 'duplicate chapters, stack page, desktop');
+  await shot(page, 'duplicates-02-stack-desktop');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page.getByTestId('stack-duplicates')).toBeVisible();
+  await expectFitsScreen(page, 'duplicate chapters, stack page, phone');
+  await shot(page, 'duplicates-03-stack-phone');
+  await page.goBack();
+  await expect(card.getByTestId('stack-duplicates')).toBeVisible();
+  await expectFitsScreen(page, 'duplicate chapters, stack card, phone');
 });
