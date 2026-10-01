@@ -101,7 +101,7 @@ public sealed class DuplicateUnitsTests
         // The owner's shape: chapters 1 and 2 each uploaded twice (one chapter split into two files), 3 once; the list says 1-9.
         var rows = new List<GroupingRow> { Row("Series v01 c001"), Row("Series v01 c001 [part 2]"), Row("Series v01 c002"), Row("Series v01 c002 [part 2]"), Row("Series v01 c003") };
 
-        var stack = Assert.Single(VolumeGrouping.Group(rows, Map(1, 1, 9)).Entries.Where(e => e.Kind == VolumeEntryKind.Stack)).Stack!;
+        var stack = Assert.Single(VolumeGrouping.Group(rows, Map(1, 1, 9)).Entries, e => e.Kind == VolumeEntryKind.Stack).Stack!;
 
         Assert.Equal(5, stack.Members.Count);
         Assert.Equal(3, stack.PresentCount); // distinct chapters: an "8/9" mark could not be reached by counting files
@@ -115,7 +115,7 @@ public sealed class DuplicateUnitsTests
     {
         var rows = new List<GroupingRow> { Row("Series v01 c001"), Row("Series v01 c002"), Row("Series v01 c002.1"), Row("Series v01 c002.2") };
 
-        var stack = Assert.Single(VolumeGrouping.Group(rows, null).Entries.Where(e => e.Kind == VolumeEntryKind.Stack)).Stack!;
+        var stack = Assert.Single(VolumeGrouping.Group(rows, null).Entries, e => e.Kind == VolumeEntryKind.Stack).Stack!;
 
         Assert.Empty(stack.Duplicates);
         Assert.Equal(stack.Members.Count, stack.PresentCount);
@@ -126,7 +126,7 @@ public sealed class DuplicateUnitsTests
     {
         var rows = new List<GroupingRow> { Row("Series v01 c001"), Row("Series v01 c002"), Row("Series v01 c002.5"), Row("Series v01 c002.5 [2]") };
 
-        var stack = Assert.Single(VolumeGrouping.Group(rows, Map(1, 1, 2)).Entries.Where(e => e.Kind == VolumeEntryKind.Stack)).Stack!;
+        var stack = Assert.Single(VolumeGrouping.Group(rows, Map(1, 1, 2)).Entries, e => e.Kind == VolumeEntryKind.Stack).Stack!;
 
         Assert.Equal((3, 1), (stack.PresentCount, stack.ExtraCount));
         Assert.Equal([(MissingUnitKind.Chapter, 2.5m, 2)], Found(stack.Duplicates));
@@ -137,7 +137,7 @@ public sealed class DuplicateUnitsTests
     {
         var rows = new List<GroupingRow> { Row("Series v01"), Row("Series v01 [other scan]"), Row("Series v01 c001") };
 
-        var stack = Assert.Single(VolumeGrouping.Group(rows, null).Entries.Where(e => e.Kind == VolumeEntryKind.Stack)).Stack!;
+        var stack = Assert.Single(VolumeGrouping.Group(rows, null).Entries, e => e.Kind == VolumeEntryKind.Stack).Stack!;
 
         Assert.Empty(stack.Duplicates);
         Assert.Equal(3, stack.PresentCount);

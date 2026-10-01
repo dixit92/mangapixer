@@ -1430,7 +1430,7 @@ export interface MetadataReviewSummaryDto {
   missingFolders: number;
   pending: number;
   /** 1.31.0: works in review being checked again under the matcher's current rules (part of `pending`). */
-  recheckPending?: number;
+  recheckPending: number;
 }
 
 export interface MetadataReviewLinkDto {

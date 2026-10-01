@@ -73,8 +73,15 @@ public sealed class DuplicateNumbersHttpTests : IClassFixture<MangaPixerWebAppli
         db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity { NodeId = review.Id, LibraryId = lib.Id, State = (int)SeriesLinkState.NeedsReview, MatchMethod = 3, CreatedAt = now, UpdatedAt = now });
         db.MetadataMatchQueue.Add(new MetadataMatchQueueEntity
         {
-            NodeId = review.Id, LibraryId = lib.Id, State = QueueState.Done, Level = (int)MatchLevel.Folder, WorkClass = (int)WorkClass.Series,
-            Outcome = (int)MatchBand.NeedsReview, RulesRevision = MatcherRules.Revision, EnqueuedAt = now, CompletedAt = now,
+            NodeId = review.Id,
+            LibraryId = lib.Id,
+            State = QueueState.Done,
+            Level = (int)MatchLevel.Folder,
+            WorkClass = (int)WorkClass.Series,
+            Outcome = (int)MatchBand.NeedsReview,
+            RulesRevision = MatcherRules.Revision,
+            EnqueuedAt = now,
+            CompletedAt = now,
         });
         await db.SaveChangesAsync();
     }
@@ -118,8 +125,8 @@ public sealed class DuplicateNumbersHttpTests : IClassFixture<MangaPixerWebAppli
         Assert.Equal([(MissingUnitKind.Chapter, "1", 2), (MissingUnitKind.Chapter, "2", 2)], Found(stack.Duplicates!));
         Assert.Equal(7, stack.Slots.Count(s => s.Kind == VolumeSlotKind.Item)); // one card per file
         Assert.Equal(2, stack.Slots.Count(s => s.Chapter == "1" && s.Kind == VolumeSlotKind.Item));
-        Assert.Empty((await OkAsync<PageResponse<CatalogNodeDto>>(await admin.GetAsync($"/api/v1/libraries/{LibPubId}/browse?parentId={CleanPubId}")))
-            .Items.Where(n => n.VolumeStack is { Duplicates.Count: > 0 }));
+        var clean = await OkAsync<PageResponse<CatalogNodeDto>>(await admin.GetAsync($"/api/v1/libraries/{LibPubId}/browse?parentId={CleanPubId}"));
+        Assert.DoesNotContain(clean.Items, n => n.VolumeStack is { Duplicates.Count: > 0 });
     }
 
     [Fact]
