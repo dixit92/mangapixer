@@ -32,7 +32,8 @@ public sealed class LargestCollectionFirstOrderer : ITestCollectionOrderer
         var methods = 0;
         foreach (var type in assembly.Assembly.GetTypes())
         {
-            var member = type.GetCustomAttribute<CollectionAttribute>()?.Name;
+            var member = type.GetCustomAttributesData()
+                .FirstOrDefault(a => a.AttributeType == typeof(CollectionAttribute))?.ConstructorArguments[0].Value as string;
             var belongs = member is null
                 ? collection.DisplayName == "Test collection for " + type.FullName
                 : collection.DisplayName == member;
