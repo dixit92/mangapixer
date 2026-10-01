@@ -2,14 +2,24 @@
 <#
     MangaPixer Verify-Quick.ps1
     Quick verification for the normal implementation loop.
-    Runs privacy preflight, formatting/lint checks, affected .NET unit tests, and Angular unit tests.
-    Target: under 10 minutes after warm restore.
+    Runs privacy preflight, formatting check, build, the fast .NET tier and the Angular unit tests.
 
-    Usage: pwsh ./scripts/Verify-Quick.ps1
+    The fast .NET tier is every test project except the Server tests that boot an application host:
+    the Server.Tests classes under .Server.Http, .Server.Hosting and .Server.Contracts (plus
+    HealthEndpointTests) are skipped, because each of them starts a full host with its own SQLite
+    database. The Full tier (Verify.ps1) and CI run them. Pass -IncludeHttp to run them here too, or
+    -Filter to hand your own `dotnet test --filter` expression to the Server tests (it replaces the
+    host-boot exclusion). -SkipWeb leaves the Angular tests out (they need npm on PATH; they are
+    skipped with a note when npm is missing).
+
+    Usage: pwsh ./scripts/Verify-Quick.ps1 [-IncludeHttp] [-Filter <expr>] [-SkipWeb]
 #>
 [CmdletBinding()]
 param(
-    [string]$Configuration = "Debug"
+    [string]$Configuration = "Debug",
+    [switch]$IncludeHttp,
+    [string]$Filter = "",
+    [switch]$SkipWeb
 )
 
 $ErrorActionPreference = "Stop"
@@ -81,10 +91,38 @@ Invoke-Stage "dotnet build ($Configuration)" {
     if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
 }
 
-# Stage 5: .NET tests
-Invoke-Stage "dotnet test" {
-    dotnet test MangaPixer.slnx --no-build -c $Configuration --verbosity normal 2>&1 | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "dotnet test failed" }
+# Stage 5: .NET tests. The fast tier skips the Server tests that boot a host (see the header);
+# the other test projects always run in full.
+$hostBootFilter = 'FullyQualifiedName!~.Server.Http.&FullyQualifiedName!~.Server.Hosting.&FullyQualifiedName!~.Server.Contracts.&FullyQualifiedName!~HealthEndpointTests'
+$serverFilter = if ($Filter) { $Filter } elseif ($IncludeHttp) { "" } else { $hostBootFilter }
+
+Invoke-Stage "dotnet test (fast tier)" {
+    foreach ($project in @("Core", "MediaWorker", "Tray")) {
+        dotnet test "tests/MangaPixer.$project.Tests" --no-build -c $Configuration 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "dotnet test failed ($project)" }
+    }
+    $serverArgs = @("tests/MangaPixer.Server.Tests", "--no-build", "-c", $Configuration)
+    if ($serverFilter) { $serverArgs += @("--filter", $serverFilter) }
+    dotnet test @serverArgs 2>&1 | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "dotnet test failed (Server)" }
+}
+
+# Stage 6: Angular unit tests (Vitest), when npm is available
+if (-not $SkipWeb) {
+    if (Get-Command npm -ErrorAction SilentlyContinue) {
+        Invoke-Stage "npm test:ci" {
+            if (-not (Test-Path "web/node_modules")) {
+                npm --prefix web ci --no-audit --no-fund 2>&1 | Out-Host
+                if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
+            }
+            npm --prefix web run test:ci 2>&1 | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "npm test:ci failed" }
+        }
+    }
+    else {
+        Write-Host "npm not on PATH - Angular unit tests skipped." -ForegroundColor Yellow
+        $results.Add([PSCustomObject]@{ Stage = "npm test:ci"; Status = "SKIPPED"; Duration = "n/a" })
+    }
 }
 
 # Summary
