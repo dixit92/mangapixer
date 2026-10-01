@@ -28,6 +28,7 @@ public sealed class CoverCheckServiceTests : IAsyncLifetime
     private CoverLayerTestKit _kit = null!;
     private readonly CapturingLoggerProvider _logs = new();
     private readonly CoverCheckState _state = new();
+    private readonly ManualTime _time = new(new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero));
 
     public async Task InitializeAsync() => _kit = await CoverLayerTestKit.CreateAsync();
 
@@ -37,7 +38,7 @@ public sealed class CoverCheckServiceTests : IAsyncLifetime
 
     private CoverCheckService Service() => new(
         _kit.Db.Db, _kit.Hasher, _kit.Thumbnails, _kit.Files, new CoverHashCache(), _state,
-        new StoredCoverCompareSetting(_kit.Db.Db, new MetadataAutoMatchOptions()), TimeProvider.System,
+        new StoredCoverCompareSetting(_kit.Db.Db, new MetadataAutoMatchOptions()), _time,
         new LoggerFactory([_logs]).CreateLogger<CoverCheckService>());
 
     /// <summary>An Auto-linked (or <paramref name="state"/>) series folder with one portrait volume archive per local hash.</summary>
@@ -179,7 +180,12 @@ public sealed class CoverCheckServiceTests : IAsyncLifetime
         Assert.Equal(new CoverCheckSweepResult(0, 0), await Service().SweepAsync());
         Assert.Equal((int)SeriesLinkState.Auto, (await LinkOfAsync(folder.Id)).State);
 
-        // The crop halves appear (the cover layer rendered them): the right half of volume 1 is the web cover.
+        // Nothing changed in the database: the next tick does not even read the links.
+        Assert.Equal(new CoverCheckSweepResult(0, 0), await Service().SweepAsync());
+
+        // The crop halves appear (the cover layer rendered them): the right half of volume 1 is the web cover. Files are picked up by
+        // the periodic full sweep.
+        _time.Advance(CoverCheckService.FullSweepEvery);
         await WriteCropAsync(v1.Id, CoverCropSide.Left, L2 ^ 0xFFFF);
         await WriteCropAsync(v1.Id, CoverCropSide.Right, Near(W1, 5));
         await WriteCropAsync(v2.Id, CoverCropSide.Left, L1 ^ 0xFFFF_0000);

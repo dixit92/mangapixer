@@ -21,6 +21,7 @@ public sealed class CoverCheckState
     public const int Capacity = 4096;
 
     private readonly Dictionary<(long NodeId, long RecordId), string> _checked = [];
+    private (string Fingerprint, DateTimeOffset At)? _lastSweep;
     private readonly Dictionary<(long ItemId, long ContentVersion, CoverCropSide Side), ulong> _crops = [];
     private readonly Queue<(long, long, CoverCropSide)> _cropOrder = new();
     private readonly object _gate = new();
@@ -39,6 +40,23 @@ public sealed class CoverCheckState
                 _checked.Clear();
             _checked[(nodeId, recordId)] = inputs;
         }
+    }
+
+    /// <summary>
+    /// True when a full sweep is not needed: the stored covers and the Auto links are as at the last full sweep, that sweep left
+    /// nothing pending, and it is less than <paramref name="every"/> old (a thumbnail or crop made since is picked up then).
+    /// </summary>
+    public bool CanSkipSweep(string fingerprint, DateTimeOffset now, TimeSpan every)
+    {
+        lock (_gate)
+            return _lastSweep is { } last && last.Fingerprint == fingerprint && now - last.At < every;
+    }
+
+    /// <summary>Records a full sweep; <paramref name="pending"/> (the per-sweep limit was reached, or a hash was missing) forces the next one.</summary>
+    public void SweepDone(string fingerprint, DateTimeOffset now, bool pending)
+    {
+        lock (_gate)
+            _lastSweep = pending ? null : (fingerprint, now);
     }
 
     public bool TryGetCrop(long itemId, long contentVersion, CoverCropSide side, out ulong hash)
@@ -88,6 +106,12 @@ public sealed class CoverCheckService(
     /// <summary>At most this many links are evaluated (hashed) per sweep; unchanged links do not count.</summary>
     public const int MaxLinksPerSweep = 20;
 
+    /// <summary>
+    /// With no new stored cover and no changed Auto link, a full sweep (which reads every Auto link's archives) runs at most this
+    /// often - for thumbnails and crops made since.
+    /// </summary>
+    public static readonly TimeSpan FullSweepEvery = TimeSpan.FromMinutes(30);
+
     private sealed record LinkRow(long NodeId, long RecordId, long CompanionId);
 
     private sealed record WebCover(long Id, int Kind, int? Volume, int StoredVersion, ulong Hash);
@@ -97,15 +121,23 @@ public sealed class CoverCheckService(
     {
         if (!await setting.IsEnabledAsync(ct))
             return new CoverCheckSweepResult(0, 0);
+        var fingerprint = await FingerprintAsync(ct);
+        if (state.CanSkipSweep(fingerprint, time.GetUtcNow(), FullSweepEvery))
+            return new CoverCheckSweepResult(0, 0);
         var links = await AutoLinksWithCoversAsync(null, ct);
         int evaluated = 0, decided = 0, demoted = 0;
+        var pending = false;
         foreach (var link in links)
         {
             if (evaluated >= MaxLinksPerSweep)
+            {
+                pending = true;
                 break;
+            }
             try
             {
-                var outcome = await CheckAsync(link, ct);
+                var (outcome, incomplete) = await CheckAsync(link, ct);
+                pending |= incomplete;
                 if (outcome is null)
                     continue;
                 evaluated++;
@@ -119,6 +151,7 @@ public sealed class CoverCheckService(
                 logger.LogWarning(LogEvents.Metadata.CoverCheckFailed, "Cover check of node {NodeId} failed: {Error}", link.NodeId, ex.GetType().Name);
             }
         }
+        state.SweepDone(fingerprint, time.GetUtcNow(), pending);
         return new CoverCheckSweepResult(decided, demoted);
     }
 
@@ -131,7 +164,22 @@ public sealed class CoverCheckService(
         if (!await setting.IsEnabledAsync(ct))
             return null;
         var link = (await AutoLinksWithCoversAsync(nodeId, ct)).FirstOrDefault();
-        return link is null ? null : await CheckAsync(link, ct, force: true);
+        return link is null ? null : (await CheckAsync(link, ct, force: true)).Result;
+    }
+
+    /// <summary>What a sweep depends on besides local files: the stored hashed covers and the Auto links (counts and id sums).</summary>
+    private async Task<string> FingerprintAsync(CancellationToken ct)
+    {
+        var stored = (int)VolumeCoverState.Stored;
+        var auto = (int)SeriesLinkState.Auto;
+        var covers = await db.VolumeCovers.AsNoTracking().Where(c => c.State == stored && c.Hash != null)
+            .GroupBy(_ => 1).Select(g => new { Count = g.Count(), Ids = g.Sum(c => c.Id), Versions = g.Sum(c => c.StoredVersion) })
+            .FirstOrDefaultAsync(ct);
+        var links = await db.NodeSeriesLinks.AsNoTracking().Where(l => l.State == auto && l.RecordId != null)
+            .GroupBy(_ => 1).Select(g => new { Count = g.Count(), Nodes = g.Sum(l => l.NodeId), Records = g.Sum(l => l.RecordId!.Value) })
+            .FirstOrDefaultAsync(ct);
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{covers?.Count}.{covers?.Ids}.{covers?.Versions}|{links?.Count}.{links?.Nodes}.{links?.Records}");
     }
 
     private async Task<List<LinkRow>> AutoLinksWithCoversAsync(long? nodeId, CancellationToken ct)
@@ -158,8 +206,11 @@ public sealed class CoverCheckService(
         return rows.Select(r => new LinkRow(r.NodeId, r.RecordId, r.CompanionId)).ToList();
     }
 
-    /// <summary>Gathers, decides and acts for one link; null when skipped (not checkable, or its inputs did not change).</summary>
-    private async Task<CoverCheckResult?> CheckAsync(LinkRow link, CancellationToken ct, bool force = false)
+    /// <summary>
+    /// Gathers, decides and acts for one link; a null result when skipped (not checkable, or its inputs did not change).
+    /// <c>Incomplete</c>: a local image could not be hashed now (the worker was busy) - checked again on the next sweep.
+    /// </summary>
+    private async Task<(CoverCheckResult? Result, bool Incomplete)> CheckAsync(LinkRow link, CancellationToken ct, bool force = false)
     {
         var archives = await VolumeCoverPass.ArchivesBelowAsync(db, [link.NodeId], ct);
         var shaped = archives.Select(a => (Archive: a, Units: VolumeGrouping.UnitsOf(a.Row))).ToList();
@@ -177,7 +228,7 @@ public sealed class CoverCheckService(
             list.Add(archive);
         }
         if (byVolume.Count == 0 || (!oneShot && byVolume.Count < CoverCheckRule.MinSeriesVolumes))
-            return null; // Chapters, webtoons, a lone volume among chapters: page 1 is not a volume cover.
+            return (null, false); // Chapters, webtoons, a lone volume among chapters: page 1 is not a volume cover.
 
         var web = (await db.VolumeCovers.AsNoTracking()
                 .Where(c => c.ProviderRecordId == link.CompanionId && c.State == (int)VolumeCoverState.Stored && c.Hash != null)
@@ -196,14 +247,14 @@ public sealed class CoverCheckService(
         }
         var chosen = byVolume.Where(v => WebOf(v.Key).Count > 0).Take(CoverCheckRule.MaxVolumes).ToList();
         if (chosen.Count == 0)
-            return null;
+            return (null, false);
 
         var spreads = new Dictionary<long, bool>();
         foreach (var archive in chosen.SelectMany(v => v.Value))
             spreads[archive.Id] = await VolumeCoverPass.Page1AspectAsync(db, archive, ct) is >= VolumeCoverPass.SpreadAspect;
         var inputs = InputsKey(web, chosen.SelectMany(v => v.Value), spreads);
         if (!force && state.IsUnchanged(link.NodeId, link.RecordId, inputs))
-            return null;
+            return (null, false);
 
         var incomplete = false;
         var volumes = new List<CoverCheckVolume>();
@@ -231,7 +282,7 @@ public sealed class CoverCheckService(
                 string.Join(' ', result.Distances.Select(d => d.ToString(CultureInfo.InvariantCulture))), result.Dropped,
                 demoted ? "moved to review" : "kept");
         }
-        return result;
+        return (result, incomplete);
     }
 
     /// <summary>
