@@ -83,7 +83,13 @@ public sealed class ScriptedHandler : HttpMessageHandler
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
-        var headers = request.Headers.ToDictionary(h => h.Key, h => string.Join(",", h.Value), StringComparer.OrdinalIgnoreCase);
+        // Header values as sent on the wire: product tokens of the User-Agent are space-separated (1.32.0: "MangaPixer/x (+url)").
+        var headers = request.Headers.ToDictionary(
+            h => h.Key,
+            h => string.Equals(h.Key, "User-Agent", StringComparison.OrdinalIgnoreCase)
+                ? request.Headers.UserAgent.ToString()
+                : string.Join(",", h.Value),
+            StringComparer.OrdinalIgnoreCase);
         _seen.Enqueue(new SeenRequest(request.Method, request.RequestUri!, body, headers));
         if (FailOnAnyRequest)
             throw new InvalidOperationException("Unexpected outbound request - a fresh install must make no call.");

@@ -82,6 +82,8 @@ public sealed class AutoMatchLookup
             query = query with { Context = query.Context with { TallStrips = tall } };
         // What an admin declared for the work's folder (1.28.0; the type a strong hint since 1.30.0): scoring evidence, never sent.
         query = DeclaredHints.Apply(query, declared);
+        // The work's local comics signs (1.32.0): which site is searched first, and scoring evidence. Never sent.
+        query = await ComicsSignalReader.ApplyAsync(_db, query, shape, archiveIds, ct);
 
         var found = new Retrieval();
 

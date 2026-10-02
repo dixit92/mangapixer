@@ -6,8 +6,9 @@ using System.Net;
 /// The metadata network surface in constants (1.24.0, lane B2; owner-approved
 /// gate G1b). Named clients, each behind <see cref="HostAllowlistHandler"/> with
 /// its own host only: the MangaUpdates API, its image CDN, (1.28.0) the AniList
-/// GraphQL endpoint and (1.29.0) the MangaDex API and its cover image host. Nothing
-/// else is reachable.
+/// GraphQL endpoint, (1.29.0) the MangaDex API and its cover image host and (1.32.0)
+/// the Grand Comics Database API and its thumbnail host, Wikipedia and Wikidata.
+/// Nothing else is reachable.
 /// </summary>
 public static class MetadataHttp
 {
@@ -41,10 +42,53 @@ public static class MetadataHttp
     public const string MangaDexImageHost = "uploads.mangadex.org";
 
     /// <summary>
-    /// Generic, non-identifying User-Agent: no version, no contact, no browser-UA fallback of any kind. It names
-    /// MangaPixer honestly (MangaDex's terms ask for a real, non-spoofed User-Agent); no <c>Via</c> header is ever sent.
+    /// Named client for <c>www.comics.org</c> (1.32.0): the Grand Comics Database API (paths under <c>/api/</c> only) -
+    /// series search by the confirmed or cleaned name (+ a start year), series / issue / publisher by GCD id.
     /// </summary>
-    public const string UserAgent = "MangaPixer-Metadata";
+    public const string GcdApiClient = "Gcd";
+
+    /// <summary>Named client for <c>files1.comics.org</c> (1.32.0): cover thumbnails shown while choosing - never stored as covers.</summary>
+    public const string GcdImageClient = "GcdImages";
+
+    public const string GcdApiHost = "www.comics.org";
+    public const string GcdImageHost = "files1.comics.org";
+
+    /// <summary>
+    /// Named client for <c>en.wikipedia.org</c> (1.32.0): ONLY the companion of an already-linked MangaUpdates record -
+    /// the wikitext of its English "List of ... chapters" page through the Action API. Never used to identify or match a folder.
+    /// </summary>
+    public const string WikipediaClient = "Wikipedia";
+
+    /// <summary>Named client for <c>www.wikidata.org</c> (1.32.0): finds the English article linked to a MangaUpdates record id.</summary>
+    public const string WikidataClient = "Wikidata";
+
+    public const string WikipediaHost = "en.wikipedia.org";
+    public const string WikidataHost = "www.wikidata.org";
+
+    /// <summary>The project URL named in the User-Agent (the contact Wikimedia's User-Agent policy asks for).</summary>
+    public const string ProjectUrl = "https://github.com/dixit92/mangapixer";
+
+    /// <summary>
+    /// Fixed User-Agent (1.32.0, owner-approved): <c>MangaPixer/&lt;version&gt; (+&lt;project URL&gt;)</c> - the product, its
+    /// release version (build metadata such as <c>+sha.…</c> stripped) and the project URL, identical on every instance of a
+    /// version, so still no instance identifier. It names MangaPixer honestly (MangaDex's terms ask for a real, non-spoofed
+    /// User-Agent; Wikimedia's policy asks for a client name, version and contact); no browser-UA fallback, no <c>Via</c> header.
+    /// Before 1.32.0 it was the generic <c>MangaPixer-Metadata</c>.
+    /// </summary>
+    public static readonly string UserAgent = UserAgentFor(
+        typeof(MetadataHttp).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+            .FirstOrDefault()?.InformationalVersion);
+
+    /// <summary>The User-Agent for an informational version (<c>1.32.0+sha.abc</c> -> <c>MangaPixer/1.32.0 (+…)</c>).</summary>
+    public static string UserAgentFor(string? informationalVersion)
+    {
+        var version = (informationalVersion ?? "").Split('+', 2)[0].Trim();
+        if (version.Length == 0 || !version.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-'))
+            version = "0.0.0";
+        return $"MangaPixer/{version} (+{ProjectUrl})";
+    }
 
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 

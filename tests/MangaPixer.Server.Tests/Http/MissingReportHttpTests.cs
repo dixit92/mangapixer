@@ -328,7 +328,7 @@ public sealed class MissingReportHttpTests : IClassFixture<MangaPixerWebApplicat
 
         // The settings list every approved site, all in.
         var settings = await OkAsync<MetadataSettingsDto>(await admin.GetAsync("/api/v1/admin/metadata/settings"));
-        Assert.Equal(new[] { "mangaupdates", "mangadex", "anilist" }, settings.Providers.Select(p => p.Id));
+        Assert.Equal(new[] { "mangaupdates", "gcd", "mangadex", "anilist", "wikipedia" }, settings.Providers.Select(p => p.Id));
         Assert.All(settings.Providers, p => Assert.True(p.Allowed));
         Assert.False(settings.ConsentRenewalNeeded);
     }

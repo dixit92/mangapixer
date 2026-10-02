@@ -685,6 +685,12 @@ public sealed partial class Program
         // MangaDex (1.29.0): ONLY as the companion of an already-linked MangaUpdates record (volume lists, volume covers).
         AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaDexApiClient, Features.Metadata.MetadataHttp.MangaDexApiHost, "application/json");
         AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaDexImageClient, Features.Metadata.MetadataHttp.MangaDexImageHost, "image/*");
+        // Grand Comics Database (1.32.0): the comics provider (API + identification-only cover thumbnails).
+        AddMetadataClient(services, Features.Metadata.MetadataHttp.GcdApiClient, Features.Metadata.MetadataHttp.GcdApiHost, "application/json");
+        AddMetadataClient(services, Features.Metadata.MetadataHttp.GcdImageClient, Features.Metadata.MetadataHttp.GcdImageHost, "image/*");
+        // Wikipedia + Wikidata (1.32.0): ONLY the volume -> chapter list of an already-linked MangaUpdates record.
+        AddMetadataClient(services, Features.Metadata.MetadataHttp.WikipediaClient, Features.Metadata.MetadataHttp.WikipediaHost, "application/json");
+        AddMetadataClient(services, Features.Metadata.MetadataHttp.WikidataClient, Features.Metadata.MetadataHttp.WikidataHost, "application/json");
     }
 
     internal static IHttpClientBuilder AddMetadataClient(IServiceCollection services, string name, string host, string accept)

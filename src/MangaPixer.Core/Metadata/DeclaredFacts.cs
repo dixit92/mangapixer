@@ -194,7 +194,8 @@ public static class DeclaredFactsComparer
             DeclaredType.Manhua => origin == MetadataOrigin.ChinaTaiwan,
             DeclaredType.Webtoon => webtoon == true || origin is MetadataOrigin.Korea or MetadataOrigin.ChinaTaiwan,
             DeclaredType.Comic or DeclaredType.GraphicNovel => origin is MetadataOrigin.EnglishOriginal or MetadataOrigin.French
-                or MetadataOrigin.Spanish or MetadataOrigin.German or MetadataOrigin.Nordic,
+                or MetadataOrigin.Spanish or MetadataOrigin.German or MetadataOrigin.Nordic or MetadataOrigin.Italian
+                or MetadataOrigin.Dutch,
             _ => false,
         };
         return agrees ? DeclaredTypeSignal.Agree : DeclaredTypeSignal.None;

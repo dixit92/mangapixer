@@ -518,9 +518,8 @@ public sealed class CoverDecisionService
         return removed > 0 ? CoverDecisionOutcome.Cleared : CoverDecisionOutcome.Unchanged;
     }
 
-    /// <summary>The record's refresh cadence: 90 days for a completed series, else 30.</summary>
-    private static TimeSpan RecheckInterval(MetadataRecordEntity? record) =>
-        record?.OriginStatus is { } status && status == (int)MetadataOriginStatus.Complete ? TimeSpan.FromDays(90) : TimeSpan.FromDays(30);
+    /// <summary>The record's refresh cadence (<see cref="RefreshCadence"/>; 1.32.0: a cancelled series counts as finished here too).</summary>
+    private static TimeSpan RecheckInterval(MetadataRecordEntity? record) => RefreshCadence.AgeFor(record?.OriginStatus);
 
     private static string Key(params object?[] parts)
     {

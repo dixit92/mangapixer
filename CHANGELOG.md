@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Series information: a new consent (version 4).** Two sites join the allowed sites - the **Grand Comics Database** (comics and graphic novels) and **Wikipedia** (which chapters make up each volume, for series already linked to MangaUpdates) - so fetching from the web, and Automatic matching, pause after the update until an admin reads and accepts the new texts in Metadata Manager. Either site can be removed from the allowed sites like the others.
+- **Requests to the allowed sites name MangaPixer.** Their `User-Agent` is now `MangaPixer/<version> (+https://github.com/dixit92/mangapixer)` (was `MangaPixer-Metadata`) - the same on every server of a version, as MangaDex and Wikimedia ask; it does not identify your server.
+- Series origins gain **Italian** and **Dutch**. A series cancelled at the source now has its web covers re-checked on the slower "finished" schedule (every 90 days), like its refresh.
+
 ## [1.31.1] - 2026-10-01
 
 ### Fixed

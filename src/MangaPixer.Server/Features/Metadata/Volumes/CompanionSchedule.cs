@@ -16,9 +16,7 @@ public static class CompanionSchedule
 
     /// <summary>The next regular check of companion data for the series record <paramref name="series"/>.</summary>
     public static DateTimeOffset NextCheck(MetadataRecordEntity series, DateTimeOffset now) =>
-        now + (series.OriginStatus is (int)MetadataOriginStatus.Complete or (int)MetadataOriginStatus.Cancelled
-            ? MetadataRefreshService.CompleteAge
-            : MetadataRefreshService.OngoingAge);
+        now + RefreshCadence.AgeFor(series.OriginStatus);
 
     public static DateTimeOffset AfterFailure(DateTimeOffset now) => now + FailedRetry;
 }

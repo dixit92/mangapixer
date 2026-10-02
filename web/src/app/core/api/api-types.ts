@@ -1010,7 +1010,7 @@ export type SeriesLinkState = 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch'
 export type MetadataMatchMethod = 'Search' | 'Reference' | 'ComicInfoWebHint' | 'Auto';
 export type MetadataOrigin =
   | 'Japan' | 'Korea' | 'ChinaTaiwan' | 'EnglishOriginal' | 'Philippines' | 'Indonesia' | 'Thailand'
-  | 'Vietnam' | 'Malaysia' | 'Nordic' | 'French' | 'Spanish' | 'German' | 'Other';
+  | 'Vietnam' | 'Malaysia' | 'Nordic' | 'French' | 'Spanish' | 'German' | 'Other' | 'Italian' | 'Dutch';
 export type MetadataFormat = 'Comic' | 'Novel' | 'Artbook' | 'Doujinshi' | 'Audio';
 export type MetadataOriginStatus = 'Unknown' | 'Ongoing' | 'Complete' | 'Hiatus' | 'Cancelled';
 export type MetadataFieldSource = 'Web' | 'ComicInfo';

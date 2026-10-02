@@ -158,6 +158,8 @@ public sealed record QueryVariant(string Text, QueryVariantKind Kind);
 /// <c>DeclaredType</c> (optional, 1.30.0): the type an admin declared for the work's folder (<see cref="DeclaredHints"/>) - a
 /// strong hint (<see cref="MatchScorer.DeclaredTypeAgree"/> / <see cref="MatchScorer.DeclaredTypeMismatch"/>), never a veto;
 /// while set, the folder's <c>CategoryHint</c> is not read (the declaration wins).
+/// <c>Comics</c> (optional, 1.32.0): the work's local comics signs (<see cref="ComicsSignals"/>) - which site is searched first
+/// (<see cref="ComicsSignal.RoutesToComics"/>) and scoring evidence for comics records; null = not computed (no sign).
 /// </summary>
 public sealed record MatchContext(
     WorkClass Class,
@@ -174,7 +176,8 @@ public sealed record MatchContext(
     int? LocalChapters = null,
     IReadOnlySet<string>? CoverMatches = null,
     LocalUnitCounts? Units = null,
-    DeclaredType? DeclaredType = null);
+    DeclaredType? DeclaredType = null,
+    ComicsSignal? Comics = null);
 
 /// <summary>
 /// What to look up for one work: ordered, de-duplicated variants (the caller sends at most the

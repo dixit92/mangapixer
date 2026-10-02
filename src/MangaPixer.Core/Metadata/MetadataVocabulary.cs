@@ -92,6 +92,12 @@ public enum MetadataOrigin
     Spanish = 11,
     German = 12,
     Other = 13,
+
+    /// <summary>1.32.0: Italian-language comics (fumetti) - by language, like <see cref="French"/> (which covers Belgium).</summary>
+    Italian = 14,
+
+    /// <summary>1.32.0: Dutch-language comics (Netherlands and Flanders) - by language.</summary>
+    Dutch = 15,
 }
 
 /// <summary>Publication format, independent of origin.</summary>
@@ -178,6 +184,8 @@ public static class MetadataConsent
     /// instance that accepted an older version stops fetching until an admin accepts again.
     /// 2 (1.28.0): the text describes the provider allowlist (MangaUpdates + AniList).
     /// 3 (1.29.0): MangaDex (volume covers and volume lists) joins the allowed sites.
+    /// 4 (1.32.0): the Grand Comics Database (comics) and Wikipedia (volume -> chapter lists) join the allowed sites;
+    /// requests carry a fixed User-Agent naming MangaPixer, its version and its project URL.
     /// </summary>
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 }

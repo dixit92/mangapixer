@@ -244,6 +244,11 @@ public sealed class CompanionLinkService
         "ko" => MetadataOrigin.Korea,
         "zh" or "zh-hk" or "zh-ro" => MetadataOrigin.ChinaTaiwan,
         "en" => MetadataOrigin.EnglishOriginal,
+        "fr" => MetadataOrigin.French,
+        "es" or "es-la" => MetadataOrigin.Spanish,
+        "de" => MetadataOrigin.German,
+        "it" => MetadataOrigin.Italian,
+        "nl" => MetadataOrigin.Dutch,
         _ => MetadataOrigin.Other,
     };
 

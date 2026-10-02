@@ -276,7 +276,7 @@ public sealed class MetadataIdentifyHttpTests
         Assert.All(factory.Handler.Seen, s => Assert.Contains(s.Uri.Host, new[] { "api.mangaupdates.com", "cdn.mangaupdates.com", "api.mangadex.org" }));
         var mangaDex = Assert.Single(factory.Handler.Seen, s => s.Uri.Host == "api.mangadex.org");
         Assert.StartsWith("?title=Berserk&", Uri.UnescapeDataString(mangaDex.Uri.Query), StringComparison.Ordinal);
-        Assert.All(factory.Handler.Seen, s => Assert.Equal("MangaPixer-Metadata", s.Headers["User-Agent"]));
+        Assert.All(factory.Handler.Seen, s => Assert.Equal(MetadataHttp.UserAgent, s.Headers["User-Agent"]));
     }
 
     [Fact]

@@ -45,6 +45,8 @@ export const ORIGIN_PLACES: Partial<Record<MetadataOrigin, string>> = {
   French: 'France',
   Spanish: 'Spain',
   German: 'Germany',
+  Italian: 'Italy',
+  Dutch: 'Netherlands / Flanders',
 };
 
 function plural(n: number, word: string): string {

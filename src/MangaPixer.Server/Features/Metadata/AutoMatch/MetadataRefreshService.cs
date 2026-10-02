@@ -19,8 +19,9 @@ using Microsoft.EntityFrameworkCore;
 public sealed class MetadataRefreshService
 {
     public const int MaxPerDay = 100;
-    public static readonly TimeSpan OngoingAge = TimeSpan.FromDays(30);
-    public static readonly TimeSpan CompleteAge = TimeSpan.FromDays(90);
+    /// <summary>The cadence lives in <see cref="RefreshCadence"/> (1.32.0); these stay as its names here.</summary>
+    public static TimeSpan OngoingAge => RefreshCadence.OngoingAge;
+    public static TimeSpan CompleteAge => RefreshCadence.FinishedAge;
 
     private readonly MangaPixerDbContext _db;
     private readonly MetadataGateway _gateway;
@@ -64,7 +65,7 @@ public sealed class MetadataRefreshService
         var now = _time.GetUtcNow();
         var ongoingBefore = now - OngoingAge;
         var completeBefore = now - CompleteAge;
-        var complete = new int?[] { (int)MetadataOriginStatus.Complete, (int)MetadataOriginStatus.Cancelled };
+        var complete = RefreshCadence.FinishedStatuses.ToArray();
         var linked = new[] { (int)SeriesLinkState.Confirmed, (int)SeriesLinkState.Auto };
 
         var remaining = MaxPerDay - await UsedTodayAsync(ct);

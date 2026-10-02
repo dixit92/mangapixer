@@ -35,6 +35,10 @@ import { MetadataApiService } from '../../metadata-api.service';
             </div>
             <p class="line"><span class="k">Used for</span> {{ p.usedFor }}</p>
             <p class="line"><span class="k">Sends</span> {{ p.sends }}</p>
+            @if (p.id === 'gcd') {
+              <p class="line credit" data-testid="md-provider-gcd-credit">Comics data from the Grand Comics Database (comics.org),
+                licensed CC BY-SA 4.0.</p>
+            }
           </div>
         } @empty {
           <p class="none" data-testid="md-providers-none">No site is allowed: nothing is fetched from the web.</p>

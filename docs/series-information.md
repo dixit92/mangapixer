@@ -119,7 +119,7 @@ Only to `api.mangaupdates.com` (search and series details) and `cdn.mangaupdates
 - with **Automatic matching** and **Compare covers** on, when two records tie on the title for a folder of volumes or a one-shot: the cover images of those two records, downloaded from `cdn.mangaupdates.com` by the address MangaUpdates gave (nothing from your library is sent with them);
 - with **Hide doujinshi & novels** ticked, and always for automatic searches, the fixed list of types to leave out (`Doujinshi`, `Novel`, `Artbook`, `Drama CD`; without `Doujinshi` below a folder whose **Content** is **Doujinshi & adult one-shots**);
 - MangaUpdates series numbers;
-- a generic `User-Agent: MangaPixer-Metadata`.
+- a fixed `User-Agent: MangaPixer/<version> (+https://github.com/dixit92/mangapixer)` - the same on every server of that version (before 1.32.0: `MangaPixer-Metadata`).
 
 Never sent: file paths, your file list, user accounts, reading progress, reports and their notes, cookies, or anything that identifies your server. MangaUpdates sees your server's IP address, as with any web request. Readers' browsers never contact MangaUpdates: covers are stored on your server and served by MangaPixer. Logs record IDs, counts, status codes and timings, never search text, folder names or titles.
 
