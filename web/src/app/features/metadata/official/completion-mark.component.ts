@@ -3,12 +3,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { SeriesProgressDto } from '../../../core/api/api-types';
-import { completeCollectionLabel, completionSentence } from '../progress/series-progress-labels';
+import { answerOf, answerSentence, completionMarkLabel } from '../progress/series-progress-labels';
 
 /**
- * The completion mark of a linked series (1.30.0; owner, like Manga-list's Completed column cross-checked with the library):
- * "Complete collection" when the folder holds a finished series whole, or the prompt "Finished - Official, English (14 volumes) -
- * you have 12" (or "Finished - Chapter-based, English ...") when a series finished in the preferred language is not held whole. Renders nothing otherwise.
+ * The completion mark of a linked series (1.30.0; 1.32.0 wording, owner-approved): the two "Finished" answers of the Completion tab -
+ * "Finished - you have it all (Chapter-based)" when the original run ended and the folder holds the whole edition, "Finished - missing
+ * some (Official, 12 of 14)" when it does not. The tooltip says why. Renders nothing for the other answers.
  */
 @Component({
   selector: 'app-completion-mark',
@@ -16,10 +16,10 @@ import { completeCollectionLabel, completionSentence } from '../progress/series-
   imports: [MatIconModule, MatTooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (text(); as t) {
-      <span class="mark" [class.complete]="complete()" [class.prompt]="!complete()" data-testid="completion-mark" [matTooltip]="t">
+    @if (label(); as l) {
+      <span class="mark" [class.complete]="complete()" [class.prompt]="!complete()" data-testid="completion-mark" [matTooltip]="tip()">
         <mat-icon aria-hidden="true">{{ complete() ? 'workspace_premium' : 'flag' }}</mat-icon>
-        <span>{{ complete() ? completeLabel() : t }}</span>
+        <span>{{ l }}</span>
       </span>
     }
   `,
@@ -36,10 +36,13 @@ import { completeCollectionLabel, completionSentence } from '../progress/series-
 export class CompletionMarkComponent {
   readonly progress = input<SeriesProgressDto | null | undefined>(null);
 
-  readonly text = computed(() => {
+  readonly label = computed(() => {
     const p = this.progress();
-    return p ? completionSentence(p) : null;
+    return p ? completionMarkLabel(p) : null;
   });
-  readonly complete = computed(() => this.progress()?.completion === 'CompleteCollection');
-  readonly completeLabel = computed(() => { const p = this.progress(); return p ? completeCollectionLabel(p) : 'Complete collection'; });
+  readonly tip = computed(() => {
+    const p = this.progress();
+    return (p ? answerSentence(p) : null) ?? '';
+  });
+  readonly complete = computed(() => answerOf(this.progress()) === 'HaveItAll');
 }

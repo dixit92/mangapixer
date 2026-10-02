@@ -9,7 +9,7 @@ import { MetadataReviewStateService } from '../metadata-review-state.service';
 import { MetadataSummaryTileComponent } from '../metadata-summary-tile/metadata-summary-tile.component';
 import { ReviewDashboardComponent, ReviewLibraryOption } from '../review/review-dashboard.component';
 import { MetadataFlagsComponent } from './flags/metadata-flags.component';
-import { ADMIN_METADATA_TABS, AdminMetadataTab, REVIEW_TABS } from './metadata-admin-labels';
+import { ADMIN_METADATA_TABS, AdminMetadataTab, REVIEW_TABS, adminMetadataTabOf } from './metadata-admin-labels';
 import { MetadataRunsComponent } from './runs/metadata-runs.component';
 import { MetadataSettingsComponent } from './settings/metadata-settings.component';
 import { MissingReportComponent } from '../missing/missing-report.component';
@@ -21,7 +21,7 @@ export { ADMIN_METADATA_TABS, type AdminMetadataTab };
 /**
  * `/admin/metadata` (metadata stage 2, decision 4c; renamed to "Metadata Manager" by
  * the owner, 1.27.0): the dedicated admin page with tabs Settings / Review / Flags /
- * Runs / Missing (1.28.0: the missing volumes / chapters report) / Official releases (1.30.0). The summary tile that used to sit on the main admin page now lives at the TOP
+ * Runs / Missing (1.28.0: the missing volumes / chapters report) / Completion (1.32.0; Official releases in 1.30.0). The summary tile that used to sit on the main admin page now lives at the TOP
  * of this page instead, above the tabs, replacing the plain one-line summary it used to
  * show here - its stats switch tabs in place (`onTileTab`) rather than navigating. The
  * tab (and the review list + library) live in the query string
@@ -82,7 +82,7 @@ export { ADMIN_METADATA_TABS, type AdminMetadataTab };
             </div>
           </ng-template>
         </mat-tab>
-        <mat-tab label="Official releases">
+        <mat-tab label="Completion">
           <ng-template matTabContent>
             <div class="tab"><app-official-releases [libraries]="libraries()" [initialLibrary]="library()" /></div>
           </ng-template>
@@ -117,12 +117,12 @@ export class AdminMetadataComponent implements OnInit {
   readonly library = signal<string | null>(null);
   readonly libraries = signal<ReviewLibraryOption[]>([]);
   readonly index = computed(() => ADMIN_METADATA_TABS.indexOf(this.tab()));
-  readonly officialIndex = ADMIN_METADATA_TABS.indexOf('official');
+  readonly officialIndex = ADMIN_METADATA_TABS.indexOf('completion');
 
   ngOnInit(): void {
     const q = this.route.snapshot.queryParamMap;
-    const tab = q.get('tab') as AdminMetadataTab | null;
-    if (tab && ADMIN_METADATA_TABS.includes(tab)) this.tab.set(tab);
+    const tab = adminMetadataTabOf(q.get('tab'));
+    if (tab) this.tab.set(tab);
     const list = q.get('list') as MetadataReviewTab | null;
     if (list && REVIEW_TABS.some((t) => t.tab === list)) this.list.set(list);
     this.library.set(q.get('library'));
@@ -162,7 +162,7 @@ export class AdminMetadataComponent implements OnInit {
       queryParams: {
         tab: this.tab() === 'settings' ? null : this.tab(),
         list: review && this.list() !== 'NeedsReview' ? this.list() : null,
-        library: review || this.tab() === 'flags' || this.tab() === 'missing' || this.tab() === 'official' ? this.library() : null,
+        library: review || this.tab() === 'flags' || this.tab() === 'missing' || this.tab() === 'completion' ? this.library() : null,
       },
     });
   }
