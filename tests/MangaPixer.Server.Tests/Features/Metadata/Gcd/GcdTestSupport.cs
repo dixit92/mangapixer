@@ -19,6 +19,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Xunit;
 
 // Test support for the Grand Comics Database provider (1.32.0, lane B). Every GCD answer is a recorded fixture of a public title
 // (Fixtures/Gcd/README.md); every MangaUpdates answer is synthetic JSON. No test touches the real network.
