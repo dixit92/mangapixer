@@ -341,7 +341,7 @@ test('the reader shows the archive name: a row under the bar on phones and table
   const archive = (flat.items as Node[]).find((n) => n.kind === 'Archive')!;
   const failures: string[] = [];
 
-  for (const size of [...SIZES, { width: 1280, height: 900 }]) {
+  for (const size of [...SIZES, { width: 1024, height: 768 }, { width: 1280, height: 900 }]) {
     await page.setViewportSize(size);
     await page.goto(`/reader/${archive.id}`);
     const name = page.getByTestId('reader-archive-name');
@@ -355,7 +355,7 @@ test('the reader shows the archive name: a row under the bar on phones and table
     expect(n.x).toBeGreaterThanOrEqual(0);
     expect(n.x + n.width).toBeLessThanOrEqual(size.width);
 
-    if (size.width >= 1100) {
+    if (size.width >= 1000) {
       // In the bar: between the page counter and the first action icon, centered in that gap.
       expect(n.y).toBeGreaterThanOrEqual(bar.y);
       expect(n.y + n.height).toBeLessThanOrEqual(bar.y + bar.height);

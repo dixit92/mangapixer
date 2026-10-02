@@ -897,9 +897,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   /**
    * Whether the top bar has room for the archive's name between the page counter and the action
    * icons. The full bar (about a dozen icons, more with the webtoon width slider) leaves under
-   * ~200px for a name below this width, so narrower screens get the name in a row under the bar.
+   * ~250px for a name below this width, so narrower screens get the name in a row under the bar.
    */
-  static readonly NameInBarQuery = '(min-width: 1100px)';
+  static readonly NameInBarQuery = '(min-width: 1000px)';
   readonly nameInBar = toSignal(
     this.breakpoints.observe(ReaderComponent.NameInBarQuery).pipe(map((r) => r.matches)),
     { initialValue: this.breakpoints.isMatched(ReaderComponent.NameInBarQuery) },
