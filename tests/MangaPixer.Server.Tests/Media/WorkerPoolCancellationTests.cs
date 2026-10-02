@@ -65,9 +65,11 @@ public sealed class WorkerPoolCancellationTests : IClassFixture<WorkerProcessFix
     public async Task ColdPool_ReaderLeavesDuringWorkerStart_IsCancelled_AndTheStartedWorkerJoinsThePool()
     {
         var logger = new RecordingLogger<MediaWorkerPool>();
-        var pool = CreatePool(logger, maxConcurrentJobs: 2, idleTimeout: TimeSpan.FromMilliseconds(300));
+        // Long enough that the handed-back worker is still there when the test looks, short enough to retire the
+        // pre-started one quickly.
+        var pool = CreatePool(logger, maxConcurrentJobs: 2, idleTimeout: TimeSpan.FromSeconds(3));
         await pool.StartAsync();
-        Assert.True(await WaitForAsync(() => pool.WorkerCount == 0, TimeSpan.FromSeconds(10)), "The pre-started worker was not retired");
+        Assert.True(await WaitForAsync(() => pool.WorkerCount == 0, TimeSpan.FromSeconds(30)), "The pre-started worker was not retired");
         logger.Clear();
 
         // The worker process needs far longer than 30 ms to handshake, so the request is cancelled mid-start.
