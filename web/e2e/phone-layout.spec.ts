@@ -345,8 +345,9 @@ test('the reader shows the archive name: a row under the bar on phones and table
     await page.setViewportSize(size);
     await page.goto(`/reader/${archive.id}`);
     const name = page.getByTestId('reader-archive-name');
-    await expect(name).toHaveText(archive.displayName);
-    await expect(name).toHaveAttribute('title', archive.displayName);
+    const title = archive.displayName.replace(/\.(cbz|zip|cbr|rar|cb7|7z|cbt|tar|pdf|epub)$/i, ''); // shown without its extension
+    await expect(name).toHaveText(title);
+    await expect(name).toHaveAttribute('title', title);
     await settle(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/reader-name-${size.width}.png` });
     const bar = (await page.locator('.reader-toolbar').boundingBox())!;
@@ -356,15 +357,17 @@ test('the reader shows the archive name: a row under the bar on phones and table
     expect(n.x + n.width).toBeLessThanOrEqual(size.width);
 
     if (size.width >= 1000) {
-      // In the bar: between the page counter and the first action icon, centered in that gap.
+      // In the bar (owner, 2026-10-02): left, right after the page counter and a separator, before the action icons.
       expect(n.y).toBeGreaterThanOrEqual(bar.y);
       expect(n.y + n.height).toBeLessThanOrEqual(bar.y + bar.height);
       const counter = (await page.locator('.reader-toolbar .page-info').boundingBox())!;
       const firstIcon = (await page.locator('.reader-toolbar button.chapter-arrow').first().boundingBox())!;
       expect(n.x, 'the name starts after the page counter').toBeGreaterThanOrEqual(counter.x + counter.width);
       expect(n.x + n.width, 'the name ends before the action icons').toBeLessThanOrEqual(firstIcon.x);
-      const gapCenter = (counter.x + counter.width + firstIcon.x) / 2;
-      expect(Math.abs(n.x + n.width / 2 - gapCenter), 'centered in the free space of the bar').toBeLessThanOrEqual(2);
+      const sep = (await page.locator('.reader-toolbar .name-sep').boundingBox())!;
+      expect(sep.x, 'the separator follows the page counter').toBeGreaterThanOrEqual(counter.x + counter.width);
+      expect(n.x, 'the name follows the separator').toBeGreaterThanOrEqual(sep.x + sep.width);
+      expect(n.x - (counter.x + counter.width), 'the name sits next to the page counter (left-aligned)').toBeLessThanOrEqual(32);
     } else {
       // Under the bar: directly below it, the width of the screen.
       expect(Math.abs(n.y - (bar.y + bar.height)), `${size.width} px: the row sits right below the bar`).toBeLessThanOrEqual(1);

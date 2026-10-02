@@ -3882,23 +3882,28 @@ describe('ReaderComponent archive name in the top chrome (1.32.0)', () => {
     c.itemId.set('item-1');
     (c as unknown as { loadFallbackBackRoute: (id: string) => void }).loadFallbackBackRoute('item-1');
     TestBed.inject(HttpTestingController).expectOne('/api/v1/nodes/item-1')
-      .flush(makeNode({ displayName: 'Series Volume 03' }));
+      .flush(makeNode({ displayName: 'Series Volume 03.cbz' }));
     c.pages.set(makePages(3));
     c.phase.set('ready');
     fixture.detectChanges();
     return { fixture, c, el: fixture.nativeElement as HTMLElement };
   }
 
-  it('wide: the name is text inside the toolbar, between the page counter and the icons', () => {
+  it('wide: the name, without its extension, follows the page counter after a separator, before the spacer and icons', () => {
     const { el, c } = render(true);
-    expect(c.itemName()).toBe('Series Volume 03');
+    expect(c.itemName()).toBe('Series Volume 03.cbz');
+    expect(c.itemTitle()).toBe('Series Volume 03');
     const name = el.querySelector<HTMLElement>('.reader-toolbar [data-testid="reader-archive-name"]')!;
     expect(name.textContent?.trim()).toBe('Series Volume 03');
     expect(name.getAttribute('title')).toBe('Series Volume 03');
     expect(el.querySelector('.reader-name-row')).toBeNull();
     const toolbar = el.querySelector('.reader-toolbar')!;
     const kids = Array.from(toolbar.children);
-    expect(kids.indexOf(el.querySelector('.page-info')!)).toBeLessThan(kids.indexOf(name));
+    const counter = kids.indexOf(el.querySelector('.page-info')!);
+    const sep = kids.indexOf(toolbar.querySelector('.name-sep')!);
+    expect(sep).toBe(counter + 1);
+    expect(kids.indexOf(name)).toBe(sep + 1);
+    expect(kids.indexOf(toolbar.querySelector('.spacer')!)).toBe(kids.indexOf(name) + 1);
     expect(kids.indexOf(name)).toBeLessThan(kids.indexOf(toolbar.querySelector('button[aria-label="Enter fullscreen"]')!));
   });
 

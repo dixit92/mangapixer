@@ -36,6 +36,7 @@ import {
 } from './webtoon-nav.service';
 import { isApplePlatformTouch, isStandaloneDisplay } from './platform';
 import { EdgeAdvance, EdgeAdvanceWindowMs, EdgeDirection } from './edge-advance';
+import { archiveTitle } from './archive-title';
 import { InstallHintService } from '../../shared/install-hint/install-hint.service';
 import {
   groupSpreads, fallbackSpreadStarts, normalizeSpreadStarts, isShiftedSpread, shiftSpreadAt, ensureSpreadStart,
@@ -159,13 +160,13 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
         <span class="page-info">
           @if (phase() === 'ready') { {{ currentPageIndicator() }} / {{ pageCount() }} }
         </span>
-        @if (nameInBar() && itemName()) {
-          <!-- Wide screens: the archive's name sits in the free space between the page counter and
-               the action icons (flexes, ellipsis - never pushes the icons). -->
-          <span class="archive-name" data-testid="reader-archive-name" [attr.title]="itemName()">{{ itemName() }}</span>
-        } @else {
-          <span class="spacer"></span>
+        @if (nameInBar() && itemTitle()) {
+          <!-- Wide screens (owner, 2026-10-02): the archive's name, without its extension, follows the page counter
+               on the left after a thin separator (ellipsis when long - never pushes the icons). -->
+          <span class="name-sep" aria-hidden="true"></span>
+          <span class="archive-name" data-testid="reader-archive-name" [attr.title]="itemTitle()">{{ itemTitle() }}</span>
         }
+        <span class="spacer"></span>
 
         <!-- Controls stay visible in fullscreen. -->
         @if (phase() === 'ready' && compact()) {
@@ -309,9 +310,9 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
           </button>
         }
       </mat-toolbar>
-      @if (!nameInBar() && itemName()) {
+      @if (!nameInBar() && itemTitle()) {
         <!-- Phones / portrait / narrow windows: no room in the bar, so a small row right below it. -->
-        <div class="reader-name-row" data-testid="reader-archive-name" [attr.title]="itemName()">{{ itemName() }}</div>
+        <div class="reader-name-row" data-testid="reader-archive-name" [attr.title]="itemTitle()">{{ itemTitle() }}</div>
       }
       </div>
 
@@ -584,16 +585,17 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     }
     .page-info { margin-left: 8px; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .spacer { flex: 1 1 auto; }
-    /* The archive's name: centered in the free space of the bar (wide screens), one line. */
+    /* The archive's name (wide screens): left, right after the page counter and a thin separator; one line. */
+    .name-sep { flex: 0 0 1px; align-self: center; height: 18px; margin: 0 12px; background: rgba(255, 255, 255, 0.3); }
     .archive-name {
-      flex: 1 1 0; min-width: 0; margin: 0 12px; text-align: center;
+      flex: 0 1 auto; min-width: 0; margin-right: 12px; text-align: left;
       font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     /* ... or a single-line row under the bar (narrow screens). */
     .reader-name-row {
       box-sizing: border-box; height: 28px; line-height: 28px;
       padding: 0 max(16px, env(safe-area-inset-left, 0px)) 0 max(16px, env(safe-area-inset-right, 0px));
-      background: #1c1c1f; color: #ccc; font-size: 13px; text-align: center;
+      background: #1c1c1f; color: #ccc; font-size: 13px; text-align: left;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       border-top: 1px solid rgba(255, 255, 255, 0.08);
     }
@@ -927,6 +929,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   readonly currentFavorite = signal(false);
   /** The open archive's display name (shown in the top chrome); empty until its node loads. */
   readonly itemName = signal('');
+  /** What the reader shows: the archive's name without its extension (owner, 2026-10-02). */
+  readonly itemTitle = computed(() => archiveTitle(this.itemName()));
   // Keep it in step with a toggle made anywhere (the desktop star, the phone sheet).
   private readonly favoriteSync = this.favorites.changed$.pipe(takeUntilDestroyed()).subscribe((change) => {
     if (change.nodeId === this.itemId()) this.currentFavorite.set(change.favorite);
