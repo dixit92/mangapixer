@@ -1,7 +1,9 @@
 namespace com.lifepixer.mangapixer.Tests.Server.Features.Metadata.AutoMatch;
 
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Volumes;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -71,6 +73,31 @@ public sealed class RefreshCadenceServiceTests : IAsyncLifetime
         var observations = await _db.Db.MetadataRecordObservations.Where(o => o.RecordId == fast.Id).OrderBy(o => o.ObservedAt).ToListAsync();
         Assert.Equal(2, observations.Count); // the baseline, then what the refresh saw
         Assert.Equal((70, 5), (observations[0].OriginVolumes, observations[1].OriginVolumes));
+    }
+
+    [Fact]
+    public async Task AProviderThatRefuses_SkipsOnlyItsOwnRecords_TheOthersAreStillRefreshed()
+    {
+        // 1.32.0 integration (lanes B + D): a Grand Comics Database record refused (here: GCD removed from the allowed sites; the
+        // same path as its slow bucket's provider_busy) must not end the pass - the MangaUpdates record due after it is refreshed.
+        var comic = await LinkedAsync("gcd-1", TimeSpan.FromDays(400));
+        comic.Provider = MetadataProviderAllowlist.Gcd;
+        var manga = await LinkedAsync("903", TimeSpan.FromDays(40));
+        await _db.Db.SaveChangesAsync();
+        _h.Records[903] = MuJson.Get(903, "Record 903");
+        _h.Net.Registry = new MetadataProviderRegistry(
+            [_h.Net.Provider, new com.lifepixer.mangapixer.Server.Features.Metadata.Providers.Gcd.GcdProvider(_h.Net.HttpFactory)]);
+        await _h.EnableAutomaticAsync();
+        Assert.Null(await _h.Net.Settings().UpdateAsync(
+            new com.lifepixer.mangapixer.Core.Api.UpdateMetadataSettingsRequest { RemovedProviders = [MetadataProviderAllowlist.Gcd] }, "admin"));
+
+        var result = await _h.Refresh().RunPassAsync();
+
+        Assert.Equal(1, result.Refreshed);
+        Assert.Equal("provider_not_allowed", result.StoppedCode);
+        Assert.Equal(["/v1/series/903"], _h.Handler.Seen.Select(s => s.Uri.AbsolutePath).ToArray()); // nothing sent to GCD
+        Assert.True((await ReloadAsync(manga.Id)).FetchedAt > _h.Time.GetUtcNow() - TimeSpan.FromMinutes(1));
+        Assert.Equal(comic.FetchedAt, (await ReloadAsync(comic.Id)).FetchedAt); // untouched: still due next pass
     }
 
     [Fact]

@@ -214,6 +214,11 @@ public sealed class GatewayHarness : IDisposable
             .ConfigurePrimaryHttpMessageHandler(() => Handler);
         Program.AddMetadataClient(services, MetadataHttp.WikidataClient, MetadataHttp.WikidataHost, "application/json")
             .ConfigurePrimaryHttpMessageHandler(() => Handler);
+        // 1.32.0: the Grand Comics Database clients end in the scripted handler too (a test may add a GcdProvider to Registry).
+        Program.AddMetadataClient(services, MetadataHttp.GcdApiClient, MetadataHttp.GcdApiHost, "application/json")
+            .ConfigurePrimaryHttpMessageHandler(() => Handler);
+        Program.AddMetadataClient(services, MetadataHttp.GcdImageClient, MetadataHttp.GcdImageHost, "image/*")
+            .ConfigurePrimaryHttpMessageHandler(() => Handler);
         _http = services.BuildServiceProvider();
         HttpFactory = _http.GetRequiredService<IHttpClientFactory>();
         Provider = new MangaUpdatesProvider(HttpFactory);
@@ -232,7 +237,8 @@ public sealed class GatewayHarness : IDisposable
     public string ImageRoot { get; }
     public MetadataImageStore Images { get; }
     internal MangaUpdatesProvider Provider { get; }
-    public MetadataProviderRegistry Registry { get; }
+    /// <summary>The providers the gateway resolves (MangaUpdates; a test may set a wider registry, e.g. with a GcdProvider).</summary>
+    public MetadataProviderRegistry Registry { get; set; }
     internal global::com.lifepixer.mangapixer.Server.Features.Metadata.Providers.AniList.AniListProvider AniList { get; }
 
     /// <summary>The Missing report's chapters-per-volume service over this harness (1.28.0).</summary>

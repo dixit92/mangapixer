@@ -209,14 +209,19 @@ public sealed class MetadataRefreshService
 
         var done = 0;
         string? stopped = null;
+        // 1.32.0: a refusal by ONE provider (busy - GCD's slow bucket -, backing off, removed from the allowed sites) skips that
+        // provider's records for the rest of the pass; the other providers' records go on. Anything else closes the pass.
+        var refusedProviders = new HashSet<string>(StringComparer.Ordinal);
         foreach (var recordId in due.Take(remaining))
         {
+            var record = await _db.MetadataRecords.FirstAsync(r => r.Id == recordId, ct);
+            if (refusedProviders.Contains(record.Provider))
+                continue;
             if (!await TryTakeSlotAsync(ct))
             {
                 stopped = "refresh_cap";
                 break;
             }
-            var record = await _db.MetadataRecords.FirstAsync(r => r.Id == recordId, ct);
             var libraryId = await _db.NodeSeriesLinks.AsNoTracking()
                 .Where(l => l.RecordId == recordId && Linked.Contains(l.State) && _db.Libraries.Any(lib => lib.Id == l.LibraryId && lib.MetadataEnabled))
                 .Select(l => l.LibraryId)
@@ -252,9 +257,14 @@ public sealed class MetadataRefreshService
                 }
                 done++;
             }
+            catch (MetadataGatewayException ex) when (IsProviderRefusal(ex))
+            {
+                refusedProviders.Add(record.Provider); // This provider only; the record stays due for the next pass.
+                stopped ??= ex.Code;
+            }
             catch (MetadataGatewayException ex) when (MetadataAutoMatchService.IsRefusal(ex))
             {
-                stopped = ex.Code; // The gate closed (switch, budget, backoff): the next pass continues.
+                stopped = ex.Code; // The gate closed (switch, budget): the next pass continues.
                 break;
             }
             catch (MetadataGatewayException ex)
@@ -270,6 +280,10 @@ public sealed class MetadataRefreshService
             _logger.LogInformation(LogEvents.Metadata.RefreshPass, "Metadata refresh pass: {Count} records refreshed", done);
         return new RefreshPassResult(done, due.Count, stopped);
     }
+
+    /// <summary>A refusal that concerns one provider only (its bucket, its backoff, its place on the allowed sites).</summary>
+    internal static bool IsProviderRefusal(MetadataGatewayException ex) =>
+        ex.Code is "provider_busy" or "provider_backoff" or "provider_not_allowed";
 
     /// <summary>Refresh GETs taken today (the budget day).</summary>
     public async Task<int> UsedTodayAsync(CancellationToken ct = default)

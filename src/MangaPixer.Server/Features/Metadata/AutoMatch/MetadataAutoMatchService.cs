@@ -132,7 +132,7 @@ public sealed class MetadataAutoMatchService
         if (await _backoff.ActiveUntilAsync(providerId, ct) is { } until)
             return new AutomaticWait("provider_backoff", until);
         if ((await _budget.GetAsync(ct)).Exhausted)
-            return new AutomaticWait("budget_exhausted", _budget.Today().AddDays(1));
+            return new AutomaticWait("budget_exhausted", _budget.NextDay()); // the next budget day's start (a 23- / 25-hour day on clock changes)
         return null;
     }
 
