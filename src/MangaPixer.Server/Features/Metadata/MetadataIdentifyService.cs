@@ -9,6 +9,7 @@ using com.lifepixer.mangapixer.Server.Features.Admin;
 using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.Gcd;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
@@ -22,6 +23,10 @@ using Microsoft.Extensions.Caching.Memory;
 /// link-with-fetch, refresh and candidate images. Every provider call goes through
 /// <see cref="MetadataGateway"/> for the node's library; nothing here runs unless
 /// an admin asked for it.
+/// 1.32.0 (lane B): a site switch - "Search on: MangaUpdates | Grand Comics Database" - defaulting to GCD for a node whose local
+/// signs route to comics; a pasted <c>comics.org/series/&lt;id&gt;/</c> address is a GET by id; a GCD search answers with whole
+/// series, so its preview reuses the searched series and reads only the publisher and the first issue (cover thumbnail shown
+/// while choosing, never stored as a cover).
 /// </summary>
 public sealed class MetadataIdentifyService
 {
@@ -31,8 +36,11 @@ public sealed class MetadataIdentifyService
     /// <summary>Candidate image tokens and bytes live in memory this long.</summary>
     public static readonly TimeSpan CandidateTtl = TimeSpan.FromHours(1);
 
-    /// <summary>Stage 1 has exactly one provider.</summary>
+    /// <summary>The default site (MangaUpdates); 1.32.0 adds the comics site <see cref="ComicsProvider"/>.</summary>
     public const string DefaultProvider = MangaUpdatesProvider.ProviderId;
+
+    /// <summary>The Grand Comics Database (1.32.0): Identify's second site, the default for comics-signalled nodes.</summary>
+    public const string ComicsProvider = GcdMapping.ProviderId;
 
     private const int MaxLocalItems = 500;
     private const int MaxMeasuredPages = 400;
@@ -52,6 +60,8 @@ public sealed class MetadataIdentifyService
     private readonly ILogger<MetadataIdentifyService> _logger;
     private readonly ICoverResolver _covers;
     private readonly Declared.IDeclaredFactsReader? _declared;
+    private readonly MetadataAutoMatchState? _autoState;
+    private readonly GcdDetails? _gcd;
 
     public MetadataIdentifyService(
         MangaPixerDbContext db,
@@ -67,7 +77,9 @@ public sealed class MetadataIdentifyService
         TimeProvider time,
         ILogger<MetadataIdentifyService> logger,
         ICoverResolver? covers = null,
-        Declared.IDeclaredFactsReader? declared = null)
+        Declared.IDeclaredFactsReader? declared = null,
+        MetadataAutoMatchState? autoState = null,
+        GcdDetails? gcd = null)
     {
         _db = db;
         _gateway = gateway;
@@ -83,7 +95,12 @@ public sealed class MetadataIdentifyService
         _logger = logger;
         _covers = covers ?? new FileCoverResolver(db);
         _declared = declared;
+        _autoState = autoState;
+        _gcd = gcd;
     }
+
+    /// <summary>Whether the comics site is registered (it is in the app; a test host may leave it out).</summary>
+    private bool ComicsAvailable => _gcd is not null && _providers.Find(ComicsProvider) is not null;
 
     private sealed record CandidateImage(string Provider, long LibraryId, string Url);
 
@@ -98,7 +115,10 @@ public sealed class MetadataIdentifyService
             return null;
 
         var library = await _db.Libraries.AsNoTracking().Where(l => l.Id == node.LibraryId).Select(l => l.PublicId).FirstAsync(ct);
-        var refusal = await _gateway.CheckSwitchesAsync(node.LibraryId, ct);
+        var sites = await SitesAsync(node.LibraryId, ct);
+        var comics = ComicsAvailable && await IsComicsSignalledAsync(node, ct);
+        var provider = comics && sites.Any(x => x.Id == ComicsProvider && x.Available) ? ComicsProvider : DefaultProvider;
+        var refusal = await _gateway.CheckSwitchesAsync(node.LibraryId, MetadataCallOrigin.Interactive, provider, ct);
         var local = await BuildLocalAsync(node, ct);
         var budget = await _budget.GetAsync(ct);
 
@@ -129,8 +149,10 @@ public sealed class MetadataIdentifyService
             NodeKind = (CatalogNodeKind)node.Kind,
             DisplayName = node.DisplayName,
             LibraryId = library,
-            Provider = DefaultProvider,
-            ProviderName = _providers.DisplayNameFor(DefaultProvider),
+            Provider = provider,
+            ProviderName = _providers.DisplayNameFor(provider),
+            Sites = sites,
+            ComicsSignalled = comics,
             FetchAvailable = refusal is null,
             UnavailableCode = refusal?.Code,
             UnavailableMessage = refusal?.Message,
@@ -138,7 +160,7 @@ public sealed class MetadataIdentifyService
             ComicInfoHint = await FindComicInfoHintAsync(node, ct),
             BudgetUsedToday = budget.Used,
             DailyBudget = budget.Limit,
-            BackoffUntil = await _backoff.ActiveUntilAsync(ct),
+            BackoffUntil = await _backoff.ActiveUntilAsync(provider, ct),
             CurrentLink = ownLink is null ? null : await ToLinkDtoAsync(ownLink, node.PublicId, ct),
             Local = local,
             DoujinshiContent = content == MetadataFolderContent.DoujinshiAndAdultOneShots,
@@ -153,27 +175,37 @@ public sealed class MetadataIdentifyService
         if (node is null)
             return null;
 
-        var page = await _gateway.SearchAsync(
-            DefaultProvider, node.LibraryId, request.Query, request.Page, request.HideDoujinshiAndNovels, ct);
+        var provider = SiteOf(request.Provider);
         var name = TitleNormalizer.Normalize(node.DisplayName);
+        // Only the (YYYY) of the node's own name may narrow a GCD search (what the consent text names).
+        var startYear = provider == ComicsProvider && request.StartYear is { } year && year == name.YearHint ? year : (int?)null;
+        var page = await _gateway.SearchAsync(
+            provider, node.LibraryId, request.Query, request.Page, request.HideDoujinshiAndNovels, ct, startYear);
         var queries = name.Variants.Append(MetadataGateway.NormalizeQuery(request.Query)).ToList();
 
         var candidates = page.Hits
             .Select((hit, index) =>
             {
                 var score = Rank(queries, [hit.Title, hit.HitTitle], name.YearHint, hit.Year);
+                if (hit.Record is { } record)
+                    RememberSearched(record);
+                var extra = GcdExtra.Read(hit.Record?.ExtraJson);
                 return (Index: index, Dto: new IdentifyCandidateDto
                 {
                     ExternalId = hit.ExternalId,
                     Title = hit.Title,
                     HitTitle = hit.HitTitle,
                     ProviderType = hit.ProviderType,
-                    Origin = MangaUpdatesMapping.OriginOf(hit.ProviderType),
-                    Format = MangaUpdatesMapping.FormatOf(hit.ProviderType),
+                    Origin = hit.Record is { } r ? r.Origin : MangaUpdatesMapping.OriginOf(hit.ProviderType),
+                    Format = hit.Record is { } f ? f.Format : MangaUpdatesMapping.FormatOf(hit.ProviderType),
                     Year = hit.Year,
                     Score = Math.Round(score, 3),
                     Strength = TitleSimilarity.Label(score),
-                    ImageToken = hit.ImageRemoteUrl is { } url ? IssueImageToken(DefaultProvider, node.LibraryId, url) : null,
+                    ImageToken = hit.ImageRemoteUrl is { } url ? IssueImageToken(provider, node.LibraryId, url) : null,
+                    Country = extra?.Country,
+                    Language = extra?.Language,
+                    UnitCount = extra?.Issues,
+                    UnitKind = extra is null ? null : extra.ShapeValue == ComicsShape.Issues ? "issues" : "books",
                 });
             })
             .OrderByDescending(c => c.Dto.Score)
@@ -184,7 +216,7 @@ public sealed class MetadataIdentifyService
         var budget = await _budget.GetAsync(ct);
         return new IdentifySearchResultDto
         {
-            Provider = DefaultProvider,
+            Provider = provider,
             Page = Math.Clamp(request.Page, 1, 100),
             TotalHits = page.TotalHits,
             Candidates = candidates,
@@ -203,9 +235,19 @@ public sealed class MetadataIdentifyService
             throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "legacy_url",
                 "This is an old-style MangaUpdates link (series.html?id=). Open the series on MangaUpdates and paste its current address (…/series/<code>/<name>).");
         var reference = _gateway.ParseReference(DefaultProvider, request.Reference ?? string.Empty);
+        if (reference is null && ComicsAvailable)
+        {
+            // 1.32.0: a Grand Comics Database series address (or gcd:<number>) - only the number is sent, on the GET.
+            if (GcdReference.Parse(request.Reference).Kind == GcdReferenceKind.Issue)
+                throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "gcd_issue_url",
+                    "This is a Grand Comics Database issue address. Open its series on comics.org and paste the series address (…/series/<number>/).");
+            reference = _gateway.ParseReference(ComicsProvider, request.Reference ?? string.Empty);
+        }
         if (reference is null)
             throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "invalid_reference",
-                "Paste a MangaUpdates series address or a shortcode like mu:12345.");
+                ComicsAvailable
+                    ? "Paste a MangaUpdates series address or a shortcode like mu:12345, or a Grand Comics Database series address (comics.org/series/<number>/)."
+                    : "Paste a MangaUpdates series address or a shortcode like mu:12345.");
         return await PreviewAsync(nodePublicId, new IdentifyPreviewRequest { Provider = reference.Provider, ExternalId = reference.ExternalId }, ct);
     }
 
@@ -227,11 +269,16 @@ public sealed class MetadataIdentifyService
         if (local.ComicInfoSeries is { } series)
             queries.Add(series);
         var score = Rank(queries, alt.Prepend(record.Title), name.YearHint, record.StartYear);
+        var providerName = _providers.DisplayNameFor(record.Provider);
+        var extra = record.Provider == ComicsProvider ? GcdExtra.Read(record.ExtraJson) : null;
+        // A GCD record has no stored poster: its first issue's thumbnail is shown while choosing (identification only).
+        var imageUrl = record.ImageRemoteUrl
+            ?? (record.Provider == ComicsProvider && _cache.TryGetValue<string>(ComicsCoverKey(record.ExternalId), out var cover) ? cover : null);
 
         return new IdentifyPreviewDto
         {
             Provider = record.Provider,
-            ProviderName = _providers.DisplayNameFor(record.Provider),
+            ProviderName = providerName,
             ExternalId = record.ExternalId,
             Title = record.Title,
             AltTitles = alt,
@@ -248,13 +295,17 @@ public sealed class MetadataIdentifyService
                 .Select(c => new SeriesCreatorDto { Name = c.Name, Role = c.Role }).ToList(),
             Genres = MetadataJson.ReadList<string>(record.GenresJson),
             SiteUrl = record.SiteUrl,
-            ImageToken = record.ImageRemoteUrl is { } url ? IssueImageToken(record.Provider, node.LibraryId, url) : null,
+            ImageToken = imageUrl is { } url ? IssueImageToken(record.Provider, node.LibraryId, url) : null,
             Score = Math.Round(score, 3),
             Strength = TitleSimilarity.Label(score),
             FetchedAt = record.FetchedAt,
             Local = local,
             Warnings = Warnings(record, local, name.YearHint, await LocalUnitsAsync(node, ct), node.Kind == (int)CatalogNodeKind.Folder,
-                await DeclaredTypeAsync(node, ct)),
+                await DeclaredTypeAsync(node, ct), providerName),
+            Country = extra?.Country,
+            Language = extra?.Language,
+            Publishers = MetadataJson.ReadList<MetadataJson.Publisher>(record.PublishersJson).Select(p => p.Name).ToList(),
+            Credit = record.Provider == ComicsProvider ? GcdMapping.Credit : null,
         };
     }
 
@@ -398,7 +449,12 @@ public sealed class MetadataIdentifyService
         if (record is not null && (!requireFresh || now - record.FetchedAt < RecordReuseWindow))
             return record;
 
-        var fetched = await _gateway.GetSeriesAsync(provider, libraryId, externalId, ct);
+        // 1.32.0: a GCD series the admin just found in a search is that search's answer (no second request for it).
+        var fetched = provider == ComicsProvider && _cache.TryGetValue<ProviderSeriesRecord>(SearchedKey(externalId), out var searched) && searched is not null
+            ? searched
+            : await _gateway.GetSeriesAsync(provider, libraryId, externalId, ct);
+        if (fetched is not null && provider == ComicsProvider && _gcd is not null)
+            fetched = await WithComicsDetailsAsync(fetched, libraryId, ct);
         if (fetched is null)
         {
             if (record is not null)
@@ -425,6 +481,74 @@ public sealed class MetadataIdentifyService
         _logger.LogInformation(LogEvents.Metadata.RecordStored, "Metadata record {RecordId} stored ({Provider} {ExternalId})",
             record.Id, record.Provider, record.ExternalId);
         return record;
+    }
+
+    /// <summary>
+    /// The chosen GCD candidate's details (1.32.0, best effort): its publisher's name and its first issue - credits, and the cover
+    /// thumbnail remembered for the preview only (never stored as the record's image).
+    /// </summary>
+    private async Task<ProviderSeriesRecord> WithComicsDetailsAsync(ProviderSeriesRecord fetched, long libraryId, CancellationToken ct)
+    {
+        fetched = await _gcd!.WithPublisherAsync(fetched, libraryId, null, ct);
+        var issue = await _gcd.FirstIssueAsync(fetched, libraryId, null, ct);
+        if (issue?.CoverUrl is { } cover)
+            _cache.Set(ComicsCoverKey(fetched.ExternalId), cover, CandidateTtl);
+        return GcdDetails.WithIssue(fetched, issue);
+    }
+
+    private void RememberSearched(ProviderSeriesRecord record) => _cache.Set(SearchedKey(record.ExternalId), record, CandidateTtl);
+
+    private static string SearchedKey(string externalId) => "metadata-gcd-searched:" + externalId;
+    private static string ComicsCoverKey(string externalId) => "metadata-gcd-cover:" + externalId;
+
+    /// <summary>The site a request names: the comics site when asked for and registered, else MangaUpdates.</summary>
+    private string SiteOf(string? provider) =>
+        provider == ComicsProvider && ComicsAvailable ? ComicsProvider
+        : provider is null or DefaultProvider ? DefaultProvider
+        : throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "unknown_provider", "No such metadata provider.");
+
+    /// <summary>Identify's sites (1.32.0), each with what refuses it right now (gates 1-3 and the allowlist).</summary>
+    private async Task<List<IdentifySiteDto>> SitesAsync(long libraryId, CancellationToken ct)
+    {
+        var sites = new List<IdentifySiteDto>();
+        foreach (var id in ComicsAvailable ? new[] { DefaultProvider, ComicsProvider } : [DefaultProvider])
+        {
+            var refusal = await _gateway.CheckSwitchesAsync(libraryId, MetadataCallOrigin.Interactive, id, ct);
+            sites.Add(new IdentifySiteDto
+            {
+                Id = id,
+                Name = _providers.DisplayNameFor(id),
+                Available = refusal is null,
+                UnavailableCode = refusal?.Code,
+                Note = id == ComicsProvider ? "Comics and graphic novels. Answers about 25 requests an hour." : null,
+            });
+        }
+        return sites;
+    }
+
+    /// <summary>
+    /// Whether the node's local signs route it to comics (1.32.0) - the same reader automatic matching uses: the declared type,
+    /// a comics category folder, and (with lane A's detectors) ComicInfo ids / publishers and file numbering. Local only.
+    /// </summary>
+    private async Task<bool> IsComicsSignalledAsync(CatalogNodeEntity node, CancellationToken ct)
+    {
+        var folderId = node.Kind == (int)CatalogNodeKind.Folder ? node.Id : node.ParentId;
+        if (folderId is not { } folder)
+            return false;
+        var revision = await _db.Libraries.AsNoTracking().Where(l => l.Id == node.LibraryId).Select(l => l.CatalogRevision).FirstOrDefaultAsync(ct);
+        var tree = _autoState?.CachedSnapshot(node.LibraryId, revision);
+        if (tree is null)
+        {
+            tree = await LibraryTreeSnapshot.LoadAsync(_db, node.LibraryId, ct);
+            _autoState?.Cache(tree);
+        }
+        if (tree.Find(folder) is null)
+            return false;
+        var shape = tree.ShapeOf(folder);
+        var query = new MatchQuery([], new MatchContext(WorkClass.Series, 0, 0, 0, null, shape.CategoryHint, false, [],
+            DeclaredType: await DeclaredTypeAsync(node, ct)));
+        query = await ComicsSignalReader.ApplyAsync(_db, query, shape, await LocalArchiveIdsAsync(node, ct), ct);
+        return query.Context.Comics?.RoutesToComics == true;
     }
 
     /// <summary>Maps a fetched provider record onto the stored entity (shared by identify, auto-match and refresh).</summary>
@@ -582,7 +706,9 @@ public sealed class MetadataIdentifyService
         {
             foreach (var url in MetadataJson.ReadList<string>(json))
             {
-                if (_gateway.ParseReference(DefaultProvider, url) is { } reference)
+                var reference = _gateway.ParseReference(DefaultProvider, url)
+                    ?? (ComicsAvailable ? _gateway.ParseReference(ComicsProvider, url) : null);
+                if (reference is not null)
                     return new IdentifyReferenceDto { Provider = reference.Provider, ExternalId = reference.ExternalId };
             }
         }
@@ -718,7 +844,7 @@ public sealed class MetadataIdentifyService
     /// The declared-type warning (1.30.0): the record contradicts the type declared for the folder - the same rule as the Info
     /// panel's conflict badge and the matcher's evidence (<see cref="DeclaredFactsComparer.TypeSignal"/>). A hint, never a block.
     /// </summary>
-    internal static IdentifyWarningDto? DeclaredTypeWarning(DeclaredType? declared, MetadataRecordEntity record)
+    internal static IdentifyWarningDto? DeclaredTypeWarning(DeclaredType? declared, MetadataRecordEntity record, string providerName = "MangaUpdates")
     {
         if (declared is not { } type
             || DeclaredFactsComparer.TypeSignal(type, (MetadataOrigin?)record.Origin, (MetadataFormat?)record.Format, record.Webtoon)
@@ -728,13 +854,13 @@ public sealed class MetadataIdentifyService
         return new IdentifyWarningDto
         {
             Code = "declared_type",
-            Message = $"This folder is declared {DeclaredFactKeys.TypeLabel(type)}; MangaUpdates lists this record as {what}. "
+            Message = $"This folder is declared {DeclaredFactKeys.TypeLabel(type)}; {providerName} lists this record as {what}. "
                 + "A declared type is a hint: it does not block the link.",
         };
     }
 
     private static List<IdentifyWarningDto> Warnings(MetadataRecordEntity record, IdentifyLocalDto local, int? yearHint, LocalUnitCounts units, bool isFolder,
-        DeclaredType? declared = null)
+        DeclaredType? declared = null, string providerName = "MangaUpdates")
     {
         var warnings = new List<IdentifyWarningDto>();
         var nameLower = local.DisplayName.ToLowerInvariant();
@@ -751,10 +877,10 @@ public sealed class MetadataIdentifyService
             warnings.Add(new IdentifyWarningDto { Code = "year_mismatch", Message = $"The name says {hint}; the record starts in {year}." });
         foreach (var message in CountWarnings(units, PublishedOf(record), isFolder))
             warnings.Add(new IdentifyWarningDto { Code = "count_mismatch", Message = message });
-        if (DeclaredTypeWarning(declared, record) is { } typeWarning)
+        if (DeclaredTypeWarning(declared, record, providerName) is { } typeWarning)
             warnings.Add(typeWarning);
         if (record.FetchState == 1)
-            warnings.Add(new IdentifyWarningDto { Code = "record_gone", Message = "MangaUpdates no longer lists this record." });
+            warnings.Add(new IdentifyWarningDto { Code = "record_gone", Message = $"{providerName} no longer lists this record." });
         return warnings;
     }
 }

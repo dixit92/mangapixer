@@ -167,6 +167,7 @@ public sealed class SeriesInfoResolver
                 // access check; the version in the URL makes it cacheable forever.
                 HasImage = record.ImageState == 1,
                 ImageUrl = record.ImageState == 1 ? ImageUrlFor(node.PublicId, record) : null,
+                Credit = record.Provider == Providers.Gcd.GcdMapping.ProviderId ? Providers.Gcd.GcdMapping.Credit : null,
             },
             ComicInfo = ci is null ? null : new SeriesInfoComicInfoDto
             {
