@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangapixer.Tests.Server.Features.Covers;
 
 using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Admin;
 using com.lifepixer.mangapixer.Server.Features.Covers;

@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangapixer.Tests.Server.Features.Metadata.Volumes;
 
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using com.lifepixer.mangapixer.Tests.Server.Features.Metadata;
 using Microsoft.EntityFrameworkCore;
@@ -68,7 +69,7 @@ public sealed class FolderCoverPreferencePassTests : IAsyncLifetime
         Assert.Null(first.WaitingCode);
         Assert.Equal(0, ImageRequests());                                   // no cover fetched
         Assert.Equal(0, await _t.Db.VolumeCovers.CountAsync(c => c.State == (int)VolumeCoverState.Stored));
-        Assert.Equal(0, _h.Renderer.Requests.Count);
+        Assert.Empty(_h.Renderer.Requests);
         // The lists are untouched by the preference: the companion, the volume map and the listed covers.
         Assert.True(await _t.Db.MetadataCompanions.AnyAsync(c => c.RecordId == record.Id));
         Assert.True(await _t.Db.SeriesVolumeMaps.AnyAsync(m => m.RecordId == record.Id));

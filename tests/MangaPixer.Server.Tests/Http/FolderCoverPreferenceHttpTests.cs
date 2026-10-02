@@ -130,6 +130,54 @@ public sealed class FolderCoverPreferenceHttpTests
         (await client.GetFromJsonAsync<PageResponse<CatalogNodeDto>>(
             $"/api/v1/libraries/{LibPub}/browse?sort=name&parentId={seed.Series.PublicId}", JsonOptions))!.Items.Single(i => i.Id == seed.Volume2.PublicId);
 
+    /// <summary>Writes (or removes) a folder's row straight into the database: no request, so no background decision races the read.</summary>
+    private static async Task SetRowAsync(MetadataNetworkWebApplicationFactory factory, CatalogNodeEntity folder, FolderCoverPreference? preference)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+        await db.FolderCoverPreferences.Where(f => f.NodeId == folder.Id).ExecuteDeleteAsync();
+        if (preference is { } value)
+        {
+            db.FolderCoverPreferences.Add(new FolderCoverPreferenceEntity { NodeId = folder.Id, Preference = (int)value });
+            await db.SaveChangesAsync();
+        }
+    }
+
+    private static async Task<int?> DecisionSourceAsync(MetadataNetworkWebApplicationFactory factory, Seed seed)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+        return await db.NodeAutoCovers.AsNoTracking().Where(a => a.NodeId == seed.Volume2.Id).Select(a => (int?)a.Source).FirstOrDefaultAsync();
+    }
+
+    /// <summary>Waits for the hosted service to drain the "decide this subtree soon" request a change queued.</summary>
+    private static async Task WaitForDecisionDroppedAsync(MetadataNetworkWebApplicationFactory factory, Seed seed)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (await DecisionSourceAsync(factory, seed) is not null && DateTime.UtcNow < deadline)
+            await Task.Delay(100);
+        Assert.Null(await DecisionSourceAsync(factory, seed));
+    }
+
+    /// <summary>Puts volume 2's web decision back (the real pass cannot hash this suite's synthetic thumbnails; the service tests cover it).</summary>
+    private static async Task ReseedDecisionAsync(MetadataNetworkWebApplicationFactory factory, Seed seed)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+        var cover = await db.VolumeCovers.AsNoTracking().SingleAsync();
+        db.NodeAutoCovers.Add(new NodeAutoCoverEntity
+        {
+            NodeId = seed.Volume2.Id,
+            Source = (int)AutoCoverSource.WebVolume,
+            VolumeCoverId = cover.Id,
+            Reason = (int)AutoCoverReason.LocalNotCover,
+            InputsKey = "reseeded",
+            Version = 2,
+            DecidedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync();
+    }
+
     [Fact]
     public async Task Endpoints_AreAdminOnly_ValidateAndAuditWithIds()
     {
@@ -188,25 +236,32 @@ public sealed class FolderCoverPreferenceHttpTests
         Assert.Equal(CardCoverSource.WebVolume, card.CoverSource);
         Assert.Equal("web-volume-2", await member.GetStringAsync(card.CoverUrl));
 
-        // File covers on the SHELF: the card two levels down shows the file's own cover.
+        // File covers on the SHELF (through the endpoint): the card two levels down shows the file's own cover.
         await OkAsync(await admin.PutAsJsonAsync(Url(seed.Shelf.PublicId), new SetFolderCoverPreferenceRequest { Preference = FolderCoverPreference.File }, JsonOptions));
         card = await CardOfV2Async(member, seed);
         Assert.Equal(CardCoverSource.File, card.CoverSource);
         Assert.Equal("file-" + seed.Volume2.PublicId, await member.GetStringAsync(card.CoverUrl));
 
+        // The background pass dropped the web decision (it offers no web source under File covers). Put it back by hand and change
+        // the rows directly from here on: the rest of the test reads what the cards say, with no background pass in between.
+        await WaitForDecisionDroppedAsync(factory, seed);
+        await ReseedDecisionAsync(factory, seed);
+        Assert.Equal(CardCoverSource.File, (await CardOfV2Async(member, seed)).CoverSource); // still hidden: the row says so, not the decision
+
         // Web covers on the series folder (nearer): the saved cover is back.
-        await OkAsync(await admin.PutAsJsonAsync(Url(seed.Series.PublicId), new SetFolderCoverPreferenceRequest { Preference = FolderCoverPreference.Web }, JsonOptions));
+        await SetRowAsync(factory, seed.Series, FolderCoverPreference.Web);
         Assert.Equal(CardCoverSource.WebVolume, (await CardOfV2Async(member, seed)).CoverSource);
 
         // The library hiding web covers does not override a folder that says Web covers; clearing it inherits File covers again.
         var off = await admin.PutAsJsonAsync($"/api/v1/admin/metadata/libraries/{LibPub}", new UpdateMetadataLibraryRequest { ShowWebCovers = false }, JsonOptions);
         Assert.True(off.IsSuccessStatusCode);
         Assert.Equal(CardCoverSource.WebVolume, (await CardOfV2Async(member, seed)).CoverSource);
-        await OkAsync(await admin.DeleteAsync(Url(seed.Series.PublicId)));
+        await SetRowAsync(factory, seed.Series, null);
         Assert.Equal(CardCoverSource.File, (await CardOfV2Async(member, seed)).CoverSource);
 
         // Everything cleared and the library showing web covers again: the original card.
-        await OkAsync(await admin.DeleteAsync(Url(seed.Shelf.PublicId)));
+        await SetRowAsync(factory, seed.Shelf, null);
+        Assert.Equal(CardCoverSource.File, (await CardOfV2Async(member, seed)).CoverSource); // the library still hides them
         await admin.PutAsJsonAsync($"/api/v1/admin/metadata/libraries/{LibPub}", new UpdateMetadataLibraryRequest { ShowWebCovers = true }, JsonOptions);
         Assert.Equal(CardCoverSource.WebVolume, (await CardOfV2Async(member, seed)).CoverSource);
     }
@@ -217,21 +272,10 @@ public sealed class FolderCoverPreferenceHttpTests
         using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true);
         var seed = await SeedAsync(factory);
         var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
-
-        async Task<int?> DecisionSourceAsync()
-        {
-            using var scope = factory.Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
-            return await db.NodeAutoCovers.AsNoTracking().Where(a => a.NodeId == seed.Volume2.Id).Select(a => (int?)a.Source).FirstOrDefaultAsync();
-        }
-
-        Assert.Equal((int)AutoCoverSource.WebVolume, await DecisionSourceAsync());
+        Assert.Equal((int)AutoCoverSource.WebVolume, await DecisionSourceAsync(factory, seed));
 
         // The hosted service drains the "decide this subtree" request: under File covers the web decision of volume 2 is dropped.
         await OkAsync(await admin.PutAsJsonAsync(Url(seed.Shelf.PublicId), new SetFolderCoverPreferenceRequest { Preference = FolderCoverPreference.File }, JsonOptions));
-        var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (await DecisionSourceAsync() is not null && DateTime.UtcNow < deadline)
-            await Task.Delay(100);
-        Assert.Null(await DecisionSourceAsync());
+        await WaitForDecisionDroppedAsync(factory, seed);
     }
 }
