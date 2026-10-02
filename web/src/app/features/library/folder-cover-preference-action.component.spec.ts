@@ -25,7 +25,7 @@ class HostComponent {
 
 /** Browse selection bar "Folder covers..." (1.32.0): enabled for exactly one selected FOLDER, opens its dialog, reports a save. */
 describe('FolderCoverPreferenceActionComponent', () => {
-  function create(closeWith: boolean | undefined = true) {
+  function create(closeWith = true) {
     const dialog = { open: vi.fn(() => ({ afterClosed: () => of(closeWith) })) };
     TestBed.configureTestingModule({
       imports: [HostComponent],
@@ -57,7 +57,7 @@ describe('FolderCoverPreferenceActionComponent', () => {
   });
 
   it('reports nothing when the dialog was cancelled', () => {
-    const { fixture, button, select } = create(undefined);
+    const { fixture, button, select } = create(false);
     select('f1');
     button().click();
     expect(fixture.componentInstance.saves).toBe(0);
