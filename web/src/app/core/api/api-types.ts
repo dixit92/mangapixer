@@ -2075,7 +2075,12 @@ export interface SeriesTrackersDto {
 }
 
 export type SeriesCompletion = 'None' | 'FinishedNotHeld' | 'CompleteCollection';
-export type CompletionBasis = 'OfficialVolumes' | 'AllChapters' | 'OriginRun';
+export type CompletionBasis = 'OfficialVolumes' | 'AllChapters' | 'OriginRun' | 'OfficialChapters';
+/** 1.32.0: the one answer of the Completion tab - has the series ended, and does the folder hold all of it. */
+export type SeriesAnswer = 'CantTell' | 'HaveItAll' | 'FinishedMissing' | 'UpToDate' | 'MissingSome';
+export type SeriesAnswerReason =
+  | 'None' | 'Running' | 'OnHiatus' | 'StatusUnknown' | 'WaitingForLanguage' | 'LanguageEditionDropped'
+  | 'NoNumbers' | 'NumberingRestarts' | 'NothingKnownReleased' | 'NoVolumeTotal' | 'OneShot';
 
 export interface SeriesProgressDto {
   trackers: SeriesTrackersDto;
@@ -2093,9 +2098,12 @@ export interface SeriesProgressDto {
   completionInChapters?: boolean;
   /** 1.32.0: set when the series' volume list was completed from a Wikipedia page ("Volume list: MangaDex, completed from Wikipedia"). */
   listCredit?: ListCreditDto | null;
+  /** 1.32.0: the Completion tab's answer (also behind the completion mark). */
+  answer?: SeriesAnswer;
+  answerReason?: SeriesAnswerReason;
 }
 
-// --- Official releases tab (1.30.0) ---
+// --- Official releases tab (1.30.0; the Completion tab since 1.32.0 - the contract keeps its names) ---
 
 export type OfficialReleasesFilter = 'ToAct' | 'Upgrades' | 'Finished' | 'Complete' | 'All';
 
@@ -2115,9 +2123,15 @@ export interface OfficialReleasesSummaryDto {
   upgrades: number;
   finishedNotHeld: number;
   completeCollections: number;
+  /** 1.32.0: series per answer (with the Upgrades only switch applied, before the answer filter). */
+  haveItAll?: number;
+  finishedMissing?: number;
+  upToDate?: number;
+  missingSome?: number;
+  cantTell?: number;
 }
 
-/** GET /admin/metadata/official-releases?library=&filter=&cursor=&limit= */
+/** GET /admin/metadata/official-releases?library=&filter=&cursor=&limit=&basis=&answer=&upgrades= */
 export interface OfficialReleasesPageDto {
   items: OfficialReleaseRowDto[];
   summary: OfficialReleasesSummaryDto;

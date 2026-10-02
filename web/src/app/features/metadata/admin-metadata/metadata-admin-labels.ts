@@ -20,9 +20,18 @@ import { formatLabel } from '../series-info-labels';
  * them (`MetadataSummaryTileComponent`) so its in-page stats can switch to one without a
  * circular import between the two components.
  */
-export type AdminMetadataTab = 'settings' | 'review' | 'flags' | 'runs' | 'missing' | 'official';
-/** In tab order; 1.30.0 appends Official releases after Missing (the indexes of the others never move). */
-export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 'review', 'flags', 'runs', 'missing', 'official'];
+export type AdminMetadataTab = 'settings' | 'review' | 'flags' | 'runs' | 'missing' | 'completion';
+/**
+ * In tab order; 1.30.0 appends Official releases after Missing (the indexes of the others never move); 1.32.0 renames it Completion
+ * (`?tab=official` still opens it - {@link adminMetadataTabOf}).
+ */
+export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 'review', 'flags', 'runs', 'missing', 'completion'];
+
+/** The tab of a `?tab=` value; the 1.30.0 key `official` is the Completion tab. */
+export function adminMetadataTabOf(value: string | null): AdminMetadataTab | null {
+  const tab = value === 'official' ? 'completion' : value;
+  return tab && (ADMIN_METADATA_TABS as readonly string[]).includes(tab) ? (tab as AdminMetadataTab) : null;
+}
 
 export interface ReviewTabDef {
   tab: MetadataReviewTab;

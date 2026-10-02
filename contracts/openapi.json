@@ -3828,6 +3828,21 @@
             "schema": {
               "$ref": "#/components/schemas/CompletionBasis"
             }
+          },
+          {
+            "name": "answer",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/SeriesAnswer"
+            }
+          },
+          {
+            "name": "upgrades",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
@@ -11948,6 +11963,46 @@
               "string"
             ],
             "format": "int32"
+          },
+          "haveItAll": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "finishedMissing": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "upToDate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "missingSome": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "cantTell": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -12350,6 +12405,12 @@
             "$ref": "#/components/schemas/RefreshCadenceDto"
           }
         }
+      },
+      "SeriesAnswer": {
+        "type": "integer"
+      },
+      "SeriesAnswerReason": {
+        "type": "integer"
       },
       "SeriesCompletion": {
         "type": "integer"
@@ -12921,6 +12982,12 @@
           },
           "completionInChapters": {
             "type": "boolean"
+          },
+          "answer": {
+            "$ref": "#/components/schemas/SeriesAnswer"
+          },
+          "answerReason": {
+            "$ref": "#/components/schemas/SeriesAnswerReason"
           }
         }
       },

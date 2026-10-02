@@ -98,10 +98,10 @@ test('account menu opens Metadata Manager (/admin/metadata) with its own summary
   await shot(page, 'c-01-metadata-manager-tile');
 
   const tabs = page.locator('.mat-mdc-tab-header').getByRole('tab');
-  // Settings, Review, Flags, Runs + Missing (1.28.0, the missing volumes / chapters report) + Official releases (1.30.0).
+  // Settings, Review, Flags, Runs + Missing (1.28.0, the missing volumes / chapters report) + Completion (1.32.0; Official releases in 1.30.0).
   await expect(tabs).toHaveCount(6);
   await expect(tabs.filter({ hasText: 'Missing' })).toHaveCount(1);
-  await expect(tabs.filter({ hasText: 'Official releases' })).toHaveCount(1);
+  await expect(tabs.filter({ hasText: 'Completion' })).toHaveCount(1);
   await expect(page.getByTestId('metadata-settings-card')).toBeVisible();
   await shot(page, 'c-02-settings-tab', true);
 

@@ -2,7 +2,8 @@ namespace com.lifepixer.mangapixer.Core.Api;
 
 // The Official releases tab of Metadata Manager (1.30.0), admin-only: linked series with volumes released officially in the
 // preferred language that the folder holds only as chapters (an upgrade, never "missing"), finished series the folder does not
-// hold whole, and complete collections. Built from stored data only; no DTO carries a path.
+// hold whole, and complete collections. 1.32.0: the tab is "Completion" and lists every linked series by its one answer
+// (SeriesAnswer); the contract keeps its names. Built from stored data only; no DTO carries a path.
 
 /// <summary>Which series the tab lists.</summary>
 public enum OfficialReleasesFilter
@@ -42,11 +43,20 @@ public sealed record OfficialReleasesSummaryDto
     /// <summary>Series finished in the preferred language that the folder does not hold whole.</summary>
     public required int FinishedNotHeld { get; init; }
     public required int CompleteCollections { get; init; }
+
+    // 1.32.0 (Completion tab): how many series get each answer (with the Upgrades only switch applied, before the answer filter).
+    public int HaveItAll { get; init; }
+    public int FinishedMissing { get; init; }
+    public int UpToDate { get; init; }
+    public int MissingSome { get; init; }
+    public int CantTell { get; init; }
 }
 
 /// <summary>
-/// A page of the tab: upgrades first (most volumes to get first), then finished series not held whole (most missing first), then
-/// complete collections, then the rest; by name, then node id.
+/// A page of the tab. With an answer filter (1.32.0) or <see cref="OfficialReleasesFilter.All"/>: by answer (have it all, finished -
+/// missing some, missing some, everything so far, can't tell), the fewest missing first within the missing answers, can't tell by
+/// reason; then by name, then node id. The older filters keep their 1.30.0 order: upgrades first (most volumes to get first), then
+/// finished series not held whole (most missing first), then complete collections, then the rest.
 /// </summary>
 public sealed record OfficialReleasesPageDto
 {
