@@ -164,6 +164,9 @@ public static class MetadataHttp
         [MetadataProviderAllowlist.Gcd] = new(MetadataProviderAllowlist.Gcd, "Grand Comics Database", GcdApiClient,
             GcdImageClient, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { GcdImageHost }, ForbiddenMeansSlowDown: true,
             AutomaticReserve: GcdAutomaticReserve, NoWaitRetry: TimeSpan.FromSeconds(144)),
+        // 1.32.0 (lane C): Wikipedia + Wikidata are ONE provider for the gateway (one backoff, one limiter); the API client is Wikipedia's,
+        // Wikidata's client is named by WikipediaApi itself. No images.
+        [MetadataProviderAllowlist.Wikipedia] = new(MetadataProviderAllowlist.Wikipedia, "Wikipedia", WikipediaClient, null, s_none),
     };
 
     /// <summary>

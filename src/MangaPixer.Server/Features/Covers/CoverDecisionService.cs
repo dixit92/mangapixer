@@ -373,10 +373,10 @@ public sealed class CoverDecisionService
     {
         if (chapter is not { } c || series.Link.RecordId is not { } recordId)
             return null;
-        var json = await _db.SeriesVolumeMaps.AsNoTracking()
-            .Where(m => m.RecordId == recordId && m.Source == (int)VolumeMapSource.MangaDexAggregate && m.State == (int)VolumeMapState.Ok)
-            .Select(m => m.VolumesJson).FirstOrDefaultAsync(ct);
-        return VolumeOfChapter(json, c);
+        // 1.32.0: the exact list the Volumes view uses - MangaDex's, completed by Wikipedia's.
+        var maps = await _db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == recordId).ToListAsync(ct);
+        var exact = Metadata.Reach.SeriesProgressLoader.ExactList(maps);
+        return exact.Volumes.Count == 0 ? null : VolumeOfChapter(VolumeMapJson.Write(exact.Volumes), c);
     }
 
     /// <summary>Reads <c>[{"v":"3","c":["17","18"]}]</c>: the integer volume listing <paramref name="chapter"/>, or null.</summary>

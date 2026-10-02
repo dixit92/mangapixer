@@ -46,6 +46,12 @@ public enum VolumeMapSource
 
     /// <summary>AniList totals: a chapters-per-volume ratio only, no list.</summary>
     AniListRatio = 2,
+
+    /// <summary>
+    /// The English Wikipedia "List of ... chapters" page of the series (1.32.0): a validated volume -> chapters list that FILLS what
+    /// MangaDex's list lacks (<c>VolumeListMerge</c>). Stored as numbers only.
+    /// </summary>
+    WikipediaList = 3,
 }
 
 /// <summary>State of a stored volume map.</summary>
@@ -195,4 +201,36 @@ public enum SeriesViewMode
 
     /// <summary>Volume-ordered, with virtual volume stacks and merged unit subfolders where the data exists.</summary>
     Volumes = 1,
+}
+
+/// <summary>State of the Wikipedia companion of a linked series (<c>wikipedia_lists.State</c>, 1.32.0). Persisted as its int value.</summary>
+public enum WikipediaListState
+{
+    /// <summary>A list was found, validated and stored.</summary>
+    Found = 0,
+
+    /// <summary>No English article / list page was found for the series; retried on the record's refresh cadence.</summary>
+    NotFound = 1,
+
+    /// <summary>A page was found but its list failed validation (see the reject code); checked again when the page changes.</summary>
+    Rejected = 2,
+
+    /// <summary>An admin said the series has no Wikipedia list: never asked again.</summary>
+    None = 3,
+
+    /// <summary>The last attempt failed (network, provider error); retried after a day.</summary>
+    Failed = 4,
+}
+
+/// <summary>How the Wikipedia page of a series was found (<c>wikipedia_lists.Method</c>, 1.32.0).</summary>
+public enum WikipediaListMethod
+{
+    /// <summary>Wikidata's item with the series' MangaUpdates id -> its English article.</summary>
+    Wikidata = 0,
+
+    /// <summary>The linked MangaUpdates record's title (Wikidata had no such item).</summary>
+    Title = 1,
+
+    /// <summary>An admin chose the page title.</summary>
+    Admin = 2,
 }

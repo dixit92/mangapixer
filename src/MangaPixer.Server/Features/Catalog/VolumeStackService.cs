@@ -84,6 +84,7 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             CoverUrl = web.TryGetValue(stack.Key, out var webCover) ? webCover.Url : cards[stack.Members[0].Row.Id].CoverUrl,
             Confidence = stack.Confidence,
             Source = stack.Source,
+            ListCredit = view.Status?.Progress?.ListCredit,
             PresentCount = stack.PresentCount,
             ChapterCount = stack.ChapterCount,
             ChaptersPresent = stack.ChaptersPresent,

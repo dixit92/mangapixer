@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { MatIconModule } from '@angular/material/icon';
 
 import { VolumeViewDto } from '../../core/api/api-types';
+import { ListCreditComponent } from '../../shared/list-credit.component';
 import {
   ORIGIN_PLACES, STATUS_WORDS, folderLine, languageName, progressIcon, trackersLine,
 } from '../metadata/progress/series-progress-labels';
@@ -60,7 +61,7 @@ export function seriesStatusLine(view: VolumeViewDto | null | undefined): string
 @Component({
   selector: 'app-volume-series-status',
   standalone: true,
-  imports: [MatIconModule],
+  imports: [MatIconModule, ListCreditComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (lines(); as l) {
@@ -69,6 +70,7 @@ export function seriesStatusLine(view: VolumeViewDto | null | undefined): string
         <div class="text">
           @if (l.trackers) { <span class="trackers" data-testid="series-trackers">{{ l.trackers }}</span> }
           @if (l.folder) { <span class="folder" data-testid="series-folder">{{ l.folder }}</span> }
+          <app-list-credit [credit]="view().progress?.listCredit" />
         </div>
       </div>
     }

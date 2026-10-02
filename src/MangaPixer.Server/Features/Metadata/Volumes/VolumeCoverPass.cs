@@ -49,7 +49,8 @@ public sealed record VolumeCoverPassResult(int Requests, int SeriesChecked, int 
 /// are still matched promptly:
 /// <list type="number">
 /// <item>per due series: the MangaDex companion (cross-link), its cover list + volume list, and - when MangaDex gives no
-/// volume list - the AniList totals;</item>
+/// volume list - the AniList totals; then (1.32.0) the Wikipedia list, only where MangaDex's data has gaps
+/// (<see cref="Wikipedia.WikipediaVolumeService"/>: it shares this tick's eligibility, ordering and request slice, and pauses with the pass);</item>
 /// <item>breadth first across series: every series' volume 1 cover (preferred language, else the original language; the
 /// record's MAIN cover when MangaDex lists no volume 1 cover at all - webtoons);</item>
 /// <item>then per series the covers of the volumes it holds - as volume files (a volume in an archive's name or ComicInfo), as
@@ -86,13 +87,18 @@ public sealed class VolumeCoverPass
     private readonly ILogger<VolumeCoverPass> _logger;
     private readonly Covers.CoverDecisionQueue? _decisions;
     private readonly AutoMatch.LinkCoverCheck.CoverCheckService? _coverCheck;
+    private readonly Wikipedia.WikipediaVolumeService? _wikipedia;
+
+    /// <summary>A Wikipedia refusal (removed from the allowlist, a backoff, the budget) closes the Wikipedia step for the rest of the tick.</summary>
+    private bool _wikipediaClosed;
 
     public VolumeCoverPass(
         MangaPixerDbContext db, MetadataAutoMatchService autoMatch, MetadataSettingsService settings, CompanionLinkService companions,
         VolumeMapService maps, VolumeCoverFetcher fetcher, ICoverHasher hasher, ThumbnailStore thumbnails, CoverHashCache hashCache,
         VolumeCoverPassState state, TimeProvider time, ILogger<VolumeCoverPass> logger, Covers.CoverDecisionQueue? decisions = null,
-        AutoMatch.LinkCoverCheck.CoverCheckService? coverCheck = null)
+        AutoMatch.LinkCoverCheck.CoverCheckService? coverCheck = null, Wikipedia.WikipediaVolumeService? wikipedia = null)
     {
+        _wikipedia = wikipedia;
         _decisions = decisions;
         _coverCheck = coverCheck;
         _db = db;
@@ -168,6 +174,7 @@ public sealed class VolumeCoverPass
 
         var settings = await ReadSettingsAsync(ct);
         var series = await EligibleSeriesAsync(ct);
+        _wikipediaClosed = false;
         var call = MetadataCallContext.Automatic();
         var aniListOpen = true;
         int checkedSeries = 0, stored = 0;
@@ -236,6 +243,34 @@ public sealed class VolumeCoverPass
     /// it, else null. MangaDex refusals and failures propagate.
     /// </summary>
     public async Task<bool?> MetadataStepsAsync(
+        VolumeSeries s, string preferredLanguage, MetadataCallContext? call, bool force, bool allowAniList, CancellationToken ct)
+    {
+        var aniList = await MangaDexAndAniListStepsAsync(s, preferredLanguage, call, force, allowAniList, ct);
+        await WikipediaStepAsync(s, call, force, ct);
+        return aniList;
+    }
+
+    /// <summary>
+    /// The Wikipedia companion step of one series (1.32.0): runs after MangaDex's data is current, so its gaps are known. A gateway refusal
+    /// (Wikipedia off the allowlist, a backoff, the budget) closes the step for the rest of the tick; the MangaDex work goes on. Provider
+    /// failures are recorded by the service and never thrown.
+    /// </summary>
+    private async Task WikipediaStepAsync(VolumeSeries s, MetadataCallContext? call, bool force, CancellationToken ct)
+    {
+        if (_wikipedia is null || _wikipediaClosed)
+            return;
+        try
+        {
+            var series = await _db.MetadataRecords.FirstAsync(r => r.Id == s.RecordId, ct);
+            await _wikipedia.StepAsync(series, s.LibraryId, call, force, adminAsked: false, ct);
+        }
+        catch (MetadataGatewayException ex) when (MetadataAutoMatchService.IsRefusal(ex))
+        {
+            _wikipediaClosed = true;
+        }
+    }
+
+    private async Task<bool?> MangaDexAndAniListStepsAsync(
         VolumeSeries s, string preferredLanguage, MetadataCallContext? call, bool force, bool allowAniList, CancellationToken ct)
     {
         var now = _time.GetUtcNow();
@@ -391,8 +426,9 @@ public sealed class VolumeCoverPass
     private async Task<List<int>> PlanHeldVolumesAsync(MangaDexRef md, long recordId, IReadOnlyList<long> nodeIds, string preferred, CancellationToken ct)
     {
         var archives = await ArchivesBelowAsync(_db, nodeIds, ct);
-        var map = await _maps.FindAsync(recordId, VolumeMapSource.MangaDexAggregate, ct);
-        var exact = map is { State: (int)VolumeMapState.Ok } ? SeriesProgressLoader.ParseVolumes(map.VolumesJson) : [];
+        // 1.32.0: the exact list the Volumes view uses - MangaDex's, completed by Wikipedia's.
+        var exact = SeriesProgressLoader.ToVolumes(SeriesProgressLoader.ExactList(
+            await _db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == recordId).ToListAsync(ct)).Volumes);
 
         // volume -> the archives that ARE that volume (an empty list = held as all of its chapters, or an estimated stack)
         var held = new SortedDictionary<int, List<HeldArchive>>();

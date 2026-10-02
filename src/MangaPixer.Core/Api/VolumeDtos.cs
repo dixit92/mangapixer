@@ -45,6 +45,9 @@ public enum VolumeListSource
     MangaDex = 1,
     AniList = 2,
     Mixed = 3,
+
+    /// <summary>1.32.0: the volume list was completed from (or built only from) the series' English Wikipedia list page.</summary>
+    Wikipedia = 4,
 }
 
 /// <summary>A virtual volume stack as a browse entry (<see cref="CatalogNodeDto.VolumeStack"/>).</summary>
@@ -106,6 +109,10 @@ public sealed record VolumeStackDto
     public string? CoverUrl { get; init; }
     public required VolumeStackConfidence Confidence { get; init; }
     public required VolumeListSource Source { get; init; }
+
+    /// <summary>1.32.0: the Wikipedia page the series' volume list was completed from, or null (the stack view's source line links it).</summary>
+    public ListCreditDto? ListCredit { get; init; }
+
     public required int PresentCount { get; init; }
     public int? ChapterCount { get; init; }
 

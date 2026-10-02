@@ -1760,3 +1760,43 @@ public sealed class MoveConflictEntity
 
     public NodeMoveEntity? Move { get; set; }
 }
+
+/// <summary>
+/// The Wikipedia companion of a linked series (1.32.0), one row per series record: how its English "List of ... chapters" page was
+/// found, the pages and revisions used, what the last check said, and each volume's English release date and ISBN. The volume ->
+/// chapters list itself is a <see cref="SeriesVolumeMapEntity"/> row (Source WikipediaList). Only numbers, dates, ISBNs, page titles
+/// and revision ids are stored - never chapter titles or summaries.
+/// </summary>
+public sealed class WikipediaListEntity
+{
+    public long Id { get; set; }
+
+    /// <summary>The linked series record (MangaUpdates); unique.</summary>
+    public long RecordId { get; set; }
+
+    /// <summary><c>WikipediaListState</c> int value.</summary>
+    public int State { get; set; }
+
+    /// <summary><c>WikipediaListMethod</c> int value.</summary>
+    public int Method { get; set; }
+
+    /// <summary>The page title an admin chose (max 300), or null: discovery by Wikidata / the record's title.</summary>
+    public string? AdminTitle { get; set; }
+
+    /// <summary>The pages the stored list was read from with their revision ids: <c>[{"t":"List of X chapters","r":1234567}]</c>.</summary>
+    public string? PagesJson { get; set; }
+
+    /// <summary>A sanitized code for why the last list was refused or the last attempt failed (max 32), or null.</summary>
+    public string? RejectCode { get; set; }
+
+    /// <summary>Per-volume English release date (partial ISO) and ISBN: <c>[{"v":"1","d":"2021-11-09","i":"9781974725762"}]</c>, or null.</summary>
+    public string? DetailsJson { get; set; }
+
+    public DateTimeOffset? CheckedAt { get; set; }
+
+    /// <summary>When the background pass may look at the page again (a revision check first).</summary>
+    public DateTimeOffset? NextCheckAt { get; set; }
+
+    public MetadataRecordEntity? Record { get; set; }
+}
+

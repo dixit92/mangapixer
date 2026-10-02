@@ -209,6 +209,11 @@ public sealed class GatewayHarness : IDisposable
             .ConfigurePrimaryHttpMessageHandler(() => Handler);
         Program.AddMetadataClient(services, MetadataHttp.MangaDexImageClient, MetadataHttp.MangaDexImageHost, "image/*")
             .ConfigurePrimaryHttpMessageHandler(() => Handler);
+        // 1.32.0: Wikipedia + Wikidata (the volume-list companion).
+        Program.AddMetadataClient(services, MetadataHttp.WikipediaClient, MetadataHttp.WikipediaHost, "application/json")
+            .ConfigurePrimaryHttpMessageHandler(() => Handler);
+        Program.AddMetadataClient(services, MetadataHttp.WikidataClient, MetadataHttp.WikidataHost, "application/json")
+            .ConfigurePrimaryHttpMessageHandler(() => Handler);
         _http = services.BuildServiceProvider();
         HttpFactory = _http.GetRequiredService<IHttpClientFactory>();
         Provider = new MangaUpdatesProvider(HttpFactory);
