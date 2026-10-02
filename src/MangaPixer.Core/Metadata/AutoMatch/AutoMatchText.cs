@@ -491,7 +491,9 @@ public static partial class AutoMatchText
     /// 20xx is a year). Tokens inside brackets are read only when the rest of the name states none, and then never a
     /// single-letter token (<c>[v2]</c> is a release revision). A range whose end is a year is one number. Unlike
     /// <see cref="VolumeNumberOf"/> / <see cref="ChapterNumberOf"/> (the matcher's integers, unchanged), nothing is
-    /// truncated and a name states both kinds.
+    /// truncated and a name states both kinds. 1.32.0 comics grammar: BD / European album tokens (<c>Tome 3</c>, <c>T03</c>,
+    /// <c>Band 3</c>, <c>Deel 3</c>) are volumes, <c>Issue 12</c> / <c>No. 12</c> chapters (like <c>#12</c>), and an
+    /// <c>Annual</c> / <c>FCBD</c> / <c>Special #N</c> / <c>One-Shot N</c> issue is an extra (<c>Saga Annual 2</c> -> chapter 2, an extra).
     /// </summary>
     public static UnitNumbers UnitsOf(string? archiveName)
     {
