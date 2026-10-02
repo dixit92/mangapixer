@@ -35,6 +35,7 @@ import {
   WebtoonNavPreferencesService, webtoonTapZone, webtoonScrollTarget, prefersReducedMotion,
 } from './webtoon-nav.service';
 import { isApplePlatformTouch, isStandaloneDisplay } from './platform';
+import { EdgeAdvance, EdgeAdvanceWindowMs, EdgeDirection } from './edge-advance';
 import { InstallHintService } from '../../shared/install-hint/install-hint.service';
 import {
   groupSpreads, fallbackSpreadStarts, normalizeSpreadStarts, isShiftedSpread, shiftSpreadAt, ensureSpreadStart,
@@ -512,6 +513,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 <li><b>Tap</b> the sides to turn a page, the centre to show / hide the controls.</li>
                 <li><kbd>←</kbd> <kbd>→</kbd> previous / next page (follows reading direction) ·
                   <kbd>Home</kbd> <kbd>End</kbd> first / last</li>
+                <li>On the last (first) page, turn the page <b>twice</b> - tap, click, swipe or key - to
+                  open the next (previous) archive.</li>
                 @if (narrowPortrait() && view() === 'spread') {
                   <li>Double page shows in landscape or on a wider screen; this narrow portrait
                     screen shows one page at a time.</li>
@@ -521,7 +524,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
               } @else if (webtoonNav.tapZonesEnabled()) {
                 <li>Scroll freely, or <b>tap</b> the lower part of the page to move forward a screen
                   ({{ webtoonNav.tapStep() }}%), the upper part to go back, the centre to show / hide
-                  the controls. <b>Swipe</b> left / right does the same.</li>
+                  the controls. <b>Swipe</b> left / right does the same. At the very end (start), the
+                  same move <b>twice</b> opens the next (previous) archive.</li>
               } @else {
                 <li>Scroll to read; tap the page to show or hide the controls.</li>
               }
@@ -1014,6 +1018,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   readonly hasNextChapter = computed(() => !!this.nextNeighbor());
   readonly hasPrevChapter = computed(() => !!this.prevNeighbor());
 
+  // Edge-of-archive confirmation (owner, 2026-10-02): at the first / last page the next or previous input arms the
+  // move to the neighbouring archive and the same input again opens it (see edge-advance.ts).
+  private readonly edgeAdvance = new EdgeAdvance();
+
   // In-reader bookmarks (1.17.0), fetched per item alongside the neighbors.
   // `ordinal` is the zero-based page index (matches `currentPage`), so the
   // toolbar toggle's state is just "is there a bookmark at this ordinal".
@@ -1389,6 +1397,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       // next archive's layout (or none) arrives with its manifest.
       this.flushSpreadSave();
       this.spreadLayout.set(null);
+      this.edgeAdvance.reset();
       this.itemId.set(id);
       this.pollAttempts = 0;
       // Reset the page-prefetch cache for the new chapter (URLs are per-item).
@@ -1596,7 +1605,13 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // Upscaling applies to webtoon too since 1.24.0 (banded Enhance), so like 's'
     // it acts before the webtoon early-return.
     if (key === 'e') { this.cycleRendering(); return; }
-    if (this.view() === 'webtoon') return; // native scroll drives webtoon
+    if (this.view() === 'webtoon') { this.onWebtoonEdgeKey(event, key); return; } // native scroll drives webtoon
+
+    // A held arrow key auto-repeats through the pages; at an edge only a NEW press counts,
+    // so holding the key never arms and opens the next archive by itself.
+    const edgeKey = (key === 'ArrowLeft' || key === 'ArrowRight')
+      && ((key === 'ArrowRight') !== (this.direction() === 'rtl') ? this.isAtEnd() : this.isAtStart());
+    if (event.repeat && edgeKey) return;
 
     switch (key) {
       case 'ArrowLeft': this.direction() === 'rtl' ? this.nextPage() : this.prevPage(); break;
@@ -2075,21 +2090,38 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   /**
    * Advance toward the end (next screen). In spread view, jumps a whole spread.
-   * When already on the last screen, the forward gesture auto-advances to the next
-   * chapter (next archive in the folder), if there is one.
+   * On the last screen the forward input is an edge input (2026-10-02): the first one
+   * arms the move to the next archive, the same input again opens it ({@link edgeInput}).
    */
   nextPage(): void {
-    if (this.isAtEnd()) { this.goToNextChapter(); return; }
+    if (this.isAtEnd()) { this.edgeInput(+1); return; }
     this.goToPage(this.nextIndexFrom(this.currentPage(), +1));
   }
   /**
-   * Advance toward the start (previous screen). When already on the first screen,
-   * the backward gesture auto-advances to the previous archive, landing on ITS last
-   * page (mirror of {@link nextPage}), if there is one.
+   * Advance toward the start (previous screen). On the first screen the backward input
+   * arms, and again opens, the previous archive - landing on ITS last page (mirror of
+   * {@link nextPage}).
    */
   prevPage(): void {
-    if (this.isAtStart()) { this.goToPreviousChapter(); return; }
+    if (this.isAtStart()) { this.edgeInput(-1); return; }
     this.goToPage(this.nextIndexFrom(this.currentPage(), -1));
+  }
+
+  /**
+   * One next / previous input at the matching edge of the archive, from any input
+   * method (tap zone, click, swipe, arrow key; in webtoon a tap, swipe or scroll key at
+   * the very top / bottom). Without a neighbouring archive it says so at once. Otherwise
+   * the first input names the archive and arms the move, and the same input again within
+   * {@link EdgeAdvanceWindowMs} opens it - one stray input at the end never leaves the archive.
+   */
+  private edgeInput(direction: EdgeDirection): void {
+    const neighbor = direction === 1 ? this.nextNeighbor() : this.prevNeighbor();
+    if (!neighbor || this.edgeAdvance.press(direction, Date.now()) === 'go') {
+      direction === 1 ? this.goToNextChapter() : this.goToPreviousChapter();
+      return;
+    }
+    const which = direction === 1 ? 'next' : 'previous';
+    this.snackBar.open(`Again to open the ${which} archive: ${neighbor.displayName}`, '', { duration: EdgeAdvanceWindowMs });
   }
 
   /** True when the current screen is the last page (paged) or last spread (spread). */
@@ -2178,6 +2210,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private goToPage(index: number): void {
     const clamped = Math.min(Math.max(index, 0), this.pageCount() - 1);
     if (clamped === this.currentPage()) return;
+    this.edgeAdvance.reset(); // a page turn inside the archive disarms the edge
     // Resolve the transition enter-side from the travel direction before the page
     // swaps, so the freshly mounted <img> animates in from the correct edge.
     this.navEnter.set(this.enterSideForNav(clamped > this.currentPage()));
@@ -2921,12 +2954,40 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     if (!el) return;
     const target = webtoonScrollTarget(
       el.scrollTop, el.clientHeight, el.scrollHeight, this.webtoonNav.tapStep(), direction);
-    if (target === el.scrollTop) return;
+    // Already at that end of the strip: an explicit tap / swipe step there is an edge
+    // input (2026-10-02). Plain scrolling never is - the 1.7.1 revert stands.
+    if (target === el.scrollTop) {
+      if (this.webtoonAtEdge(el, direction)) this.edgeInput(direction);
+      return;
+    }
+    this.edgeAdvance.reset();
     if (typeof el.scrollTo === 'function') {
       el.scrollTo({ top: target, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
     } else {
       el.scrollTop = target;
     }
+  }
+
+  /** The webtoon strip stands at its end (`1`) or start (`-1`). */
+  private webtoonAtEdge(el: HTMLElement, direction: 1 | -1): boolean {
+    const eps = ReaderComponent.WebtoonBottomEpsilonPx;
+    return direction === 1 ? el.scrollTop + el.clientHeight >= el.scrollHeight - eps : el.scrollTop <= eps;
+  }
+
+  /**
+   * Scroll keys in webtoon (PageDown / Space / Down, PageUp / Shift+Space / Up): the browser
+   * scrolls the strip itself; only at its very end (start) - where the key no longer moves
+   * anything - is a fresh press an edge input toward the next (previous) archive.
+   */
+  private onWebtoonEdgeKey(event: KeyboardEvent, key: string): void {
+    // Space / Enter on a focused button (the end-of-chapter footer's) is that button's alone.
+    if (event.repeat || (event.target as HTMLElement | null)?.closest?.('button')) return;
+    const forward = key === 'PageDown' || key === 'ArrowDown' || (key === ' ' && !event.shiftKey);
+    const backward = key === 'PageUp' || key === 'ArrowUp' || (key === ' ' && event.shiftKey);
+    if (!forward && !backward) return;
+    const el = this.scroller()?.nativeElement;
+    const direction = forward ? 1 : -1;
+    if (el && this.webtoonAtEdge(el, direction)) this.edgeInput(direction);
   }
 
   private clearPoll(): void {
