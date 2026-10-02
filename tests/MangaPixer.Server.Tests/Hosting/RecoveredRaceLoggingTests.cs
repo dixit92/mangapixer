@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.Tests.Server.Hosting;
 
+using com.lifepixer.mangapixer.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Server.Features.Reading;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -52,6 +53,52 @@ public sealed class RecoveredRaceLoggingTests : IClassFixture<MangaPixerWebAppli
         var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
         foreach (var itemId in items)
             Assert.Equal(1, await db.ReadMarks.CountAsync(m => m.UserId == userId && m.ItemId == itemId));
+    }
+
+    [Fact]
+    public async Task ConcurrentManualMarkRead_AllSucceed_WithoutAnErrorLine()
+    {
+        var userId = await SeedUserAsync();
+        var items = await SeedItemsAsync("race-mark", 6);
+
+        foreach (var itemId in items)
+        {
+            var start = new TaskCompletionSource();
+            var tasks = Enumerable.Range(0, Writers).Select(_ => Task.Run(async () =>
+            {
+                await start.Task;
+                await using var scope = _factory.Services.CreateAsyncScope();
+                return await scope.ServiceProvider.GetRequiredService<ReadingStateService>().SetItemReadAsync(userId, itemId, read: true);
+            })).ToArray();
+            start.SetResult();
+            Assert.All(await Task.WhenAll(tasks), Assert.True);
+        }
+
+        AssertNoErrorLines();
+        await AssertOneProgressRowEachAsync(userId, items);
+    }
+
+    [Fact]
+    public async Task ConcurrentFavoriteAdds_AllSucceed_WithoutAnErrorLine()
+    {
+        var userId = await SeedUserAsync();
+        await SeedItemsAsync("race-fav", 6);
+
+        for (var i = 0; i < 6; i++)
+        {
+            var publicId = $"race-fav{i}";
+            var start = new TaskCompletionSource();
+            var tasks = Enumerable.Range(0, Writers).Select(_ => Task.Run(async () =>
+            {
+                await start.Task;
+                await using var scope = _factory.Services.CreateAsyncScope();
+                return await scope.ServiceProvider.GetRequiredService<FavoritesService>().AddFavoriteAsync(userId, publicId);
+            })).ToArray();
+            start.SetResult();
+            Assert.All(await Task.WhenAll(tasks), r => Assert.Equal(FavoritesService.FavoriteResult.Ok, r));
+        }
+
+        AssertNoErrorLines();
     }
 
     private async Task RaceProgressAsync(long userId, long itemId, Func<int, int> pageIndex)

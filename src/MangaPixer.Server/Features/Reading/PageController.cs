@@ -280,7 +280,7 @@ public sealed class PageController : ControllerBase
     /// <summary>
     /// Maps a worker extraction failure to an HTTP response with a stable code.
     /// </summary>
-    private IActionResult MapExtractionFailure(PageExtractionOutcome outcome, long nodeId, string entryKey)
+    internal IActionResult MapExtractionFailure(PageExtractionOutcome outcome, long nodeId, string entryKey)
     {
         if (outcome.ErrorType == "cancelled")
         {
