@@ -88,6 +88,13 @@ public sealed class LibraryEntity
 
     public ICollection<LibraryGrantEntity> Grants { get; set; } = [];
     public ICollection<CatalogNodeEntity> Nodes { get; set; } = [];
+
+    // 1.32.0 scheduled jobs (migration AddJobSchedules).
+    /// <summary>Server-local hour (0-23) of a Daily / Weekly scan, or null = "Any time" (one interval after the last scan).</summary>
+    public int? ScanHour { get; set; }
+
+    /// <summary>Weekday of a Weekly scan with an hour (0 = Sunday ... 6), or null = Sunday.</summary>
+    public int? ScanWeekday { get; set; }
 }
 
 /// <summary>
@@ -1026,6 +1033,19 @@ public sealed class AppSettingsEntity
 
     /// <summary>The server-local hour (0-23) of the daily automatic trash run (owner, 1.31.0: scheduled job times are admin-chosen). Null = 04:00.</summary>
     public int? TrashAutomaticHour { get; set; }
+    // 1.32.0 scheduled jobs and refresh cadence (migration AddJobSchedules).
+    /// <summary>Server-local hour (0-23) of the daily series information refresh. Null = 03:00.</summary>
+    public int? MetadataRefreshHour { get; set; }
+    /// <summary>"Check ongoing series": 7, 14 or 30 days. Null = 30.</summary>
+    public int? MetadataRefreshOngoingDays { get; set; }
+    /// <summary>"Check finished series": 30, 90 or 180 days. Null = 90.</summary>
+    public int? MetadataRefreshFinishedDays { get; set; }
+    /// <summary>"Follow each series' publishing pace". ON by default; the migration gives the existing row true.</summary>
+    public bool MetadataRefreshFollowPace { get; set; } = true;
+    /// <summary>Server-local hour (0-23) of a backup whose interval is whole days, or null = any time (an interval after the last).</summary>
+    public int? BackupHour { get; set; }
+    /// <summary>Server-local hour (0-23) of the daily cache clean-up. Null = 05:00.</summary>
+    public int? CacheEvictionHour { get; set; }
 }
 
 /// <summary>
@@ -1124,6 +1144,12 @@ public sealed class MetadataRecordEntity
 
     /// <summary>Related records, <c>[{externalId, relation}]</c> (stage 2: the related-pair rule).</summary>
     public string? RelationsJson { get; set; }
+
+    /// <summary>
+    /// The record's refresh cadence in days (1.32.0, <c>RefreshCadence.For</c>), recomputed by the daily refresh pass; null = not
+    /// computed yet (<c>RefreshCadence.AgeFor(OriginStatus)</c>). The refresh, the companions and the cover re-check all use it.
+    /// </summary>
+    public int? RefreshCadenceDays { get; set; }
 }
 
 /// <summary>
@@ -1759,4 +1785,43 @@ public sealed class MoveConflictEntity
     public long? ResolvedByUserId { get; set; }
 
     public NodeMoveEntity? Move { get; set; }
+}
+
+/// <summary>
+/// The last run of a scheduled job (1.32.0), one row per job key (<c>ScheduledJobKeys</c>). Written when a run starts and when it
+/// ends, so the Scheduled jobs section shows real last runs after a restart and the daily jobs use <see cref="LastStartedAt"/> as
+/// their floor (a restart neither runs them twice nor skips a day). Counts only - never a path or a title.
+/// </summary>
+public sealed class JobRunEntity
+{
+    /// <summary>The job key (max 64), e.g. <c>metadata-refresh</c>.</summary>
+    public string Key { get; set; } = string.Empty;
+
+    public DateTimeOffset? LastStartedAt { get; set; }
+    public DateTimeOffset? LastFinishedAt { get; set; }
+
+    /// <summary><c>ok</c>, <c>failed</c>, <c>skipped</c> or <c>waiting</c> (max 32); null while the first run is going.</summary>
+    public string? LastOutcome { get; set; }
+
+    /// <summary>A short summary with counts only (max 128), e.g. <c>87 refreshed</c>.</summary>
+    public string? LastDetail { get; set; }
+
+    public long? LastDurationMs { get; set; }
+}
+
+/// <summary>
+/// What a refresh saw of a linked series record (1.32.0): written when a refresh leaves values that differ from the record's last
+/// observation (a baseline row first), at most <c>RefreshObservations.MaxPerRecord</c> per record. The publishing pace of the
+/// refresh cadence comes from these rows - no extra request. Cascades with the record.
+/// </summary>
+public sealed class MetadataRecordObservationEntity
+{
+    public long Id { get; set; }
+    public long RecordId { get; set; }
+    public DateTimeOffset ObservedAt { get; set; }
+    public double? LatestChapter { get; set; }
+    public int? OriginVolumes { get; set; }
+    public int? OriginStatus { get; set; }
+
+    public MetadataRecordEntity? Record { get; set; }
 }
