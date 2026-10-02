@@ -237,8 +237,10 @@ export function validateThresholds(
             <div class="consent" data-testid="md-auto-consent-text">
               <p>When on, MangaPixer matches new series folders on its own, in the background, in <strong>every library whose
                 Fetch switch is on</strong>. Links it is sure about go live at once and are listed under Review › Auto-linked;
-                close calls wait for you under Needs review. It also refreshes the series you have linked, by record number:
-                every 30 days while a series is ongoing, every 90 days once it is complete, at most 100 a day.</p>
+                close calls wait for you under Needs review. It also refreshes the series you have linked, by record number,
+                once a day at the time you choose under Scheduled jobs: an ongoing series every month (you can choose every 2
+                weeks or every week), and more often - up to once a week - when it publishes new volumes quickly; a finished
+                series every 3 months, as does one on hiatus or with nothing new for six months. At most 200 a day.</p>
               <p><strong>What is sent automatically:</strong> the cleaned name of each new series-like folder, or of an
                 archive that is its own work (in a collection folder, or loose next to other folders) - for example
                 "Series Title" from "Series Title [English Title]" - which <strong>nobody reviews before it is sent</strong>,

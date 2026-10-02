@@ -19,6 +19,7 @@ These guides are for people who run MangaPixer on their own hardware. They descr
 | [Library layout](library-layout.md) | How your folders and archives appear in the app, supported formats, sorting, filters, favorites, rescans and moves, and the read-only guarantee. |
 | [Users and access](users-and-access.md) | First-run setup, admins and readers, activation links, library access, analytics, Private libraries, Incognito, sessions. |
 | [Backup and restore](backup-and-restore.md) | Automatic database backups, backup settings and a custom backup folder, restoring a backup, what a backup contains, importing YACReader progress. |
+| [Scheduled jobs](scheduled-jobs.md) | What MangaPixer does on its own and when - scans, the series information refresh and its cadence, backups, cleaning - with the times you can choose (server time). |
 | [Trash](trash.md) | What happens to removed files: the trash, how long it keeps reading state (Daily to Yearly - also the window in which a moved series is recognized), emptying it now or automatically, and Clean bundles. |
 | [Reverse proxy and HTTPS](reverse-proxy-and-https.md) | Putting MangaPixer behind Caddy or nginx for TLS, the forwarded headers it trusts, and exposing it to the internet. |
 
