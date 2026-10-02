@@ -17,7 +17,6 @@ public sealed class FolderCoverPreferenceController(FolderCoverPreferenceService
 
     [HttpGet]
     [ProducesResponseType<FolderCoverPreferenceDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Get(string nodeId, CancellationToken ct)
     {
         var (code, dto) = await service.GetAsync(nodeId, ct);
@@ -27,7 +26,6 @@ public sealed class FolderCoverPreferenceController(FolderCoverPreferenceService
     [HttpPut]
     [ProducesResponseType<FolderCoverPreferenceDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Set(string nodeId, [FromBody] SetFolderCoverPreferenceRequest request, CancellationToken ct)
     {
         var (code, dto) = await service.SetAsync(nodeId, request.Preference, Actor, ct);
@@ -36,7 +34,6 @@ public sealed class FolderCoverPreferenceController(FolderCoverPreferenceService
 
     [HttpDelete]
     [ProducesResponseType<FolderCoverPreferenceDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Clear(string nodeId, CancellationToken ct)
     {
         var (code, dto) = await service.ClearAsync(nodeId, Actor, ct);

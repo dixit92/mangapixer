@@ -136,6 +136,7 @@ public sealed class MoveRulesTests
             ["folder_metadata_precedence"] = "copied",
             ["folder_metadata_content"] = "copied",
             ["folder_view_settings"] = "copied",
+            ["folder_cover_preferences"] = "copied",
             // The new copy has (or derives) its own.
             ["archive_items"] = "regenerated",
             ["page_entries"] = "regenerated",
