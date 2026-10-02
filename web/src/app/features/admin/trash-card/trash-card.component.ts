@@ -274,7 +274,9 @@ export class TrashCardComponent implements OnInit {
     const row = document.getElementById('job-trash');
     if (!row) return;
     row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    row.querySelector<HTMLElement>('[data-testid="job-trash-auto"] button, [data-testid="job-trash-auto"]')?.focus({ preventScroll: true });
+    // The slide toggle's host is not focusable; its inner button is.
+    const toggle = row.querySelector<HTMLElement>('[data-testid="job-trash-auto"]');
+    (toggle?.querySelector<HTMLElement>('button') ?? toggle)?.focus({ preventScroll: true });
   }
 
   ask(p: Pending): void {

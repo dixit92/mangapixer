@@ -90,14 +90,15 @@ describe('TrashCardComponent', () => {
   it('the automatic cleaning status line says Off, or the daily hour, and holds no switch or hour select (1.32.0)', () => {
     const off = createLoaded();
     const el: HTMLElement = off.nativeElement;
-    expect(el.querySelector('[data-testid="trash-auto-status"]')!.textContent).toContain('Automatic cleaning: Off');
+    const status = (e: HTMLElement) => (e.querySelector('[data-testid="trash-auto-status"]')!.textContent ?? '').replace(/\s+/g, ' ');
+    expect(status(el)).toContain('Automatic cleaning: Off');
     expect(el.querySelector('[data-testid="trash-auto"]')).toBeNull();
     expect(el.querySelector('[data-testid="trash-hour"]')).toBeNull();
     httpMock.verify();
     TestBed.resetTestingModule();
 
     const on = createLoaded(overview({ settings: { ...overview().settings, automaticCleaning: true, automaticHour: 22 } }));
-    expect((on.nativeElement as HTMLElement).querySelector('[data-testid="trash-auto-status"]')!.textContent).toContain('Automatic cleaning: daily at 22:00');
+    expect(status(on.nativeElement)).toContain('Automatic cleaning: daily at 22:00');
   });
 
   it('the status line link scrolls to and focuses the Scheduled jobs row', () => {
