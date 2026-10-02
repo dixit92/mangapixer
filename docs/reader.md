@@ -23,6 +23,8 @@ On desktop and tablet, the toolbar at the top holds:
 - **Reading help** (`?`).
 - **Fullscreen**.
 
+The name of the open archive shows with the controls, in fullscreen as well: in the middle of the toolbar on wide screens (about 1000 px and up), otherwise in a small row just below it. A long name is cut with an ellipsis; hover it with a mouse to see the whole name.
+
 In a normal window the controls stay visible. In fullscreen they hide after 3 seconds without input. Tap the center of the page, press `m`, or (with a mouse) move to the top of the screen to bring them back.
 
 The bottom bar has a **page slider**: tap to jump, or drag to scrub, with a bubble showing where you will land. When the controls are hidden, a thin progress line shows how far through the archive you are.

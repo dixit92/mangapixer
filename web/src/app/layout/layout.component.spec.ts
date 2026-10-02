@@ -76,6 +76,8 @@ describe('LayoutComponent sidebar visibility', () => {
           { path: 'libraries/:libraryId/browse', component: BlankComponent },
           { path: 'reader/:itemId', component: BlankComponent },
           { path: 'library-nav', component: BlankComponent },
+          { path: 'libraries', component: BlankComponent },
+          { path: 'search', component: BlankComponent },
         ]),
         { provide: AuthService, useValue: authSpy },
         { provide: IncognitoService, useValue: incognitoSpy },
@@ -118,6 +120,49 @@ describe('LayoutComponent sidebar visibility', () => {
     expect(fixture.componentInstance.showSidebar()).toBe(false);
     expect(fixture.nativeElement.querySelector('app-library-sidebar')).toBeNull();
     expect(fixture.nativeElement.querySelector('.content.full-bleed')).not.toBeNull();
+  });
+
+  describe('Libraries / Search links (1.32.0)', () => {
+    const links = (fixture: { nativeElement: HTMLElement }) =>
+      Array.from(fixture.nativeElement.querySelectorAll<HTMLButtonElement>('.nav-link'));
+
+    it('wide screens keep the text links, in order, with no icon buttons', async () => {
+      const { fixture, router } = create({ authenticated: true, phone: false });
+      await go(router, '/', fixture);
+
+      expect(links(fixture).map((b) => b.textContent?.trim())).toEqual(['Libraries', 'Search']);
+      expect(fixture.nativeElement.querySelector('.nav-icon')).toBeNull();
+    });
+
+    it('phones show icon buttons instead, named for screen readers, in the same order and with the same routes', async () => {
+      const { fixture, router } = create({ authenticated: true, phone: true });
+      await go(router, '/', fixture);
+
+      const buttons = links(fixture);
+      expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['Libraries', 'Search']);
+      expect(buttons.map((b) => b.querySelector('mat-icon')?.textContent?.trim())).toEqual(['library_books', 'search']);
+      expect(buttons.every((b) => b.classList.contains('nav-icon'))).toBe(true);
+      expect(buttons.map((b) => b.textContent?.replace(/library_books|search/, '').trim())).toEqual(['', '']);
+
+      buttons[1].click();
+      await fixture.whenStable();
+      expect(router.url).toBe('/search');
+    });
+
+    it('marks the link of the current page as active (aria-current), on both layouts', async () => {
+      for (const phone of [false, true]) {
+        TestBed.resetTestingModule();
+        const { fixture, router } = create({ authenticated: true, phone });
+        await go(router, '/search', fixture);
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const [libraries, search] = links(fixture);
+        expect(search.getAttribute('aria-current')).toBe('page');
+        expect(search.classList).toContain('active-link');
+        expect(libraries.getAttribute('aria-current')).toBeNull();
+      }
+    });
   });
 
   describe('phone breakpoint (1.10.0, F3)', () => {

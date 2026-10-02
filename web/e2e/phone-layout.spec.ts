@@ -1,5 +1,5 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { layoutProblems } from './layout';
+import { expectFitsScreen, layoutProblems } from './layout';
 
 /**
  * Every main page fits a phone (390 px) and a tablet (820 px) screen (1.29.2): no sideways page scroll, nothing past the
@@ -299,4 +299,78 @@ test('the Scheduled jobs section fits a phone and a tablet screen, and saves an 
   const restored = page.waitForResponse((r) => r.request().method() === 'PUT' && r.url().endsWith('/api/v1/admin/jobs/cache-eviction'));
   await page.getByTestId('scheduled-jobs').getByTestId('job-hour-cache-eviction').selectOption('5');
   expect((await restored).ok()).toBeTruthy();
+});
+
+test('the phone header shows Libraries and Search as icons; wider screens keep the text', async ({ page }) => {
+  // 1.32.0: on a phone the two text links touched each other; they are icon buttons (named for screen readers) there.
+  test.setTimeout(120_000);
+  await login(page);
+  await ensureLibrary(page);
+  const header = page.locator('mat-toolbar').first();
+  const box = async (name: string) => (await header.getByRole('button', { name, exact: true }).boundingBox())!;
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await settle(page);
+  await expect(header.locator('button.nav-icon')).toHaveCount(2);
+  await expect(header.getByRole('button', { name: 'Libraries', exact: true })).toHaveText('library_books');
+  const [libraries, search] = [await box('Libraries'), await box('Search')];
+  expect(libraries.x + libraries.width, 'the two icons must not touch').toBeLessThanOrEqual(search.x);
+  expect(libraries.width).toBeGreaterThanOrEqual(40); // a touch target, not a squeezed label
+  await expectFitsScreen(page, 'the phone header on Home');
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/header-390.png` });
+
+  await header.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(page).toHaveURL(/\/search/);
+  await expect(header.getByRole('button', { name: 'Search', exact: true })).toHaveAttribute('aria-current', 'page');
+
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await page.goto('/');
+  await settle(page);
+  await expect(header.locator('button.nav-icon')).toHaveCount(0);
+  await expect(header.getByRole('button', { name: 'Libraries', exact: true })).toHaveText('Libraries');
+  await expectFitsScreen(page, 'the tablet header on Home');
+});
+
+test('the reader shows the archive name: a row under the bar on phones and tablets, in the bar on desktop', async ({ page }) => {
+  // 1.32.0: the name is text (with a title for the full name), one line, and never covers more of the page than the bar.
+  test.setTimeout(180_000);
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  const flat = await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?parentId=${folderId}&pageSize=50&group=flat`)).json();
+  const archive = (flat.items as Node[]).find((n) => n.kind === 'Archive')!;
+  const failures: string[] = [];
+
+  for (const size of [...SIZES, { width: 1024, height: 768 }, { width: 1280, height: 900 }]) {
+    await page.setViewportSize(size);
+    await page.goto(`/reader/${archive.id}`);
+    const name = page.getByTestId('reader-archive-name');
+    await expect(name).toHaveText(archive.displayName);
+    await expect(name).toHaveAttribute('title', archive.displayName);
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/reader-name-${size.width}.png` });
+    const bar = (await page.locator('.reader-toolbar').boundingBox())!;
+    const n = (await name.boundingBox())!;
+    expect(n.height, `${size.width} px: the name stays on one line`).toBeLessThanOrEqual(32);
+    expect(n.x).toBeGreaterThanOrEqual(0);
+    expect(n.x + n.width).toBeLessThanOrEqual(size.width);
+
+    if (size.width >= 1000) {
+      // In the bar: between the page counter and the first action icon, centered in that gap.
+      expect(n.y).toBeGreaterThanOrEqual(bar.y);
+      expect(n.y + n.height).toBeLessThanOrEqual(bar.y + bar.height);
+      const counter = (await page.locator('.reader-toolbar .page-info').boundingBox())!;
+      const firstIcon = (await page.locator('.reader-toolbar button.chapter-arrow').first().boundingBox())!;
+      expect(n.x, 'the name starts after the page counter').toBeGreaterThanOrEqual(counter.x + counter.width);
+      expect(n.x + n.width, 'the name ends before the action icons').toBeLessThanOrEqual(firstIcon.x);
+      const gapCenter = (counter.x + counter.width + firstIcon.x) / 2;
+      expect(Math.abs(n.x + n.width / 2 - gapCenter), 'centered in the free space of the bar').toBeLessThanOrEqual(2);
+    } else {
+      // Under the bar: directly below it, the width of the screen.
+      expect(Math.abs(n.y - (bar.y + bar.height)), `${size.width} px: the row sits right below the bar`).toBeLessThanOrEqual(1);
+      expect(n.width).toBeGreaterThanOrEqual(size.width - 2);
+    }
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px reader: ${p.kind}: ${p.what} - ${p.detail}`);
+  }
+  expect(failures, `the reader with its archive name does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });

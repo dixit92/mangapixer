@@ -147,16 +147,25 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
   ],
   template: `
     <div class="reader-container">
-      <mat-toolbar class="reader-toolbar" [class.immersive]="isFullscreen()"
-                   [class.chrome-hidden]="!chromeVisible()"
-                   (mouseenter)="lockChrome(true)" (mouseleave)="lockChrome(false)">
+      <!-- Top chrome: the toolbar plus, on narrow screens, a one-line row with the archive's
+           name. One wrapper carries the fullscreen overlay + auto-hide so both fade together. -->
+      <div class="reader-top" [class.immersive]="isFullscreen()"
+           [class.chrome-hidden]="!chromeVisible()"
+           (mouseenter)="lockChrome(true)" (mouseleave)="lockChrome(false)">
+      <mat-toolbar class="reader-toolbar">
         <button mat-icon-button (click)="goBack()" matTooltip="Back to folder" aria-label="Back to folder">
           <mat-icon>arrow_back</mat-icon>
         </button>
         <span class="page-info">
           @if (phase() === 'ready') { {{ currentPageIndicator() }} / {{ pageCount() }} }
         </span>
-        <span class="spacer"></span>
+        @if (nameInBar() && itemName()) {
+          <!-- Wide screens: the archive's name sits in the free space between the page counter and
+               the action icons (flexes, ellipsis - never pushes the icons). -->
+          <span class="archive-name" data-testid="reader-archive-name" [attr.title]="itemName()">{{ itemName() }}</span>
+        } @else {
+          <span class="spacer"></span>
+        }
 
         <!-- Controls stay visible in fullscreen. -->
         @if (phase() === 'ready' && compact()) {
@@ -300,6 +309,11 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
           </button>
         }
       </mat-toolbar>
+      @if (!nameInBar() && itemName()) {
+        <!-- Phones / portrait / narrow windows: no room in the bar, so a small row right below it. -->
+        <div class="reader-name-row" data-testid="reader-archive-name" [attr.title]="itemName()">{{ itemName() }}</div>
+      }
+      </div>
 
       @if (phase() === 'preparing') {
         <div class="status">
@@ -554,21 +568,35 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       position: fixed; inset: 0;
       background: #101012; z-index: 1000;
     }
-    .reader-toolbar {
-      background: #1c1c1f; color: #eee; flex-shrink: 0;
+    .reader-top {
+      flex-shrink: 0;
       transition: transform .2s ease, opacity .2s ease;
     }
-    /* Immersive (fullscreen only): the toolbar OVERLAYS the viewport so hiding it
-       frees the whole screen. Windowed reading keeps it in normal flow above the
+    .reader-toolbar { background: #1c1c1f; color: #eee; }
+    /* Immersive (fullscreen only): the top chrome (toolbar + name row) OVERLAYS the viewport so
+       hiding it frees the whole screen. Windowed reading keeps it in normal flow above the
        page, always visible. */
-    .reader-toolbar.immersive {
+    .reader-top.immersive {
       position: absolute; top: 0; left: 0; right: 0; z-index: 1001;
     }
-    .reader-toolbar.immersive.chrome-hidden {
+    .reader-top.immersive.chrome-hidden {
       transform: translateY(-100%); opacity: 0; pointer-events: none;
     }
-    .page-info { margin-left: 8px; font-variant-numeric: tabular-nums; }
+    .page-info { margin-left: 8px; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .spacer { flex: 1 1 auto; }
+    /* The archive's name: centered in the free space of the bar (wide screens), one line. */
+    .archive-name {
+      flex: 1 1 0; min-width: 0; margin: 0 12px; text-align: center;
+      font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* ... or a single-line row under the bar (narrow screens). */
+    .reader-name-row {
+      box-sizing: border-box; height: 28px; line-height: 28px;
+      padding: 0 max(16px, env(safe-area-inset-left, 0px)) 0 max(16px, env(safe-area-inset-right, 0px));
+      background: #1c1c1f; color: #ccc; font-size: 13px; text-align: center;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
     /* Chapter arrows (1.17.0): the glyph implies a direction (skip_previous
        points left / skip_next points right), so it is mirrored when the reading
        direction is RTL to match the manga flow, and picks up the same accent
@@ -826,7 +854,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       to   { clip-path: inset(0 0 0 0); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .reader-toolbar, .progress-fill { transition: none; }
+      .reader-top, .progress-fill { transition: none; }
       /* Fall back to an instant page swap when the reader prefers reduced motion,
          regardless of the chosen transition. !important so this reliably wins over
          the per-direction rules above, which are otherwise more specific. */
@@ -867,6 +895,16 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     { initialValue: this.breakpoints.isMatched(Breakpoints.XSmall) },
   );
   /**
+   * Whether the top bar has room for the archive's name between the page counter and the action
+   * icons. The full bar (about a dozen icons, more with the webtoon width slider) leaves under
+   * ~250px for a name below this width, so narrower screens get the name in a row under the bar.
+   */
+  static readonly NameInBarQuery = '(min-width: 1000px)';
+  readonly nameInBar = toSignal(
+    this.breakpoints.observe(ReaderComponent.NameInBarQuery).pipe(map((r) => r.matches)),
+    { initialValue: this.breakpoints.isMatched(ReaderComponent.NameInBarQuery) },
+  );
+  /**
    * Narrow PORTRAIT screen: CDK's HandsetPortrait breakpoint
    * (< 600px wide AND portrait) - the one case where a synthetic two-up spread
    * leaves each page unreadably small. Live, so rotating a phone to landscape
@@ -887,6 +925,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   /** Whether the currently open chapter (the archive) is favorited (1.21.0). */
   readonly currentFavorite = signal(false);
+  /** The open archive's display name (shown in the top chrome); empty until its node loads. */
+  readonly itemName = signal('');
   // Keep it in step with a toggle made anywhere (the desktop star, the phone sheet).
   private readonly favoriteSync = this.favorites.changed$.pipe(takeUntilDestroyed()).subscribe((change) => {
     if (change.nodeId === this.itemId()) this.currentFavorite.set(change.favorite);
@@ -1475,8 +1515,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
    */
   private loadFallbackBackRoute(itemId: string): void {
     this.fallbackBackRoute.set(['/']);
+    this.itemName.set('');
     this.api.getNode(itemId).subscribe({
       next: (node) => {
+        if (this.itemId() === itemId) this.itemName.set(node.displayName ?? '');
         this.fallbackBackRoute.set(
           node.parentId
             ? ['/libraries', node.libraryId, 'browse', node.parentId]
