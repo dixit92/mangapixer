@@ -42,6 +42,8 @@ A declaration never changes the linked record, and the record never changes the 
 
 With **Automatic matching** on, declared facts are used as evidence. A declared **type** is a strong hint in both directions: records from the country the type names are clearly preferred, and records the type contradicts (a Japanese record for a folder declared manhwa) lose the same amount. That settles a tie between two series with the same name - a Korean webtoon and a Japanese manga both called *Wind Breaker*, for example - but it never beats a record whose title fits the folder better, and it never blocks a link: a folder declared with the wrong type still finds and links its series. The review list shows the evidence on each candidate (**Fits declared type** / **Not declared type**), and **Identify…** warns when the record you preview does not fit the declared type. Declared **creators** prefer records by them (a folder of several same-titled series links the one by the declared author) and never count against a record. See [Automatic matching](series-information.md#automatic-matching).
 
+A folder declared **Comic** or **Graphic novel** is a comics work for automatic matching, whatever its files are called; a folder declared any other type is never treated as one, even when its files are numbered `#12` or tagged by a Western publisher. See [Comics signs](library-layout.md#comics-signs).
+
 ## Declared facts and Content
 
 The folder **Content** setting (**Doujinshi & adult one-shots**, see [Series information](series-information.md#folder-content)) stays a separate setting with its own menu; it is not a declared fact.

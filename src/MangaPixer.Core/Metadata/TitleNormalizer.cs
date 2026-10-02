@@ -38,9 +38,15 @@ public static partial class TitleNormalizer
     // words above so "Complete Edition" goes as one phrase. Provider records rarely carry them: a
     // query with "Master Edition" scored the series record below the review floor (owner test, 1.26.0).
     [GeneratedRegex(
-        @"(?<![\p{L}\p{N}])(?:(?:Master|Perfect|Deluxe|Collector'?s|Special|Anniversary|Complete|Definitive|Ultimate|Legendary|Remastered|Full[- ]Colou?r)\s+Edition|Kanzenban|Shinsou?ban|Aizou?ban|Bunkoban|Wideban)(?![\p{L}\p{N}])",
+        @"(?<![\p{L}\p{N}])(?:(?:Master|Perfect|Deluxe|Collector'?s|Special|Anniversary|Complete|Definitive|Ultimate|Legendary|Remastered|Library|Full[- ]Colou?r)\s+Edition|Kanzenban|Shinsou?ban|Aizou?ban|Bunkoban|Wideban)(?![\p{L}\p{N}])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex EditionPhrase();
+
+    // Comics collected-format words (1.32.0): removed from the title and kept as hints, like the edition words. TPB / OGN and the
+    // French / German / Dutch "complete edition" words in any case; HC / GN only upper-case (two letters are too common).
+    // Absolute / Compendium are not removed: they are title words too ("Absolute Boyfriend").
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?i:tpb|ogn|(?:l')?int[eé]grale|gesamtausgabe|integraal)|HC|GN)(?![\p{L}\p{N}])", RegexOptions.CultureInvariant)]
+    private static partial Regex FormatWord();
 
     [GeneratedRegex(@"\[([^\[\]]*)\]", RegexOptions.CultureInvariant)]
     private static partial Regex SquareGroup();
@@ -51,13 +57,15 @@ public static partial class TitleNormalizer
     [GeneratedRegex(@"\((19\d{2}|20\d{2})\)", RegexOptions.CultureInvariant)]
     private static partial Regex YearGroup();
 
-    // v01, v.1, vol 3, Vol. 3, Volume 1-5, volumes 2 - 4
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:v|vol|vols|volume|volumes)\.?\s*\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?(?![\p{L}\p{N}])",
+    // v01, v.1, vol 3, Vol. 3, Volume 1-5, volumes 2 - 4; 1.32.0 BD / European albums: Tome 3, Tomo 3, Band 3, Deel 3, Album 3,
+    // Livre 3, T03 (an upper-case T glued to the number).
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:v|vol|vols|volume|volumes|tome|tomo|band|deel|album|livre)\.?\s*|(?-i:T)(?=\d{1,3}(?![\p{L}\p{N}])))\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?(?![\p{L}\p{N}])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex VolumeToken();
 
-    // Ch 12, ch.12, chap 3, Chapter 10.5, chapters 1-20, c003 (bare c only when glued to digits)
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:ch|chap|chapter|chapters)\.?\s*\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?|c\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?)(?![\p{L}\p{N}])",
+    // Ch 12, ch.12, chap 3, Chapter 10.5, chapters 1-20, c003 (bare c only when glued to digits); 1.32.0 comic issues: Issue 12.
+    // "No. 12" is never removed: titles carry it ("Kaiju No. 8", "No. 6").
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:ch|chap|chapter|chapters|issue\s*#?)\.?\s*\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?|c\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?)(?![\p{L}\p{N}])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ChapterToken();
 
@@ -473,6 +481,10 @@ public static partial class TitleNormalizer
         foreach (Match m in EditionPhrase().Matches(s))
             editionHints.Add(m.Value);
         s = EditionPhrase().Replace(s, " ");
+
+        foreach (Match m in FormatWord().Matches(s))
+            editionHints.Add(m.Value);
+        s = FormatWord().Replace(s, " ");
 
         foreach (var word in s_editionWords)
         {

@@ -162,6 +162,9 @@ public static class MetadataWebLinks
         "mangadex.org",
         "myanimelist.net",
         "comicvine.gamespot.com",
+        // 1.32.0: the comics databases a ComicInfo Web link names (Metron, the Grand Comics Database) - shown, never called.
+        "metron.cloud",
+        "comics.org", "www.comics.org",
         "kitsu.app", "kitsu.io",
         "mangabaka.dev",
     };

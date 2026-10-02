@@ -28,11 +28,25 @@ public static partial class AutoMatchText
     [GeneratedRegex(@"[\(\[](19\d{2}|20\d{2})[\)\]]", RegexOptions.CultureInvariant)]
     private static partial Regex YearGroup();
 
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:v|vol|vols|volume|volumes)\.?\s*\d+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // 1.32.0: BD / European album tokens are volumes too (Tome / Tomo / Band / Deel / Album / Livre N, an upper-case T glued to the number).
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:v|vol|vols|volume|volumes|tome|tomo|band|deel|album|livre)\.?\s*\d+|(?-i:T)\d{1,3}(?![\p{L}\p{N}]))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex VolumeToken();
 
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:ch|chap|chapter|chapters|ep|episode)\.?\s*\d+|c\d+|#\s*\d+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // 1.32.0: "Issue 12" is a chapter too (like #12); "No. 12" is one only when nothing unit-like follows it (IssueNumberOf).
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:ch|chap|chapter|chapters|ep|episode)\.?\s*\d+|c\d+|#\s*\d+|issue\s*#?\s*\d+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ChapterToken();
+
+    // "No. 12" / "N°12" after some title text ("No. 6" alone is a title) - an issue number only per IssueNumberOf.
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?<=[\p{L}\p{N}][\s\-_.,]*)(?:no\.|n°)\s*(?<n>\d{1,4}(?:\.\d{1,2})?)(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex IssueNo();
+
+    // "No. N" anywhere in a name (the folder rule: a folder's own "No. N" is part of its title).
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:no\.|n°)\s*(?<n>\d{1,4})(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex AnyNo();
+
+    // A unit-like token after "No. N": a volume / chapter / episode / album token, c12, #12, T12, or a bare number.
+    [GeneratedRegex(@"(?<![\p{L}\p{N}.])(?:(?:v|vol|vols|volume|volumes|ch|chap|chapter|chapters|ep|episode|issue|tome|tomo|band|deel|album|livre)\.?\s*#?\s*\d|c\d|#\s*\d|(?-i:T)\d|\d)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex UnitLikeAfter();
 
     // A trailing "(disambiguator)" of a provider title: "Look Back (FUJIMOTO Tatsuki)", "Beyond (GYARO)".
     [GeneratedRegex(@"^(?<head>.*\S)\s*\((?<tag>[^()]{1,80})\)\s*$", RegexOptions.CultureInvariant)]
@@ -42,11 +56,16 @@ public static partial class AutoMatchText
     /// Category folder words (1.27.0: the ONE category list, shared with the server's tree snapshot): a folder
     /// named exactly one of these (whole name, case-insensitive) is the category hint of the folders below it.
     /// <c>manga</c> / <c>manhwa</c> / <c>manhua</c> / <c>webtoon(s)</c> also name an origin
-    /// (<see cref="OriginsForCategory"/>); the hint only ever ADDS evidence (owner option a', 2026-09-27).
+    /// (<see cref="OriginsForCategory"/>); the hint only ever ADDS evidence (owner option a', 2026-09-27). 1.32.0: the comics
+    /// words (<see cref="ComicsSignals.CategoryWords"/>: comic books, graphic novel(s), BD, bande(s) dessinee(s), fumetti, tebeos,
+    /// historietas, stripboeken, US comics, European comics, eurocomics) - accents do not matter (<c>Bandes dessinées</c>).
+    /// Not words on purpose (too ambiguous): strips, albums, webcomics.
     /// </summary>
     public static IReadOnlySet<string> CategoryFolderWords { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "manga", "manhwa", "manhua", "webtoon", "webtoons", "comic", "comics", "doujin", "doujinshi",
+        "comic books", "graphic novel", "graphic novels", "bd", "bande dessinee", "bandes dessinees", "fumetti", "tebeos",
+        "historietas", "stripboeken", "us comics", "european comics", "eurocomics",
     };
 
     /// <summary>
@@ -66,7 +85,17 @@ public static partial class AutoMatchText
         new(CategoryFolderWords.Concat(ShelfWords).Select(TitleNormalizer.ScoringForm), StringComparer.Ordinal);
 
     /// <summary>True when a folder name, whole and trimmed, is a category folder word (the library root is never asked).</summary>
-    public static bool IsCategoryFolderName(string? name) => name is not null && CategoryFolderWords.Contains(name.Trim());
+    public static bool IsCategoryFolderName(string? name) =>
+        name is not null && (CategoryFolderWords.Contains(name.Trim()) || CategoryFolderWords.Contains(WithoutAccents(name.Trim())));
+
+    private static string WithoutAccents(string s)
+    {
+        var sb = new StringBuilder(s.Length);
+        foreach (var ch in s.Normalize(NormalizationForm.FormD))
+            if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
+                sb.Append(ch);
+        return sb.ToString().Normalize(NormalizationForm.FormC);
+    }
 
     /// <summary>True when the name is a unit subfolder (<c>Volumes</c>, <c>Chapters 1-50</c>, <c>Season 2</c>, <c>Part 3</c>, <c>12</c>).</summary>
     public static bool IsUnitFolderName(string? name)
@@ -373,7 +402,8 @@ public static partial class AutoMatchText
 
     /// <summary>An archive name that names a volume (a volume token and no chapter token).</summary>
     public static bool IsVolumeLike(string? archiveName) =>
-        archiveName is not null && VolumeToken().IsMatch(archiveName) && !ChapterToken().IsMatch(archiveName);
+        archiveName is not null && VolumeToken().IsMatch(archiveName) && !ChapterToken().IsMatch(archiveName)
+        && IssueNumberOf(archiveName) is null;
 
     /// <summary>
     /// An archive name that names a chapter: a chapter token, or a unit-named archive without a
@@ -383,17 +413,17 @@ public static partial class AutoMatchText
     {
         if (archiveName is null)
             return false;
-        if (ChapterToken().IsMatch(archiveName))
+        if (ChapterToken().IsMatch(archiveName) || IssueNumberOf(archiveName) is not null)
             return true;
         return !VolumeToken().IsMatch(archiveName) && TitleNormalizer.ArchiveBaseTitle(archiveName).Length == 0
             && archiveName.Any(char.IsDigit);
     }
 
     // Unit numbers (1.27.0 count rule): the number after a volume / chapter token, the upper end of a range.
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:v|vol|vols|volume|volumes)\.?\s*(?<n>\d{1,4})(?:\.\d+)?(?:\s*-\s*(?<m>\d{1,4})(?:\.\d+)?)?(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:v|vol|vols|volume|volumes|tome|tomo|band|deel|album|livre)\.?\s*|(?-i:T)(?=\d{1,3}(?![\p{L}\p{N}])))(?<n>\d{1,4})(?:\.\d+)?(?:\s*-\s*(?<m>\d{1,4})(?:\.\d+)?)?(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex VolumeNumber();
 
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:ch|chap|chapter|chapters|ep|episode)\.?\s*|c|#\s*)(?<n>\d{1,4})(?:\.\d+)?(?:\s*-\s*(?<m>\d{1,4})(?:\.\d+)?)?(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:ch|chap|chapter|chapters|ep|episode)\.?\s*|c|#\s*|issue\s*#?\s*)(?<n>\d{1,4})(?:\.\d+)?(?:\s*-\s*(?<m>\d{1,4})(?:\.\d+)?)?(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ChapterNumber();
 
     [GeneratedRegex(@"^\s*(?<n>\d{1,4})(?:\.\d+)?(?![\p{N}])", RegexOptions.CultureInvariant)]
@@ -416,6 +446,8 @@ public static partial class AutoMatchText
             return null;
         if (HighestNumber(ChapterNumber().Matches(archiveName)) is { } n)
             return n;
+        if (IssueNumberOf(archiveName) is { } issue)
+            return (int)decimal.Truncate(issue);
         var bare = Bare(ArchiveExtension().Replace(archiveName, string.Empty));
         return LeadingNumber().Match(bare) is { Success: true } m && !YearOnly().IsMatch(m.Groups["n"].Value)
             ? int.Parse(m.Groups["n"].Value, CultureInfo.InvariantCulture)
@@ -428,7 +460,8 @@ public static partial class AutoMatchText
     /// </summary>
     public static int? BareNumberOf(string? archiveName)
     {
-        if (archiveName is null || VolumeToken().IsMatch(archiveName) || ChapterToken().IsMatch(archiveName) || !IsChapterLike(archiveName))
+        if (archiveName is null || VolumeToken().IsMatch(archiveName) || ChapterToken().IsMatch(archiveName)
+            || IssueNumberOf(archiveName) is not null || !IsChapterLike(archiveName))
             return null;
         var bare = Bare(ArchiveExtension().Replace(archiveName, string.Empty));
         return LeadingNumber().Match(bare) is { Success: true } m && !YearOnly().IsMatch(m.Groups["n"].Value)
@@ -450,16 +483,22 @@ public static partial class AutoMatchText
 
     // Unit numbers v2 (1.29.0): decimals kept, a range as start / end (the end may repeat the token: "v01-v05").
     // <t> is the token, so a bracketed single-letter token ("[v2]", a release revision) can be told apart.
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?<t>volumes|volume|vols|vol|v)\.?\s*(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?:(?:volumes|volume|vols|vol|v)\.?\s*)?(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])",
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?<t>volumes|volume|vols|vol|v|tome|tomo|band|deel|album|livre)\.?\s*|(?<t>(?-i:T))(?=\d{1,3}(?![\p{N}])))(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?:(?:volumes|volume|vols|vol|v|tome|tomo|band|deel|album|livre)\.?\s*|(?-i:T))?(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex VolumeUnit();
 
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?<t>chapters|chapter|chap|ch|episode|ep)\.?\s*|(?<t>c)|(?<t>#)\s*)(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?:(?:chapters|chapter|chap|ch|episode|ep)\.?\s*|c|#\s*)?(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])",
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?<t>chapters|chapter|chap|ch|episode|ep)\.?\s*|(?<t>c)|(?<t>#)\s*|(?<t>issue)\s*#?\s*)(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?:(?:chapters|chapter|chap|ch|episode|ep)\.?\s*|c|#\s*)?(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ChapterUnit();
 
     [GeneratedRegex(@"^\s*(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])", RegexOptions.CultureInvariant)]
     private static partial Regex LeadingUnit();
+
+    // Comics extras (1.32.0): Annual / FCBD (Free Comic Book Day) with or without a number, Special / One-Shot only with their
+    // own number ("Special #1"; "Special Edition" is an edition, a bare "Special" a title word).
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:annual|fcbd|free\s+comic\s+book\s+day)(?:\s*#?\s*(?<n>\d{1,4}(?:\.\d{1,2})?))?|(?:specials?|one-?shots?)\s*#?\s*(?<n>\d{1,4}(?:\.\d{1,2})?))(?![\p{L}\p{N}])",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ExtraMarker();
 
     /// <summary>
     /// Every unit number an archive name states (1.29.0; <see cref="UnitNumbers"/>): <c>Title v03 c012</c> -> volume 3,
@@ -468,7 +507,9 @@ public static partial class AutoMatchText
     /// 20xx is a year). Tokens inside brackets are read only when the rest of the name states none, and then never a
     /// single-letter token (<c>[v2]</c> is a release revision). A range whose end is a year is one number. Unlike
     /// <see cref="VolumeNumberOf"/> / <see cref="ChapterNumberOf"/> (the matcher's integers, unchanged), nothing is
-    /// truncated and a name states both kinds.
+    /// truncated and a name states both kinds. 1.32.0 comics grammar: BD / European album tokens (<c>Tome 3</c>, <c>T03</c>,
+    /// <c>Band 3</c>, <c>Deel 3</c>) are volumes, <c>Issue 12</c> / <c>No. 12</c> chapters (like <c>#12</c>), and an
+    /// <c>Annual</c> / <c>FCBD</c> / <c>Special #N</c> / <c>One-Shot N</c> issue is an extra (<c>Saga Annual 2</c> -> chapter 2, an extra).
     /// </summary>
     public static UnitNumbers UnitsOf(string? archiveName)
     {
@@ -479,6 +520,8 @@ public static partial class AutoMatchText
 
         var volume = RangeOf(VolumeUnit().Matches(outside), allowShortToken: true);
         var chapter = RangeOf(ChapterUnits(outside, volume is not null), allowShortToken: true);
+        if (chapter is null && IssueNumberOf(archiveName) is { } issue)
+            chapter = (issue, null);
         if (volume is null && chapter is null)
         {
             // Only brackets name a unit ("Title (Vol. 3)"); a single letter there is a revision, not a unit.
@@ -493,6 +536,14 @@ public static partial class AutoMatchText
 
         var extra = chapter is { } c ? decimal.Truncate(c.Start) != c.Start
             : volume is { } v && decimal.Truncate(v.Start) != v.Start;
+        // A comics extra (1.32.0): "Saga Annual #2", "Saga Annual 2", "Saga Special #1" is chapter-like but never a numbered
+        // issue - like a .5 chapter it is never missing and never fills a whole number. "FCBD 2019" names a year, not a unit.
+        if (ExtraMarker().Match(outside) is { Success: true } marker)
+        {
+            if (chapter is null && marker.Groups["n"] is { Success: true } own && !YearOnly().IsMatch(own.Value))
+                chapter = (decimal.Parse(own.Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture), null);
+            extra |= chapter is not null;
+        }
         return new UnitNumbers(volume?.Start, volume?.End, chapter?.Start, chapter?.End, extra);
     }
 
@@ -528,9 +579,50 @@ public static partial class AutoMatchText
     }
 
     /// <summary>
+    /// The issue number a <c>No. 12</c> / <c>N°12</c> token states (1.32.0), or null. It is one only after some title text
+    /// (<c>No. 6</c> alone is a title) and only when nothing unit-like follows it outside brackets - no volume / chapter / episode /
+    /// album token, no <c>#12</c> / <c>c012</c>, no bare number: <c>Monster No. 8 v01 c003</c> and <c>Robot No. 9 - Chapter 12</c>
+    /// carry <c>No. N</c> in their title (integrator review, 1.32.0: well-known manga do). A folder's own <c>No. N</c> is handled by
+    /// <see cref="MaskFolderTitleNumber"/>.
+    /// </summary>
+    public static decimal? IssueNumberOf(string? archiveName)
+    {
+        if (string.IsNullOrWhiteSpace(archiveName))
+            return null;
+        var outside = Bare(ArchiveExtension().Replace(archiveName.Normalize(NormalizationForm.FormKC).Trim(), string.Empty));
+        var m = IssueNo().Match(outside);
+        if (!m.Success || UnitLikeAfter().IsMatch(outside[(m.Index + m.Length)..]))
+            return null;
+        return decimal.Parse(m.Groups["n"].Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// The archive name for unit parsing, with the FOLDER's own <c>No. N</c> masked (1.32.0): in a folder named
+    /// <c>Robot No. 9</c>, <c>Robot No. 9.cbz</c> names the work, not issue 9. The same number (leading zeros aside) is
+    /// rewritten as a glued <c>No9</c>, which no unit rule reads. Unchanged when the folder name has no <c>No. N</c>.
+    /// </summary>
+    public static string MaskFolderTitleNumber(string archiveName, string? folderName)
+    {
+        ArgumentNullException.ThrowIfNull(archiveName);
+        if (string.IsNullOrWhiteSpace(folderName))
+            return archiveName;
+        var numbers = AnyNo().Matches(folderName.Normalize(NormalizationForm.FormKC))
+            .Select(m => int.Parse(m.Groups["n"].Value, CultureInfo.InvariantCulture)).ToHashSet();
+        if (numbers.Count == 0)
+            return archiveName;
+        return AnyNo().Replace(archiveName.Normalize(NormalizationForm.FormKC), m =>
+        {
+            var n = int.Parse(m.Groups["n"].Value, CultureInfo.InvariantCulture);
+            return numbers.Contains(n) ? "No" + n.ToString(CultureInfo.InvariantCulture) : m.Value;
+        });
+    }
+
+    /// <summary>
     /// The origins a category hint allows: <c>manga</c> -> Japan, <c>manhwa</c> -> Korea,
-    /// <c>manhua</c> -> China/Taiwan, <c>webtoon(s)</c> -> Korea or China/Taiwan. Null when the
-    /// hint says nothing about origin.
+    /// <c>manhua</c> -> China/Taiwan, <c>webtoon(s)</c> -> Korea or China/Taiwan; 1.32.0 comics words by language:
+    /// <c>bd</c> / <c>bande(s) dessinee(s)</c> -> French (which covers Belgium), <c>tebeos</c> / <c>historietas</c> -> Spanish,
+    /// <c>fumetti</c> -> Italian, <c>stripboeken</c> -> Dutch, <c>us comics</c> -> English-original (no US / UK split). Null when
+    /// the hint says nothing about origin (<c>comics</c>, <c>graphic novels</c>, <c>european comics</c>...).
     /// </summary>
     public static IReadOnlySet<MetadataOrigin>? OriginsForCategory(string? categoryHint) =>
         TitleNormalizer.ScoringForm(categoryHint) switch
@@ -539,6 +631,11 @@ public static partial class AutoMatchText
             "manhwa" or "korean manhwa" => new HashSet<MetadataOrigin> { MetadataOrigin.Korea },
             "manhua" or "chinese manhua" => new HashSet<MetadataOrigin> { MetadataOrigin.ChinaTaiwan },
             "webtoon" or "webtoons" => new HashSet<MetadataOrigin> { MetadataOrigin.Korea, MetadataOrigin.ChinaTaiwan },
+            "bd" or "bande dessinee" or "bandes dessinees" => new HashSet<MetadataOrigin> { MetadataOrigin.French },
+            "tebeos" or "historietas" => new HashSet<MetadataOrigin> { MetadataOrigin.Spanish },
+            "fumetti" => new HashSet<MetadataOrigin> { MetadataOrigin.Italian },
+            "stripboeken" => new HashSet<MetadataOrigin> { MetadataOrigin.Dutch },
+            "us comics" => new HashSet<MetadataOrigin> { MetadataOrigin.EnglishOriginal },
             _ => null,
         };
 

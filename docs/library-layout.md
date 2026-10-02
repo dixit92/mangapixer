@@ -35,6 +35,37 @@ Structure matters in two places:
 - **Next/previous archive** in the reader moves between archives in the *same folder*. It does not cross into a sibling folder, so `Vol 01` does not continue into `Vol 02`.
 - **Folder covers** use the first archive found anywhere below the folder, using the Name order described below, so a folder that only contains subfolders still gets a cover. To pick a folder's cover yourself, give an archive a name that sorts first. For example, `@000.cbz` sorts ahead of `Chapter 001.cbz`.
 
+## Comics, graphic novels and BD albums
+
+MangaPixer is built around manga, but it reads the usual naming of Western comics, graphic novels and European albums (bandes dessinées, fumetti, stripboeken) too. Nothing needs renaming; these are the names it understands, on top of the manga ones (`v03`, `Chapter 012`, `c012`):
+
+| In a name | Read as | Example |
+|---|---|---|
+| `#12`, `Issue 12`, `No. 12`, `N°12` | issue 12 (counted like a chapter) | `Saga #012 (2012) (Digital).cbz` |
+| `Annual 2`, `Special #1`, `One-Shot 1`, `FCBD` | an extra: shown with the issues, never counted as missing and never filling a number (like a `.5` chapter) | `Saga Annual #1.cbz` |
+| `Tome 3`, `T03`, `Tomo 3`, `Band 3`, `Deel 3`, `Album 3`, `Livre 3` | album or volume 3 | `Some Series T03 - Album Title.cbz` |
+| `TPB`, `HC`, `GN`, `OGN`, `Library Edition`, `Intégrale`, `Gesamtausgabe`, `Integraal` | a format word: left out of the title MangaPixer searches for | `Saga Vol. 1 TPB.cbz` |
+| `(c2c)`, `(Zone-Empire)`, `(Digital)`, `(Webrip)` | a release tag: ignored, never taken for a creator | |
+
+`No. 12` is an issue number only at the end of a name (tags in brackets aside): when a volume, chapter or other number follows it (`Monster No. 8 v01 c003`), or when the folder's own name carries it (`Robot No. 9/Robot No. 9.cbz`), it is part of the title, and so is `No. 6` at the very start of a name. The title MangaPixer searches for always keeps `No. N`. `HC` and `GN` count only in capital letters.
+
+### Comics signs
+
+When automatic matching looks at a folder, MangaPixer also notes, from your files alone, whether the work looks like a Western comic. Nothing is sent anywhere to work this out. The signs are:
+
+- **Strong** (one is enough): the folder is declared **Comic** or **Graphic novel** (see [Declared facts](declared-hints.md)); a folder above it is named like a comics category (see below); the files' `ComicInfo.xml` links a [Grand Comics Database](https://www.comics.org), Comic Vine or Metron record (in `Web`, or in `Notes` as comic taggers write it, for example `[CVDB12345]` or `[Issue ID 12345]`), or the folder name carries a `[cv-12345]` / `[gcd-12345]` tag; or most files name a Western comics publisher in `ComicInfo.xml` (Marvel, DC, Image, IDW, Boom!, Dynamite, Oni Press, Fantagraphics, Top Shelf, Dargaud, Dupuis, Casterman, Le Lombard, Glénat BD, Delcourt, Soleil, Bonelli, Panini Comics, Standaard).
+- **Weak** (two are needed together): most files are numbered like issues (`#12`, `Issue 12`) or like albums (`Tome 3`, `T03`); a start year right after the series name (`Saga (2012)`); a collected-format word (`TPB`, `HC`, `OGN`, `Omnibus`, `Deluxe`, `Absolute`, `Compendium`, `Intégrale`...).
+
+Manga stays manga: many manga folders use `#12`, `Band 3` or `Omnibus` too, so one weak sign alone means nothing. A folder declared manga, manhwa, manhua, webtoon or novel has no comics signs at all; below a `Manga`, `Manhwa`, `Manhua`, `Webtoon(s)` or `Doujinshi` folder, and when `ComicInfo.xml` marks the files as manga, only a linked comics record counts. Publishers with large manga lines (Dark Horse, Drawn & Quarterly, Glénat, Panini Manga) are not on the list, and a manga imprint (`Planet Manga`, `Sakka`) cancels the publisher.
+
+MangaPixer also notes how long the files are - a median of 48 pages or fewer looks like single issues, 100 or more like collected books - as extra evidence when it compares records, never as a sign on its own (manga chapters are short too).
+
+A Grand Comics Database, Comic Vine or Metron link in `ComicInfo.xml` `Web` is shown as a link in the [series information](series-information.md) panel; opening it is your own visit to that site.
+
+### Comics category folders
+
+Like `Manga` or `Manhwa`, a folder named exactly one of these words (capitals and accents do not matter) is a category, never a series: `Comic`, `Comics`, `Comic Books`, `Graphic Novel(s)`, `BD`, `Bande(s) dessinée(s)`, `Fumetti`, `Tebeos`, `Historietas`, `Stripboeken`, `US Comics`, `European Comics`, `Eurocomics`. Some also name where the works come from, which gives a small preference to records of that origin: `BD` / `Bandes dessinées` French (Belgium included), `Tebeos` / `Historietas` Spanish, `Fumetti` Italian, `Stripboeken` Dutch, `US Comics` English-language. `Strips`, `Albums` and `Webcomics` are not category words - they are too often the names of real series.
+
 ## Supported archive formats
 
 | Extensions | Format | Readable |
