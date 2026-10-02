@@ -50,10 +50,10 @@ With [Automatic matching](series-information.md#background-refresh) on, MangaPix
 
 The pace comes from what MangaPixer already knows - the series' start year, its number of volumes or chapters, and how these changed at earlier refreshes. Nothing extra is sent to find it. Roughly: a series with a new volume every two months or less is checked every week, one with a volume every two to four months every 2 weeks, and the rest at your choice for ongoing series. An admin sees each series' schedule and the reason on its series page, for example *Checked every 2 weeks (a new volume about every 2 months); next check in 9 days.*
 
-At most **200** series are refreshed a day. If more are due, the ones checked longest ago go first and the rest follow the next day; the row then says how many series are past their check date. The row also shows how many were checked today and how many series follow each schedule.
+There is no separate limit on refreshes: everything that is due is refreshed, the series checked longest ago first, until the [daily request budget](series-information.md#admin-settings) is spent - the one limit for every request; what is left follows the next day, and the row says how many series are past their check date. The row also shows how many were checked today and how many series follow each schedule.
 
 The volume lists, volume covers and AniList totals of a series follow the same schedule, so choosing **Every week** also brings a new official volume cover sooner.
 
 ## The daily request budget
 
-The [daily request budget](series-information.md#admin-settings) and the refresh limit start again at **midnight server time** (before 1.32.0: 00:00 UTC). On the day you upgrade, requests already counted that UTC day stay counted, so the change never spends extra.
+The [daily request budget](series-information.md#admin-settings) starts again at **midnight server time** (before 1.32.0: 00:00 UTC). On the day you upgrade, requests already counted that UTC day stay counted, so the change never spends extra.

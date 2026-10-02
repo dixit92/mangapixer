@@ -36,7 +36,7 @@ describe('ScheduledJobsComponent', () => {
     ],
     refresh: {
       ongoingDays: 30, finishedDays: 90, followPace: true, allowedOngoingDays: [7, 14, 30], allowedFinishedDays: [30, 90, 180],
-      usedToday: 12, maxPerDay: 200, overdue: 3, byDays: [{ days: 14, count: 19 }, { days: 30, count: 216 }, { days: 90, count: 368 }],
+      usedToday: 12, overdue: 3, byDays: [{ days: 14, count: 19 }, { days: 30, count: 216 }, { days: 90, count: 368 }],
     },
     ...overrides,
   });
@@ -81,7 +81,7 @@ describe('ScheduledJobsComponent', () => {
     const refresh = text(el, 'job-metadata-refresh');
     expect(refresh).toContain('Last run: Fri 2 Oct, 03:00 - 12 refreshed');
     expect(refresh).toContain('Next run: Sat 3 Oct, 03:00');
-    expect(text(el, 'job-refresh-counts')).toContain('Today: 12 of 200 checked.');
+    expect(text(el, 'job-refresh-counts')).toContain('Today: 12 checked.');
     expect(text(el, 'job-refresh-counts')).toContain('3 series are past their check date.');
     expect(refresh).toContain('Checked every 2 weeks: 19, every month: 216, every 3 months: 368.');
     expect(text(el, 'job-trash')).toContain('Off - turn automatic cleaning on in the Trash card.');

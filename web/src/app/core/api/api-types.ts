@@ -2483,7 +2483,6 @@ export interface RefreshCadenceDto {
   allowedOngoingDays: number[];
   allowedFinishedDays: number[];
   usedToday: number;
-  maxPerDay: number;
   overdue: number;
   byDays: RefreshCadenceCountDto[];
 }

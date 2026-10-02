@@ -52,7 +52,6 @@ public sealed class JobSchedulesTests
     public void Refresh_DescribesItsRun_CountsOnly()
     {
         Assert.Equal((JobOutcomes.Ok, "12 refreshed"), MetadataRefreshSchedule.Describe(new RefreshPassResult(12, 12, null)));
-        Assert.Equal((JobOutcomes.Ok, "200 refreshed, 5 left for the next day"), MetadataRefreshSchedule.Describe(new RefreshPassResult(200, 205, "refresh_cap")));
         Assert.Equal((JobOutcomes.Waiting, "3 refreshed, waiting: budget_exhausted"),
             MetadataRefreshSchedule.Describe(new RefreshPassResult(3, 40, "budget_exhausted")));
     }

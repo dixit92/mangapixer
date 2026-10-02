@@ -252,7 +252,6 @@ public sealed class ScheduledJobsService
             AllowedOngoingDays = RefreshCadencePolicy.AllowedOngoingDays,
             AllowedFinishedDays = RefreshCadencePolicy.AllowedFinishedDays,
             UsedToday = refresh is null ? 0 : await refresh.UsedTodayAsync(ct),
-            MaxPerDay = MetadataRefreshService.MaxPerDay,
             Overdue = overdue,
             ByDays = byDays.OrderBy(p => p.Key).Select(p => new RefreshCadenceCountDto { Days = p.Key, Count = p.Value }).ToList(),
         };

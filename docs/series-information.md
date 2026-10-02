@@ -90,7 +90,7 @@ Updates sometimes change how a folder's name, counts or type are scored (for exa
 
 ### Background refresh
 
-With **Automatic matching** on, linked series are refreshed from MangaUpdates by their series number, once a day at the hour you choose in [Scheduled jobs](scheduled-jobs.md#how-often-series-information-is-refreshed) (03:00 server time unless you pick another): an ongoing series every month (or every 2 weeks, or every week - your choice), and more often - up to once a week - when it publishes new volumes quickly; a finished series every 3 months (or every month, or every 6 months); a series on hiatus or with nothing new for six months like a finished one. Never when MangaUpdates no longer lists them, and at most 200 a day. Only the series number is sent. The cover is fetched again only when it changed.
+With **Automatic matching** on, linked series are refreshed from MangaUpdates by their series number, once a day at the hour you choose in [Scheduled jobs](scheduled-jobs.md#how-often-series-information-is-refreshed) (03:00 server time unless you pick another): an ongoing series every month (or every 2 weeks, or every week - your choice), and more often - up to once a week - when it publishes new volumes quickly; a finished series every 3 months (or every month, or every 6 months); a series on hiatus or with nothing new for six months like a finished one. Never when MangaUpdates no longer lists them; there is no separate limit - refreshes count in the daily request budget like every other request. Only the series number is sent. The cover is fetched again only when it changed.
 
 ## Folder Content
 

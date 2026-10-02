@@ -40,7 +40,6 @@ export const WAITING_TEXT: Record<string, string> = {
   provider_not_allowed: 'MangaUpdates is not on the allowed sites',
   volume_covers_off: '"Volume covers from the web" is off',
   volume_covers_disabled: 'volume covers are switched off by server configuration',
-  refresh_cap: 'today\'s refresh limit is reached',
 };
 
 /** A cadence in days as the admin reads it. */
@@ -160,7 +159,7 @@ function rhythm(job: ScheduledJobDto): string {
                       new for six months is checked like a finished one.
                     </p>
                     <p class="status" data-testid="job-refresh-counts">
-                      Today: {{ j.refresh.usedToday }} of {{ j.refresh.maxPerDay }} checked.
+                      Today: {{ j.refresh.usedToday }} checked.
                       @if (j.refresh.overdue > 0) { {{ j.refresh.overdue }} series are past their check date. }
                     </p>
                     @if (breakdown(j.refresh); as b) { <p class="status">{{ b }}</p> }

@@ -98,7 +98,7 @@ public sealed class ScheduledJobsHttpTests : IDisposable
         Assert.Equal((4, false), (byKey[ScheduledJobKeys.Trash].Hour, byKey[ScheduledJobKeys.Trash].Enabled));
         Assert.Equal(("continuous", false), (byKey[ScheduledJobKeys.AutoMatch].Kind, byKey[ScheduledJobKeys.AutoMatch].Configurable));
         Assert.Equal("onDemand", byKey[ScheduledJobKeys.UpdateCheck].Kind);
-        Assert.Equal((30, 90, true, 200), (jobs.Refresh.OngoingDays, jobs.Refresh.FinishedDays, jobs.Refresh.FollowPace, jobs.Refresh.MaxPerDay));
+        Assert.Equal((30, 90, true), (jobs.Refresh.OngoingDays, jobs.Refresh.FinishedDays, jobs.Refresh.FollowPace));
         Assert.Equal([7, 14, 30], jobs.Refresh.AllowedOngoingDays);
     }
 

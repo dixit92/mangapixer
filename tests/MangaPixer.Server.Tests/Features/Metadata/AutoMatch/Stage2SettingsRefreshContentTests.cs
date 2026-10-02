@@ -218,18 +218,23 @@ public sealed class Stage2SettingsRefreshContentTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Refresh_GateClosedOrDailyCapSpent_MakesNoCall()
+    public async Task Refresh_GateClosedOrDailyBudgetSpent_MakesNoCall()
     {
+        // 1.32.0 (owner): no refresh cap of its own - the daily request budget is the only limit.
         await LinkedRecordAsync("821", MetadataOriginStatus.Ongoing, TimeSpan.FromDays(40));
         await _h.EnableAutomaticAsync(automatic: false);
         Assert.Equal(0, (await _h.Refresh().RunPassAsync()).Refreshed);
 
         await _h.EnableAutomaticAsync();
         var row = await _db.Db.AppSettings.FirstAsync();
+        row.MetadataDailyBudget = 3;
+        row.MetadataBudgetDayUtc = _h.Net.Budget().Today();
+        row.MetadataBudgetUsed = 3;
         row.MetadataRefreshDayUtc = _h.Net.Budget().Today();
-        row.MetadataRefreshUsed = MetadataRefreshService.MaxPerDay;
+        row.MetadataRefreshUsed = 500; // far past the old 100 / 200 refresh cap: not a limit any more
         await _db.Db.SaveChangesAsync();
-        Assert.Equal(0, (await _h.Refresh().RunPassAsync()).Refreshed);
+        var spent = await _h.Refresh().RunPassAsync();
+        Assert.Equal((0, "budget_exhausted"), (spent.Refreshed, spent.StoppedCode));
         Assert.Equal(0, _h.Handler.CallCount);
 
         _h.Time.Advance(TimeSpan.FromDays(1)); // a new budget day

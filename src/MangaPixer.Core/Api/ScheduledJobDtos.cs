@@ -96,9 +96,8 @@ public sealed record RefreshCadenceDto
     public required IReadOnlyList<int> AllowedOngoingDays { get; init; }
     public required IReadOnlyList<int> AllowedFinishedDays { get; init; }
 
-    /// <summary>Refreshes taken today (the budget day, midnight server time) and the daily cap.</summary>
+    /// <summary>Refreshes started today (the budget day, midnight server time). No cap of their own: the daily budget is the only one.</summary>
     public required int UsedToday { get; init; }
-    public required int MaxPerDay { get; init; }
 
     /// <summary>Linked series past their check date now.</summary>
     public required int Overdue { get; init; }

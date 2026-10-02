@@ -246,8 +246,6 @@ public static class MetadataRefreshSchedule
     public static (string Outcome, string Detail) Describe(RefreshPassResult result) => result.StoppedCode switch
     {
         null => (JobOutcomes.Ok, string.Create(CultureInfo.InvariantCulture, $"{result.Refreshed} refreshed")),
-        "refresh_cap" => (JobOutcomes.Ok, string.Create(CultureInfo.InvariantCulture,
-            $"{result.Refreshed} refreshed, {Math.Max(0, result.Due - result.Refreshed)} left for the next day")),
         var code => (JobOutcomes.Waiting, string.Create(CultureInfo.InvariantCulture, $"{result.Refreshed} refreshed, waiting: {code}")),
     };
 }

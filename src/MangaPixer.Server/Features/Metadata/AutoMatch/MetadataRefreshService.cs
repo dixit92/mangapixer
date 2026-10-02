@@ -11,17 +11,16 @@ using Microsoft.EntityFrameworkCore;
 /// cadence): once a day at the admin's hour (the Scheduled jobs section, <see cref="Hosting.MetadataAutoMatchHostedService"/>), a
 /// record linked Confirmed or Auto is re-fetched by id when its cadence has passed since it was fetched - the admin's choice
 /// for ongoing and finished series, faster for a series that publishes quickly (<see cref="RefreshCadence.For"/>); a record the
-/// provider no longer has (gone) never. At most <see cref="MaxPerDay"/> GETs per budget day (persisted, survives restarts),
-/// inside the ONE daily budget, behind the same automatic gate as auto-match, oldest first; paced by the gateway at &lt;= 1/s.
+/// provider no longer has (gone) never. No cap of its own (owner, 2026-10-02: "there should only ever be one cap" - the admin's
+/// daily request budget): a pass refreshes everything due, oldest first, until done or the budget is spent, behind the same
+/// automatic gate as auto-match; paced by the gateway at &lt;= 1/s. The refreshes of the budget day are counted (persisted) for the
+/// Scheduled jobs section.
 /// Sends record ids only - never a name. The poster is fetched again only when its URL changed. Each pass first recomputes
 /// every linked record's cadence (stored in <c>RefreshCadenceDays</c>, which the companions and the cover re-check follow too)
 /// and notes what the refresh saw (<see cref="RefreshObservations"/>).
 /// </summary>
 public sealed class MetadataRefreshService
 {
-    /// <summary>At most this many refresh GETs a day (1.32.0 provisional decision Q6: 200; was 100).</summary>
-    public const int MaxPerDay = 200;
-
     private static readonly int[] Linked = [(int)SeriesLinkState.Confirmed, (int)SeriesLinkState.Auto];
 
     private readonly MangaPixerDbContext _db;
@@ -197,31 +196,25 @@ public sealed class MetadataRefreshService
             .Where(r => r.FetchState != 1)
             .Select(r => new { r.Id, r.FetchedAt, r.OriginStatus })
             .ToListAsync(ct);
+        var catchUp = await PublisherCatchUpAsync(now, ct);
         var due = candidates
-            .Where(r => r.FetchedAt + TimeSpan.FromDays(cadences.TryGetValue(r.Id, out var d) ? d : (int)RefreshCadence.AgeFor(r.OriginStatus).TotalDays) <= now)
+            .Where(r => catchUp.Contains(r.Id)
+                || r.FetchedAt + TimeSpan.FromDays(cadences.TryGetValue(r.Id, out var d) ? d : (int)RefreshCadence.AgeFor(r.OriginStatus).TotalDays) <= now)
             .OrderBy(r => r.FetchedAt)
             .Select(r => r.Id)
             .ToList();
-
-        var remaining = MaxPerDay - await UsedTodayAsync(ct);
-        if (remaining <= 0)
-            return new RefreshPassResult(0, due.Count, due.Count > 0 ? "refresh_cap" : null);
 
         var done = 0;
         string? stopped = null;
         // 1.32.0: a refusal by ONE provider (busy - GCD's slow bucket -, backing off, removed from the allowed sites) skips that
         // provider's records for the rest of the pass; the other providers' records go on. Anything else closes the pass.
         var refusedProviders = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var recordId in due.Take(remaining))
+        foreach (var recordId in due)
         {
             var record = await _db.MetadataRecords.FirstAsync(r => r.Id == recordId, ct);
             if (refusedProviders.Contains(record.Provider))
                 continue;
-            if (!await TryTakeSlotAsync(ct))
-            {
-                stopped = "refresh_cap";
-                break;
-            }
+            await CountRefreshAsync(ct);
             var libraryId = await _db.NodeSeriesLinks.AsNoTracking()
                 .Where(l => l.RecordId == recordId && Linked.Contains(l.State) && _db.Libraries.Any(lib => lib.Id == l.LibraryId && lib.MetadataEnabled))
                 .Select(l => l.LibraryId)
@@ -274,18 +267,66 @@ public sealed class MetadataRefreshService
                 _logger.LogInformation(LogEvents.Metadata.RefreshFailed, "Metadata refresh of record {RecordId} failed: {Code}", recordId, ex.Code);
             }
         }
-        if (stopped is null && due.Count > remaining)
-            stopped = "refresh_cap";
         if (done > 0)
             _logger.LogInformation(LogEvents.Metadata.RefreshPass, "Metadata refresh pass: {Count} records refreshed", done);
         return new RefreshPassResult(done, due.Count, stopped);
+    }
+
+    /// <summary>The <c>job_runs</c> key of the one-time publisher-notes catch-up (1.32.0).</summary>
+    internal const string PublisherCatchUpKey = "metadata-publisher-catchup";
+
+    /// <summary>
+    /// The one-time catch-up (owner, 2026-10-02): linked MangaUpdates records stored before the 1.30.0 publisher-notes parser have
+    /// an English publisher but no parsed English status / volume total, so Official releases and "Upgrade available" stay empty
+    /// until their regular refresh (up to 3 months). They are refreshed once, by id (the existing approved request, inside the daily
+    /// budget). Stored data cannot tell "never parsed" from "the notes state nothing", so a watermark makes it once: the first pass
+    /// records its start (<c>job_runs</c>); only records fetched BEFORE it qualify, a refresh moves them past it, and the job is
+    /// marked done when none is left. Returns the record ids still to catch up (empty when done).
+    /// </summary>
+    private async Task<IReadOnlySet<long>> PublisherCatchUpAsync(DateTimeOffset now, CancellationToken ct)
+    {
+        var run = await _db.JobRuns.FirstOrDefaultAsync(j => j.Key == PublisherCatchUpKey, ct);
+        if (run?.LastOutcome == "ok")
+            return new HashSet<long>();
+        if (run is null)
+        {
+            run = new JobRunEntity { Key = PublisherCatchUpKey, LastStartedAt = now };
+            _db.JobRuns.Add(run);
+            await _db.SaveChangesAsync(ct);
+        }
+        var watermark = run.LastStartedAt ?? now;
+        var rows = await LinkedRecords().AsNoTracking()
+            .Where(r => r.Provider == "mangaupdates" && r.FetchState != 1 && r.FetchedAt < watermark && r.PublishersJson != null)
+            .Select(r => new { r.Id, r.PublishersJson })
+            .ToListAsync(ct);
+        var ids = rows.Where(r => LacksEnglishPublisherNotes(r.PublishersJson)).Select(r => r.Id).ToHashSet();
+        if (ids.Count == 0)
+        {
+            run.LastOutcome = "ok";
+            run.LastFinishedAt = now;
+            run.LastDetail = "publisher notes caught up";
+            await _db.SaveChangesAsync(ct);
+        }
+        else
+        {
+            _logger.LogInformation(LogEvents.Metadata.RefreshPass, "Metadata refresh: {Count} records due for the one-time publisher-notes catch-up", ids.Count);
+        }
+        return ids;
+    }
+
+    /// <summary>An English publisher credit stored without any of the 1.30.0 fields (status, volume total, omnibus).</summary>
+    internal static bool LacksEnglishPublisherNotes(string? publishersJson)
+    {
+        var english = MetadataJson.ReadList<MetadataJson.Publisher>(publishersJson)
+            .Where(p => string.Equals(p.Kind, "english", StringComparison.OrdinalIgnoreCase)).ToList();
+        return english.Count > 0 && english.All(p => p.Status is null && p.Volumes is null && p.Omnibus is null);
     }
 
     /// <summary>A refusal that concerns one provider only (its bucket, its backoff, its place on the allowed sites).</summary>
     internal static bool IsProviderRefusal(MetadataGatewayException ex) =>
         ex.Code is "provider_busy" or "provider_backoff" or "provider_not_allowed";
 
-    /// <summary>Refresh GETs taken today (the budget day).</summary>
+    /// <summary>Refreshes started today (the budget day) - a count for the Scheduled jobs section, not a limit.</summary>
     public async Task<int> UsedTodayAsync(CancellationToken ct = default)
     {
         var row = await _db.AppSettings.AsNoTracking()
@@ -309,21 +350,18 @@ public sealed class MetadataRefreshService
         return (overdue, byDays);
     }
 
-    /// <summary>Takes one of today's refresh slots (serialized with the budget writes).</summary>
-    private async Task<bool> TryTakeSlotAsync(CancellationToken ct)
+    /// <summary>Counts one refresh of today (serialized with the budget writes). Never refuses: the daily budget is the only cap.</summary>
+    private async Task CountRefreshAsync(CancellationToken ct)
     {
         await _gatewayState.StateLock.WaitAsync(ct);
         try
         {
-            var used = await UsedTodayAsync(ct);
-            if (used >= MaxPerDay)
-                return false;
             var today = _budget.Today();
-            var next = used + 1;
-            return await _db.AppSettings.Where(s => s.Id == AppSettingsEntity.SingletonId)
+            var next = await UsedTodayAsync(ct) + 1;
+            await _db.AppSettings.Where(s => s.Id == AppSettingsEntity.SingletonId)
                 .ExecuteUpdateAsync(s => s
                     .SetProperty(x => x.MetadataRefreshDayUtc, today)
-                    .SetProperty(x => x.MetadataRefreshUsed, next), ct) > 0;
+                    .SetProperty(x => x.MetadataRefreshUsed, next), ct);
         }
         finally
         {

@@ -76,6 +76,49 @@ public sealed class RefreshCadenceServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PublisherCatchUp_RefreshesUnparsedEnglishPublishersOnce_ThenIsDone()
+    {
+        // 1.32.0 (owner): records stored before the 1.30.0 publisher-notes parser are refreshed once, whatever their cadence says.
+        var unparsed = await LinkedAsync("931", TimeSpan.FromDays(2));
+        unparsed.PublishersJson = """[{"name":"Some Press","kind":"english"}]""";
+        var parsed = await LinkedAsync("932", TimeSpan.FromDays(2));
+        parsed.PublishersJson = """[{"name":"Some Press","kind":"english","status":"ongoing","volumes":4}]""";
+        var original = await LinkedAsync("933", TimeSpan.FromDays(2));
+        original.PublishersJson = """[{"name":"Some Original","kind":"original"}]""";
+        await _db.Db.SaveChangesAsync();
+        _h.Records[931] = MuJson.Get(931, "Record 931");
+        await _h.EnableAutomaticAsync();
+
+        var first = await _h.Refresh().RunPassAsync();
+
+        Assert.Equal(1, first.Refreshed);
+        Assert.Equal(["/v1/series/931"], _h.Handler.Seen.Select(s => s.Uri.AbsolutePath).ToArray());
+        // A series linked after the catch-up started is not part of it, even with an unparsed English publisher.
+        var later = await LinkedAsync("934", TimeSpan.FromDays(1));
+        later.PublishersJson = """[{"name":"Some Press","kind":"english"}]""";
+        later.FetchedAt = _h.Time.GetUtcNow() + TimeSpan.FromMinutes(1);
+        await _db.Db.SaveChangesAsync();
+        _h.Time.Advance(TimeSpan.FromMinutes(5));
+
+        var second = await _h.Refresh().RunPassAsync(); // 931's notes still state nothing - it is NOT refreshed again
+
+        Assert.Equal(0, second.Refreshed);
+        Assert.Single(_h.Handler.Seen);
+        _db.Db.ChangeTracker.Clear();
+        var run = await _db.Db.JobRuns.AsNoTracking().SingleAsync(j => j.Key == "metadata-publisher-catchup");
+        Assert.Equal("ok", run.LastOutcome);
+    }
+
+    [Theory]
+    [InlineData("""[{"name":"A","kind":"english"}]""", true)]
+    [InlineData("""[{"name":"A","kind":"english","status":"complete"}]""", false)]
+    [InlineData("""[{"name":"A","kind":"english","omnibus":true}]""", false)]
+    [InlineData("""[{"name":"A","kind":"original"}]""", false)]
+    [InlineData(null, false)]
+    public void LacksEnglishPublisherNotes_OnlyForEnglishCreditsWithoutAny130Field(string? json, bool expected) =>
+        Assert.Equal(expected, MetadataRefreshService.LacksEnglishPublisherNotes(json));
+
+    [Fact]
     public async Task AProviderThatRefuses_SkipsOnlyItsOwnRecords_TheOthersAreStillRefreshed()
     {
         // 1.32.0 integration (lanes B + D): a Grand Comics Database record refused (here: GCD removed from the allowed sites; the
