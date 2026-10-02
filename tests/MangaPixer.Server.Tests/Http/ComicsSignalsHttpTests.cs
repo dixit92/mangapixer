@@ -13,6 +13,7 @@ using com.lifepixer.mangapixer.Server.Hosting;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using com.lifepixer.mangapixer.Tests.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Tests.Server.Features.Metadata.Gcd;
 using com.lifepixer.mangapixer.Tests.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Tests.Server.Hosting;
 using Microsoft.EntityFrameworkCore;
@@ -120,7 +121,10 @@ public sealed class ComicsSignalsHttpTests
             services.AddSingleton(new MetadataRateLimitOptions { AutomaticInterval = TimeSpan.Zero });
         });
         await SeedAsync(factory);
-        factory.Handler.Respond = request =>
+        // 1.32.0 lane B: the declared comic is routed to the Grand Comics Database first - its ComicInfo GCD id (tier 0) is not
+        // found and the GCD name search is empty (recorded fixtures), so it falls back to MangaUpdates and is scored there.
+        factory.Handler.Respond = request => GcdFixtures.Respond(request) ?? RespondMangaUpdates(request);
+        static HttpResponseMessage RespondMangaUpdates(HttpRequestMessage request)
         {
             var comic = request.Method == HttpMethod.Post
                 ? request.Content!.ReadAsStringAsync().GetAwaiter().GetResult().Contains("Starfall", StringComparison.Ordinal)
@@ -129,7 +133,7 @@ public sealed class ComicsSignalsHttpTests
             return request.Method == HttpMethod.Post
                 ? ScriptedHandler.Json(MuJson.Search(new MuJson.Hit(id, title)))
                 : ScriptedHandler.Json(MuJson.Get(id, title));
-        };
+        }
         var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
         (await admin.PutAsJsonAsync("/api/v1/admin/metadata/settings", new UpdateMetadataSettingsRequest
         {
