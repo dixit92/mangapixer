@@ -231,3 +231,40 @@ test('the admin trash card with held libraries and a confirm step fits a phone a
   }
   expect(failures, `the trash card does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });
+
+test('the identify dialog with its site switch fits a phone and a tablet screen', async ({ page }) => {
+  // 1.32.0: "Search on: MangaUpdates | Grand Comics Database", the GCD pace note and the start-year option. Contract-shaped
+  // context (a comics folder with both sites allowed); nothing is searched, so nothing is sent.
+  test.setTimeout(120_000);
+  const failures: string[] = [];
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  await page.route(new RegExp(`/api/v1/admin/metadata/nodes/${folderId}/identify$`), (r) => r.fulfill({
+    json: {
+      nodeId: folderId, nodeKind: 'Folder', displayName: 'Stacked Saga (1991)', libraryId, provider: 'gcd',
+      providerName: 'Grand Comics Database', fetchAvailable: true, comicsSignalled: true,
+      sites: [
+        { id: 'mangaupdates', name: 'MangaUpdates', available: true },
+        { id: 'gcd', name: 'Grand Comics Database', available: true, note: 'Comics and graphic novels. Answers about 25 requests an hour.' },
+      ],
+      suggestions: ['Stacked Saga', 'A synthetic comics title that is long enough to wrap on a phone'],
+      budgetUsedToday: 0, dailyBudget: 5000,
+      local: { displayName: 'Stacked Saga (1991)', itemCount: 7, yearHint: 1991 },
+    },
+  }));
+  for (const size of SIZES) {
+    await page.setViewportSize(size);
+    await page.goto(`/libraries/${libraryId}/browse`);
+    await page.locator('.select-toggle').click();
+    await page.locator('.node-wrap', { hasText: 'Stacked Saga' }).first().click();
+    await page.getByTestId('series-selection-menu').click();
+    await page.getByTestId('bulk-identify').click();
+    await expect(page.getByTestId('identify-site')).toBeVisible();
+    await expect(page.getByTestId('identify-start-year')).toContainText('1991');
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-identify-sites.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px identify dialog: ${p.kind}: ${p.what} - ${p.detail}`);
+    await page.getByTestId('identify-close').click();
+  }
+  expect(failures, `identify dialog does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+});
