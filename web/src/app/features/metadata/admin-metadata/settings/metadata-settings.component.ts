@@ -390,6 +390,9 @@ export function validateThresholds(
             <p class="note">A series' chapters show as volume stacks, ordered by volume, wherever the file names or a stored volume list say which volume they belong to. Each library and folder can override this, and everyone has a Volumes | Folders switch of their own.</p>
           </section>
 
+          <!-- 7. Covers (1.29.0 cover layer: crop switch, "Show saved web covers" per library, delete stored covers);
+               below Volumes view (owner, 2026-10-02) -->
+          <app-cover-settings-card [initial]="s" />
           </div>
 
           <!-- 4. Libraries (stage 1 rows + "Match now") -->
@@ -509,8 +512,6 @@ export function validateThresholds(
             }
           </section>
 
-          <!-- 7. Covers (1.29.0 cover layer: crop switch, "Show saved web covers" per library, delete stored covers) -->
-          <app-cover-settings-card [initial]="s" />
         </div>
       }
       @if (message()) { <p class="ok small" role="status">{{ message() }}</p> }
