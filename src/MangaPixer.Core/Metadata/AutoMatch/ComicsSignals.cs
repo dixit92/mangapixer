@@ -147,8 +147,8 @@ public static partial class ComicsSignals
     /// <summary>At most this many ids are kept per work.</summary>
     public const int MaxIds = 5;
 
-    // --- issue grammar (weak): #12, #12.1, #1/2, #½, Issue 12, No. 12 / N°12 after a title, 12 (of 6), Annual 2, FCBD ---
-    [GeneratedRegex(@"(?:(?<![\p{L}\p{N}])#\s*\d{1,4}(?:\.\d{1,2})?|(?<![\p{L}\p{N}])issue\s*#?\s*\d{1,4}|(?<=[\p{L}\p{N}][\s\-_.,]*)(?:no\.|n[°º])\s*\d{1,4}|(?<![\p{L}\p{N}])annual(?:\s*#?\s*\d{1,4})?(?![\p{L}])|(?<![\p{L}\p{N}])(?:fcbd|free\s+comic\s+book\s+day)(?![\p{L}]))",
+    // --- issue grammar (weak): #12, #12.1, #1/2, Issue 12, No. 12 / N°12 after a title, 12 (of 6), Annual 2, FCBD ---
+    [GeneratedRegex(@"(?:(?<![\p{L}\p{N}])#\s*\d{1,4}(?:\.\d{1,2})?|(?<![\p{L}\p{N}])issue\s*#?\s*\d{1,4}|(?<![\p{L}\p{N}])(?<=[\p{L}\p{N}][\s\-_.,]*)(?:no\.|n[°º])\s*\d{1,4}|(?<![\p{L}\p{N}])annual(?:\s*#?\s*\d{1,4})?(?![\p{L}])|(?<![\p{L}\p{N}])(?:fcbd|free\s+comic\s+book\s+day)(?![\p{L}]))",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex IssueToken();
 
