@@ -135,7 +135,7 @@ public sealed class LibraryScanSchedulesTests
             LibraryScanSchedules.NextDue("1d", Now.AddHours(-8), Now, 3, null, TimeZoneInfo.Utc));
         // Last scan two days ago: today's 03:00 was missed - due now.
         Assert.Equal(Now, LibraryScanSchedules.NextDue("1d", Now.AddDays(-2), Now, 3, null, TimeZoneInfo.Utc));
-        Assert.True(LibraryScanSchedules.IsDue("1d", Now.AddDays(-2), Now) );
+        Assert.True(LibraryScanSchedules.IsDue("1d", Now.AddDays(-2), Now));
         // Never scanned: now.
         Assert.Equal(Now, LibraryScanSchedules.NextDue("1d", null, Now, 3, null, TimeZoneInfo.Utc));
     }
