@@ -550,7 +550,8 @@ public sealed class TitleNumberTests
     }
 
     [Theory]
-    [InlineData("Monster No. 8 v01 c003.cbz", 1, 3)]
+    [InlineData("Monster No. 8 v01 c003.cbz", null, 3)] // a name with a chapter is not volume-like (unchanged rule)
+    [InlineData("Monster No. 8 v02.cbz", 2, null)]
     [InlineData("Robot No. 9 - Chapter 12.cbz", null, 12)]
     [InlineData("Saga No. 12.cbz", null, 12)]
     public void MatcherIntegers_KeepATitlesNoN(string name, int? volume, int? chapter)
