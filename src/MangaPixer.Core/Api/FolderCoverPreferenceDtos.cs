@@ -9,8 +9,8 @@ public sealed record SetFolderCoverPreferenceRequest
 }
 
 /// <summary>
-/// A folder's cover preference: its own row, the effective value with where it comes from. The effective value is what the works
-/// below the folder get (the folder's own, else the nearest ancestor's, else the library's "Show web covers" switch).
+/// A folder's cover preference: its own row, the effective value, and what "Inherit" would give it. The effective value is what the
+/// works below the folder get (the folder's own, else <see cref="Inherited"/>).
 /// </summary>
 public sealed record FolderCoverPreferenceDto
 {
@@ -21,9 +21,12 @@ public sealed record FolderCoverPreferenceDto
 
     public required FolderCoverPreference Effective { get; init; }
 
-    /// <summary>The folder the effective value comes from (the folder itself when it has its own row); null = the library's switch.</summary>
-    public string? SourceNodeId { get; init; }
+    /// <summary>What the folder gets when it inherits: the nearest ancestor's value, else the library's "Show saved web covers" switch.</summary>
+    public required FolderCoverPreference Inherited { get; init; }
 
-    /// <summary>The display name of that folder (for "Inherit (File covers from X)"); null when it comes from the library.</summary>
-    public string? SourceName { get; init; }
+    /// <summary>The ancestor folder the inherited value comes from; null = the library's switch.</summary>
+    public string? InheritedSourceNodeId { get; init; }
+
+    /// <summary>The display name of that ancestor (for "Inherit (File covers from X)"); null when it comes from the library.</summary>
+    public string? InheritedSourceName { get; init; }
 }

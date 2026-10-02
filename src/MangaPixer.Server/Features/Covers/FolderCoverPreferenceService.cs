@@ -88,25 +88,32 @@ public sealed class FolderCoverPreferenceService(MangaPixerDbContext db, AuditSe
 
     private async Task<FolderCoverPreferenceDto> ToDtoAsync(CatalogNodeEntity node, CancellationToken ct)
     {
-        var nearest = await FolderCoverPreferences.OfAsync(db, node.Id, ct);
-        if (nearest is { } found)
+        // What "Inherit" gives: the nearest row above the folder, else the library's switch.
+        NearestCoverPreference? inherited = node.ParentId is { } parentId ? await FolderCoverPreferences.OfAsync(db, parentId, ct) : null;
+        string? sourcePublicId = null, sourceName = null;
+        FolderCoverPreference inheritedValue;
+        if (inherited is { } above)
         {
-            var source = await db.CatalogNodes.AsNoTracking().Where(n => n.Id == found.SourceNodeId)
+            inheritedValue = above.Preference;
+            var source = await db.CatalogNodes.AsNoTracking().Where(n => n.Id == above.SourceNodeId)
                 .Select(n => new { n.PublicId, n.DisplayName }).FirstOrDefaultAsync(ct);
-            return new FolderCoverPreferenceDto
-            {
-                NodeId = node.PublicId,
-                Preference = found.SourceNodeId == node.Id ? found.Preference : null,
-                Effective = found.Preference,
-                SourceNodeId = source?.PublicId,
-                SourceName = source?.DisplayName,
-            };
+            (sourcePublicId, sourceName) = (source?.PublicId, source?.DisplayName);
         }
-        var libraryHidden = await db.Libraries.AsNoTracking().Where(l => l.Id == node.LibraryId).Select(l => l.WebCoversHidden).FirstOrDefaultAsync(ct);
+        else
+        {
+            var libraryHidden = await db.Libraries.AsNoTracking().Where(l => l.Id == node.LibraryId).Select(l => l.WebCoversHidden).FirstOrDefaultAsync(ct);
+            inheritedValue = libraryHidden ? FolderCoverPreference.File : FolderCoverPreference.Web;
+        }
+
+        var own = await db.FolderCoverPreferences.AsNoTracking().Where(f => f.NodeId == node.Id).Select(f => (int?)f.Preference).FirstOrDefaultAsync(ct);
         return new FolderCoverPreferenceDto
         {
             NodeId = node.PublicId,
-            Effective = libraryHidden ? FolderCoverPreference.File : FolderCoverPreference.Web,
+            Preference = own is { } o ? (FolderCoverPreference)o : null,
+            Effective = own is { } e ? (FolderCoverPreference)e : inheritedValue,
+            Inherited = inheritedValue,
+            InheritedSourceNodeId = sourcePublicId,
+            InheritedSourceName = sourceName,
         };
     }
 }

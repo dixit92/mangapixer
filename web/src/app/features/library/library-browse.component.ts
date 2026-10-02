@@ -34,6 +34,7 @@ import { VolumeSeriesStatusComponent } from './volume-series-status.component';
 import { MissingChapterCardComponent } from '../../shared/volume-stack/missing-chapter-card.component';
 import { VolumeStackStarComponent } from '../../shared/volume-stack/volume-stack-star.component';
 import { FolderViewActionComponent } from './folder-view-action.component';
+import { FolderCoverPreferenceActionComponent } from './folder-cover-preference-action.component';
 import { NodeRowComponent, directionShort as directionChip } from '../../shared/node-row/node-row.component';
 import { SelectionBarComponent } from '../../shared/selection/selection-bar.component';
 import { NodeSelection } from '../../shared/selection/node-selection';
@@ -104,6 +105,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     MissingChapterCardComponent,
     VolumeStackStarComponent,
     FolderViewActionComponent,
+    FolderCoverPreferenceActionComponent,
     NodeRowComponent,
     SelectionBarComponent,
   ],
@@ -343,6 +345,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
             <!-- 1.29.0 cover layer: "Cover..." for exactly one selected item. -->
             <app-cover-selection-action [nodes]="nodes()" [selected]="selectedNodeIds()" [disabled]="busy()" />
             <app-folder-view-action [nodes]="nodes()" [selected]="selectedNodeIds()" [disabled]="busy()" (saved)="onFolderViewSaved()" />
+            <app-folder-cover-preference-action [nodes]="nodes()" [selected]="selectedNodeIds()" [disabled]="busy()" (saved)="onFolderViewSaved()" />
           }
         </app-selection-bar>
       }

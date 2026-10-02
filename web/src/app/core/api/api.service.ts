@@ -21,7 +21,9 @@ import {
   AuthUserDto,
   BookmarkDto,
   CatalogNodeDto,
+  FolderCoverPreferenceDto,
   FolderViewSettingsDto,
+  SetFolderCoverPreferenceRequest,
   UpdateFolderViewSettingsRequest,
   VolumeStackDto,
   VolumeViewDto,
@@ -392,6 +394,20 @@ export class ApiService {
 
   setFolderViewSettings(nodeId: string, request: UpdateFolderViewSettingsRequest): Observable<FolderViewSettingsDto> {
     return this.put<FolderViewSettingsDto>(`/admin/folders/${nodeId}/view-settings`, request);
+  }
+
+  /** Admin: a folder's cover preference - its own value, the effective one and where it comes from (1.32.0). */
+  getFolderCoverPreference(nodeId: string): Observable<FolderCoverPreferenceDto> {
+    return this.get<FolderCoverPreferenceDto>(`/admin/folders/${nodeId}/cover-preference`);
+  }
+
+  setFolderCoverPreference(nodeId: string, request: SetFolderCoverPreferenceRequest): Observable<FolderCoverPreferenceDto> {
+    return this.put<FolderCoverPreferenceDto>(`/admin/folders/${nodeId}/cover-preference`, request);
+  }
+
+  /** Back to inheriting (removes the folder's own value). */
+  clearFolderCoverPreference(nodeId: string): Observable<FolderCoverPreferenceDto> {
+    return this.delete<FolderCoverPreferenceDto>(`/admin/folders/${nodeId}/cover-preference`);
   }
 
   browseLibraryPaths(path?: string): Observable<DirectoryListingDto> {
