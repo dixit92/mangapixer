@@ -91,6 +91,7 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<FolderViewSettingsEntity> FolderViewSettings => Set<FolderViewSettingsEntity>();
     public DbSet<NodeMoveEntity> NodeMoves => Set<NodeMoveEntity>();
     public DbSet<MoveConflictEntity> MoveConflicts => Set<MoveConflictEntity>();
+    public DbSet<WikipediaListEntity> WikipediaLists => Set<WikipediaListEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -120,6 +121,7 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureDeclaredFacts(modelBuilder);
         ConfigureVolumesAndCovers(modelBuilder);
         ConfigureNodeMoves(modelBuilder);
+        ConfigureWikipediaLists(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
@@ -906,6 +908,24 @@ public sealed class MangaPixerDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.ResolvedByUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+    }
+
+    /// <summary>The Wikipedia companion of a linked series (1.32.0).</summary>
+    private static void ConfigureWikipediaLists(ModelBuilder mb)
+    {
+        mb.Entity<WikipediaListEntity>(e =>
+        {
+            e.ToTable("wikipedia_lists");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.AdminTitle).HasMaxLength(300);
+            e.Property(x => x.RejectCode).HasMaxLength(32);
+            e.HasIndex(x => x.RecordId).IsUnique();
+            e.HasOne(x => x.Record)
+                .WithMany()
+                .HasForeignKey(x => x.RecordId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

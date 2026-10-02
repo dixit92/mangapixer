@@ -45,6 +45,9 @@ public enum VolumeListSource
     MangaDex = 1,
     AniList = 2,
     Mixed = 3,
+
+    /// <summary>1.32.0: the volume list was completed from (or built only from) the series' English Wikipedia list page.</summary>
+    Wikipedia = 4,
 }
 
 /// <summary>A virtual volume stack as a browse entry (<see cref="CatalogNodeDto.VolumeStack"/>).</summary>

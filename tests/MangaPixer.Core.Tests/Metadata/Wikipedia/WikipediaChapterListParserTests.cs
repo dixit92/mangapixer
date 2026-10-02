@@ -161,7 +161,7 @@ public sealed class WikipediaChapterListParserTests
         Assert.Equal(2, page.Tables.Count);
         Assert.Equal("Main series", page.Tables[0].Heading);
         Assert.Equal("Spin-off", page.Tables[1].Heading);
-        Assert.Equal(1, page.Tables[0].Volumes[0].Chapters.Count);
+        Assert.Single(page.Tables[0].Volumes[0].Chapters);
         Assert.Equal(3, page.Tables[1].Volumes[0].Chapters.Count);
     }
 
