@@ -28,10 +28,12 @@ public static partial class AutoMatchText
     [GeneratedRegex(@"[\(\[](19\d{2}|20\d{2})[\)\]]", RegexOptions.CultureInvariant)]
     private static partial Regex YearGroup();
 
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:v|vol|vols|volume|volumes)\.?\s*\d+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // 1.32.0: BD / European album tokens are volumes too (Tome / Tomo / Band / Deel / Album / Livre N, an upper-case T glued to the number).
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:v|vol|vols|volume|volumes|tome|tomo|band|deel|album|livre)\.?\s*\d+|(?-i:T)\d{1,3}(?![\p{L}\p{N}]))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex VolumeToken();
 
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:ch|chap|chapter|chapters|ep|episode)\.?\s*\d+|c\d+|#\s*\d+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // 1.32.0: comic issue tokens are chapters too (Issue 12, and No. 12 / N°12 after a title - "No. 6" alone is a title).
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:ch|chap|chapter|chapters|ep|episode)\.?\s*\d+|c\d+|#\s*\d+|issue\s*#?\s*\d+|(?<=[\p{L}\p{N}][\s\-_.,]*)(?:no\.|n°)\s*\d+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ChapterToken();
 
     // A trailing "(disambiguator)" of a provider title: "Look Back (FUJIMOTO Tatsuki)", "Beyond (GYARO)".
@@ -405,10 +407,10 @@ public static partial class AutoMatchText
     }
 
     // Unit numbers (1.27.0 count rule): the number after a volume / chapter token, the upper end of a range.
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:v|vol|vols|volume|volumes)\.?\s*(?<n>\d{1,4})(?:\.\d+)?(?:\s*-\s*(?<m>\d{1,4})(?:\.\d+)?)?(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:v|vol|vols|volume|volumes|tome|tomo|band|deel|album|livre)\.?\s*|(?-i:T)(?=\d{1,3}(?![\p{L}\p{N}])))(?<n>\d{1,4})(?:\.\d+)?(?:\s*-\s*(?<m>\d{1,4})(?:\.\d+)?)?(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex VolumeNumber();
 
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:ch|chap|chapter|chapters|ep|episode)\.?\s*|c|#\s*)(?<n>\d{1,4})(?:\.\d+)?(?:\s*-\s*(?<m>\d{1,4})(?:\.\d+)?)?(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:ch|chap|chapter|chapters|ep|episode)\.?\s*|c|#\s*|issue\s*#?\s*|(?<=[\p{L}\p{N}][\s\-_.,]*)(?:no\.|n°)\s*)(?<n>\d{1,4})(?:\.\d+)?(?:\s*-\s*(?<m>\d{1,4})(?:\.\d+)?)?(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ChapterNumber();
 
     [GeneratedRegex(@"^\s*(?<n>\d{1,4})(?:\.\d+)?(?![\p{N}])", RegexOptions.CultureInvariant)]
@@ -465,16 +467,22 @@ public static partial class AutoMatchText
 
     // Unit numbers v2 (1.29.0): decimals kept, a range as start / end (the end may repeat the token: "v01-v05").
     // <t> is the token, so a bracketed single-letter token ("[v2]", a release revision) can be told apart.
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?<t>volumes|volume|vols|vol|v)\.?\s*(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?:(?:volumes|volume|vols|vol|v)\.?\s*)?(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])",
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?<t>volumes|volume|vols|vol|v|tome|tomo|band|deel|album|livre)\.?\s*|(?<t>(?-i:T))(?=\d{1,3}(?![\p{N}])))(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?:(?:volumes|volume|vols|vol|v|tome|tomo|band|deel|album|livre)\.?\s*|(?-i:T))?(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex VolumeUnit();
 
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?<t>chapters|chapter|chap|ch|episode|ep)\.?\s*|(?<t>c)|(?<t>#)\s*)(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?:(?:chapters|chapter|chap|ch|episode|ep)\.?\s*|c|#\s*)?(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])",
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?<t>chapters|chapter|chap|ch|episode|ep)\.?\s*|(?<t>c)|(?<t>#)\s*|(?<t>issue)\s*#?\s*|(?<=[\p{L}\p{N}][\s\-_.,]*)(?<t>no\.|n°)\s*)(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?:(?:chapters|chapter|chap|ch|episode|ep)\.?\s*|c|#\s*)?(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ChapterUnit();
 
     [GeneratedRegex(@"^\s*(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])", RegexOptions.CultureInvariant)]
     private static partial Regex LeadingUnit();
+
+    // Comics extras (1.32.0): Annual / FCBD (Free Comic Book Day) with or without a number, Special / One-Shot only with their
+    // own number ("Special #1"; "Special Edition" is an edition, a bare "Special" a title word).
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:annual|fcbd|free\s+comic\s+book\s+day)(?:\s*#?\s*(?<n>\d{1,4}(?:\.\d{1,2})?))?|(?:specials?|one-?shots?)\s*#?\s*(?<n>\d{1,4}(?:\.\d{1,2})?))(?![\p{L}\p{N}])",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ExtraMarker();
 
     /// <summary>
     /// Every unit number an archive name states (1.29.0; <see cref="UnitNumbers"/>): <c>Title v03 c012</c> -> volume 3,
@@ -508,6 +516,14 @@ public static partial class AutoMatchText
 
         var extra = chapter is { } c ? decimal.Truncate(c.Start) != c.Start
             : volume is { } v && decimal.Truncate(v.Start) != v.Start;
+        // A comics extra (1.32.0): "Saga Annual #2", "Saga Annual 2", "Saga Special #1" is chapter-like but never a numbered
+        // issue - like a .5 chapter it is never missing and never fills a whole number. "FCBD 2019" names a year, not a unit.
+        if (ExtraMarker().Match(outside) is { Success: true } marker)
+        {
+            if (chapter is null && marker.Groups["n"] is { Success: true } own && !YearOnly().IsMatch(own.Value))
+                chapter = (decimal.Parse(own.Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture), null);
+            extra |= chapter is not null;
+        }
         return new UnitNumbers(volume?.Start, volume?.End, chapter?.Start, chapter?.End, extra);
     }
 
