@@ -91,6 +91,10 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<FolderViewSettingsEntity> FolderViewSettings => Set<FolderViewSettingsEntity>();
     public DbSet<NodeMoveEntity> NodeMoves => Set<NodeMoveEntity>();
     public DbSet<MoveConflictEntity> MoveConflicts => Set<MoveConflictEntity>();
+    public DbSet<WikipediaListEntity> WikipediaLists => Set<WikipediaListEntity>();
+    public DbSet<FolderCoverPreferenceEntity> FolderCoverPreferences => Set<FolderCoverPreferenceEntity>();
+    public DbSet<JobRunEntity> JobRuns => Set<JobRunEntity>();
+    public DbSet<MetadataRecordObservationEntity> MetadataRecordObservations => Set<MetadataRecordObservationEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -120,6 +124,9 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureDeclaredFacts(modelBuilder);
         ConfigureVolumesAndCovers(modelBuilder);
         ConfigureNodeMoves(modelBuilder);
+        ConfigureWikipediaLists(modelBuilder);
+        ConfigureFolderCoverPreferences(modelBuilder);
+        ConfigureJobSchedules(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
@@ -906,6 +913,65 @@ public sealed class MangaPixerDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.ResolvedByUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+    }
+
+    /// <summary>The Wikipedia companion of a linked series (1.32.0).</summary>
+    private static void ConfigureWikipediaLists(ModelBuilder mb)
+    {
+        mb.Entity<WikipediaListEntity>(e =>
+        {
+            e.ToTable("wikipedia_lists");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.AdminTitle).HasMaxLength(300);
+            e.Property(x => x.RejectCode).HasMaxLength(32);
+            e.HasIndex(x => x.RecordId).IsUnique();
+            e.HasOne(x => x.Record)
+                .WithMany()
+                .HasForeignKey(x => x.RecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    /// <summary>Scheduled jobs and the refresh cadence (1.32.0, migration AddJobSchedules).</summary>
+    private static void ConfigureJobSchedules(ModelBuilder mb)
+    {
+        mb.Entity<JobRunEntity>(e =>
+        {
+            e.ToTable("job_runs");
+            e.HasKey(x => x.Key);
+            e.Property(x => x.Key).HasMaxLength(64);
+            e.Property(x => x.LastOutcome).HasMaxLength(32);
+            e.Property(x => x.LastDetail).HasMaxLength(128);
+        });
+
+        mb.Entity<MetadataRecordObservationEntity>(e =>
+        {
+            e.ToTable("metadata_record_observations");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.HasIndex(x => new { x.RecordId, x.ObservedAt });
+            e.HasOne(x => x.Record)
+                .WithMany()
+                .HasForeignKey(x => x.RecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    /// <summary>Per-folder cover preference (1.32.0): one row per folder with an explicit value, absence = inherit.</summary>
+    private static void ConfigureFolderCoverPreferences(ModelBuilder mb)
+    {
+        mb.Entity<FolderCoverPreferenceEntity>(e =>
+        {
+            e.ToTable("folder_cover_preferences");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.HasIndex(x => x.NodeId).IsUnique();
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

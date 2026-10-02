@@ -34,8 +34,9 @@ public sealed partial record ArchiveNameAnatomy(
     private static partial Regex ParenGroup();
 
     // Parenthesized release tags that are never a parody: years, languages, quality, edition and
-    // unit markers, scan notes.
-    [GeneratedRegex(@"^(?:(?:19|20)\d{2}.*|\d+(?:\s*-\s*\d+)?|digital|english|eng|en|japanese|jp|raw|decensored|uncensored|censored|colou?r(?:ed|ized)?|full\s*colou?r|hd|hq|lq|web|webrip|scan(?:ned)?|translated|complete|ongoing|one-?shot|x\d+|\d{3,4}p|v\d+|(?:ch|vol)\.?\s*\d+.*)$",
+    // unit markers, scan notes; 1.32.0 comics scan tags: (c2c) cover-to-cover, (Zone-Empire) / (<Group>-Empire) scanners,
+    // (Webrip), and collected-format words (TPB, HC, GN, OGN).
+    [GeneratedRegex(@"^(?:(?:19|20)\d{2}.*|\d+(?:\s*-\s*\d+)?|c2c|[\p{L}\p{N} ]{1,40}-empire|tpb|hc|gn|ogn|digital|english|eng|en|japanese|jp|raw|decensored|uncensored|censored|colou?r(?:ed|ized)?|full\s*colou?r|hd|hq|lq|web|webrip|scan(?:ned)?|translated|complete|ongoing|one-?shot|x\d+|\d{3,4}p|v\d+|(?:ch|vol)\.?\s*\d+.*)$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ReleaseTag();
 

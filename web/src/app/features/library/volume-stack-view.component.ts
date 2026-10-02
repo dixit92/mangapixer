@@ -25,6 +25,7 @@ import { MetadataStateService } from '../metadata/metadata-state.service';
 import { SeriesSelectionActionsComponent } from '../metadata/series-selection-actions.component';
 import { OfficialReleaseBadgeComponent } from '../../shared/volume-stack/official-release-badge.component';
 import { AlsoInVolumeBadgeComponent } from '../../shared/volume-stack/also-in-volume-badge.component';
+import { ListCreditComponent } from '../../shared/list-credit.component';
 
 /**
  * The stack view of one virtual volume (1.29.0): `/libraries/:libraryId/browse/:nodeId/volume/:key`. A header (cover,
@@ -45,7 +46,7 @@ import { AlsoInVolumeBadgeComponent } from '../../shared/volume-stack/also-in-vo
   imports: [
     RouterLink, MatButtonModule, MatIconModule, CoverImageDirective, InfoToggleComponent, StarToggleComponent,
     MissingChapterCardComponent, NodeRowComponent, SelectionBarComponent, SeriesSelectionActionsComponent,
-    CoverSelectionActionComponent, OfficialReleaseBadgeComponent, AlsoInVolumeBadgeComponent,
+    CoverSelectionActionComponent, OfficialReleaseBadgeComponent, AlsoInVolumeBadgeComponent, ListCreditComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -115,6 +116,7 @@ import { AlsoInVolumeBadgeComponent } from '../../shared/volume-stack/also-in-vo
             <p class="dups" [title]="dupTip" data-testid="stack-duplicates">{{ dup }}</p>
           }
           <p class="source" data-testid="stack-source">{{ sourceText() }}</p>
+          <app-list-credit [credit]="s.listCredit" />
         </div>
         <!-- 1.30.0 (owner): this page's own Card / List choice - cards to see the covers, a list to read the archive names. -->
         <div class="view-switch" role="group" aria-label="View">

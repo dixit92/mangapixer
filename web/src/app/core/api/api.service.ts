@@ -12,6 +12,9 @@ import {
   TrashOverviewDto,
   TrashSettingsDto,
   UpdateTrashSettingsRequest,
+  ScheduledJobsDto,
+  SeriesRefreshCadenceDto,
+  UpdateRefreshCadenceRequest,
   AddBookmarkRequest,
   AddBookmarkResult,
   AnalyticsOverviewDto,
@@ -21,7 +24,9 @@ import {
   AuthUserDto,
   BookmarkDto,
   CatalogNodeDto,
+  FolderCoverPreferenceDto,
   FolderViewSettingsDto,
+  SetFolderCoverPreferenceRequest,
   UpdateFolderViewSettingsRequest,
   VolumeStackDto,
   VolumeViewDto,
@@ -394,6 +399,20 @@ export class ApiService {
     return this.put<FolderViewSettingsDto>(`/admin/folders/${nodeId}/view-settings`, request);
   }
 
+  /** Admin: a folder's cover preference - its own value, the effective one and where it comes from (1.32.0). */
+  getFolderCoverPreference(nodeId: string): Observable<FolderCoverPreferenceDto> {
+    return this.get<FolderCoverPreferenceDto>(`/admin/folders/${nodeId}/cover-preference`);
+  }
+
+  setFolderCoverPreference(nodeId: string, request: SetFolderCoverPreferenceRequest): Observable<FolderCoverPreferenceDto> {
+    return this.put<FolderCoverPreferenceDto>(`/admin/folders/${nodeId}/cover-preference`, request);
+  }
+
+  /** Back to inheriting (removes the folder's own value). */
+  clearFolderCoverPreference(nodeId: string): Observable<FolderCoverPreferenceDto> {
+    return this.delete<FolderCoverPreferenceDto>(`/admin/folders/${nodeId}/cover-preference`);
+  }
+
   browseLibraryPaths(path?: string): Observable<DirectoryListingDto> {
     let params = new HttpParams();
     if (path) params = params.set('path', path);
@@ -435,8 +454,10 @@ export class ApiService {
   }
 
   // Library scan schedule (1.23.0) — automatic scan preset, or null to clear back to the daily default.
-  setLibraryScanSchedule(libraryId: string, scanSchedule: LibraryScanSchedule | null): Observable<LibraryDto> {
-    const body: SetLibraryScanScheduleRequest = { scanSchedule };
+  // 1.32.0: the whole schedule - with a server-local hour for Daily / Weekly (null = any time) and a weekday for Weekly.
+  setLibraryScanSchedule(libraryId: string, scanSchedule: LibraryScanSchedule | null,
+    scanHour: number | null = null, scanWeekday: number | null = null): Observable<LibraryDto> {
+    const body: SetLibraryScanScheduleRequest = { scanSchedule, scanHour, scanWeekday };
     return this.put<LibraryDto>(`/admin/libraries/${libraryId}/scan-schedule`, body);
   }
 
@@ -620,6 +641,28 @@ export class ApiService {
   /** "Clean bundles now": data-root files no row references. */
   cleanBundles(): Observable<TrashFilesDto> {
     return this.post<TrashFilesDto>('/admin/trash/clean-bundles', {});
+  }
+
+  // --- Scheduled jobs (admin, 1.32.0) ---
+
+  /** Every job MangaPixer runs on its own: rhythm, last and next run, on the server's clock. */
+  getScheduledJobs(): Observable<ScheduledJobsDto> {
+    return this.get<ScheduledJobsDto>('/admin/jobs');
+  }
+
+  /** The hour of a daily job (metadata-refresh, cache-eviction, trash, backup); null = its default. */
+  setJobHour(key: string, hour: number | null): Observable<ScheduledJobsDto> {
+    return this.put<ScheduledJobsDto>(`/admin/jobs/${encodeURIComponent(key)}`, { hour });
+  }
+
+  /** The series information refresh cadence. */
+  setRefreshCadence(request: UpdateRefreshCadenceRequest): Observable<ScheduledJobsDto> {
+    return this.put<ScheduledJobsDto>('/admin/jobs/metadata-refresh/cadence', request);
+  }
+
+  /** One linked series' refresh cadence (the node holding the link), or null when it has none. */
+  getSeriesRefreshCadence(linkNodeId: string): Observable<SeriesRefreshCadenceDto | null> {
+    return this.get<SeriesRefreshCadenceDto | null>(`/admin/jobs/metadata-refresh/series/${encodeURIComponent(linkNodeId)}`);
   }
 
   // --- System info ---

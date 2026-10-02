@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.Server.Features.Trash;
 
+using com.lifepixer.mangapixer.Core.Scheduling;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -35,28 +36,9 @@ public static class TrashSchedule
     /// </summary>
     public static DateTimeOffset NextDue(DateTimeOffset nowUtc, TimeZoneInfo zone, DateTimeOffset? lastRunUtc, DateTimeOffset? enabledAtUtc, int hour)
     {
-        var latestSlot = SlotOn(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(nowUtc, zone).DateTime), zone, hour);
-        if (latestSlot > nowUtc)
-            latestSlot = SlotOn(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(nowUtc, zone).DateTime).AddDays(-1), zone, hour);
-        var nextSlot = SlotOn(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(latestSlot, zone).DateTime).AddDays(1), zone, hour);
-
-        DateTimeOffset? floor = (lastRunUtc, enabledAtUtc) switch
-        {
-            ({ } a, { } b) => a > b ? a : b,
-            ({ } a, null) => a,
-            (null, { } b) => b,
-            _ => null,
-        };
-        return floor is { } f && f < latestSlot ? nowUtc : nextSlot;
-    }
-
-    /// <summary>The run time on a local date, in UTC (an hour later when a clock change skips it).</summary>
-    private static DateTimeOffset SlotOn(DateOnly localDate, TimeZoneInfo zone, int hour)
-    {
-        var local = localDate.ToDateTime(new TimeOnly(hour, 0), DateTimeKind.Unspecified);
-        if (zone.IsInvalidTime(local))
-            local = local.AddHours(1);
-        return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(local, zone), TimeSpan.Zero);
+        // 1.32.0: the shared rule of the scheduled jobs; the floor is the later of the last run and the switch-on.
+        DateTimeOffset? floor = lastRunUtc is { } a && (enabledAtUtc is not { } b || a > b) ? a : enabledAtUtc;
+        return JobSchedule.NextDue(nowUtc, zone, new TimeOfDaySchedule(hour), floor);
     }
 }
 
@@ -142,9 +124,30 @@ public sealed class TrashHostedService : BackgroundService
         row.TrashLastAutoRunAt = _time.GetUtcNow();
         await db.SaveChangesAsync(ct);
 
-        var trash = scope.ServiceProvider.GetRequiredService<TrashService>();
-        await trash.EmptyAsync(null, releaseHold: false, automatic: true, actor: null, ct);
-        await trash.CleanBundlesAsync(automatic: true, actor: null, ct);
+        // 1.32.0: also recorded as the trash job's run (the Scheduled jobs section); the floor stays TrashLastAutoRunAt.
+        var runs = scope.ServiceProvider.GetService<Jobs.JobRunRecorder>();
+        var started = runs is null ? row.TrashLastAutoRunAt.Value : await runs.StartedAsync(Jobs.ScheduledJobKeys.Trash, ct);
+        var outcome = Jobs.JobOutcomes.Failed;
+        string? detail = null;
+        try
+        {
+            var trash = scope.ServiceProvider.GetRequiredService<TrashService>();
+            var emptied = await trash.EmptyAsync(null, releaseHold: false, automatic: true, actor: null, ct);
+            var cleaned = await trash.CleanBundlesAsync(automatic: true, actor: null, ct);
+            outcome = Jobs.JobOutcomes.Ok;
+            detail = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"{emptied.Result?.Removed.Nodes ?? 0} removed, {cleaned.Files} bundle files cleaned");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            detail = ex.GetType().Name;
+            throw;
+        }
+        finally
+        {
+            if (runs is not null)
+                await runs.FinishedAsync(Jobs.ScheduledJobKeys.Trash, started, outcome, detail, CancellationToken.None);
+        }
         return true;
     }
 

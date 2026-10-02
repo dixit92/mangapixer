@@ -6,8 +6,9 @@ using System.Net;
 /// The metadata network surface in constants (1.24.0, lane B2; owner-approved
 /// gate G1b). Named clients, each behind <see cref="HostAllowlistHandler"/> with
 /// its own host only: the MangaUpdates API, its image CDN, (1.28.0) the AniList
-/// GraphQL endpoint and (1.29.0) the MangaDex API and its cover image host. Nothing
-/// else is reachable.
+/// GraphQL endpoint, (1.29.0) the MangaDex API and its cover image host and (1.32.0)
+/// the Grand Comics Database API and its thumbnail host, Wikipedia and Wikidata.
+/// Nothing else is reachable.
 /// </summary>
 public static class MetadataHttp
 {
@@ -41,10 +42,53 @@ public static class MetadataHttp
     public const string MangaDexImageHost = "uploads.mangadex.org";
 
     /// <summary>
-    /// Generic, non-identifying User-Agent: no version, no contact, no browser-UA fallback of any kind. It names
-    /// MangaPixer honestly (MangaDex's terms ask for a real, non-spoofed User-Agent); no <c>Via</c> header is ever sent.
+    /// Named client for <c>www.comics.org</c> (1.32.0): the Grand Comics Database API (paths under <c>/api/</c> only) -
+    /// series search by the confirmed or cleaned name (+ a start year), series / issue / publisher by GCD id.
     /// </summary>
-    public const string UserAgent = "MangaPixer-Metadata";
+    public const string GcdApiClient = "Gcd";
+
+    /// <summary>Named client for <c>files1.comics.org</c> (1.32.0): cover thumbnails shown while choosing - never stored as covers.</summary>
+    public const string GcdImageClient = "GcdImages";
+
+    public const string GcdApiHost = "www.comics.org";
+    public const string GcdImageHost = "files1.comics.org";
+
+    /// <summary>
+    /// Named client for <c>en.wikipedia.org</c> (1.32.0): ONLY the companion of an already-linked MangaUpdates record -
+    /// the wikitext of its English "List of ... chapters" page through the Action API. Never used to identify or match a folder.
+    /// </summary>
+    public const string WikipediaClient = "Wikipedia";
+
+    /// <summary>Named client for <c>www.wikidata.org</c> (1.32.0): finds the English article linked to a MangaUpdates record id.</summary>
+    public const string WikidataClient = "Wikidata";
+
+    public const string WikipediaHost = "en.wikipedia.org";
+    public const string WikidataHost = "www.wikidata.org";
+
+    /// <summary>The project URL named in the User-Agent (the contact Wikimedia's User-Agent policy asks for).</summary>
+    public const string ProjectUrl = "https://github.com/dixit92/mangapixer";
+
+    /// <summary>
+    /// Fixed User-Agent (1.32.0, owner-approved): <c>MangaPixer/&lt;version&gt; (+&lt;project URL&gt;)</c> - the product, its
+    /// release version (build metadata such as <c>+sha.…</c> stripped) and the project URL, identical on every instance of a
+    /// version, so still no instance identifier. It names MangaPixer honestly (MangaDex's terms ask for a real, non-spoofed
+    /// User-Agent; Wikimedia's policy asks for a client name, version and contact); no browser-UA fallback, no <c>Via</c> header.
+    /// Before 1.32.0 it was the generic <c>MangaPixer-Metadata</c>.
+    /// </summary>
+    public static readonly string UserAgent = UserAgentFor(
+        typeof(MetadataHttp).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+            .FirstOrDefault()?.InformationalVersion);
+
+    /// <summary>The User-Agent for an informational version (<c>1.32.0+sha.abc</c> -> <c>MangaPixer/1.32.0 (+…)</c>).</summary>
+    public static string UserAgentFor(string? informationalVersion)
+    {
+        var version = (informationalVersion ?? "").Split('+', 2)[0].Trim();
+        if (version.Length == 0 || !version.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-'))
+            version = "0.0.0";
+        return $"MangaPixer/{version} (+{ProjectUrl})";
+    }
 
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
@@ -98,9 +142,14 @@ public static class MetadataHttp
     /// The network shape of each provider (1.29.0 gateway generalisation): its API client, its image client and the
     /// fixed set of image hosts an image URL must be on. A MangaDex 403 is read as "slow down" (its edge answers an
     /// over-eager client with 403), like a 429.
+    /// 1.32.0 (the Grand Comics Database, 25 requests an hour): <paramref name="NoWaitRetry"/> marks a SLOW bucket - nobody waits for
+    /// one of its tokens (an admin's call is refused at once with <c>provider_busy</c> and a retry time, an automatic one too, so the
+    /// auto-match queue defers that work and keeps serving the others), and automatic calls take a token only while more than
+    /// <paramref name="AutomaticReserve"/> are left, which keeps an admin's Identify (a search and a preview) answerable.
     /// </summary>
     public sealed record ProviderTransport(
-        string Id, string DisplayName, string ApiClient, string? ImageClient, IReadOnlySet<string> ImageHosts, bool ForbiddenMeansSlowDown = false);
+        string Id, string DisplayName, string ApiClient, string? ImageClient, IReadOnlySet<string> ImageHosts, bool ForbiddenMeansSlowDown = false,
+        int AutomaticReserve = 0, TimeSpan? NoWaitRetry = null);
 
     private static readonly IReadOnlySet<string> s_none = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -111,7 +160,22 @@ public static class MetadataHttp
         [MetadataProviderAllowlist.AniList] = new(MetadataProviderAllowlist.AniList, "AniList", AniListClient, null, s_none),
         [MetadataProviderAllowlist.MangaDex] = new(MetadataProviderAllowlist.MangaDex, "MangaDex", MangaDexApiClient,
             MangaDexImageClient, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { MangaDexImageHost }, ForbiddenMeansSlowDown: true),
+        // 1.32.0: a Cloudflare challenge in front of comics.org is reported as a 403 (blocked) - a backoff like a 429.
+        [MetadataProviderAllowlist.Gcd] = new(MetadataProviderAllowlist.Gcd, "Grand Comics Database", GcdApiClient,
+            GcdImageClient, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { GcdImageHost }, ForbiddenMeansSlowDown: true,
+            AutomaticReserve: GcdAutomaticReserve, NoWaitRetry: TimeSpan.FromSeconds(144)),
+        // 1.32.0 (lane C): Wikipedia + Wikidata are ONE provider for the gateway (one backoff, one limiter); the API client is Wikipedia's,
+        // Wikidata's client is named by WikipediaApi itself. No images.
+        [MetadataProviderAllowlist.Wikipedia] = new(MetadataProviderAllowlist.Wikipedia, "Wikipedia", WikipediaClient, null, s_none),
     };
+
+    /// <summary>
+    /// GCD tokens kept for admins (1.32.0): automatic work takes a GCD token only while more than 2 are left in the bucket of 3,
+    /// so an admin's Identify - a search, then a preview of the series it found (the search already carries the series; the preview
+    /// reads its publisher and first issue) - is never refused because background matching spent the burst. Background comics work
+    /// still gets every token the hour refills (25), one at a time.
+    /// </summary>
+    public const int GcdAutomaticReserve = 2;
 
     /// <summary>The transport of a provider id, or null for an unknown id.</summary>
     public static ProviderTransport? Transport(string providerId) => Transports.GetValueOrDefault(providerId);

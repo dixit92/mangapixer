@@ -32,6 +32,23 @@ namespace com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// </summary>
 public sealed class MatchScorer : IMatchScorer
 {
+    /// <summary>
+    /// 1.32.0 (lane B, research 4.3): evidence for COMICS records only (<see cref="ComicsEvidenceRules.IsComicsProvider"/>), adjusted
+    /// score only - the raw title score and the auto bands are unchanged, and a manga record never reads it. The Grand Comics Database
+    /// lists one series per edition and translation (Blacksad: 38 series), so the start year of the name, the language, the shape
+    /// (issues or collected books) and the publisher tell same-named editions apart.
+    /// </summary>
+    public const double ComicsStartYearExact = 0.05;
+
+    /// <summary>The comics record starts one year before or after the name's <c>(YYYY)</c>.</summary>
+    public const double ComicsStartYearNear = 0.02;
+
+    public const double ComicsLanguageAgree = 0.03;
+    public const double ComicsLanguageMismatch = -0.05;
+    public const double ComicsShapeAgree = 0.03;
+    public const double ComicsShapeMismatch = -0.05;
+    public const double ComicsPublisherAgree = 0.03;
+
     /// <summary>Subtracted from a title pair that disagrees on a sequel / part number.</summary>
     public const double NumberPenalty = 0.15;
 
@@ -478,6 +495,10 @@ public sealed class MatchScorer : IMatchScorer
             authorBonus = CreatorHintAgree;
         delta += authorBonus;
 
+        // Comics records (1.32.0): start year, language, shape and publisher of the edition.
+        if (ctx.ComicsEvidence is { } comics && ComicsEvidenceRules.IsComicsProvider(c.Provider))
+            delta += ComicsDelta(c, comics, ref reasons);
+
         // Cover comparison (1.28.0): positive only, and only on the adjusted score - a tie can be broken, a weak
         // title never becomes an automatic link.
         if (ctx.CoverMatches is { Count: > 0 } covers && covers.Contains(c.ExternalId))
@@ -487,6 +508,43 @@ public sealed class MatchScorer : IMatchScorer
         }
 
         return (new ScoredCandidate(c, title, title + delta, reasons), bestViaSubtitleSplit);
+    }
+
+    /// <summary>The comics evidence of one comics record (1.32.0); every part is skipped when either side is unknown.</summary>
+    private static double ComicsDelta(MatchCandidate c, ComicsEvidence comics, ref MatchReason reasons)
+    {
+        var delta = 0.0;
+        if (comics.StartYear is { } named && c.StartYear is { } start && Math.Abs(named - start) <= 1)
+        {
+            delta += named == start ? ComicsStartYearExact : ComicsStartYearNear;
+            reasons |= MatchReason.ComicsStartYear;
+        }
+        if (ComicsEvidenceRules.LanguageCode(comics.Language) is { } wanted && ComicsEvidenceRules.LanguageCode(c.Language) is { } edition)
+        {
+            if (wanted == edition)
+                delta += ComicsLanguageAgree;
+            else
+            {
+                delta += ComicsLanguageMismatch;
+                reasons |= MatchReason.ComicsLanguageMismatch;
+            }
+        }
+        if (comics.Shape != ComicsShape.Unknown && c.Shape != ComicsShape.Unknown)
+        {
+            if (comics.Shape == c.Shape)
+                delta += ComicsShapeAgree;
+            else
+            {
+                delta += ComicsShapeMismatch;
+                reasons |= MatchReason.ComicsShapeMismatch;
+            }
+        }
+        if (comics.Publisher is { } publisher && (c.Publishers ?? []).Any(p => ComicsEvidenceRules.PublishersEqual(publisher, p)))
+        {
+            delta += ComicsPublisherAgree;
+            reasons |= MatchReason.ComicsPublisherAgree;
+        }
+        return delta;
     }
 
     private static bool IsOneShotRecord(MatchCandidate c) =>

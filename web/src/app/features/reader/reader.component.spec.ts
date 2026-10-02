@@ -281,7 +281,7 @@ describe('ReaderComponent double-spread pairing', () => {
     expect(c.aspectRatioFor({ ...p, width: 0, height: 0 })).toBeNull();
   });
 
-  it('auto-advances to the next archive when paging past the last page', () => {
+  it('opens the next archive when paging past the last page twice (2026-10-02: the first input only arms)', () => {
     const c = create();
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     c.pages.set(makePages(3));
@@ -290,6 +290,8 @@ describe('ReaderComponent double-spread pairing', () => {
     c.nextNeighbor.set({ id: 'next-item', displayName: 'Chapter 2' });
     c.currentPage.set(2); // last page
 
+    c.nextPage();
+    expect(nav).not.toHaveBeenCalled();
     c.nextPage();
     expect(nav).toHaveBeenCalledWith(['/reader', 'next-item'], { replaceUrl: true });
   });
@@ -3677,5 +3679,259 @@ describe('ReaderComponent 1.27.0 reader fixes', () => {
     TestBed.inject(FavoritesStateService).setFavorite('other-item', false).subscribe();
     http.expectOne({ method: 'DELETE', url: '/api/v1/nodes/other-item/favorite' }).flush(null);
     expect(c.currentFavorite()).toBe(true);
+  });
+});
+
+
+/**
+ * Edge-of-archive confirmation (owner, 2026-10-02): at the first / last page the next / previous input arms the move
+ * to the neighbouring archive and the same input again - tap zone, click, swipe, key; in webtoon a tap, swipe or
+ * scroll key at the very end - opens it. Native webtoon scrolling still never navigates (1.7.1 revert, tested above).
+ */
+describe('ReaderComponent edge-of-archive confirmation (2026-10-02)', () => {
+  function create(view: 'paged' | 'spread' | 'webtoon' = 'paged') {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.itemId.set('item-1');
+    c.pages.set(makePages(3));
+    c.view.set(view);
+    c.phase.set('ready');
+    c.nextNeighbor.set({ id: 'next-item', displayName: 'Chapter 2' });
+    c.prevNeighbor.set({ id: 'prev-item', displayName: 'Chapter 0' });
+    const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    const dismiss = vi.fn();
+    const snack = vi.spyOn((c as unknown as { snackBar: MatSnackBar }).snackBar, 'open')
+      .mockImplementation(() => ({ dismiss }) as never);
+    return { c, nav, snack, dismiss };
+  }
+  function key(k: string, extra: Partial<KeyboardEvent> = {}): KeyboardEvent {
+    return { key: k, target: document.createElement('div'), repeat: false, shiftKey: false, ...extra } as unknown as KeyboardEvent;
+  }
+  function fakeScroller(c: ReaderComponent, scrollTop: number, clientHeight = 500, scrollHeight = 3000): HTMLElement {
+    const el = { scrollTop, clientHeight, scrollHeight, scrollTo: vi.fn() } as unknown as HTMLElement;
+    (c as unknown as { scroller: () => { nativeElement: HTMLElement } }).scroller = () => ({ nativeElement: el });
+    return el;
+  }
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); vi.restoreAllMocks(); });
+
+  it('the first input at the last page names the next archive and stays; the second opens it', () => {
+    const { c, nav, snack } = create();
+    c.currentPage.set(2);
+    c.nextPage();
+    expect(nav).not.toHaveBeenCalled();
+    expect(c.currentPage()).toBe(2);
+    expect(String(snack.mock.calls[0][0])).toBe('Again to open the next archive: Chapter 2');
+    c.nextPage();
+    expect(nav).toHaveBeenCalledWith(['/reader', 'next-item'], { replaceUrl: true });
+  });
+
+  it('the first page mirrors it: twice back opens the previous archive at its last page', () => {
+    const { c, nav, snack } = create();
+    c.currentPage.set(0);
+    c.prevPage();
+    expect(nav).not.toHaveBeenCalled();
+    expect(String(snack.mock.calls[0][0])).toBe('Again to open the previous archive: Chapter 0');
+    c.prevPage();
+    expect(nav).toHaveBeenCalledWith(['/reader', 'prev-item'], { queryParams: { at: 'end' }, replaceUrl: true });
+  });
+
+  it('turning back a page closes the "Again to open" hint at once (owner, 2026-10-02)', () => {
+    const { c, nav, snack, dismiss } = create();
+    c.currentPage.set(2);
+    c.nextPage();
+    expect(snack).toHaveBeenCalledTimes(1);
+    expect(dismiss).not.toHaveBeenCalled();
+    c.prevPage(); // back to page 1: the move disarms and its hint closes
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    expect(c.currentPage()).toBe(1);
+    c.nextPage(); // a plain page turn: no hint, nothing to close
+    expect(snack).toHaveBeenCalledTimes(1);
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    expect(nav).not.toHaveBeenCalled();
+  });
+
+  it('the second input must come within the window', () => {
+    const { c, nav } = create();
+    c.currentPage.set(2);
+    c.nextPage();
+    vi.advanceTimersByTime(3001);
+    c.nextPage(); // too late: arms again
+    expect(nav).not.toHaveBeenCalled();
+    c.nextPage();
+    expect(nav).toHaveBeenCalledTimes(1);
+  });
+
+  it('a page turn back into the archive, or the other direction, disarms', () => {
+    const { c, nav } = create();
+    c.currentPage.set(2);
+    c.nextPage();
+    c.prevPage(); // back to page 1
+    c.nextPage(); // to page 2
+    c.nextPage(); // arms again (the earlier arm was reset)
+    expect(nav).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(3001); // let that arm lapse
+    c.pages.set(makePages(1)); // a one-page archive is at both edges
+    c.currentPage.set(0);
+    c.nextPage(); // arms forward
+    c.prevPage(); // the other direction: arms backward instead
+    expect(nav).not.toHaveBeenCalled();
+    c.prevPage();
+    expect(nav).toHaveBeenCalledWith(['/reader', 'prev-item'], { queryParams: { at: 'end' }, replaceUrl: true });
+  });
+
+  it('without a neighbouring archive it says so at once and never navigates', () => {
+    const { c, nav, snack } = create();
+    c.nextNeighbor.set(null);
+    c.currentPage.set(2);
+    c.nextPage();
+    expect(nav).not.toHaveBeenCalled();
+    expect(String(snack.mock.calls[0][0])).toContain('No next archive');
+  });
+
+  it('works by key: two fresh presses open it, a held (repeating) key never does', () => {
+    const { c, nav } = create();
+    c.currentPage.set(1);
+    c.onKeyDown(key('ArrowRight'));
+    expect(c.currentPage()).toBe(2);
+    c.onKeyDown(key('ArrowRight', { repeat: true })); // the held key reached the end: ignored at the edge
+    c.onKeyDown(key('ArrowRight', { repeat: true }));
+    expect(nav).not.toHaveBeenCalled();
+    c.onKeyDown(key('ArrowRight'));
+    c.onKeyDown(key('ArrowRight'));
+    expect(nav).toHaveBeenCalledWith(['/reader', 'next-item'], { replaceUrl: true });
+  });
+
+  it('follows the reading direction: in right-to-left, Left twice at the last page opens the next archive', () => {
+    const { c, nav } = create();
+    c.direction.set('rtl');
+    c.currentPage.set(2);
+    c.onKeyDown(key('ArrowLeft'));
+    c.onKeyDown(key('ArrowLeft'));
+    expect(nav).toHaveBeenCalledWith(['/reader', 'next-item'], { replaceUrl: true });
+  });
+
+  it('spread view: the last spread is the edge', () => {
+    const { c, nav } = create('spread');
+    c.pages.set(makePages(4));
+    c.coverIsStandalone.set(false); // [0,1],[2,3]
+    c.currentPage.set(2);
+    c.nextPage();
+    c.nextPage();
+    expect(nav).toHaveBeenCalledWith(['/reader', 'next-item'], { replaceUrl: true });
+  });
+
+  it('webtoon: a forward tap step at the very bottom arms, the second opens; above the bottom it scrolls', () => {
+    const { c, nav } = create('webtoon');
+    const el = fakeScroller(c, 2000); // 2000 + 500 < 3000: not at the bottom
+    c.scrollWebtoonBy(1);
+    expect(el.scrollTo).toHaveBeenCalled();
+    expect(nav).not.toHaveBeenCalled();
+
+    fakeScroller(c, 2500); // at the bottom
+    c.scrollWebtoonBy(1);
+    expect(nav).not.toHaveBeenCalled();
+    c.scrollWebtoonBy(1);
+    expect(nav).toHaveBeenCalledWith(['/reader', 'next-item'], { replaceUrl: true });
+  });
+
+  it('webtoon: scroll keys at the top / bottom are edge inputs, elsewhere the browser scrolls', () => {
+    const { c, nav } = create('webtoon');
+    fakeScroller(c, 1000);
+    c.onKeyDown(key('PageDown'));
+    expect(nav).not.toHaveBeenCalled();
+
+    fakeScroller(c, 0);
+    c.onKeyDown(key(' ', { shiftKey: true }));
+    c.onKeyDown(key('PageUp'));
+    expect(nav).toHaveBeenCalledWith(['/reader', 'prev-item'], { queryParams: { at: 'end' }, replaceUrl: true });
+  });
+
+  it('webtoon: Space on a focused button stays that button\'s', () => {
+    const { c, nav, snack } = create('webtoon');
+    fakeScroller(c, 2500);
+    const button = document.createElement('button');
+    c.onKeyDown(key(' ', { target: button }));
+    c.onKeyDown(key(' ', { target: button }));
+    expect(nav).not.toHaveBeenCalled();
+    expect(snack).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The archive's name in the top chrome (1.32.0): beside the page counter when the bar has room
+ * (wide screens), otherwise in a one-line row under the bar. Both ride the same wrapper as the
+ * toolbar, so they show / hide together with the controls.
+ */
+describe('ReaderComponent archive name in the top chrome (1.32.0)', () => {
+  function render(wide: boolean) {
+    const breakpoints = {
+      observe: (query: unknown) => of({ matches: query === ReaderComponent.NameInBarQuery ? wide : false, breakpoints: {} }),
+      isMatched: (query: unknown) => query === ReaderComponent.NameInBarQuery ? wide : false,
+    };
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [...baseProviders(), { provide: BreakpointObserver, useValue: breakpoints }],
+    });
+    const fixture = TestBed.createComponent(ReaderComponent);
+    fixture.detectChanges();
+    const c = fixture.componentInstance;
+    // The stubbed route has no snapshot, so ngOnInit stops before loading the node: do that step directly.
+    c.itemId.set('item-1');
+    (c as unknown as { loadFallbackBackRoute: (id: string) => void }).loadFallbackBackRoute('item-1');
+    TestBed.inject(HttpTestingController).expectOne('/api/v1/nodes/item-1')
+      .flush(makeNode({ displayName: 'Series Volume 03.cbz' }));
+    c.pages.set(makePages(3));
+    c.phase.set('ready');
+    fixture.detectChanges();
+    return { fixture, c, el: fixture.nativeElement as HTMLElement };
+  }
+
+  it('wide: the name, without its extension, follows the page counter after a separator, before the spacer and icons', () => {
+    const { el, c } = render(true);
+    expect(c.itemName()).toBe('Series Volume 03.cbz');
+    expect(c.itemTitle()).toBe('Series Volume 03');
+    const name = el.querySelector<HTMLElement>('.reader-toolbar [data-testid="reader-archive-name"]')!;
+    expect(name.textContent?.trim()).toBe('Series Volume 03');
+    expect(name.getAttribute('title')).toBe('Series Volume 03');
+    expect(el.querySelector('.reader-name-row')).toBeNull();
+    const toolbar = el.querySelector('.reader-toolbar')!;
+    const kids = Array.from(toolbar.children);
+    const counter = kids.indexOf(el.querySelector('.page-info')!);
+    const sep = kids.indexOf(toolbar.querySelector('.name-sep')!);
+    expect(sep).toBe(counter + 1);
+    expect(kids.indexOf(name)).toBe(sep + 1);
+    expect(kids.indexOf(toolbar.querySelector('.spacer')!)).toBe(kids.indexOf(name) + 1);
+    expect(kids.indexOf(name)).toBeLessThan(kids.indexOf(toolbar.querySelector('button[aria-label="Enter fullscreen"]')!));
+  });
+
+  it('narrow: the name is a row right below the toolbar, inside the same chrome wrapper', () => {
+    const { el } = render(false);
+    const row = el.querySelector<HTMLElement>('.reader-top > .reader-name-row')!;
+    expect(row.textContent?.trim()).toBe('Series Volume 03');
+    expect(row.getAttribute('title')).toBe('Series Volume 03');
+    expect(row.previousElementSibling).toBe(el.querySelector('.reader-toolbar'));
+    expect(el.querySelector('.reader-toolbar [data-testid="reader-archive-name"]')).toBeNull();
+  });
+
+  it('shows and hides with the controls: the wrapper carries the immersive overlay and auto-hide', () => {
+    const { fixture, c, el } = render(false);
+    c.isFullscreen.set(true);
+    c.chromeVisible.set(false);
+    fixture.detectChanges();
+    const top = el.querySelector('.reader-top')!;
+    expect(top.classList).toContain('immersive');
+    expect(top.classList).toContain('chrome-hidden');
+    expect(top.contains(el.querySelector('.reader-name-row'))).toBe(true);
+  });
+
+  it('renders no name while the node has not loaded (and none after the item changes)', () => {
+    const { fixture, c, el } = render(false);
+    c.itemName.set('');
+    fixture.detectChanges();
+    expect(el.querySelector('.reader-name-row')).toBeNull();
+    expect(el.querySelector('.spacer')).not.toBeNull();
   });
 });

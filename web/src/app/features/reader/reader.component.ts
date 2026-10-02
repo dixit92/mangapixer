@@ -11,7 +11,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBarModule, MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
 import { map } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
@@ -35,6 +35,8 @@ import {
   WebtoonNavPreferencesService, webtoonTapZone, webtoonScrollTarget, prefersReducedMotion,
 } from './webtoon-nav.service';
 import { isApplePlatformTouch, isStandaloneDisplay } from './platform';
+import { EdgeAdvance, EdgeAdvanceWindowMs, EdgeDirection } from './edge-advance';
+import { archiveTitle } from './archive-title';
 import { InstallHintService } from '../../shared/install-hint/install-hint.service';
 import {
   groupSpreads, fallbackSpreadStarts, normalizeSpreadStarts, isShiftedSpread, shiftSpreadAt, ensureSpreadStart,
@@ -146,15 +148,24 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
   ],
   template: `
     <div class="reader-container">
-      <mat-toolbar class="reader-toolbar" [class.immersive]="isFullscreen()"
-                   [class.chrome-hidden]="!chromeVisible()"
-                   (mouseenter)="lockChrome(true)" (mouseleave)="lockChrome(false)">
+      <!-- Top chrome: the toolbar plus, on narrow screens, a one-line row with the archive's
+           name. One wrapper carries the fullscreen overlay + auto-hide so both fade together. -->
+      <div class="reader-top" [class.immersive]="isFullscreen()"
+           [class.chrome-hidden]="!chromeVisible()"
+           (mouseenter)="lockChrome(true)" (mouseleave)="lockChrome(false)">
+      <mat-toolbar class="reader-toolbar">
         <button mat-icon-button (click)="goBack()" matTooltip="Back to folder" aria-label="Back to folder">
           <mat-icon>arrow_back</mat-icon>
         </button>
         <span class="page-info">
           @if (phase() === 'ready') { {{ currentPageIndicator() }} / {{ pageCount() }} }
         </span>
+        @if (nameInBar() && itemTitle()) {
+          <!-- Wide screens (owner, 2026-10-02): the archive's name, without its extension, follows the page counter
+               on the left after a thin separator (ellipsis when long - never pushes the icons). -->
+          <span class="name-sep" aria-hidden="true"></span>
+          <span class="archive-name" data-testid="reader-archive-name" [attr.title]="itemTitle()">{{ itemTitle() }}</span>
+        }
         <span class="spacer"></span>
 
         <!-- Controls stay visible in fullscreen. -->
@@ -299,6 +310,11 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
           </button>
         }
       </mat-toolbar>
+      @if (!nameInBar() && itemTitle()) {
+        <!-- Phones / portrait / narrow windows: no room in the bar, so a small row right below it. -->
+        <div class="reader-name-row" data-testid="reader-archive-name" [attr.title]="itemTitle()">{{ itemTitle() }}</div>
+      }
+      </div>
 
       @if (phase() === 'preparing') {
         <div class="status">
@@ -512,6 +528,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 <li><b>Tap</b> the sides to turn a page, the centre to show / hide the controls.</li>
                 <li><kbd>←</kbd> <kbd>→</kbd> previous / next page (follows reading direction) ·
                   <kbd>Home</kbd> <kbd>End</kbd> first / last</li>
+                <li>On the last (first) page, turn the page <b>twice</b> - tap, click, swipe or key - to
+                  open the next (previous) archive.</li>
                 @if (narrowPortrait() && view() === 'spread') {
                   <li>Double page shows in landscape or on a wider screen; this narrow portrait
                     screen shows one page at a time.</li>
@@ -521,7 +539,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
               } @else if (webtoonNav.tapZonesEnabled()) {
                 <li>Scroll freely, or <b>tap</b> the lower part of the page to move forward a screen
                   ({{ webtoonNav.tapStep() }}%), the upper part to go back, the centre to show / hide
-                  the controls. <b>Swipe</b> left / right does the same.</li>
+                  the controls. <b>Swipe</b> left / right does the same. At the very end (start), the
+                  same move <b>twice</b> opens the next (previous) archive.</li>
               } @else {
                 <li>Scroll to read; tap the page to show or hide the controls.</li>
               }
@@ -550,21 +569,36 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       position: fixed; inset: 0;
       background: #101012; z-index: 1000;
     }
-    .reader-toolbar {
-      background: #1c1c1f; color: #eee; flex-shrink: 0;
+    .reader-top {
+      flex-shrink: 0;
       transition: transform .2s ease, opacity .2s ease;
     }
-    /* Immersive (fullscreen only): the toolbar OVERLAYS the viewport so hiding it
-       frees the whole screen. Windowed reading keeps it in normal flow above the
+    .reader-toolbar { background: #1c1c1f; color: #eee; }
+    /* Immersive (fullscreen only): the top chrome (toolbar + name row) OVERLAYS the viewport so
+       hiding it frees the whole screen. Windowed reading keeps it in normal flow above the
        page, always visible. */
-    .reader-toolbar.immersive {
+    .reader-top.immersive {
       position: absolute; top: 0; left: 0; right: 0; z-index: 1001;
     }
-    .reader-toolbar.immersive.chrome-hidden {
+    .reader-top.immersive.chrome-hidden {
       transform: translateY(-100%); opacity: 0; pointer-events: none;
     }
-    .page-info { margin-left: 8px; font-variant-numeric: tabular-nums; }
+    .page-info { margin-left: 8px; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .spacer { flex: 1 1 auto; }
+    /* The archive's name (wide screens): left, right after the page counter and a thin separator; one line. */
+    .name-sep { flex: 0 0 1px; align-self: center; height: 18px; margin: 0 12px; background: rgba(255, 255, 255, 0.3); }
+    .archive-name {
+      flex: 0 1 auto; min-width: 0; margin-right: 12px; text-align: left;
+      font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* ... or a single-line row under the bar (narrow screens). */
+    .reader-name-row {
+      box-sizing: border-box; height: 28px; line-height: 28px;
+      padding: 0 max(16px, env(safe-area-inset-left, 0px)) 0 max(16px, env(safe-area-inset-right, 0px));
+      background: #1c1c1f; color: #ccc; font-size: 13px; text-align: left;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
     /* Chapter arrows (1.17.0): the glyph implies a direction (skip_previous
        points left / skip_next points right), so it is mirrored when the reading
        direction is RTL to match the manga flow, and picks up the same accent
@@ -822,7 +856,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       to   { clip-path: inset(0 0 0 0); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .reader-toolbar, .progress-fill { transition: none; }
+      .reader-top, .progress-fill { transition: none; }
       /* Fall back to an instant page swap when the reader prefers reduced motion,
          regardless of the chosen transition. !important so this reliably wins over
          the per-direction rules above, which are otherwise more specific. */
@@ -863,6 +897,16 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     { initialValue: this.breakpoints.isMatched(Breakpoints.XSmall) },
   );
   /**
+   * Whether the top bar has room for the archive's name between the page counter and the action
+   * icons. The full bar (about a dozen icons, more with the webtoon width slider) leaves under
+   * ~250px for a name below this width, so narrower screens get the name in a row under the bar.
+   */
+  static readonly NameInBarQuery = '(min-width: 1000px)';
+  readonly nameInBar = toSignal(
+    this.breakpoints.observe(ReaderComponent.NameInBarQuery).pipe(map((r) => r.matches)),
+    { initialValue: this.breakpoints.isMatched(ReaderComponent.NameInBarQuery) },
+  );
+  /**
    * Narrow PORTRAIT screen: CDK's HandsetPortrait breakpoint
    * (< 600px wide AND portrait) - the one case where a synthetic two-up spread
    * leaves each page unreadably small. Live, so rotating a phone to landscape
@@ -883,6 +927,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   /** Whether the currently open chapter (the archive) is favorited (1.21.0). */
   readonly currentFavorite = signal(false);
+  /** The open archive's display name (shown in the top chrome); empty until its node loads. */
+  readonly itemName = signal('');
+  /** What the reader shows: the archive's name without its extension (owner, 2026-10-02). */
+  readonly itemTitle = computed(() => archiveTitle(this.itemName()));
   // Keep it in step with a toggle made anywhere (the desktop star, the phone sheet).
   private readonly favoriteSync = this.favorites.changed$.pipe(takeUntilDestroyed()).subscribe((change) => {
     if (change.nodeId === this.itemId()) this.currentFavorite.set(change.favorite);
@@ -1013,6 +1061,12 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   // they grey out at the ends of a folder. Distinct from page turning.
   readonly hasNextChapter = computed(() => !!this.nextNeighbor());
   readonly hasPrevChapter = computed(() => !!this.prevNeighbor());
+
+  // Edge-of-archive confirmation (owner, 2026-10-02): at the first / last page the next or previous input arms the
+  // move to the neighbouring archive and the same input again opens it (see edge-advance.ts).
+  private readonly edgeAdvance = new EdgeAdvance();
+  /** The "Again to open ..." hint while an edge is armed; closed as soon as the edge disarms (owner, 2026-10-02). */
+  private edgeHint: MatSnackBarRef<TextOnlySnackBar> | null = null;
 
   // In-reader bookmarks (1.17.0), fetched per item alongside the neighbors.
   // `ordinal` is the zero-based page index (matches `currentPage`), so the
@@ -1389,6 +1443,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       // next archive's layout (or none) arrives with its manifest.
       this.flushSpreadSave();
       this.spreadLayout.set(null);
+      this.disarmEdge();
       this.itemId.set(id);
       this.pollAttempts = 0;
       // Reset the page-prefetch cache for the new chapter (URLs are per-item).
@@ -1464,8 +1519,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
    */
   private loadFallbackBackRoute(itemId: string): void {
     this.fallbackBackRoute.set(['/']);
+    this.itemName.set('');
     this.api.getNode(itemId).subscribe({
       next: (node) => {
+        if (this.itemId() === itemId) this.itemName.set(node.displayName ?? '');
         this.fallbackBackRoute.set(
           node.parentId
             ? ['/libraries', node.libraryId, 'browse', node.parentId]
@@ -1596,7 +1653,13 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // Upscaling applies to webtoon too since 1.24.0 (banded Enhance), so like 's'
     // it acts before the webtoon early-return.
     if (key === 'e') { this.cycleRendering(); return; }
-    if (this.view() === 'webtoon') return; // native scroll drives webtoon
+    if (this.view() === 'webtoon') { this.onWebtoonEdgeKey(event, key); return; } // native scroll drives webtoon
+
+    // A held arrow key auto-repeats through the pages; at an edge only a NEW press counts,
+    // so holding the key never arms and opens the next archive by itself.
+    const edgeKey = (key === 'ArrowLeft' || key === 'ArrowRight')
+      && ((key === 'ArrowRight') !== (this.direction() === 'rtl') ? this.isAtEnd() : this.isAtStart());
+    if (event.repeat && edgeKey) return;
 
     switch (key) {
       case 'ArrowLeft': this.direction() === 'rtl' ? this.nextPage() : this.prevPage(); break;
@@ -2075,21 +2138,45 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   /**
    * Advance toward the end (next screen). In spread view, jumps a whole spread.
-   * When already on the last screen, the forward gesture auto-advances to the next
-   * chapter (next archive in the folder), if there is one.
+   * On the last screen the forward input is an edge input (2026-10-02): the first one
+   * arms the move to the next archive, the same input again opens it ({@link edgeInput}).
    */
   nextPage(): void {
-    if (this.isAtEnd()) { this.goToNextChapter(); return; }
+    if (this.isAtEnd()) { this.edgeInput(+1); return; }
     this.goToPage(this.nextIndexFrom(this.currentPage(), +1));
   }
   /**
-   * Advance toward the start (previous screen). When already on the first screen,
-   * the backward gesture auto-advances to the previous archive, landing on ITS last
-   * page (mirror of {@link nextPage}), if there is one.
+   * Advance toward the start (previous screen). On the first screen the backward input
+   * arms, and again opens, the previous archive - landing on ITS last page (mirror of
+   * {@link nextPage}).
    */
   prevPage(): void {
-    if (this.isAtStart()) { this.goToPreviousChapter(); return; }
+    if (this.isAtStart()) { this.edgeInput(-1); return; }
     this.goToPage(this.nextIndexFrom(this.currentPage(), -1));
+  }
+
+  /**
+   * One next / previous input at the matching edge of the archive, from any input
+   * method (tap zone, click, swipe, arrow key; in webtoon a tap, swipe or scroll key at
+   * the very top / bottom). Without a neighbouring archive it says so at once. Otherwise
+   * the first input names the archive and arms the move, and the same input again within
+   * {@link EdgeAdvanceWindowMs} opens it - one stray input at the end never leaves the archive.
+   */
+  private edgeInput(direction: EdgeDirection): void {
+    const neighbor = direction === 1 ? this.nextNeighbor() : this.prevNeighbor();
+    if (!neighbor || this.edgeAdvance.press(direction, Date.now()) === 'go') {
+      direction === 1 ? this.goToNextChapter() : this.goToPreviousChapter();
+      return;
+    }
+    const which = direction === 1 ? 'next' : 'previous';
+    this.edgeHint = this.snackBar.open(`Again to open the ${which} archive: ${neighbor.displayName}`, '', { duration: EdgeAdvanceWindowMs });
+  }
+
+  /** Forget an armed edge and close its hint (a page turn back, a webtoon step, a new archive) - a stale hint would invite a tap that no longer opens anything. */
+  private disarmEdge(): void {
+    this.edgeAdvance.reset();
+    this.edgeHint?.dismiss();
+    this.edgeHint = null;
   }
 
   /** True when the current screen is the last page (paged) or last spread (spread). */
@@ -2178,6 +2265,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private goToPage(index: number): void {
     const clamped = Math.min(Math.max(index, 0), this.pageCount() - 1);
     if (clamped === this.currentPage()) return;
+    this.disarmEdge(); // a page turn inside the archive disarms the edge and closes its hint
     // Resolve the transition enter-side from the travel direction before the page
     // swaps, so the freshly mounted <img> animates in from the correct edge.
     this.navEnter.set(this.enterSideForNav(clamped > this.currentPage()));
@@ -2921,12 +3009,40 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     if (!el) return;
     const target = webtoonScrollTarget(
       el.scrollTop, el.clientHeight, el.scrollHeight, this.webtoonNav.tapStep(), direction);
-    if (target === el.scrollTop) return;
+    // Already at that end of the strip: an explicit tap / swipe step there is an edge
+    // input (2026-10-02). Plain scrolling never is - the 1.7.1 revert stands.
+    if (target === el.scrollTop) {
+      if (this.webtoonAtEdge(el, direction)) this.edgeInput(direction);
+      return;
+    }
+    this.disarmEdge();
     if (typeof el.scrollTo === 'function') {
       el.scrollTo({ top: target, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
     } else {
       el.scrollTop = target;
     }
+  }
+
+  /** The webtoon strip stands at its end (`1`) or start (`-1`). */
+  private webtoonAtEdge(el: HTMLElement, direction: 1 | -1): boolean {
+    const eps = ReaderComponent.WebtoonBottomEpsilonPx;
+    return direction === 1 ? el.scrollTop + el.clientHeight >= el.scrollHeight - eps : el.scrollTop <= eps;
+  }
+
+  /**
+   * Scroll keys in webtoon (PageDown / Space / Down, PageUp / Shift+Space / Up): the browser
+   * scrolls the strip itself; only at its very end (start) - where the key no longer moves
+   * anything - is a fresh press an edge input toward the next (previous) archive.
+   */
+  private onWebtoonEdgeKey(event: KeyboardEvent, key: string): void {
+    // Space / Enter on a focused button (the end-of-chapter footer's) is that button's alone.
+    if (event.repeat || (event.target as HTMLElement | null)?.closest?.('button')) return;
+    const forward = key === 'PageDown' || key === 'ArrowDown' || (key === ' ' && !event.shiftKey);
+    const backward = key === 'PageUp' || key === 'ArrowUp' || (key === ' ' && event.shiftKey);
+    if (!forward && !backward) return;
+    const el = this.scroller()?.nativeElement;
+    const direction = forward ? 1 : -1;
+    if (el && this.webtoonAtEdge(el, direction)) this.edgeInput(direction);
   }
 
   private clearPoll(): void {

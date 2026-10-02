@@ -173,6 +173,15 @@ describe('MissingReportComponent', () => {
     expect(opened).toHaveBeenCalled();
   });
 
+  it('1.32.0: credits Wikipedia on a row whose volume list was completed from it', () => {
+    const { fixture, http, el } = create();
+    http.expectOne((r) => r.url === '/api/v1/admin/metadata/missing').flush(missingPage([
+      missingRow({ verdict: 'UpToDate', progress: ownerProgress({ listCredit: { name: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/List_of_Example_chapters', title: 'List of Example chapters' } }) }),
+    ]));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="list-credit"]')!.textContent).toContain('Volume list completed from Wikipedia');
+  });
+
   it('1.31.0: says which numbers sit in more than one file of a folder, and nothing for a clean series', () => {
     const { fixture, http, el } = create();
     http.expectOne((r) => r.url === '/api/v1/admin/metadata/missing').flush(missingPage([

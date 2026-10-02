@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangapixer.Core.Catalog;
 
+using com.lifepixer.mangapixer.Core.Scheduling;
+
 /// <summary>
 /// Per-library automatic scan schedule presets (1.23.0). The stored value is a
 /// stable token; a null stored value means <see cref="Default"/> (daily), so
@@ -66,4 +68,57 @@ public static class LibraryScanSchedules
     /// <summary>True when a library with this schedule is due for a scan at <paramref name="now"/>.</summary>
     public static bool IsDue(string? token, DateTimeOffset? lastCompleted, DateTimeOffset now) =>
         NextDue(token, lastCompleted, now) is { } due && due <= now;
+
+    // 1.32.0: a time of day for Daily and Weekly (libraries.ScanHour / ScanWeekday). No hour = "Any time": one interval after the
+    // last completed scan, as before.
+
+    /// <summary>The weekday of a Weekly scan with an hour when none is chosen.</summary>
+    public const DayOfWeek DefaultWeekday = DayOfWeek.Sunday;
+
+    /// <summary>True for the presets that take a time of day (Daily, Weekly).</summary>
+    public static bool TakesHour(string? token) => Resolve(token) is Daily or Weekly;
+
+    /// <summary>
+    /// Null when the time fits the token, else an error code: <c>hour_not_allowed</c> (Off / Hourly / Every 6 hours),
+    /// <c>invalid_hour</c>, <c>weekday_not_allowed</c> (not Weekly, or no hour), <c>invalid_weekday</c> (0 = Sunday ... 6).
+    /// </summary>
+    public static string? ValidateTime(string? token, int? hour, int? weekday)
+    {
+        if (hour is { } h)
+        {
+            if (!TakesHour(token))
+                return "hour_not_allowed";
+            if (!JobSchedule.IsValidHour(h))
+                return "invalid_hour";
+        }
+        if (weekday is { } d)
+        {
+            if (Resolve(token) != Weekly || hour is null)
+                return "weekday_not_allowed";
+            if (d is < 0 or > 6)
+                return "invalid_weekday";
+        }
+        return null;
+    }
+
+    /// <summary>The time-of-day schedule of a library, or null when it scans "any time" (or its preset takes no hour).</summary>
+    public static TimeOfDaySchedule? TimeOf(string? token, int? hour, int? weekday)
+    {
+        if (hour is not { } h || !JobSchedule.IsValidHour(h) || !TakesHour(token))
+            return null;
+        return Resolve(token) == Weekly
+            ? new TimeOfDaySchedule(h, weekday is >= 0 and <= 6 ? (DayOfWeek)weekday.Value : DefaultWeekday)
+            : new TimeOfDaySchedule(h);
+    }
+
+    /// <summary>
+    /// <see cref="NextDue(string?, DateTimeOffset?, DateTimeOffset)"/> with a time of day: the next slot after the last completed
+    /// scan (a slot missed while the server was down is due now, once). Never scanned = now. Null when scheduled scans are off.
+    /// </summary>
+    public static DateTimeOffset? NextDue(string? token, DateTimeOffset? lastCompleted, DateTimeOffset now, int? hour, int? weekday, TimeZoneInfo zone)
+    {
+        if (TimeOf(token, hour, weekday) is not { } time)
+            return NextDue(token, lastCompleted, now);
+        return lastCompleted is null ? now : JobSchedule.NextDue(now, zone, time, lastCompleted);
+    }
 }

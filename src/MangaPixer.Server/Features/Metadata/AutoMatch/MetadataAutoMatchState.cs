@@ -12,9 +12,6 @@ public sealed record MetadataAutoMatchOptions
     /// <summary>The worker wakes at least this often (and immediately on a signal).</summary>
     public TimeSpan TickInterval { get; init; } = TimeSpan.FromSeconds(60);
 
-    /// <summary>The id-only refresh pass runs at most this often.</summary>
-    public TimeSpan RefreshInterval { get; init; } = TimeSpan.FromHours(6);
-
     /// <summary>
     /// The provider-author half of the artist-folder rule (1.28.0): a collection-shaped leaf named like the
     /// author of a record linked in the library is an artist folder. Off = the 1.27.0 detector (the before /

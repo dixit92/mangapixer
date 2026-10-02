@@ -1,5 +1,5 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { layoutProblems } from './layout';
+import { expectFitsScreen, layoutProblems } from './layout';
 
 /**
  * Every main page fits a phone (390 px) and a tablet (820 px) screen (1.29.2): no sideways page scroll, nothing past the
@@ -107,7 +107,7 @@ test('every main page fits a phone and a tablet screen', async ({ page }) => {
     ['metadata flags', '/admin/metadata?tab=flags'],
     ['metadata runs', '/admin/metadata?tab=runs'],
     ['metadata missing', '/admin/metadata?tab=missing'],
-    ['metadata official releases', '/admin/metadata?tab=official'],
+    ['metadata completion', '/admin/metadata?tab=completion'],
     ['debug log', '/admin/logging'],
     ['move conflicts', '/admin/move-conflicts'],
     ['reader', `/reader/${archiveId}`],
@@ -230,4 +230,150 @@ test('the admin trash card with held libraries and a confirm step fits a phone a
     for (const p of await layoutProblems(page)) failures.push(`${size.width} px trash confirm: ${p.kind}: ${p.what} - ${p.detail}`);
   }
   expect(failures, `the trash card does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+});
+
+test('the identify dialog with its site switch fits a phone and a tablet screen', async ({ page }) => {
+  // 1.32.0: "Search on: MangaUpdates | Grand Comics Database", the GCD pace note and the start-year option. Contract-shaped
+  // context (a comics folder with both sites allowed); nothing is searched, so nothing is sent.
+  test.setTimeout(120_000);
+  const failures: string[] = [];
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  await page.route(new RegExp(`/api/v1/admin/metadata/nodes/${folderId}/identify$`), (r) => r.fulfill({
+    json: {
+      nodeId: folderId, nodeKind: 'Folder', displayName: 'Stacked Saga (1991)', libraryId, provider: 'gcd',
+      providerName: 'Grand Comics Database', fetchAvailable: true, comicsSignalled: true,
+      sites: [
+        { id: 'mangaupdates', name: 'MangaUpdates', available: true },
+        { id: 'gcd', name: 'Grand Comics Database', available: true, note: 'Comics and graphic novels. Answers about 25 requests an hour.' },
+      ],
+      suggestions: ['Stacked Saga', 'A synthetic comics title that is long enough to wrap on a phone'],
+      budgetUsedToday: 0, dailyBudget: 5000,
+      local: { displayName: 'Stacked Saga (1991)', itemCount: 7, yearHint: 1991 },
+    },
+  }));
+  for (const size of SIZES) {
+    await page.setViewportSize(size);
+    await page.goto(`/libraries/${libraryId}/browse`);
+    await page.locator('.select-toggle').click();
+    await page.locator('.node-wrap', { hasText: 'Stacked Saga' }).first().click();
+    await page.getByTestId('series-selection-menu').click();
+    await page.getByTestId('bulk-identify').click();
+    await expect(page.getByTestId('identify-site')).toBeVisible();
+    await expect(page.getByTestId('identify-start-year')).toContainText('1991');
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-identify-sites.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px identify dialog: ${p.kind}: ${p.what} - ${p.detail}`);
+    await page.getByTestId('identify-close').click();
+  }
+  expect(failures, `identify dialog does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+});
+
+test('the Scheduled jobs section fits a phone and a tablet screen, and saves an hour', async ({ page }) => {
+  // 1.32.0: every job with its last / next run in server time; the library rows carry the scan time of day.
+  test.setTimeout(180_000);
+  await login(page);
+  await ensureLibrary(page);
+  const failures: string[] = [];
+  for (const size of SIZES) {
+    await page.setViewportSize(size);
+    await page.goto('/admin');
+    const card = page.getByTestId('scheduled-jobs');
+    await card.scrollIntoViewIfNeeded();
+    await expect(card.getByTestId('jobs-clock')).toContainText('Times are server time');
+    await expect(card.getByTestId('job-metadata-refresh')).toContainText('Series information refresh');
+    await settle(page);
+    if (SHOTS) await card.screenshot({ path: `${SHOTS}/layout-${size.width}-scheduled-jobs.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px scheduled jobs: ${p.kind}: ${p.what} - ${p.detail}`);
+  }
+  expect(failures, `the Scheduled jobs section does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+
+  // Save the cache clean-up's hour, reload, see it kept; then put the default back.
+  const card = page.getByTestId('scheduled-jobs');
+  const select = card.getByTestId('job-hour-cache-eviction');
+  const saved = page.waitForResponse((r) => r.request().method() === 'PUT' && r.url().endsWith('/api/v1/admin/jobs/cache-eviction'));
+  await select.selectOption('2');
+  expect((await saved).ok()).toBeTruthy();
+  await page.reload();
+  await expect(page.getByTestId('scheduled-jobs').getByTestId('job-hour-cache-eviction')).toHaveValue('2');
+  const restored = page.waitForResponse((r) => r.request().method() === 'PUT' && r.url().endsWith('/api/v1/admin/jobs/cache-eviction'));
+  await page.getByTestId('scheduled-jobs').getByTestId('job-hour-cache-eviction').selectOption('5');
+  expect((await restored).ok()).toBeTruthy();
+});
+
+test('the phone header shows Libraries and Search as icons; wider screens keep the text', async ({ page }) => {
+  // 1.32.0: on a phone the two text links touched each other; they are icon buttons (named for screen readers) there.
+  test.setTimeout(120_000);
+  await login(page);
+  await ensureLibrary(page);
+  const header = page.locator('mat-toolbar').first();
+  const box = async (name: string) => (await header.getByRole('button', { name, exact: true }).boundingBox())!;
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await settle(page);
+  await expect(header.locator('button.nav-icon')).toHaveCount(2);
+  await expect(header.getByRole('button', { name: 'Libraries', exact: true })).toHaveText('library_books');
+  const [libraries, search] = [await box('Libraries'), await box('Search')];
+  expect(libraries.x + libraries.width, 'the two icons must not touch').toBeLessThanOrEqual(search.x);
+  expect(libraries.width).toBeGreaterThanOrEqual(40); // a touch target, not a squeezed label
+  await expectFitsScreen(page, 'the phone header on Home');
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/header-390.png` });
+
+  await header.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(page).toHaveURL(/\/search/);
+  await expect(header.getByRole('button', { name: 'Search', exact: true })).toHaveAttribute('aria-current', 'page');
+
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await page.goto('/');
+  await settle(page);
+  await expect(header.locator('button.nav-icon')).toHaveCount(0);
+  await expect(header.getByRole('button', { name: 'Libraries', exact: true })).toHaveText('Libraries');
+  await expectFitsScreen(page, 'the tablet header on Home');
+});
+
+test('the reader shows the archive name: a row under the bar on phones and tablets, in the bar on desktop', async ({ page }) => {
+  // 1.32.0: the name is text (with a title for the full name), one line, and never covers more of the page than the bar.
+  test.setTimeout(180_000);
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  const flat = await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?parentId=${folderId}&pageSize=50&group=flat`)).json();
+  const archive = (flat.items as Node[]).find((n) => n.kind === 'Archive')!;
+  const failures: string[] = [];
+
+  for (const size of [...SIZES, { width: 1024, height: 768 }, { width: 1280, height: 900 }]) {
+    await page.setViewportSize(size);
+    await page.goto(`/reader/${archive.id}`);
+    const name = page.getByTestId('reader-archive-name');
+    const title = archive.displayName.replace(/\.(cbz|zip|cbr|rar|cb7|7z|cbt|tar|pdf|epub)$/i, ''); // shown without its extension
+    await expect(name).toHaveText(title);
+    await expect(name).toHaveAttribute('title', title);
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/reader-name-${size.width}.png` });
+    const bar = (await page.locator('.reader-toolbar').boundingBox())!;
+    const n = (await name.boundingBox())!;
+    expect(n.height, `${size.width} px: the name stays on one line`).toBeLessThanOrEqual(32);
+    expect(n.x).toBeGreaterThanOrEqual(0);
+    expect(n.x + n.width).toBeLessThanOrEqual(size.width);
+
+    if (size.width >= 1000) {
+      // In the bar (owner, 2026-10-02): left, right after the page counter and a separator, before the action icons.
+      expect(n.y).toBeGreaterThanOrEqual(bar.y);
+      expect(n.y + n.height).toBeLessThanOrEqual(bar.y + bar.height);
+      const counter = (await page.locator('.reader-toolbar .page-info').boundingBox())!;
+      const firstIcon = (await page.locator('.reader-toolbar button.chapter-arrow').first().boundingBox())!;
+      expect(n.x, 'the name starts after the page counter').toBeGreaterThanOrEqual(counter.x + counter.width);
+      expect(n.x + n.width, 'the name ends before the action icons').toBeLessThanOrEqual(firstIcon.x);
+      const sep = (await page.locator('.reader-toolbar .name-sep').boundingBox())!;
+      expect(sep.x, 'the separator follows the page counter').toBeGreaterThanOrEqual(counter.x + counter.width);
+      expect(n.x, 'the name follows the separator').toBeGreaterThanOrEqual(sep.x + sep.width);
+      expect(n.x - (counter.x + counter.width), 'the name sits next to the page counter (left-aligned)').toBeLessThanOrEqual(32);
+    } else {
+      // Under the bar: directly below it, the width of the screen.
+      expect(Math.abs(n.y - (bar.y + bar.height)), `${size.width} px: the row sits right below the bar`).toBeLessThanOrEqual(1);
+      expect(n.width).toBeGreaterThanOrEqual(size.width - 2);
+    }
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px reader: ${p.kind}: ${p.what} - ${p.detail}`);
+  }
+  expect(failures, `the reader with its archive name does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });

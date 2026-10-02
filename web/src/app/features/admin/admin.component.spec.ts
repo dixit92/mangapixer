@@ -4,9 +4,11 @@ import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { By } from '@angular/platform-browser';
 import { NEVER, of } from 'rxjs';
 
 import { AdminComponent } from './admin.component';
+import { ScheduledJobsComponent } from './scheduled-jobs/scheduled-jobs.component';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import {
@@ -78,6 +80,8 @@ describe('AdminComponent directory browser row', () => {
       getUpdateCheck: vi.fn().mockReturnValue(of(updateStatus)),
       // The Trash card (1.31.0) loads its own overview; these tests are about other cards, so it just stays loading.
       getTrash: vi.fn().mockReturnValue(NEVER),
+      // The Scheduled jobs section (1.32.0) loads its own list; it stays loading here too.
+      getScheduledJobs: vi.fn().mockReturnValue(NEVER),
       getAnalyticsOverview: vi.fn().mockReturnValue(of(analyticsOverview)),
       getAnalyticsUsers: vi.fn().mockReturnValue(of([])),
       getBackupSettings: vi.fn().mockReturnValue(of(backupSettings)),
@@ -151,5 +155,21 @@ describe('AdminComponent directory browser row', () => {
     expect(apiSpy.browseLibraryPaths).toHaveBeenCalledWith('/library-root/Parent');
     // Still open - browsing into a folder keeps the picker open (only selecting closes it).
     expect(fixture.componentInstance.browserOpen()).toBe(true);
+  });
+
+  it('lays the cards out in the grid, and a change to the trash schedule reloads the Trash card (1.32.0)', () => {
+    const { fixture, apiSpy } = setup({ name: 'x', path: '/library-root/x', hasChildren: false });
+    const el: HTMLElement = fixture.nativeElement;
+    const grid = el.querySelector('[data-testid="admin-grid"]')!;
+    expect(grid).not.toBeNull();
+    // Libraries and Scheduled jobs span the row; the rest sit in two columns.
+    expect(grid.querySelectorAll(':scope > .col').length).toBe(4);
+    expect(grid.querySelector(':scope > app-scheduled-jobs.wide')).not.toBeNull();
+    expect(grid.querySelector(':scope > .wide')).not.toBeNull();
+    expect(grid.querySelector('.col app-trash-card')).not.toBeNull();
+
+    const loads = apiSpy.getTrash.mock.calls.length;
+    fixture.debugElement.query(By.directive(ScheduledJobsComponent)).componentInstance.trashChanged.emit();
+    expect(apiSpy.getTrash.mock.calls.length).toBe(loads + 1);
   });
 });

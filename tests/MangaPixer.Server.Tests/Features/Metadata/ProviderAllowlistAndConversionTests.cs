@@ -51,15 +51,28 @@ public sealed class ProviderAllowlistAndConversionTests : IAsyncLifetime
         Assert.False(MetadataProviderAllowlist.IsAllowed(null, "unknown"));
     }
 
+    [Theory]
+    [InlineData("1.32.0+sha.858c7df", "MangaPixer/1.32.0 (+https://github.com/dixit92/mangapixer)")]
+    [InlineData("1.32.0-rc.1", "MangaPixer/1.32.0-rc.1 (+https://github.com/dixit92/mangapixer)")]
+    [InlineData(null, "MangaPixer/0.0.0 (+https://github.com/dixit92/mangapixer)")]
+    [InlineData("1.32.0 (evil)", "MangaPixer/0.0.0 (+https://github.com/dixit92/mangapixer)")]
+    public void UserAgent_NamesProductVersionAndProjectUrl_WithoutBuildMetadata(string? informational, string expected)
+    {
+        Assert.Equal(expected, MetadataHttp.UserAgentFor(informational));
+        Assert.Matches(@"^MangaPixer/\d+\.\d+\.\d+[0-9A-Za-z.-]* \(\+https://github\.com/dixit92/mangapixer\)$", MetadataHttp.UserAgent);
+    }
+
     [Fact]
     public async Task Settings_ListEveryApprovedSite_AllInByDefault_RemoveAndAddBack()
     {
         var fresh = await _h.Settings().GetAsync();
-        Assert.Equal(["mangaupdates", "mangadex", "anilist"], fresh.Providers.Select(p => p.Id));
+        Assert.Equal(["mangaupdates", "gcd", "mangadex", "anilist", "wikipedia"], fresh.Providers.Select(p => p.Id));
         Assert.All(fresh.Providers, p => Assert.True(p.Allowed));
-        Assert.Contains("graphql.anilist.co", fresh.Providers[2].Hosts);
-        Assert.Equal(new[] { "api.mangadex.org", "uploads.mangadex.org" }, fresh.Providers[1].Hosts);
         Assert.Equal(new[] { "api.mangaupdates.com", "cdn.mangaupdates.com" }, fresh.Providers[0].Hosts);
+        Assert.Equal(new[] { "www.comics.org", "files1.comics.org" }, fresh.Providers[1].Hosts);
+        Assert.Equal(new[] { "api.mangadex.org", "uploads.mangadex.org" }, fresh.Providers[2].Hosts);
+        Assert.Contains("graphql.anilist.co", fresh.Providers[3].Hosts);
+        Assert.Equal(new[] { "en.wikipedia.org", "www.wikidata.org" }, fresh.Providers[4].Hosts);
 
         await RemoveAsync("anilist");
         Assert.False((await _h.Settings().GetAsync()).Providers.Single(p => p.Id == "anilist").Allowed);
@@ -181,7 +194,7 @@ public sealed class ProviderAllowlistAndConversionTests : IAsyncLifetime
         Assert.Equal(("graphql.anilist.co", "POST"), (request.Uri.Host, request.Method.Method));
         Assert.Contains("\"search\":\"Hagane no Renkinjutsushi\"", request.Body);
         Assert.DoesNotContain("Synthetic Alchemy", request.Body); // never a folder or file name
-        Assert.Equal("MangaPixer-Metadata", request.Headers["User-Agent"]);
+        Assert.Equal(MetadataHttp.UserAgent, request.Headers["User-Agent"]);
         Assert.False(request.Headers.ContainsKey("Cookie"));
 
         var stored = await _t.Db.MetadataRecords.AsNoTracking().SingleAsync(r => r.Provider == "anilist");

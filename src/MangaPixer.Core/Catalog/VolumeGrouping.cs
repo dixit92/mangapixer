@@ -212,7 +212,8 @@ public static class VolumeGrouping
     public static UnitNumbers UnitsOf(GroupingRow row)
     {
         ArgumentNullException.ThrowIfNull(row);
-        var u = AutoMatchText.UnitsOf(row.Name);
+        // The containing folder's own "No. N" is part of the title (1.32.0): "Robot No. 9.cbz" in "Robot No. 9" is not issue 9.
+        var u = AutoMatchText.UnitsOf(AutoMatchText.MaskFolderTitleNumber(row.Name, row.ContainerName));
         // In a Volumes folder a bare "01.cbz" is volume 1 (as the Missing report reads it).
         if (AutoMatchText.IsVolumeFolderName(row.ContainerName) && u.Volume is null && u.Chapter is not null
             && AutoMatchText.BareNumberOf(row.Name) is not null)

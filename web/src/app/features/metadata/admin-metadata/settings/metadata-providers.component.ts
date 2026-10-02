@@ -35,6 +35,10 @@ import { MetadataApiService } from '../../metadata-api.service';
             </div>
             <p class="line"><span class="k">Used for</span> {{ p.usedFor }}</p>
             <p class="line"><span class="k">Sends</span> {{ p.sends }}</p>
+            @if (p.id === 'gcd') {
+              <p class="credit" data-testid="md-provider-gcd-credit">Comics data from the Grand Comics Database (comics.org),
+                licensed CC BY-SA 4.0.</p>
+            }
           </div>
         } @empty {
           <p class="none" data-testid="md-providers-none">No site is allowed: nothing is fetched from the web.</p>
@@ -76,6 +80,8 @@ import { MetadataApiService } from '../../metadata-api.service';
     .remove { margin-left: auto; }
     .line { display: grid; grid-template-columns: 64px 1fr; gap: 0 6px; margin: 2px 0 0 24px; font-size: 12px; color: #c8c8d4; }
     .k { color: #9a9aa8; }
+    /* A full-width line under the card's rows (the GCD licence credit) - not the two-column label / value grid. */
+    .credit { margin: 4px 0 0 24px; font-size: 12px; color: #9a9aa8; }
     .removed { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 8px; font-size: 13px; }
     .gone { display: inline-flex; align-items: center; gap: 2px; padding-left: 8px; border-radius: 10px;
       border: 1px dashed rgba(255, 255, 255, 0.2); color: #9a9aa8; }

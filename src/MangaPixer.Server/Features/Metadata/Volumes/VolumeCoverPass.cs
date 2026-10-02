@@ -49,7 +49,8 @@ public sealed record VolumeCoverPassResult(int Requests, int SeriesChecked, int 
 /// are still matched promptly:
 /// <list type="number">
 /// <item>per due series: the MangaDex companion (cross-link), its cover list + volume list, and - when MangaDex gives no
-/// volume list - the AniList totals;</item>
+/// volume list - the AniList totals; then (1.32.0) the Wikipedia list, only where MangaDex's data has gaps
+/// (<see cref="Wikipedia.WikipediaVolumeService"/>: it shares this tick's eligibility, ordering and request slice, and pauses with the pass);</item>
 /// <item>breadth first across series: every series' volume 1 cover (preferred language, else the original language; the
 /// record's MAIN cover when MangaDex lists no volume 1 cover at all - webtoons);</item>
 /// <item>then per series the covers of the volumes it holds - as volume files (a volume in an archive's name or ComicInfo), as
@@ -86,13 +87,18 @@ public sealed class VolumeCoverPass
     private readonly ILogger<VolumeCoverPass> _logger;
     private readonly Covers.CoverDecisionQueue? _decisions;
     private readonly AutoMatch.LinkCoverCheck.CoverCheckService? _coverCheck;
+    private readonly Wikipedia.WikipediaVolumeService? _wikipedia;
+
+    /// <summary>A Wikipedia refusal (removed from the allowlist, a backoff, the budget) closes the Wikipedia step for the rest of the tick.</summary>
+    private bool _wikipediaClosed;
 
     public VolumeCoverPass(
         MangaPixerDbContext db, MetadataAutoMatchService autoMatch, MetadataSettingsService settings, CompanionLinkService companions,
         VolumeMapService maps, VolumeCoverFetcher fetcher, ICoverHasher hasher, ThumbnailStore thumbnails, CoverHashCache hashCache,
         VolumeCoverPassState state, TimeProvider time, ILogger<VolumeCoverPass> logger, Covers.CoverDecisionQueue? decisions = null,
-        AutoMatch.LinkCoverCheck.CoverCheckService? coverCheck = null)
+        AutoMatch.LinkCoverCheck.CoverCheckService? coverCheck = null, Wikipedia.WikipediaVolumeService? wikipedia = null)
     {
+        _wikipedia = wikipedia;
         _decisions = decisions;
         _coverCheck = coverCheck;
         _db = db;
@@ -168,6 +174,7 @@ public sealed class VolumeCoverPass
 
         var settings = await ReadSettingsAsync(ct);
         var series = await EligibleSeriesAsync(ct);
+        _wikipediaClosed = false;
         var call = MetadataCallContext.Automatic();
         var aniListOpen = true;
         int checkedSeries = 0, stored = 0;
@@ -190,18 +197,22 @@ public sealed class VolumeCoverPass
                 }
             }
 
-            // 2. Volume 1 of every series, then 3. the volumes each series holds.
+            // 2. Volume 1 of every series, then 3. the volumes each series holds - except the series whose every linked folder
+            // prefers the file's cover (1.32.0): no new web cover is fetched for them (the lists above are kept).
+            var fileCovers = await FileCoverSeriesAsync(series, ct);
             foreach (var s in series)
             {
                 if (call.RequestsSent >= SliceRequests)
                     break;
-                if (await DownloadVolumeAsync(s, 1, settings.Language, call, ct))
+                if (!fileCovers.Contains(s.RecordId) && await DownloadVolumeAsync(s, 1, settings.Language, call, ct))
                     stored++;
             }
             foreach (var s in series)
             {
                 if (call.RequestsSent >= SliceRequests)
                     break;
+                if (fileCovers.Contains(s.RecordId))
+                    continue;
                 stored += await DownloadHeldVolumesAsync(s, settings.Language, call, ct);
             }
             _state.Set(null, null, _time.GetUtcNow());
@@ -223,6 +234,27 @@ public sealed class VolumeCoverPass
         return new VolumeCoverPassResult(call.RequestsSent, checkedSeries, stored, null);
     }
 
+    /// <summary>
+    /// The series (record ids) that need no web cover (1.32.0): every folder or file they are linked from sits under the folder cover
+    /// preference "File covers" (the nearest ancestor with a row wins). A series linked from one such folder and one other keeps
+    /// downloading - its covers are shared by the record. One query for the whole batch.
+    /// </summary>
+    internal async Task<HashSet<long>> FileCoverSeriesAsync(IReadOnlyList<VolumeSeries> series, CancellationToken ct)
+    {
+        var result = new HashSet<long>();
+        var preferences = await Covers.FolderCoverPreferences.NearestAsync(_db, series.SelectMany(s => s.NodeIds).ToList(), ct);
+        if (preferences.Count == 0)
+            return result;
+        foreach (var s in series)
+            if (s.NodeIds.Count > 0 && s.NodeIds.All(id => preferences.TryGetValue(id, out var p) && FolderCoverRules.SkipsWebWork(p.Preference)))
+                result.Add(s.RecordId);
+        return result;
+    }
+
+    /// <summary>True when the pass fetches no web cover for a series linked from these nodes (see <see cref="FileCoverSeriesAsync"/>).</summary>
+    public async Task<bool> SkipsCoverDownloadsAsync(long recordId, IReadOnlyList<long> nodeIds, CancellationToken ct = default) =>
+        (await FileCoverSeriesAsync([new VolumeSeries(recordId, 0, nodeIds, null, default)], ct)).Contains(recordId);
+
     /// <summary>New covers were stored: the cover layer decides again soon instead of at its next periodic sweep.</summary>
     private void CoversStored(int stored)
     {
@@ -236,6 +268,34 @@ public sealed class VolumeCoverPass
     /// it, else null. MangaDex refusals and failures propagate.
     /// </summary>
     public async Task<bool?> MetadataStepsAsync(
+        VolumeSeries s, string preferredLanguage, MetadataCallContext? call, bool force, bool allowAniList, CancellationToken ct)
+    {
+        var aniList = await MangaDexAndAniListStepsAsync(s, preferredLanguage, call, force, allowAniList, ct);
+        await WikipediaStepAsync(s, call, force, ct);
+        return aniList;
+    }
+
+    /// <summary>
+    /// The Wikipedia companion step of one series (1.32.0): runs after MangaDex's data is current, so its gaps are known. A gateway refusal
+    /// (Wikipedia off the allowlist, a backoff, the budget) closes the step for the rest of the tick; the MangaDex work goes on. Provider
+    /// failures are recorded by the service and never thrown.
+    /// </summary>
+    private async Task WikipediaStepAsync(VolumeSeries s, MetadataCallContext? call, bool force, CancellationToken ct)
+    {
+        if (_wikipedia is null || _wikipediaClosed)
+            return;
+        try
+        {
+            var series = await _db.MetadataRecords.FirstAsync(r => r.Id == s.RecordId, ct);
+            await _wikipedia.StepAsync(series, s.LibraryId, call, force, adminAsked: false, ct);
+        }
+        catch (MetadataGatewayException ex) when (MetadataAutoMatchService.IsRefusal(ex))
+        {
+            _wikipediaClosed = true;
+        }
+    }
+
+    private async Task<bool?> MangaDexAndAniListStepsAsync(
         VolumeSeries s, string preferredLanguage, MetadataCallContext? call, bool force, bool allowAniList, CancellationToken ct)
     {
         var now = _time.GetUtcNow();
@@ -391,8 +451,9 @@ public sealed class VolumeCoverPass
     private async Task<List<int>> PlanHeldVolumesAsync(MangaDexRef md, long recordId, IReadOnlyList<long> nodeIds, string preferred, CancellationToken ct)
     {
         var archives = await ArchivesBelowAsync(_db, nodeIds, ct);
-        var map = await _maps.FindAsync(recordId, VolumeMapSource.MangaDexAggregate, ct);
-        var exact = map is { State: (int)VolumeMapState.Ok } ? SeriesProgressLoader.ParseVolumes(map.VolumesJson) : [];
+        // 1.32.0: the exact list the Volumes view uses - MangaDex's, completed by Wikipedia's.
+        var exact = SeriesProgressLoader.ToVolumes(SeriesProgressLoader.ExactList(
+            await _db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == recordId).ToListAsync(ct)).Volumes);
 
         // volume -> the archives that ARE that volume (an empty list = held as all of its chapters, or an estimated stack)
         var held = new SortedDictionary<int, List<HeldArchive>>();

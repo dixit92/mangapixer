@@ -158,6 +158,10 @@ public sealed record QueryVariant(string Text, QueryVariantKind Kind);
 /// <c>DeclaredType</c> (optional, 1.30.0): the type an admin declared for the work's folder (<see cref="DeclaredHints"/>) - a
 /// strong hint (<see cref="MatchScorer.DeclaredTypeAgree"/> / <see cref="MatchScorer.DeclaredTypeMismatch"/>), never a veto;
 /// while set, the folder's <c>CategoryHint</c> is not read (the declaration wins).
+/// <c>Comics</c> (optional, 1.32.0): the work's local comics signs (<see cref="ComicsSignals"/>) - which site is searched first
+/// (<see cref="ComicsSignal.RoutesToComics"/>) and scoring evidence for comics records; null = not computed (no sign).
+/// <c>ComicsEvidence</c> (optional, 1.32.0 lane B): the start year, language, shape and publisher a Grand Comics Database record is
+/// scored against (<see cref="MatchScorer.ComicsStartYearExact"/> ...); read only for comics records, null = not computed.
 /// </summary>
 public sealed record MatchContext(
     WorkClass Class,
@@ -174,7 +178,9 @@ public sealed record MatchContext(
     int? LocalChapters = null,
     IReadOnlySet<string>? CoverMatches = null,
     LocalUnitCounts? Units = null,
-    DeclaredType? DeclaredType = null);
+    DeclaredType? DeclaredType = null,
+    ComicsSignal? Comics = null,
+    ComicsEvidence? ComicsEvidence = null);
 
 /// <summary>
 /// What to look up for one work: ordered, de-duplicated variants (the caller sends at most the
@@ -202,6 +208,8 @@ public sealed record CandidateRelation(string ExternalId, string Relation);
 /// <c>EnglishVolumes</c> / <c>EnglishChapters</c> (optional, 1.27.0): the English publisher's totals (MangaUpdates
 /// <c>publishers[].notes</c> such as "10 Volumes / 60 Chapters; Ongoing"); the count rule reads the largest
 /// published number of any source.
+/// <c>Language</c> / <c>Shape</c> / <c>Publishers</c> (optional, 1.32.0 lane B): a comics record's edition language (ISO 639-1),
+/// issues-or-collected shape and publisher names - one Grand Comics Database series per edition and translation.
 /// </summary>
 public sealed record MatchCandidate(
     string Provider,
@@ -218,7 +226,10 @@ public sealed record MatchCandidate(
     bool? Webtoon = null,
     int? TotalChapters = null,
     int? EnglishVolumes = null,
-    int? EnglishChapters = null);
+    int? EnglishChapters = null,
+    string? Language = null,
+    ComicsShape Shape = ComicsShape.Unknown,
+    IReadOnlyList<string>? Publishers = null);
 
 /// <summary>
 /// Admin-adjustable thresholds (owner decision 13), validated against the bounds below.
@@ -307,6 +318,29 @@ public enum MatchReason
     /// Never raised by the scorer; never touches a Confirmed link.
     /// </summary>
     CoverDiffers = 1 << 15,
+
+    // 1 << 16 .. 1 << 18: reserved for lane A (comics signals, 1.32.0).
+
+    /// <summary>
+    /// Positive evidence (1.32.0): a comics record starts in the <c>(YYYY)</c> year of the work's name (or one year off). Comics
+    /// records only; never demotes.
+    /// </summary>
+    ComicsStartYear = 1 << 19,
+
+    /// <summary>
+    /// A comics record of another language than the work's (ComicInfo <c>LanguageISO</c>, else the preferred language) - the
+    /// Grand Comics Database lists every translation as its own series (1.32.0). Lowers the adjusted score; never a veto.
+    /// </summary>
+    ComicsLanguageMismatch = 1 << 20,
+
+    /// <summary>
+    /// A comics record published in the other shape - single issues against collected books (page counts, format words), 1.32.0.
+    /// Lowers the adjusted score; never a veto.
+    /// </summary>
+    ComicsShapeMismatch = 1 << 21,
+
+    /// <summary>Positive evidence (1.32.0): the comics record's publisher is the ComicInfo <c>Publisher</c> of the work's files.</summary>
+    ComicsPublisherAgree = 1 << 22,
 }
 
 public sealed record ScoredCandidate(MatchCandidate Candidate, double TitleScore, double AdjustedScore, MatchReason Reasons);

@@ -3079,6 +3079,238 @@
         }
       }
     },
+    "/api/v1/admin/metadata/nodes/{nodeId}/wikipedia": {
+      "get": {
+        "tags": [
+          "WikipediaList"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikipediaListDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikipediaListDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikipediaListDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "WikipediaList"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WikipediaPageRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WikipediaPageRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/WikipediaPageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikipediaListDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikipediaListDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikipediaListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "WikipediaList"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikipediaListDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikipediaListDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikipediaListDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/metadata/nodes/{nodeId}/wikipedia/recheck": {
+      "post": {
+        "tags": [
+          "WikipediaList"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikipediaListDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikipediaListDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikipediaListDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/metadata/review/summary": {
       "get": {
         "tags": [
@@ -3595,6 +3827,21 @@
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/CompletionBasis"
+            }
+          },
+          {
+            "name": "answer",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/SeriesAnswer"
+            }
+          },
+          {
+            "name": "upgrades",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
             }
           }
         ],
@@ -4921,6 +5168,265 @@
         }
       }
     },
+    "/api/v1/admin/jobs": {
+      "get": {
+        "tags": [
+          "ScheduledJobs"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledJobsDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledJobsDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledJobsDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/jobs/{key}": {
+      "put": {
+        "tags": [
+          "ScheduledJobs"
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateJobScheduleRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateJobScheduleRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateJobScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledJobsDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledJobsDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledJobsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/jobs/metadata-refresh/cadence": {
+      "put": {
+        "tags": [
+          "ScheduledJobs"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRefreshCadenceRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRefreshCadenceRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRefreshCadenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledJobsDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledJobsDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledJobsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/jobs/metadata-refresh/series/{nodeId}": {
+      "get": {
+        "tags": [
+          "ScheduledJobs"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesRefreshCadenceDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesRefreshCadenceDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesRefreshCadenceDto"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
     "/api/v1/admin/import/yacreader/detect": {
       "get": {
         "tags": [
@@ -5049,6 +5555,159 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RecentChaptersDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/folders/{nodeId}/cover-preference": {
+      "get": {
+        "tags": [
+          "FolderCoverPreference"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderCoverPreferenceDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderCoverPreferenceDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderCoverPreferenceDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "FolderCoverPreference"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetFolderCoverPreferenceRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetFolderCoverPreferenceRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/SetFolderCoverPreferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderCoverPreferenceDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderCoverPreferenceDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderCoverPreferenceDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "FolderCoverPreference"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderCoverPreferenceDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderCoverPreferenceDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderCoverPreferenceDto"
                 }
               }
             }
@@ -7708,6 +8367,50 @@
           }
         }
       },
+      "FolderCoverPreference": {
+        "type": "integer"
+      },
+      "FolderCoverPreferenceDto": {
+        "required": [
+          "nodeId",
+          "effective",
+          "inherited"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "preference": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FolderCoverPreference"
+              }
+            ]
+          },
+          "effective": {
+            "$ref": "#/components/schemas/FolderCoverPreference"
+          },
+          "inherited": {
+            "$ref": "#/components/schemas/FolderCoverPreference"
+          },
+          "inheritedSourceNodeId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "inheritedSourceName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "FolderMetadataContentDto": {
         "required": [
           "nodeId",
@@ -7884,6 +8587,33 @@
               "null",
               "string"
             ]
+          },
+          "country": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "language": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "unitCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "unitKind": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -7919,6 +8649,15 @@
           },
           "providerName": {
             "type": "string"
+          },
+          "sites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentifySiteDto"
+            }
+          },
+          "comicsSignalled": {
+            "type": "boolean"
           },
           "fetchAvailable": {
             "type": "boolean"
@@ -8203,6 +8942,30 @@
             "items": {
               "$ref": "#/components/schemas/IdentifyWarningDto"
             }
+          },
+          "country": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "language": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "publishers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "credit": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -8255,6 +9018,21 @@
           },
           "hideDoujinshiAndNovels": {
             "type": "boolean"
+          },
+          "provider": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "startYear": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -8309,6 +9087,37 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "IdentifySiteDto": {
+        "required": [
+          "id",
+          "name",
+          "available"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "unavailableCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -8431,6 +9240,25 @@
               "string"
             ],
             "format": "double"
+          }
+        }
+      },
+      "ListCreditDto": {
+        "required": [
+          "name",
+          "url",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
           }
         }
       },
@@ -11135,6 +11963,46 @@
               "string"
             ],
             "format": "int32"
+          },
+          "haveItAll": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "finishedMissing": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "upToDate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "missingSome": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "cantTell": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -11240,6 +12108,109 @@
           }
         }
       },
+      "RefreshCadenceCountDto": {
+        "required": [
+          "days",
+          "count"
+        ],
+        "type": "object",
+        "properties": {
+          "days": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "RefreshCadenceDto": {
+        "required": [
+          "ongoingDays",
+          "finishedDays",
+          "followPace",
+          "allowedOngoingDays",
+          "allowedFinishedDays",
+          "usedToday",
+          "overdue",
+          "byDays"
+        ],
+        "type": "object",
+        "properties": {
+          "ongoingDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "finishedDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "followPace": {
+            "type": "boolean"
+          },
+          "allowedOngoingDays": {
+            "type": "array",
+            "items": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          "allowedFinishedDays": {
+            "type": "array",
+            "items": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          "usedToday": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "overdue": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "byDays": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RefreshCadenceCountDto"
+            }
+          }
+        }
+      },
       "RegisterLibraryRequest": {
         "required": [
           "displayName",
@@ -11276,6 +12247,170 @@
             ]
           }
         }
+      },
+      "ScheduledJobDto": {
+        "required": [
+          "key",
+          "kind",
+          "enabled",
+          "configurable"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "libraryName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "configurable": {
+            "type": "boolean"
+          },
+          "managedByConfig": {
+            "type": "boolean"
+          },
+          "hour": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "defaultHour": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "weekday": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "intervalHours": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?(?:[eE][\u002B-]?\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "scanSchedule": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lastStartedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "lastFinishedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "lastOutcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lastDetail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "nextRunAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "waitingCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "running": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ScheduledJobsDto": {
+        "required": [
+          "serverTime",
+          "timeZone",
+          "utcOffsetMinutes",
+          "jobs",
+          "refresh"
+        ],
+        "type": "object",
+        "properties": {
+          "serverTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "utcOffsetMinutes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduledJobDto"
+            }
+          },
+          "refresh": {
+            "$ref": "#/components/schemas/RefreshCadenceDto"
+          }
+        }
+      },
+      "SeriesAnswer": {
+        "type": "integer"
+      },
+      "SeriesAnswerReason": {
+        "type": "integer"
       },
       "SeriesCompletion": {
         "type": "integer"
@@ -11683,6 +12818,12 @@
               "null",
               "string"
             ]
+          },
+          "credit": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -11811,6 +12952,16 @@
               }
             ]
           },
+          "listCredit": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ListCreditDto"
+              }
+            ]
+          },
           "completionTarget": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
@@ -11831,6 +12982,12 @@
           },
           "completionInChapters": {
             "type": "boolean"
+          },
+          "answer": {
+            "$ref": "#/components/schemas/SeriesAnswer"
+          },
+          "answerReason": {
+            "$ref": "#/components/schemas/SeriesAnswerReason"
           }
         }
       },
@@ -11898,6 +13055,45 @@
           },
           "resolution": {
             "$ref": "#/components/schemas/ReachResolution"
+          }
+        }
+      },
+      "SeriesRefreshCadenceDto": {
+        "required": [
+          "days",
+          "reason",
+          "fetchedAt",
+          "nextCheckAt"
+        ],
+        "type": "object",
+        "properties": {
+          "days": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "volumeIntervalDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?(?:[eE][\u002B-]?\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "nextCheckAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -12041,6 +13237,17 @@
           }
         }
       },
+      "SetFolderCoverPreferenceRequest": {
+        "required": [
+          "preference"
+        ],
+        "type": "object",
+        "properties": {
+          "preference": {
+            "$ref": "#/components/schemas/FolderCoverPreference"
+          }
+        }
+      },
       "SetFolderMetadataContentRequest": {
         "required": [
           "content"
@@ -12071,6 +13278,24 @@
               "null",
               "string"
             ]
+          },
+          "scanHour": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "scanWeekday": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -12545,6 +13770,20 @@
           }
         }
       },
+      "UpdateJobScheduleRequest": {
+        "type": "object",
+        "properties": {
+          "hour": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "UpdateLibraryRequest": {
         "required": [
           "displayName"
@@ -12760,6 +13999,35 @@
           }
         }
       },
+      "UpdateRefreshCadenceRequest": {
+        "type": "object",
+        "properties": {
+          "ongoingDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "finishedDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "followPace": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
       "UpdateTrashSettingsRequest": {
         "type": "object",
         "properties": {
@@ -12908,6 +14176,16 @@
           },
           "source": {
             "$ref": "#/components/schemas/VolumeListSource"
+          },
+          "listCredit": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ListCreditDto"
+              }
+            ]
           },
           "presentCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -13290,6 +14568,130 @@
           }
         }
       },
+      "WikipediaListDto": {
+        "required": [
+          "state",
+          "method"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/WikipediaListState"
+          },
+          "method": {
+            "$ref": "#/components/schemas/WikipediaListMethod"
+          },
+          "code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "adminTitle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WikipediaPageDto"
+            }
+          },
+          "volumes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WikipediaVolumeDto"
+            }
+          },
+          "checkedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "nextCheckAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "WikipediaListMethod": {
+        "type": "integer"
+      },
+      "WikipediaListState": {
+        "type": "integer"
+      },
+      "WikipediaPageDto": {
+        "required": [
+          "title",
+          "url"
+        ],
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "WikipediaPageRequest": {
+        "required": [
+          "page"
+        ],
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "string"
+          }
+        }
+      },
+      "WikipediaVolumeDto": {
+        "required": [
+          "volume"
+        ],
+        "type": "object",
+        "properties": {
+          "volume": {
+            "type": "string"
+          },
+          "englishDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "englishIsbn": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "WorkClass": {
         "type": "integer"
       },
@@ -13360,6 +14762,9 @@
       "name": "VolumeCovers"
     },
     {
+      "name": "WikipediaList"
+    },
+    {
       "name": "MetadataReview"
     },
     {
@@ -13387,10 +14792,16 @@
       "name": "MoveConflicts"
     },
     {
+      "name": "ScheduledJobs"
+    },
+    {
       "name": "YacReaderImport"
     },
     {
       "name": "RecentChapters"
+    },
+    {
+      "name": "FolderCoverPreference"
     },
     {
       "name": "NodeCover"

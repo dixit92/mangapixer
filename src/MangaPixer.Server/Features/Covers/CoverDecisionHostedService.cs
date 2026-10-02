@@ -11,13 +11,15 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 
 /// <summary>
-/// Work for the cover decisions (1.29.0): nodes to decide now (a fresh thumbnail, an admin action) and a "sweep soon"
+/// Work for the cover decisions (1.29.0): nodes to decide now (a fresh thumbnail, an admin action), folders to decide as a subtree
+/// (1.32.0, a changed folder cover preference) and a "sweep soon"
 /// signal (new web covers stored, a link or a setting changed). In-memory; everything is also found again by the
 /// periodic sweep, so a restart loses nothing.
 /// </summary>
 public sealed class CoverDecisionQueue
 {
     private readonly ConcurrentQueue<long> _nodes = new();
+    private readonly ConcurrentQueue<long> _subtrees = new();
     private readonly SemaphoreSlim _signal = new(0);
     private int _sweepRequested;
 
@@ -26,6 +28,16 @@ public sealed class CoverDecisionQueue
     {
         foreach (var id in nodeIds)
             _nodes.Enqueue(id);
+        Wake();
+    }
+
+    /// <summary>
+    /// Decide this folder and everything below it soon (1.32.0: a folder's cover preference changed, so the web decisions below it
+    /// are dropped or made again).
+    /// </summary>
+    public void EnqueueSubtree(long folderId)
+    {
+        _subtrees.Enqueue(folderId);
         Wake();
     }
 
@@ -38,9 +50,11 @@ public sealed class CoverDecisionQueue
 
     internal bool TryDequeue(out long nodeId) => _nodes.TryDequeue(out nodeId);
 
+    internal bool TryDequeueSubtree(out long folderId) => _subtrees.TryDequeue(out folderId);
+
     internal bool TakeSweepRequest() => Interlocked.Exchange(ref _sweepRequested, 0) == 1;
 
-    internal int Pending => _nodes.Count;
+    internal int Pending => _nodes.Count + _subtrees.Count;
 
     internal async Task WaitAsync(TimeSpan timeout, CancellationToken ct)
     {
@@ -79,10 +93,17 @@ public sealed class CoverDecisionHostedService : BackgroundService
     private readonly HashSet<(long NodeId, long Version)> _spreadAttempted = [];
     private DateTimeOffset _watermark = DateTimeOffset.MinValue;
     private string? _settingsStamp;
+    private readonly Jobs.JobRunRecorder? _runs;
+
+    /// <summary>How often the sweep runs (<c>Covers:SweepIntervalSeconds</c>), for the Scheduled jobs section.</summary>
+    public TimeSpan SweepInterval => _interval;
+
+    public bool SweepEnabled => _sweepEnabled;
 
     public CoverDecisionHostedService(IServiceScopeFactory scopes, CoverDecisionQueue queue, IConfiguration configuration,
-        ILogger<CoverDecisionHostedService> logger, MediaWorkerPool? pool = null)
+        ILogger<CoverDecisionHostedService> logger, MediaWorkerPool? pool = null, Jobs.JobRunRecorder? runs = null)
     {
+        _runs = runs;
         _scopes = scopes;
         _queue = queue;
         _pool = pool;
@@ -109,7 +130,15 @@ public sealed class CoverDecisionHostedService : BackgroundService
                 await DrainQueueAsync(stoppingToken);
                 if ((_queue.TakeSweepRequest() || DateTimeOffset.UtcNow >= nextSweep) && _sweepEnabled)
                 {
-                    await SweepAsync(stoppingToken);
+                    // 1.32.0: recorded as the cover-decisions job's run (read-only in the Scheduled jobs section).
+                    if (_runs is null)
+                        await SweepAsync(stoppingToken);
+                    else
+                        await _runs.RunAsync(Jobs.ScheduledJobKeys.CoverDecisions, async () =>
+                        {
+                            await SweepAsync(stoppingToken);
+                            return (true, Jobs.JobOutcomes.Ok, (string?)null);
+                        }, stoppingToken);
                     nextSweep = DateTimeOffset.UtcNow + _interval;
                 }
             }
@@ -128,6 +157,23 @@ public sealed class CoverDecisionHostedService : BackgroundService
     /// <summary>Decides the queued nodes and, for each, its nearest linked folder (its series card may change with it).</summary>
     internal async Task DrainQueueAsync(CancellationToken ct)
     {
+        var seenSubtrees = new HashSet<long>();
+        while (_queue.TryDequeueSubtree(out var folderId))
+        {
+            if (!seenSubtrees.Add(folderId))
+                continue;
+            await YieldToReaderAsync(ct);
+            using var scope = _scopes.CreateScope();
+            try
+            {
+                await scope.ServiceProvider.GetRequiredService<CoverDecisionService>().DecideSubtreeAsync(folderId, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogDebug(LogEvents.Metadata.CoverDecisionFailed, "Cover decision failed (folder {NodeId}): {Error}", folderId, ex.GetType().Name);
+            }
+        }
+
         var seen = new HashSet<long>();
         while (_queue.TryDequeue(out var nodeId))
         {

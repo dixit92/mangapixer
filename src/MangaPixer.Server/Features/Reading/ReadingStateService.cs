@@ -6,6 +6,7 @@ using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -260,34 +261,40 @@ public sealed class ReadingStateService
 
         try
         {
-            await _db.SaveChangesAsync(ct);
+            // The scope tells the host's log filter that a unique-constraint failure here is the recovered race
+            // below, not a fault (EF logs it at Error before the catch runs).
+            using (ExpectedRaceScope.Begin())
+                await _db.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException ex) when (inserted && IsUniqueConstraintViolation(ex))
+        catch (DbUpdateException ex) when ((inserted || isCompleted) && IsUniqueConstraintViolation(ex))
         {
-            // Concurrency: another request created the (UserId, ItemId) row between our
-            // read and our insert, so the INSERT hit the unique index. Recover by
-            // discarding the failed insert, reloading the row that now exists, and
-            // re-applying this write as a normal update (last-write-wins on position,
-            // with the same backward-reading guard).
+            // Concurrency: another request created the (UserId, ItemId) progress row and/or the sticky read
+            // mark between our reads and our inserts, so an INSERT hit a unique index. Recover by discarding
+            // every failed insert, reloading the rows that now exist, and re-applying this write as a normal
+            // update (last-write-wins on position, with the same backward-reading guard). The failing table
+            // can be either: a completion inserts both rows in one save.
             //
-            // EF Core logs the failed command at Error level BEFORE this catch runs
-            // (RelationalEventId.CommandError), so a recovered race still surfaced as
-            // an error in production (~10/24h). The host Serilog filter drops that
-            // specific EF log line; this Debug log keeps the recovery observable when
-            // an admin enables the Reading debug category, without re-introducing an
-            // error-level line for an expected, recovered condition.
-            _logger?.LogDebug("Recovered concurrent reading_progress insert (user={UserId}, item={ItemId}); re-applied as update", userId, itemId);
-            _db.Entry(progress).State = EntityState.Detached;
-            var existing = await _db.ReadingProgress
-                .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == itemId, ct);
-            if (existing is null)
-                throw; // row genuinely gone (e.g. reset concurrently) - surface it
-            // The racer may have applied this exact mutation already.
-            if (!string.IsNullOrEmpty(existing.LastMutationId) && existing.LastMutationId == mutationId)
-                return UpdateProgressResult.Success(existing.Revision, alreadyApplied: true);
-            ApplyUpdate(existing);
+            // This Debug log keeps the recovery observable when an admin enables the Reading debug
+            // category, without an error-level line for an expected, recovered condition.
+            _logger?.LogDebug("Recovered concurrent first write (user={UserId}, item={ItemId}); re-applied as update", userId, itemId);
+            foreach (var added in _db.ChangeTracker.Entries().Where(e => e.State == EntityState.Added).ToList())
+                added.State = EntityState.Detached;
+            if (inserted)
+            {
+                var existing = await _db.ReadingProgress
+                    .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemId == itemId, ct);
+                if (existing is null)
+                    throw; // row genuinely gone (e.g. reset concurrently) - surface it
+                // The racer may have applied this exact mutation already.
+                if (!string.IsNullOrEmpty(existing.LastMutationId) && existing.LastMutationId == mutationId)
+                    return UpdateProgressResult.Success(existing.Revision, alreadyApplied: true);
+                ApplyUpdate(existing);
+                progress = existing;
+            }
+            // Re-check the mark against the rows that exist now; a no-op when the racer's mark is there.
+            if (isCompleted)
+                await EnsureReadMarkTrackedAsync(userId, itemId, "completion", ct);
             await _db.SaveChangesAsync(ct);
-            progress = existing;
         }
 
         return UpdateProgressResult.Success(progress.Revision, alreadyApplied: false);
@@ -300,6 +307,32 @@ public sealed class ReadingStateService
     /// </summary>
     private static bool IsUniqueConstraintViolation(DbUpdateException ex)
         => ex.InnerException is Microsoft.Data.Sqlite.SqliteException { SqliteErrorCode: 19 };
+
+    /// <summary>
+    /// Stages a "make sure this exists" write and saves it, recovering from a concurrent first write: when
+    /// another request inserted the same <c>read_marks</c> / <c>reading_progress</c> row between our read and
+    /// our insert, the unique index rejects ours. Recovery clears the tracker and stages again against the rows
+    /// that exist now (the stage is idempotent: it only adds what is still missing), then saves once more. The
+    /// first save runs in an <see cref="ExpectedRaceScope"/> so EF's own error lines for the recovered failure
+    /// are not logged. <paramref name="stage"/> returns false when there is nothing to save.
+    /// </summary>
+    private async Task SaveRecoveringFirstWriteRaceAsync(Func<Task<bool>> stage, CancellationToken ct)
+    {
+        if (!await stage())
+            return;
+        try
+        {
+            using (ExpectedRaceScope.Begin())
+                await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            _logger?.LogDebug("Recovered concurrent read-state insert; re-staged against the existing rows");
+            _db.ChangeTracker.Clear();
+            if (await stage())
+                await _db.SaveChangesAsync(ct);
+        }
+    }
 
     /// <summary>
     /// Resets progress to unread for a specific item.
@@ -392,9 +425,12 @@ public sealed class ReadingStateService
 
         if (read)
         {
-            await EnsureReadMarkTrackedAsync(userId, itemId, "manual", ct);
-            await MarkProgressReadAtEndTrackedAsync(userId, itemId, ct);
-            await _db.SaveChangesAsync(ct);
+            await SaveRecoveringFirstWriteRaceAsync(async () =>
+            {
+                await EnsureReadMarkTrackedAsync(userId, itemId, "manual", ct);
+                await MarkProgressReadAtEndTrackedAsync(userId, itemId, ct);
+                return true;
+            }, ct);
         }
         else
         {
@@ -522,27 +558,30 @@ public sealed class ReadingStateService
         int affected;
         if (read)
         {
-            var already = await _db.ReadMarks
-                .Where(m => m.UserId == userId && archiveIds.Contains(m.ItemId))
-                .Select(m => m.ItemId)
-                .ToListAsync(ct);
-            var alreadySet = already.ToHashSet();
-
-            var now = DateTimeOffset.UtcNow;
-            var toAdd = archiveIds.Where(id => !alreadySet.Contains(id)).ToList();
-            foreach (var id in toAdd)
+            affected = 0;
+            await SaveRecoveringFirstWriteRaceAsync(async () =>
             {
-                _db.ReadMarks.Add(new ReadMarkEntity
+                var already = await _db.ReadMarks
+                    .Where(m => m.UserId == userId && archiveIds.Contains(m.ItemId))
+                    .Select(m => m.ItemId)
+                    .ToListAsync(ct);
+                var alreadySet = already.ToHashSet();
+
+                var now = DateTimeOffset.UtcNow;
+                var toAdd = archiveIds.Where(id => !alreadySet.Contains(id)).ToList();
+                foreach (var id in toAdd)
                 {
-                    UserId = userId,
-                    ItemId = id,
-                    MarkedAt = now,
-                    Source = "bulk",
-                });
-            }
-            affected = toAdd.Count;
-            if (affected > 0)
-                await _db.SaveChangesAsync(ct);
+                    _db.ReadMarks.Add(new ReadMarkEntity
+                    {
+                        UserId = userId,
+                        ItemId = id,
+                        MarkedAt = now,
+                        Source = "bulk",
+                    });
+                }
+                affected = toAdd.Count;
+                return affected > 0;
+            }, ct);
         }
         else
         {

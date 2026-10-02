@@ -219,7 +219,7 @@ public sealed class MetadataHttpTests : IClassFixture<MangaPixerWebApplicationFa
         Assert.True(settings!.ShowSeriesInfo);
         Assert.False(settings.FetchEnabled);
         Assert.Equal(5000, settings.DailyBudget);
-        Assert.Equal(3, settings.CurrentConsentVersion); // 1.29.0: MangaDex joins the allowed sites (2 in 1.28.0: the allowlist text)
+        Assert.Equal(4, settings.CurrentConsentVersion); // 1.32.0: GCD + Wikipedia join (3 in 1.29.0: MangaDex; 2 in 1.28.0: the allowlist text)
         Assert.Contains(settings.Libraries, l => l.LibraryId == LibPubId && !l.FetchEnabled && l.ShowSeriesInfo);
 
         var noConsent = await admin.PutAsJsonAsync("/api/v1/admin/metadata/settings", new UpdateMetadataSettingsRequest { FetchEnabled = true });
@@ -414,7 +414,7 @@ public sealed class MetadataHttpTests : IClassFixture<MangaPixerWebApplicationFa
     // --- wiring ---
 
     [Fact]
-    public async Task Wiring_ServicesResolve_AndOnlyMangaUpdatesIsRegistered()
+    public async Task Wiring_ServicesResolve_AndTheTwoIdentifyProvidersAreRegistered()
     {
         await SeedAsync();
         using var scope = _factory.Services.CreateScope();
@@ -427,8 +427,10 @@ public sealed class MetadataHttpTests : IClassFixture<MangaPixerWebApplicationFa
         // poster store registered to delete images with their records.
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<MetadataGateway>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<MetadataIdentifyService>());
-        Assert.Equal(["mangaupdates"], _factory.Services.GetRequiredService<MetadataProviderRegistry>().All.Select(p => p.Id).ToArray());
-        Assert.Single(_factory.Services.GetServices<IMetadataProvider>());
+        // 1.32.0: the Grand Comics Database joins MangaUpdates (AddGcdProvider), with its detail reader.
+        Assert.Equal(["mangaupdates", "gcd"], _factory.Services.GetRequiredService<MetadataProviderRegistry>().All.Select(p => p.Id).ToArray());
+        Assert.Equal(2, _factory.Services.GetServices<IMetadataProvider>().Count());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<com.lifepixer.mangapixer.Server.Features.Metadata.Providers.Gcd.GcdDetails>());
         Assert.Contains(_factory.Services.GetServices<IMetadataRecordRemovedHandler>(), h => h is MetadataImageStore);
     }
 }

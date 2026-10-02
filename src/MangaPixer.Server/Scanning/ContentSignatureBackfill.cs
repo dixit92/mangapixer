@@ -94,7 +94,8 @@ public readonly record struct SignatureBackfillBatch(int Rows, int Signed, int S
 /// <summary>
 /// Runs <see cref="ContentSignatureBackfill"/> in the background (1.31.1): a while after start-up, then every few hours (a cheap query
 /// when nothing is left). Paced per file so a large library's first pass stays gentle on the disks; failures are logged (type only)
-/// and never crash the host. Logs carry counts only.
+/// and never crash the host. Logs carry counts only. 1.32.0: on the registered <see cref="TimeProvider"/>; each pass is recorded as
+/// the <c>content-signatures</c> job's run (read-only in the Scheduled jobs section).
 /// </summary>
 public sealed class ContentSignatureBackfillHostedService : BackgroundService
 {
@@ -104,22 +105,27 @@ public sealed class ContentSignatureBackfillHostedService : BackgroundService
 
     private readonly IServiceScopeFactory _scopes;
     private readonly ILogger<ContentSignatureBackfillHostedService> _logger;
+    private readonly TimeProvider _time;
+    private readonly Features.Jobs.JobRunRecorder? _runs;
 
-    public ContentSignatureBackfillHostedService(IServiceScopeFactory scopes, ILogger<ContentSignatureBackfillHostedService> logger)
+    public ContentSignatureBackfillHostedService(IServiceScopeFactory scopes, ILogger<ContentSignatureBackfillHostedService> logger,
+        TimeProvider? time = null, Features.Jobs.JobRunRecorder? runs = null)
     {
         _scopes = scopes;
         _logger = logger;
+        _time = time ?? TimeProvider.System;
+        _runs = runs;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
         {
-            await Task.Delay(InitialDelay, stoppingToken);
+            await Task.Delay(InitialDelay, _time, stoppingToken);
             while (!stoppingToken.IsCancellationRequested)
             {
                 await RunPassAsync(stoppingToken);
-                await Task.Delay(PassInterval, stoppingToken);
+                await Task.Delay(PassInterval, _time, stoppingToken);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -129,7 +135,10 @@ public sealed class ContentSignatureBackfillHostedService : BackgroundService
 
     private async Task RunPassAsync(CancellationToken ct)
     {
-        var started = System.Diagnostics.Stopwatch.StartNew();
+        var started = _time.GetTimestamp();
+        var startedAt = _runs is null ? _time.GetUtcNow() : await _runs.StartedAsync(Features.Jobs.ScheduledJobKeys.ContentSignatures, ct);
+        var outcome = Features.Jobs.JobOutcomes.Failed;
+        string? detail = null;
         long cursor = 0;
         int signed = 0, skipped = 0;
         try
@@ -144,14 +153,22 @@ public sealed class ContentSignatureBackfillHostedService : BackgroundService
                     break;
                 cursor = batch.LastNodeId;
             }
+            outcome = Features.Jobs.JobOutcomes.Ok;
+            detail = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{signed} signed, {skipped} left for the next scan");
             if (signed > 0 || skipped > 0)
                 _logger.LogInformation(LogEvents.Scanning.SignatureBackfillPass,
                     "Content signature backfill: {Signed} archives signed, {Skipped} left for the next scan, in {Seconds} s",
-                    signed, skipped, (int)started.Elapsed.TotalSeconds);
+                    signed, skipped, (int)_time.GetElapsedTime(started).TotalSeconds);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            detail = ex.GetType().Name;
             _logger.LogWarning(LogEvents.Scanning.SignatureBackfillFailed, "Content signature backfill failed: {Error}", ex.GetType().Name);
+        }
+        finally
+        {
+            if (_runs is not null)
+                await _runs.FinishedAsync(Features.Jobs.ScheduledJobKeys.ContentSignatures, startedAt, outcome, detail, CancellationToken.None);
         }
     }
 }

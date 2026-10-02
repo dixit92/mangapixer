@@ -51,8 +51,10 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
         if (folder.ParentDisplayName is { } parent && AutoMatchText.IsAuthorLike(parent, requireTwoTokens: true))
             AddDistinct(authorTags, TitleNormalizer.Normalize(parent).Primary);
 
-        var volumeLike = archives.Count(AutoMatchText.IsVolumeLike);
-        var chapterLike = archives.Count(AutoMatchText.IsChapterLike);
+        // Units are read with the folder's own "No. N" masked (1.32.0): in "Robot No. 9", "Robot No. 9.cbz" is not issue 9.
+        var unitNames = archives.Select(a => AutoMatchText.MaskFolderTitleNumber(a, folder.DisplayName)).ToList();
+        var volumeLike = unitNames.Count(AutoMatchText.IsVolumeLike);
+        var chapterLike = unitNames.Count(AutoMatchText.IsChapterLike);
         var archiveCount = archives.Count;
         foreach (var sub in folder.Subfolders ?? [])
         {
@@ -66,7 +68,7 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
         }
         // The count rule compares unit NUMBERS (1.27.0), and since 1.29.0 unit subfolders add the numbers their archive
         // names state, never their archive count (CountEvidence.LocalOf).
-        var units = CountEvidence.LocalOf(archives, folder.Subfolders);
+        var units = CountEvidence.LocalOf(unitNames, folder.Subfolders);
 
         var years = new List<int>();
         if (AutoMatchText.EarliestYear(archives) is { } archiveYear) years.Add(archiveYear);

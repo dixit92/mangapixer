@@ -1,7 +1,7 @@
 import { SeriesProgressDto, SeriesTrackersDto } from '../../../core/api/api-types';
 import {
-  alsoInVolumeLabel, completionSentence, folderLine, numbersText, officialReleaseLabel, progressIcon, reachSentence, trackersLine,
-  upgradeSentence,
+  alsoInVolumeLabel, answerSentence, completionMarkLabel, editionLabel, folderLine, numbersText, officialReleaseLabel, progressIcon,
+  reachSentence, trackersLine, upgradeSentence,
 } from './series-progress-labels';
 
 /**
@@ -46,10 +46,12 @@ describe('series progress labels', () => {
   it('a volumes-only folder of a series finished in English: missing volumes and the prompt', () => {
     const p = progress(
       { origin: 'Japan', originStatus: 'Complete', originVolumes: 14, officialPublisher: 'Viz Media', officialVolumes: 14, officialStatus: 'Complete' },
-      { reach: reach([[1, 12]], []), missingVolumes: 2, completion: 'FinishedNotHeld', completionBasis: 'OfficialVolumes', completionTarget: 14, completionHeld: 12 });
+      { reach: reach([[1, 12]], []), missingVolumes: 2, completion: 'FinishedNotHeld', completionBasis: 'OfficialVolumes', completionTarget: 14, completionHeld: 12,
+        answer: 'FinishedMissing' });
     expect(trackersLine(p)).toBe('Complete (Japan): 14 volumes · English (Viz Media): 14 volumes, complete');
-    expect(folderLine(p)).toBe('You have volumes 1-12 · 2 volumes missing · finished - official, English');
-    expect(completionSentence(p)).toBe('Finished - Official, English (14 volumes) - you have 12');
+    expect(folderLine(p)).toBe('You have volumes 1-12 · 2 volumes missing · finished - missing some (Official, 12 of 14)');
+    expect(completionMarkLabel(p)).toBe('Finished - missing some (Official, 12 of 14)');
+    expect(answerSentence(p)).toBe('Ended in Japan, and the English edition is complete: you have 12 of 14 volumes.');
     expect(progressIcon(p)).toBe('error_outline');
   });
 
@@ -72,31 +74,35 @@ describe('series progress labels', () => {
   it('a finished series held whole is a complete collection', () => {
     const p = progress(
       { origin: 'Japan', originStatus: 'Complete', originVolumes: 14, officialPublisher: 'Viz Media', officialVolumes: 14, officialStatus: 'Complete' },
-      { reach: reach([[1, 14]], []), completion: 'CompleteCollection', completionBasis: 'OfficialVolumes', completionTarget: 14, completionHeld: 14 });
-    expect(folderLine(p)).toBe('You have volumes 1-14 · Complete collection - Official');
-    expect(completionSentence(p)).toBe('Complete collection: all 14 volumes of the English edition');
+      { reach: reach([[1, 14]], []), completion: 'CompleteCollection', completionBasis: 'OfficialVolumes', completionTarget: 14, completionHeld: 14,
+        answer: 'HaveItAll' });
+    expect(folderLine(p)).toBe('You have volumes 1-14 · finished - you have it all (Official)');
+    expect(answerSentence(p)).toBe('Ended in Japan, and the English edition is complete: you have all 14 volumes.');
     expect(progressIcon(p)).toBe('workspace_premium');
   });
 
   it('says which release finished: the official edition or the chapters (owner, 1.30.0 RC; 1.30.1 Chapter-based)', () => {
     const fan = progress({ origin: 'Korea', originStatus: 'Complete', originChapters: 172, latestChapter: 172, scanlationComplete: true, licensed: false },
       { reach: reach([], [[1, 6]]), completion: 'FinishedNotHeld', completionBasis: 'AllChapters', completionTarget: 172, completionHeld: 6,
-        completionInChapters: true });
-    expect(completionSentence(fan)).toBe('Finished - Chapter-based, English (172 chapters) - you have 6');
-    expect(folderLine(fan)).toContain('finished - chapter-based, English');
+        completionInChapters: true, answer: 'FinishedMissing' });
+    expect(answerSentence(fan)).toBe('Ended in Korea, and every chapter is out in English: you have 6 of 172 chapters.');
+    // Never "up to date" next to a Finished - missing some.
+    expect(folderLine(fan)).toBe('You have chapters 1-6 · finished - missing some (Chapter-based, 6 of 172)');
   });
 
   it('a finished scanlation held whole, and the origin run', () => {
     const scan = progress({ origin: 'Korea', originStatus: 'Complete', latestChapter: 120, scanlationComplete: true },
       { reach: reach([], [[1, 120]]), completion: 'CompleteCollection', completionBasis: 'AllChapters', completionTarget: 120, completionHeld: 120,
-        completionInChapters: true });
+        completionInChapters: true, answer: 'HaveItAll' });
     expect(trackersLine(scan)).toBe('Complete (Korea) · English chapters: to chapter 120, complete');
-    expect(folderLine(scan)).toBe('You have chapters 1-120 · Complete collection - Chapter-based');
-    expect(completionSentence(scan)).toBe('Complete collection: all 120 chapters of the finished English chapter release');
-    const origin = progress({ originStatus: 'Complete', originVolumes: 14 }, { completion: 'CompleteCollection', completionBasis: 'OriginRun', completionTarget: 14 });
-    expect(completionSentence(origin)).toBe('Complete collection: the whole original run (14 volumes)');
-    // Finished in the origin only and not held: no prompt.
-    expect(completionSentence(progress({}, { completion: 'FinishedNotHeld', completionBasis: 'OriginRun' }))).toBeNull();
+    expect(folderLine(scan)).toBe('You have chapters 1-120 · finished - you have it all (Chapter-based)');
+    expect(answerSentence(scan)).toBe('Ended in Korea, and every chapter is out in English: you have all 120 chapters.');
+    const origin = progress({ originStatus: 'Complete', originVolumes: 14 },
+      { completion: 'CompleteCollection', completionBasis: 'OriginRun', completionTarget: 14, answer: 'HaveItAll' });
+    expect(answerSentence(origin)).toBe('Ended: you have all 14 volumes of the original run.');
+    expect(completionMarkLabel(origin)).toBe('Finished - you have it all (Original run)');
+    // The other answers carry no mark.
+    expect(completionMarkLabel(progress({}, { answer: 'UpToDate', answerReason: 'Running' }))).toBeNull();
   });
 
   it('French preferred: the released chapters, no English fact, the language named', () => {
@@ -117,5 +123,74 @@ describe('series progress labels', () => {
     expect(folderLine(progress({}, { reach: reach([[3, 3]], [[5, 5]]), releaseKnown: false }))).toBe('You have volume 3 + chapter 5');
     expect(folderLine(progress({}, { reach: reach([], [[1, 2], [4, 5], [7, 9]]) }))).toBe('You have chapters 1-9 with gaps · up to date');
     expect(numbersText([19, 15, 16, 17, 15])).toBe('15-17, 19');
+  });
+  describe('the answer of the Completion tab (1.32.0, owner-approved wording)', () => {
+    const japan = { origin: 'Japan' as const, originVolumes: 14 };
+
+    it('says why a series is finished and held whole, per edition', () => {
+      const official = progress({ ...japan, originStatus: 'Cancelled' },
+        { answer: 'HaveItAll', completion: 'CompleteCollection', completionBasis: 'OfficialVolumes', completionTarget: 14 });
+      expect(answerSentence(official)).toBe('Cancelled in Japan, and the English edition is complete: you have all 14 volumes.');
+      const plus = progress({ ...japan, originStatus: 'Complete' }, { answer: 'HaveItAll', completion: 'CompleteCollection',
+        completionBasis: 'OfficialChapters', completionTarget: 60, completionInChapters: true });
+      expect(answerSentence(plus)).toBe('Ended in Japan, and every chapter is out officially in English: you have all 60 chapters.');
+      expect(editionLabel(plus)).toBe('Official chapters');
+      const oneShot = progress({ ...japan, originStatus: 'Complete', originVolumes: 1 }, { answer: 'HaveItAll', answerReason: 'OneShot',
+        completion: 'CompleteCollection', completionBasis: 'OriginRun', completionTarget: 1, completionHeld: 1 });
+      expect(answerSentence(oneShot)).toBe('A one-shot, ended in Japan: you have it.');
+      expect(editionLabel(oneShot)).toBe('One-shot');
+      expect(completionMarkLabel(oneShot)).toBe('Finished - you have it all (One-shot)');
+      // A one-volume run whose file is numbered reads the same (review instance, 1.32.0): never "all 1 volume".
+      const single = progress({ ...japan, originStatus: 'Complete', originVolumes: 1 }, { answer: 'HaveItAll', completion: 'CompleteCollection',
+        completionBasis: 'OriginRun', completionTarget: 1, completionHeld: 1 });
+      expect(answerSentence(single)).toBe('A one-shot, ended in Japan: you have it.');
+      expect(editionLabel(single)).toBe('One-shot');
+      const one = progress({ ...japan, originStatus: 'Complete' }, { answer: 'HaveItAll', completion: 'CompleteCollection',
+        completionBasis: 'OfficialVolumes', completionTarget: 1 });
+      expect(answerSentence(one)).toBe('Ended in Japan, and the English edition is complete: you have its one volume.');
+    });
+
+    it('an ended series with released ones not here, without an edition', () => {
+      const p = progress({ ...japan, originStatus: 'Complete' }, { answer: 'FinishedMissing', missingVolumes: 2, missingChapters: 3 });
+      expect(answerSentence(p)).toBe('Ended in Japan: 2 volumes, 3 chapters out in English are not here.');
+      expect(editionLabel(p)).toBeNull();
+      expect(completionMarkLabel(p)).toBe('Finished - missing some');
+      expect(answerSentence(progress({ ...japan, originStatus: 'Complete' }, { answer: 'FinishedMissing', missingChapters: 1 })))
+        .toBe('Ended in Japan: 1 chapter out in English is not here.');
+    });
+
+    it('everything released so far, by reason', () => {
+      const so = (reason: SeriesProgressDto['answerReason'], t: Partial<SeriesTrackersDto> = {}) =>
+        answerSentence(progress({ ...japan, ...t }, { answer: 'UpToDate', answerReason: reason }));
+      expect(so('Running', { originStatus: 'Ongoing' })).toBe('Still running in Japan: you have everything out in English so far.');
+      expect(so('OnHiatus', { originStatus: 'Hiatus' })).toBe('On hiatus in Japan: you have everything out in English so far.');
+      expect(so('StatusUnknown')).toBe('You have everything out in English so far; MangaUpdates does not say whether the series has ended.');
+      expect(so('WaitingForLanguage', { originStatus: 'Complete' }))
+        .toBe('Ended in Japan, but not all of it is out in English yet: you have everything out so far.');
+      expect(so('WaitingForLanguage', { originStatus: 'Complete', originVolumes: 12, officialVolumes: 10 }))
+        .toBe('Ended in Japan, but English volumes are still coming (10 of 12): you have everything out so far.');
+      expect(so('LanguageEditionDropped', { originStatus: 'Complete', officialVolumes: 7, officialStatus: 'Cancelled' }))
+        .toBe('Ended in Japan; the English edition stopped after 7 volumes, and you have all of them.');
+    });
+
+    it('missing some, and can\'t tell', () => {
+      expect(answerSentence(progress({ ...japan, originStatus: 'Ongoing' }, { answer: 'MissingSome', answerReason: 'Running', missingChapters: 3 })))
+        .toBe('Still running in Japan: 3 chapters out in English are not here.');
+      expect(answerSentence(progress({ language: 'fr' }, { answer: 'MissingSome', answerReason: 'StatusUnknown', missingVolumes: 1 })))
+        .toBe('1 volume out in French is not here.');
+      const cant = (reason: SeriesProgressDto['answerReason'], t: Partial<SeriesTrackersDto> = {}) =>
+        answerSentence(progress({ ...japan, ...t }, { answer: 'CantTell', answerReason: reason }));
+      expect(cant('NoNumbers')).toBe('The file names carry no volume or chapter numbers, so MangaPixer cannot compare them.');
+      expect(cant('NumberingRestarts')).toBe('Volume or chapter numbers start again in subfolders, so MangaPixer cannot compare them.');
+      expect(cant('NothingKnownReleased', { language: 'fr' })).toBe('Nothing is known about what is out in French.');
+      expect(cant('NoVolumeTotal', { originStatus: 'Ongoing' }))
+        .toBe('Still running in Japan. MangaPixer does not know how many volumes are out in English yet, so it cannot say whether you have them all.');
+    });
+
+    it('reads a server without answers from the completion', () => {
+      expect(completionMarkLabel(progress({}, { completion: 'CompleteCollection', completionBasis: 'AllChapters' })))
+        .toBe('Finished - you have it all (Chapter-based)');
+      expect(answerSentence(progress({}))).toBeNull();
+    });
   });
 });

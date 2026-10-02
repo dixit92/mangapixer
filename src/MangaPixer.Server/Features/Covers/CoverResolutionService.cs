@@ -74,10 +74,12 @@ public sealed record CoverResolution
 /// <summary>
 /// The cover layer at read time (1.29.0, design 2.9 / 6.1): per node, the FIRST that applies of
 /// <list type="number">
-/// <item>the admin's choice (another archive's file cover, a stored web cover, a half of page 1);</item>
+/// <item>the admin's choice (another archive's file cover, a stored web cover, a half of page 1) - it wins over a folder's inherited
+/// "File covers", while the library's "Show saved web covers" (unless a folder says Web covers) still hides a chosen web cover;</item>
 /// <item>the admin's "use the file's cover" pin (stops: the file);</item>
 /// <item>the automatic decision (<c>node_auto_covers</c>) while its layer is allowed - a crop needs "Crop jacket spreads", a web
-/// source (volume / main cover, poster) needs "Volume covers from the web" AND the library's "Show saved web covers"; a series
+/// source (volume / main cover, poster) needs "Volume covers from the web" AND the folder's cover preference (1.32.0: the nearest
+/// folder's "Web covers when available" / "File covers", else the library's "Show saved web covers"); a series
 /// folder's "local volume 1" (1.30.0) resolves that archive through its own steps 1-4;</item>
 /// <item>the file default: an archive's own page 1; a folder's cover archive (first live descendant archive by SortKey,
 /// <see cref="FolderCovers"/>), which goes through steps 1-3 itself - so a volume 1 crop reaches its series card for free.</item>
@@ -100,6 +102,9 @@ public sealed class CoverResolutionService
         public Dictionary<long, NodeAutoCoverEntity> Autos { get; } = [];
         public Dictionary<long, (long LibraryId, string PublicId, int Kind, int Availability)> Nodes { get; } = [];
         public HashSet<long> WebHiddenLibraries { get; } = [];
+
+        /// <summary>The nearest folder cover preference of each node with one (1.32.0); nodes absent inherit the library switch.</summary>
+        public Dictionary<long, FolderCoverPreference> FolderPreferences { get; } = [];
         public Dictionary<long, VolumeCoverEntity> VolumeCovers { get; } = [];
         public Dictionary<long, long> ContentVersions { get; } = [];
         public Dictionary<long, (long Id, string PublicId)> FolderCoverArchives { get; } = [];
@@ -256,6 +261,8 @@ public sealed class CoverResolutionService
         var libraryIds = batch.Nodes.Values.Select(n => n.LibraryId).Distinct().ToList();
         foreach (var id in await _db.Libraries.AsNoTracking().Where(l => libraryIds.Contains(l.Id) && l.WebCoversHidden).Select(l => l.Id).ToListAsync(ct))
             batch.WebHiddenLibraries.Add(id);
+        foreach (var (id, nearest) in await FolderCoverPreferences.NearestAsync(_db, batch.Nodes.Keys.ToList(), ct))
+            batch.FolderPreferences[id] = nearest.Preference;
 
         var posterNodes = batch.Autos.Values.Where(a => a.Source == (int)AutoCoverSource.Poster).Select(a => a.NodeId).ToList();
         if (posterNodes.Count > 0)
@@ -289,7 +296,12 @@ public sealed class CoverResolutionService
     private CoverResolution? OwnLayer(Batch batch, long nodeId, string publicId, bool isFolder)
     {
         var node = batch.Nodes[nodeId];
-        var webAllowed = batch.Switches.VolumeCoversEnabled && !batch.WebHiddenLibraries.Contains(node.LibraryId);
+        // 1.32.0: the folder's cover preference (nearest ancestor) over the library switch. An explicit admin choice ignores an
+        // inherited "File covers" (the choice wins); the automatic decisions obey it.
+        FolderCoverPreference? folderPreference = batch.FolderPreferences.TryGetValue(nodeId, out var inherited) ? inherited : null;
+        var libraryHidden = batch.WebHiddenLibraries.Contains(node.LibraryId);
+        var webAllowed = batch.Switches.VolumeCoversEnabled && FolderCoverRules.WebShown(folderPreference, libraryHidden);
+        var chosenWebAllowed = batch.Switches.VolumeCoversEnabled && FolderCoverRules.ChosenWebShown(folderPreference, libraryHidden);
 
         // 1-2. The admin's choice.
         if (batch.Choices.TryGetValue(nodeId, out var choice))
@@ -308,7 +320,7 @@ public sealed class CoverResolutionService
                         ContentVersion = chosenVersion,
                         Version = Token("c", choice.Version, "file", archiveId, chosenVersion),
                     };
-                case CoverChoiceMode.VolumeCover when webAllowed && choice.VolumeCoverId is { } coverId
+                case CoverChoiceMode.VolumeCover when chosenWebAllowed && choice.VolumeCoverId is { } coverId
                     && batch.VolumeCovers.TryGetValue(coverId, out var cover) && IsServable(cover):
                     return WebLayer(batch, nodeId, publicId, isFolder, CardCoverSource.Chosen, "c", choice.Version, cover);
                 case CoverChoiceMode.Crop when choice.CropSide is { } side && OwnArchive(batch, nodeId, isFolder) is { } own:

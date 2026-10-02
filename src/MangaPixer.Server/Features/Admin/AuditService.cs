@@ -223,6 +223,10 @@ public static class AuditActions
     // 1.29.0: per-folder view overrides (the Volumes view); ids only.
     public const string FolderViewSettingsChange = "folder.view.change";
 
+    // 1.32.0: a folder's cover preference (Web covers when available / File covers); ids only.
+    public const string FolderCoverPreferenceSet = "folder.cover-preference.set";
+    public const string FolderCoverPreferenceClear = "folder.cover-preference.clear";
+
     // 1.29.0: the MangaDex companion chosen / refused / re-checked by an admin, and "Delete stored volume covers" (ids, counts).
     public const string MetadataCompanionChange = "metadata.companion.change";
     public const string MetadataVolumeCoversDelete = "metadata.volume_covers.delete";
@@ -241,6 +245,11 @@ public static class AuditActions
     public const string TrashEmptyAuto = "trash.empty.auto";
     public const string TrashBundlesClean = "trash.bundles.clean";
     public const string TrashBundlesCleanAuto = "trash.bundles.clean.auto";
+
+    // 1.32.0 Scheduled jobs: the job key and the hour / cadence in the result verb (no names).
+    public const string JobScheduleChange = "job.schedule.change";
+    public const string LibraryScanScheduleChange = "library.scan_schedule.change";
+    public const string MetadataRefreshCadenceChange = "metadata.refresh.cadence";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>

@@ -194,8 +194,9 @@ public sealed class MetadataGateway
     /// possible, else one gated request.
     /// </summary>
     public Task<ProviderSearchPage> SearchAsync(
-        string providerId, long libraryId, string query, int page, bool hideDoujinshiAndNovels = false, CancellationToken ct = default) =>
-        SearchCoreAsync(providerId, libraryId, query, page, hideDoujinshiAndNovels, allowDoujinshi: false, call: null, ct);
+        string providerId, long libraryId, string query, int page, bool hideDoujinshiAndNovels = false, CancellationToken ct = default,
+        int? startYear = null) =>
+        SearchCoreAsync(providerId, libraryId, query, page, hideDoujinshiAndNovels, allowDoujinshi: false, call: null, ct, startYear);
 
     /// <summary>
     /// An AUTOMATIC search (stage 2): always with the fixed provider type filter
@@ -205,13 +206,19 @@ public sealed class MetadataGateway
     /// </summary>
     public Task<ProviderSearchPage> SearchAutomaticAsync(
         string providerId, long libraryId, string query, bool allowDoujinshi, MetadataCallContext call, CancellationToken ct = default,
-        int page = 1) =>
-        SearchCoreAsync(providerId, libraryId, query, Math.Clamp(page, 1, 2), hideDoujinshiAndNovels: true, allowDoujinshi, call, ct);
+        int page = 1, int? startYear = null) =>
+        SearchCoreAsync(providerId, libraryId, query, Math.Clamp(page, 1, 2), hideDoujinshiAndNovels: true, allowDoujinshi, call, ct, startYear);
 
+    /// <summary>
+    /// <paramref name="startYear"/> (1.32.0): the <c>(YYYY)</c> of the work's own name, sent to the Grand Comics Database only (its
+    /// search narrows to series that began that year); other providers never receive it and it is not part of their cache key.
+    /// </summary>
     private async Task<ProviderSearchPage> SearchCoreAsync(
         string providerId, long libraryId, string query, int page, bool hideDoujinshiAndNovels, bool allowDoujinshi,
-        MetadataCallContext? call, CancellationToken ct)
+        MetadataCallContext? call, CancellationToken ct, int? startYear = null)
     {
+        if (providerId != MetadataProviderAllowlist.Gcd || startYear is not (>= 1800 and <= 2200))
+            startYear = null;
         var provider = Provider(providerId);
         var text = NormalizeQuery(query);
         if (text.Length == 0 || text.Length > MaxQueryLength)
@@ -221,13 +228,13 @@ public sealed class MetadataGateway
 
         var origin = call?.Origin ?? MetadataCallOrigin.Interactive;
         await ThrowIfSwitchedOffAsync(libraryId, origin, provider.Id, ct);
-        var key = SearchCacheKey(provider.Id, text, page, hideDoujinshiAndNovels, allowDoujinshi);
+        var key = SearchCacheKey(provider.Id, text, page, hideDoujinshiAndNovels, allowDoujinshi, startYear);
         if (_cache.TryGetValue<ProviderSearchPage>(key, out var cached) && cached is not null)
             return cached;
 
         var result = await CallAsync(provider.Id, "search", libraryId, _state.ApiLimiterOf(provider.Id),
             c => provider.SearchSeriesAsync(
-                new ProviderSearchQuery(text, libraryId, page, SearchPageSize, hideDoujinshiAndNovels, hideDoujinshiAndNovels && allowDoujinshi), c),
+                new ProviderSearchQuery(text, libraryId, page, SearchPageSize, hideDoujinshiAndNovels, hideDoujinshiAndNovels && allowDoujinshi, startYear), c),
             call, ct);
         _cache.Set(key, result, SearchCacheTtl);
         return result;
@@ -303,6 +310,20 @@ public sealed class MetadataGateway
         return await CallAsync(providerId, operation, libraryId, _state.ApiLimiterOf(providerId), call, context, ct);
     }
 
+    /// <summary>
+    /// One gated detail call of a registered provider beyond search / get (1.32.0: the Grand Comics Database's publisher name and
+    /// first issue of a chosen candidate). The same gates, budget, bucket and backoff as <see cref="GetSeriesAsync"/>: every
+    /// request is counted, none bypasses the 25-an-hour bucket. <paramref name="call"/> must only translate HTTP/JSON.
+    /// </summary>
+    public async Task<T> DetailCallAsync<T>(
+        string providerId, string operation, long libraryId, Func<CancellationToken, Task<T>> call, MetadataCallContext? context,
+        CancellationToken ct = default)
+    {
+        var provider = Provider(providerId);
+        await ThrowIfSwitchedOffAsync(libraryId, context?.Origin ?? MetadataCallOrigin.Interactive, provider.Id, ct);
+        return await CallAsync(provider.Id, operation, libraryId, _state.ApiLimiterOf(provider.Id), call, context, ct);
+    }
+
     private IMetadataProvider Provider(string providerId) =>
         _providers.Find(providerId)
         ?? throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "unknown_provider", "No such metadata provider.");
@@ -331,7 +352,10 @@ public sealed class MetadataGateway
         if (origin == MetadataCallOrigin.Automatic)
             await _state.PaceAutomaticAsync(ct);
 
-        using var lease = await AcquireAsync(limiter, origin, ct);
+        // Only the API bucket of a slow provider is slow; its image bucket (GCD thumbnails, 1 / s) behaves like the others.
+        using var lease = MetadataHttp.Transport(providerId) is { NoWaitRetry: { } retry } slow && ReferenceEquals(limiter, _state.ApiLimiterOf(providerId))
+            ? TakeSlowToken(libraryId, limiter, origin, slow.AutomaticReserve, retry, NameOf(providerId))
+            : await AcquireAsync(limiter, origin, ct);
         if (!lease.IsAcquired)
             throw Refuse(libraryId, new MetadataGatewayException(StatusCodes.Status429TooManyRequests, "provider_busy",
                 "Too many metadata requests are queued. Try again in a moment."));
@@ -379,6 +403,25 @@ public sealed class MetadataGateway
         }
     }
 
+    /// <summary>
+    /// A token of a SLOW bucket (1.32.0, the Grand Comics Database): never waited for. Automatic calls leave
+    /// <paramref name="automaticReserve"/> tokens for admins. A refusal is <c>provider_busy</c> with the time the next token is
+    /// due, so the auto-match queue can defer the work and Identify can say when to try again.
+    /// </summary>
+    private RateLimitLease TakeSlowToken(long libraryId, RateLimiter limiter, MetadataCallOrigin origin, int automaticReserve, TimeSpan retry, string name)
+    {
+        var reserve = origin == MetadataCallOrigin.Automatic ? automaticReserve : 0;
+        if ((limiter.GetStatistics()?.CurrentAvailablePermits ?? 0) > reserve)
+        {
+            var lease = limiter.AttemptAcquire(1);
+            if (lease.IsAcquired)
+                return lease;
+            lease.Dispose();
+        }
+        throw Refuse(libraryId, new MetadataGatewayException(StatusCodes.Status429TooManyRequests, "provider_busy",
+            $"{name} answers only about 25 requests an hour. Try again in a few minutes.", _budget.UtcNow() + retry));
+    }
+
     private MetadataGatewayException Refuse(long libraryId, MetadataGatewayException refusal)
     {
         _logger.LogInformation(LogEvents.Metadata.GatewayRefused, "Metadata call refused for library {LibraryId}: {Code}", libraryId, refusal.Code);
@@ -387,7 +430,7 @@ public sealed class MetadataGateway
 
     private static MetadataGatewayException BudgetExhausted() =>
         new(StatusCodes.Status429TooManyRequests, "budget_exhausted",
-            "Today's metadata request budget is used up. It resets at 00:00 UTC; an admin can raise it in Metadata Manager.");
+            "Today's metadata request budget is used up. It resets at midnight server time; an admin can raise it in Metadata Manager.");
 
     /// <summary>"The metadata provider" for MangaUpdates (the wording of 1.24.0), else the provider's name.</summary>
     private static string NameOf(string providerId) =>
@@ -462,10 +505,11 @@ public sealed class MetadataGateway
     public static string NormalizeQuery(string? query) =>
         string.Join(' ', (query ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
-    private static string SearchCacheKey(string providerId, string text, int page, bool hideDoujinshiAndNovels, bool allowDoujinshi)
+    private static string SearchCacheKey(string providerId, string text, int page, bool hideDoujinshiAndNovels, bool allowDoujinshi, int? startYear)
     {
         var filter = !hideDoujinshiAndNovels ? 0 : allowDoujinshi ? 2 : 1;
-        var material = Encoding.UTF8.GetBytes($"{providerId}\n{text.ToLowerInvariant()}\n{page}\n{filter}");
+        var year = startYear is { } y ? FormattableString.Invariant($"\n{y}") : string.Empty;
+        var material = Encoding.UTF8.GetBytes($"{providerId}\n{text.ToLowerInvariant()}\n{page}\n{filter}{year}");
         return "metadata-search:" + Convert.ToHexString(SHA256.HashData(material));
     }
 }

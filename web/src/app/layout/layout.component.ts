@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject } from '@angular/core';
-import { RouterOutlet, RouterLink, Router, NavigationEnd } from '@angular/router';
+import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs/operators';
 import { BreakpointObserver } from '@angular/cdk/layout';
@@ -8,6 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatBadgeModule } from '@angular/material/badge';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { AuthService } from '../core/auth/auth.service';
 import { IncognitoService } from '../core/incognito/incognito.service';
@@ -37,11 +38,13 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
   imports: [
     RouterOutlet,
     RouterLink,
+    RouterLinkActive,
     MatToolbarModule,
     MatButtonModule,
     MatIconModule,
     MatMenuModule,
     MatBadgeModule,
+    MatTooltipModule,
     LibrarySidebarComponent,
   ],
   template: `
@@ -60,8 +63,23 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
       <span class="spacer"></span>
 
       @if (auth.isAuthenticated()) {
-        <button mat-button class="nav-link" routerLink="/libraries">Libraries</button>
-        <button mat-button class="nav-link" routerLink="/search">Search</button>
+        @if (isPhone()) {
+          <!-- Phones: the two text links touched each other, so they are icon buttons here (same order,
+               same routes; the label stays for screen readers and as a tooltip). -->
+          <button mat-icon-button class="nav-link nav-icon" routerLink="/libraries" routerLinkActive="active-link"
+                  ariaCurrentWhenActive="page" aria-label="Libraries" matTooltip="Libraries">
+            <mat-icon>library_books</mat-icon>
+          </button>
+          <button mat-icon-button class="nav-link nav-icon" routerLink="/search" routerLinkActive="active-link"
+                  ariaCurrentWhenActive="page" aria-label="Search" matTooltip="Search">
+            <mat-icon>search</mat-icon>
+          </button>
+        } @else {
+          <button mat-button class="nav-link" routerLink="/libraries" routerLinkActive="active-link"
+                  ariaCurrentWhenActive="page">Libraries</button>
+          <button mat-button class="nav-link" routerLink="/search" routerLinkActive="active-link"
+                  ariaCurrentWhenActive="page">Search</button>
+        }
 
         <!-- Admin nav badge (metadata stage 2): series to review + open flags. -->
         <button mat-icon-button [matMenuTriggerFor]="userMenu" (menuOpened)="refreshAttention()"
@@ -131,11 +149,13 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
        optically centers against the icon mark rather than sitting low. */
     .brand-text { position: relative; top: -2px; }
     .spacer { flex: 1 1 auto; }
+    /* The page the link points to: a soft pill behind it (also on the icon buttons), on top of aria-current. */
+    .nav-link.active-link { background: rgba(255, 255, 255, 0.16); }
     /* Phones (390px): menu + brand + two text links + the account button overflowed the toolbar by ~12px, so every
-       page scrolled sideways and the account button was clipped. Tighten the gaps on narrow screens. */
+       page scrolled sideways and the account button was clipped; the links are icon buttons now, so only the gap
+       after the brand is tightened. */
     @media (max-width: 599.98px) {
       .brand { margin-right: 4px; }
-      .nav-link { min-width: 0; padding: 0 8px; }
     }
     /* Two-column app shell (1.5.0): the persistent library sidebar sits on the
        window's left edge with the content column beside it. The sidebar reaches

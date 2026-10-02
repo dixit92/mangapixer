@@ -264,7 +264,9 @@ public sealed class YacReaderImportService
                 await using var tx = await _db.Database.BeginTransactionAsync(ct);
                 try
                 {
-                    await _db.SaveChangesAsync(ct);
+                    // A collision is recovered below; the scope keeps EF's own error lines out of the log.
+                    using (ExpectedRaceScope.Begin())
+                        await _db.SaveChangesAsync(ct);
                     await tx.CommitAsync(ct);
                     break;
                 }

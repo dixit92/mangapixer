@@ -223,9 +223,30 @@ public sealed class AdminController : ControllerBase
 
         if (!LibraryScanSchedules.IsValid(request.ScanSchedule))
             return BadRequest(new ApiError { Error = "invalid_scan_schedule", Message = "ScanSchedule must be one of off, 1h, 6h, 1d, 7d, or null." });
+        // 1.32.0: a time of day for Daily / Weekly; the request carries the whole schedule.
+        if (LibraryScanSchedules.ValidateTime(request.ScanSchedule, request.ScanHour, request.ScanWeekday) is { } timeError)
+            return BadRequest(new ApiError
+            {
+                Error = timeError,
+                Message = timeError switch
+                {
+                    "hour_not_allowed" => "Only Daily and Weekly scans take a time of day.",
+                    "invalid_hour" => "Choose an hour from 0 to 23.",
+                    "weekday_not_allowed" => "Only a Weekly scan with a time of day takes a weekday.",
+                    _ => "Choose a weekday from 0 (Sunday) to 6 (Saturday).",
+                },
+            });
 
+        var changed = library.ScanSchedule != request.ScanSchedule || library.ScanHour != request.ScanHour || library.ScanWeekday != request.ScanWeekday;
         library.ScanSchedule = request.ScanSchedule;
+        library.ScanHour = request.ScanHour;
+        library.ScanWeekday = request.ScanWeekday;
         await _db.SaveChangesAsync(ct);
+        if (changed)
+            await _audit.RecordAsync(AuditActions.LibraryScanScheduleChange,
+                string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                    $"{LibraryScanSchedules.Resolve(request.ScanSchedule)}_h{(request.ScanHour is { } h ? h.ToString(System.Globalization.CultureInfo.InvariantCulture) : "any")}_w{request.ScanWeekday?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "-"}"),
+                User.Identity?.Name, ct: ct, targetLibraryId: library.Id);
         return Ok(ToLibraryDto(library));
     }
 
@@ -820,7 +841,9 @@ public sealed class AdminController : ControllerBase
         DefaultReaderMode = (ReaderMode?)library.DefaultReaderMode,
         Icon = library.Icon,
         ScanSchedule = LibraryScanSchedules.Resolve(library.ScanSchedule),
-        NextScheduledScanAt = _scanScheduler.EstimateNextScan(library.ScanSchedule, library.LastScanCompleted),
+        NextScheduledScanAt = _scanScheduler.EstimateNextScan(library.ScanSchedule, library.LastScanCompleted, library.ScanHour, library.ScanWeekday),
+        ScanHour = library.ScanHour,
+        ScanWeekday = library.ScanWeekday,
     };
 
     private static string ScanStatusToString(int status) => status switch

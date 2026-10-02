@@ -15,6 +15,7 @@ import { WrongSeriesFlagComponent } from './flag-dialog/wrong-series-flag.compon
 import { ageLabel, creditGroups, precedenceLabel, showsPrecedence } from './series-info-labels';
 import { SeriesInfoSummaryComponent } from './series-info-summary.component';
 import { SeriesMissingLineComponent } from './missing/series-missing-line.component';
+import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-refresh-cadence.component';
 
 /**
  * The series page `/series/:nodeId` (1.24.0): the canonical, bookmarkable home of a
@@ -30,7 +31,7 @@ import { SeriesMissingLineComponent } from './missing/series-missing-line.compon
 @Component({
   selector: 'app-series-page',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, SeriesMissingLineComponent],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, SeriesMissingLineComponent, SeriesRefreshCadenceComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page" data-testid="series-page">
@@ -117,6 +118,16 @@ import { SeriesMissingLineComponent } from './missing/series-missing-line.compon
               }
               <span class="muted"> · fetched {{ fetchedAge() }}</span>
             </p>
+            @if (i.web.credit) {
+              <!-- 1.32.0: the licence credit the data needs (Grand Comics Database, CC BY-SA 4.0), linked to the series page. -->
+              <p data-testid="series-web-credit">
+                @if (i.web.siteUrl) {
+                  <a [href]="i.web.siteUrl" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">{{ i.web.credit }}</a>
+                } @else {
+                  {{ i.web.credit }}
+                }
+              </p>
+            }
           }
           @if (i.comicInfo) {
             <p>ComicInfo: {{ i.comicInfo.itemsWithComicInfo }} of {{ i.comicInfo.itemsTotal }} items</p>
@@ -131,6 +142,7 @@ import { SeriesMissingLineComponent } from './missing/series-missing-line.compon
 
         @if (auth.isAdmin()) {
           <section class="section admin" aria-label="Series administration">
+            <app-series-refresh-cadence [linkNodeId]="i.link?.nodeId" />
             <app-series-admin-actions [info]="i" (changed)="load(i.anchorNodeId)" />
           </section>
         } @else if (i.web) {

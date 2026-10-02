@@ -7,8 +7,9 @@ using Microsoft.EntityFrameworkCore;
 /// <summary>
 /// The persisted daily request budget (1.24.0, lane B2). Every outbound request
 /// (search, get, image) counts one. The counter lives on <c>app_settings</c>
-/// (<c>MetadataBudgetDayUtc</c> + <c>MetadataBudgetUsed</c>), resets when the UTC
-/// day changes, and so survives restarts. Writes are serialized by
+/// (<c>MetadataBudgetDayUtc</c> + <c>MetadataBudgetUsed</c>), resets when the day
+/// changes - at midnight server time since 1.32.0 (<see cref="DayStart"/>; 00:00 UTC
+/// before) - and so survives restarts. Writes are serialized by
 /// <see cref="MetadataGatewayState.StateLock"/> and done with a single UPDATE, so
 /// concurrent requests can never overspend.
 /// </summary>
@@ -38,7 +39,7 @@ public sealed class MetadataBudget
             .Select(s => new { s.MetadataBudgetDayUtc, s.MetadataBudgetUsed, s.MetadataDailyBudget })
             .FirstOrDefaultAsync(ct);
         var limit = row?.MetadataDailyBudget ?? MetadataSettingsService.DefaultDailyBudget;
-        var used = row?.MetadataBudgetDayUtc is { } day && day == Today() ? row.MetadataBudgetUsed : 0;
+        var used = IsToday(row?.MetadataBudgetDayUtc) ? row!.MetadataBudgetUsed : 0;
         return new Status(used, limit);
     }
 
@@ -66,10 +67,51 @@ public sealed class MetadataBudget
         }
     }
 
-    /// <summary>Midnight UTC of the current day (the stored day key).</summary>
-    public DateTimeOffset Today()
+    /// <summary>"Now" on the metadata clock (the injected <see cref="TimeProvider"/>) - for the gateway's retry times.</summary>
+    public DateTimeOffset UtcNow() => _time.GetUtcNow();
+
+    /// <summary>The start of the current budget day (the stored day key), in UTC.</summary>
+    public DateTimeOffset Today() => DayStart(_time.GetUtcNow(), _time.LocalTimeZone);
+
+    /// <summary>When the current budget day ends (the next day's start).</summary>
+    public DateTimeOffset NextDay()
     {
-        var now = _time.GetUtcNow().UtcDateTime;
-        return new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, TimeSpan.Zero);
+        var now = _time.GetUtcNow();
+        return DayStart(DayStart(now, _time.LocalTimeZone).AddHours(26), _time.LocalTimeZone);
+    }
+
+    /// <summary>
+    /// True when a stored day key is the current budget day. A key written before 1.32.0 (midnight UTC of the current UTC day)
+    /// still counts as today until the first write replaces it, so the switch to server time spends no extra budget.
+    /// </summary>
+    public bool IsToday(DateTimeOffset? stored) => IsToday(stored, _time.GetUtcNow(), _time.LocalTimeZone);
+
+    /// <inheritdoc cref="IsToday(DateTimeOffset?)"/>
+    public static bool IsToday(DateTimeOffset? stored, DateTimeOffset nowUtc, TimeZoneInfo zone)
+    {
+        if (stored is not { } day)
+            return false;
+        if (day == DayStart(nowUtc, zone))
+            return true;
+        var utc = nowUtc.UtcDateTime;
+        return LocalDay && day == new DateTimeOffset(utc.Year, utc.Month, utc.Day, 0, 0, 0, TimeSpan.Zero);
+    }
+
+    /// <summary>
+    /// 1.32.0 (provisional decision Q3 = B1): the budget day and the refresh cap roll over at midnight SERVER time, like every
+    /// other daily thing. false = 00:00 UTC (B2). The one switch for the day boundary.
+    /// </summary>
+    public static readonly bool LocalDay = true;
+
+    /// <summary>The start of the budget day containing <paramref name="nowUtc"/>: local midnight in <paramref name="zone"/> (an hour later when a clock change skips it).</summary>
+    public static DateTimeOffset DayStart(DateTimeOffset nowUtc, TimeZoneInfo zone)
+    {
+        if (!LocalDay)
+        {
+            var utc = nowUtc.UtcDateTime;
+            return new DateTimeOffset(utc.Year, utc.Month, utc.Day, 0, 0, 0, TimeSpan.Zero);
+        }
+        var date = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(nowUtc, zone).DateTime);
+        return Core.Scheduling.JobSchedule.SlotOn(date, zone, 0);
     }
 }

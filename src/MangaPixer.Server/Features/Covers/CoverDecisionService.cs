@@ -88,14 +88,21 @@ public sealed class CoverDecisionService
         public IReadOnlyList<string> OriginLocales { get; init; } = [];
         public IReadOnlyList<StoredCover> Covers { get; init; } = [];
 
-        /// <summary>The same series data seen from another node (its own nearest link: depth, link node).</summary>
-        public SeriesContext For(NearestLink link) => new()
+        /// <summary>
+        /// The node's folder cover preference is "File covers" (1.32.0): no web source (volume / main cover, poster) is offered, so the
+        /// decision is made from the files alone (a jacket crop, the local volume 1, the file default). Per node, not per series.
+        /// </summary>
+        public bool SkipWeb { get; init; }
+
+        /// <summary>The same series data seen from another node (its own nearest link: depth, link node, cover preference).</summary>
+        public SeriesContext For(NearestLink link, bool skipWeb = false) => new()
         {
             Link = link,
             Record = Record,
             CompanionId = CompanionId,
             OriginLocales = OriginLocales,
             Covers = Covers,
+            SkipWeb = skipWeb,
         };
 
         /// <summary>Changes whenever a stored cover of the companion is added, replaced or removed.</summary>
@@ -137,7 +144,7 @@ public sealed class CoverDecisionService
         var settings = await SettingsAsync(ct);
         var links = await CoverLinks.NearestAsync(_db, [nodeId], ct);
         links.TryGetValue(nodeId, out var link);
-        var series = await SeriesAsync(link, settings, ct);
+        var series = (await SeriesAsync(link, settings, ct)).For(link, FolderCoverRules.SkipsWebWork((await FolderCoverPreferences.OfAsync(_db, nodeId, ct))?.Preference));
 
         if (node.Kind == (int)CatalogNodeKind.Archive)
         {
@@ -163,6 +170,7 @@ public sealed class CoverDecisionService
         var (archiveIds, folderIds) = await DescendantsAsync(folderId, ct);
         var nodeIds = archiveIds.Concat(folderIds).Append(folderId).ToList();
         var links = await CoverLinks.NearestAsync(_db, nodeIds, ct);
+        var folderPreferences = await FolderCoverPreferences.NearestAsync(_db, nodeIds, ct);
         var seriesByRecord = new Dictionary<string, SeriesContext>(StringComparer.Ordinal);
 
         async Task<SeriesContext> SeriesFor(long id)
@@ -171,8 +179,8 @@ public sealed class CoverDecisionService
             var key = string.Create(CultureInfo.InvariantCulture, $"{l.LinkNodeId}:{(int)l.State}:{l.RecordId}");
             if (!seriesByRecord.TryGetValue(key, out var s))
                 seriesByRecord[key] = s = await SeriesAsync(l, settings, ct);
-            // Cached per series; the link (its depth) is each node's own.
-            return s.For(l);
+            // Cached per series; the link (its depth) and the folder cover preference are each node's own.
+            return s.For(l, folderPreferences.TryGetValue(id, out var preference) && FolderCoverRules.SkipsWebWork(preference.Preference));
         }
 
         var changed = 0;
@@ -373,10 +381,10 @@ public sealed class CoverDecisionService
     {
         if (chapter is not { } c || series.Link.RecordId is not { } recordId)
             return null;
-        var json = await _db.SeriesVolumeMaps.AsNoTracking()
-            .Where(m => m.RecordId == recordId && m.Source == (int)VolumeMapSource.MangaDexAggregate && m.State == (int)VolumeMapState.Ok)
-            .Select(m => m.VolumesJson).FirstOrDefaultAsync(ct);
-        return VolumeOfChapter(json, c);
+        // 1.32.0: the exact list the Volumes view uses - MangaDex's, completed by Wikipedia's.
+        var maps = await _db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == recordId).ToListAsync(ct);
+        var exact = Metadata.Reach.SeriesProgressLoader.ExactList(maps);
+        return exact.Volumes.Count == 0 ? null : VolumeOfChapter(VolumeMapJson.Write(exact.Volumes), c);
     }
 
     /// <summary>Reads <c>[{"v":"3","c":["17","18"]}]</c>: the integer volume listing <paramref name="chapter"/>, or null.</summary>
@@ -411,6 +419,8 @@ public sealed class CoverDecisionService
 
     private static WebCoverCandidate? WebVolume(SeriesContext series, Settings settings, int volume)
     {
+        if (series.SkipWeb)
+            return null;
         var stored = series.Covers.Where(c => c.Kind == (int)VolumeCoverKind.Volume && c.Volume == volume)
             .Select(c => (c.Locale, new WebCoverCandidate(AutoCoverSource.WebVolume, c.Id, c.Hash))).ToList();
         return CoverRules.PickLanguage(stored, settings.PreferredLocale, series.OriginLocales);
@@ -419,7 +429,7 @@ public sealed class CoverDecisionService
     private static WebCoverCandidate? WebMain(SeriesContext series, Settings settings)
     {
         var mains = series.Covers.Where(c => c.Kind == (int)VolumeCoverKind.Main).ToList();
-        if (mains.Count == 0)
+        if (series.SkipWeb || mains.Count == 0)
             return null;
         var stored = mains.Select(c => (c.Locale, new WebCoverCandidate(AutoCoverSource.WebMain, c.Id, c.Hash))).ToList();
         // The main cover is one image whatever its language: any stored one will do.
@@ -429,7 +439,7 @@ public sealed class CoverDecisionService
     }
 
     private static WebCoverCandidate? Poster(SeriesContext series) =>
-        series.Record is { ImageState: 1 } ? new WebCoverCandidate(AutoCoverSource.Poster, null, null) : null;
+        !series.SkipWeb && series.Record is { ImageState: 1 } ? new WebCoverCandidate(AutoCoverSource.Poster, null, null) : null;
 
     /// <summary>Fills in a candidate's hash: the stored one, else the worker hashes the stored file.</summary>
     private async Task<WebCoverCandidate> WithHashAsync(WebCoverCandidate candidate, SeriesContext series, CancellationToken ct)
@@ -518,9 +528,11 @@ public sealed class CoverDecisionService
         return removed > 0 ? CoverDecisionOutcome.Cleared : CoverDecisionOutcome.Unchanged;
     }
 
-    /// <summary>The record's refresh cadence: 90 days for a completed series, else 30.</summary>
-    private static TimeSpan RecheckInterval(MetadataRecordEntity? record) =>
-        record?.OriginStatus is { } status && status == (int)MetadataOriginStatus.Complete ? TimeSpan.FromDays(90) : TimeSpan.FromDays(30);
+    /// <summary>
+    /// The record's refresh cadence (<see cref="RefreshCadence"/>; 1.32.0: a cancelled series counts as finished here too, and the
+    /// stored per-record cadence - the admin's choice and the series' pace - wins once computed).
+    /// </summary>
+    private static TimeSpan RecheckInterval(MetadataRecordEntity? record) => RefreshCadence.AgeFor(record?.RefreshCadenceDays, record?.OriginStatus);
 
     private static string Key(params object?[] parts)
     {

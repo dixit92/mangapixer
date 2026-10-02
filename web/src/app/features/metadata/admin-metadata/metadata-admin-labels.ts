@@ -20,9 +20,18 @@ import { formatLabel } from '../series-info-labels';
  * them (`MetadataSummaryTileComponent`) so its in-page stats can switch to one without a
  * circular import between the two components.
  */
-export type AdminMetadataTab = 'settings' | 'review' | 'flags' | 'runs' | 'missing' | 'official';
-/** In tab order; 1.30.0 appends Official releases after Missing (the indexes of the others never move). */
-export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 'review', 'flags', 'runs', 'missing', 'official'];
+export type AdminMetadataTab = 'settings' | 'review' | 'flags' | 'runs' | 'missing' | 'completion';
+/**
+ * In tab order; 1.30.0 appends Official releases after Missing (the indexes of the others never move); 1.32.0 renames it Completion
+ * (`?tab=official` still opens it - {@link adminMetadataTabOf}).
+ */
+export const ADMIN_METADATA_TABS: readonly AdminMetadataTab[] = ['settings', 'review', 'flags', 'runs', 'missing', 'completion'];
+
+/** The tab of a `?tab=` value; the 1.30.0 key `official` is the Completion tab. */
+export function adminMetadataTabOf(value: string | null): AdminMetadataTab | null {
+  const tab = value === 'official' ? 'completion' : value;
+  return tab && (ADMIN_METADATA_TABS as readonly string[]).includes(tab) ? (tab as AdminMetadataTab) : null;
+}
 
 export interface ReviewTabDef {
   tab: MetadataReviewTab;
@@ -74,6 +83,11 @@ const REASONS: Record<string, { label: string; tip: string }> = {
   series_family: { label: 'Series family', tip: 'Another series of the same family also matched this name (its main story, a spin-off, side story, prequel or sequel). Check which one the folder holds.' },
   // The cover check after an automatic link (1.31.0): per volume and per language, never on one series image.
   cover_differs: { label: 'Cover differs', tip: 'The covers of this folder\'s volumes are different pictures from this series\' volume covers in your preferred language, and none matches in another language. It may be another work with the same title, another edition, or first pages that are not covers.' },
+  // Comics editions (1.32.0): the Grand Comics Database lists every edition and translation as its own series.
+  comics_start_year: { label: 'Start year fits', tip: 'This comics series started in the year the folder name gives (or one year off). Counts in its favour.' },
+  comics_language: { label: 'Other language', tip: 'This comics series is an edition in another language than your files (their ComicInfo language, else your preferred language). Counts against it, but never blocks a link.' },
+  comics_shape: { label: 'Issues or books?', tip: 'This comics series is published in the other shape: single issues where your files look like collected books (or the other way round), judged by page counts and words like TPB. Counts against it, but never blocks a link.' },
+  comics_publisher: { label: 'Publisher fits', tip: 'This comics series has the publisher named in your files\' ComicInfo. Counts in its favour.' },
 };
 
 export function reasonLabel(code: string): string {
@@ -202,7 +216,7 @@ const WAITING: Record<string, string> = {
   automatic_off: 'Automatic matching is off.',
   metadata_disabled: 'Fetching from the web is off.',
   metadata_network_disabled: 'Web lookups are disabled by the server configuration.',
-  budget_exhausted: 'Today\'s request budget is spent. Automatic work continues after 00:00 UTC, or raise the budget.',
+  budget_exhausted: 'Today\'s request budget is spent. Automatic work continues after midnight server time, or raise the budget.',
   provider_backoff: 'MangaUpdates asked MangaPixer to slow down.',
   provider_not_allowed: 'MangaUpdates is off the provider allowlist. Add it back in Settings to continue.',
 };

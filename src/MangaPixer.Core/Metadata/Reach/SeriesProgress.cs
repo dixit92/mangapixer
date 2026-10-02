@@ -37,6 +37,9 @@ public sealed record ProgressFacts(
 
     /// <summary>The origin run has ended (complete, or cancelled there).</summary>
     public bool OriginEnded => OriginStatus is MetadataOriginStatus.Complete or MetadataOriginStatus.Cancelled;
+
+    /// <summary>The preferred language is English (the MangaUpdates facts apply).</summary>
+    public bool IsEnglish => string.Equals(Language, "en", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>What <see cref="SeriesProgress.Evaluate"/> found.</summary>
@@ -77,7 +80,14 @@ public sealed record ProgressResult
     public int? CompletionHeld { get; init; }
     public bool CompletionInChapters { get; init; }
 
+    /// <summary>1.32.0: the one answer of the Completion tab (<see cref="SeriesAnswers"/>).</summary>
+    public SeriesAnswer Answer { get; init; }
+    public SeriesAnswerReason AnswerReason { get; init; }
+
     public int MissingChapterCount => ChapterHoles.Count + ChaptersBehind;
+
+    /// <summary>Something released in the preferred language (or a hole below the highest unit here) is not in the folder.</summary>
+    public bool AnythingMissing => MissingVolumes.Count > 0 || MissingChapterCount > 0;
 }
 
 public static class SeriesProgress
@@ -119,7 +129,7 @@ public static class SeriesProgress
         ArgumentNullException.ThrowIfNull(rows);
         ArgumentNullException.ThrowIfNull(facts);
         if (restarts)
-            return new ProgressResult { Facts = facts, Reach = ReachResult.Empty, Restarts = true };
+            return SeriesAnswers.Apply(new ProgressResult { Facts = facts, Reach = ReachResult.Empty, Restarts = true }, 0);
 
         map ??= VolumeMapInput.Empty;
         map = map with
@@ -132,7 +142,7 @@ public static class SeriesProgress
         var archives = rows.Where(r => r.Kind == GroupingRowKind.Archive).ToList();
         var reach = SeriesReach.Of(archives, map);
         if (!reach.HasNumbers)
-            return new ProgressResult { Facts = facts, Reach = reach };
+            return SeriesAnswers.Apply(new ProgressResult { Facts = facts, Reach = reach }, archives.Count);
 
         var grouping = VolumeGrouping.Group(archives, map, markMissingVolumes: true);
         var present = reach.TouchedVolumes.ToList();
@@ -184,7 +194,7 @@ public static class SeriesProgress
             : [];
 
         var (volumeTotal, volumeSource) = VolumeTotal(facts);
-        return Complete(new ProgressResult
+        return SeriesAnswers.Apply(Complete(new ProgressResult
         {
             VolumeTotal = volumeTotal,
             VolumeTotalSource = volumeSource,
@@ -197,7 +207,7 @@ public static class SeriesProgress
             ChapterTotal = total,
             ChapterTotalSource = source,
             UpgradeVolumes = upgrades,
-        }, map);
+        }, map), archives.Count);
     }
 
     private static double? Ratio(ProgressFacts facts) => facts.ChaptersPerVolume is { } r && r >= 1 ? r : null;
@@ -233,9 +243,16 @@ public static class SeriesProgress
 
     /// <summary>
     /// The completion mark (owner, 1.30.0, like Manga-list's Completed column cross-checked with the library): the first basis the
-    /// folder holds whole - the finished official edition (volumes 1..N), a finished English scanlation (every chapter to the last),
-    /// the ended origin run (its volumes, else its chapters) - is a Complete collection; a series finished IN THE PREFERRED LANGUAGE
+    /// folder holds whole - the finished official edition (volumes 1..N), every chapter released in the language (to the last), the
+    /// ended origin run (its volumes, else its chapters) - is a Complete collection; a series finished IN THE PREFERRED LANGUAGE
     /// (bases 1-2) that the folder does not hold whole is a prompt. A complete run of chapters counts as holding its volume.
+    /// <para>
+    /// 1.32.0 (Completion tab, owner-approved): every basis needs the ORIGIN RUN to have ended (complete or cancelled) - a finished
+    /// English edition of a running series is not the end; every chapter is out when MangaUpdates says so (English) or, for another
+    /// language, when the released list reaches the last chapter anything knows; a folder of volume FILES with a known volume edition in
+    /// the language is never prompted by the chapter release (the volume edition decides); a chapter release covered by an official
+    /// chapter-by-chapter publisher is named <see cref="CompletionBasis.OfficialChapters"/>.
+    /// </para>
     /// </summary>
     private static ProgressResult Complete(ProgressResult r, VolumeMapInput map)
     {
@@ -255,7 +272,7 @@ public static class SeriesProgress
         bool WholeByVolumes(int n) => Enumerable.Range(1, Math.Min(n, MissingUnits.MaxNumber)).All(reach.VolumeFiles.Contains) || ReachesKnownLast();
 
         var candidates = new List<(CompletionBasis Basis, int Target, int Held, bool Chapters, bool InLanguage, bool Whole)>();
-        if (f.OfficialVolumes is { } n && n > 0
+        if (f.OriginEnded && f.OfficialVolumes is { } n && n > 0
             && (f.OfficialStatus == MetadataOriginStatus.Complete
                 || (f.OfficialStatus is null && f.OriginStatus == MetadataOriginStatus.Complete && f.OriginVolumes is { } originTotal && n >= originTotal)))
         {
@@ -263,10 +280,17 @@ public static class SeriesProgress
         }
         // The last chapter is the HIGHEST extent anything knows (1.30.0 soak test: the latest release said 51 while chapters to 55
         // were listed as released - the series read "Complete collection" next to "4 chapters missing").
-        if (f.ScanlationComplete == true && f.OriginStatus == MetadataOriginStatus.Complete
+        if (f.OriginEnded && ChaptersFinished(f, map)
             && new[] { f.LatestChapter, f.OriginChapters, f.ReleasedChapter, LastListedChapter(map) }.Max() is { } last && last > 0)
         {
-            candidates.Add((CompletionBasis.AllChapters, last, HeldChapters(last), true, true, true));
+            // A folder of volume files with a known volume edition in the language is judged by that edition, never prompted by the
+            // chapter release (1.32.0 rule V: an English edition still coming is "everything released so far", not "missing some").
+            var inLanguage = !(SeriesAnswers.CollectsVolumes(reach) && f.OfficialVolumes is > 0);
+            var basis = f.OfficialChapters is { } oc && oc >= last
+                || (f.OfficialVolumes is null && f.OfficialChapters is not null && f.OfficialStatus == MetadataOriginStatus.Complete)
+                ? CompletionBasis.OfficialChapters
+                : CompletionBasis.AllChapters;
+            candidates.Add((basis, last, HeldChapters(last), true, inLanguage, true));
         }
         if (f.OriginEnded)
         {
@@ -301,6 +325,18 @@ public static class SeriesProgress
             };
         }
         return r;
+    }
+
+    // Every chapter is out in the language: MangaUpdates' "completely released in English" for English; for another language the
+    // released list reaching the last chapter the origin or the volume list knows (1.32.0; no hard-coded English).
+    private static bool ChaptersFinished(ProgressFacts f, VolumeMapInput map)
+    {
+        if (f.ScanlationComplete == true)
+            return true;
+        if (f.IsEnglish)
+            return false;
+        var end = new[] { f.OriginChapters, LastListedChapter(map) }.Max();
+        return end is { } e && e > 0 && f.ReleasedChapter is { } released && released >= e;
     }
 
     private static int? LastListedChapter(VolumeMapInput map)
@@ -407,6 +443,8 @@ public static class SeriesProgress
             CompletionTarget = r.CompletionTarget,
             CompletionHeld = r.CompletionHeld,
             CompletionInChapters = r.CompletionInChapters,
+            Answer = r.Answer,
+            AnswerReason = r.AnswerReason,
         };
     }
 }

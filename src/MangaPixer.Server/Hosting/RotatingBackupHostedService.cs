@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangapixer.Server.Hosting;
 
+using com.lifepixer.mangapixer.Core.Scheduling;
+using com.lifepixer.mangapixer.Server.Features.Jobs;
 using com.lifepixer.mangapixer.Server.Logging;
 
 using com.lifepixer.mangapixer.Server.Operations;
@@ -30,19 +32,38 @@ public sealed class RotatingBackupHostedService : BackgroundService
     private readonly RotatingBackupState _state;
     private readonly TimeProvider _time;
     private readonly ILogger<RotatingBackupHostedService> _logger;
+    private readonly JobRunRecorder? _runs;
 
     public RotatingBackupHostedService(
         IServiceProvider services,
         BackupSettingsResolver settings,
         RotatingBackupState state,
         TimeProvider time,
-        ILogger<RotatingBackupHostedService> logger)
+        ILogger<RotatingBackupHostedService> logger,
+        JobRunRecorder? runs = null)
     {
+        _runs = runs;
         _services = services;
         _settings = settings;
         _state = state;
         _time = time;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Next scheduled run (1.32.0): with an hour and an interval of whole days, at that hour (server time) every N days counted from
+    /// the last attempt (<see cref="JobSchedule"/>; a slot missed while the server was down is caught up once); otherwise
+    /// <see cref="NextDue(DateTimeOffset, DateTimeOffset?, TimeSpan)"/>. Never before start + <see cref="InitialDelay"/>.
+    /// </summary>
+    public static DateTimeOffset NextDue(DateTimeOffset startedUtc, DateTimeOffset nowUtc, TimeZoneInfo zone, DateTimeOffset? lastAttemptUtc,
+        EffectiveBackupSettings settings)
+    {
+        if (settings.Hour is not { } hour || settings.WholeDays is not { } days)
+            return NextDue(startedUtc, lastAttemptUtc, settings.Interval);
+        var earliest = startedUtc + InitialDelay;
+        // No backup yet: the floor is the scheduler's start, so the first slot after it is not skipped.
+        var due = JobSchedule.NextDue(nowUtc, zone, new TimeOfDaySchedule(hour, EveryDays: days), lastAttemptUtc ?? startedUtc);
+        return due > earliest ? due : earliest;
     }
 
     /// <summary>Next scheduled run for the given start, last attempt, and interval.</summary>
@@ -95,7 +116,7 @@ public sealed class RotatingBackupHostedService : BackgroundService
 
             var lastAttempt = Max(seeded, _state.LastAttemptUtc);
             var wait = settings.Enabled
-                ? NextDue(started, lastAttempt, settings.Interval) - _time.GetUtcNow()
+                ? NextDue(started, _time.GetUtcNow(), _time.LocalTimeZone, lastAttempt, settings) - _time.GetUtcNow()
                 : Timeout.InfiniteTimeSpan;
 
             if (wait == Timeout.InfiniteTimeSpan || wait > TimeSpan.Zero)
@@ -122,22 +143,41 @@ public sealed class RotatingBackupHostedService : BackgroundService
 
     private async Task RunOnceAsync(CancellationToken ct)
     {
+        // 1.32.0: recorded as the backup job's run (the Scheduled jobs section); the schedule itself keeps its snapshot seed.
+        var started = _runs is null ? _time.GetUtcNow() : await _runs.StartedAsync(ScheduledJobKeys.Backup, ct);
+        var result = JobOutcomes.Failed;
+        string? detail = null;
         try
         {
             using var scope = _services.CreateScope();
             var rotating = scope.ServiceProvider.GetRequiredService<RotatingBackupService>();
             var outcome = await rotating.RunAsync(ct);
-            if (!outcome.Succeeded)
+            if (outcome.Succeeded)
+            {
+                result = JobOutcomes.Ok;
+                detail = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{outcome.RetainedCount} kept");
+            }
+            else
+            {
+                detail = outcome.FailureCode ?? "backup_failed";
                 _logger.LogWarning(LogEvents.Backup.ScheduledRotatingFailed,
                     "Scheduled rotating backup failed: {Code} (retained {Count}).", outcome.FailureCode ?? "backup_failed", outcome.RetainedCount);
+            }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
+            result = JobOutcomes.Skipped;
         }
         catch (Exception ex)
         {
+            detail = ex.GetType().Name;
             // Type only: an exception message can carry an absolute path.
             _logger.LogWarning(LogEvents.Backup.ScheduledRotatingError, "Scheduled rotating backup failed: {Error}", ex.GetType().Name);
+        }
+        finally
+        {
+            if (_runs is not null)
+                await _runs.FinishedAsync(ScheduledJobKeys.Backup, started, result, detail, CancellationToken.None);
         }
     }
 

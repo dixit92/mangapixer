@@ -142,7 +142,8 @@ const COLUMNS: SortableColumn[] = [
     </mat-card>
   `,
   styles: [`
-    mat-card { margin-bottom: 16px; }
+    :host { display: block; min-width: 0; }
+    mat-card { margin: 0; }
     .muted { color: #999; font-size: 14px; }
     .error { color: #f44336; font-size: 14px; margin: 8px 0; }
     .scope-note { color: #999; font-size: 13px; margin: 0 0 8px; }

@@ -113,7 +113,7 @@ public sealed class MetadataIdentifyHttpTests
 
         // The provider is registered now, but only the gateway ever resolves it.
         var registry = factory.Services.GetRequiredService<com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MetadataProviderRegistry>();
-        Assert.Equal(["mangaupdates"], registry.All.Select(p => p.Id).ToArray());
+        Assert.Equal(["mangaupdates", "gcd"], registry.All.Select(p => p.Id).ToArray());
     }
 
     // --- Authorization ---
@@ -273,10 +273,14 @@ public sealed class MetadataIdentifyHttpTests
         Assert.Empty(Directory.GetFiles(Path.Combine(factory.DataRoot, "metadata-images")));
 
         // Nothing but approved hosts was ever contacted; MangaDex only by the linked record's title (never a folder name).
-        Assert.All(factory.Handler.Seen, s => Assert.Contains(s.Uri.Host, new[] { "api.mangaupdates.com", "cdn.mangaupdates.com", "api.mangadex.org" }));
+        // 1.32.0: the admin's link also refreshes the companions - Wikipedia's only by the record number sent to Wikidata (nothing of the folder).
+        Assert.All(factory.Handler.Seen, s => Assert.Contains(s.Uri.Host,
+            new[] { "api.mangaupdates.com", "cdn.mangaupdates.com", "api.mangadex.org", MetadataHttp.WikidataHost, MetadataHttp.WikipediaHost }));
+        Assert.All(factory.Handler.Seen.Where(s => s.Uri.Host is MetadataHttp.WikidataHost or MetadataHttp.WikipediaHost),
+            s => Assert.StartsWith("?action=query&list=search&srsearch=haswbstatement%3AP11149%3D", s.Uri.Query, StringComparison.Ordinal));
         var mangaDex = Assert.Single(factory.Handler.Seen, s => s.Uri.Host == "api.mangadex.org");
         Assert.StartsWith("?title=Berserk&", Uri.UnescapeDataString(mangaDex.Uri.Query), StringComparison.Ordinal);
-        Assert.All(factory.Handler.Seen, s => Assert.Equal("MangaPixer-Metadata", s.Headers["User-Agent"]));
+        Assert.All(factory.Handler.Seen, s => Assert.Equal(MetadataHttp.UserAgent, s.Headers["User-Agent"]));
     }
 
     [Fact]
@@ -458,6 +462,9 @@ public sealed class MetadataNetworkWebApplicationFactory : WebApplicationFactory
             {
                 MetadataHttp.MangaUpdatesApiClient, MetadataHttp.MangaUpdatesImageClient, MetadataHttp.AniListClient,
                 MetadataHttp.MangaDexApiClient, MetadataHttp.MangaDexImageClient, UpdateCheckService.HttpClientName,
+                // 1.32.0: the Grand Comics Database (Identify's second site, comics routing).
+                MetadataHttp.GcdApiClient, MetadataHttp.GcdImageClient,
+                MetadataHttp.WikipediaClient, MetadataHttp.WikidataClient,
             })
                 services.AddHttpClient(name).ConfigurePrimaryHttpMessageHandler(() => Handler);
 

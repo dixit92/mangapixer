@@ -60,9 +60,12 @@ public sealed record ProviderRef(string Provider, string ExternalId);
 /// <see cref="AllowDoujinshi"/> (stage 2: automatic searches below a folder whose Content is "Doujinshi &amp; adult
 /// one-shots") keeps doujinshi in that filter. Nothing else narrows a search: 1.30.0 retired the 1.28.0 declared-type
 /// filter (owner: a declared type is a scoring hint, never a filter), so a declaration never leaves the server.
+/// <see cref="StartYear"/> (1.32.0, the Grand Comics Database only): the <c>(YYYY)</c> year of the work's own name, sent to narrow
+/// the search to series that began that year; MangaUpdates ignores it.
 /// </summary>
 public sealed record ProviderSearchQuery(
-    string Text, long LibraryId, int Page = 1, int PerPage = 10, bool HideDoujinshiAndNovels = false, bool AllowDoujinshi = false);
+    string Text, long LibraryId, int Page = 1, int PerPage = 10, bool HideDoujinshiAndNovels = false, bool AllowDoujinshi = false,
+    int? StartYear = null);
 
 public sealed record ProviderSearchPage(IReadOnlyList<ProviderSearchHit> Hits, int TotalHits);
 
@@ -77,6 +80,12 @@ public sealed record ProviderSearchHit
     public string? ProviderType { get; init; }
     public int? Year { get; init; }
     public string? ImageRemoteUrl { get; init; }
+
+    /// <summary>
+    /// The full record, when the search answer already carries it (1.32.0: a Grand Comics Database search returns whole series,
+    /// so no GET is needed to score or link a hit - every request counts at 25 an hour). Null for MangaUpdates.
+    /// </summary>
+    public ProviderSeriesRecord? Record { get; init; }
 }
 
 /// <summary>
@@ -131,4 +140,13 @@ public sealed record ProviderSeriesRecord
     public string? SiteUrl { get; init; }
     public string? ImageRemoteUrl { get; init; }
     public DateTimeOffset? ProviderUpdatedAt { get; init; }
+
+    /// <summary>The edition's language, ISO 639-1 (1.32.0, comics records; scoring evidence, kept in <see cref="ExtraJson"/>).</summary>
+    public string? Language { get; init; }
+
+    /// <summary>Single issues or collected books (1.32.0, comics records; scoring evidence, kept in <see cref="ExtraJson"/>).</summary>
+    public Core.Metadata.AutoMatch.ComicsShape Shape { get; init; }
+
+    /// <summary>Small provider-specific leftovers stored in <c>metadata_records.ExtraJson</c> (1.32.0: GCD country, language, format ...); null keeps the column.</summary>
+    public string? ExtraJson { get; init; }
 }

@@ -19,6 +19,7 @@ These guides are for people who run MangaPixer on their own hardware. They descr
 | [Library layout](library-layout.md) | How your folders and archives appear in the app, supported formats, sorting, filters, favorites, rescans and moves, and the read-only guarantee. |
 | [Users and access](users-and-access.md) | First-run setup, admins and readers, activation links, library access, analytics, Private libraries, Incognito, sessions. |
 | [Backup and restore](backup-and-restore.md) | Automatic database backups, backup settings and a custom backup folder, restoring a backup, what a backup contains, importing YACReader progress. |
+| [Scheduled jobs](scheduled-jobs.md) | What MangaPixer does on its own and when - scans, the series information refresh and its cadence, backups, cleaning - with the times you can choose (server time). |
 | [Trash](trash.md) | What happens to removed files: the trash, how long it keeps reading state (Daily to Yearly - also the window in which a moved series is recognized), emptying it now or automatically, and Clean bundles. |
 | [Reverse proxy and HTTPS](reverse-proxy-and-https.md) | Putting MangaPixer behind Caddy or nginx for TLS, the forwarded headers it trusts, and exposing it to the internet. |
 
@@ -31,7 +32,7 @@ These guides are for people who run MangaPixer on their own hardware. They descr
 | [Series information](series-information.md) | Series details from ComicInfo.xml and, if an admin allows it, MangaUpdates: the panel and series page, search by alternative title, Identify and automatic matching, what is sent, the Metadata Manager page for admins. |
 | [Declared facts](declared-hints.md) | For admins: state the type (manga, manhwa, webtoon, comic, ...) and the creators of a folder or a whole library, how declarations are inherited, and how a disagreement with the linked series is shown. |
 | [Missing volumes and chapters](missing-report.md) | How far behind each linked series is - volumes and chapters you have against the English and original totals, holes in your numbering, and the optional AniList conversion for chapter-only series. |
-| [Official releases](official-releases.md) | Volumes out officially in your language that you hold only as chapters, series finished in your language that you don't hold whole, and your complete collections - from stored data, nothing is fetched. |
+| [Completion](official-releases.md) | Has each linked series ended, and do you have all of it - one answer per series (finished and held whole, finished but missing some, everything released so far, missing some, can't tell), with the edition and the upgrades; from stored data, nothing is fetched. |
 | [Covers](covers.md) | How cards get their cover - the file's page 1, the front half of a jacket spread, or a saved cover from the web for linked series - and how admins choose a cover with **Choose cover...**. |
 | [Volumes view](volumes.md) | How a series' chapters group into volume stacks ordered by volume, what the "8/9" mark and the missing-chapter cards mean, and the Volumes / Folders switch. |
 

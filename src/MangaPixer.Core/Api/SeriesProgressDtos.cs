@@ -88,16 +88,19 @@ public sealed record SeriesTrackersDto
     public int? ReleasedChapter { get; init; }
 }
 
-/// <summary>Whether the folder holds a finished series whole.</summary>
+/// <summary>
+/// Whether the folder holds a finished series whole. 1.32.0: "finished" always needs the original run to have ended (complete or
+/// cancelled where it comes from) - a finished English edition of a running series is not the end of the story.
+/// </summary>
 public enum SeriesCompletion
 {
     /// <summary>Not finished (or not known to be), or no numbers to compare.</summary>
     None = 0,
 
-    /// <summary>Finished in the preferred language (official edition or scanlation), but the folder does not hold all of it.</summary>
+    /// <summary>Finished in the preferred language (official edition or every chapter), but the folder does not hold all of it.</summary>
     FinishedNotHeld = 1,
 
-    /// <summary>Finished, and the folder holds all of it ("Complete collection").</summary>
+    /// <summary>Finished, and the folder holds all of it ("Finished - you have it all").</summary>
     CompleteCollection = 2,
 }
 
@@ -112,6 +115,70 @@ public enum CompletionBasis
 
     /// <summary>The whole run in the country of origin (complete or cancelled there).</summary>
     OriginRun = 2,
+
+    /// <summary>
+    /// 1.32.0: every chapter, released officially in the preferred language by a publisher that releases chapter by chapter (MANGA
+    /// Plus-style) - the same rule as <see cref="AllChapters"/>, named for its known source.
+    /// </summary>
+    OfficialChapters = 3,
+}
+
+/// <summary>
+/// The one answer a linked series gets on the Completion tab (1.32.0, owner-approved wording): has it ended, and does the folder hold
+/// all of it. Upgrades are a separate flag (<see cref="SeriesProgressDto.UpgradeCount"/>).
+/// </summary>
+public enum SeriesAnswer
+{
+    /// <summary>"Can't tell": the names carry no numbers, numbering restarts, or nothing is known to compare with.</summary>
+    CantTell = 0,
+
+    /// <summary>"Finished - you have it all": the original run ended and the folder holds the whole edition it collects.</summary>
+    HaveItAll = 1,
+
+    /// <summary>"Finished - missing some": the original run ended and something released, or the finished edition, is not all here.</summary>
+    FinishedMissing = 2,
+
+    /// <summary>"Everything released so far": nothing released in the preferred language is missing, and the series is not over there.</summary>
+    UpToDate = 3,
+
+    /// <summary>"Missing some": the series still runs and something released in the preferred language is not here.</summary>
+    MissingSome = 4,
+}
+
+/// <summary>Why a <see cref="SeriesAnswer"/> was given (it picks the sentence).</summary>
+public enum SeriesAnswerReason
+{
+    None = 0,
+
+    /// <summary>Still running in the country of origin.</summary>
+    Running = 1,
+
+    /// <summary>On hiatus in the country of origin.</summary>
+    OnHiatus = 2,
+
+    /// <summary>The record does not say whether the series has ended.</summary>
+    StatusUnknown = 3,
+
+    /// <summary>Ended in the country of origin, but not all of it is out in the preferred language yet.</summary>
+    WaitingForLanguage = 4,
+
+    /// <summary>Ended in the country of origin; the edition in the preferred language was dropped by its publisher.</summary>
+    LanguageEditionDropped = 5,
+
+    /// <summary>No archive name carries a volume or chapter number.</summary>
+    NoNumbers = 6,
+
+    /// <summary>Volume or chapter numbers start again in subfolders.</summary>
+    NumberingRestarts = 7,
+
+    /// <summary>Nothing is known about what is released in the preferred language.</summary>
+    NothingKnownReleased = 8,
+
+    /// <summary>A folder of volumes of a running series, and no volume total is known in the preferred language.</summary>
+    NoVolumeTotal = 9,
+
+    /// <summary>A one-shot (one volume, ended) whose file carries no number.</summary>
+    OneShot = 10,
 }
 
 /// <summary>A linked series' progress: the trackers, the folder's reach, what is missing, the upgrades and the completion.</summary>
@@ -141,6 +208,12 @@ public sealed record SeriesProgressDto
     public required SeriesCompletion Completion { get; init; }
     public CompletionBasis? CompletionBasis { get; init; }
 
+    /// <summary>
+    /// 1.32.0: set when the series' volume list was completed from a Wikipedia page ("Volume list: MangaDex, completed from Wikipedia"):
+    /// the credit and link every surface that shows such a list carries. Null when no Wikipedia data was used.
+    /// </summary>
+    public ListCreditDto? ListCredit { get; init; }
+
     /// <summary>The number of volumes (bases OfficialVolumes / OriginRun by volumes) or chapters the completion is about.</summary>
     public int? CompletionTarget { get; init; }
 
@@ -149,4 +222,10 @@ public sealed record SeriesProgressDto
 
     /// <summary>True when <see cref="CompletionTarget"/> counts chapters (basis AllChapters, or an origin run known only in chapters).</summary>
     public bool CompletionInChapters { get; init; }
+
+    /// <summary>1.32.0: the one answer of the Completion tab (also behind the completion mark).</summary>
+    public SeriesAnswer Answer { get; init; }
+
+    /// <summary>1.32.0: why <see cref="Answer"/> was given.</summary>
+    public SeriesAnswerReason AnswerReason { get; init; }
 }

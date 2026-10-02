@@ -553,6 +553,15 @@ public sealed record LibraryDto
     /// library responses.
     /// </summary>
     public DateTimeOffset? NextScheduledScanAt { get; init; }
+
+    /// <summary>
+    /// Server-local hour (0-23) of a Daily / Weekly automatic scan (1.32.0), or null for "Any time" (one interval after the
+    /// last scan). Admin library responses only.
+    /// </summary>
+    public int? ScanHour { get; init; }
+
+    /// <summary>Weekday of a Weekly scan with an hour (0 = Sunday ... 6), or null (Sunday). Admin library responses only.</summary>
+    public int? ScanWeekday { get; init; }
 }
 
 /// <summary>
@@ -711,11 +720,18 @@ public sealed record SetLibraryIconRequest
 
 /// <summary>
 /// Sets a library's automatic scan schedule (1.23.0): one of
-/// <see cref="LibraryScanSchedules.Allowed"/>, or null for the default (daily).
+/// <see cref="LibraryScanSchedules.Allowed"/>, or null for the default (daily). 1.32.0: the whole schedule - with
+/// <see cref="ScanHour"/> (Daily / Weekly only; null = any time) and <see cref="ScanWeekday"/> (Weekly with an hour only).
 /// </summary>
 public sealed record SetLibraryScanScheduleRequest
 {
     public string? ScanSchedule { get; init; }
+
+    /// <summary>Server-local hour 0-23, or null for "Any time".</summary>
+    public int? ScanHour { get; init; }
+
+    /// <summary>0 = Sunday ... 6 = Saturday, or null (Sunday when an hour is set).</summary>
+    public int? ScanWeekday { get; init; }
 }
 
 /// <summary>

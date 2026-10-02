@@ -63,7 +63,7 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         using var body = JsonDocument.Parse(seen.Body!);
         Assert.Equal(["search", "page", "perpage"], body.RootElement.EnumerateObject().Select(p => p.Name).ToArray());
         Assert.Equal("Solo Leveling", body.RootElement.GetProperty("search").GetString());
-        Assert.Equal("MangaPixer-Metadata", seen.Headers["User-Agent"]);
+        Assert.Equal(MetadataHttp.UserAgent, seen.Headers["User-Agent"]);
         Assert.False(seen.Headers.ContainsKey("Cookie"));
         Assert.False(seen.Headers.ContainsKey("Authorization"));
         Assert.False(seen.Headers.ContainsKey("Referer"));
@@ -257,7 +257,7 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         var client = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IHttpClientFactory>(sp)
             .CreateClient(MetadataHttp.MangaUpdatesApiClient);
         Assert.Equal(TimeSpan.FromSeconds(10), client.Timeout);
-        Assert.Equal("MangaPixer-Metadata", client.DefaultRequestHeaders.UserAgent.ToString());
+        Assert.Equal(MetadataHttp.UserAgent, client.DefaultRequestHeaders.UserAgent.ToString());
     }
 
     // --- References ---

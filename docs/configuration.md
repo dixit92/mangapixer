@@ -90,6 +90,7 @@ How often each library is scanned is set per library in the web app (**Auto-scan
 |---|---|---|
 | `MangaPixer:Backups:Enabled` (`MangaPixer__Backups__Enabled`) | `true` | Turns the scheduled database backups on or off. **Back up now** keeps working either way. |
 | `MangaPixer:Backups:IntervalHours` (`MangaPixer__Backups__IntervalHours`) | `24` | Hours between scheduled backups. Decimals are allowed (`0.5` = 30 minutes). The first backup runs 2 minutes after the server starts. |
+| `MangaPixer:Backups:Hour` (`MangaPixer__Backups__Hour`) | not set (any time) | *1.32.0.* Hour of the day (0-23, server time) for backups whose interval is whole days (24, 48, ... hours): they then run at that hour every 1, 2, ... days. Ignored for shorter intervals. When set, the hour cannot be changed in [Scheduled jobs](scheduled-jobs.md). |
 | `MangaPixer:Backups:RetentionCount` (`MangaPixer__Backups__RetentionCount`) | `7` | How many `rotating-*.db` snapshots to keep. Older ones are deleted. Pre-migration and pre-restore snapshots are kept separately (the newest 3 of each). |
 | `MangaPixer:Backups:Location` (`MangaPixer__Backups__Location`) | not set (`<DataRoot>/backups`) | Absolute folder for the rotating backups, for example `/backups` next to a bind mount. It must pass the same checks as a folder chosen in the web app. If it fails them, backups stop (they never fall back to the data folder) and `/health/ready` reports `Degraded`. |
 | `MangaPixer:Backups:AllowLocationChange` (`MangaPixer__Backups__AllowLocationChange`) | `true` | `false` locks the backup location in the web app, even when no `Location` is set. |
@@ -133,6 +134,7 @@ A few server-wide settings are changed by an admin in **MangaPixer Administratio
 - **Update Checker**: off by default. When an admin ticks **Check for updates**, the server asks the GitHub Releases API for MangaPixer's latest release at most once a day (or when you select **Check now**) and shows **Update available** or **Up to date** in the admin page. The request carries no instance identifier, user data, paths or telemetry; apart from web series information (below), it is the only call MangaPixer makes to the internet, and only while this setting is on.
 - **Metadata Manager** (its own page, `/admin/metadata`, opened from the account menu, **Settings** tab): **Show series information**, **Fetch from the web** (off by default; turning it on needs the consent tick), **Automatic matching** (off by default, with its own consent tick), the **Daily request budget** (5000 by default) and the per-library switches. See [Series information](series-information.md#admin-settings). `Metadata__NetworkDisabled=true` (config key `Metadata:NetworkDisabled`) turns web lookups off regardless of the admin setting, for operators who want certainty; the Metadata Manager page then says so.
 - **Library icons, reading directions and automatic scan schedules**, set per library on the **Libraries** card.
+- **Scheduled jobs** (*1.32.0*): the hours of the daily jobs (series information refresh, backups, trash, cache clean-up), each library's scan time and how often series information is refreshed. See [Scheduled jobs](scheduled-jobs.md).
 
 ## Fixed behavior
 
@@ -140,6 +142,6 @@ These are built in and have no setting:
 
 - Sign-in sessions last 7 days from your last activity.
 - Passwords need at least 8 characters, including a lowercase letter.
-- Expired sessions are cleaned up every hour. The cache-size pass runs daily.
+- Expired sessions are cleaned up every hour. The cache-size pass runs daily, at the hour chosen in [Scheduled jobs](scheduled-jobs.md) (05:00 server time by default).
 - Automatic scans run one library at a time and never alongside another scan.
 - Archive-processing time limits (for example 120 seconds to open an archive on a drive that is spinning up).

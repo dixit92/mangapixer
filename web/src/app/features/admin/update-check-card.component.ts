@@ -98,7 +98,8 @@ import { ApiError, UpdateCheckStatusDto } from '../../core/api/api-types';
     </mat-card>
   `,
   styles: [`
-    mat-card { margin-bottom: 16px; }
+    :host { display: block; min-width: 0; }
+    mat-card { margin: 0; }
     .scope-note { color: #999; font-size: 13px; margin: 8px 0 12px; }
     .status { display: flex; align-items: center; gap: 8px; min-height: 24px; margin-bottom: 4px; }
     .status .avail { color: #ffb300; font-weight: 500; }

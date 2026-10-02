@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
 using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -68,9 +69,11 @@ public sealed class FavoritesService
 
         try
         {
-            await _db.SaveChangesAsync(ct);
+            // The scope keeps EF's own error line for the lost race below out of the log (see ExpectedRaceScope).
+            using (ExpectedRaceScope.Begin())
+                await _db.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (ExpectedRaceScope.IsConstraintViolation(ex))
         {
             // Lost a race against a concurrent add — the unique (UserId, CatalogNodeId)
             // index rejected the duplicate. The desired end state (favorited) holds, so

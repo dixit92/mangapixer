@@ -498,7 +498,9 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         // Acquire a worker slot, briefly waiting if all are busy (e.g. mid-scan).
         var slot = await AcquireSlotAsync(ct);
         if (slot is null)
-            return PageExtractionOutcome.Failed("busy", "No worker available; try again.");
+            return ct.IsCancellationRequested
+                ? PageExtractionOutcome.Failed("cancelled", "Request cancelled.")
+                : PageExtractionOutcome.Failed("busy", "No worker available; try again.");
 
         var jobId = "extract-" + Guid.NewGuid().ToString("N");
         try
@@ -555,7 +557,11 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                 var timeout = Task.Delay(_options.AnalysisTimeout + _options.SourceOpenTimeout, ct);
                 var done = await Task.WhenAny(tcs.Task, timeout);
                 if (done != tcs.Task)
+                {
+                    // The delay also completes (cancelled) when the CLIENT gives up; that is not a timeout.
+                    ct.ThrowIfCancellationRequested();
                     return PageExtractionOutcome.Failed("timeout", "Extraction timed out.");
+                }
                 return await tcs.Task;
             }
             finally
@@ -598,7 +604,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 
         var slot = await AcquireSlotAsync(ct);
         if (slot is null)
-            return ComicInfoReadOutcome.Failed("busy");
+            return ComicInfoReadOutcome.Failed(ct.IsCancellationRequested ? "cancelled" : "busy");
 
         var jobId = "comicinfo-" + Guid.NewGuid().ToString("N");
         try
@@ -659,7 +665,10 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                 var timeout = Task.Delay(ComicInfoReadTimeout + _options.SourceOpenTimeout, ct);
                 var done = await Task.WhenAny(tcs.Task, timeout);
                 if (done != tcs.Task)
+                {
+                    ct.ThrowIfCancellationRequested();
                     return ComicInfoReadOutcome.Failed("timeout");
+                }
                 return await tcs.Task;
             }
             finally
@@ -699,7 +708,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 
         var slot = await AcquireSlotAsync(ct);
         if (slot is null)
-            return ImageHashOutcome.Failed("busy");
+            return ImageHashOutcome.Failed(ct.IsCancellationRequested ? "cancelled" : "busy");
 
         var jobId = "imagehash-" + Guid.NewGuid().ToString("N");
         try
@@ -741,7 +750,10 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                 await slot.Supervisor.SendMessageAsync(WorkerProtocolFraming.CreateEnvelope("image_hash", jobId, request), ct);
                 var timeout = Task.Delay(ImageHashTimeout, ct);
                 var done = await Task.WhenAny(tcs.Task, timeout);
-                return done == tcs.Task ? await tcs.Task : ImageHashOutcome.Failed("timeout");
+                if (done == tcs.Task)
+                    return await tcs.Task;
+                ct.ThrowIfCancellationRequested();
+                return ImageHashOutcome.Failed("timeout");
             }
             finally
             {
@@ -781,7 +793,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 
         var slot = await AcquireSlotAsync(ct);
         if (slot is null)
-            return CoverRenderOutcome.Failed("busy");
+            return CoverRenderOutcome.Failed(ct.IsCancellationRequested ? "cancelled" : "busy");
 
         var jobId = "cover-" + Guid.NewGuid().ToString("N");
         try
@@ -823,7 +835,10 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                     WorkerProtocolFraming.CreateEnvelope("cover_render", jobId, request with { JobId = jobId }), ct);
                 var timeout = Task.Delay(CoverRenderTimeout, ct);
                 var done = await Task.WhenAny(tcs.Task, timeout);
-                return done == tcs.Task ? await tcs.Task : CoverRenderOutcome.Failed("timeout");
+                if (done == tcs.Task)
+                    return await tcs.Task;
+                ct.ThrowIfCancellationRequested();
+                return CoverRenderOutcome.Failed("timeout");
             }
             finally
             {
@@ -879,9 +894,32 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                     // The started worker joins the pool already claimed for this
                     // reader, so neither background dispatch nor idle retirement
                     // can take it first.
-                    try { return await StartWorkerAsync(ct, claim: true); }
-                    catch (Exception ex) { _logger.LogWarning(LogEvents.Worker.ExtractWorkerStartFailed, ex, "Failed to start worker for extract: {Error}", ex.GetType().Name); }
-                    finally { ReleaseWorkerStartReservation(); }
+                    //
+                    // The spawn is NOT tied to this reader's token: a reader that
+                    // scrolls on (the page prefetch is aborted within seconds)
+                    // must not kill a worker mid-handshake - that logged an error
+                    // per aborted request and left the pool cold for the next one.
+                    // The start is bounded by the handshake timeout and the pool's
+                    // own lifetime instead; when the reader leaves early, the
+                    // worker finishes starting and joins the pool idle.
+                    var start = StartWorkerAsync(_readCts.Token, claim: true);
+                    try
+                    {
+                        var started = await start.WaitAsync(ct);
+                        ReleaseWorkerStartReservation();
+                        return started;
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        _ = HandOverAbandonedStartAsync(start);
+                        return null;
+                    }
+                    catch (Exception ex)
+                    {
+                        ReleaseWorkerStartReservation();
+                        if (!_isShuttingDown)
+                            _logger.LogWarning(LogEvents.Worker.ExtractWorkerStartFailed, ex, "Failed to start worker for extract: {Error}", ex.GetType().Name);
+                    }
                 }
 
                 if (DateTime.UtcNow >= deadline)
@@ -897,6 +935,37 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         finally
         {
             Interlocked.Decrement(ref _waitingReaders);
+        }
+    }
+
+    /// <summary>
+    /// A reader gave up while its worker was still starting. Lets the start finish, then returns the
+    /// (claimed) worker to the pool idle so the next request finds it warm; the start reservation is
+    /// released only now, so the pool cap holds meanwhile. A failed start was already logged by
+    /// <see cref="StartWorkerAsync"/>.
+    /// </summary>
+    private async Task HandOverAbandonedStartAsync(Task<WorkerSlot> start)
+    {
+        try
+        {
+            var slot = await start.ConfigureAwait(false);
+            if (_isShuttingDown)
+            {
+                // StopAsync already emptied the pool; do not leave a process behind.
+                lock (_poolLock) { _workers.Remove(slot); }
+                await slot.Supervisor.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                return;
+            }
+            ReleaseSlot(slot);
+            SignalDispatch();
+        }
+        catch (Exception)
+        {
+            // Already logged at the source.
+        }
+        finally
+        {
+            ReleaseWorkerStartReservation();
         }
     }
 

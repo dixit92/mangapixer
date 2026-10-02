@@ -71,8 +71,24 @@ describe('series status line', () => {
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('[data-testid="series-trackers"]')!.textContent).toBe('Complete (Japan): 14 volumes · English (Viz Media): 14 volumes, complete');
-    expect(el.querySelector('[data-testid="series-folder"]')!.textContent).toBe('You have volumes 1-14 · Complete collection - Official');
+    expect(el.querySelector('[data-testid="series-folder"]')!.textContent).toBe('You have volumes 1-14 · finished - you have it all (Official)');
     expect(el.querySelector('mat-icon')!.textContent).toBe('workspace_premium');
     expect(el.querySelector('.complete')).not.toBeNull();
+  });
+
+  it('1.32.0: credits Wikipedia under the progress lines when the volume list was completed from it', () => {
+    const fixture = TestBed.createComponent(VolumeSeriesStatusComponent);
+    fixture.componentRef.setInput('view', view({
+      progress: {
+        trackers: { language: 'en', origin: 'Japan', originStatus: 'Ongoing', originVolumes: 16 },
+        reach: { volumeFiles: [{ from: 1, to: 14 }], chapters: [], overlapChapters: 0, resolution: 'VolumeList' },
+        missingVolumes: 0, missingChapters: 0, releaseKnown: true, upgradeVolumes: [], upgradeCount: 0, completion: 'None',
+        listCredit: { name: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/List_of_Example_chapters', title: 'List of Example chapters' },
+      },
+    }));
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="list-credit"]')!.textContent).toContain('Volume list completed from Wikipedia');
+    expect((el.querySelector('[data-testid="list-credit-link"]') as HTMLAnchorElement).href).toContain('en.wikipedia.org/wiki/');
   });
 });

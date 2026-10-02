@@ -621,6 +621,8 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.MetadataGateway>();
         services.AddScoped<Features.Metadata.MetadataIdentifyService>();
         services.AddSingleton<Features.Metadata.Providers.IMetadataProvider, Features.Metadata.Providers.MangaUpdates.MangaUpdatesProvider>();
+        // The Grand Comics Database (1.32.0, lane B): the comics provider - Identify's site switch, comics routing, refresh.
+        Features.Metadata.Providers.Gcd.GcdServiceCollectionExtensions.AddGcdProvider(services);
 
         // Stage 2 (auto-match): queue / runs / worker, review dashboard, flags, folder
         // Content, carry-over and the id-only refresh. The matcher core (Core, pure and
@@ -668,6 +670,8 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.Volumes.VolumeCoverFetcher>();
         services.AddScoped<Features.Metadata.Volumes.VolumeCoverPass>();
         services.AddScoped<Features.Metadata.Volumes.VolumeCoverAdminService>();
+        // Wikipedia (1.32.0, lane C): ONLY the volume -> chapter list of an already-linked series (a companion step of the volume-cover pass).
+        Features.Metadata.Volumes.Wikipedia.WikipediaVolumeListsExtensions.AddWikipediaVolumeLists(services);
         services.AddScoped<Features.Metadata.IMetadataRecordRemovedHandler, Features.Metadata.Volumes.VolumeCoverRecordCleanup>();
         services.AddScoped<Features.Metadata.Flags.MetadataFlagService>();
         services.AddHostedService<Hosting.MetadataAutoMatchHostedService>();
@@ -685,6 +689,12 @@ public sealed partial class Program
         // MangaDex (1.29.0): ONLY as the companion of an already-linked MangaUpdates record (volume lists, volume covers).
         AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaDexApiClient, Features.Metadata.MetadataHttp.MangaDexApiHost, "application/json");
         AddMetadataClient(services, Features.Metadata.MetadataHttp.MangaDexImageClient, Features.Metadata.MetadataHttp.MangaDexImageHost, "image/*");
+        // Grand Comics Database (1.32.0): the comics provider (API + identification-only cover thumbnails).
+        AddMetadataClient(services, Features.Metadata.MetadataHttp.GcdApiClient, Features.Metadata.MetadataHttp.GcdApiHost, "application/json");
+        AddMetadataClient(services, Features.Metadata.MetadataHttp.GcdImageClient, Features.Metadata.MetadataHttp.GcdImageHost, "image/*");
+        // Wikipedia + Wikidata (1.32.0): ONLY the volume -> chapter list of an already-linked MangaUpdates record.
+        AddMetadataClient(services, Features.Metadata.MetadataHttp.WikipediaClient, Features.Metadata.MetadataHttp.WikipediaHost, "application/json");
+        AddMetadataClient(services, Features.Metadata.MetadataHttp.WikidataClient, Features.Metadata.MetadataHttp.WikidataHost, "application/json");
     }
 
     internal static IHttpClientBuilder AddMetadataClient(IServiceCollection services, string name, string host, string accept)

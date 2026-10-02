@@ -119,8 +119,13 @@ export class MetadataApiService {
    * Sends `query` (exactly what the admin confirmed) to the provider, via the server.
    * `hideDoujinshiAndNovels` adds the provider's fixed type filter (no user data).
    */
-  search(nodeId: string, query: string, page = 1, hideDoujinshiAndNovels = false): Observable<IdentifySearchResultDto> {
+  search(
+    nodeId: string, query: string, page = 1, hideDoujinshiAndNovels = false, provider?: string, startYear?: number | null,
+  ): Observable<IdentifySearchResultDto> {
     const body: IdentifySearchRequest = { query, page, hideDoujinshiAndNovels };
+    // 1.32.0: the site switch (MangaUpdates | Grand Comics Database) and GCD's start year from the name.
+    if (provider) body.provider = provider;
+    if (startYear) body.startYear = startYear;
     return this.post<IdentifySearchResultDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/search`, body);
   }
 

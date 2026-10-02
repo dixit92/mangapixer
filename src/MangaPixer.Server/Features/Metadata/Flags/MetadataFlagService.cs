@@ -114,9 +114,11 @@ public sealed class MetadataFlagService
         _db.MetadataFlags.Add(flag);
         try
         {
-            await _db.SaveChangesAsync(ct);
+            // The scope keeps EF's own error line for the duplicate below out of the log (see ExpectedRaceScope).
+            using (ExpectedRaceScope.Begin())
+                await _db.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (ExpectedRaceScope.IsConstraintViolation(ex))
         {
             // The partial unique index caught a concurrent duplicate.
             return ("flag_exists", null);

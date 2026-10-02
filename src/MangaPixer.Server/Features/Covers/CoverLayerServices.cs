@@ -12,6 +12,7 @@ public static class CoverLayerServices
         services.AddScoped<CoverCropService>();
         services.AddScoped<CoverPickerService>();
         services.AddScoped<StackCoverService>();
+        services.AddScoped<FolderCoverPreferenceService>();
         services.AddScoped<CoverDirectionResolver>();
         services.AddScoped<CoverDecisionService>();
         services.AddSingleton<CoverDecisionQueue>();

@@ -265,6 +265,10 @@ export interface LibraryDto {
    * scheduler pass. Null when off / scheduler disabled; admin responses only.
    */
   nextScheduledScanAt?: string | null;
+  /** Server-local hour (0-23) of a Daily / Weekly scan (1.32.0); null = any time. Admin responses only. */
+  scanHour?: number | null;
+  /** Weekday of a Weekly scan with an hour (0 = Sunday ... 6); null = Sunday. Admin responses only. */
+  scanWeekday?: number | null;
 }
 
 /** Request to set a library's icon (1.22.0). Null clears back to the default. */
@@ -279,6 +283,9 @@ export type LibraryScanSchedule = (typeof LIBRARY_SCAN_SCHEDULES)[number];
 /** Request to set a library's automatic scan schedule (1.23.0). Null clears back to the daily default. */
 export interface SetLibraryScanScheduleRequest {
   scanSchedule: LibraryScanSchedule | null;
+  /** 1.32.0: the whole schedule - hour (Daily / Weekly only; null = any time) and weekday (Weekly with an hour only). */
+  scanHour?: number | null;
+  scanWeekday?: number | null;
 }
 
 /** Resolved effective default reader mode for an item (1.2.0). */
@@ -1010,7 +1017,7 @@ export type SeriesLinkState = 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch'
 export type MetadataMatchMethod = 'Search' | 'Reference' | 'ComicInfoWebHint' | 'Auto';
 export type MetadataOrigin =
   | 'Japan' | 'Korea' | 'ChinaTaiwan' | 'EnglishOriginal' | 'Philippines' | 'Indonesia' | 'Thailand'
-  | 'Vietnam' | 'Malaysia' | 'Nordic' | 'French' | 'Spanish' | 'German' | 'Other';
+  | 'Vietnam' | 'Malaysia' | 'Nordic' | 'French' | 'Spanish' | 'German' | 'Other' | 'Italian' | 'Dutch';
 export type MetadataFormat = 'Comic' | 'Novel' | 'Artbook' | 'Doujinshi' | 'Audio';
 export type MetadataOriginStatus = 'Unknown' | 'Ongoing' | 'Complete' | 'Hiatus' | 'Cancelled';
 export type MetadataFieldSource = 'Web' | 'ComicInfo';
@@ -1058,6 +1065,8 @@ export interface SeriesInfoWebDto {
   /** Poster (lane B2); false/null in stage-1 lane B1. */
   hasImage?: boolean;
   imageUrl?: string | null;
+  /** Licence credit shown with the source link, e.g. "Data: Grand Comics Database, CC BY-SA 4.0" (1.32.0). */
+  credit?: string | null;
 }
 
 export interface SeriesInfoComicInfoDto {
@@ -1308,6 +1317,20 @@ export interface IdentifyContextDto {
   local: IdentifyLocalDto;
   /** In (or is) a folder whose Content is "Doujinshi & adult one-shots": the dialog starts with the type filter off. */
   doujinshiContent?: boolean;
+  /** The sites Identify can search (1.32.0): MangaUpdates and the Grand Comics Database. */
+  sites?: IdentifySiteDto[];
+  /** The node's local signs route it to comics: `provider` is then `gcd`. */
+  comicsSignalled?: boolean;
+}
+
+/** A site Identify can search (1.32.0). */
+export interface IdentifySiteDto {
+  id: string;
+  name: string;
+  available: boolean;
+  unavailableCode?: string | null;
+  /** E.g. the Grand Comics Database's "about 25 requests an hour". */
+  note?: string | null;
 }
 
 export interface IdentifySearchRequest {
@@ -1315,6 +1338,10 @@ export interface IdentifySearchRequest {
   page?: number;
   /** Leave doujinshi, novels, artbooks and drama CDs out (a fixed provider type filter). */
   hideDoujinshiAndNovels?: boolean;
+  /** `mangaupdates` (default) or `gcd` (1.32.0). */
+  provider?: string | null;
+  /** GCD only: the (YYYY) of the node's own name, to narrow to series that began that year. */
+  startYear?: number | null;
 }
 
 export interface IdentifyLookupRequest {
@@ -1337,6 +1364,11 @@ export interface IdentifyCandidateDto {
   score: number;
   strength: MatchStrength;
   imageToken?: string | null;
+  /** The edition's country / language and its issue or book count (1.32.0, GCD). */
+  country?: string | null;
+  language?: string | null;
+  unitCount?: number | null;
+  unitKind?: string | null;
 }
 
 export interface IdentifySearchResultDto {
@@ -1377,6 +1409,12 @@ export interface IdentifyPreviewDto {
   fetchedAt: string;
   local: IdentifyLocalDto;
   warnings?: IdentifyWarningDto[];
+  /** The edition's country / language and publishers (1.32.0, GCD). */
+  country?: string | null;
+  language?: string | null;
+  publishers?: string[];
+  /** Licence credit, e.g. "Data: Grand Comics Database, CC BY-SA 4.0" (1.32.0). */
+  credit?: string | null;
 }
 
 export interface MetadataRefreshResultDto {
@@ -1903,7 +1941,7 @@ export type CardCoverSource = 'File' | 'Crop' | 'WebVolume' | 'WebMain' | 'Poste
 /** Exact: file names / ComicInfo, the provider list, or bounded by neighbours. Estimated: shown "~ Volume N". */
 export type VolumeStackConfidence = 'Exact' | 'Estimated';
 
-export type VolumeListSource = 'FileNames' | 'MangaDex' | 'AniList' | 'Mixed';
+export type VolumeListSource = 'FileNames' | 'MangaDex' | 'AniList' | 'Mixed' | 'Wikipedia';
 
 /** A virtual volume stack as a browse entry (CatalogNodeDto.volumeStack). Unit numbers are strings ("3", "45.5"). */
 export interface VolumeStackSummaryDto {
@@ -1943,6 +1981,8 @@ export interface VolumeStackDto {
   coverUrl?: string | null;
   confidence: VolumeStackConfidence;
   source: VolumeListSource;
+  /** 1.32.0: the Wikipedia page the series' volume list was completed from, or null (the source line links it). */
+  listCredit?: ListCreditDto | null;
   presentCount: number;
   chapterCount?: number | null;
   /** 1.29.0 RC: complete chapters of chapterCount. */
@@ -2035,7 +2075,12 @@ export interface SeriesTrackersDto {
 }
 
 export type SeriesCompletion = 'None' | 'FinishedNotHeld' | 'CompleteCollection';
-export type CompletionBasis = 'OfficialVolumes' | 'AllChapters' | 'OriginRun';
+export type CompletionBasis = 'OfficialVolumes' | 'AllChapters' | 'OriginRun' | 'OfficialChapters';
+/** 1.32.0: the one answer of the Completion tab - has the series ended, and does the folder hold all of it. */
+export type SeriesAnswer = 'CantTell' | 'HaveItAll' | 'FinishedMissing' | 'UpToDate' | 'MissingSome';
+export type SeriesAnswerReason =
+  | 'None' | 'Running' | 'OnHiatus' | 'StatusUnknown' | 'WaitingForLanguage' | 'LanguageEditionDropped'
+  | 'NoNumbers' | 'NumberingRestarts' | 'NothingKnownReleased' | 'NoVolumeTotal' | 'OneShot';
 
 export interface SeriesProgressDto {
   trackers: SeriesTrackersDto;
@@ -2051,9 +2096,14 @@ export interface SeriesProgressDto {
   completionTarget?: number | null;
   completionHeld?: number | null;
   completionInChapters?: boolean;
+  /** 1.32.0: set when the series' volume list was completed from a Wikipedia page ("Volume list: MangaDex, completed from Wikipedia"). */
+  listCredit?: ListCreditDto | null;
+  /** 1.32.0: the Completion tab's answer (also behind the completion mark). */
+  answer?: SeriesAnswer;
+  answerReason?: SeriesAnswerReason;
 }
 
-// --- Official releases tab (1.30.0) ---
+// --- Official releases tab (1.30.0; the Completion tab since 1.32.0 - the contract keeps its names) ---
 
 export type OfficialReleasesFilter = 'ToAct' | 'Upgrades' | 'Finished' | 'Complete' | 'All';
 
@@ -2073,9 +2123,15 @@ export interface OfficialReleasesSummaryDto {
   upgrades: number;
   finishedNotHeld: number;
   completeCollections: number;
+  /** 1.32.0: series per answer (with the Upgrades only switch applied, before the answer filter). */
+  haveItAll?: number;
+  finishedMissing?: number;
+  upToDate?: number;
+  missingSome?: number;
+  cantTell?: number;
 }
 
-/** GET /admin/metadata/official-releases?library=&filter=&cursor=&limit= */
+/** GET /admin/metadata/official-releases?library=&filter=&cursor=&limit=&basis=&answer=&upgrades= */
 export interface OfficialReleasesPageDto {
   items: OfficialReleaseRowDto[];
   summary: OfficialReleasesSummaryDto;
@@ -2329,4 +2385,144 @@ export interface EmptyTrashResultDto {
 export interface TrashHeldLibraryDto {
   libraryId: string;
   hold: TrashHold;
+}
+
+// --- Wikipedia companion (1.32.0) ---
+
+/** Where a volume list was read from: a small source line with a link. */
+export interface ListCreditDto {
+  name: string;
+  url: string;
+  title: string;
+}
+
+export type WikipediaListState = 'Found' | 'NotFound' | 'Rejected' | 'None' | 'Failed';
+export type WikipediaListMethod = 'Wikidata' | 'Title' | 'Admin';
+
+export interface WikipediaPageDto {
+  title: string;
+  url: string;
+  revision?: number;
+}
+
+export interface WikipediaVolumeDto {
+  volume: string;
+  /** The earliest English release date as the page states it: 2026-12-08, 2002-02 or 2002. May be in the future (announced). */
+  englishDate?: string | null;
+  /** The first valid English ISBN, digits only. */
+  englishIsbn?: string | null;
+}
+
+/** The Wikipedia companion of a linked series (GET /admin/metadata/nodes/{nodeId}/wikipedia). */
+export interface WikipediaListDto {
+  state: WikipediaListState;
+  method: WikipediaListMethod;
+  /** A sanitized code for why the last list was refused or the last attempt failed (no_page, no_list, disagrees_with_mangadex ...). */
+  code?: string | null;
+  adminTitle?: string | null;
+  pages?: WikipediaPageDto[];
+  volumes?: number;
+  details?: WikipediaVolumeDto[];
+  checkedAt?: string | null;
+  nextCheckAt?: string | null;
+}
+
+export interface WikipediaPageRequest {
+  page: string;
+}
+
+/** A folder's cover preference (1.32.0): web covers when available, or the file's own cover. No row = inherit. */
+export type FolderCoverPreference = 'Web' | 'File';
+
+/** GET/PUT/DELETE /admin/folders/{nodeId}/cover-preference (admin). */
+export interface FolderCoverPreferenceDto {
+  nodeId: string;
+  /** The folder's own preference; null = it inherits. */
+  preference?: FolderCoverPreference | null;
+  /** What the works below the folder get: its own value, else `inherited`. */
+  effective: FolderCoverPreference;
+  /** What the folder gets when it inherits: the nearest ancestor's value, else the library's "Show saved web covers" switch. */
+  inherited: FolderCoverPreference;
+  /** The ancestor folder `inherited` comes from; null = the library's switch. */
+  inheritedSourceNodeId?: string | null;
+  inheritedSourceName?: string | null;
+}
+
+/** PUT /admin/folders/{nodeId}/cover-preference. DELETE clears the folder's own value. */
+export interface SetFolderCoverPreferenceRequest {
+  preference: FolderCoverPreference;
+}
+
+// --- Scheduled jobs (1.32.0): /admin/jobs ---
+
+export type ScheduledJobKind = 'daily' | 'weekly' | 'interval' | 'continuous' | 'startup' | 'onDemand';
+
+/** GET /admin/jobs: every job MangaPixer runs on its own, on the server's clock. */
+export interface ScheduledJobsDto {
+  serverTime: string;
+  /** IANA zone id of the server (every hour is in this zone). */
+  timeZone: string;
+  utcOffsetMinutes: number;
+  jobs: ScheduledJobDto[];
+  refresh: RefreshCadenceDto;
+}
+
+export interface ScheduledJobDto {
+  key: string;
+  /** The library of a `library-scan` row. */
+  libraryId?: string | null;
+  libraryName?: string | null;
+  kind: ScheduledJobKind;
+  enabled: boolean;
+  configurable: boolean;
+  managedByConfig?: boolean;
+  hour?: number | null;
+  defaultHour?: number | null;
+  weekday?: number | null;
+  intervalHours?: number | null;
+  scanSchedule?: string | null;
+  lastStartedAt?: string | null;
+  lastFinishedAt?: string | null;
+  lastOutcome?: string | null;
+  lastDetail?: string | null;
+  nextRunAt?: string | null;
+  waitingCode?: string | null;
+  running?: boolean;
+}
+
+export interface RefreshCadenceDto {
+  ongoingDays: number;
+  finishedDays: number;
+  followPace: boolean;
+  allowedOngoingDays: number[];
+  allowedFinishedDays: number[];
+  usedToday: number;
+  overdue: number;
+  byDays: RefreshCadenceCountDto[];
+}
+
+export interface RefreshCadenceCountDto {
+  days: number;
+  count: number;
+}
+
+/** PUT /admin/jobs/{key}: the hour of a daily job; null = its default (backups: any time). */
+export interface UpdateJobScheduleRequest {
+  hour?: number | null;
+}
+
+/** PUT /admin/jobs/metadata-refresh/cadence: a missing field keeps its value. */
+export interface UpdateRefreshCadenceRequest {
+  ongoingDays?: number | null;
+  finishedDays?: number | null;
+  followPace?: boolean | null;
+}
+
+/** GET /admin/jobs/metadata-refresh/series/{nodeId}: one linked series' refresh cadence (admin only). */
+export interface SeriesRefreshCadenceDto {
+  days: number;
+  reason: 'finished' | 'choice' | 'pace' | 'paused';
+  volumeIntervalDays?: number | null;
+  fetchedAt: string;
+  nextCheckAt: string;
 }

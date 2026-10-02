@@ -34,16 +34,18 @@ import { CoverSettingsCardComponent } from './cover-settings-card.component';
  * Consent text version the page shows; must equal the server's `currentConsentVersion`. 2 (1.28.0): the text
  * describes the provider allowlist (MangaUpdates + AniList); an instance that accepted 1 re-accepts.
  * 3 (1.29.0): MangaDex (volume covers and volume lists) joins the allowed sites; an earlier consent is not carried over.
+ * 4 (1.32.0): the Grand Comics Database (comics) and Wikipedia (volume lists) join; the fixed User-Agent is described.
  */
-export const CONSENT_TEXT_VERSION = 3;
+export const CONSENT_TEXT_VERSION = 4;
 
 /**
  * Automatic-lookups consent text version (stage 2, owner decisions 2 + 3); must equal the
  * server's `currentAutoConsentVersion`. Bump it whenever the text below changes.
  * v2 (1.28.0): the cover comparison downloads; an earlier consent is not carried over (owner).
  * v3 (1.29.0): volume covers and volume lists from MangaDex (AniList totals as the fallback).
+ * v4 (1.32.0): comics go to the Grand Comics Database first; volume lists from Wikipedia for linked series.
  */
-export const AUTO_CONSENT_TEXT_VERSION = 3;
+export const AUTO_CONSENT_TEXT_VERSION = 4;
 
 /** Integer-only daily budget in 1..1,000,000 (the server validates the same range). */
 export function parseDailyBudget(raw: string | number | null | undefined): number | null {
@@ -153,6 +155,10 @@ export function validateThresholds(
                 <li><strong>MangaUpdates</strong> (description, authors, genres, publication status, English release totals,
                   cover art): the search text you confirm in the Identify dialog (usually a folder or file name) and
                   MangaUpdates record numbers.</li>
+                <li><strong>Grand Comics Database</strong> (comics and graphic novels: publisher, start year, country, language,
+                  format, number of issues or volumes; cover thumbnails shown only while you choose): the search text you confirm
+                  in the Identify dialog (usually a folder or file name), a start year when the name has one, and GCD record
+                  numbers. Nothing is sent to it for folders that are not comics unless you choose it in Identify.</li>
                 <li><strong>MangaDex</strong> (volume covers, and which chapters make up each volume, for series already linked
                   to MangaUpdates): the MangaUpdates title of the linked series - never a folder or file name - MangaDex record
                   numbers and your cover languages. Cover images are downloaded from MangaDex's image server
@@ -160,7 +166,14 @@ export function validateThresholds(
                 <li><strong>AniList</strong> (volume and chapter totals, to convert chapters to volumes): the AniList record
                   number when it is known, otherwise the MangaUpdates title of a series that is already linked - never a folder
                   or file name.</li>
+                <li><strong>Wikipedia</strong> (which chapters make up each volume, with English release dates and ISBNs, for
+                  series already linked to MangaUpdates): the MangaUpdates record number of the linked series - sent to Wikidata
+                  (www.wikidata.org) to find its English article - and the titles of the pages found that way, or the MangaUpdates
+                  title of the linked series - never a folder or file name. Only volume and chapter numbers, dates and ISBNs are
+                  kept.</li>
               </ul>
+              <p>Every request names MangaPixer, its version and its project page (the User-Agent the sites ask for) - the
+                same on every MangaPixer server, so it does not identify yours.</p>
               <p>You can remove a site from the list at any time; nothing is ever sent to a removed site. Each site also
                 sees your server's IP address, as with any web request.</p>
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or
@@ -224,21 +237,26 @@ export function validateThresholds(
             <div class="consent" data-testid="md-auto-consent-text">
               <p>When on, MangaPixer matches new series folders on its own, in the background, in <strong>every library whose
                 Fetch switch is on</strong>. Links it is sure about go live at once and are listed under Review › Auto-linked;
-                close calls wait for you under Needs review. It also refreshes the series you have linked, by record number:
-                every 30 days while a series is ongoing, every 90 days once it is complete, at most 100 a day.</p>
+                close calls wait for you under Needs review. It also refreshes the series you have linked, by record number,
+                once a day at the time you choose under Scheduled jobs: an ongoing series every month (you can choose every 2
+                weeks or every week), and more often - up to once a week - when it publishes new volumes quickly; a finished
+                series every 3 months, as does one on hiatus or with nothing new for six months - within the daily budget below, the only limit.</p>
               <p><strong>What is sent automatically:</strong> the cleaned name of each new series-like folder, or of an
                 archive that is its own work (in a collection folder, or loose next to other folders) - for example
                 "Series Title" from "Series Title [English Title]" - which <strong>nobody reviews before it is sent</strong>,
-                with a fixed list of types to leave out (doujinshi, novels, artbooks, drama CDs; doujinshi are searched below a
-                folder whose Content is "Doujinshi &amp; adult one-shots"), and MangaUpdates record numbers to refresh linked
-                series. Each site also sees your server's IP address. The same names may be sent again for folders that are
+                to MangaUpdates, with a fixed list of types to leave out (doujinshi, novels, artbooks, drama CDs; doujinshi are
+                searched below a folder whose Content is "Doujinshi &amp; adult one-shots") - or, for comics (a folder declared
+                Comic or Graphic novel, below a Comics / BD folder, or whose files are numbered like comic issues or albums),
+                first to the Grand Comics Database, with the start year when the name has one, and to MangaUpdates only if GCD
+                finds nothing close - and record numbers to refresh linked series. Each site also sees your server's IP address. The same names may be sent again for folders that are
                 still waiting: a folder left unmatched is tried again after 30, 90 and 180 days, and when a MangaPixer update
                 changes how matches are scored, folders waiting under Needs review are checked once more under the new rules.</p>
               <p><strong>Cover comparison:</strong> when two series tie on the title for a folder of volumes or a one-shot,
                 MangaPixer may also download the cover images of those two series from MangaUpdates' image server
                 (cdn.mangaupdates.com), by the address MangaUpdates gave, to compare them with the folder's own cover. These
                 downloads carry nothing from your library. The comparison runs on your server and the downloaded covers are
-                deleted right after.</p>
+                deleted right after. For comics, the cover thumbnails of the two closest GCD series may be downloaded from
+                files1.comics.org in the same way; they carry nothing from your library and are deleted right after.</p>
               <p><strong>Volume covers and volume lists:</strong> for every series that gets linked - by Automatic matching or
                 by you - MangaPixer also finds the series on MangaDex by its MangaUpdates title (never a folder or file name),
                 reads which chapters make up each volume and which of them are released in your preferred language, and which
@@ -247,10 +265,17 @@ export function validateThresholds(
                 MangaDex's image server (uploads.mangadex.org). It checks again on the refresh schedule until a cover in your preferred language
                 appears. When MangaDex has no volume list for a series, it asks AniList for the series' totals - by AniList
                 record number when known, otherwise by the MangaUpdates title. You can switch volume covers off below.</p>
+              <p><strong>Volume lists from Wikipedia:</strong> while volume covers from the web are on, for linked series MangaPixer may
+                also read the series' English
+                "List of ... chapters" page on Wikipedia - found through Wikidata by the MangaUpdates record number, or by the
+                linked series' MangaUpdates title, never a folder or file name - to learn which chapters make up each volume
+                where MangaDex's list has gaps, with English release dates and ISBNs. It checks the page again on the refresh
+                schedule and downloads it only when it has changed.</p>
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or anything
                 that identifies this server. Folders marked "Don't match", and everything inside them, are never looked up.</p>
               <p><strong>Budget:</strong> automatic requests come out of the same daily budget as Identify. When it is spent,
-                automatic work stops until the next day.</p>
+                automatic work stops until the next day. The Grand Comics Database answers anonymous users slowly: at most 25
+                requests an hour, so comics are matched gradually.</p>
               <p>You can switch this off at any time; links it made stay until you remove them.</p>
             </div>
             }
@@ -365,6 +390,9 @@ export function validateThresholds(
             <p class="note">A series' chapters show as volume stacks, ordered by volume, wherever the file names or a stored volume list say which volume they belong to. Each library and folder can override this, and everyone has a Volumes | Folders switch of their own.</p>
           </section>
 
+          <!-- 7. Covers (1.29.0 cover layer: crop switch, "Show saved web covers" per library, delete stored covers);
+               below Volumes view (owner, 2026-10-02) -->
+          <app-cover-settings-card [initial]="s" />
           </div>
 
           <!-- 4. Libraries (stage 1 rows + "Match now") -->
@@ -484,8 +512,6 @@ export function validateThresholds(
             }
           </section>
 
-          <!-- 7. Covers (1.29.0 cover layer: crop switch, "Show saved web covers" per library, delete stored covers) -->
-          <app-cover-settings-card [initial]="s" />
         </div>
       }
       @if (message()) { <p class="ok small" role="status">{{ message() }}</p> }

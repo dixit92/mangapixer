@@ -68,6 +68,46 @@ public sealed record MetadataRateLimitOptions
     };
 
     /// <summary>
+    /// <c>www.comics.org</c> (1.32.0): GCD throttles anonymous API use (repository default 30 / hour) - a burst of 3 (an
+    /// Identify search + get + first issue) and 1 token every 144 s, i.e. at most 25 per hour sustained for the whole instance.
+    /// A short queue: a caller that cannot get a token soon gets a <c>rate_limited</c> answer instead of a long wait.
+    /// </summary>
+    public TokenBucketRateLimiterOptions Gcd { get; init; } = new()
+    {
+        TokenLimit = 3,
+        TokensPerPeriod = 1,
+        ReplenishmentPeriod = TimeSpan.FromSeconds(144),
+        QueueLimit = 3,
+        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+        AutoReplenishment = true,
+    };
+
+    /// <summary><c>files1.comics.org</c> cover thumbnails (1.32.0): 1 request/s, burst 2 (identification only).</summary>
+    public TokenBucketRateLimiterOptions GcdImages { get; init; } = new()
+    {
+        TokenLimit = 2,
+        TokensPerPeriod = 1,
+        ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+        QueueLimit = 4,
+        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+        AutoReplenishment = true,
+    };
+
+    /// <summary>
+    /// <c>en.wikipedia.org</c> + <c>www.wikidata.org</c> (1.32.0): ONE bucket for both hosts - 1 request/s, burst 1, one at a
+    /// time (Wikimedia's Robot policy and API:Etiquette for unauthenticated clients: serial requests, well under 200 / minute).
+    /// </summary>
+    public TokenBucketRateLimiterOptions Wikipedia { get; init; } = new()
+    {
+        TokenLimit = 1,
+        TokensPerPeriod = 1,
+        ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+        QueueLimit = 25,
+        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+        AutoReplenishment = true,
+    };
+
+    /// <summary>
     /// Minimum spacing between AUTOMATIC requests (stage 2: at most 1 request/s, so
     /// the 2 req/s API bucket always has room for an admin).
     /// </summary>
@@ -98,18 +138,28 @@ public sealed class MetadataGatewayState : IDisposable
         AniListLimiter = new TokenBucketRateLimiter(options.AniList);
         MangaDexApiLimiter = new TokenBucketRateLimiter(options.MangaDexApi);
         MangaDexImageLimiter = new TokenBucketRateLimiter(options.MangaDexImages);
+        GcdLimiter = new TokenBucketRateLimiter(options.Gcd);
+        GcdImageLimiter = new TokenBucketRateLimiter(options.GcdImages);
+        WikipediaLimiter = new TokenBucketRateLimiter(options.Wikipedia);
         _automaticInterval = options.AutomaticInterval;
     }
 
     public RateLimiter AniListLimiter { get; }
     public RateLimiter MangaDexApiLimiter { get; }
     public RateLimiter MangaDexImageLimiter { get; }
+    public RateLimiter GcdLimiter { get; }
+    public RateLimiter GcdImageLimiter { get; }
+
+    /// <summary>One bucket for Wikipedia AND Wikidata (both Wikimedia, one etiquette).</summary>
+    public RateLimiter WikipediaLimiter { get; }
 
     /// <summary>The API bucket of a provider (MangaUpdates' for an unknown id - it is refused before any call).</summary>
     public RateLimiter ApiLimiterOf(string providerId) => providerId switch
     {
         MetadataProviderAllowlist.AniList => AniListLimiter,
         MetadataProviderAllowlist.MangaDex => MangaDexApiLimiter,
+        MetadataProviderAllowlist.Gcd => GcdLimiter,
+        MetadataProviderAllowlist.Wikipedia => WikipediaLimiter,
         _ => ApiLimiter,
     };
 
@@ -117,6 +167,7 @@ public sealed class MetadataGatewayState : IDisposable
     public RateLimiter ImageLimiterOf(string providerId) => providerId switch
     {
         MetadataProviderAllowlist.MangaDex => MangaDexImageLimiter,
+        MetadataProviderAllowlist.Gcd => GcdImageLimiter,
         _ => ImageLimiter,
     };
 
@@ -160,6 +211,9 @@ public sealed class MetadataGatewayState : IDisposable
         AniListLimiter.Dispose();
         MangaDexApiLimiter.Dispose();
         MangaDexImageLimiter.Dispose();
+        GcdLimiter.Dispose();
+        GcdImageLimiter.Dispose();
+        WikipediaLimiter.Dispose();
         StateLock.Dispose();
         _automaticGate.Dispose();
     }

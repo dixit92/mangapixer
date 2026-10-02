@@ -59,7 +59,7 @@ services:
 then start it and open <http://127.0.0.1:8080> to create the first admin account:
 
 ```bash
-MANGAPIXER_VERSION=1.31.1 docker compose -f compose.yaml -f compose.override.yaml up -d
+MANGAPIXER_VERSION=1.32.0 docker compose -f compose.yaml -f compose.override.yaml up -d
 ```
 
 Details, upgrades and reaching it from other devices: [Install with Docker](docs/install-docker.md).

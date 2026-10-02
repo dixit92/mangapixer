@@ -17,6 +17,9 @@ public static class MatcherRules
     /// <summary>
     /// 1: the first stamped revision (1.31.0). Everything scored by 1.27.0 - 1.30.x carries no stamp and is therefore older -
     /// including the count rule of 1.29.0 and the matcher changes of 1.30.0.
+    /// 2 (1.32.0): comics - album / issue / extra unit tokens and comics format words in names (lane A), Grand Comics Database
+    /// candidates with their own evidence (lane B, bits 19-22), a Webtoon(s) category folder giving its origin again (it never
+    /// did since 1.27.0: compared in the wrong form), plus 1.31.1's "Episode N next to a volume is a part" (shipped unbumped).
     /// </summary>
-    public const int Revision = 1;
+    public const int Revision = 2;
 }

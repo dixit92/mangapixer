@@ -23,6 +23,8 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             return null;
         // Covers still on their way for this series (volume 1 and the volumes held here): the view shows a short note.
         var coversPending = view.Status?.RecordId is { } recordId && coverPass is not null
+            // 1.32.0: a folder under "File covers" fetches none, so none is on its way.
+            && !await coverPass.SkipsCoverDownloadsAsync(recordId, [view.FolderId], ct)
             // The pass's own plan (1.30.0): a volume file it skips (volume 1's own cover matches the web one) is never "on its way".
             ? await coverPass.PendingCoversAsync(recordId, await coverPass.PlannedHeldVolumesAsync(recordId, [view.FolderId], ct), ct)
             : 0;
@@ -84,6 +86,7 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             CoverUrl = web.TryGetValue(stack.Key, out var webCover) ? webCover.Url : cards[stack.Members[0].Row.Id].CoverUrl,
             Confidence = stack.Confidence,
             Source = stack.Source,
+            ListCredit = view.Status?.Progress?.ListCredit,
             PresentCount = stack.PresentCount,
             ChapterCount = stack.ChapterCount,
             ChaptersPresent = stack.ChaptersPresent,
