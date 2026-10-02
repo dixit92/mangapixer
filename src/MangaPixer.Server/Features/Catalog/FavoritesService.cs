@@ -73,7 +73,7 @@ public sealed class FavoritesService
             using (ExpectedRaceScope.Begin())
                 await _db.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (ExpectedRaceScope.IsConstraintViolation(ex))
         {
             // Lost a race against a concurrent add — the unique (UserId, CatalogNodeId)
             // index rejected the duplicate. The desired end state (favorited) holds, so

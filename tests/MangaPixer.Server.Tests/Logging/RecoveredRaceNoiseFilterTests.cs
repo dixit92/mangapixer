@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
+using Serilog.Parsing;
 using Xunit;
 
 /// <summary>
@@ -32,40 +33,52 @@ public sealed class RecoveredRaceNoiseFilterTests
     private static SqliteException Unique(string table = "reading_progress")
         => new($"UNIQUE constraint failed: {table}.UserId, {table}.ItemId.", 19);
 
+    /// <summary>
+    /// An EF-style event the way the Serilog bridge delivers it: the MEL event id as a structure with Id and Name,
+    /// and the SourceContext. EF's <c>CommandError</c> arrives with NO exception (measured against the real host),
+    /// <c>SaveChangesFailed</c> with the DbUpdateException.
+    /// </summary>
+    private static LogEvent Ef(string source, int eventId, Exception? exception, LogEventLevel level = LogEventLevel.Error)
+        => new(DateTimeOffset.UtcNow, level, exception, new MessageTemplateParser().Parse("EF event"),
+        [
+            new LogEventProperty(Constants.SourceContextPropertyName, new ScalarValue(source)),
+            new LogEventProperty("EventId", new StructureValue([new LogEventProperty("Id", new ScalarValue(eventId)), new LogEventProperty("Name", new ScalarValue("x"))])),
+        ]);
+
+    private const int CommandErrorId = 20102;
+    private const int SaveChangesFailedId = 10000;
+
     [Fact]
-    public void CommandError_InsideTheScope_IsDropped_WhicheverTableTheMessageNames()
+    public void CommandError_WithNoException_InsideTheScope_IsDropped()
+    {
+        var (logger, seen) = CreateLogger();
+        using (ExpectedRaceScope.Begin())
+            logger.Write(Ef(EfCommand, CommandErrorId, exception: null));
+
+        Assert.Empty(seen);
+    }
+
+    [Fact]
+    public void SaveChangesFailed_InsideTheScope_IsDropped_WhicheverTableTheMessageNames()
     {
         var (logger, seen) = CreateLogger();
         using (ExpectedRaceScope.Begin())
         {
-            logger.ForContext(Constants.SourceContextPropertyName, EfCommand).Error(Unique("reading_progress"), "Failed executing DbCommand");
-            logger.ForContext(Constants.SourceContextPropertyName, EfCommand).Error(Unique("read_marks"), "Failed executing DbCommand");
-            logger.ForContext(Constants.SourceContextPropertyName, EfCommand).Error(Unique("favorites"), "Failed executing DbCommand");
+            foreach (var table in new[] { "reading_progress", "read_marks", "favorites" })
+                logger.Write(Ef(EfUpdate, SaveChangesFailedId, new DbUpdateException("An error occurred while saving the entity changes.", Unique(table))));
         }
 
         Assert.Empty(seen);
     }
 
     [Fact]
-    public void SaveChangesFailed_InsideTheScope_IsDropped()
+    public void TheSameFailures_OutsideAScope_StillLog()
     {
         var (logger, seen) = CreateLogger();
-        using (ExpectedRaceScope.Begin())
-        {
-            var failure = new DbUpdateException("An error occurred while saving the entity changes.", Unique("read_marks"));
-            logger.ForContext(Constants.SourceContextPropertyName, EfUpdate).Error(failure, "An exception occurred in the database while saving changes");
-        }
+        logger.Write(Ef(EfCommand, CommandErrorId, exception: null));
+        logger.Write(Ef(EfUpdate, SaveChangesFailedId, new DbUpdateException("save failed", Unique())));
 
-        Assert.Empty(seen);
-    }
-
-    [Fact]
-    public void TheSameFailure_OutsideAScope_StillLogs()
-    {
-        var (logger, seen) = CreateLogger();
-        logger.ForContext(Constants.SourceContextPropertyName, EfCommand).Error(Unique(), "Failed executing DbCommand");
-
-        Assert.Single(seen);
+        Assert.Equal(2, seen.Count);
     }
 
     [Fact]
@@ -73,28 +86,27 @@ public sealed class RecoveredRaceNoiseFilterTests
     {
         var (logger, seen) = CreateLogger();
         using (ExpectedRaceScope.Begin()) { }
-        logger.ForContext(Constants.SourceContextPropertyName, EfCommand).Error(Unique(), "Failed executing DbCommand");
+        logger.Write(Ef(EfCommand, CommandErrorId, exception: null));
 
         Assert.Single(seen);
     }
 
     [Fact]
-    public void InsideTheScope_OnlyEfConstraintErrors_AreDropped()
+    public void InsideTheScope_OnlyEfCommandErrorsAndConstraintViolations_AreDropped()
     {
         var (logger, seen) = CreateLogger();
         using (ExpectedRaceScope.Begin())
         {
             // Not under EF: a service's own error line.
-            logger.ForContext(Constants.SourceContextPropertyName, "com.lifepixer.mangapixer.Server.Features.Reading.ReadingStateService")
-                .Error(Unique(), "own error");
-            // Not a constraint violation (SQLITE_BUSY = 5).
-            logger.ForContext(Constants.SourceContextPropertyName, EfCommand).Error(new SqliteException("database is locked", 5), "busy");
-            // Not an exception at all.
-            logger.ForContext(Constants.SourceContextPropertyName, EfCommand).Error("plain error");
+            logger.Write(Ef("com.lifepixer.mangapixer.Server.Features.Reading.ReadingStateService", CommandErrorId, exception: null));
+            // An EF error that is neither CommandError nor a constraint violation.
+            logger.Write(Ef(EfCommand, 20100, exception: null));
+            // A SQLite failure that is not a constraint violation (SQLITE_BUSY = 5), even on SaveChangesFailed.
+            logger.Write(Ef(EfUpdate, SaveChangesFailedId, new DbUpdateException("busy", new SqliteException("database is locked", 5))));
             // Not an error: warnings are never dropped.
-            logger.ForContext(Constants.SourceContextPropertyName, EfCommand).Warning(Unique(), "warning");
-            // No SourceContext.
-            logger.Error(Unique(), "no context");
+            logger.Write(Ef(EfCommand, CommandErrorId, exception: null, level: LogEventLevel.Warning));
+            // No SourceContext at all.
+            logger.Error("no context");
         }
 
         Assert.Equal(5, seen.Count);

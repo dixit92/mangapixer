@@ -118,7 +118,7 @@ public sealed class MetadataFlagService
             using (ExpectedRaceScope.Begin())
                 await _db.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (ExpectedRaceScope.IsConstraintViolation(ex))
         {
             // The partial unique index caught a concurrent duplicate.
             return ("flag_exists", null);

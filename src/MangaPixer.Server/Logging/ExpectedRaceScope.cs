@@ -21,6 +21,13 @@ internal static class ExpectedRaceScope
     /// <summary>True while the current async flow is inside <see cref="Begin"/>.</summary>
     public static bool IsActive => s_depth.Value > 0;
 
+    /// <summary>
+    /// True when a failed save was a SQLite constraint violation (error code 19) - the only failure a caller may
+    /// treat as a recovered race inside a scope. Anything else must propagate so it is logged.
+    /// </summary>
+    public static bool IsConstraintViolation(Microsoft.EntityFrameworkCore.DbUpdateException ex)
+        => ex.InnerException is Microsoft.Data.Sqlite.SqliteException { SqliteErrorCode: 19 };
+
     /// <summary>Opens a scope around a save that recovers from a unique-constraint race. Dispose it right after the save.</summary>
     public static IDisposable Begin()
     {

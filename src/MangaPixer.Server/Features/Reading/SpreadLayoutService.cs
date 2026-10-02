@@ -173,7 +173,7 @@ public sealed class SpreadLayoutService
                 await _db.SaveChangesAsync(ct);
             return true;
         }
-        catch (DbUpdateException) when (row is null)
+        catch (DbUpdateException ex) when (row is null && ExpectedRaceScope.IsConstraintViolation(ex))
         {
             return false;
         }
