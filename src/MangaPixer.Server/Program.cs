@@ -668,6 +668,8 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.Volumes.VolumeCoverFetcher>();
         services.AddScoped<Features.Metadata.Volumes.VolumeCoverPass>();
         services.AddScoped<Features.Metadata.Volumes.VolumeCoverAdminService>();
+        // Wikipedia (1.32.0, lane C): ONLY the volume -> chapter list of an already-linked series (a companion step of the volume-cover pass).
+        Features.Metadata.Volumes.Wikipedia.WikipediaVolumeListsExtensions.AddWikipediaVolumeLists(services);
         services.AddScoped<Features.Metadata.IMetadataRecordRemovedHandler, Features.Metadata.Volumes.VolumeCoverRecordCleanup>();
         services.AddScoped<Features.Metadata.Flags.MetadataFlagService>();
         services.AddHostedService<Hosting.MetadataAutoMatchHostedService>();

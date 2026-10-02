@@ -155,6 +155,9 @@ public static class MetadataHttp
         [MetadataProviderAllowlist.AniList] = new(MetadataProviderAllowlist.AniList, "AniList", AniListClient, null, s_none),
         [MetadataProviderAllowlist.MangaDex] = new(MetadataProviderAllowlist.MangaDex, "MangaDex", MangaDexApiClient,
             MangaDexImageClient, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { MangaDexImageHost }, ForbiddenMeansSlowDown: true),
+        // 1.32.0 (lane C): Wikipedia + Wikidata are ONE provider for the gateway (one backoff, one limiter); the API client is Wikipedia's,
+        // Wikidata's client is named by WikipediaApi itself. No images.
+        [MetadataProviderAllowlist.Wikipedia] = new(MetadataProviderAllowlist.Wikipedia, "Wikipedia", WikipediaClient, null, s_none),
     };
 
     /// <summary>The transport of a provider id, or null for an unknown id.</summary>

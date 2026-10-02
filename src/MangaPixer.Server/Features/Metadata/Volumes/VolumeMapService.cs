@@ -262,7 +262,8 @@ public sealed class VolumeMapService
             : (null, 0);
     }
 
-    private async Task<SeriesVolumeMapEntity> StoreAsync(
+    /// <summary>Stores a map for a source (shared with the Wikipedia companion, 1.32.0): an unchanged answer rewrites nothing.</summary>
+    internal async Task<SeriesVolumeMapEntity> StoreAsync(
         MetadataRecordEntity series, VolumeMapSource source, VolumeMapState state, string? volumesJson, string? unassignedJson,
         double? chaptersPerVolume, int? knownVolumeCount, CancellationToken ct, string? releasedLanguage = null, string? releasedChaptersJson = null)
     {
