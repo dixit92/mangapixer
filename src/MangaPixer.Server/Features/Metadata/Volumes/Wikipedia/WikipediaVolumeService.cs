@@ -328,6 +328,7 @@ public sealed class WikipediaVolumeService
     public async Task<WikipediaListEntity?> SetPageAsync(
         MetadataRecordEntity series, long libraryId, string title, MetadataCallContext? call, CancellationToken ct = default)
     {
+        await ThrowIfRefusedAsync(libraryId, call, ct); // a refused action leaves nothing behind
         var row = await FindAsync(series.Id, ct);
         if (row is null)
         {
@@ -342,6 +343,12 @@ public sealed class WikipediaVolumeService
         row.NextCheckAt = null;
         await _db.SaveChangesAsync(ct);
         return await StepAsync(series, libraryId, call, force: true, adminAsked: true, ct);
+    }
+
+    private async Task ThrowIfRefusedAsync(long libraryId, MetadataCallContext? call, CancellationToken ct)
+    {
+        if (await _gateway.CheckSwitchesAsync(libraryId, call?.Origin ?? MetadataCallOrigin.Interactive, Provider, ct) is { } refusal)
+            throw refusal;
     }
 
     /// <summary>"No Wikipedia list for this series": never asked again; the stored list and its details are removed. Local only.</summary>
@@ -369,6 +376,7 @@ public sealed class WikipediaVolumeService
     /// <summary>"Check Wikipedia again": "none" is cleared, then the page is asked for now (an admin request).</summary>
     public async Task<WikipediaListEntity?> RecheckAsync(MetadataRecordEntity series, long libraryId, MetadataCallContext? call, CancellationToken ct = default)
     {
+        await ThrowIfRefusedAsync(libraryId, call, ct);
         var row = await FindAsync(series.Id, ct);
         if (row is { State: (int)WikipediaListState.None })
         {
