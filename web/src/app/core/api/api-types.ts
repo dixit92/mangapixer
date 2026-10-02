@@ -2409,3 +2409,25 @@ export interface WikipediaListDto {
 export interface WikipediaPageRequest {
   page: string;
 }
+
+/** A folder's cover preference (1.32.0): web covers when available, or the file's own cover. No row = inherit. */
+export type FolderCoverPreference = 'Web' | 'File';
+
+/** GET/PUT/DELETE /admin/folders/{nodeId}/cover-preference (admin). */
+export interface FolderCoverPreferenceDto {
+  nodeId: string;
+  /** The folder's own preference; null = it inherits. */
+  preference?: FolderCoverPreference | null;
+  /** What the works below the folder get: its own value, else `inherited`. */
+  effective: FolderCoverPreference;
+  /** What the folder gets when it inherits: the nearest ancestor's value, else the library's "Show saved web covers" switch. */
+  inherited: FolderCoverPreference;
+  /** The ancestor folder `inherited` comes from; null = the library's switch. */
+  inheritedSourceNodeId?: string | null;
+  inheritedSourceName?: string | null;
+}
+
+/** PUT /admin/folders/{nodeId}/cover-preference. DELETE clears the folder's own value. */
+export interface SetFolderCoverPreferenceRequest {
+  preference: FolderCoverPreference;
+}

@@ -14,8 +14,8 @@ public sealed record StackCover(string Key, long VolumeCoverId, string VolumeCov
 /// Web volume covers on virtual volume STACKS (1.29.0, design 7.4 / P2.2): a chapter-only stack ("Volume 3 - 10 chapters", no
 /// real volume archive) shows the stored web cover of its volume - preferred language, else the origin language - instead
 /// of its first chapter's page 1. A stack with a real volume archive keeps that archive's resolved cover (not handled here).
-/// The same read-time rules as the cover layer: shown only while "Volume covers from the web" is on and the library's
-/// "Show saved web covers" is on, never under Don't match or without a linked series. Stored data only - no request.
+/// The same read-time rules as the cover layer: shown only while "Volume covers from the web" is on and the folder's cover
+/// preference (1.32.0; else the library's "Show saved web covers") allows web covers, never under Don't match or without a linked series. Stored data only - no request.
 /// The image is served to anyone who can see the folder by <c>GET /nodes/{folderId}/volumes/{key}/cover?v=</c>.
 /// </summary>
 public sealed class StackCoverService(MangaPixerDbContext db)
@@ -37,7 +37,9 @@ public sealed class StackCoverService(MangaPixerDbContext db)
             .Select(s => new { s.MetadataVolumeCoversEnabled, s.MetadataCoverLanguage }).FirstOrDefaultAsync(ct);
         if (settings is { MetadataVolumeCoversEnabled: false })
             return result;
-        if (await db.Libraries.AsNoTracking().Where(l => l.Id == libraryId).Select(l => l.WebCoversHidden).FirstOrDefaultAsync(ct))
+        // 1.32.0: the folder's cover preference (nearest ancestor, self first) over the library switch.
+        var libraryHidden = await db.Libraries.AsNoTracking().Where(l => l.Id == libraryId).Select(l => l.WebCoversHidden).FirstOrDefaultAsync(ct);
+        if (!FolderCoverRules.WebShown((await FolderCoverPreferences.OfAsync(db, folderId, ct))?.Preference, libraryHidden))
             return result;
 
         var links = await CoverLinks.NearestAsync(db, [folderId], ct);

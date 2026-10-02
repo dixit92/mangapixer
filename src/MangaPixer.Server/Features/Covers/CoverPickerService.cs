@@ -316,7 +316,10 @@ public sealed class CoverPickerService
             .Select(s => new { s.MetadataVolumeCoversEnabled }).FirstOrDefaultAsync(ct);
         if (settings is { MetadataVolumeCoversEnabled: false })
             return ([], false, "volume_covers_off");
-        if (await _db.Libraries.AsNoTracking().Where(l => l.Id == node.LibraryId).Select(l => l.WebCoversHidden).FirstOrDefaultAsync(ct))
+        // 1.32.0: an admin's explicit choice wins over an inherited folder "File covers"; only the library switch (unless the nearest
+        // folder says "Web covers when available") still hides the choice.
+        var libraryHidden = await _db.Libraries.AsNoTracking().Where(l => l.Id == node.LibraryId).Select(l => l.WebCoversHidden).FirstOrDefaultAsync(ct);
+        if (!FolderCoverRules.ChosenWebShown((await FolderCoverPreferences.OfAsync(_db, node.Id, ct))?.Preference, libraryHidden))
             return ([], false, "web_covers_hidden");
 
         var companion = await CoverSeries.CompanionRecordIdAsync(_db, link.RecordId!.Value, ct);

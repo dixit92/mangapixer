@@ -92,6 +92,7 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<NodeMoveEntity> NodeMoves => Set<NodeMoveEntity>();
     public DbSet<MoveConflictEntity> MoveConflicts => Set<MoveConflictEntity>();
     public DbSet<WikipediaListEntity> WikipediaLists => Set<WikipediaListEntity>();
+    public DbSet<FolderCoverPreferenceEntity> FolderCoverPreferences => Set<FolderCoverPreferenceEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -122,6 +123,7 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureVolumesAndCovers(modelBuilder);
         ConfigureNodeMoves(modelBuilder);
         ConfigureWikipediaLists(modelBuilder);
+        ConfigureFolderCoverPreferences(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
@@ -925,6 +927,22 @@ public sealed class MangaPixerDbContext : DbContext
             e.HasOne(x => x.Record)
                 .WithMany()
                 .HasForeignKey(x => x.RecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    /// <summary>Per-folder cover preference (1.32.0): one row per folder with an explicit value, absence = inherit.</summary>
+    private static void ConfigureFolderCoverPreferences(ModelBuilder mb)
+    {
+        mb.Entity<FolderCoverPreferenceEntity>(e =>
+        {
+            e.ToTable("folder_cover_preferences");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.HasIndex(x => x.NodeId).IsUnique();
+            e.HasOne(x => x.Node)
+                .WithMany()
+                .HasForeignKey(x => x.NodeId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

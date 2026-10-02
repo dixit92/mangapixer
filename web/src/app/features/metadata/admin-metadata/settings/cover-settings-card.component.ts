@@ -12,6 +12,8 @@ import { MetadataApiService } from '../../metadata-api.service';
  * - "Crop jacket spreads" (global, local only - no request): a volume whose page 1 is an unfolded jacket shows its front half;
  * - "Show saved web covers" per library - SEPARATE from "Show series information" (owner decision): off shows the file
  *   covers in that library; the stored covers stay;
+ * - a folder can override the library switch for itself and everything below it (1.32.0, "Folder covers..." in the browse
+ *   selection bar - see FolderCoverPreferenceDialogComponent);
  * ("Delete stored volume covers" sits on the Volume covers card, next to the MangaDex setting.)
  * Admins also choose a single item's cover with "Cover..." in the browse selection bar or "Choose cover..." in its admin menu.
  */
@@ -30,7 +32,8 @@ import { MetadataApiService } from '../../metadata-api.service';
           Done on this server - no request is sent.</p>
 
         <h4>Show saved web covers</h4>
-        <p class="note">Separate from "Show series information". Off shows each item's own page 1 in that library; the saved covers stay.</p>
+        <p class="note">Separate from "Show series information". Off shows each item's own page 1 in that library; the saved covers stay.
+          A folder can override this: select it in the library and choose <strong>Folder covers…</strong>.</p>
         <div class="libs">
           @for (lib of s.libraries; track lib.libraryId) {
             <mat-slide-toggle [checked]="lib.showWebCovers ?? true" [disabled]="busy()" (change)="setLibrary(lib.libraryId, $event.checked)"

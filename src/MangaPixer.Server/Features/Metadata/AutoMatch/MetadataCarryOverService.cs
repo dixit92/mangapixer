@@ -74,6 +74,7 @@ public sealed class MetadataCarryOverService
                 || _db.FolderMetadataPrecedences.Any(p => p.NodeId == n.Id)
                 || _db.FolderReaderDefaults.Any(r => r.NodeId == n.Id)
                 || _db.FolderMetadataContents.Any(c => c.NodeId == n.Id)
+                || _db.FolderCoverPreferences.Any(c => c.NodeId == n.Id)
                 || _db.DeclaredFacts.Any(f => f.NodeId == n.Id))
             .Where(n => !_db.MoveConflicts.Any(c => c.State == open && c.Move!.FromNodeId == n.Id))
             .Select(n => n.Id);
@@ -200,9 +201,10 @@ public sealed class MetadataCarryOverService
     }
 
     public sealed record MovedRows(bool Link, bool Precedence, bool ReaderDefault, bool Content, bool Declared = false,
-        bool Favorites = false, bool ViewSettings = false, bool CoverChoice = false, bool LinkConflict = false)
+        bool Favorites = false, bool ViewSettings = false, bool CoverChoice = false, bool LinkConflict = false, bool CoverPreference = false)
     {
-        public bool Any => Link || Precedence || ReaderDefault || Content || Declared || Favorites || ViewSettings || CoverChoice || LinkConflict;
+        public bool Any => Link || Precedence || ReaderDefault || Content || Declared || Favorites || ViewSettings || CoverChoice || LinkConflict
+            || CoverPreference;
     }
 
     /// <summary>
@@ -260,6 +262,15 @@ public sealed class MetadataCarryOverService
             coverChoice = true;
         }
 
+        // 1.32.0: the folder's cover preference (Web covers / File covers) moves like the reader default.
+        var coverPreference = false;
+        var fromCoverPreference = await _db.FolderCoverPreferences.FirstOrDefaultAsync(c => c.NodeId == fromNodeId, ct);
+        if (fromCoverPreference is not null && !await _db.FolderCoverPreferences.AnyAsync(c => c.NodeId == toNodeId, ct))
+        {
+            fromCoverPreference.NodeId = toNodeId;
+            coverPreference = true;
+        }
+
         // Declared facts (1.28.0) move as one set: all of T's rows, only when N declares nothing of its own.
         var declared = await _db.DeclaredFacts.AnyAsync(f => f.NodeId == fromNodeId, ct)
             && !await _db.DeclaredFacts.AnyAsync(f => f.NodeId == toNodeId, ct);
@@ -281,7 +292,7 @@ public sealed class MetadataCarryOverService
 
         if (droppedRecord is { } recordId)
             await RemoveOrphanRecordsAsync([recordId], ct);
-        return new MovedRows(link, precedence, readerDefault, content, declared, favorites, viewSettings, coverChoice, linkConflict);
+        return new MovedRows(link, precedence, readerDefault, content, declared, favorites, viewSettings, coverChoice, linkConflict, coverPreference);
     }
 
     /// <summary>
@@ -389,6 +400,7 @@ public sealed class MetadataCarryOverService
         await _db.FolderMetadataPrecedences.Where(p => p.NodeId == node.Id).ExecuteDeleteAsync(ct);
         await _db.FolderReaderDefaults.Where(r => r.NodeId == node.Id).ExecuteDeleteAsync(ct);
         await _db.FolderMetadataContents.Where(c => c.NodeId == node.Id).ExecuteDeleteAsync(ct);
+        await _db.FolderCoverPreferences.Where(c => c.NodeId == node.Id).ExecuteDeleteAsync(ct);
         await _db.DeclaredFacts.Where(f => f.NodeId == node.Id).ExecuteDeleteAsync(ct);
         await _db.MetadataMatchCandidates.Where(c => c.NodeId == node.Id).ExecuteDeleteAsync(ct);
         // Records no link references any more go, as on unlink.

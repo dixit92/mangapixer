@@ -10,7 +10,7 @@ The first of these that applies wins:
 
 1. **An admin's choice** for this folder or archive (see [Choose a cover](#choose-a-cover-admins)).
 2. **"This file's cover"**, when an admin pinned it. It also switches off everything automatic for that item.
-3. **The automatic cover**, described below.
+3. **The automatic cover**, described below. Its **web** part (a stored volume cover, the series cover, the poster) is used only where the folder's [cover preference](#choose-what-a-folder-shows-admins) and the library allow it.
 4. **The file cover**: page 1 of the archive, or of a folder's first archive.
 
 A folder that has no cover of its own shows the cover of its first archive, including that archive's automatic cover. So when volume 1's jacket is cropped, the series card shows the cropped front too. A folder linked to a series shows **its volume 1** instead of its first archive by name (see the table below), so a `Chapters` subfolder that sorts first does not put chapter 1's page on the series card.
@@ -47,12 +47,33 @@ For a folder linked to a series, MangaPixer can also use covers it downloaded fr
 
 The preferred language (**Preferred language (covers and releases)**) is set in **Metadata Manager** > **Settings**. When a volume has no cover in that language yet, the cover from the country of origin is used and MangaPixer looks again later.
 
-Two switches hide the stored web covers without deleting them:
+Three settings decide whether the stored web covers are shown, without deleting them:
 
 - **Volume covers from the web** (Metadata Manager > Settings) for the whole server;
-- **Show saved web covers** per library (Metadata Manager > Settings > **Covers**). This is separate from **Show series information**: you can hide descriptions and keep the covers, or the other way round.
+- **Show saved web covers** per library (Metadata Manager > Settings > **Covers**). This is separate from **Show series information**: you can hide descriptions and keep the covers, or the other way round;
+- *New in 1.32.0:* the **cover preference of a folder** (below), which overrides the library switch for that folder and everything below it.
 
 **Delete stored volume covers** (Metadata Manager > Settings > **Covers**) removes the downloaded covers and every automatic or chosen cover that used them. Those items show their own covers again.
+
+### Choose what a folder shows (admins)
+
+*New in 1.32.0.* A library often mixes shelves that should show web covers with shelves that should not. A folder of loose single-archive series, for example, may look better with each file's own cover than with covers matched from the web. Give such a folder a **cover preference** and it applies to the folder and **every folder below it**, the same way a folder's reading direction does.
+
+Open it with **Library** > **Select**, select exactly **one folder**, then **Folder covers…** in the selection bar. Choose:
+
+- **Inherit** (the default): follow the nearest folder above that has a preference, and above all of them the library's **Show saved web covers** switch. The line tells you what that gives, for example *Inherit (File covers from Collection)*.
+- **Web covers when available**: show the saved web covers of the linked series below this folder, **even where the library hides them**.
+- **File covers**: show each file's own cover. No web cover, series cover or poster is shown below this folder, and none is downloaded for it from now on.
+
+The **nearest** folder with a preference wins, so a subfolder can say *Web covers when available* inside a *File covers* shelf, and the other way round. The library switch is the root: with **Show saved web covers** off, a folder that says *Web covers when available* still shows them, and with it on, a folder that says *File covers* does not.
+
+What it does and does not touch:
+
+- A cover an admin **chose** for one card (see [Choose a cover](#choose-a-cover-admins), **Covers from the web** included) still wins over the folder's *File covers*. The picker still lists web covers there. Only the library's **Show saved web covers** switch off (with no folder saying *Web covers when available*) hides a chosen web cover, as before.
+- *Jacket crops* are a different setting (**Crop jacket spreads**) and are made from your own files, so they stay under *File covers*; so does a series folder showing its own volume 1.
+- Under *File covers* MangaPixer stops downloading volume covers for series whose folders are all under it, so nothing new is fetched. The covers already stored stay and are shown again if you switch back. The volume **lists** (the [Volumes view](volumes.md) and the Missing report) are not affected, and neither is **Refresh** or **Choose cover** when an admin asks for it. A series linked from several folders keeps downloading while one of them shows web covers, because the covers are shared.
+- The change takes effect at once for what is shown; MangaPixer then updates its automatic covers below the folder in the background. If you switch back to *Web covers when available*, the web covers come back once that has run, within moments in a small folder.
+- Moving or renaming the folder keeps its preference, like its reading direction.
 
 ### On the home page
 
