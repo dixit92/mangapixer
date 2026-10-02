@@ -6,9 +6,9 @@ using com.lifepixer.mangapixer.Server.Persistence.Entities;
 
 /// <summary>
 /// When companion data (the MangaDex record, its volume list and cover list, the AniList totals) is looked at again
-/// (1.29.0): on the linked series record's refresh cadence - every 30 days while it is ongoing, every 90 days once it
-/// is complete (<see cref="MetadataRefreshService"/>) - and a failed attempt after a day. The one place a later
-/// dynamic refresh cadence plugs in.
+/// (1.29.0): on the linked series record's refresh cadence - since 1.32.0 the admin's choice and the series' publishing
+/// pace, stored per record by <see cref="MetadataRefreshService"/> (<c>RefreshCadenceDays</c>; before it is computed,
+/// 30 days while ongoing, 90 once finished) - and a failed attempt after a day.
 /// </summary>
 public static class CompanionSchedule
 {
@@ -16,7 +16,7 @@ public static class CompanionSchedule
 
     /// <summary>The next regular check of companion data for the series record <paramref name="series"/>.</summary>
     public static DateTimeOffset NextCheck(MetadataRecordEntity series, DateTimeOffset now) =>
-        now + RefreshCadence.AgeFor(series.OriginStatus);
+        now + RefreshCadence.AgeFor(series.RefreshCadenceDays, series.OriginStatus);
 
     public static DateTimeOffset AfterFailure(DateTimeOffset now) => now + FailedRetry;
 }

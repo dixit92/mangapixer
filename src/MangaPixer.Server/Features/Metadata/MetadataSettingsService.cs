@@ -98,8 +98,7 @@ public sealed class MetadataSettingsService
         var row = await _db.AppSettings.AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == AppSettingsEntity.SingletonId, ct);
 
-        var today = UtcDay(_time.GetUtcNow());
-        var budgetUsed = row?.MetadataBudgetDayUtc is { } day && UtcDay(day) == today ? row.MetadataBudgetUsed : 0;
+        var budgetUsed = MetadataBudget.IsToday(row?.MetadataBudgetDayUtc, _time.GetUtcNow(), _time.LocalTimeZone) ? row!.MetadataBudgetUsed : 0;
 
         var linkCounts = await _db.NodeSeriesLinks
             .GroupBy(l => l.LibraryId)
@@ -383,6 +382,4 @@ public sealed class MetadataSettingsService
             _logger.LogInformation(LogEvents.Metadata.SettingsChanged, "Metadata library settings changed for library {LibraryId}: {Count} change(s)", library.Id, audits.Count);
         return true;
     }
-
-    private static DateOnly UtcDay(DateTimeOffset value) => DateOnly.FromDateTime(value.UtcDateTime);
 }

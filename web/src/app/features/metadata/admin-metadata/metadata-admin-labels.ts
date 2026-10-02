@@ -202,7 +202,7 @@ const WAITING: Record<string, string> = {
   automatic_off: 'Automatic matching is off.',
   metadata_disabled: 'Fetching from the web is off.',
   metadata_network_disabled: 'Web lookups are disabled by the server configuration.',
-  budget_exhausted: 'Today\'s request budget is spent. Automatic work continues after 00:00 UTC, or raise the budget.',
+  budget_exhausted: 'Today\'s request budget is spent. Automatic work continues after midnight server time, or raise the budget.',
   provider_backoff: 'MangaUpdates asked MangaPixer to slow down.',
   provider_not_allowed: 'MangaUpdates is off the provider allowlist. Add it back in Settings to continue.',
 };

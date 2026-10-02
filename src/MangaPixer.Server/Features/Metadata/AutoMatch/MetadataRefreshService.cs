@@ -7,21 +7,22 @@ using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
-/// Background id-only refresh of linked records (metadata stage 2, owner decision
-/// 14): a record linked Confirmed or Auto is re-fetched by id every 30 days while
-/// it is ongoing and every 90 days once it is complete; a record the provider no
-/// longer has (gone) never. At most <see cref="MaxPerDay"/> GETs per UTC day
-/// (persisted, survives restarts), inside the ONE daily budget, behind the same
-/// automatic gate as auto-match, oldest first; paced by the gateway at &lt;= 1/s.
-/// Sends record ids only - never a name. The poster is fetched again only when its
-/// URL changed.
+/// Background id-only refresh of linked records (metadata stage 2, owner decision 14; 1.32.0 scheduled and on the admin's
+/// cadence): once a day at the admin's hour (the Scheduled jobs section, <see cref="Hosting.MetadataAutoMatchHostedService"/>), a
+/// record linked Confirmed or Auto is re-fetched by id when its cadence has passed since it was fetched - the admin's choice
+/// for ongoing and finished series, faster for a series that publishes quickly (<see cref="RefreshCadence.For"/>); a record the
+/// provider no longer has (gone) never. At most <see cref="MaxPerDay"/> GETs per budget day (persisted, survives restarts),
+/// inside the ONE daily budget, behind the same automatic gate as auto-match, oldest first; paced by the gateway at &lt;= 1/s.
+/// Sends record ids only - never a name. The poster is fetched again only when its URL changed. Each pass first recomputes
+/// every linked record's cadence (stored in <c>RefreshCadenceDays</c>, which the companions and the cover re-check follow too)
+/// and notes what the refresh saw (<see cref="RefreshObservations"/>).
 /// </summary>
 public sealed class MetadataRefreshService
 {
-    public const int MaxPerDay = 100;
-    /// <summary>The cadence lives in <see cref="RefreshCadence"/> (1.32.0); these stay as its names here.</summary>
-    public static TimeSpan OngoingAge => RefreshCadence.OngoingAge;
-    public static TimeSpan CompleteAge => RefreshCadence.FinishedAge;
+    /// <summary>At most this many refresh GETs a day (1.32.0 provisional decision Q6: 200; was 100).</summary>
+    public const int MaxPerDay = 200;
+
+    private static readonly int[] Linked = [(int)SeriesLinkState.Confirmed, (int)SeriesLinkState.Auto];
 
     private readonly MangaPixerDbContext _db;
     private readonly MetadataGateway _gateway;
@@ -55,41 +56,138 @@ public sealed class MetadataRefreshService
         _reach = reach;
     }
 
-    /// <summary>One pass; returns how many records were refreshed (or found gone).</summary>
-    public async Task<int> RunPassAsync(CancellationToken ct = default)
+    /// <summary>The admin's cadence choice.</summary>
+    public async Task<RefreshCadencePolicy> PolicyAsync(CancellationToken ct = default)
     {
+        var row = await _db.AppSettings.AsNoTracking()
+            .Where(s => s.Id == AppSettingsEntity.SingletonId)
+            .Select(s => new { s.MetadataRefreshOngoingDays, s.MetadataRefreshFinishedDays, s.MetadataRefreshFollowPace })
+            .FirstOrDefaultAsync(ct);
+        return row is null
+            ? RefreshCadencePolicy.Default
+            : RefreshCadencePolicy.FromStored(row.MetadataRefreshOngoingDays, row.MetadataRefreshFinishedDays, row.MetadataRefreshFollowPace);
+    }
+
+    /// <summary>A linked record's cadence inputs.</summary>
+    private sealed record LinkedRecord(long Id, DateTimeOffset FetchedAt, int FetchState, int? OriginStatus, int? StartYear, int? OriginVolumes,
+        double? LatestChapter, int? RefreshCadenceDays);
+
+    private IQueryable<MetadataRecordEntity> LinkedRecords() =>
+        _db.MetadataRecords.Where(r => _db.NodeSeriesLinks.Any(l => l.RecordId == r.Id && Linked.Contains(l.State)
+            && _db.Libraries.Any(lib => lib.Id == l.LibraryId && lib.MetadataEnabled)));
+
+    /// <summary>What the cadence of one record is computed from (its observations, oldest first, and the volume map's chapters a volume).</summary>
+    public async Task<RefreshEvidence> EvidenceAsync(MetadataRecordEntity record, CancellationToken ct = default)
+    {
+        var history = await _db.MetadataRecordObservations.AsNoTracking()
+            .Where(o => o.RecordId == record.Id)
+            .OrderBy(o => o.ObservedAt).ThenBy(o => o.Id)
+            .ToListAsync(ct);
+        var perVolume = await _db.SeriesVolumeMaps.AsNoTracking()
+            .Where(m => m.RecordId == record.Id && m.ChaptersPerVolume != null)
+            .OrderBy(m => m.Source)
+            .Select(m => m.ChaptersPerVolume)
+            .FirstOrDefaultAsync(ct);
+        return new RefreshEvidence(record.OriginStatus, record.StartYear, record.OriginVolumes, record.LatestChapter, perVolume,
+            history.Select(RefreshObservations.ToCore).ToList());
+    }
+
+    /// <summary>
+    /// Recomputes and stores the cadence of every linked record (no request): writes a baseline observation for a record that
+    /// has none, then <see cref="RefreshCadence.For"/> under the admin's policy. Returns the records' cadences by id.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<long, int>> RecomputeCadencesAsync(CancellationToken ct = default)
+    {
+        var policy = await PolicyAsync(ct);
+        var now = _time.GetUtcNow();
+        var records = await LinkedRecords().AsNoTracking()
+            .Select(r => new LinkedRecord(r.Id, r.FetchedAt, r.FetchState, r.OriginStatus, r.StartYear, r.OriginVolumes, r.LatestChapter, r.RefreshCadenceDays))
+            .ToListAsync(ct);
+        var ids = records.Select(r => r.Id).ToList();
+        var observations = (await _db.MetadataRecordObservations.AsNoTracking()
+                .Where(o => ids.Contains(o.RecordId))
+                .ToListAsync(ct))
+            .GroupBy(o => o.RecordId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(o => o.ObservedAt).ThenBy(o => o.Id).ToList());
+        var perVolume = (await _db.SeriesVolumeMaps.AsNoTracking()
+                .Where(m => ids.Contains(m.RecordId) && m.ChaptersPerVolume != null)
+                .Select(m => new { m.RecordId, m.Source, m.ChaptersPerVolume })
+                .ToListAsync(ct))
+            .GroupBy(m => m.RecordId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(m => m.Source).First().ChaptersPerVolume);
+
+        var baselines = 0;
+        var cadences = new Dictionary<long, int>();
+        var changed = new Dictionary<long, int>();
+        foreach (var r in records)
+        {
+            if (!observations.TryGetValue(r.Id, out var history))
+            {
+                var baseline = new MetadataRecordObservationEntity
+                {
+                    RecordId = r.Id, ObservedAt = r.FetchedAt, LatestChapter = r.LatestChapter, OriginVolumes = r.OriginVolumes, OriginStatus = r.OriginStatus,
+                };
+                _db.MetadataRecordObservations.Add(baseline);
+                history = [baseline];
+                baselines++;
+            }
+            var evidence = new RefreshEvidence(r.OriginStatus, r.StartYear, r.OriginVolumes, r.LatestChapter, perVolume.GetValueOrDefault(r.Id),
+                history.Select(RefreshObservations.ToCore).ToList());
+            var days = RefreshCadence.For(policy, evidence, now).Days;
+            cadences[r.Id] = days;
+            if (r.RefreshCadenceDays != days)
+                changed[r.Id] = days;
+        }
+        if (baselines > 0)
+            await _db.SaveChangesAsync(ct);
+        foreach (var group in changed.GroupBy(c => c.Value))
+        {
+            var groupIds = group.Select(c => c.Key).ToList();
+            await _db.MetadataRecords.Where(r => groupIds.Contains(r.Id))
+                .ExecuteUpdateAsync(s => s.SetProperty(r => r.RefreshCadenceDays, group.Key), ct);
+        }
+        return cadences;
+    }
+
+    /// <summary>
+    /// One pass; returns how many records were refreshed (or found gone), how many were due, and why it stopped early (the
+    /// gate's code) if it did.
+    /// </summary>
+    public async Task<RefreshPassResult> RunPassAsync(CancellationToken ct = default)
+    {
+        var cadences = await RecomputeCadencesAsync(ct);
+
         var wait = await _autoMatch.CheckGlobalGateAsync(ct);
         if (wait is not null && wait.Code != "matcher_unavailable")
-            return 0; // Refresh needs no matcher, but everything else of the gate.
+            return new RefreshPassResult(0, 0, wait.Code); // Refresh needs no matcher, but everything else of the gate.
 
         var now = _time.GetUtcNow();
-        var ongoingBefore = now - OngoingAge;
-        var completeBefore = now - CompleteAge;
-        var complete = RefreshCadence.FinishedStatuses.ToArray();
-        var linked = new[] { (int)SeriesLinkState.Confirmed, (int)SeriesLinkState.Auto };
+        var candidates = await LinkedRecords().AsNoTracking()
+            .Where(r => r.FetchState != 1)
+            .Select(r => new { r.Id, r.FetchedAt, r.OriginStatus })
+            .ToListAsync(ct);
+        var due = candidates
+            .Where(r => r.FetchedAt + TimeSpan.FromDays(cadences.TryGetValue(r.Id, out var d) ? d : (int)RefreshCadence.AgeFor(r.OriginStatus).TotalDays) <= now)
+            .OrderBy(r => r.FetchedAt)
+            .Select(r => r.Id)
+            .ToList();
 
         var remaining = MaxPerDay - await UsedTodayAsync(ct);
         if (remaining <= 0)
-            return 0;
-
-        var due = await _db.MetadataRecords.AsNoTracking()
-            .Where(r => r.FetchState != 1
-                && (complete.Contains(r.OriginStatus) ? r.FetchedAt < completeBefore : r.FetchedAt < ongoingBefore)
-                && _db.NodeSeriesLinks.Any(l => l.RecordId == r.Id && linked.Contains(l.State)
-                    && _db.Libraries.Any(lib => lib.Id == l.LibraryId && lib.MetadataEnabled)))
-            .OrderBy(r => r.FetchedAt)
-            .Select(r => r.Id)
-            .Take(remaining)
-            .ToListAsync(ct);
+            return new RefreshPassResult(0, due.Count, due.Count > 0 ? "refresh_cap" : null);
 
         var done = 0;
-        foreach (var recordId in due)
+        string? stopped = null;
+        foreach (var recordId in due.Take(remaining))
         {
             if (!await TryTakeSlotAsync(ct))
+            {
+                stopped = "refresh_cap";
                 break;
+            }
             var record = await _db.MetadataRecords.FirstAsync(r => r.Id == recordId, ct);
             var libraryId = await _db.NodeSeriesLinks.AsNoTracking()
-                .Where(l => l.RecordId == recordId && linked.Contains(l.State) && _db.Libraries.Any(lib => lib.Id == l.LibraryId && lib.MetadataEnabled))
+                .Where(l => l.RecordId == recordId && Linked.Contains(l.State) && _db.Libraries.Any(lib => lib.Id == l.LibraryId && lib.MetadataEnabled))
                 .Select(l => l.LibraryId)
                 .FirstOrDefaultAsync(ct);
             var call = MetadataCallContext.Automatic();
@@ -108,6 +206,14 @@ public sealed class MetadataRefreshService
                     var oldImage = record.ImageRemoteUrl;
                     MetadataIdentifyService.Apply(record, fetched, at);
                     await _db.SaveChangesAsync(ct);
+                    // 1.32.0: what the refresh saw, and the record's cadence from it.
+                    await RefreshObservations.NoteAsync(_db, record, at, ct);
+                    var days = RefreshCadence.For(await PolicyAsync(ct), await EvidenceAsync(record, ct), at).Days;
+                    if (record.RefreshCadenceDays != days)
+                    {
+                        record.RefreshCadenceDays = days;
+                        await _db.SaveChangesAsync(ct);
+                    }
                     // 1.30.0 (reach): refreshed totals may contradict an Auto link's reach (never throws).
                     await _reach.TryCheckRecordAsync(record.Id, ct);
                     if (record.ImageRemoteUrl is not null && (record.ImageState != 1 || !string.Equals(oldImage, record.ImageRemoteUrl, StringComparison.Ordinal)))
@@ -117,7 +223,8 @@ public sealed class MetadataRefreshService
             }
             catch (MetadataGatewayException ex) when (MetadataAutoMatchService.IsRefusal(ex))
             {
-                break; // The gate closed (switch, budget, backoff): the next pass continues.
+                stopped = ex.Code; // The gate closed (switch, budget, backoff): the next pass continues.
+                break;
             }
             catch (MetadataGatewayException ex)
             {
@@ -126,18 +233,35 @@ public sealed class MetadataRefreshService
                 _logger.LogInformation(LogEvents.Metadata.RefreshFailed, "Metadata refresh of record {RecordId} failed: {Code}", recordId, ex.Code);
             }
         }
+        if (stopped is null && due.Count > remaining)
+            stopped = "refresh_cap";
         if (done > 0)
             _logger.LogInformation(LogEvents.Metadata.RefreshPass, "Metadata refresh pass: {Count} records refreshed", done);
-        return done;
+        return new RefreshPassResult(done, due.Count, stopped);
     }
 
-    private async Task<int> UsedTodayAsync(CancellationToken ct)
+    /// <summary>Refresh GETs taken today (the budget day).</summary>
+    public async Task<int> UsedTodayAsync(CancellationToken ct = default)
     {
         var row = await _db.AppSettings.AsNoTracking()
             .Where(s => s.Id == AppSettingsEntity.SingletonId)
             .Select(s => new { s.MetadataRefreshDayUtc, s.MetadataRefreshUsed })
             .FirstOrDefaultAsync(ct);
-        return row?.MetadataRefreshDayUtc is { } day && day == _budget.Today() ? row.MetadataRefreshUsed : 0;
+        return _budget.IsToday(row?.MetadataRefreshDayUtc) ? row!.MetadataRefreshUsed : 0;
+    }
+
+    /// <summary>Linked records past their check date now (for the Scheduled jobs section), and how many follow each cadence.</summary>
+    public async Task<(int Overdue, IReadOnlyDictionary<int, int> ByDays)> SummaryAsync(CancellationToken ct = default)
+    {
+        var now = _time.GetUtcNow();
+        var rows = await LinkedRecords().AsNoTracking()
+            .Where(r => r.FetchState != 1)
+            .Select(r => new { r.FetchedAt, r.OriginStatus, r.RefreshCadenceDays })
+            .ToListAsync(ct);
+        var overdue = rows.Count(r => r.FetchedAt + RefreshCadence.AgeFor(r.RefreshCadenceDays, r.OriginStatus) <= now);
+        var byDays = rows.GroupBy(r => (int)RefreshCadence.AgeFor(r.RefreshCadenceDays, r.OriginStatus).TotalDays)
+            .ToDictionary(g => g.Key, g => g.Count());
+        return (overdue, byDays);
     }
 
     /// <summary>Takes one of today's refresh slots (serialized with the budget writes).</summary>
@@ -162,3 +286,6 @@ public sealed class MetadataRefreshService
         }
     }
 }
+
+/// <summary>One refresh pass: records refreshed (or found gone), records that were due, and the code that stopped it early (null = done).</summary>
+public readonly record struct RefreshPassResult(int Refreshed, int Due, string? StoppedCode);
