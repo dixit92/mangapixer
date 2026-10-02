@@ -140,6 +140,14 @@ describe('series progress labels', () => {
       expect(answerSentence(oneShot)).toBe('A one-shot, ended in Japan: you have it.');
       expect(editionLabel(oneShot)).toBe('One-shot');
       expect(completionMarkLabel(oneShot)).toBe('Finished - you have it all (One-shot)');
+      // A one-volume run whose file is numbered reads the same (review instance, 1.32.0): never "all 1 volume".
+      const single = progress({ ...japan, originStatus: 'Complete', originVolumes: 1 }, { answer: 'HaveItAll', completion: 'CompleteCollection',
+        completionBasis: 'OriginRun', completionTarget: 1, completionHeld: 1 });
+      expect(answerSentence(single)).toBe('A one-shot, ended in Japan: you have it.');
+      expect(editionLabel(single)).toBe('One-shot');
+      const one = progress({ ...japan, originStatus: 'Complete' }, { answer: 'HaveItAll', completion: 'CompleteCollection',
+        completionBasis: 'OfficialVolumes', completionTarget: 1 });
+      expect(answerSentence(one)).toBe('Ended in Japan, and the English edition is complete: you have its one volume.');
     });
 
     it('an ended series with released ones not here, without an edition', () => {

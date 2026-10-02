@@ -229,11 +229,17 @@ export function answerOf(progress: SeriesProgressDto | null | undefined): Series
   return progress.completion === 'CompleteCollection' ? 'HaveItAll' : progress.completion === 'FinishedNotHeld' ? 'FinishedMissing' : null;
 }
 
+/** A one-shot: the one-shot rule, or an ended original run of a single volume held whole. */
+function isOneShot(progress: SeriesProgressDto): boolean {
+  return progress.answerReason === 'OneShot'
+    || (answerOf(progress) === 'HaveItAll' && progress.completionBasis === 'OriginRun' && progress.completionTarget === 1 && !progress.completionInChapters);
+}
+
 /** The edition label of the two Finished answers ("Official", "Official chapters", "Chapter-based", "Original run", "One-shot"), else null. */
 export function editionLabel(progress: SeriesProgressDto): string | null {
   const answer = answerOf(progress);
   if (answer !== 'HaveItAll' && answer !== 'FinishedMissing') return null;
-  if (progress.answerReason === 'OneShot') return 'One-shot';
+  if (isOneShot(progress)) return 'One-shot';
   return progress.completionBasis ? completionBasisLabel(progress.completionBasis) : null;
 }
 
@@ -252,6 +258,11 @@ export function completionMarkLabel(progress: SeriesProgressDto): string | null 
 
 function unitsWord(progress: SeriesProgressDto, n: number): string {
   return plural(n, progress.completionInChapters ? 'chapter' : 'volume');
+}
+
+/** "all 14 volumes", "its one volume". */
+function allOf(n: number, word: string): string {
+  return n === 1 ? `its one ${word}` : `all ${plural(n, word)}`;
 }
 
 /** "2 volumes, 3 chapters" (what is missing, without the word), or null. */
@@ -283,12 +294,12 @@ export function answerSentence(progress: SeriesProgressDto): string | null {
 
   switch (answer) {
     case 'HaveItAll':
-      if (progress.answerReason === 'OneShot') return `A one-shot, ${ended.replace(/^./, (c) => c.toLowerCase())}: you have it.`;
+      if (isOneShot(progress)) return `A one-shot, ${ended.replace(/^./, (c) => c.toLowerCase())}: you have it.`;
       switch (progress.completionBasis) {
-        case 'OfficialVolumes': return `${ended}, and the ${lang} edition is complete: you have all ${plural(target, 'volume')}.`;
-        case 'OfficialChapters': return `${ended}, and every chapter is out officially in ${lang}: you have all ${plural(target, 'chapter')}.`;
-        case 'AllChapters': return `${ended}, and every chapter is out in ${lang}: you have all ${plural(target, 'chapter')}.`;
-        default: return `${ended}: you have all ${unitsWord(progress, target)} of the original run.`;
+        case 'OfficialVolumes': return `${ended}, and the ${lang} edition is complete: you have ${allOf(target, 'volume')}.`;
+        case 'OfficialChapters': return `${ended}, and every chapter is out officially in ${lang}: you have ${allOf(target, 'chapter')}.`;
+        case 'AllChapters': return `${ended}, and every chapter is out in ${lang}: you have ${allOf(target, 'chapter')}.`;
+        default: return `${ended}: you have ${allOf(target, progress.completionInChapters ? 'chapter' : 'volume')} of the original run.`;
       }
     case 'FinishedMissing':
       switch (progress.completionBasis) {
