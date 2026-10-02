@@ -47,7 +47,7 @@ MangaPixer is built around manga, but it reads the usual naming of Western comic
 | `TPB`, `HC`, `GN`, `OGN`, `Library Edition`, `Intégrale`, `Gesamtausgabe`, `Integraal` | a format word: left out of the title MangaPixer searches for | `Saga Vol. 1 TPB.cbz` |
 | `(c2c)`, `(Zone-Empire)`, `(Digital)`, `(Webrip)` | a release tag: ignored, never taken for a creator | |
 
-`No. 6` at the very start of a name is a title, not issue 6. `HC` and `GN` count only in capital letters.
+`No. 12` is an issue number only at the end of a name (tags in brackets aside): when a volume, chapter or other number follows it (`Monster No. 8 v01 c003`), or when the folder's own name carries it (`Robot No. 9/Robot No. 9.cbz`), it is part of the title, and so is `No. 6` at the very start of a name. The title MangaPixer searches for always keeps `No. N`. `HC` and `GN` count only in capital letters.
 
 ### Comics signs
 
