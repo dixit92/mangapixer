@@ -125,7 +125,11 @@ public sealed class MetadataRefreshService
             {
                 var baseline = new MetadataRecordObservationEntity
                 {
-                    RecordId = r.Id, ObservedAt = r.FetchedAt, LatestChapter = r.LatestChapter, OriginVolumes = r.OriginVolumes, OriginStatus = r.OriginStatus,
+                    RecordId = r.Id,
+                    ObservedAt = r.FetchedAt,
+                    LatestChapter = r.LatestChapter,
+                    OriginVolumes = r.OriginVolumes,
+                    OriginStatus = r.OriginStatus,
                 };
                 _db.MetadataRecordObservations.Add(baseline);
                 history = [baseline];

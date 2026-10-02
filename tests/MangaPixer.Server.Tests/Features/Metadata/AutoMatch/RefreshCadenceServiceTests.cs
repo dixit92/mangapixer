@@ -115,7 +115,11 @@ public sealed class RefreshCadenceServiceTests : IAsyncLifetime
         var now = _h.Time.GetUtcNow();
         _db.Db.MetadataCompanions.Add(new MetadataCompanionEntity
         {
-            RecordId = record.Id, Provider = "mangadex", State = 1, CheckedAt = now.AddDays(-1), NextCheckAt = now.AddDays(29),
+            RecordId = record.Id,
+            Provider = "mangadex",
+            State = 1,
+            CheckedAt = now.AddDays(-1),
+            NextCheckAt = now.AddDays(29),
         });
         await _db.Db.SaveChangesAsync();
 

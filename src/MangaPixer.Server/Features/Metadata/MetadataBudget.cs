@@ -98,7 +98,7 @@ public sealed class MetadataBudget
     /// 1.32.0 (provisional decision Q3 = B1): the budget day and the refresh cap roll over at midnight SERVER time, like every
     /// other daily thing. false = 00:00 UTC (B2). The one switch for the day boundary.
     /// </summary>
-    public const bool LocalDay = true;
+    public static readonly bool LocalDay = true;
 
     /// <summary>The start of the budget day containing <paramref name="nowUtc"/>: local midnight in <paramref name="zone"/> (an hour later when a clock change skips it).</summary>
     public static DateTimeOffset DayStart(DateTimeOffset nowUtc, TimeZoneInfo zone)

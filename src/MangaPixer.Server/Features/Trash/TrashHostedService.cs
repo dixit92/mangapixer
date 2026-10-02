@@ -136,7 +136,7 @@ public sealed class TrashHostedService : BackgroundService
             var cleaned = await trash.CleanBundlesAsync(automatic: true, actor: null, ct);
             outcome = Jobs.JobOutcomes.Ok;
             detail = string.Create(System.Globalization.CultureInfo.InvariantCulture,
-                $"{emptied.Result?.Nodes ?? 0} removed, {cleaned.Files} bundle files cleaned");
+                $"{emptied.Result?.Removed.Nodes ?? 0} removed, {cleaned.Files} bundle files cleaned");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
