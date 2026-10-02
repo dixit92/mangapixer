@@ -36,6 +36,7 @@ public sealed class MetadataAutoMatchHostedService : BackgroundService
     private readonly ILogger<MetadataAutoMatchHostedService> _logger;
     private readonly JobRunRecorder? _runs;
     private readonly TimeProvider _time;
+    private DateTimeOffset _startedAt;
     private readonly string _owner = "automatch-" + Environment.ProcessId;
 
     public MetadataAutoMatchHostedService(
@@ -52,12 +53,14 @@ public sealed class MetadataAutoMatchHostedService : BackgroundService
         _logger = logger;
         _runs = runs;
         _time = time ?? TimeProvider.System;
+        _startedAt = _time.GetUtcNow();
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!_options.WorkerEnabled)
             return;
+        _startedAt = _time.GetUtcNow();
         try
         {
             if (_options.StartupDelay > TimeSpan.Zero)
@@ -169,7 +172,9 @@ public sealed class MetadataAutoMatchHostedService : BackgroundService
             }
             var last = _runs is null ? null : await _runs.GetAsync(ScheduledJobKeys.MetadataRefresh, ct);
             var now = _time.GetUtcNow();
-            return MetadataRefreshSchedule.NextDue(now, _time.LocalTimeZone, MetadataRefreshSchedule.HourOf(stored), last?.LastStartedAt, last?.LastOutcome) <= now;
+            // Never run yet (a fresh install or the upgrade): the floor is this start, so the first slot after it is not skipped.
+            return MetadataRefreshSchedule.NextDue(now, _time.LocalTimeZone, MetadataRefreshSchedule.HourOf(stored), last?.LastStartedAt ?? _startedAt,
+                last?.LastOutcome) <= now;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

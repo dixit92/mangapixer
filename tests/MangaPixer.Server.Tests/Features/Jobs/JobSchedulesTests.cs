@@ -38,6 +38,17 @@ public sealed class JobSchedulesTests
     }
 
     [Fact]
+    public void ANeverRunJob_WithItsStartAsTheFloor_RunsAtTheFirstSlot_EvenWhenCheckedAMinuteLate()
+    {
+        // Review-instance finding: with no floor the next slot is always after now, so a check at 03:00:30 skipped to tomorrow.
+        // The hosted services pass their start time as the floor until the first run.
+        Assert.Equal(At(2, 3, 1), MetadataRefreshSchedule.NextDue(At(2, 3, 1), Utc, 3, At(2, 1), null));
+        Assert.Equal(At(2, 5, 1), MaintenanceHostedService.NextCacheEviction(At(2, 5, 1), Utc, null, At(2, 1)));
+        // Started after today's slot: tomorrow.
+        Assert.Equal(At(3, 3), MetadataRefreshSchedule.NextDue(At(2, 12), Utc, 3, At(2, 4), null));
+    }
+
+    [Fact]
     public void Refresh_DescribesItsRun_CountsOnly()
     {
         Assert.Equal((JobOutcomes.Ok, "12 refreshed"), MetadataRefreshSchedule.Describe(new RefreshPassResult(12, 12, null)));
@@ -62,6 +73,8 @@ public sealed class JobSchedulesTests
             new RotatingBackupOptions { SafetyBackupDirectory = "/synthetic/backups" },
             new com.lifepixer.mangapixer.Server.Persistence.Entities.AppSettingsEntity { BackupIntervalHours = hours, BackupHour = hour });
         var started = At(1, 0);
+        // No backup yet: the first slot after the start, also when checked a minute late.
+        Assert.Equal(At(1, 2, 1), RotatingBackupHostedService.NextDue(started, At(1, 2, 1), Utc, null, Settings(24, 2)));
         // Daily at 02:00 after yesterday's 02:00 backup: today 02:00 passed at 12:00 -> tomorrow; caught up when missed.
         Assert.Equal(At(3, 2), RotatingBackupHostedService.NextDue(started, At(2, 12), Utc, At(2, 2), Settings(24, 2)));
         Assert.Equal(At(2, 12), RotatingBackupHostedService.NextDue(started, At(2, 12), Utc, At(1, 2), Settings(24, 2)));

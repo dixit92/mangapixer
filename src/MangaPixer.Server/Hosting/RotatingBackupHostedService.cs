@@ -61,9 +61,8 @@ public sealed class RotatingBackupHostedService : BackgroundService
         if (settings.Hour is not { } hour || settings.WholeDays is not { } days)
             return NextDue(startedUtc, lastAttemptUtc, settings.Interval);
         var earliest = startedUtc + InitialDelay;
-        var due = lastAttemptUtc is null
-            ? JobSchedule.FirstSlotAfter(nowUtc, zone, new TimeOfDaySchedule(hour, EveryDays: days))
-            : JobSchedule.NextDue(nowUtc, zone, new TimeOfDaySchedule(hour, EveryDays: days), lastAttemptUtc);
+        // No backup yet: the floor is the scheduler's start, so the first slot after it is not skipped.
+        var due = JobSchedule.NextDue(nowUtc, zone, new TimeOfDaySchedule(hour, EveryDays: days), lastAttemptUtc ?? startedUtc);
         return due > earliest ? due : earliest;
     }
 

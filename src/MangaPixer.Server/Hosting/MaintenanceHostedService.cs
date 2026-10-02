@@ -75,7 +75,7 @@ public sealed class MaintenanceHostedService : BackgroundService
                 if (nextSession - now < wait)
                     wait = nextSession - now;
 
-                var cacheDue = await CacheEvictionDueAsync(now, stoppingToken);
+                var cacheDue = await CacheEvictionDueAsync(now, started, stoppingToken);
                 if (cacheDue < cacheEarliest)
                     cacheDue = cacheEarliest;
                 if (cacheDue <= now)
@@ -106,7 +106,7 @@ public sealed class MaintenanceHostedService : BackgroundService
         }
     }
 
-    private async Task<DateTimeOffset> CacheEvictionDueAsync(DateTimeOffset now, CancellationToken ct)
+    private async Task<DateTimeOffset> CacheEvictionDueAsync(DateTimeOffset now, DateTimeOffset started, CancellationToken ct)
     {
         int? hour;
         using (var scope = _services.CreateScope())
@@ -116,7 +116,8 @@ public sealed class MaintenanceHostedService : BackgroundService
                 .Select(s => s.CacheEvictionHour).FirstOrDefaultAsync(ct);
         }
         var last = _runs is null ? null : await _runs.LastStartedAsync(ScheduledJobKeys.CacheEviction, ct);
-        return NextCacheEviction(now, _time.LocalTimeZone, hour, last);
+        // Never run yet: the floor is this start, so the first slot after it is not skipped.
+        return NextCacheEviction(now, _time.LocalTimeZone, hour, last ?? started);
     }
 
     private async Task RunSafeAsync(Func<Task> work, string label)
