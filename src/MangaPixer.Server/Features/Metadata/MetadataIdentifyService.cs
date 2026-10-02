@@ -430,6 +430,11 @@ public sealed class MetadataIdentifyService
     /// <summary>Maps a fetched provider record onto the stored entity (shared by identify, auto-match and refresh).</summary>
     internal static void Apply(MetadataRecordEntity record, ProviderSeriesRecord fetched, DateTimeOffset now)
     {
+        // 1.32.0: a Grand Comics Database series payload names its publisher by id only and carries no credits; what a chosen
+        // candidate's details added (publisher name, first-issue credits) is kept while the publisher is the same.
+        fetched = Providers.Gcd.GcdMapping.KeepDetails(record, fetched);
+        if (fetched.ExtraJson is { } extra)
+            record.ExtraJson = extra;
         record.SourceKind = (int)fetched.SourceKind;
         record.RecordKind = 0;
         record.Title = fetched.Title;

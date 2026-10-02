@@ -142,9 +142,14 @@ public static class MetadataHttp
     /// The network shape of each provider (1.29.0 gateway generalisation): its API client, its image client and the
     /// fixed set of image hosts an image URL must be on. A MangaDex 403 is read as "slow down" (its edge answers an
     /// over-eager client with 403), like a 429.
+    /// 1.32.0 (the Grand Comics Database, 25 requests an hour): <paramref name="NoWaitRetry"/> marks a SLOW bucket - nobody waits for
+    /// one of its tokens (an admin's call is refused at once with <c>provider_busy</c> and a retry time, an automatic one too, so the
+    /// auto-match queue defers that work and keeps serving the others), and automatic calls take a token only while more than
+    /// <paramref name="AutomaticReserve"/> are left, which keeps an admin's Identify (a search and a preview) answerable.
     /// </summary>
     public sealed record ProviderTransport(
-        string Id, string DisplayName, string ApiClient, string? ImageClient, IReadOnlySet<string> ImageHosts, bool ForbiddenMeansSlowDown = false);
+        string Id, string DisplayName, string ApiClient, string? ImageClient, IReadOnlySet<string> ImageHosts, bool ForbiddenMeansSlowDown = false,
+        int AutomaticReserve = 0, TimeSpan? NoWaitRetry = null);
 
     private static readonly IReadOnlySet<string> s_none = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -155,7 +160,19 @@ public static class MetadataHttp
         [MetadataProviderAllowlist.AniList] = new(MetadataProviderAllowlist.AniList, "AniList", AniListClient, null, s_none),
         [MetadataProviderAllowlist.MangaDex] = new(MetadataProviderAllowlist.MangaDex, "MangaDex", MangaDexApiClient,
             MangaDexImageClient, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { MangaDexImageHost }, ForbiddenMeansSlowDown: true),
+        // 1.32.0: a Cloudflare challenge in front of comics.org is reported as a 403 (blocked) - a backoff like a 429.
+        [MetadataProviderAllowlist.Gcd] = new(MetadataProviderAllowlist.Gcd, "Grand Comics Database", GcdApiClient,
+            GcdImageClient, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { GcdImageHost }, ForbiddenMeansSlowDown: true,
+            AutomaticReserve: GcdAutomaticReserve, NoWaitRetry: TimeSpan.FromSeconds(144)),
     };
+
+    /// <summary>
+    /// GCD tokens kept for admins (1.32.0): automatic work takes a GCD token only while more than 2 are left in the bucket of 3,
+    /// so an admin's Identify - a search, then a preview of the series it found (the search already carries the series; the preview
+    /// reads its publisher and first issue) - is never refused because background matching spent the burst. Background comics work
+    /// still gets every token the hour refills (25), one at a time.
+    /// </summary>
+    public const int GcdAutomaticReserve = 2;
 
     /// <summary>The transport of a provider id, or null for an unknown id.</summary>
     public static ProviderTransport? Transport(string providerId) => Transports.GetValueOrDefault(providerId);

@@ -621,6 +621,8 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.MetadataGateway>();
         services.AddScoped<Features.Metadata.MetadataIdentifyService>();
         services.AddSingleton<Features.Metadata.Providers.IMetadataProvider, Features.Metadata.Providers.MangaUpdates.MangaUpdatesProvider>();
+        // The Grand Comics Database (1.32.0, lane B): the comics provider - Identify's site switch, comics routing, refresh.
+        Features.Metadata.Providers.Gcd.GcdServiceCollectionExtensions.AddGcdProvider(services);
 
         // Stage 2 (auto-match): queue / runs / worker, review dashboard, flags, folder
         // Content, carry-over and the id-only refresh. The matcher core (Core, pure and
