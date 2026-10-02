@@ -8,8 +8,8 @@ import { TrashCountsDto, TrashLibraryDto, TrashOverviewDto } from '../../../core
 
 /**
  * Trash card (1.31.0). The API is mocked at the HTTP layer so the real ApiService request shapes are asserted: the
- * retention select and the automatic switch PUT the settings (turning automatic cleaning on only after the confirm step,
- * which shows what the first run removes), "Empty trash now" / one library's empty (releasing its hold) / "Clean bundles
+ * retention select PUTs the settings, the automatic cleaning status line points at Scheduled jobs (the switch and the hour live
+ * there since 1.32.0), "Empty trash now" / one library's empty (releasing its hold) / "Clean bundles
  * now" POST after a confirm, and every action reloads the preview.
  */
 describe('TrashCardComponent', () => {
@@ -87,18 +87,34 @@ describe('TrashCardComponent', () => {
     expect(el.querySelector<HTMLButtonElement>('[data-testid="trash-clean"]')!.disabled).toBe(true);
   });
 
-  it('the automatic run hour is chosen from 24 hours and saved (owner, 1.31.0)', () => {
+  it('the automatic cleaning status line says Off, or the daily hour, and holds no switch or hour select (1.32.0)', () => {
+    const off = createLoaded();
+    const el: HTMLElement = off.nativeElement;
+    expect(el.querySelector('[data-testid="trash-auto-status"]')!.textContent).toContain('Automatic cleaning: Off');
+    expect(el.querySelector('[data-testid="trash-auto"]')).toBeNull();
+    expect(el.querySelector('[data-testid="trash-hour"]')).toBeNull();
+    httpMock.verify();
+    TestBed.resetTestingModule();
+
+    const on = createLoaded(overview({ settings: { ...overview().settings, automaticCleaning: true, automaticHour: 22 } }));
+    expect((on.nativeElement as HTMLElement).querySelector('[data-testid="trash-auto-status"]')!.textContent).toContain('Automatic cleaning: daily at 22:00');
+  });
+
+  it('the status line link scrolls to and focuses the Scheduled jobs row', () => {
     const fixture = createLoaded();
-    const select = (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>('[data-testid="trash-hour"]')!;
-    expect(select.options.length).toBe(24);
-    expect(select.options[select.selectedIndex].textContent?.trim()).toBe('04:00');
-    fixture.componentInstance.setHour(22);
-    const put = httpMock.expectOne(`${URL}/settings`);
-    expect(put.request.body).toEqual({ automaticHour: 22 });
-    put.flush({ ...overview().settings, automaticHour: 22 });
-    httpMock.expectOne((r) => r.method === 'GET' && r.url === URL).flush(overview({ settings: { ...overview().settings, automaticHour: 22 } }));
-    fixture.detectChanges();
-    expect(fixture.componentInstance.message()).toContain('22:00');
+    const row = document.createElement('li');
+    row.id = 'job-trash';
+    row.innerHTML = '<span data-testid="job-trash-auto"><button type="button">toggle</button></span>';
+    document.body.appendChild(row);
+    const scroll = vi.fn();
+    row.scrollIntoView = scroll;
+    try {
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-testid="trash-auto-link"]')!.click();
+      expect(scroll).toHaveBeenCalled();
+      expect(document.activeElement).toBe(row.querySelector('button'));
+    } finally {
+      row.remove();
+    }
   });
 
   it('a new retention is saved and the preview reloads', () => {
@@ -112,40 +128,6 @@ describe('TrashCardComponent', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.overview()!.settings.retentionDays).toBe(7);
     expect(fixture.componentInstance.message()).toContain('weekly (7 days)');
-  });
-
-  it('turning automatic cleaning on asks first, showing what the first run removes; cancel sends nothing', () => {
-    const fixture = createLoaded();
-    const c = fixture.componentInstance;
-    const toggle = { checked: true };
-    c.onAutomaticToggle(true, toggle);
-    fixture.detectChanges();
-    httpMock.expectNone(`${URL}/settings`);
-    const confirm: HTMLElement = fixture.nativeElement.querySelector('[data-testid="trash-confirm"]');
-    expect(confirm.textContent).toContain('Turn automatic cleaning on?');
-    expect(confirm.textContent).toContain('The first run removes what is ready now: 3 items');
-    c.cancel();
-    expect(toggle.checked).toBe(false);
-    httpMock.expectNone(`${URL}/settings`);
-
-    c.onAutomaticToggle(true, toggle);
-    c.confirm();
-    const put = httpMock.expectOne(`${URL}/settings`);
-    expect(put.request.body).toEqual({ automaticCleaning: true });
-    put.flush({ ...overview().settings, automaticCleaning: true });
-    httpMock.expectOne((r) => r.method === 'GET' && r.url === URL).flush(overview({ settings: { ...overview().settings, automaticCleaning: true } }));
-    fixture.detectChanges();
-    expect(c.pending()).toBeNull();
-    expect(text(fixture)).toContain('Once a day at 04:00 (server time)');
-  });
-
-  it('turning it off saves at once', () => {
-    const fixture = createLoaded(overview({ settings: { ...overview().settings, automaticCleaning: true } }));
-    fixture.componentInstance.onAutomaticToggle(false, { checked: false });
-    const put = httpMock.expectOne(`${URL}/settings`);
-    expect(put.request.body).toEqual({ automaticCleaning: false });
-    put.flush(overview().settings);
-    httpMock.expectOne((r) => r.method === 'GET' && r.url === URL).flush(overview());
   });
 
   it('"Empty trash now" confirms with the preview, then empties every library without a hold', () => {
