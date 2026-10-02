@@ -2,7 +2,7 @@
 
 *New in 1.30.0.* Which of your series have a new official volume out in your language, and which finished series do you already have whole? The **Official releases** tab answers that for every folder linked to a series.
 
-It is built from what MangaPixer has already stored: your archive names, the series records and the volume lists it fetched when the folders were linked or last refreshed. **Opening it never contacts a website.** It changes when records refresh (every 30 days while a series is ongoing), or when an admin refreshes a series.
+It is built from what MangaPixer has already stored: your archive names, the series records and the volume lists it fetched when the folders were linked or last refreshed. **Opening it never contacts a website.** It changes when records refresh (on each series' [refresh schedule](scheduled-jobs.md#how-often-series-information-is-refreshed) - every month for an ongoing series unless you chose more often), or when an admin refreshes a series.
 
 ## Where to find it
 
