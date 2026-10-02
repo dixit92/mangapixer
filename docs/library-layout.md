@@ -140,7 +140,7 @@ Filters apply to the current view only and are not saved.
 
 ### Selecting items
 
-Choose **Select** to pick several items for a bulk action, such as marking them read, adding them to your favorites or (for admins) setting a reading direction or using the **Series** menu (see [Series information](series-information.md)). In **List** view you can also tick the checkbox on any row directly, without choosing **Select** first; tapping the row itself still opens it. In the Volumes view a whole volume can be selected too, and a volume's own page has the same **Select** mode for its chapters (see [Volumes view](volumes.md#selecting-in-a-volume)). See [Read and unread](reader.md#read-and-unread) for the selection shortcuts.
+Choose **Select** to pick several items for a bulk action, such as marking them read, adding them to your favorites or (for admins) setting a reading direction, choosing what a folder's covers are made from (**Folder covers…**, see [Covers](covers.md#choose-what-a-folder-shows-admins)) or using the **Series** menu (see [Series information](series-information.md)). In **List** view you can also tick the checkbox on any row directly, without choosing **Select** first; tapping the row itself still opens it. In the Volumes view a whole volume can be selected too, and a volume's own page has the same **Select** mode for its chapters (see [Volumes view](volumes.md#selecting-in-a-volume)). See [Read and unread](reader.md#read-and-unread) for the selection shortcuts.
 
 ### Jump navigation
 
@@ -196,7 +196,7 @@ After a scan, new archives are analyzed in the background. Their page counts and
   - the new file is not still being written.
 
   Otherwise the moved file is treated as a new item. A file that was removed and comes back later at another path is recognized the same way while it is inside the move window (below).
-- **Moved or renamed folders** keep the settings an admin gave them (reading direction, series link or **Don't match**, source precedence, **Content**, the Volumes view setting and the cover choice) and every user's star when at least 80% of their archives moved to the same new folder. Otherwise the settings wait under **Missing folders** on the Metadata Manager page. See [Renamed and moved folders](series-information.md#renamed-and-moved-folders).
+- **Moved or renamed folders** keep the settings an admin gave them (reading direction, series link or **Don't match**, source precedence, **Content**, the Volumes view setting, the cover choice and the folder's [cover preference](covers.md#choose-what-a-folder-shows-admins)) and every user's star when at least 80% of their archives moved to the same new folder. Otherwise the settings wait under **Missing folders** on the Metadata Manager page. See [Renamed and moved folders](series-information.md#renamed-and-moved-folders).
 - **Safety net:** if a scan finds that almost everything has vanished (for example an unmounted share), it deletes nothing. The same applies if the library folder itself is unreachable; the scan fails with "Library root is not accessible."
 
 ### Moving series between libraries
