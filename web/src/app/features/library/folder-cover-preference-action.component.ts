@@ -20,7 +20,7 @@ import { FolderCoverPreferenceDialogComponent, FolderCoverPreferenceDialogData }
   template: `
     <button mat-button type="button" [disabled]="disabled() || !folder()" (click)="open()"
             matTooltip="Cover preference for the selected folder and everything below it" data-testid="folder-cover-preference-action">
-      <mat-icon>image</mat-icon><span class="lbl">Folder covers…</span>
+      <mat-icon>photo_library</mat-icon><span class="lbl">Folder covers…</span>
     </button>
   `,
   styles: [`
