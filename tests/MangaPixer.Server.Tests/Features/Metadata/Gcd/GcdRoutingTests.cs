@@ -15,7 +15,8 @@ using Xunit;
 /// migrated database: a comics-signalled work is searched on the Grand Comics Database first (with the start year of its name),
 /// MangaUpdates only when GCD has nothing close; manga never reach GCD; a removed GCD sends comics to MangaUpdates; a GCD bucket
 /// with no token to spare, or a GCD backoff, DEFERS the comics work while manga keep being matched; a GCD id in ComicInfo is a
-/// tier-0 GET; a GCD-linked record keeps the file's cover and its details on refresh.
+/// tier-0 GET; a GCD-linked record keeps the file's cover and its details on refresh. (A roomy GCD bucket: the production bucket
+/// of 3 with 2 kept for admins is covered by <see cref="GcdProviderTests"/> and the deferral test here.)
 /// </summary>
 public sealed class GcdRoutingTests : IAsyncLifetime
 {
@@ -25,7 +26,7 @@ public sealed class GcdRoutingTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         _db = await MetadataTestDb.CreateAsync();
-        _h = new GcdHarness(_db);
+        _h = new GcdHarness(_db, GcdHarness.RoomyGcdRates());
         _h.MuSearch["Alpha Saga"] = [new MuJson.Hit(101, "Alpha Saga")];
         _h.MuRecords[101] = MuJson.Get(101, "Alpha Saga", status: "2 Volumes (Ongoing)");
     }

@@ -99,8 +99,12 @@ public static partial class ComicsEvidenceRules
 
     internal static string PublisherKey(string? name)
     {
-        var form = TitleNormalizer.ScoringForm(name);
-        var words = form.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+        // Case, accents and punctuation folded; every word kept (a title form may drop words a publisher name needs).
+        var folded = new string((name ?? string.Empty).Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .Select(c => char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : ' ')
+            .ToArray());
+        var words = folded.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
         while (words.Count > 1 && s_publisherSuffixes.Contains(words[^1], StringComparer.Ordinal))
             words.RemoveAt(words.Count - 1);
         return string.Join(' ', words);

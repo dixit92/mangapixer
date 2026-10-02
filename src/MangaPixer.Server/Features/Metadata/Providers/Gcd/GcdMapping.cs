@@ -184,13 +184,15 @@ public static partial class GcdMapping
     }
 
     /// <summary>
-    /// The series of a search page, one per edition: a series listed twice with the same name, start year and publisher (a
-    /// reprint run, a second printing run) is one candidate - the one with the most issues is kept.
+    /// The series of a search page, one per edition: a series listed twice with the same name, start year, publisher, language
+    /// and shape (a reprint run, a second binding of the same book) is one candidate - the one with the most issues is kept. An
+    /// issue run and its trade paperbacks (same name, year and publisher - Saga) are two editions and both stay.
     /// </summary>
     internal static IReadOnlyList<GcdSeries> Distinct(IEnumerable<GcdSeries> series) =>
         series
             .Where(s => !string.IsNullOrWhiteSpace(s.Name) && IdFromApiUrl(s.ApiUrl, "series") is not null)
-            .GroupBy(s => (TitleNormalizer.ScoringForm(s.Name), s.YearBegan, IdFromApiUrl(s.Publisher, "publisher"), s.Language?.Trim().ToLowerInvariant()))
+            .GroupBy(s => (TitleNormalizer.ScoringForm(s.Name), s.YearBegan, IdFromApiUrl(s.Publisher, "publisher"), s.Language?.Trim().ToLowerInvariant(),
+                ShapeOf(s.Binding, s.PublishingFormat, s.IssueDescriptors)))
             .Select(g => g.OrderByDescending(s => s.IssueDescriptors?.Count ?? 0).ThenBy(s => IdFromApiUrl(s.ApiUrl, "series")).First())
             .ToList();
 

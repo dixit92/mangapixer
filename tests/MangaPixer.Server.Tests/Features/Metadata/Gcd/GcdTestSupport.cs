@@ -235,6 +235,20 @@ public sealed class GcdHarness : IDisposable
         return processed;
     }
 
+    /// <summary>Production rates but a GCD burst of 20 (tests cannot wait 144 s for a token); no automatic pacing.</summary>
+    public static MetadataRateLimitOptions RoomyGcdRates() => new()
+    {
+        AutomaticInterval = TimeSpan.Zero,
+        Gcd = new System.Threading.RateLimiting.TokenBucketRateLimiterOptions
+        {
+            TokenLimit = 20,
+            TokensPerPeriod = 1,
+            ReplenishmentPeriod = TimeSpan.FromSeconds(144),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        },
+    };
+
     /// <summary>Rates whose GCD bucket never has a token to spare for automatic work (2 tokens = the admin reserve).</summary>
     public static MetadataRateLimitOptions GcdReserveOnlyRates() => new()
     {
