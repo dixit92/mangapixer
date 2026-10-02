@@ -574,13 +574,14 @@ import { TrashCardComponent } from './trash-card/trash-card.component';
 
     <div class="col">
       <app-trash-card #trash />
-      <app-debug-log-card />
+      <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->
+      <app-analytics-card />
     </div>
 
     <div class="col">
       <app-update-check-card />
-      <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->
-      <app-analytics-card />
+      <!-- Logging (1.17.0 DEBUGUI lane): a debugging tool, so it stays the last card (owner, 2026-09-26) -->
+      <app-debug-log-card />
     </div>
 
     </div>
