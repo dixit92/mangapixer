@@ -171,7 +171,7 @@ function rhythm(job: ScheduledJobDto): string {
                       <select id="job-backup-hour" data-testid="job-hour-backup"
                               [disabled]="busy() || job.managedByConfig || !wholeDays(job)"
                               (change)="setHour('backup', +$any($event.target).value)">
-                        <option [value]="-1" [selected]="job.hour == null">Any time</option>
+                        <option [value]="-1" [selected]="(job.hour ?? null) === null">Any time</option>
                         @for (h of hours; track h) { <option [value]="h" [selected]="h === job.hour">{{ hourLabel(h) }}</option> }
                       </select>
                     </div>
