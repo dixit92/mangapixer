@@ -74,6 +74,11 @@ const REASONS: Record<string, { label: string; tip: string }> = {
   series_family: { label: 'Series family', tip: 'Another series of the same family also matched this name (its main story, a spin-off, side story, prequel or sequel). Check which one the folder holds.' },
   // The cover check after an automatic link (1.31.0): per volume and per language, never on one series image.
   cover_differs: { label: 'Cover differs', tip: 'The covers of this folder\'s volumes are different pictures from this series\' volume covers in your preferred language, and none matches in another language. It may be another work with the same title, another edition, or first pages that are not covers.' },
+  // Comics editions (1.32.0): the Grand Comics Database lists every edition and translation as its own series.
+  comics_start_year: { label: 'Start year fits', tip: 'This comics series started in the year the folder name gives (or one year off). Counts in its favour.' },
+  comics_language: { label: 'Other language', tip: 'This comics series is an edition in another language than your files (their ComicInfo language, else your preferred language). Counts against it, but never blocks a link.' },
+  comics_shape: { label: 'Issues or books?', tip: 'This comics series is published in the other shape: single issues where your files look like collected books (or the other way round), judged by page counts and words like TPB. Counts against it, but never blocks a link.' },
+  comics_publisher: { label: 'Publisher fits', tip: 'This comics series has the publisher named in your files\' ComicInfo. Counts in its favour.' },
 };
 
 export function reasonLabel(code: string): string {

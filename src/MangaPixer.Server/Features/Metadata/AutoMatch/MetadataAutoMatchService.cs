@@ -53,6 +53,7 @@ public sealed class MetadataAutoMatchService
     private readonly bool _providerAuthorFolders;
     private readonly AutoMatchCoverComparer? _covers;
     private readonly Declared.IDeclaredFactsReader? _declared;
+    private readonly Providers.Gcd.GcdDetails? _gcd;
 
     public MetadataAutoMatchService(
         MangaPixerDbContext db,
@@ -70,7 +71,8 @@ public sealed class MetadataAutoMatchService
         IEnumerable<IMatchScorer> scorers,
         MetadataAutoMatchOptions? options = null,
         AutoMatchCoverComparer? covers = null,
-        Declared.IDeclaredFactsReader? declared = null)
+        Declared.IDeclaredFactsReader? declared = null,
+        Providers.Gcd.GcdDetails? gcd = null)
     {
         _db = db;
         _gateway = gateway;
@@ -88,6 +90,7 @@ public sealed class MetadataAutoMatchService
         _providerAuthorFolders = (options ?? new MetadataAutoMatchOptions()).ProviderAuthorFolders;
         _covers = covers;
         _declared = declared;
+        _gcd = gcd;
     }
 
     /// <summary>True when the matcher-core implementations are registered.</summary>
@@ -104,6 +107,10 @@ public sealed class MetadataAutoMatchService
     /// of <paramref name="providerId"/>, the matcher (MangaUpdates only - companion work needs no matcher), that
     /// provider's own backoff and the one daily budget. Auto-match and refresh keep asking for MangaUpdates; the
     /// volume-cover pass asks for <c>mangadex</c>, its totals fallback for <c>anilist</c>.
+    /// 1.32.0 (comics, decided per site): the queue's gate stays MangaUpdates' - it is the matcher's main site and the comics
+    /// fallback, so with MangaUpdates removed automatic matching pauses for every work, comics included. The Grand Comics
+    /// Database is NOT part of this gate: with GCD removed, comics are searched on MangaUpdates only; while GCD is in backoff
+    /// or its bucket has no token to spare, only the comics works wait (<see cref="AutoMatchDeferredException"/>, row deferred).
     /// </summary>
     public async Task<AutomaticWait?> CheckGlobalGateAsync(string providerId, CancellationToken ct = default)
     {
@@ -636,6 +643,18 @@ public sealed class MetadataAutoMatchService
         return null;
     }
 
+    /// <summary>
+    /// Hands a leased row back, due again at <paramref name="until"/> (1.32.0: a comics work waiting for the Grand Comics Database);
+    /// no attempt is counted, its run stays open.
+    /// </summary>
+    public async Task DeferAsync(long queueId, DateTimeOffset until, CancellationToken ct = default) =>
+        await _db.MetadataMatchQueue.Where(q => q.Id == queueId && q.State == QueueState.Leased)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(q => q.State, QueueState.Pending)
+                .SetProperty(q => q.NotBefore, until)
+                .SetProperty(q => q.LeaseUntil, (DateTimeOffset?)null)
+                .SetProperty(q => q.LeaseOwner, (string?)null), ct);
+
     /// <summary>Hands a leased row back unchanged (a refusal: the gate closed while it was being processed).</summary>
     public async Task ReleaseAsync(long queueId, CancellationToken ct = default) =>
         await _db.MetadataMatchQueue.Where(q => q.Id == queueId && q.State == QueueState.Leased)
@@ -676,9 +695,20 @@ public sealed class MetadataAutoMatchService
             var allowDoujinshi = await EffectiveContentAsync(work.Work.FolderId, ct) == MetadataFolderContent.DoujinshiAndAdultOneShots;
             var declared = _declared is null ? null
                 : (await _declared.EffectiveForLibraryAsync(row.LibraryId, ct)).GetValueOrDefault(work.Work.FolderId);
-            var lookupEngine = new AutoMatchLookup(_db, _gateway, _planner, _scorer, _covers);
+            var lookupEngine = new AutoMatchLookup(_db, _gateway, _planner, _scorer, _covers, _gcd);
             lookup = await lookupEngine.LookupAsync(tree, work.Work, work.Classification, await ThresholdsAsync(ct), allowDoujinshi, call, ct,
                 declared);
+        }
+        catch (AutoMatchDeferredException deferred)
+        {
+            // 1.32.0: GCD is slow (25 an hour) or asked to slow down - this comics work waits, the queue goes on.
+            await AddRequestsAsync(row.RunId, call.RequestsSent, ct);
+            var now = _time.GetUtcNow();
+            var until = deferred.Until > now ? deferred.Until : now + AutoMatchLookup.DefaultDeferral;
+            await DeferAsync(row.Id, until, ct);
+            _logger.LogInformation(LogEvents.Metadata.AutoMatchWaiting, "Automatic matching deferred node {NodeId}: {Code} until {Until}",
+                row.NodeId, deferred.Code, until);
+            return;
         }
         catch (MetadataGatewayException ex) when (IsRefusal(ex))
         {

@@ -99,6 +99,11 @@ public static class MatchReasonCodes
         (MatchReason.SubtitleFamily, "subtitle_family"),
         (MatchReason.SeriesFamily, "series_family"),
         (MatchReason.CoverDiffers, "cover_differs"),
+        // 1.32.0 (lane B): Grand Comics Database editions.
+        (MatchReason.ComicsStartYear, "comics_start_year"),
+        (MatchReason.ComicsLanguageMismatch, "comics_language"),
+        (MatchReason.ComicsShapeMismatch, "comics_shape"),
+        (MatchReason.ComicsPublisherAgree, "comics_publisher"),
     ];
 
     public static IReadOnlyList<string> Of(int reasons) => Of((MatchReason)reasons);

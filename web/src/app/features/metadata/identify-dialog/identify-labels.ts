@@ -17,13 +17,24 @@ const STATUS_WORDS: Record<MetadataOriginStatus, string> = {
   Cancelled: 'cancelled',
 };
 
-/** "Manga . Japan . 1989" for a candidate: the raw provider type, the origin when it adds something, the year. */
-export function candidateLine(c: { providerType?: string | null; origin?: Parameters<typeof originLabel>[0]; year?: number | null }): string {
+/**
+ * "Manga . Japan . 1989" for a candidate: the raw provider type, the origin when it adds something, the year. A comics edition
+ * (1.32.0, Grand Comics Database) adds its language and its issue / book count: "graphic novel · French · 2000 · FR · 7 books".
+ */
+export function candidateLine(c: {
+  providerType?: string | null; origin?: Parameters<typeof originLabel>[0]; year?: number | null;
+  language?: string | null; unitCount?: number | null; unitKind?: string | null;
+}): string {
   const parts: string[] = [];
   if (c.providerType) parts.push(c.providerType);
   const origin = originLabel(c.origin);
   if (origin && origin.toLowerCase() !== (c.providerType ?? '').toLowerCase()) parts.push(origin);
   if (c.year) parts.push(String(c.year));
+  if (c.language) parts.push(c.language.toUpperCase());
+  if (c.unitCount) {
+    const unit = c.unitKind === 'issues' ? 'issue' : 'book';
+    parts.push(`${c.unitCount} ${unit}${c.unitCount === 1 ? '' : 's'}`);
+  }
   return parts.join(' · ');
 }
 
@@ -38,6 +49,8 @@ export function previewLine(p: IdentifyPreviewDto): string {
   const origin = originLabel(p.origin);
   if (origin && origin.toLowerCase() !== type.toLowerCase()) parts.push(origin);
   if (p.startYear) parts.push(String(p.startYear));
+  if (p.language) parts.push(p.language.toUpperCase());
+  if (p.publishers?.length) parts.push(p.publishers.join(', '));
   const status = p.originStatus ? STATUS_WORDS[p.originStatus] : '';
   if (p.originVolumes && status) parts.push(`${p.originVolumes} vol${p.originVolumes === 1 ? '' : 's'}, ${status}`);
   else if (p.originVolumes) parts.push(`${p.originVolumes} vol${p.originVolumes === 1 ? '' : 's'}`);

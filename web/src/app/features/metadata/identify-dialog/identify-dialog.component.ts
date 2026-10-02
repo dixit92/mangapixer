@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } 
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -17,6 +18,7 @@ import {
   IdentifyCandidateDto,
   IdentifyContextDto,
   IdentifyPreviewDto,
+  IdentifySiteDto,
   MetadataMatchMethod,
   NodeSeriesLinkChangeDto,
   NodeSeriesLinkDto,
@@ -42,12 +44,15 @@ type Step = 'search' | 'preview';
  * `MetadataStateService`, so the card (i) and the top-bar button update in place.
  * When the switches are off it shows why and makes no call. Every request goes to
  * MangaPixer; the browser never contacts a provider.
+ * 1.32.0: "Search on: MangaUpdates | Grand Comics Database" - the server picks GCD first for a
+ * comics-signalled folder; GCD searches may carry the (YYYY) of the folder name ("Only series
+ * that began in ..."), and its data is shown with its CC BY-SA credit.
  */
 @Component({
   selector: 'app-identify-dialog',
   standalone: true,
   imports: [
-    FormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatDialogModule, MatFormFieldModule, MatIconModule, MatInputModule,
+    FormsModule, RouterLink, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatDialogModule, MatFormFieldModule, MatIconModule, MatInputModule,
     MatProgressSpinnerModule, MatTooltipModule,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -60,7 +65,7 @@ type Step = 'search' | 'preview';
       @if (loading()) {
         <div class="center"><mat-spinner diameter="28" /></div>
       } @else if (context(); as ctx) {
-        @if (!ctx.fetchAvailable) {
+        @if (!anyAvailable()) {
           <div class="unavailable" role="status" data-testid="identify-unavailable">
             <mat-icon>cloud_off</mat-icon>
             <div>
@@ -71,9 +76,22 @@ type Step = 'search' | 'preview';
             </div>
           </div>
         } @else if (step() === 'search') {
+          @if ((ctx.sites?.length ?? 0) > 1) {
+            <div class="sites">
+              <span class="muted">Search on:</span>
+              <mat-button-toggle-group [value]="site()" (change)="chooseSite($event.value)" hideSingleSelectionIndicator
+                                       aria-label="Search on" data-testid="identify-site">
+                @for (s of ctx.sites; track s.id) {
+                  <mat-button-toggle [value]="s.id" [disabled]="!s.available" [attr.data-site]="s.id"
+                                     [matTooltip]="s.available ? '' : siteUnavailable(s)">{{ s.name }}</mat-button-toggle>
+                }
+              </mat-button-toggle-group>
+            </div>
+            @if (siteNote(); as note) { <p class="note" data-testid="identify-site-note"><mat-icon inline>schedule</mat-icon> {{ note }}</p> }
+          }
           <form class="row" (ngSubmit)="runSearch()">
             <mat-form-field appearance="outline" class="grow" subscriptSizing="dynamic">
-              <mat-label>Search {{ ctx.providerName }}</mat-label>
+              <mat-label>Search {{ siteName() }}</mat-label>
               <input matInput name="query" [ngModel]="query()" (ngModelChange)="query.set($event)" maxlength="200"
                      autocomplete="off" data-testid="identify-query">
             </mat-form-field>
@@ -87,14 +105,22 @@ type Step = 'search' | 'preview';
               }
             </div>
           }
-          <mat-checkbox class="hide-types" [checked]="hideDoujinshi()" (change)="hideDoujinshi.set($event.checked)"
-                        data-testid="identify-hide-doujinshi">Hide doujinshi &amp; novels</mat-checkbox>
+          @if (site() === 'gcd') {
+            @if (ctx.local.yearHint; as year) {
+              <mat-checkbox class="hide-types" [checked]="useStartYear()" (change)="useStartYear.set($event.checked)"
+                            data-testid="identify-start-year">Only series that began in {{ year }}</mat-checkbox>
+            }
+          } @else {
+            <mat-checkbox class="hide-types" [checked]="hideDoujinshi()" (change)="hideDoujinshi.set($event.checked)"
+                          data-testid="identify-hide-doujinshi">Hide doujinshi &amp; novels</mat-checkbox>
+          }
           <p class="note"><mat-icon inline>info_outline</mat-icon>
-            The search text is sent to {{ ctx.providerName }}. Nothing else about your library is.</p>
+            The search text{{ site() === 'gcd' && ctx.local.yearHint && useStartYear() ? ' and the start year' : '' }} is sent to
+            {{ siteName() }}. Nothing else about your library is.</p>
 
           <form class="row" (ngSubmit)="runLookup()">
             <mat-form-field appearance="outline" class="grow" subscriptSizing="dynamic">
-              <mat-label>or paste a {{ ctx.providerName }} URL, or mu:12345</mat-label>
+              <mat-label>{{ pasteLabel() }}</mat-label>
               <input matInput name="reference" [ngModel]="reference()" (ngModelChange)="reference.set($event)" maxlength="512"
                      autocomplete="off" data-testid="identify-reference">
             </mat-form-field>
@@ -102,7 +128,7 @@ type Step = 'search' | 'preview';
           </form>
           @if (ctx.comicInfoHint; as hint) {
             <button mat-stroked-button type="button" class="hint" (click)="usePreview(hint.provider, hint.externalId, 'ComicInfoWebHint')" data-testid="identify-hint">
-              <mat-icon>description</mat-icon> ComicInfo points to a {{ ctx.providerName }} series – Use it
+              <mat-icon>description</mat-icon> ComicInfo points to a {{ nameOf(hint.provider) }} series – Use it
             </button>
           }
 
@@ -127,7 +153,7 @@ type Step = 'search' | 'preview';
                   </div>
                   <span class="strength" [attr.data-strength]="c.strength" matTooltip="Title match score">
                     {{ strength(c) }} {{ percent(c.score) }}%</span>
-                  <button mat-stroked-button type="button" [disabled]="busy()" (click)="usePreview(ctx.provider, c.externalId, 'Search', c)">Preview</button>
+                  <button mat-stroked-button type="button" [disabled]="busy()" (click)="usePreview(resultsSite(), c.externalId, 'Search', c)">Preview</button>
                 </li>
               }
             </ul>
@@ -135,7 +161,8 @@ type Step = 'search' | 'preview';
               <button mat-button type="button" [disabled]="busy()" (click)="moreResults()">More results</button>
             }
           } @else if (searched() && !busy()) {
-            <p class="muted">No results. Try another spelling, the original title, or paste the series URL.</p>
+            <p class="muted" data-testid="identify-no-results">No results. Try another spelling, the original title, or paste the series URL.
+              @if (resultsSite() === 'gcd') { The Grand Comics Database finds names spelled exactly as it writes them: try a shorter part of the name (without “ - ” or “:”). }</p>
           } @else {
             <p class="muted small">Budget: {{ budgetUsed() }}/{{ budgetLimit() }} requests today.</p>
           }
@@ -193,6 +220,10 @@ type Step = 'search' | 'preview';
             <p class="small">Series data from
               <a [href]="p.siteUrl" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">{{ p.providerName }}</a></p>
           }
+          @if (p.credit) {
+            <!-- CC BY-SA 4.0 (Grand Comics Database, 1.32.0): credit and a link back to the series page. -->
+            <p class="small muted" data-testid="identify-credit">{{ p.credit }}@if (p.provider === 'gcd') {. The cover thumbnail is shown only to help you choose; the folder keeps its own cover.}</p>
+          }
         }
         @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
       }
@@ -220,6 +251,8 @@ type Step = 'search' | 'preview';
     .chip { font-size: 12px; line-height: 26px; max-width: 100%; min-width: 0; }
     .chip-text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .hide-types { display: block; margin: 0 0 0 -8px; }
+    .sites { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0; }
+    .sites mat-button-toggle-group { max-width: 100%; }
     .note { color: #9a9aa8; font-size: 12px; margin: 4px 0 8px; }
     .muted { color: #9a9aa8; }
     .small { font-size: 12px; }
@@ -267,6 +300,12 @@ export class IdentifyDialogComponent implements OnInit {
   readonly reference = signal('');
   /** "Hide doujinshi & novels": on by default, off in a doujinshi folder; applies to the next Search. */
   readonly hideDoujinshi = signal(true);
+  /** The site searched (1.32.0): the server's choice first (GCD for a comics-signalled folder), then the admin's. */
+  readonly site = signal('mangaupdates');
+  /** The site the shown results came from (Preview asks that one). */
+  readonly resultsSite = signal('mangaupdates');
+  /** GCD: narrow to series that began in the year of the folder name (on by default when the name has one). */
+  readonly useStartYear = signal(true);
   readonly searched = signal(false);
   readonly candidates = signal<IdentifyCandidateDto[]>([]);
   readonly totalHits = signal(0);
@@ -293,6 +332,23 @@ export class IdentifyDialogComponent implements OnInit {
   private readonly lastSubmittedQuery = signal('');
   private readonly lastSubmittedHide = signal(true);
 
+  /** Any site can be searched (the server's default site may be off while the other is on). */
+  readonly anyAvailable = computed(() => {
+    const ctx = this.context();
+    return !!ctx && (ctx.fetchAvailable || (ctx.sites ?? []).some((x) => x.available));
+  });
+
+  readonly siteName = computed(() => this.nameOf(this.site()));
+
+  readonly siteNote = computed(() => this.context()?.sites?.find((x) => x.id === this.site())?.note ?? null);
+
+  readonly pasteLabel = computed(() => {
+    const sites = this.context()?.sites ?? [];
+    return sites.some((x) => x.id === 'gcd')
+      ? 'or paste a MangaUpdates or comics.org series URL, or mu:12345'
+      : `or paste a ${this.context()?.providerName ?? 'MangaUpdates'} URL, or mu:12345`;
+  });
+
   readonly queryValid = computed(() => {
     const q = this.query().trim();
     return q.length > 0 && q.length <= 200;
@@ -302,6 +358,9 @@ export class IdentifyDialogComponent implements OnInit {
     this.api.getIdentifyContext(this.data.nodeId).subscribe({
       next: (ctx) => {
         this.context.set(ctx);
+        const first = ctx.fetchAvailable ? ctx.provider : (ctx.sites ?? []).find((x) => x.available)?.id ?? ctx.provider;
+        this.site.set(first);
+        this.resultsSite.set(first);
         this.query.set(ctx.suggestions?.[0] ?? '');
         this.hideDoujinshi.set(!ctx.doujinshiContent);
         this.budgetUsed.set(ctx.budgetUsedToday);
@@ -313,6 +372,28 @@ export class IdentifyDialogComponent implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  /** A site's display name (the context's list, else the default provider's name). */
+  nameOf(id: string): string {
+    const ctx = this.context();
+    return ctx?.sites?.find((x) => x.id === id)?.name ?? ctx?.providerName ?? id;
+  }
+
+  siteUnavailable(s: IdentifySiteDto): string {
+    return s.unavailableCode === 'provider_not_allowed'
+      ? `${s.name} is off the provider allowlist (Metadata Manager > Settings).`
+      : `${s.name} is not available now.`;
+  }
+
+  /** Switching sites clears the results (they belong to the other site). */
+  chooseSite(id: string): void {
+    if (id === this.site()) return;
+    this.site.set(id);
+    this.candidates.set([]);
+    this.totalHits.set(0);
+    this.searched.set(false);
+    this.error.set(null);
   }
 
   shownAltTitles(p: IdentifyPreviewDto): string[] {
@@ -405,8 +486,14 @@ export class IdentifyDialogComponent implements OnInit {
   private fetchPage(query: string, page: number, append: boolean): void {
     this.busy.set(true);
     this.error.set(null);
-    this.api.search(this.data.nodeId, query, page, this.lastSubmittedHide()).subscribe({
+    const site = append ? this.resultsSite() : this.site();
+    const year = site === 'gcd' && this.useStartYear() ? this.context()?.local.yearHint ?? null : null;
+    const call = site === 'mangaupdates'
+      ? this.api.search(this.data.nodeId, query, page, this.lastSubmittedHide())
+      : this.api.search(this.data.nodeId, query, page, false, site, year);
+    call.subscribe({
       next: (result) => {
+        this.resultsSite.set(result.provider || site);
         this.candidates.set(append ? [...this.candidates(), ...result.candidates] : result.candidates);
         this.totalHits.set(result.totalHits);
         this.budgetUsed.set(result.budgetUsedToday);
@@ -436,7 +523,7 @@ export class IdentifyDialogComponent implements OnInit {
 
   private fail(err: ApiError): void {
     this.busy.set(false);
-    const retry = err?.error === 'provider_backoff' ? ' ' + retryLabel(err.detail) : '';
+    const retry = err?.error === 'provider_backoff' || err?.error === 'provider_busy' ? ' ' + retryLabel(err.detail) : '';
     this.error.set(`${err?.message || 'The request failed.'}${retry}`.trim());
   }
 

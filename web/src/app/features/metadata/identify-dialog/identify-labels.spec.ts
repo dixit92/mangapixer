@@ -9,6 +9,12 @@ describe('identify labels', () => {
     expect(candidateLine({})).toBe('');
   });
 
+  it('adds a comics edition\'s language and issue or book count (1.32.0)', () => {
+    expect(candidateLine({ providerType: 'was ongoing series', origin: 'EnglishOriginal', year: 1991, language: 'en', unitCount: 20, unitKind: 'issues' }))
+      .toContain('1991 · EN · 20 issues');
+    expect(candidateLine({ providerType: 'graphic novel', year: 2003, language: 'en', unitCount: 1, unitKind: 'books' })).toBe('graphic novel · 2003 · EN · 1 book');
+  });
+
   it('builds a preview line with volumes and status', () => {
     const p = { format: 'Comic', origin: 'Korea', startYear: 2018, originVolumes: 15, originStatus: 'Complete' } as IdentifyPreviewDto;
     expect(previewLine(p)).toBe('Comic · Korea · 2018 · 15 vols, complete');

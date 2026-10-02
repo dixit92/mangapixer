@@ -139,6 +139,12 @@ public sealed record SeriesInfoWebDto
     /// <summary>Stage 1 lane B2 fills the poster; false/null until then.</summary>
     public bool HasImage { get; init; }
     public string? ImageUrl { get; init; }
+
+    /// <summary>
+    /// The licence credit the provider's data needs next to it (1.32.0): "Data: Grand Comics Database, CC BY-SA 4.0" for a
+    /// GCD-linked series (shown with a link to <see cref="SiteUrl"/>); null for MangaUpdates.
+    /// </summary>
+    public string? Credit { get; init; }
 }
 
 public sealed record SeriesInfoComicInfoDto

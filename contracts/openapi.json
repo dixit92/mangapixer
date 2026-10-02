@@ -7884,6 +7884,33 @@
               "null",
               "string"
             ]
+          },
+          "country": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "language": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "unitCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "unitKind": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -7919,6 +7946,15 @@
           },
           "providerName": {
             "type": "string"
+          },
+          "sites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentifySiteDto"
+            }
+          },
+          "comicsSignalled": {
+            "type": "boolean"
           },
           "fetchAvailable": {
             "type": "boolean"
@@ -8203,6 +8239,30 @@
             "items": {
               "$ref": "#/components/schemas/IdentifyWarningDto"
             }
+          },
+          "country": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "language": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "publishers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "credit": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -8255,6 +8315,21 @@
           },
           "hideDoujinshiAndNovels": {
             "type": "boolean"
+          },
+          "provider": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "startYear": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -8309,6 +8384,37 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "IdentifySiteDto": {
+        "required": [
+          "id",
+          "name",
+          "available"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "unavailableCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -11679,6 +11785,12 @@
             "type": "boolean"
           },
           "imageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "credit": {
             "type": [
               "null",
               "string"

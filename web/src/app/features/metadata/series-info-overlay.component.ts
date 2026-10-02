@@ -56,6 +56,16 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
               }
               · {{ fetchedAge() }}
             </p>
+            @if (i.web.credit) {
+              <!-- 1.32.0: the licence credit the data needs (Grand Comics Database, CC BY-SA 4.0), linked to the series page. -->
+              <p class="source" data-testid="series-web-credit">
+                @if (i.web.siteUrl) {
+                  <a [href]="i.web.siteUrl" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">{{ i.web.credit }}</a>
+                } @else {
+                  {{ i.web.credit }}
+                }
+              </p>
+            }
           }
           @if (i.comicInfo; as ci) {
             <p class="source" data-testid="series-comicinfo-source">
