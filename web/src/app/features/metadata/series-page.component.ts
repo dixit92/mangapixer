@@ -117,6 +117,16 @@ import { SeriesMissingLineComponent } from './missing/series-missing-line.compon
               }
               <span class="muted"> · fetched {{ fetchedAge() }}</span>
             </p>
+            @if (i.web.credit) {
+              <!-- 1.32.0: the licence credit the data needs (Grand Comics Database, CC BY-SA 4.0), linked to the series page. -->
+              <p data-testid="series-web-credit">
+                @if (i.web.siteUrl) {
+                  <a [href]="i.web.siteUrl" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">{{ i.web.credit }}</a>
+                } @else {
+                  {{ i.web.credit }}
+                }
+              </p>
+            }
           }
           @if (i.comicInfo) {
             <p>ComicInfo: {{ i.comicInfo.itemsWithComicInfo }} of {{ i.comicInfo.itemsTotal }} items</p>

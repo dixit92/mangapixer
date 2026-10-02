@@ -1058,6 +1058,8 @@ export interface SeriesInfoWebDto {
   /** Poster (lane B2); false/null in stage-1 lane B1. */
   hasImage?: boolean;
   imageUrl?: string | null;
+  /** Licence credit shown with the source link, e.g. "Data: Grand Comics Database, CC BY-SA 4.0" (1.32.0). */
+  credit?: string | null;
 }
 
 export interface SeriesInfoComicInfoDto {
@@ -1308,6 +1310,20 @@ export interface IdentifyContextDto {
   local: IdentifyLocalDto;
   /** In (or is) a folder whose Content is "Doujinshi & adult one-shots": the dialog starts with the type filter off. */
   doujinshiContent?: boolean;
+  /** The sites Identify can search (1.32.0): MangaUpdates and the Grand Comics Database. */
+  sites?: IdentifySiteDto[];
+  /** The node's local signs route it to comics: `provider` is then `gcd`. */
+  comicsSignalled?: boolean;
+}
+
+/** A site Identify can search (1.32.0). */
+export interface IdentifySiteDto {
+  id: string;
+  name: string;
+  available: boolean;
+  unavailableCode?: string | null;
+  /** E.g. the Grand Comics Database's "about 25 requests an hour". */
+  note?: string | null;
 }
 
 export interface IdentifySearchRequest {
@@ -1315,6 +1331,10 @@ export interface IdentifySearchRequest {
   page?: number;
   /** Leave doujinshi, novels, artbooks and drama CDs out (a fixed provider type filter). */
   hideDoujinshiAndNovels?: boolean;
+  /** `mangaupdates` (default) or `gcd` (1.32.0). */
+  provider?: string | null;
+  /** GCD only: the (YYYY) of the node's own name, to narrow to series that began that year. */
+  startYear?: number | null;
 }
 
 export interface IdentifyLookupRequest {
@@ -1337,6 +1357,11 @@ export interface IdentifyCandidateDto {
   score: number;
   strength: MatchStrength;
   imageToken?: string | null;
+  /** The edition's country / language and its issue or book count (1.32.0, GCD). */
+  country?: string | null;
+  language?: string | null;
+  unitCount?: number | null;
+  unitKind?: string | null;
 }
 
 export interface IdentifySearchResultDto {
@@ -1377,6 +1402,12 @@ export interface IdentifyPreviewDto {
   fetchedAt: string;
   local: IdentifyLocalDto;
   warnings?: IdentifyWarningDto[];
+  /** The edition's country / language and publishers (1.32.0, GCD). */
+  country?: string | null;
+  language?: string | null;
+  publishers?: string[];
+  /** Licence credit, e.g. "Data: Grand Comics Database, CC BY-SA 4.0" (1.32.0). */
+  credit?: string | null;
 }
 
 export interface MetadataRefreshResultDto {
