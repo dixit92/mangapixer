@@ -124,9 +124,30 @@ public sealed class TrashHostedService : BackgroundService
         row.TrashLastAutoRunAt = _time.GetUtcNow();
         await db.SaveChangesAsync(ct);
 
-        var trash = scope.ServiceProvider.GetRequiredService<TrashService>();
-        await trash.EmptyAsync(null, releaseHold: false, automatic: true, actor: null, ct);
-        await trash.CleanBundlesAsync(automatic: true, actor: null, ct);
+        // 1.32.0: also recorded as the trash job's run (the Scheduled jobs section); the floor stays TrashLastAutoRunAt.
+        var runs = scope.ServiceProvider.GetService<Jobs.JobRunRecorder>();
+        var started = runs is null ? row.TrashLastAutoRunAt.Value : await runs.StartedAsync(Jobs.ScheduledJobKeys.Trash, ct);
+        var outcome = Jobs.JobOutcomes.Failed;
+        string? detail = null;
+        try
+        {
+            var trash = scope.ServiceProvider.GetRequiredService<TrashService>();
+            var emptied = await trash.EmptyAsync(null, releaseHold: false, automatic: true, actor: null, ct);
+            var cleaned = await trash.CleanBundlesAsync(automatic: true, actor: null, ct);
+            outcome = Jobs.JobOutcomes.Ok;
+            detail = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"{emptied.Result?.Nodes ?? 0} removed, {cleaned.Files} bundle files cleaned");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            detail = ex.GetType().Name;
+            throw;
+        }
+        finally
+        {
+            if (runs is not null)
+                await runs.FinishedAsync(Jobs.ScheduledJobKeys.Trash, started, outcome, detail, CancellationToken.None);
+        }
         return true;
     }
 

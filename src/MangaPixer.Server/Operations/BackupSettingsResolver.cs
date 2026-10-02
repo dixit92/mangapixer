@@ -31,6 +31,11 @@ public sealed class RotatingBackupOptions
     public double? IntervalHours { get; set; }
     public int? RetentionCount { get; set; }
 
+    /// <summary>
+    /// Server-local hour (0-23) of a backup whose interval is whole days (1.32.0, <c>MangaPixer:Backups:Hour</c>); null = any time.
+    /// </summary>
+    public int? Hour { get; set; }
+
     /// <summary>Operator-pinned rotating backup directory (<c>MangaPixer:Backups:Location</c>).</summary>
     public string? Location { get; set; }
 
@@ -79,6 +84,15 @@ public sealed class RotatingBackupOptions
                 options.InvalidKeys.Add("MangaPixer:Backups:RetentionCount");
         }
 
+        var hour = config["MangaPixer:Backups:Hour"];
+        if (!string.IsNullOrWhiteSpace(hour))
+        {
+            if (int.TryParse(hour, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) && value is >= 0 and <= 23)
+                options.Hour = value;
+            else
+                options.InvalidKeys.Add("MangaPixer:Backups:Hour");
+        }
+
         var location = config["MangaPixer:Backups:Location"];
         if (!string.IsNullOrWhiteSpace(location))
             options.Location = location.Trim();
@@ -119,7 +133,15 @@ public sealed record EffectiveBackupSettings
     public required bool LocationChangeAllowed { get; init; }
     public required string? MarkerId { get; init; }
 
+    /// <summary>Server-local hour of a whole-days interval (1.32.0), or null = any time (an interval after the last backup).</summary>
+    public int? Hour { get; init; }
+
+    public string HourSource { get; init; } = BackupSettingSources.Default;
+
     public TimeSpan Interval => TimeSpan.FromHours(IntervalHours);
+
+    /// <summary>The interval in whole days (1-30) when it is one, else null (an hour applies only then).</summary>
+    public int? WholeDays => IntervalHours >= 24 && IntervalHours <= 720 && IntervalHours % 24 == 0 ? (int)(IntervalHours / 24) : null;
 
     public bool IsCustom => LocationKind == KindCustom;
 }
@@ -231,6 +253,9 @@ public sealed class BackupSettingsResolver
             SafetyDirectory = config.SafetyBackupDirectory,
             LocationChangeAllowed = config.AllowLocationChange && string.IsNullOrWhiteSpace(config.Location),
             MarkerId = row?.BackupLocationMarkerId,
+            Hour = config.Hour ?? (row?.BackupHour is >= 0 and <= 23 ? row.BackupHour : null),
+            HourSource = config.Hour is not null ? BackupSettingSources.Configuration
+                : row?.BackupHour is >= 0 and <= 23 ? BackupSettingSources.Settings : BackupSettingSources.Default,
         };
     }
 
