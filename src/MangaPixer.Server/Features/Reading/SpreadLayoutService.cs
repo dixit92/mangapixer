@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.Server.Features.Reading;
 using System.Text.Json;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -167,7 +168,9 @@ public sealed class SpreadLayoutService
 
         try
         {
-            await _db.SaveChangesAsync(ct);
+            // A first write that loses its race is handled below; keep EF's own error line out of the log.
+            using (ExpectedRaceScope.Begin())
+                await _db.SaveChangesAsync(ct);
             return true;
         }
         catch (DbUpdateException) when (row is null)

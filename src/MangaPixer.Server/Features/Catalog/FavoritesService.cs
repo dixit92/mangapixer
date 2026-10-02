@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
 using com.lifepixer.mangapixer.Server.Features.Auth;
+using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -68,7 +69,9 @@ public sealed class FavoritesService
 
         try
         {
-            await _db.SaveChangesAsync(ct);
+            // The scope keeps EF's own error line for the lost race below out of the log (see ExpectedRaceScope).
+            using (ExpectedRaceScope.Begin())
+                await _db.SaveChangesAsync(ct);
         }
         catch (DbUpdateException)
         {

@@ -282,6 +282,15 @@ public sealed class PageController : ControllerBase
     /// </summary>
     private IActionResult MapExtractionFailure(PageExtractionOutcome outcome, long nodeId, string entryKey)
     {
+        if (outcome.ErrorType == "cancelled")
+        {
+            // The client went away (the reader aborts its page prefetch when the user turns on): nothing
+            // failed, nobody reads this response, and it must not count as a server error.
+            _logger.LogDebug(LogEvents.Worker.PageExtractionFailed, "Page extraction cancelled by the client for item {ItemId} entry {EntryKey}",
+                nodeId, entryKey);
+            return StatusCode(499, new ApiError { Error = "cancelled", Message = "Request cancelled." });
+        }
+
         _logger.LogWarning(LogEvents.Worker.PageExtractionFailed, "Page extraction failed for item {ItemId} entry {EntryKey}: {Error}",
             nodeId, entryKey, outcome.ErrorType);
         return outcome.ErrorType switch
