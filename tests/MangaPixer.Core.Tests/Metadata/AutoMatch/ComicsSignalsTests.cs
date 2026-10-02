@@ -496,6 +496,16 @@ public sealed class ComicsUnitGrammarTests
         Assert.Equal(name, TitleNormalizer.Normalize(name).Primary);
 
     [Theory]
+    [InlineData("Asterix T01 - Asterix le Gaulois.cbz", "Asterix T02 - La Serpe d'or.cbz", "Asterix T03 - Asterix et les Goths.cbz")]
+    [InlineData("Some Series Tome 1 - First Title.cbz", "Some Series Tome 2 - Second Title.cbz", "Some Series Tome 3 - Third Title.cbz")]
+    [InlineData("Some Series Issue 1 - First Title.cbz", "Some Series Issue 2 - Second Title.cbz", "Some Series Issue 3 - Third Title.cbz")]
+    public void TitledAlbumsAndIssues_OfOneSeries_AreASeriesFolder(string a, string b, string c)
+    {
+        var shape = new FolderShape("Some Folder", 2, [a, b, c], []);
+        Assert.Equal(WorkClass.Series, new WorkDetector().Classify(shape).Class);
+    }
+
+    [Theory]
     [InlineData("c2c")]
     [InlineData("Zone-Empire")]
     [InlineData("Minutemen-Empire")]
