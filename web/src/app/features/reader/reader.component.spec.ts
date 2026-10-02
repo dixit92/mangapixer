@@ -3859,3 +3859,71 @@ describe('ReaderComponent edge-of-archive confirmation (2026-10-02)', () => {
     expect(snack).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The archive's name in the top chrome (1.32.0): beside the page counter when the bar has room
+ * (wide screens), otherwise in a one-line row under the bar. Both ride the same wrapper as the
+ * toolbar, so they show / hide together with the controls.
+ */
+describe('ReaderComponent archive name in the top chrome (1.32.0)', () => {
+  function render(wide: boolean) {
+    const breakpoints = {
+      observe: (query: unknown) => of({ matches: query === ReaderComponent.NameInBarQuery ? wide : false, breakpoints: {} }),
+      isMatched: (query: unknown) => query === ReaderComponent.NameInBarQuery ? wide : false,
+    };
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [...baseProviders(), { provide: BreakpointObserver, useValue: breakpoints }],
+    });
+    const fixture = TestBed.createComponent(ReaderComponent);
+    fixture.detectChanges();
+    const c = fixture.componentInstance;
+    TestBed.inject(HttpTestingController).match('/api/v1/nodes/item-1')
+      .forEach((r) => r.flush(makeNode({ displayName: 'Series Volume 03' })));
+    c.pages.set(makePages(3));
+    c.phase.set('ready');
+    fixture.detectChanges();
+    return { fixture, c, el: fixture.nativeElement as HTMLElement };
+  }
+
+  it('wide: the name is text inside the toolbar, between the page counter and the icons', () => {
+    const { el, c } = render(true);
+    expect(c.itemName()).toBe('Series Volume 03');
+    const name = el.querySelector<HTMLElement>('.reader-toolbar [data-testid="reader-archive-name"]')!;
+    expect(name.textContent?.trim()).toBe('Series Volume 03');
+    expect(name.getAttribute('title')).toBe('Series Volume 03');
+    expect(el.querySelector('.reader-name-row')).toBeNull();
+    const toolbar = el.querySelector('.reader-toolbar')!;
+    const kids = Array.from(toolbar.children);
+    expect(kids.indexOf(el.querySelector('.page-info')!)).toBeLessThan(kids.indexOf(name));
+    expect(kids.indexOf(name)).toBeLessThan(kids.indexOf(toolbar.querySelector('button[aria-label="Enter fullscreen"]')!));
+  });
+
+  it('narrow: the name is a row right below the toolbar, inside the same chrome wrapper', () => {
+    const { el } = render(false);
+    const row = el.querySelector<HTMLElement>('.reader-top > .reader-name-row')!;
+    expect(row.textContent?.trim()).toBe('Series Volume 03');
+    expect(row.getAttribute('title')).toBe('Series Volume 03');
+    expect(row.previousElementSibling).toBe(el.querySelector('.reader-toolbar'));
+    expect(el.querySelector('.reader-toolbar [data-testid="reader-archive-name"]')).toBeNull();
+  });
+
+  it('shows and hides with the controls: the wrapper carries the immersive overlay and auto-hide', () => {
+    const { fixture, c, el } = render(false);
+    c.isFullscreen.set(true);
+    c.chromeVisible.set(false);
+    fixture.detectChanges();
+    const top = el.querySelector('.reader-top')!;
+    expect(top.classList).toContain('immersive');
+    expect(top.classList).toContain('chrome-hidden');
+    expect(top.contains(el.querySelector('.reader-name-row'))).toBe(true);
+  });
+
+  it('renders no name while the node has not loaded (and none after the item changes)', () => {
+    const { fixture, c, el } = render(false);
+    c.itemName.set('');
+    fixture.detectChanges();
+    expect(el.querySelector('.reader-name-row')).toBeNull();
+    expect(el.querySelector('.spacer')).not.toBeNull();
+  });
+});
