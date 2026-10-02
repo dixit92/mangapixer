@@ -625,19 +625,34 @@ public static partial class AutoMatchText
     /// the hint says nothing about origin (<c>comics</c>, <c>graphic novels</c>, <c>european comics</c>...).
     /// </summary>
     public static IReadOnlySet<MetadataOrigin>? OriginsForCategory(string? categoryHint) =>
-        TitleNormalizer.ScoringForm(categoryHint) switch
+        s_categoryOrigins.GetValueOrDefault(TitleNormalizer.ScoringForm(categoryHint));
+
+    /// <summary>
+    /// The category words keyed by their SCORING form (1.32.0 fix): the hint is compared in scoring form, which folds long
+    /// vowels ("webtoon" -> "webton"), so the words must be folded the same way - before 1.32.0 a Webtoon(s) folder never
+    /// gave its origin.
+    /// </summary>
+    private static readonly Dictionary<string, IReadOnlySet<MetadataOrigin>> s_categoryOrigins = BuildCategoryOrigins();
+
+    private static Dictionary<string, IReadOnlySet<MetadataOrigin>> BuildCategoryOrigins()
+    {
+        var map = new Dictionary<string, IReadOnlySet<MetadataOrigin>>(StringComparer.Ordinal);
+        void Add(MetadataOrigin[] origins, params string[] words)
         {
-            "manga" or "japanese manga" => new HashSet<MetadataOrigin> { MetadataOrigin.Japan },
-            "manhwa" or "korean manhwa" => new HashSet<MetadataOrigin> { MetadataOrigin.Korea },
-            "manhua" or "chinese manhua" => new HashSet<MetadataOrigin> { MetadataOrigin.ChinaTaiwan },
-            "webtoon" or "webtoons" => new HashSet<MetadataOrigin> { MetadataOrigin.Korea, MetadataOrigin.ChinaTaiwan },
-            "bd" or "bande dessinee" or "bandes dessinees" => new HashSet<MetadataOrigin> { MetadataOrigin.French },
-            "tebeos" or "historietas" => new HashSet<MetadataOrigin> { MetadataOrigin.Spanish },
-            "fumetti" => new HashSet<MetadataOrigin> { MetadataOrigin.Italian },
-            "stripboeken" => new HashSet<MetadataOrigin> { MetadataOrigin.Dutch },
-            "us comics" => new HashSet<MetadataOrigin> { MetadataOrigin.EnglishOriginal },
-            _ => null,
-        };
+            foreach (var word in words)
+                map[TitleNormalizer.ScoringForm(word)] = new HashSet<MetadataOrigin>(origins);
+        }
+        Add([MetadataOrigin.Japan], "manga", "japanese manga");
+        Add([MetadataOrigin.Korea], "manhwa", "korean manhwa");
+        Add([MetadataOrigin.ChinaTaiwan], "manhua", "chinese manhua");
+        Add([MetadataOrigin.Korea, MetadataOrigin.ChinaTaiwan], "webtoon", "webtoons");
+        Add([MetadataOrigin.French], "bd", "bande dessinee", "bandes dessinees");
+        Add([MetadataOrigin.Spanish], "tebeos", "historietas");
+        Add([MetadataOrigin.Italian], "fumetti");
+        Add([MetadataOrigin.Dutch], "stripboeken");
+        Add([MetadataOrigin.EnglishOriginal], "us comics");
+        return map;
+    }
 
     /// <summary>
     /// Reads a candidate origin: a provider type ("Manga", "Manhwa", "Manhua", "OEL") or a

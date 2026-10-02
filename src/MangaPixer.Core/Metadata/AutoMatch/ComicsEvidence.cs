@@ -39,11 +39,11 @@ public static partial class ComicsEvidenceRules
     /// <summary>Whether a candidate comes from the comics provider (the comics evidence is read for these only).</summary>
     public static bool IsComicsProvider(string? provider) => string.Equals(provider, ComicsProviderId, StringComparison.Ordinal);
 
-    /// <summary>A median of at most this many pages per file reads as single issues (US floppies run 24-40 pages).</summary>
-    public const int IssuePagesMax = 48;
+    /// <summary>A median of at most this many pages per file reads as single issues - the one bound of <see cref="ComicsSignals"/>.</summary>
+    public const int IssuePagesMax = ComicsSignals.IssuePagesMax;
 
-    /// <summary>A median of at least this many pages reads as collected books (ComicTagger's TPB rule uses &gt; 100).</summary>
-    public const int CollectedPagesMin = 100;
+    /// <summary>A median of at least this many pages reads as collected books - the one bound of <see cref="ComicsSignals"/>.</summary>
+    public const int CollectedPagesMin = ComicsSignals.CollectedPagesMin;
 
     [GeneratedRegex(
         @"(?<![\p{L}\p{N}])(?:TPB|HC|OGN|GN|Graphic\s+Novel|Omnibus|Absolute|Compendium|Library\s+Edition|Int[eé]grale|Gesamtausgabe|Integraal|Trade\s+Paperback)(?![\p{L}\p{N}])",
@@ -60,10 +60,10 @@ public static partial class ComicsEvidenceRules
         ArgumentNullException.ThrowIfNull(archiveNames);
         if (archiveNames.Count > 0 && archiveNames.Count(n => CollectedWord().IsMatch(n ?? string.Empty)) * 2 > archiveNames.Count)
             return ComicsShape.Collected;
-        return medianPageCount switch
+        return ComicsSignals.PageShapeOf(medianPageCount) switch
         {
-            >= CollectedPagesMin => ComicsShape.Collected,
-            > 0 and <= IssuePagesMax => ComicsShape.Issues,
+            ComicsPageShape.Collected => ComicsShape.Collected,
+            ComicsPageShape.Issues => ComicsShape.Issues,
             _ => ComicsShape.Unknown,
         };
     }
@@ -72,8 +72,7 @@ public static partial class ComicsEvidenceRules
     public static int? Median(IReadOnlyList<int> pageCounts)
     {
         ArgumentNullException.ThrowIfNull(pageCounts);
-        var sorted = pageCounts.Where(p => p > 0).Order().ToList();
-        return sorted.Count == 0 ? null : sorted[(sorted.Count - 1) / 2];
+        return ComicsSignals.MedianOf(pageCounts.Select(p => (int?)p));
     }
 
     /// <summary>An ISO 639-1 language code (two ASCII letters, lowercase) from a ComicInfo / settings value, else null.</summary>
