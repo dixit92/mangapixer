@@ -3878,8 +3878,11 @@ describe('ReaderComponent archive name in the top chrome (1.32.0)', () => {
     const fixture = TestBed.createComponent(ReaderComponent);
     fixture.detectChanges();
     const c = fixture.componentInstance;
-    TestBed.inject(HttpTestingController).match('/api/v1/nodes/item-1')
-      .forEach((r) => r.flush(makeNode({ displayName: 'Series Volume 03' })));
+    // The stubbed route has no snapshot, so ngOnInit stops before loading the node: do that step directly.
+    c.itemId.set('item-1');
+    (c as unknown as { loadFallbackBackRoute: (id: string) => void }).loadFallbackBackRoute('item-1');
+    TestBed.inject(HttpTestingController).expectOne('/api/v1/nodes/item-1')
+      .flush(makeNode({ displayName: 'Series Volume 03' }));
     c.pages.set(makePages(3));
     c.phase.set('ready');
     fixture.detectChanges();
