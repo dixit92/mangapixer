@@ -122,6 +122,7 @@ public sealed class RefreshCadenceServiceTests : IAsyncLifetime
             NextCheckAt = now.AddDays(29),
         });
         await _db.Db.SaveChangesAsync();
+        await _h.EnableAutomaticAsync(); // linked = in a library whose "Fetch from the web" is on
 
         var cadences = await _h.Refresh().RecomputeCadencesAsync();
 
@@ -139,6 +140,7 @@ public sealed class RefreshCadenceServiceTests : IAsyncLifetime
         await LinkedAsync("941", TimeSpan.FromDays(8), year, 70);
         await LinkedAsync("942", TimeSpan.FromDays(8), year, 20);
         await LinkedAsync("943", TimeSpan.FromDays(8), status: MetadataOriginStatus.Complete);
+        await _h.EnableAutomaticAsync();
         var refresh = _h.Refresh();
         await refresh.RecomputeCadencesAsync();
 
