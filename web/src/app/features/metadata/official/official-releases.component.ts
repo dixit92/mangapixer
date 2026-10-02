@@ -81,7 +81,7 @@ export function completionEmptyText(filter: CompletionFilter, language: string, 
           <mat-button-toggle-group [value]="filter()" (change)="setFilter($event.value)" aria-label="Which series" hideSingleSelectionIndicator>
             @for (f of filters; track f.value) {
               <mat-button-toggle [value]="f.value" [attr.data-testid]="'official-filter-' + f.value">
-                {{ f.label }}@if (count(f.value) !== null) { <span class="count">{{ count(f.value) }}</span> }
+                {{ f.label }}@if (count(f.value) !== null) {<span class="count"> {{ count(f.value) }}</span>}
               </mat-button-toggle>
             }
           </mat-button-toggle-group>
@@ -164,7 +164,7 @@ export function completionEmptyText(filter: CompletionFilter, language: string, 
     .toolbar.second { justify-content: flex-start; }
     /* The toggles scroll sideways inside their own box on a phone rather than widening the page. */
     .filters { max-width: 100%; overflow-x: auto; }
-    .count { margin-left: 4px; color: #9a9aa8; font-size: 12px; }
+    .count { color: #9a9aa8; font-size: 12px; }
     .lib-filter { width: 220px; }
     .edition-filter { width: 180px; }
     .summary { margin: 4px 0 12px; font-size: 13px; color: #c8c8d4; }
