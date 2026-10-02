@@ -3699,9 +3699,10 @@ describe('ReaderComponent edge-of-archive confirmation (2026-10-02)', () => {
     c.nextNeighbor.set({ id: 'next-item', displayName: 'Chapter 2' });
     c.prevNeighbor.set({ id: 'prev-item', displayName: 'Chapter 0' });
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    const dismiss = vi.fn();
     const snack = vi.spyOn((c as unknown as { snackBar: MatSnackBar }).snackBar, 'open')
-      .mockImplementation(() => ({}) as never);
-    return { c, nav, snack };
+      .mockImplementation(() => ({ dismiss }) as never);
+    return { c, nav, snack, dismiss };
   }
   function key(k: string, extra: Partial<KeyboardEvent> = {}): KeyboardEvent {
     return { key: k, target: document.createElement('div'), repeat: false, shiftKey: false, ...extra } as unknown as KeyboardEvent;
@@ -3734,6 +3735,21 @@ describe('ReaderComponent edge-of-archive confirmation (2026-10-02)', () => {
     expect(String(snack.mock.calls[0][0])).toBe('Again to open the previous archive: Chapter 0');
     c.prevPage();
     expect(nav).toHaveBeenCalledWith(['/reader', 'prev-item'], { queryParams: { at: 'end' }, replaceUrl: true });
+  });
+
+  it('turning back a page closes the "Again to open" hint at once (owner, 2026-10-02)', () => {
+    const { c, nav, snack, dismiss } = create();
+    c.currentPage.set(2);
+    c.nextPage();
+    expect(snack).toHaveBeenCalledTimes(1);
+    expect(dismiss).not.toHaveBeenCalled();
+    c.prevPage(); // back to page 1: the move disarms and its hint closes
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    expect(c.currentPage()).toBe(1);
+    c.nextPage(); // a plain page turn: no hint, nothing to close
+    expect(snack).toHaveBeenCalledTimes(1);
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    expect(nav).not.toHaveBeenCalled();
   });
 
   it('the second input must come within the window', () => {

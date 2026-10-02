@@ -11,7 +11,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBarModule, MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
 import { map } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
@@ -1021,6 +1021,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   // Edge-of-archive confirmation (owner, 2026-10-02): at the first / last page the next or previous input arms the
   // move to the neighbouring archive and the same input again opens it (see edge-advance.ts).
   private readonly edgeAdvance = new EdgeAdvance();
+  /** The "Again to open ..." hint while an edge is armed; closed as soon as the edge disarms (owner, 2026-10-02). */
+  private edgeHint: MatSnackBarRef<TextOnlySnackBar> | null = null;
 
   // In-reader bookmarks (1.17.0), fetched per item alongside the neighbors.
   // `ordinal` is the zero-based page index (matches `currentPage`), so the
@@ -1397,7 +1399,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       // next archive's layout (or none) arrives with its manifest.
       this.flushSpreadSave();
       this.spreadLayout.set(null);
-      this.edgeAdvance.reset();
+      this.disarmEdge();
       this.itemId.set(id);
       this.pollAttempts = 0;
       // Reset the page-prefetch cache for the new chapter (URLs are per-item).
@@ -2121,7 +2123,14 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       return;
     }
     const which = direction === 1 ? 'next' : 'previous';
-    this.snackBar.open(`Again to open the ${which} archive: ${neighbor.displayName}`, '', { duration: EdgeAdvanceWindowMs });
+    this.edgeHint = this.snackBar.open(`Again to open the ${which} archive: ${neighbor.displayName}`, '', { duration: EdgeAdvanceWindowMs });
+  }
+
+  /** Forget an armed edge and close its hint (a page turn back, a webtoon step, a new archive) - a stale hint would invite a tap that no longer opens anything. */
+  private disarmEdge(): void {
+    this.edgeAdvance.reset();
+    this.edgeHint?.dismiss();
+    this.edgeHint = null;
   }
 
   /** True when the current screen is the last page (paged) or last spread (spread). */
@@ -2210,7 +2219,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private goToPage(index: number): void {
     const clamped = Math.min(Math.max(index, 0), this.pageCount() - 1);
     if (clamped === this.currentPage()) return;
-    this.edgeAdvance.reset(); // a page turn inside the archive disarms the edge
+    this.disarmEdge(); // a page turn inside the archive disarms the edge and closes its hint
     // Resolve the transition enter-side from the travel direction before the page
     // swaps, so the freshly mounted <img> animates in from the correct edge.
     this.navEnter.set(this.enterSideForNav(clamped > this.currentPage()));
@@ -2960,7 +2969,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       if (this.webtoonAtEdge(el, direction)) this.edgeInput(direction);
       return;
     }
-    this.edgeAdvance.reset();
+    this.disarmEdge();
     if (typeof el.scrollTo === 'function') {
       el.scrollTo({ top: target, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
     } else {
