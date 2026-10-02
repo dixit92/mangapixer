@@ -20,7 +20,8 @@ internal static class FolderCoverPreferences
         CancellationToken ct)
     {
         var result = new Dictionary<long, NearestCoverPreference>();
-        if (nodeIds.Count == 0)
+        // Most libraries have no row at all: one cheap probe instead of the recursive walk on every browse page.
+        if (nodeIds.Count == 0 || !await db.FolderCoverPreferences.AsNoTracking().AnyAsync(ct))
             return result;
 
         var ids = string.Join(",", nodeIds.Distinct().Select(i => i.ToString(CultureInfo.InvariantCulture)));
