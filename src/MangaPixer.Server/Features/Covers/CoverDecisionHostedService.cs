@@ -79,10 +79,17 @@ public sealed class CoverDecisionHostedService : BackgroundService
     private readonly HashSet<(long NodeId, long Version)> _spreadAttempted = [];
     private DateTimeOffset _watermark = DateTimeOffset.MinValue;
     private string? _settingsStamp;
+    private readonly Jobs.JobRunRecorder? _runs;
+
+    /// <summary>How often the sweep runs (<c>Covers:SweepIntervalSeconds</c>), for the Scheduled jobs section.</summary>
+    public TimeSpan SweepInterval => _interval;
+
+    public bool SweepEnabled => _sweepEnabled;
 
     public CoverDecisionHostedService(IServiceScopeFactory scopes, CoverDecisionQueue queue, IConfiguration configuration,
-        ILogger<CoverDecisionHostedService> logger, MediaWorkerPool? pool = null)
+        ILogger<CoverDecisionHostedService> logger, MediaWorkerPool? pool = null, Jobs.JobRunRecorder? runs = null)
     {
+        _runs = runs;
         _scopes = scopes;
         _queue = queue;
         _pool = pool;
@@ -109,7 +116,15 @@ public sealed class CoverDecisionHostedService : BackgroundService
                 await DrainQueueAsync(stoppingToken);
                 if ((_queue.TakeSweepRequest() || DateTimeOffset.UtcNow >= nextSweep) && _sweepEnabled)
                 {
-                    await SweepAsync(stoppingToken);
+                    // 1.32.0: recorded as the cover-decisions job's run (read-only in the Scheduled jobs section).
+                    if (_runs is null)
+                        await SweepAsync(stoppingToken);
+                    else
+                        await _runs.RunAsync(Jobs.ScheduledJobKeys.CoverDecisions, async () =>
+                        {
+                            await SweepAsync(stoppingToken);
+                            return (true, Jobs.JobOutcomes.Ok, (string?)null);
+                        }, stoppingToken);
                     nextSweep = DateTimeOffset.UtcNow + _interval;
                 }
             }
