@@ -525,3 +525,102 @@ public sealed class ComicsUnitGrammarTests
     [InlineData("https://comics.example/issue/1/", false)]
     public void ComicsDatabaseLinks_AreShown(string url, bool expected) => Assert.Equal(expected, MetadataWebLinks.IsAllowed(url));
 }
+
+/// <summary>
+/// "No. N" in a TITLE (1.32.0 integrator review): well-known manga carry it ("Kaiju No. 8", "No. 6"), so it is an issue number only
+/// when nothing unit-like follows it and never when the folder's own name carries it. Synthetic lookalikes.
+/// </summary>
+public sealed class TitleNumberTests
+{
+    private static decimal? D(string s) => s.Length == 0 ? null : decimal.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
+
+    [Theory]
+    [InlineData("Monster No. 8 v01 c003.cbz", "1", "3")]
+    [InlineData("Monster No. 8 - Vol. 2.cbz", "2", "")]
+    [InlineData("Robot No. 9 - Chapter 12.cbz", "", "12")]
+    [InlineData("Robot No. 9 #12.cbz", "", "12")]
+    [InlineData("Robot No. 9 c012 (2019).cbz", "", "12")]
+    [InlineData("Robot No. 9 001.cbz", "", "")] // a title and a bare number: not a unit (unchanged)
+    [InlineData("Saga No. 12 (2019) (Digital).cbz", "", "12")] // nothing unit-like follows outside the tags: an issue
+    [InlineData("Saga No. 3 (of 6).cbz", "", "3")]
+    public void UnitsOf_KeepsATitlesNoN_AndReadsTheRealUnits(string name, string volume, string chapter)
+    {
+        var u = AutoMatchText.UnitsOf(name);
+        Assert.Equal((D(volume), D(chapter)), (u.Volume, u.Chapter));
+    }
+
+    [Theory]
+    [InlineData("Monster No. 8 v01 c003.cbz", 1, 3)]
+    [InlineData("Robot No. 9 - Chapter 12.cbz", null, 12)]
+    [InlineData("Saga No. 12.cbz", null, 12)]
+    public void MatcherIntegers_KeepATitlesNoN(string name, int? volume, int? chapter)
+    {
+        Assert.Equal(volume, AutoMatchText.VolumeNumberOf(name));
+        Assert.Equal(chapter, AutoMatchText.ChapterNumberOf(name));
+    }
+
+    [Theory]
+    [InlineData("Monster No. 8 v01 c003", "Monster No. 8")]
+    [InlineData("Robot No. 9 - Chapter 12", "Robot No. 9")]
+    [InlineData("Robot No. 9", "Robot No. 9")]
+    [InlineData("Monster No. 8", "Monster No. 8")]
+    [InlineData("No. 6", "No. 6")]
+    public void TheSearchedTitle_KeepsNoN(string name, string primary) =>
+        Assert.Equal(primary, TitleNormalizer.Normalize(name).Primary);
+
+    [Theory]
+    [InlineData("Monster No. 8 v01 c003.cbz", false)]
+    [InlineData("Robot No. 9 - Chapter 12.cbz", false)]
+    [InlineData("Saga No. 12.cbz", true)]
+    public void IssueGrammar_KeepsATitlesNoN(string name, bool expected) => Assert.Equal(expected, ComicsSignals.IsIssueNamed(name));
+
+    [Fact]
+    public void TheFoldersOwnNoN_IsMasked_OtherNumbersAreNot()
+    {
+        Assert.Equal("Robot No9.cbz", AutoMatchText.MaskFolderTitleNumber("Robot No. 9.cbz", "Robot No. 9"));
+        Assert.Equal("Robot No9 (Digital).cbz", AutoMatchText.MaskFolderTitleNumber("Robot No. 09 (Digital).cbz", "Robot No. 9"));
+        Assert.Equal("Saga No. 12.cbz", AutoMatchText.MaskFolderTitleNumber("Saga No. 12.cbz", "Saga"));
+        Assert.Equal("Robot No. 10.cbz", AutoMatchText.MaskFolderTitleNumber("Robot No. 10.cbz", "Robot No. 9"));
+        Assert.True(AutoMatchText.UnitsOf(AutoMatchText.MaskFolderTitleNumber("Robot No. 9.cbz", "Robot No. 9")).IsEmpty);
+    }
+
+    [Fact]
+    public void AFolderNamedWithNoN_HasNoIssueSign_FromItsOwnNumber()
+    {
+        Assert.Same(ComicsSignal.None, ComicsSignals.Of(new ComicsSignalInput(null, null, ["Robot No. 9.cbz"], FolderName: "Robot No. 9")));
+        // Without the folder (an archive-level work) the name alone reads issue 9 - a weak sign.
+        Assert.Equal(ComicsSignalKind.IssueNumbering, ComicsSignals.Of(new ComicsSignalInput(null, null, ["Robot No. 9.cbz"])).Kinds);
+    }
+
+    [Fact]
+    public void ThePlanner_SearchesTheFullTitle_AndReadsNoIssueFromTheFoldersNoN()
+    {
+        var shape = new FolderShape("Robot No. 9", 1, ["Robot No. 9.cbz"], []);
+        var query = new MatchQueryPlanner().PlanFolder(shape, new WorkDetector().Classify(shape));
+
+        Assert.Equal("Robot No. 9", query.Variants[0].Text);
+        Assert.Equal(0, query.Context.ChapterLikeCount);
+        Assert.Null(query.Context.LocalChapters);
+    }
+
+    [Fact]
+    public void ThePlanner_ReadsTheVolumesAndChapters_OfANoNSeries()
+    {
+        var shape = new FolderShape("Monster No. 8", 1,
+            ["Monster No. 8 v01 c001.cbz", "Monster No. 8 v01 c002.cbz", "Monster No. 8 v02 c010.cbz"], []);
+        var query = new MatchQueryPlanner().PlanFolder(shape, new WorkDetector().Classify(shape));
+
+        Assert.Equal("Monster No. 8", query.Variants[0].Text);
+        Assert.Equal(10, query.Context.LocalChapters);
+        Assert.Equal(3, query.Context.ChapterLikeCount);
+    }
+
+    [Fact]
+    public void TheVolumesView_ReadsNoIssueFromTheContainingFoldersNoN()
+    {
+        var row = new com.lifepixer.mangapixer.Core.Catalog.GroupingRow("a1", com.lifepixer.mangapixer.Core.Catalog.GroupingRowKind.Archive,
+            "Robot No. 9.cbz", "1", "Robot No. 9");
+        Assert.True(com.lifepixer.mangapixer.Core.Catalog.VolumeGrouping.UnitsOf(row).IsEmpty);
+        Assert.Equal(12m, com.lifepixer.mangapixer.Core.Catalog.VolumeGrouping.UnitsOf(row with { Name = "Robot No. 9 c012.cbz" }).Chapter);
+    }
+}

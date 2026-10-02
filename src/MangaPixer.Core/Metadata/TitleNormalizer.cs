@@ -63,9 +63,9 @@ public static partial class TitleNormalizer
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex VolumeToken();
 
-    // Ch 12, ch.12, chap 3, Chapter 10.5, chapters 1-20, c003 (bare c only when glued to digits); 1.32.0 comic issues: Issue 12,
-    // and No. 12 / N°12 after some title text ("No. 6" alone is a title).
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:ch|chap|chapter|chapters|issue\s*#?|(?<=[\p{L}\p{N}][\s\-_.,]*)(?:no\.|n°))\.?\s*\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?|c\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?)(?![\p{L}\p{N}])",
+    // Ch 12, ch.12, chap 3, Chapter 10.5, chapters 1-20, c003 (bare c only when glued to digits); 1.32.0 comic issues: Issue 12.
+    // "No. 12" is never removed: titles carry it ("Kaiju No. 8", "No. 6").
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:ch|chap|chapter|chapters|issue\s*#?)\.?\s*\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?|c\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?)(?![\p{L}\p{N}])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ChapterToken();
 

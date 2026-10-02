@@ -147,8 +147,8 @@ public static partial class ComicsSignals
     /// <summary>At most this many ids are kept per work.</summary>
     public const int MaxIds = 5;
 
-    // --- issue grammar (weak): #12, #12.1, #1/2, Issue 12, No. 12 / N°12 after a title, 12 (of 6), Annual 2, FCBD ---
-    [GeneratedRegex(@"(?:(?<![\p{L}\p{N}])#\s*\d{1,4}(?:\.\d{1,2})?|(?<![\p{L}\p{N}])issue\s*#?\s*\d{1,4}|(?<![\p{L}\p{N}])(?<=[\p{L}\p{N}][\s\-_.,]*)(?:no\.|n[°º])\s*\d{1,4}|(?<![\p{L}\p{N}])annual(?:\s*#?\s*\d{1,4})?(?![\p{L}])|(?<![\p{L}\p{N}])(?:fcbd|free\s+comic\s+book\s+day)(?![\p{L}]))",
+    // --- issue grammar (weak): #12, #12.1, #1/2, Issue 12, 12 (of 6), Annual 2, FCBD; No. 12 / N°12 per AutoMatchText.IssueNumberOf ---
+    [GeneratedRegex(@"(?:(?<![\p{L}\p{N}])#\s*\d{1,4}(?:\.\d{1,2})?|(?<![\p{L}\p{N}])issue\s*#?\s*\d{1,4}|(?<![\p{L}\p{N}])annual(?:\s*#?\s*\d{1,4})?(?![\p{L}])|(?<![\p{L}\p{N}])(?:fcbd|free\s+comic\s+book\s+day)(?![\p{L}]))",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex IssueToken();
 
@@ -263,7 +263,8 @@ public static partial class ComicsSignals
         {
             if (IsWesternPublisher(input.ComicInfoPublisher, input.ComicInfoImprint))
                 kinds |= ComicsSignalKind.WesternPublisher;
-            var names = input.ArchiveNames ?? [];
+            // The folder's own "No. N" is part of its title in its archives' names ("Robot No. 9" / "Robot No. 9.cbz").
+            var names = (input.ArchiveNames ?? []).Select(n => AutoMatchText.MaskFolderTitleNumber(n ?? string.Empty, input.FolderName)).ToList();
             if (Carried(names, input.FolderName, IsIssueNamed, folderCounts: false))
                 kinds |= ComicsSignalKind.IssueNumbering;
             if (Carried(names, input.FolderName, IsAlbumNamed, folderCounts: false))
@@ -313,13 +314,16 @@ public static partial class ComicsSignals
         return !(imprintForm.Length > 0 && (AutoMatchText.ContainsTokens(imprintForm, "manga") || imprintForm == "sakka"));
     }
 
-    /// <summary>An archive name numbered like a comic issue (<c>Saga #012</c>, <c>Saga Issue 12</c>, <c>Saga 3 (of 6)</c>, <c>Annual 2</c>).</summary>
+    /// <summary>
+    /// An archive name numbered like a comic issue (<c>Saga #012</c>, <c>Saga Issue 12</c>, <c>Saga No. 12</c>, <c>Saga 3 (of 6)</c>,
+    /// <c>Annual 2</c>). <c>No. N</c> followed by a unit (<c>Monster No. 8 v01 c003</c>) is a title (<see cref="AutoMatchText.IssueNumberOf"/>).
+    /// </summary>
     public static bool IsIssueNamed(string? name)
     {
         if (string.IsNullOrWhiteSpace(name))
             return false;
         var s = name.Normalize(NormalizationForm.FormKC);
-        return OfCount().IsMatch(s) || IssueToken().IsMatch(Outside(s));
+        return OfCount().IsMatch(s) || IssueToken().IsMatch(Outside(s)) || AutoMatchText.IssueNumberOf(s) is not null;
     }
 
     /// <summary>An archive name numbered like a BD / European album (<c>Tome 3</c>, <c>T03</c>, <c>Band 3</c>, <c>Book One</c>).</summary>
