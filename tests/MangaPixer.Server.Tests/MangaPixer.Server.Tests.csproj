@@ -23,6 +23,8 @@
     <EmbeddedResource Include="Features\Metadata\Fixtures\MangaUpdates\*.json" LogicalName="MangaUpdates.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Features\Metadata\Fixtures\AniList\*.json" LogicalName="AniList.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Features\Metadata\Fixtures\MangaDex\*.json" LogicalName="MangaDex.%(Filename)%(Extension)" />
+    <!-- Recorded Grand Comics Database API responses (1.32.0, public titles; CC BY-SA 4.0 - see the README there). -->
+    <EmbeddedResource Include="Features\Metadata\Fixtures\Gcd\*.json" LogicalName="Gcd.%(Filename)%(Extension)" />
     <!-- Metadata auto-match golden set (moved from Core.Tests in 1.27.0 so it runs the production mapping and retrieval; see the README there). -->
     <EmbeddedResource Include="Features\Metadata\Fixtures\GoldenSet\*.json" LogicalName="GoldenSet.%(Filename)%(Extension)" />
   </ItemGroup>

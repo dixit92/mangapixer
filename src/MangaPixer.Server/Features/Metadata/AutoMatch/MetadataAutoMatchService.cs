@@ -703,9 +703,11 @@ public sealed class MetadataAutoMatchService
         {
             // 1.32.0: GCD is slow (25 an hour) or asked to slow down - this comics work waits, the queue goes on.
             await AddRequestsAsync(row.RunId, call.RequestsSent, ct);
-            await DeferAsync(row.Id, deferred.Until, ct);
+            var now = _time.GetUtcNow();
+            var until = deferred.Until > now ? deferred.Until : now + AutoMatchLookup.DefaultDeferral;
+            await DeferAsync(row.Id, until, ct);
             _logger.LogInformation(LogEvents.Metadata.AutoMatchWaiting, "Automatic matching deferred node {NodeId}: {Code} until {Until}",
-                row.NodeId, deferred.Code, deferred.Until);
+                row.NodeId, deferred.Code, until);
             return;
         }
         catch (MetadataGatewayException ex) when (IsRefusal(ex))

@@ -113,7 +113,7 @@ public sealed class MetadataIdentifyHttpTests
 
         // The provider is registered now, but only the gateway ever resolves it.
         var registry = factory.Services.GetRequiredService<com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MetadataProviderRegistry>();
-        Assert.Equal(["mangaupdates"], registry.All.Select(p => p.Id).ToArray());
+        Assert.Equal(["mangaupdates", "gcd"], registry.All.Select(p => p.Id).ToArray());
     }
 
     // --- Authorization ---
@@ -458,6 +458,8 @@ public sealed class MetadataNetworkWebApplicationFactory : WebApplicationFactory
             {
                 MetadataHttp.MangaUpdatesApiClient, MetadataHttp.MangaUpdatesImageClient, MetadataHttp.AniListClient,
                 MetadataHttp.MangaDexApiClient, MetadataHttp.MangaDexImageClient, UpdateCheckService.HttpClientName,
+                // 1.32.0: the Grand Comics Database (Identify's second site, comics routing).
+                MetadataHttp.GcdApiClient, MetadataHttp.GcdImageClient,
             })
                 services.AddHttpClient(name).ConfigurePrimaryHttpMessageHandler(() => Handler);
 
