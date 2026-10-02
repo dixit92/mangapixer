@@ -146,7 +146,34 @@ public sealed class MetadataRefreshService
             await _db.MetadataRecords.Where(r => groupIds.Contains(r.Id))
                 .ExecuteUpdateAsync(s => s.SetProperty(r => r.RefreshCadenceDays, group.Key), ct);
         }
+        await PullInCompanionChecksAsync(changed, ct);
         return cadences;
+    }
+
+    /// <summary>
+    /// One cadence everywhere: when a series' cadence got shorter, its companion checks and volume list already scheduled further
+    /// out come in to (last check + the new cadence). A longer cadence applies from their next check on.
+    /// </summary>
+    private async Task PullInCompanionChecksAsync(IReadOnlyDictionary<long, int> changed, CancellationToken ct)
+    {
+        if (changed.Count == 0)
+            return;
+        var ids = changed.Keys.ToList();
+        var companions = await _db.MetadataCompanions.Where(c => ids.Contains(c.RecordId) && c.NextCheckAt != null && c.CheckedAt != null).ToListAsync(ct);
+        foreach (var c in companions)
+        {
+            var latest = c.CheckedAt!.Value + TimeSpan.FromDays(changed[c.RecordId]);
+            if (c.NextCheckAt > latest)
+                c.NextCheckAt = latest;
+        }
+        var maps = await _db.SeriesVolumeMaps.Where(m => ids.Contains(m.RecordId) && m.NextCheckAt != null).ToListAsync(ct);
+        foreach (var m in maps)
+        {
+            var latest = m.FetchedAt + TimeSpan.FromDays(changed[m.RecordId]);
+            if (m.NextCheckAt > latest)
+                m.NextCheckAt = latest;
+        }
+        await _db.SaveChangesAsync(ct);
     }
 
     /// <summary>
