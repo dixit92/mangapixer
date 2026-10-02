@@ -84,7 +84,8 @@ describe('ScheduledJobsComponent', () => {
     expect(text(el, 'job-refresh-counts')).toContain('Today: 12 checked.');
     expect(text(el, 'job-refresh-counts')).toContain('3 series are past their check date.');
     expect(refresh).toContain('Checked every 2 weeks: 19, every month: 216, every 3 months: 368.');
-    expect(text(el, 'job-trash')).toContain('Off - turn automatic cleaning on in the Trash card.');
+    expect(text(el, 'job-trash')).toContain('Off: nothing is removed unless you choose "Empty trash now"');
+    expect(el.querySelector('#job-trash')).not.toBeNull();
     expect(text(el, 'job-auto-match')).toContain('Continuous - new folders within about a minute');
     expect(text(el, 'job-auto-match')).toContain('Waiting: daily budget used until midnight (server time)');
     expect(text(el, 'job-session-cleanup')).toContain('Hourly');
@@ -141,5 +142,86 @@ describe('ScheduledJobsComponent', () => {
     httpMock!.match((r) => r.url === '/api/v1/admin/libraries/lib1').forEach((r) => r.flush({ id: 'lib1', name: 'Manga', isScanning: false,
       itemCount: 1, lastScanCompleted: null, defaultReaderMode: null, icon: null, scanSchedule: '1d' }));
     expect((f.nativeElement as HTMLElement).querySelector('[role="alert"]')?.textContent).toContain('Could not save');
+  });
+
+  const trashOverview = () => ({
+    settings: { automaticCleaning: false, retentionDays: 30, allowedRetentionDays: [1, 7, 30], automaticHour: 4 },
+    windowStart: '2026-09-01T12:00:00Z',
+    libraries: [],
+    total: { nodes: 3, archives: 3, folders: 0, userStateRows: 4, files: 3, bytes: 6144 },
+    bundles: { files: 2, bytes: 4096 },
+    lastEmpty: null,
+    lastBundleClean: null,
+  });
+
+  const withTrash = (overrides: Partial<ScheduledJobDto>) => dto({ jobs: [job('trash', { hour: 4, ...overrides })] });
+
+  it('the trash row holds the automatic cleaning switch and hour (1.32.0): turning it on asks first, cancel sends nothing', () => {
+    const f = createLoaded(withTrash({ enabled: false }));
+    const el = f.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="job-trash-auto"]')).not.toBeNull();
+    expect((el.querySelector('[data-testid="job-hour-trash"]') as HTMLSelectElement).options.length).toBe(24);
+    const toggle = { checked: true };
+    f.componentInstance.onTrashToggle(true, toggle);
+    httpMock!.expectOne((r) => r.method === 'GET' && r.url === '/api/v1/admin/trash').flush(trashOverview());
+    f.detectChanges();
+    httpMock!.expectNone('/api/v1/admin/trash/settings');
+    const confirm = el.querySelector('[data-testid="job-trash-confirm"]') as HTMLElement;
+    expect(confirm.textContent).toContain('Turn automatic cleaning on?');
+    expect(confirm.textContent).toContain('Every day at 04:00 (server time)');
+    expect(confirm.textContent).toContain('The first run removes what is ready now: 3 items');
+    f.componentInstance.cancelTrashOn();
+    f.detectChanges();
+    expect(toggle.checked).toBe(false);
+    expect(el.querySelector('[data-testid="job-trash-confirm"]')).toBeNull();
+    httpMock!.expectNone('/api/v1/admin/trash/settings');
+  });
+
+  it('confirming turns it on through the trash settings endpoint, reloads the jobs and tells the Trash card', () => {
+    const f = createLoaded(withTrash({ enabled: false }));
+    const changed = vi.fn();
+    f.componentInstance.trashChanged.subscribe(changed);
+    f.componentInstance.onTrashToggle(true, { checked: true });
+    httpMock!.expectOne((r) => r.method === 'GET' && r.url === '/api/v1/admin/trash').flush(trashOverview());
+    f.componentInstance.confirmTrashOn();
+    const put = httpMock!.expectOne('/api/v1/admin/trash/settings');
+    expect(put.request.method).toBe('PUT');
+    expect(put.request.body).toEqual({ automaticCleaning: true });
+    put.flush({ ...trashOverview().settings, automaticCleaning: true });
+    httpMock!.expectOne((r) => r.method === 'GET' && r.url === URL).flush(withTrash({ enabled: true, nextRunAt: '2026-10-03T08:00:00Z' }));
+    f.detectChanges();
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(f.componentInstance.trashAsk()).toBeNull();
+    expect(text(f.nativeElement, 'job-trash')).toContain('Next run: Sat 3 Oct, 04:00');
+  });
+
+  it('turning it off saves at once, and a trash hour change tells the Trash card too', () => {
+    const f = createLoaded(withTrash({ enabled: true }));
+    const changed = vi.fn();
+    f.componentInstance.trashChanged.subscribe(changed);
+    f.componentInstance.onTrashToggle(false, { checked: false });
+    const put = httpMock!.expectOne('/api/v1/admin/trash/settings');
+    expect(put.request.body).toEqual({ automaticCleaning: false });
+    put.flush({ ...trashOverview().settings, automaticCleaning: false });
+    httpMock!.expectOne((r) => r.method === 'GET' && r.url === URL).flush(withTrash({ enabled: false }));
+    expect(changed).toHaveBeenCalledTimes(1);
+
+    f.componentInstance.setHour('trash', 22);
+    const hour = httpMock!.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/trash`);
+    expect(hour.request.body).toEqual({ hour: 22 });
+    hour.flush(withTrash({ hour: 22 }));
+    expect(changed).toHaveBeenCalledTimes(2);
+  });
+
+  it('a refused switch keeps the previous setting and says so', () => {
+    const f = createLoaded(withTrash({ enabled: true }));
+    const changed = vi.fn();
+    f.componentInstance.trashChanged.subscribe(changed);
+    f.componentInstance.onTrashToggle(false, { checked: false });
+    httpMock!.expectOne('/api/v1/admin/trash/settings').flush({ message: 'No.' }, { status: 400, statusText: 'Bad Request' });
+    f.detectChanges();
+    expect(changed).not.toHaveBeenCalled();
+    expect(f.componentInstance.busy()).toBe(false);
+    expect((f.nativeElement as HTMLElement).querySelector('[role="alert"]')).not.toBeNull();
   });
 });

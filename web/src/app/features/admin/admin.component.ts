@@ -80,11 +80,16 @@ import { TrashCardComponent } from './trash-card/trash-card.component';
     ConsentRenewalBannerComponent,
   ],
   template: `
+    <div class="page" data-testid="admin-page">
     <h2>Administration</h2>
     <app-consent-renewal-banner />
 
+    <!-- Layout (1.32.0): a responsive grid like Metadata Manager - wide cards span the row, the rest sit in two columns that
+         become one below 900px. -->
+    <div class="grid" data-testid="admin-grid">
+
     <!-- Libraries -->
-    <mat-card>
+    <mat-card class="wide">
       <mat-card-header>
         <mat-card-title>Libraries</mat-card-title>
       </mat-card-header>
@@ -327,6 +332,8 @@ import { TrashCardComponent } from './trash-card/trash-card.component';
       </mat-card-content>
     </mat-card>
 
+    <div class="col">
+
     <!-- Users -->
     <mat-card>
       <mat-card-header>
@@ -441,6 +448,48 @@ import { TrashCardComponent } from './trash-card/trash-card.component';
       </mat-card-content>
     </mat-card>
 
+    <!-- Audit trail (1.18.0): read side of the previously write-only audit store. -->
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Audit trail</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        @if (auditLoading()) {
+          <p>Loading…</p>
+        } @else if (auditEvents().length === 0) {
+          <p class="backup-info">No audit events recorded yet.</p>
+        } @else {
+          <mat-list class="audit-list">
+            @for (e of auditEvents(); track e.id) {
+              <mat-list-item>
+                <span matListItemTitle>{{ e.action }} · {{ e.result }}</span>
+                <span matListItemLine>
+                  {{ e.timestamp | date:'short' }}
+                  @if (e.actorUserName) { · by {{ e.actorUserName }} }
+                  @if (e.targetUserId !== null) { · target #{{ e.targetUserId }} }
+                </span>
+              </mat-list-item>
+            }
+          </mat-list>
+          <div class="audit-pager">
+            <button mat-stroked-button type="button"
+                    (click)="auditPrevPage()" [disabled]="auditPage() <= 1 || auditLoading()">
+              Previous
+            </button>
+            <span>Page {{ auditPage() }} of {{ auditTotalPages() }}</span>
+            <button mat-stroked-button type="button"
+                    (click)="auditNextPage()" [disabled]="auditPage() >= auditTotalPages() || auditLoading()">
+              Next
+            </button>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    </div>
+
+    <div class="col">
+
     <!-- Backups (was "Diagnostics"; the global log-level control was removed - per-category
          logging lives in the Debug Logging card, avoiding an accidental global-DEBUG log explosion) -->
     <mat-card>
@@ -518,57 +567,40 @@ import { TrashCardComponent } from './trash-card/trash-card.component';
     </mat-card>
     <app-backup-settings-card [snapshotCount]="backupFiles().length" (changed)="refreshBackups()" />
 
-    <!-- Audit trail (1.18.0): read side of the previously write-only audit store. -->
-    <mat-card>
-      <mat-card-header>
-        <mat-card-title>Audit trail</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        @if (auditLoading()) {
-          <p>Loading…</p>
-        } @else if (auditEvents().length === 0) {
-          <p class="backup-info">No audit events recorded yet.</p>
-        } @else {
-          <mat-list class="audit-list">
-            @for (e of auditEvents(); track e.id) {
-              <mat-list-item>
-                <span matListItemTitle>{{ e.action }} · {{ e.result }}</span>
-                <span matListItemLine>
-                  {{ e.timestamp | date:'short' }}
-                  @if (e.actorUserName) { · by {{ e.actorUserName }} }
-                  @if (e.targetUserId !== null) { · target #{{ e.targetUserId }} }
-                </span>
-              </mat-list-item>
-            }
-          </mat-list>
-          <div class="audit-pager">
-            <button mat-stroked-button type="button"
-                    (click)="auditPrevPage()" [disabled]="auditPage() <= 1 || auditLoading()">
-              Previous
-            </button>
-            <span>Page {{ auditPage() }} of {{ auditTotalPages() }}</span>
-            <button mat-stroked-button type="button"
-                    (click)="auditNextPage()" [disabled]="auditPage() >= auditTotalPages() || auditLoading()">
-              Next
-            </button>
-          </div>
-        }
-      </mat-card-content>
-    </mat-card>
+    </div>
 
-    <!-- Update Checker (opt-in, off by default) -->
-    <app-trash-card />
-    <app-scheduled-jobs />
-    <app-update-check-card />
+    <!-- Scheduled jobs: wide, its jobs sit in a grid of their own. Owns WHEN every automatic job runs, including automatic trash cleaning. -->
+    <app-scheduled-jobs class="wide" (trashChanged)="trash.load()" />
 
-    <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->
-    <app-analytics-card />
+    <div class="col">
+      <app-trash-card #trash />
+      <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->
+      <app-analytics-card />
+    </div>
 
-    <!-- Logging (1.17.0 DEBUGUI lane): a debugging tool, so it is the last card (owner, 2026-09-26) -->
-    <app-debug-log-card />
+    <div class="col">
+      <app-update-check-card />
+      <!-- Logging (1.17.0 DEBUGUI lane): a debugging tool, so it stays the last card (owner, 2026-09-26) -->
+      <app-debug-log-card />
+    </div>
+
+    </div>
+    </div>
   `,
   styles: [`
-    mat-card { margin-bottom: 16px; }
+    :host { display: block; }
+    /* 1.32.0 layout: the Metadata Manager's grid. Wide cards (Libraries, Scheduled jobs) span the row; the other cards sit in
+       two independent columns (so a tall card never leaves a hole next to a short one) that stack below 900px. No fixed card
+       widths: the columns share the page, which is capped so a very wide screen does not stretch lines of text. */
+    .page { max-width: 1600px; margin: 0 auto; padding-bottom: 32px; }
+    .page h2 { margin: 0 0 12px; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+    .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    .wide { grid-column: 1 / -1; min-width: 0; }
+    @media (min-width: 900px) {
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    mat-card { margin: 0; min-width: 0; }
     mat-form-field { margin-right: 12px; width: 200px; }
     mat-divider { margin: 16px 0; }
     h4 { margin: 8px 0; }

@@ -83,7 +83,8 @@ test('account menu opens Metadata Manager (/admin/metadata) with its own summary
   // reach Metadata Manager from the account menu instead, which keeps its own attention badge.
   await expect(page.getByTestId('metadata-summary-tile')).toHaveCount(0);
   await expect(page.getByTestId('metadata-settings-card')).toHaveCount(0); // the card moved
-  const lastCard = await page.locator('app-admin').evaluate((el) => el.lastElementChild?.tagName.toLowerCase());
+  // The grid's last column ends with the Debug Logging card (a debugging tool, the last card; owner, 2026-09-26).
+  const lastCard = await page.getByTestId('admin-grid').evaluate((el) => el.lastElementChild?.lastElementChild?.tagName.toLowerCase());
   expect(lastCard).toBe('app-debug-log-card');
 
   await page.locator('button', { has: page.getByTestId('admin-attention-badge') }).click();

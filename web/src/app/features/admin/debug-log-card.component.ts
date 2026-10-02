@@ -99,7 +99,8 @@ export const INHERIT = '';
     </mat-card>
   `,
   styles: [`
-    mat-card { margin-bottom: 16px; }
+    :host { display: block; min-width: 0; }
+    mat-card { margin: 0; }
     .global-row { margin-bottom: 4px; }
     .global-row mat-form-field { width: 260px; }
     .scope-note { color: #999; font-size: 13px; margin: 0 0 12px; }
