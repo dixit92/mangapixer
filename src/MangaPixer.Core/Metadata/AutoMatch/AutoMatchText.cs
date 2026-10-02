@@ -42,11 +42,16 @@ public static partial class AutoMatchText
     /// Category folder words (1.27.0: the ONE category list, shared with the server's tree snapshot): a folder
     /// named exactly one of these (whole name, case-insensitive) is the category hint of the folders below it.
     /// <c>manga</c> / <c>manhwa</c> / <c>manhua</c> / <c>webtoon(s)</c> also name an origin
-    /// (<see cref="OriginsForCategory"/>); the hint only ever ADDS evidence (owner option a', 2026-09-27).
+    /// (<see cref="OriginsForCategory"/>); the hint only ever ADDS evidence (owner option a', 2026-09-27). 1.32.0: the comics
+    /// words (<see cref="ComicsSignals.CategoryWords"/>: comic books, graphic novel(s), BD, bande(s) dessinee(s), fumetti, tebeos,
+    /// historietas, stripboeken, US comics, European comics, eurocomics) - accents do not matter (<c>Bandes dessinées</c>).
+    /// Not words on purpose (too ambiguous): strips, albums, webcomics.
     /// </summary>
     public static IReadOnlySet<string> CategoryFolderWords { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "manga", "manhwa", "manhua", "webtoon", "webtoons", "comic", "comics", "doujin", "doujinshi",
+        "comic books", "graphic novel", "graphic novels", "bd", "bande dessinee", "bandes dessinees", "fumetti", "tebeos",
+        "historietas", "stripboeken", "us comics", "european comics", "eurocomics",
     };
 
     /// <summary>
@@ -66,7 +71,17 @@ public static partial class AutoMatchText
         new(CategoryFolderWords.Concat(ShelfWords).Select(TitleNormalizer.ScoringForm), StringComparer.Ordinal);
 
     /// <summary>True when a folder name, whole and trimmed, is a category folder word (the library root is never asked).</summary>
-    public static bool IsCategoryFolderName(string? name) => name is not null && CategoryFolderWords.Contains(name.Trim());
+    public static bool IsCategoryFolderName(string? name) =>
+        name is not null && (CategoryFolderWords.Contains(name.Trim()) || CategoryFolderWords.Contains(WithoutAccents(name.Trim())));
+
+    private static string WithoutAccents(string s)
+    {
+        var sb = new StringBuilder(s.Length);
+        foreach (var ch in s.Normalize(NormalizationForm.FormD))
+            if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
+                sb.Append(ch);
+        return sb.ToString().Normalize(NormalizationForm.FormC);
+    }
 
     /// <summary>True when the name is a unit subfolder (<c>Volumes</c>, <c>Chapters 1-50</c>, <c>Season 2</c>, <c>Part 3</c>, <c>12</c>).</summary>
     public static bool IsUnitFolderName(string? name)
@@ -529,8 +544,10 @@ public static partial class AutoMatchText
 
     /// <summary>
     /// The origins a category hint allows: <c>manga</c> -> Japan, <c>manhwa</c> -> Korea,
-    /// <c>manhua</c> -> China/Taiwan, <c>webtoon(s)</c> -> Korea or China/Taiwan. Null when the
-    /// hint says nothing about origin.
+    /// <c>manhua</c> -> China/Taiwan, <c>webtoon(s)</c> -> Korea or China/Taiwan; 1.32.0 comics words by language:
+    /// <c>bd</c> / <c>bande(s) dessinee(s)</c> -> French (which covers Belgium), <c>tebeos</c> / <c>historietas</c> -> Spanish,
+    /// <c>fumetti</c> -> Italian, <c>stripboeken</c> -> Dutch, <c>us comics</c> -> English-original (no US / UK split). Null when
+    /// the hint says nothing about origin (<c>comics</c>, <c>graphic novels</c>, <c>european comics</c>...).
     /// </summary>
     public static IReadOnlySet<MetadataOrigin>? OriginsForCategory(string? categoryHint) =>
         TitleNormalizer.ScoringForm(categoryHint) switch
@@ -539,6 +556,11 @@ public static partial class AutoMatchText
             "manhwa" or "korean manhwa" => new HashSet<MetadataOrigin> { MetadataOrigin.Korea },
             "manhua" or "chinese manhua" => new HashSet<MetadataOrigin> { MetadataOrigin.ChinaTaiwan },
             "webtoon" or "webtoons" => new HashSet<MetadataOrigin> { MetadataOrigin.Korea, MetadataOrigin.ChinaTaiwan },
+            "bd" or "bande dessinee" or "bandes dessinees" => new HashSet<MetadataOrigin> { MetadataOrigin.French },
+            "tebeos" or "historietas" => new HashSet<MetadataOrigin> { MetadataOrigin.Spanish },
+            "fumetti" => new HashSet<MetadataOrigin> { MetadataOrigin.Italian },
+            "stripboeken" => new HashSet<MetadataOrigin> { MetadataOrigin.Dutch },
+            "us comics" => new HashSet<MetadataOrigin> { MetadataOrigin.EnglishOriginal },
             _ => null,
         };
 
