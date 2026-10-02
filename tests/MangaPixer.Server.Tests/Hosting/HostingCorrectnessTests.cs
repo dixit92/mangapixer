@@ -330,11 +330,13 @@ public sealed class HostingCorrectnessTests
 public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepixer.mangapixer.Server.Program>
 {
     private readonly CollectingSink _sink;
+    private readonly Serilog.Core.ILogEventSink? _extraSink;
     private readonly string _tempRoot;
 
-    public C00WebApplicationFactory(CollectingSink sink)
+    public C00WebApplicationFactory(CollectingSink sink, Serilog.Core.ILogEventSink? extraSink = null)
     {
         _sink = sink;
+        _extraSink = extraSink;
         _tempRoot = Path.Combine(Path.GetTempPath(), "mangapixer-c00-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(Path.Combine(_tempRoot, "data"));
         Directory.CreateDirectory(Path.Combine(_tempRoot, "cache"));
@@ -384,10 +386,13 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
 
             // Wrap the host's own logger (not a process-global) so everything the host logs also reaches our
             // collecting sink; see TestHostLogging.
-            TestHostLogging.Wrap(services, inner => new LoggerConfiguration()
-                .WriteTo.Sink(_sink)
-                .WriteTo.Logger(inner)
-                .CreateLogger());
+            TestHostLogging.Wrap(services, inner =>
+            {
+                var cfg = new LoggerConfiguration().WriteTo.Sink(_sink);
+                if (_extraSink is not null)
+                    cfg.WriteTo.Sink(_extraSink);
+                return cfg.WriteTo.Logger(inner).CreateLogger();
+            });
         });
     }
 
